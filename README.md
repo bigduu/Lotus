@@ -1,91 +1,100 @@
 # Lotus Frontend
 
-Lotus is the standalone React/Vite frontend for the Bodhi desktop shell and Bamboo HTTP backend.
+Lotus is a standalone React + Vite frontend project. It is the UI asset source for the Bodhi desktop shell and also supports browser-mode development and testing.
 
-## What Lotus Owns
+## Ownership
 
-- Frontend UI (`src/`)
-- Frontend unit/integration tests (Vitest)
-- End-to-end browser tests (`e2e/`, Playwright)
+- Frontend UI and interaction logic: `src/`
+- Frontend unit/integration tests: Vitest
+- Browser E2E tests: Playwright (`e2e/`)
+- npm distribution artifact: `dist/` (package name: `@bigduu/lotus`)
 
-## Related Projects
-
-- `bodhi/`: Tauri shell and native desktop integrations
-- `bamboo/`: Rust HTTP backend (`bamboo serve`)
+Related projects:
+- `bodhi/`: Tauri desktop shell that consumes Lotus build output
+- `bamboo/`: Rust backend service
 
 ## Prerequisites
 
-- Node.js (LTS)
+- Node.js LTS (recommended: 20+)
 - npm
-- Rust (for running the backend locally during integration/E2E)
+- Rust (required only when integrating with bamboo or running some E2E flows)
 
-## Install
+## Quick Start
 
 ```bash
 cd lotus
 npm install
-```
-
-## Development
-
-### Frontend only
-
-```bash
-cd lotus
 npm run dev
 ```
 
-### Frontend + real backend
+## Common Commands
+
+```bash
+npm run dev               # local development
+npm run type-check        # TypeScript checks
+npm run test:run          # run Vitest once
+npm run test:e2e          # run Playwright E2E
+npm run build             # build dist
+npm run pack:dry-run      # inspect npm package contents
+```
+
+## Integrate with Bamboo
 
 Terminal 1:
+
 ```bash
 cd bamboo
 cargo run --bin bamboo -- serve --port 9562 --bind 127.0.0.1 --data-dir /tmp/bamboo-data
 ```
 
 Terminal 2:
+
 ```bash
 cd lotus
 npm run dev
 ```
 
-## Build
+## npm Publishing (@bigduu/lotus)
+
+`package.json` is configured with:
+- package name: `@bigduu/lotus`
+- `publishConfig.access`: `public`
+- `prepack`: automatically runs `npm run build` before publish
+
+Manual local publish:
 
 ```bash
 cd lotus
-npm run build
+npm version patch
+npm publish
 ```
 
-## Tests
+## GitHub Actions Auto Publish
 
-### Unit/integration (Vitest)
+Workflow file: `.github/workflows/publish-npm.yml`
 
-```bash
-cd lotus
-npm run test:run
-```
+Triggers:
+- Tag push: `v*` or `lotus-v*`
+- Manual trigger: `workflow_dispatch`
 
-### E2E (Playwright)
+### npm Auth in Actions
 
-```bash
-cd lotus
-npm run test:e2e
-```
+Do not use interactive `npm login` in CI. Use an npm token:
 
-### E2E with auto-started backend
-
-```bash
-cd lotus
-npm run test:e2e:with-server
-```
+1. Create an npm access token that can publish `@bigduu/lotus`.
+2. In GitHub repo settings, open `Settings -> Secrets and variables -> Actions`.
+3. Add a repository secret named `NPM_TOKEN`.
+4. The workflow authenticates with `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}`.
 
 ## Project Structure
 
 ```text
 lotus/
-├── src/                    # React app
-├── e2e/                    # Playwright tests
-├── scripts/                # Build/rebrand tooling
-├── public/                 # Static assets
-└── vite.config.ts          # Vite config
+├── src/                       # React application source
+├── e2e/                       # Playwright tests
+├── scripts/                   # build/branding scripts
+├── public/                    # static assets
+├── .github/workflows/         # CI/CD
+├── vite.config.ts             # Vite configuration
+└── package.json               # package metadata and scripts
 ```
