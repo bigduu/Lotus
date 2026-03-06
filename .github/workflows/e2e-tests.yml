@@ -1,0 +1,90 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'e2e/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/e2e-tests.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'e2e/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/e2e-tests.yml'
+
+jobs:
+  test-browser-mode:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout Bamboo backend
+        uses: actions/checkout@v4
+        with:
+          repository: bigduu/Bamboo-agent
+          path: bamboo-backend
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install E2E dependencies
+        run: npm --prefix ./e2e ci
+
+      - name: Install Playwright browsers
+        run: cd e2e && npx playwright install --with-deps chromium
+
+      - name: Build backend for E2E
+        run: cargo build --manifest-path bamboo-backend/Cargo.toml --release --bin bamboo
+
+      - name: Start backend
+        run: |
+          ./bamboo-backend/target/release/bamboo serve --port 9562 --bind 127.0.0.1 --data-dir /tmp/test-data &
+          echo "Waiting for backend to be healthy..."
+          for i in {1..30}; do
+            if curl -f http://127.0.0.1:9562/api/v1/health 2>/dev/null; then
+              echo "Backend is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/30: Backend not ready yet..."
+            sleep 2
+          done
+          echo "Backend health check failed"
+          exit 1
+
+      - name: Start frontend preview
+        run: |
+          npm run preview -- --host 127.0.0.1 --port 1420 &
+          sleep 5
+
+      - name: Run E2E tests
+        run: npm run test:e2e:browser
+        env:
+          E2E_BASE_URL: http://127.0.0.1:1420
+          E2E_API_URL: http://127.0.0.1:9562
+          E2E_SUITE: browser
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-browser
+          path: e2e/playwright-report/
