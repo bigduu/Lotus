@@ -21,6 +21,10 @@ on:
 jobs:
   test-browser-mode:
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_AUDIT: "false"
+      NPM_CONFIG_FUND: "false"
+      NPM_CONFIG_PROGRESS: "false"
 
     steps:
       - uses: actions/checkout@v4
@@ -36,20 +40,47 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            e2e/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache frontend node_modules
+        id: cache-node-modules-frontend
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
+
       - name: Install frontend dependencies
-        run: npm ci
+        if: steps.cache-node-modules-frontend.outputs.cache-hit != 'true'
+        run: npm ci --prefer-offline --no-audit
 
       - name: Build frontend
         run: npm run build
 
+      - name: Cache E2E node_modules
+        id: cache-node-modules-e2e
+        uses: actions/cache@v4
+        with:
+          path: e2e/node_modules
+          key: ${{ runner.os }}-e2e-node-modules-${{ hashFiles('e2e/package-lock.json') }}
+
       - name: Install E2E dependencies
-        run: npm --prefix ./e2e ci
+        if: steps.cache-node-modules-e2e.outputs.cache-hit != 'true'
+        run: npm --prefix ./e2e ci --prefer-offline --no-audit
+
+      - name: Cache Playwright browsers
+        id: cache-playwright
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
 
       - name: Install Playwright browsers
+        if: steps.cache-playwright.outputs.cache-hit != 'true'
         run: cd e2e && npx playwright install --with-deps chromium
 
       - name: Build backend for E2E
