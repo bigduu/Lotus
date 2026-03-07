@@ -8,7 +8,11 @@ const host = process.env.TAURI_DEV_HOST;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
-export default defineConfig(async () => ({
+export default defineConfig(async ({ command }) => ({
+  // Use relative asset URLs for production bundles so Tauri can load them
+  // regardless of whether runtime uses custom protocol or file scheme.
+  base: command === "serve" ? "/" : "./",
+
   plugins: [react()],
 
   resolve: {
@@ -31,25 +35,6 @@ export default defineConfig(async () => ({
     rollupOptions: {
       input: {
         main: "index.html",
-      },
-      output: {
-        manualChunks(id) {
-          // Separate dependencies from node_modules into vendor chunks
-          if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom')) {
-              return 'vendor-react';
-            }
-            if (id.includes('antd')) {
-              return 'vendor-ui';
-            }
-            if (id.includes('mermaid')) {
-              return 'vendor-chart';
-            }
-            if (id.includes('jspdf') || id.includes('html2canvas')) {
-              return 'vendor-pdf';
-            }
-          }
-        },
       },
     },
   },

@@ -8,7 +8,85 @@
   </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div
+        id="boot-status"
+        style="
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          height:100vh;
+          padding:24px;
+          font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+          color:#0f0f0f;
+          background:#f6f6f6;
+        "
+      >
+        Starting Bodhi UI...
+      </div>
+    </div>
+    <script>
+      (function () {
+        var statusEl = document.getElementById("boot-status");
+        var setStatus = function (message) {
+          if (!statusEl || !statusEl.isConnected) return;
+          statusEl.textContent = message;
+        };
+        var moduleScript = document.querySelector('script[type="module"][src]');
+        var moduleSrc =
+          moduleScript && moduleScript.getAttribute("src")
+            ? new URL(moduleScript.getAttribute("src"), location.href).href
+            : "(missing)";
+
+        window.__BODHI_BOOT_STATUS__ = {
+          setStatus: setStatus,
+        };
+
+        setTimeout(function () {
+          setStatus(
+            "Bodhi UI is still loading. href=" +
+              location.href +
+              " module=" +
+              moduleSrc,
+          );
+        }, 5000);
+
+        window.addEventListener(
+          "error",
+          function (event) {
+            if (event && event.message) {
+              var file = event.filename || "(unknown file)";
+              var line = event.lineno || 0;
+              var col = event.colno || 0;
+              setStatus(
+                "Startup error: " +
+                  event.message +
+                  " at " +
+                  file +
+                  ":" +
+                  line +
+                  ":" +
+                  col,
+              );
+              return;
+            }
+
+            var target = event && event.target;
+            if (target && target.tagName === "SCRIPT" && target.src) {
+              setStatus("Failed to load script: " + target.src);
+            }
+          },
+          true,
+        );
+
+        window.addEventListener("unhandledrejection", function (event) {
+          var reason = event && event.reason;
+          var message =
+            reason && reason.message ? reason.message : String(reason || "unknown");
+          setStatus("Startup error: " + message);
+        });
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

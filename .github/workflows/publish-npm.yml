@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Override package version to publish (for example: 2026.3.9). Leave empty or 'latest' to use package.json."
+        description: "Override package version to publish (for example: 2026.3.11). Leave empty or 'latest' to use package.json."
         required: false
         default: ""
         type: string
