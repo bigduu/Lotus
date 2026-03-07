@@ -3,6 +3,11 @@ name: Publish NPM Package
 on:
   workflow_dispatch:
     inputs:
+      version:
+        description: "Override package version to publish (for example: 2026.3.9). Leave empty or 'latest' to use package.json."
+        required: false
+        default: ""
+        type: string
       skip_tests:
         description: "Skip npm run test:run (use only if CI has already passed)"
         required: false
@@ -51,6 +56,13 @@ jobs:
       - name: Install dependencies
         if: steps.cache-node-modules.outputs.cache-hit != 'true'
         run: npm ci --prefer-offline --no-audit
+
+      - name: Set package version (workflow override)
+        if: github.event.inputs.version != '' && github.event.inputs.version != 'latest'
+        run: |
+          TARGET_VERSION="${{ github.event.inputs.version }}"
+          npm version "${TARGET_VERSION}" --no-git-tag-version --allow-same-version
+          echo "Using package version override: $(node -p "require('./package.json').version")"
 
       - name: Type check
         run: npm run type-check
