@@ -2,6 +2,12 @@ name: Publish NPM Package
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "Skip npm run test:run (use only if CI has already passed)"
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - "v*"
@@ -41,6 +47,7 @@ jobs:
         run: npm run type-check
 
       - name: Run tests
+        if: github.event_name != 'workflow_dispatch' || github.event.inputs.skip_tests != 'true'
         run: npm run test:run
 
       - name: Verify tag matches package version
