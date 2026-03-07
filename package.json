@@ -4,6 +4,10 @@
   "version": "2026.3.8",
   "description": "Standalone Lotus frontend assets for Bodhi shell and web runtime.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bigduu/Lotus"
+  },
   "publishConfig": {
     "access": "public"
   },
