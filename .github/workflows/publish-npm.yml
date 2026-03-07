@@ -64,6 +64,23 @@ jobs:
         run: npm pack --dry-run
 
       - name: Publish to npm
-        run: npm publish --provenance --access public
+        run: |
+          set +e
+          PUBLISH_OUTPUT="$(npm publish --provenance --access public 2>&1)"
+          STATUS=$?
+          set -e
+
+          echo "${PUBLISH_OUTPUT}"
+
+          if [ ${STATUS} -eq 0 ]; then
+            exit 0
+          fi
+
+          if echo "${PUBLISH_OUTPUT}" | grep -q "You cannot publish over the previously published versions"; then
+            echo "Package version is already published on npm. Treating as success."
+            exit 0
+          fi
+
+          exit ${STATUS}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
