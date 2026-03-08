@@ -15,6 +15,10 @@ import {
   isTodoEnhancementEnabled,
   setTodoEnhancementEnabled,
 } from "../../../../shared/utils/todoEnhancementUtils";
+import {
+  isCopilotAskUserEnhancementEnabled,
+  setCopilotAskUserEnhancementEnabled,
+} from "../../../../shared/utils/copilotAskUserEnhancementUtils";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
@@ -28,6 +32,8 @@ import SystemSettingsSchedulesTab from "./SystemSettingsSchedulesTab";
 import SystemSettingsSessionsTab from "./SystemSettingsSessionsTab";
 import { ProviderSettings } from "../ProviderSettings";
 import { SkillManager } from "../../../../components/Skill";
+import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
+import ModelLimitsSettings from "../../ModelLimitsSettings";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -60,6 +66,12 @@ const SystemSettingsPage = ({
   const [todoEnhancementEnabled, setTodoEnhancementEnabledState] = useState(
     isTodoEnhancementEnabled(),
   );
+  const [
+    copilotAskUserEnhancementEnabled,
+    setCopilotAskUserEnhancementEnabledState,
+  ] = useState(isCopilotAskUserEnhancementEnabled());
+  const currentProvider = useProviderStore((state) => state.currentProvider);
+  const showCopilotAskUserEnhancement = currentProvider === "copilot";
 
   const handleDeleteAll = () => {
     void deleteAllUnpinnedChats();
@@ -134,10 +146,18 @@ const SystemSettingsPage = ({
     setTodoEnhancementEnabled(checked);
   };
 
+  const handleCopilotAskUserToggle = (checked: boolean) => {
+    setCopilotAskUserEnhancementEnabledState(checked);
+    setCopilotAskUserEnhancementEnabled(checked);
+  };
+
   useEffect(() => {
     setPromptEnhancement(getSystemPromptEnhancement());
     setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
     setTodoEnhancementEnabledState(isTodoEnhancementEnabled());
+    setCopilotAskUserEnhancementEnabledState(
+      isCopilotAskUserEnhancementEnabled(),
+    );
   }, []);
 
   return (
@@ -190,8 +210,13 @@ const SystemSettingsPage = ({
                   onPromptEnhancementChange={setPromptEnhancement}
                   mermaidEnhancementEnabled={mermaidEnhancementEnabled}
                   todoEnhancementEnabled={todoEnhancementEnabled}
+                  showCopilotAskUserEnhancement={showCopilotAskUserEnhancement}
+                  copilotAskUserEnhancementEnabled={
+                    copilotAskUserEnhancementEnabled
+                  }
                   onMermaidToggle={handleMermaidToggle}
                   onTodoToggle={handleTodoToggle}
+                  onCopilotAskUserToggle={handleCopilotAskUserToggle}
                   onSaveEnhancement={handleSaveEnhancement}
                 />
               ),
@@ -215,6 +240,11 @@ const SystemSettingsPage = ({
               key: "mcp",
               label: "MCP",
               children: <SystemSettingsMcpTab />,
+            },
+            {
+              key: "model-limits",
+              label: "Model Limits",
+              children: <ModelLimitsSettings />,
             },
             {
               key: "metrics",

@@ -97,11 +97,89 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({
   );
 };
 
+const MERMAID_LANGUAGE_HEADERS: Record<string, string> = {
+  mermaid: "mermaid",
+  graph: "graph TD",
+  flowchart: "flowchart TD",
+  sequencediagram: "sequenceDiagram",
+  classdiagram: "classDiagram",
+  statediagram: "stateDiagram-v2",
+  "statediagram-v2": "stateDiagram-v2",
+  erdiagram: "erDiagram",
+  journey: "journey",
+  gantt: "gantt",
+  pie: "pie",
+  gitgraph: "gitGraph",
+  mindmap: "mindmap",
+  timeline: "timeline",
+  quadrantchart: "quadrantChart",
+  requirementdiagram: "requirementDiagram",
+  c4context: "C4Context",
+  c4container: "C4Container",
+  c4component: "C4Component",
+  c4dynamic: "C4Dynamic",
+  c4deployment: "C4Deployment",
+  sankey: "sankey-beta",
+  "sankey-beta": "sankey-beta",
+  xychart: "xychart-beta",
+  "xychart-beta": "xychart-beta",
+  block: "block-beta",
+  "block-beta": "block-beta",
+  packet: "packet-beta",
+  "packet-beta": "packet-beta",
+  kanban: "kanban",
+  architecture: "architecture",
+};
+
+const MERMAID_INIT_RE = /^(\s*%%\{[\s\S]*?\}%%\s*)+/;
+const MERMAID_HEADER_RE =
+  /^(graph|flowchart|sequencediagram|classdiagram|statediagram(?:-v2)?|erdiagram|journey|gantt|pie|gitgraph|mindmap|timeline|quadrantchart|requirementdiagram|c4context|c4container|c4component|c4dynamic|c4deployment|sankey-beta|xychart-beta|block-beta|packet-beta|kanban|architecture)\b/i;
+
+const stripMermaidDirectives = (input: string) =>
+  input.replace(MERMAID_INIT_RE, "").trimStart();
+
+const prependMermaidHeader = (input: string, header: string) => {
+  const directiveMatch = input.match(MERMAID_INIT_RE);
+  if (!directiveMatch) {
+    return `${header}\n${input}`.trim();
+  }
+
+  const directiveBlock = directiveMatch[0].trimEnd();
+  const rest = input.slice(directiveMatch[0].length).trimStart();
+  if (!rest) {
+    return `${directiveBlock}\n${header}`;
+  }
+  return `${directiveBlock}\n${header}\n${rest}`;
+};
+
+const toMermaidChart = (language: string, codeString: string): string | null => {
+  const header = MERMAID_LANGUAGE_HEADERS[language];
+  if (!header) {
+    return null;
+  }
+
+  const trimmed = codeString.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (language === "mermaid") {
+    return trimmed;
+  }
+
+  const body = stripMermaidDirectives(trimmed);
+  if (MERMAID_HEADER_RE.test(body)) {
+    return trimmed;
+  }
+
+  return prependMermaidHeader(trimmed, header);
+};
+
 export const renderCodeBlock = (
   language: string,
   codeString: string,
   token: any,
-  onFixMermaid?: (chart: string) => Promise<void> | void,
+  onFixMermaid?: (chart: string, renderError?: string) => Promise<void> | void,
 ) => {
   try {
     if (!codeString || typeof codeString !== "string") {
@@ -112,10 +190,11 @@ export const renderCodeBlock = (
       return null;
     }
 
-    const normalizedLanguage = language.toLowerCase();
+    const normalizedLanguage = language.toLowerCase().trim();
+    const mermaidChart = toMermaidChart(normalizedLanguage, codeString);
 
-    if (normalizedLanguage === "mermaid") {
-      const trimmedChart = codeString.trim();
+    if (mermaidChart !== null) {
+      const trimmedChart = mermaidChart.trim();
       if (!trimmedChart) {
         console.warn("Empty Mermaid chart content");
         return null;

@@ -10,6 +10,7 @@ import { buildRequestMessages } from "./openAiMessageMapping";
 import { streamOpenAIWithTools } from "./openAiStreamingRunner";
 import type OpenAI from "openai";
 import { useActiveModel } from "../useActiveModel";
+import { useProviderStore } from "../../store/slices/providerSlice";
 
 export interface UseChatOpenAIStreaming {
   sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
@@ -34,6 +35,7 @@ export function useChatOpenAIStreaming(
   const streamingContentRef = useRef<string>("");
   const skills = useAppStore((state) => state.skills);
   const activeModel = useActiveModel();
+  const currentProvider = useProviderStore((state) => state.currentProvider);
 
   // Clear tools cache when enabled skills change
   useEffect(() => {
@@ -72,10 +74,12 @@ export function useChatOpenAIStreaming(
         messages,
         deps.currentChat?.config?.baseSystemPrompt || "",
         deps.currentChat?.config?.workspacePath,
+        currentProvider,
       ),
     [
       deps.currentChat?.config?.baseSystemPrompt,
       deps.currentChat?.config?.workspacePath,
+      currentProvider,
     ],
   );
 

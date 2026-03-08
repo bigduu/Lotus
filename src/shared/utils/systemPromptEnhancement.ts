@@ -7,6 +7,10 @@ import {
   isTodoEnhancementEnabled,
 } from "./todoEnhancementUtils";
 import { getOSInfoEnhancementPrompt } from "./osInfoUtils";
+import {
+  getCopilotAskUserEnhancementPrompt,
+  isCopilotAskUserEnhancementEnabled,
+} from "./copilotAskUserEnhancementUtils";
 
 const SYSTEM_PROMPT_ENHANCEMENT_KEY = "bamboo_system_prompt_enhancement";
 
@@ -59,7 +63,9 @@ export const setSystemPromptEnhancement = (value: string): void => {
   }
 };
 
-export const getSystemPromptEnhancementPipeline = (): string[] => {
+export const getSystemPromptEnhancementPipeline = (
+  currentProvider?: string,
+): string[] => {
   const pipeline: string[] = [];
 
   // OS info enhancement is ALWAYS included first (user cannot disable)
@@ -79,11 +85,16 @@ export const getSystemPromptEnhancementPipeline = (): string[] => {
     pipeline.push(getTodoEnhancementPrompt().trim());
   }
 
+  const normalizedProvider = (currentProvider ?? "").trim().toLowerCase();
+  if (normalizedProvider === "copilot" && isCopilotAskUserEnhancementEnabled()) {
+    pipeline.push(getCopilotAskUserEnhancementPrompt().trim());
+  }
+
   return pipeline;
 };
 
-export const getSystemPromptEnhancementText = (): string => {
-  return joinPromptSegments(getSystemPromptEnhancementPipeline());
+export const getSystemPromptEnhancementText = (currentProvider?: string): string => {
+  return joinPromptSegments(getSystemPromptEnhancementPipeline(currentProvider));
 };
 
 export const buildEnhancedSystemPrompt = (
@@ -96,10 +107,11 @@ export const buildEnhancedSystemPrompt = (
 export const getEffectiveSystemPrompt = (
   basePrompt: string,
   workspacePath?: string,
+  currentProvider?: string,
 ): string => {
   const enhanced = buildEnhancedSystemPrompt(
     basePrompt,
-    getSystemPromptEnhancementText(),
+    getSystemPromptEnhancementText(currentProvider),
   );
   return appendPromptSegment(
     enhanced,

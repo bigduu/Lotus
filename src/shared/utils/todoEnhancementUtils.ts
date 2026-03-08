@@ -9,5 +9,5 @@ export const setTodoEnhancementEnabled = (enabled: boolean): void => {
 };
 
 export const getTodoEnhancementPrompt = (): string => {
-  return `\n\n## Task Checklist Guidelines\n\nWhen the user request involves multiple steps, include a Markdown TODO list to outline the work.\nUse Markdown task list items with \"- [ ]\" checkboxes, and keep each item short.\nOnly include a TODO list for multi-step tasks; skip it for simple, single-step requests.\n`;
+  return `\n\n## Task Management Rules\n\nUse the TodoWrite tool for non-trivial or multi-step tasks.\nKeep exactly one item in \`in_progress\` state whenever possible.\nUpdate TodoWrite immediately when a step starts or completes; do not batch status updates.\nDo not use Markdown checkbox lists as a substitute for TodoWrite.\nSkip TodoWrite only for simple one-step requests.\n`;
 };

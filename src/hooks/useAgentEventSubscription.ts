@@ -20,6 +20,16 @@ type SubscriptionEntry = {
 const isAbortError = (err: unknown) =>
   (err as any)?.name === "AbortError" || (err as any)?.code === 20;
 
+const MAX_TODO_EVALUATION_REASONING_CHARS = 220;
+
+const compactEvaluationReasoning = (reasoning: string): string => {
+  const normalized = reasoning.replace(/\s+/g, " ").trim();
+  if (normalized.length <= MAX_TODO_EVALUATION_REASONING_CHARS) {
+    return normalized;
+  }
+  return `${normalized.slice(0, MAX_TODO_EVALUATION_REASONING_CHARS)}...`;
+};
+
 export function useAgentEventSubscription() {
   const processingChats = useAppStore((state) => state.processingChats);
 
@@ -33,9 +43,6 @@ export function useAgentEventSubscription() {
   const setTodoList = useAppStore((state) => state.setTodoList);
   const updateTodoListDelta = useAppStore((state) => state.updateTodoListDelta);
   const setEvaluationState = useAppStore((state) => state.setEvaluationState);
-  const clearEvaluationState = useAppStore(
-    (state) => state.clearEvaluationState,
-  );
   const upsertSubSessionProgress = useAppStore(
     (state) => state.upsertSubSessionProgress,
   );
@@ -313,18 +320,17 @@ export function useAgentEventSubscription() {
             },
 
             onTodoEvaluationCompleted: (sid, updatesCount, reasoning) => {
+              const compactReasoning = compactEvaluationReasoning(reasoning);
               setEvaluationState(sid, {
                 isEvaluating: false,
-                reasoning,
+                reasoning: updatesCount > 0 ? compactReasoning : null,
                 timestamp: Date.now(),
               });
 
-              setTimeout(() => clearEvaluationState(sid), 5000);
-
               if (updatesCount > 0) {
                 message.success(
-                  `Evaluation complete: ${updatesCount} task(s) updated. ${reasoning}`,
-                  4,
+                  `Evaluation complete: ${updatesCount} task(s) updated.`,
+                  3,
                 );
               } else {
                 message.info(`Evaluation complete: No updates needed`, 2);
@@ -566,7 +572,6 @@ export function useAgentEventSubscription() {
       setTodoList,
       updateTodoListDelta,
       setEvaluationState,
-      clearEvaluationState,
       cleanupChat,
       clearReconnect,
     ],

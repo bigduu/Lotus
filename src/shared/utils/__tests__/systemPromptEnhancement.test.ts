@@ -15,6 +15,10 @@ import {
   getTodoEnhancementPrompt,
   setTodoEnhancementEnabled,
 } from "../todoEnhancementUtils";
+import {
+  getCopilotAskUserEnhancementPrompt,
+  setCopilotAskUserEnhancementEnabled,
+} from "../copilotAskUserEnhancementUtils";
 import { getOSInfoEnhancementPrompt } from "../osInfoUtils";
 
 describe("systemPromptEnhancement", () => {
@@ -22,6 +26,7 @@ describe("systemPromptEnhancement", () => {
     localStorage.clear();
     setMermaidEnhancementEnabled(false);
     setTodoEnhancementEnabled(false);
+    setCopilotAskUserEnhancementEnabled(false);
   });
 
   it("returns base prompt when enhancement is empty", () => {
@@ -161,5 +166,19 @@ describe("systemPromptEnhancement", () => {
     const osIndex = enhancementText.indexOf("Operating System Information");
     const userIndex = enhancementText.indexOf("User enhancement");
     expect(osIndex).toBeLessThan(userIndex);
+  });
+
+  it("adds ask_user rule only for copilot provider when enabled", () => {
+    setCopilotAskUserEnhancementEnabled(true);
+
+    expect(getSystemPromptEnhancementText("copilot")).toContain(
+      getCopilotAskUserEnhancementPrompt().trim(),
+    );
+    expect(getSystemPromptEnhancementText("openai")).not.toContain(
+      getCopilotAskUserEnhancementPrompt().trim(),
+    );
+    expect(getSystemPromptEnhancementText()).not.toContain(
+      getCopilotAskUserEnhancementPrompt().trim(),
+    );
   });
 });

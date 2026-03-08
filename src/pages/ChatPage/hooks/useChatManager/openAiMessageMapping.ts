@@ -82,10 +82,12 @@ export const buildRequestMessages = (
   messages: Message[],
   baseSystemPrompt: string,
   workspacePath?: string,
+  currentProvider?: string,
 ): OpenAI.Chat.Completions.ChatCompletionMessageParam[] => {
   const systemPrompt = getEffectiveSystemPrompt(
     baseSystemPrompt || "",
     workspacePath,
+    currentProvider,
   );
   const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
     [];

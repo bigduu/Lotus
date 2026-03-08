@@ -7,7 +7,7 @@ const { Text } = Typography;
 export const createMarkdownComponents = (
   token: any,
   options?: {
-    onFixMermaid?: (chart: string) => Promise<void> | void;
+    onFixMermaid?: (chart: string, renderError?: string) => Promise<void> | void;
   },
 ): Components => ({
   p: ({ children }) => (

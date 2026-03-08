@@ -12,7 +12,7 @@ export interface MermaidChartProps {
   id?: string;
   className?: string;
   style?: React.CSSProperties;
-  onFix?: (chart: string) => Promise<void> | void;
+  onFix?: (chart: string, renderError?: string) => Promise<void> | void;
 }
 
 export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
@@ -48,7 +48,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
       setIsFixing(true);
       setFixError("");
       try {
-        await onFix(chart);
+        await onFix(chart, error);
       } catch (fixErr) {
         const message =
           fixErr instanceof Error ? fixErr.message : String(fixErr);

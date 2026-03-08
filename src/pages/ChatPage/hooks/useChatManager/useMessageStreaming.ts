@@ -7,6 +7,7 @@ import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { useAppStore } from "../../store";
 import { getSystemPromptEnhancementText } from "@shared/utils/systemPromptEnhancement";
 import { useActiveModel } from "../useActiveModel";
+import { useProviderStore } from "../../store/slices/providerSlice";
 
 export interface UseMessageStreaming {
   sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
@@ -47,6 +48,7 @@ export function useMessageStreaming(
     (state) => state.startAgentHealthCheck,
   );
   const activeModel = useActiveModel();
+  const currentProvider = useProviderStore((state) => state.currentProvider);
 
   // Fetch chat internally based on chatId
   const currentChat = useAppStore((state) =>
@@ -90,7 +92,8 @@ export function useMessageStreaming(
       abortRef.current = controller;
 
       try {
-        const enhancePrompt = getSystemPromptEnhancementText().trim();
+        const enhancePrompt =
+          getSystemPromptEnhancementText(currentProvider).trim();
         // Normalize workspace path: remove trailing slashes, handle cross-platform
         const rawWorkspacePath = currentChat?.config?.workspacePath || "";
         const workspacePath = rawWorkspacePath
@@ -143,7 +146,7 @@ export function useMessageStreaming(
         throw error; // Re-throw to trigger fallback
       }
     },
-    [deps, activeModel, currentChat],
+    [deps, activeModel, currentChat, currentProvider],
   );
 
   const sendMessage = useCallback(

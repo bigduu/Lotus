@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Message, UserSystemPrompt } from "../../types/chat";
 import { SystemPromptService } from "../../services/SystemPromptService";
 import { getEffectiveSystemPrompt } from "../../../../shared/utils/systemPromptEnhancement";
+import { useProviderStore } from "../../store/slices/providerSlice";
 
 type UseSystemPromptContentArgs = {
   currentChat: {
@@ -30,6 +31,7 @@ export const useSystemPromptContent = ({
     () => SystemPromptService.getInstance(),
     [],
   );
+  const currentProvider = useProviderStore((state) => state.currentProvider);
   const systemMessageContent =
     message.role === "system" && typeof message.content === "string"
       ? message.content
@@ -126,6 +128,7 @@ export const useSystemPromptContent = ({
       const enhanced = getEffectiveSystemPrompt(
         basePrompt,
         workspacePath ?? undefined,
+        currentProvider,
       );
 
       setEnhancedPrompt(enhanced);
@@ -135,7 +138,7 @@ export const useSystemPromptContent = ({
     } finally {
       setLoadingEnhanced(false);
     }
-  }, [basePrompt, loadingEnhanced, workspacePath]);
+  }, [basePrompt, loadingEnhanced, workspacePath, currentProvider]);
 
   const promptToDisplay = useMemo(() => {
     if (showEnhanced && enhancedPrompt) {

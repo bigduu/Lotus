@@ -27,7 +27,8 @@ export const normalizeMermaidChart = (chart: string): string => {
     const label = String(rawLabel);
     const hasNewline = /\r?\n/.test(label);
     const hasParen = /[()]/.test(label);
-    if (!hasNewline && !hasParen) {
+    const hasAtSign = /@/.test(label);
+    if (!hasNewline && !hasParen && !hasAtSign) {
       return match;
     }
 
@@ -41,6 +42,9 @@ export const normalizeMermaidChart = (chart: string): string => {
     }
     if (hasParen && !parensAreShape) {
       nextLabel = nextLabel.replace(/\(/g, "&#40;").replace(/\)/g, "&#41;");
+    }
+    if (hasAtSign) {
+      nextLabel = nextLabel.replace(/@/g, "&#64;");
     }
 
     return nextLabel === label ? match : `[${nextLabel}]`;

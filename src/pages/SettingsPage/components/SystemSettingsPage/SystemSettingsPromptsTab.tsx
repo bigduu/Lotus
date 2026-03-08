@@ -20,8 +20,11 @@ interface SystemSettingsPromptsTabProps {
   onPromptEnhancementChange: (value: string) => void;
   mermaidEnhancementEnabled: boolean;
   todoEnhancementEnabled: boolean;
+  showCopilotAskUserEnhancement: boolean;
+  copilotAskUserEnhancementEnabled: boolean;
   onMermaidToggle: (checked: boolean) => void;
   onTodoToggle: (checked: boolean) => void;
+  onCopilotAskUserToggle: (checked: boolean) => void;
   onSaveEnhancement: () => void;
 }
 
@@ -30,8 +33,11 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
   onPromptEnhancementChange,
   mermaidEnhancementEnabled,
   todoEnhancementEnabled,
+  showCopilotAskUserEnhancement,
+  copilotAskUserEnhancementEnabled,
   onMermaidToggle,
   onTodoToggle,
+  onCopilotAskUserToggle,
   onSaveEnhancement,
 }) => {
   const { token } = useToken();
@@ -69,6 +75,17 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
               unCheckedChildren="OFF"
             />
           </Flex>
+          {showCopilotAskUserEnhancement && (
+            <Flex align="center" gap={token.marginSM}>
+              <Text strong>Copilot ask_user Before Finish</Text>
+              <Switch
+                checked={copilotAskUserEnhancementEnabled}
+                onChange={onCopilotAskUserToggle}
+                checkedChildren="ON"
+                unCheckedChildren="OFF"
+              />
+            </Flex>
+          )}
           <Input.TextArea
             rows={6}
             placeholder="Add global enhancement text to append to every system prompt."

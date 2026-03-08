@@ -26,6 +26,11 @@ const SystemPromptManager = () => {
   const [form] = Form.useForm();
 
   const showModal = (prompt: UserSystemPrompt | null = null) => {
+    if (prompt?.isDefault) {
+      message.warning("Default system prompts are locked and cannot be edited.");
+      return;
+    }
+
     setEditingPrompt(prompt);
     form.setFieldsValue(prompt || { name: "", description: "", content: "" });
     setIsModalVisible(true);
@@ -38,6 +43,11 @@ const SystemPromptManager = () => {
   };
 
   const handleOk = async () => {
+    if (editingPrompt?.isDefault) {
+      message.warning("Default system prompts are locked and cannot be edited.");
+      return;
+    }
+
     try {
       const values = await form.validateFields();
       if (editingPrompt) {
@@ -97,11 +107,13 @@ const SystemPromptManager = () => {
         renderItem={(item) => (
           <List.Item
             actions={[
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                onClick={() => showModal(item)}
-              />,
+              item.isDefault ? null : (
+                <Button
+                  type="text"
+                  icon={<EditOutlined />}
+                  onClick={() => showModal(item)}
+                />
+              ),
               item.isDefault ? null : (
                 <Popconfirm
                   title="Are you sure to delete this prompt?"
@@ -122,7 +134,7 @@ const SystemPromptManager = () => {
                   (item.content.length > 200 ? "..." : "")
               }
             />
-            {item.isDefault && <Tag>Default</Tag>}
+            {item.isDefault && <Tag>Default (Locked)</Tag>}
           </List.Item>
         )}
       />

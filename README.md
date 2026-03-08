@@ -38,6 +38,13 @@ npm run build             # build dist
 npm run pack:dry-run      # inspect npm package contents
 ```
 
+## Documentation
+
+- Frontend docs root: [`docs/README.md`](./docs/README.md)
+- Frontend architecture: [`docs/architecture/FRONTEND_ARCHITECTURE.md`](./docs/architecture/FRONTEND_ARCHITECTURE.md)
+- Development guides: [`docs/development/`](./docs/development/)
+- Feature docs (Command Selector, Question Dialog, Mermaid): [`docs/features/`](./docs/features/)
+
 ## Integrate with Bamboo
 
 Terminal 1:

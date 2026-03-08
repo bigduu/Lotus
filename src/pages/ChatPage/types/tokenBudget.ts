@@ -58,19 +58,31 @@ export interface PreparedContextInfo {
  * These are the default context window limits for popular models.
  */
 export const KNOWN_MODEL_LIMITS: Record<string, number> = {
-  // OpenAI models
+  // OpenAI (GPT-5)
+  "gpt-5.4-thinking": 1000000,
+  "gpt-5.3-codex": 1000000,
+  "gpt-5.2-pro": 256000,
+  "gpt-5-mini": 400000,
+  // OpenAI (Legacy)
+  "gpt-4.1": 1000000,
   "gpt-4o": 128000,
+  // Google
+  "gemini-2.5-pro": 1000000,
+  // China (Moonshot)
+  "kimi-k2.5": 256000,
+  "kimi-for-coding": 256000,
+  // China (Zhipu)
+  "glm-5": 200000,
+  // Compatibility fallbacks
   "gpt-4o-mini": 128000,
   "gpt-4-turbo": 128000,
   "gpt-4": 8192,
   "gpt-3.5-turbo": 16385,
-  // Anthropic models
   "claude-3-5-sonnet": 200000,
   "claude-3-5-sonnet-20241022": 200000,
   "claude-3-opus": 200000,
   "claude-3-sonnet": 200000,
   "claude-3-haiku": 200000,
-  // Copilot models
   "copilot-chat": 128000,
 };
 

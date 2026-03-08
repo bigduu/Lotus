@@ -29,7 +29,32 @@ const replaceMermaidBlock = (
   return replaced ? updated : null;
 };
 
-const fixMermaidWithAI = async (chart: string, model?: string | null) => {
+const buildMermaidFixPrompt = (chart: string, renderError?: string) => {
+  const normalizedError = (renderError ?? "").trim();
+  const sections = [
+    "Original Mermaid code:",
+    "```mermaid",
+    chart.trim(),
+    "```",
+  ];
+
+  if (normalizedError) {
+    sections.push("", "Mermaid parser/render error:", normalizedError);
+  }
+
+  sections.push(
+    "",
+    "Please fix the Mermaid syntax while preserving the original meaning and labels.",
+  );
+
+  return sections.join("\n");
+};
+
+const fixMermaidWithAI = async (
+  chart: string,
+  model?: string | null,
+  renderError?: string,
+) => {
   const modelToUse = model?.trim();
   if (!modelToUse) {
     throw new Error(
@@ -43,11 +68,11 @@ const fixMermaidWithAI = async (chart: string, model?: string | null) => {
       {
         role: "system",
         content:
-          "Fix Mermaid diagrams. Return only corrected Mermaid code without markdown fences or extra text.",
+          "You fix Mermaid diagrams using the parser/render error context. Return only corrected Mermaid code without markdown fences or extra text.",
       },
       {
         role: "user",
-        content: chart,
+        content: buildMermaidFixPrompt(chart, renderError),
       },
     ],
     temperature: 0,
@@ -60,7 +85,7 @@ export const useMessageCardMermaidFix = (messageId: string) => {
   const activeModel = useActiveModel();
 
   return useCallback(
-    async (chart: string) => {
+    async (chart: string, renderError?: string) => {
       const state = useAppStore.getState();
       const currentChatId = state.currentChatId;
       const currentChat = state.chats.find((c) => c.id === currentChatId);
@@ -76,7 +101,11 @@ export const useMessageCardMermaidFix = (messageId: string) => {
         );
       }
 
-      const fixedChart = await fixMermaidWithAI(chart, activeModel);
+      const fixedChart = await fixMermaidWithAI(
+        chart,
+        activeModel,
+        renderError,
+      );
       if (!fixedChart) throw new Error("AI did not return a Mermaid fix");
 
       const updatedContent = replaceMermaidBlock(
