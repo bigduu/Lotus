@@ -44,6 +44,51 @@ describe("useMetrics", () => {
     expect(service.getSummary).toHaveBeenCalledTimes(2);
   });
 
+  it("applies days filter to summary and session queries", async () => {
+    const service = {
+      getSummary: vi.fn().mockResolvedValue({
+        total_sessions: 1,
+        total_tokens: {
+          prompt_tokens: 1,
+          completion_tokens: 1,
+          total_tokens: 2,
+        },
+        total_tool_calls: 0,
+        active_sessions: 0,
+      }),
+      getByModel: vi.fn().mockResolvedValue([]),
+      getSessions: vi.fn().mockResolvedValue([]),
+      getDaily: vi.fn().mockResolvedValue([]),
+      getSessionDetail: vi.fn().mockResolvedValue(null),
+    };
+
+    renderHook(() =>
+      useMetrics({
+        service,
+        autoRefreshMs: 0,
+        filters: {
+          endDate: "2026-02-10",
+          days: 7,
+          granularity: "daily",
+        },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(service.getSummary).toHaveBeenCalledWith({
+        startDate: "2026-02-04",
+        endDate: "2026-02-10",
+      });
+    });
+
+    expect(service.getSessions).toHaveBeenCalledWith({
+      startDate: "2026-02-04",
+      endDate: "2026-02-10",
+      model: undefined,
+      limit: 200,
+    });
+  });
+
   it("loads session detail on demand", async () => {
     const service = {
       getSummary: vi.fn().mockResolvedValue({

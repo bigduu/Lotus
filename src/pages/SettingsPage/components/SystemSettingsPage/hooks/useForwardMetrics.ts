@@ -7,10 +7,12 @@ import type {
   ForwardMetricsSummary,
   ForwardRequestMetrics,
 } from "../../../../../services/metrics";
+import { resolveMetricsRange } from "./resolveMetricsRange";
 
 export interface ForwardMetricsFilters {
   startDate?: string;
   endDate?: string;
+  days?: number;
   endpoint?: string;
   model?: string;
   limit?: number;
@@ -37,6 +39,7 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
     () => ({
       startDate: filters?.startDate,
       endDate: filters?.endDate,
+      days: filters?.days ?? 30,
       endpoint: filters?.endpoint,
       model: filters?.model,
       limit: filters?.limit ?? 100,
@@ -44,10 +47,21 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
     [
       filters?.startDate,
       filters?.endDate,
+      filters?.days,
       filters?.endpoint,
       filters?.model,
       filters?.limit,
     ],
+  );
+
+  const resolvedRange = useMemo(
+    () =>
+      resolveMetricsRange({
+        startDate: normalizedFilters.startDate,
+        endDate: normalizedFilters.endDate,
+        days: normalizedFilters.days,
+      }),
+    [normalizedFilters.days, normalizedFilters.endDate, normalizedFilters.startDate],
   );
 
   const [summary, setSummary] = useState<ForwardMetricsSummary | null>(null);
@@ -69,8 +83,8 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
 
       try {
         const query: ForwardMetricsQuery = {
-          startDate: normalizedFilters.startDate,
-          endDate: normalizedFilters.endDate,
+          startDate: resolvedRange.startDate,
+          endDate: resolvedRange.endDate,
           endpoint: normalizedFilters.endpoint,
           model: normalizedFilters.model,
           limit: normalizedFilters.limit,
@@ -98,11 +112,11 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
       }
     },
     [
-      normalizedFilters.startDate,
-      normalizedFilters.endDate,
       normalizedFilters.endpoint,
       normalizedFilters.model,
       normalizedFilters.limit,
+      resolvedRange.endDate,
+      resolvedRange.startDate,
     ],
   );
 

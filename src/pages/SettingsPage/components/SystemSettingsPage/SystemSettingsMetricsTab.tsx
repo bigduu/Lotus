@@ -3,12 +3,16 @@ import {
   Alert,
   Button,
   Card,
+  Col,
   DatePicker,
   Descriptions,
   Modal,
+  Row,
   Select,
   Space,
+  Statistic,
   Table,
+  Tabs,
   Typography,
   theme,
 } from "antd";
@@ -42,6 +46,16 @@ import ForwardRequestTable from "./metrics/ForwardRequestTable";
 
 const { Text } = Typography;
 const { useToken } = theme;
+
+// Report-level estimation assumptions.
+// These are intentionally conservative and can be tuned later.
+const MANUAL_TOKEN_THROUGHPUT_PER_MINUTE = 70;
+const ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE = 130;
+const MANUAL_TOOL_TASK_MINUTES = 2.0;
+const ASSISTED_TOOL_TASK_MINUTES = 1.2;
+const ESTIMATE_REALIZATION_FACTOR = 0.65;
+const MAX_EFFICIENCY_LIFT_PERCENT = 45;
+const MAX_SPEED_MULTIPLIER = 1.8;
 
 const asTimelineLabel = (item: DailyMetrics | PeriodMetrics): string => {
   if ("date" in item) {
@@ -170,6 +184,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
     filters: {
       startDate,
       endDate,
+      days,
       model: selectedModel,
     },
   });
@@ -227,7 +242,188 @@ const SystemSettingsMetricsTab: React.FC = () => {
     return { points, maxSessions };
   }, [timeline]);
 
+  const p95ForwardDuration = useMemo(() => {
+    const durations = forwardRequests
+      .map((request) => request.duration_ms)
+      .filter(
+        (duration): duration is number =>
+          typeof duration === "number" && duration > 0,
+      )
+      .sort((left, right) => left - right);
+
+    if (durations.length === 0) {
+      return null;
+    }
+
+    const index = Math.ceil(durations.length * 0.95) - 1;
+    return durations[Math.max(0, Math.min(index, durations.length - 1))];
+  }, [forwardRequests]);
+
+  const compactStats = useMemo(() => {
+    const totalSessions = summary?.total_sessions ?? 0;
+    const totalSessionTokens = summary?.total_tokens.total_tokens ?? 0;
+    const totalToolCalls = summary?.total_tool_calls ?? 0;
+    const activeSessions = summary?.active_sessions ?? 0;
+    const totalRounds = sessions.reduce(
+      (sum, session) => sum + session.total_rounds,
+      0,
+    );
+
+    const totalForwardRequests = forwardSummary?.total_requests ?? 0;
+    const totalForwardTokens = forwardSummary?.total_tokens.total_tokens ?? 0;
+    const failedForwardRequests = forwardSummary?.failed_requests ?? 0;
+    const totalCombinedTokens = totalSessionTokens + totalForwardTokens;
+    const streamedForwardRequests = forwardRequests.filter(
+      (request) => request.is_stream,
+    ).length;
+
+    const activeRate =
+      totalSessions > 0 ? (activeSessions / totalSessions) * 100 : 0;
+    const errorRate =
+      totalForwardRequests > 0
+        ? (failedForwardRequests / totalForwardRequests) * 100
+        : 0;
+    const streamRate =
+      forwardRequests.length > 0
+        ? (streamedForwardRequests / forwardRequests.length) * 100
+        : 0;
+
+    const manualMinutesEstimate =
+      totalSessionTokens / MANUAL_TOKEN_THROUGHPUT_PER_MINUTE +
+      totalToolCalls * MANUAL_TOOL_TASK_MINUTES;
+    const assistedMinutesEstimate =
+      totalSessionTokens / ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE +
+      totalToolCalls * ASSISTED_TOOL_TASK_MINUTES;
+    const rawSavedMinutesEstimate = Math.max(
+      0,
+      manualMinutesEstimate - assistedMinutesEstimate,
+    );
+    const savedMinutesEstimate =
+      rawSavedMinutesEstimate * ESTIMATE_REALIZATION_FACTOR;
+    const realizedMinutesEstimate = Math.max(
+      assistedMinutesEstimate,
+      manualMinutesEstimate - savedMinutesEstimate,
+    );
+    const savedDurationEstimate = formatDuration(savedMinutesEstimate * 60_000);
+    const savedWorkdaysEstimate = Number(
+      (savedMinutesEstimate / (8 * 60)).toFixed(2),
+    );
+    const efficiencyLiftEstimate =
+      manualMinutesEstimate > 0
+        ? Math.min(
+            MAX_EFFICIENCY_LIFT_PERCENT,
+            Number(
+              ((savedMinutesEstimate / manualMinutesEstimate) * 100).toFixed(1),
+            ),
+          )
+        : 0;
+    const speedMultiplierEstimate =
+      realizedMinutesEstimate > 0
+        ? Math.min(
+            MAX_SPEED_MULTIPLIER,
+            Number((manualMinutesEstimate / realizedMinutesEstimate).toFixed(2)),
+          )
+        : 1;
+
+    return [
+      {
+        title: "Combined Tokens",
+        value: totalCombinedTokens,
+      },
+      {
+        title: "Chat Tokens",
+        value: totalSessionTokens,
+      },
+      {
+        title: "Forward Tokens",
+        value: totalForwardTokens,
+      },
+      {
+        title: "Avg Tokens / Session",
+        value:
+          totalSessions > 0
+            ? Math.round(totalSessionTokens / totalSessions)
+            : 0,
+      },
+      {
+        title: "Est. Time Saved",
+        value: savedDurationEstimate,
+      },
+      {
+        title: "Est. Efficiency Lift",
+        value: efficiencyLiftEstimate,
+        suffix: "%",
+      },
+      {
+        title: "Est. Speed Multiplier",
+        value: speedMultiplierEstimate,
+        suffix: "x",
+      },
+      {
+        title: "Est. Saved Workdays",
+        value: savedWorkdaysEstimate,
+      },
+      {
+        title: "Avg Rounds / Session",
+        value:
+          totalSessions > 0
+            ? Number((totalRounds / totalSessions).toFixed(2))
+            : 0,
+      },
+      {
+        title: "Tool Calls / Session",
+        value:
+          totalSessions > 0
+            ? Number((totalToolCalls / totalSessions).toFixed(2))
+            : 0,
+      },
+      {
+        title: "Active Session Rate",
+        value: Number(activeRate.toFixed(1)),
+        suffix: "%",
+      },
+      {
+        title: "Avg Tokens / Forward",
+        value:
+          totalForwardRequests > 0
+            ? Math.round(totalForwardTokens / totalForwardRequests)
+            : 0,
+      },
+      {
+        title: "Forward Error Rate",
+        value: Number(errorRate.toFixed(1)),
+        suffix: "%",
+      },
+      {
+        title: "Streaming Ratio",
+        value: Number(streamRate.toFixed(1)),
+        suffix: "%",
+      },
+      {
+        title: "P95 Forward Latency",
+        value: formatDuration(p95ForwardDuration),
+      },
+      {
+        title: "Model Coverage",
+        value: modelMetrics.length,
+      },
+      {
+        title: "Endpoint Coverage",
+        value: endpointMetrics.length,
+      },
+    ];
+  }, [
+    endpointMetrics.length,
+    forwardRequests,
+    forwardSummary,
+    modelMetrics.length,
+    p95ForwardDuration,
+    sessions,
+    summary,
+  ]);
+
   const selectedSession = sessionDetail?.session;
+  const isDashboardRefreshing = isRefreshing || isForwardRefreshing;
 
   return (
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
@@ -242,7 +438,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
         extra={
           <Button
             icon={<ReloadOutlined />}
-            loading={isRefreshing || isForwardRefreshing}
+            loading={isDashboardRefreshing}
             onClick={() => {
               void refresh();
               void refreshForward();
@@ -301,142 +497,238 @@ const SystemSettingsMetricsTab: React.FC = () => {
         </Space>
       </Card>
 
-      <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
-
-      <div
-        style={{
-          width: "100%",
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
-          gap: token.marginMD,
-        }}
-      >
-        <TokenChart data={tokenChartData} loading={isLoading} />
-        <ModelDistribution data={modelMetrics} loading={isLoading} />
-      </div>
-
-      <div
-        style={{
-          width: "100%",
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-          gap: token.marginMD,
-        }}
-      >
-        <Card size="small" title="Tool Usage Frequency">
-          {toolUsageData.length === 0 ? (
-            <Text type="secondary">No tool calls recorded for this range.</Text>
-          ) : (
-            <div style={{ width: "100%", height: 280 }}>
-              <ResponsiveContainer>
-                <BarChart data={toolUsageData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="tool"
-                    interval={0}
-                    angle={-20}
-                    textAnchor="end"
-                    height={72}
-                  />
-                  <YAxis allowDecimals={false} />
-                  <RechartsTooltip />
-                  <Bar dataKey="count" fill="#1677ff" name="Calls" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </Card>
-
-        <Card size="small" title="Daily Activity Heatmap">
-          {activityData.points.length === 0 ? (
-            <Text type="secondary">No activity available for this range.</Text>
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))",
-                gap: token.marginXS,
-              }}
-            >
-              {activityData.points.map((point) => (
-                <div
-                  key={point.label}
-                  style={{
-                    borderRadius: token.borderRadiusSM,
-                    padding: token.paddingXS,
-                    background: heatColorForValue(
-                      point.sessions,
-                      activityData.maxSessions,
-                    ),
-                    minHeight: 64,
-                    color:
-                      point.sessions > 0 ? "#fff" : token.colorTextSecondary,
-                  }}
+      <Card size="small" title="Dashboard">
+        <Tabs
+          size="small"
+          destroyInactiveTabPane
+          items={[
+            {
+              key: "overview",
+              label: "Overview",
+              children: (
+                <Space
+                  direction="vertical"
+                  size={token.marginSM}
+                  style={{ width: "100%" }}
                 >
-                  <div style={{ fontSize: 12, lineHeight: 1.2 }}>
-                    {point.label}
+                  <MetricCards
+                    summary={summary}
+                    sessions={sessions}
+                    loading={isLoading}
+                  />
+                  <ForwardMetricsCards
+                    summary={forwardSummary}
+                    loading={isForwardLoading}
+                  />
+                  <Card
+                    size="small"
+                    title="Derived Metrics (Compact)"
+                    extra={
+                      <Text type="secondary">
+                        More dimensions without extra page length
+                      </Text>
+                    }
+                  >
+                    <Row gutter={[token.marginSM, token.marginSM]}>
+                      {compactStats.map((metric) => (
+                        <Col key={metric.title} xs={24} sm={12} md={8} xl={6}>
+                          <div
+                            style={{
+                              borderRadius: token.borderRadiusSM,
+                              padding: token.paddingXS,
+                              background: token.colorFillTertiary,
+                            }}
+                          >
+                            <Statistic
+                              title={metric.title}
+                              value={metric.value}
+                              suffix={metric.suffix}
+                              valueStyle={{ fontSize: token.fontSizeHeading4 }}
+                            />
+                          </div>
+                        </Col>
+                      ))}
+                    </Row>
+                    <Text
+                      type="secondary"
+                      style={{ display: "block", marginTop: token.marginXS }}
+                    >
+                      Efficiency estimates use conservative assumptions:{" "}
+                      {MANUAL_TOKEN_THROUGHPUT_PER_MINUTE} manual tokens/min +{" "}
+                      {MANUAL_TOOL_TASK_MINUTES} min/tool vs{" "}
+                      {ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE} assisted tokens/min
+                      + {ASSISTED_TOOL_TASK_MINUTES} min/tool, then apply{" "}
+                      {Math.round(ESTIMATE_REALIZATION_FACTOR * 100)}% realization
+                      and caps ({MAX_EFFICIENCY_LIFT_PERCENT}% /{" "}
+                      {MAX_SPEED_MULTIPLIER}x).
+                    </Text>
+                  </Card>
+                </Space>
+              ),
+            },
+            {
+              key: "analysis",
+              label: "Analysis",
+              children: (
+                <Space
+                  direction="vertical"
+                  size={token.marginSM}
+                  style={{ width: "100%" }}
+                >
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
+                      gap: token.marginSM,
+                    }}
+                  >
+                    <TokenChart data={tokenChartData} loading={isLoading} />
+                    <ModelDistribution
+                      data={modelMetrics}
+                      loading={isLoading}
+                    />
                   </div>
-                  <div style={{ fontWeight: 600, marginTop: 4 }}>
-                    {point.sessions} sessions
+
+                  <div
+                    style={{
+                      width: "100%",
+                      display: "grid",
+                      gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                      gap: token.marginSM,
+                    }}
+                  >
+                    <Card size="small" title="Tool Usage Frequency">
+                      {toolUsageData.length === 0 ? (
+                        <Text type="secondary">
+                          No tool calls recorded for this range.
+                        </Text>
+                      ) : (
+                        <div style={{ width: "100%", height: 240 }}>
+                          <ResponsiveContainer>
+                            <BarChart data={toolUsageData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis
+                                dataKey="tool"
+                                interval={0}
+                                angle={-20}
+                                textAnchor="end"
+                                height={70}
+                              />
+                              <YAxis allowDecimals={false} />
+                              <RechartsTooltip />
+                              <Bar
+                                dataKey="count"
+                                fill="#1677ff"
+                                name="Calls"
+                              />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </Card>
+
+                    <Card size="small" title="Daily Activity Heatmap">
+                      {activityData.points.length === 0 ? (
+                        <Text type="secondary">
+                          No activity available for this range.
+                        </Text>
+                      ) : (
+                        <div
+                          style={{
+                            display: "grid",
+                            gridTemplateColumns:
+                              "repeat(auto-fill, minmax(72px, 1fr))",
+                            gap: token.marginXS,
+                          }}
+                        >
+                          {activityData.points.map((point) => (
+                            <div
+                              key={point.label}
+                              style={{
+                                borderRadius: token.borderRadiusSM,
+                                padding: token.paddingXS,
+                                background: heatColorForValue(
+                                  point.sessions,
+                                  activityData.maxSessions,
+                                ),
+                                minHeight: 64,
+                                color:
+                                  point.sessions > 0
+                                    ? "#fff"
+                                    : token.colorTextSecondary,
+                              }}
+                            >
+                              <div style={{ fontSize: 12, lineHeight: 1.2 }}>
+                                {point.label}
+                              </div>
+                              <div style={{ fontWeight: 600, marginTop: 4 }}>
+                                {point.sessions} sessions
+                              </div>
+                              <div style={{ fontSize: 12 }}>
+                                {point.tokens.toLocaleString()} tokens
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </Card>
                   </div>
-                  <div style={{ fontSize: 12 }}>
-                    {point.tokens.toLocaleString()} tokens
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
 
-      {/* Forward Metrics Section */}
-      <Card size="small" title="Forward Metrics">
-        <Space
-          direction="vertical"
-          size={token.marginMD}
-          style={{ width: "100%" }}
-        >
-          <ForwardMetricsCards
-            summary={forwardSummary}
-            loading={isForwardLoading}
-          />
-
-          <div
-            style={{
-              width: "100%",
-              display: "grid",
-              gridTemplateColumns: "minmax(0, 1fr)",
-              gap: token.marginMD,
-            }}
-          >
-            <ForwardEndpointDistribution
-              data={endpointMetrics}
-              loading={isForwardLoading}
-            />
-          </div>
-
-          <Card size="small" title="Recent Forward Requests">
-            <ForwardRequestTable
-              requests={forwardRequests}
-              loading={isForwardLoading}
-            />
-          </Card>
-        </Space>
-      </Card>
-
-      <Card
-        size="small"
-        title="Sessions"
-        extra={
-          <Text type="secondary">Click a session for full round detail</Text>
-        }
-      >
-        <SessionTable
-          sessions={sessions}
-          loading={isLoading}
-          onSelectSession={(sessionId) => {
-            void loadSessionDetail(sessionId);
-          }}
+                  <ForwardEndpointDistribution
+                    data={endpointMetrics}
+                    loading={isForwardLoading}
+                  />
+                </Space>
+              ),
+            },
+            {
+              key: "records",
+              label: "Records",
+              children: (
+                <Tabs
+                  size="small"
+                  destroyInactiveTabPane
+                  items={[
+                    {
+                      key: "sessions",
+                      label: `Sessions (${sessions.length})`,
+                      children: (
+                        <Card
+                          size="small"
+                          extra={
+                            <Text type="secondary">
+                              Click a session for full round detail
+                            </Text>
+                          }
+                        >
+                          <SessionTable
+                            sessions={sessions}
+                            loading={isLoading}
+                            onSelectSession={(sessionId) => {
+                              void loadSessionDetail(sessionId);
+                            }}
+                          />
+                        </Card>
+                      ),
+                    },
+                    {
+                      key: "forward-requests",
+                      label: `Forward Requests (${forwardRequests.length})`,
+                      children: (
+                        <Card size="small">
+                          <ForwardRequestTable
+                            requests={forwardRequests}
+                            loading={isForwardLoading}
+                          />
+                        </Card>
+                      ),
+                    },
+                  ]}
+                />
+              ),
+            },
+          ]}
         />
       </Card>
 

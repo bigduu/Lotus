@@ -14,6 +14,7 @@ import type {
   SessionMetrics,
   UnifiedTimelinePoint,
 } from "../../../../../services/metrics";
+import { resolveMetricsRange } from "./resolveMetricsRange";
 
 export interface UnifiedMetricsFilters {
   startDate?: string;
@@ -60,6 +61,16 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
     ],
   );
 
+  const resolvedRange = useMemo(
+    () =>
+      resolveMetricsRange({
+        startDate: normalizedFilters.startDate,
+        endDate: normalizedFilters.endDate,
+        days: normalizedFilters.days,
+      }),
+    [normalizedFilters.days, normalizedFilters.endDate, normalizedFilters.startDate],
+  );
+
   // Chat metrics state
   const [chatSummary, setChatSummary] = useState<MetricsSummary | null>(null);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics[]>([]);
@@ -101,12 +112,12 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
         // Load unified summary and timeline
         const [unifiedSummary, timelineResponse] = await Promise.all([
           metricsService.getUnifiedSummary({
-            startDate: normalizedFilters.startDate,
-            endDate: normalizedFilters.endDate,
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
           }),
           metricsService.getUnifiedTimeline({
-            days: normalizedFilters.days,
-            endDate: normalizedFilters.endDate,
+            days: resolvedRange.days,
+            endDate: resolvedRange.endDate,
             granularity: normalizedFilters.granularity,
           }),
         ]);
@@ -118,8 +129,8 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
 
         // Load detailed metrics in parallel
         const forwardQuery: ForwardMetricsQuery = {
-          startDate: normalizedFilters.startDate,
-          endDate: normalizedFilters.endDate,
+          startDate: resolvedRange.startDate,
+          endDate: resolvedRange.endDate,
           model: normalizedFilters.model,
           limit: normalizedFilters.sessionLimit,
         };
@@ -131,12 +142,12 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
           requestsResponse,
         ] = await Promise.all([
           metricsService.getByModel({
-            startDate: normalizedFilters.startDate,
-            endDate: normalizedFilters.endDate,
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
           }),
           metricsService.getSessions({
-            startDate: normalizedFilters.startDate,
-            endDate: normalizedFilters.endDate,
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
             model: normalizedFilters.model,
             limit: normalizedFilters.sessionLimit,
           }),
@@ -160,12 +171,12 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
       }
     },
     [
-      normalizedFilters.days,
-      normalizedFilters.endDate,
       normalizedFilters.granularity,
       normalizedFilters.model,
       normalizedFilters.sessionLimit,
-      normalizedFilters.startDate,
+      resolvedRange.days,
+      resolvedRange.endDate,
+      resolvedRange.startDate,
     ],
   );
 

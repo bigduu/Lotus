@@ -10,6 +10,7 @@ import {
   type SessionDetail,
   type SessionMetrics,
 } from "@services/metrics";
+import { resolveMetricsRange } from "./resolveMetricsRange";
 
 export interface MetricsFilters {
   startDate?: string;
@@ -84,6 +85,16 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
     ],
   );
 
+  const resolvedRange = useMemo(
+    () =>
+      resolveMetricsRange({
+        startDate: normalizedFilters.startDate,
+        endDate: normalizedFilters.endDate,
+        days: normalizedFilters.days,
+      }),
+    [normalizedFilters.days, normalizedFilters.endDate, normalizedFilters.startDate],
+  );
+
   const [summary, setSummary] = useState<MetricsSummary | null>(null);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics[]>([]);
   const [sessions, setSessions] = useState<SessionMetrics[]>([]);
@@ -114,22 +125,22 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
           dailyResponse,
         ] = await Promise.all([
           service.getSummary({
-            startDate: normalizedFilters.startDate,
-            endDate: normalizedFilters.endDate,
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
           }),
           service.getByModel({
-            startDate: normalizedFilters.startDate,
-            endDate: normalizedFilters.endDate,
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
           }),
           service.getSessions({
-            startDate: normalizedFilters.startDate,
-            endDate: normalizedFilters.endDate,
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
             model: normalizedFilters.model,
             limit: normalizedFilters.sessionLimit,
           }),
           service.getDaily({
-            days: normalizedFilters.days,
-            endDate: normalizedFilters.endDate,
+            days: resolvedRange.days,
+            endDate: resolvedRange.endDate,
             granularity: normalizedFilters.granularity,
           }),
         ]);
@@ -150,12 +161,12 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
       }
     },
     [
-      normalizedFilters.days,
-      normalizedFilters.endDate,
       normalizedFilters.granularity,
       normalizedFilters.model,
       normalizedFilters.sessionLimit,
-      normalizedFilters.startDate,
+      resolvedRange.days,
+      resolvedRange.endDate,
+      resolvedRange.startDate,
       service,
     ],
   );

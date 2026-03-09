@@ -79,7 +79,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Total Tokens"
+            title="Forward Tokens"
             value={summary?.total_tokens.total_tokens ?? 0}
             precision={0}
           />
