@@ -21,6 +21,16 @@ import {
 } from "../copilotAskUserEnhancementUtils";
 import { getOSInfoEnhancementPrompt } from "../osInfoUtils";
 
+const OPERATIONAL_GUIDANCE_HEADING = "## Bamboo Operational Guidance";
+const OPERATIONAL_GUIDANCE_PROMPT = [
+  "## Bamboo Operational Guidance",
+  "",
+  "- For recurring or delayed tasks, use the `schedule_tasks` tool to create and manage schedule jobs instead of only describing manual steps.",
+  "- The `schedule_tasks` tool supports: `list`, `create`, `patch`, `delete`, `run_now`, and `list_sessions`.",
+  "- Bamboo configuration is stored in `${BAMBOO_DATA_DIR}/config.json`.",
+  "- Default config path: `~/.bamboo/config.json` (macOS/Linux) or `%USERPROFILE%\\\\.bamboo\\\\config.json` (Windows).",
+].join("\n");
+
 describe("systemPromptEnhancement", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -68,6 +78,7 @@ describe("systemPromptEnhancement", () => {
     expect(getSystemPromptEnhancementText()).toBe(
       [
         getOSInfoEnhancementPrompt().trim(),
+        OPERATIONAL_GUIDANCE_PROMPT,
         "User enhancement",
         getMermaidEnhancementPrompt().trim(),
         getTodoEnhancementPrompt().trim(),
@@ -86,6 +97,7 @@ describe("systemPromptEnhancement", () => {
     expect(getSystemPromptEnhancementText()).toBe(
       [
         getOSInfoEnhancementPrompt().trim(),
+        OPERATIONAL_GUIDANCE_PROMPT,
         getTodoEnhancementPrompt().trim(),
       ].join("\n\n"),
     );
@@ -97,13 +109,14 @@ describe("systemPromptEnhancement", () => {
     const result = getEffectiveSystemPrompt("Base prompt", "/Users/alice/app");
     const workspaceSegment = [
       "Workspace path: /Users/alice/app",
-      "If you need to inspect files, check the workspace first, then check the bamboo data directory in the user's home directory (use OS-appropriate path format).",
+      "If you need to inspect files, check the workspace first, then check Bamboo data at `${BAMBOO_DATA_DIR}` (default `~/.bamboo`) and the config file at `${BAMBOO_DATA_DIR}/config.json`.",
     ].join("\n");
 
     expect(result).toBe(
       [
         "Base prompt",
         getOSInfoEnhancementPrompt().trim(),
+        OPERATIONAL_GUIDANCE_PROMPT,
         "User enhancement",
         workspaceSegment,
       ].join("\n\n"),
@@ -119,6 +132,7 @@ describe("systemPromptEnhancement", () => {
       [
         "Base prompt",
         getOSInfoEnhancementPrompt().trim(),
+        OPERATIONAL_GUIDANCE_PROMPT,
         "User enhancement",
       ].join("\n\n"),
     );
@@ -143,8 +157,9 @@ describe("systemPromptEnhancement", () => {
 
     const pipeline = getSystemPromptEnhancementPipeline();
 
-    expect(pipeline.length).toBe(1);
+    expect(pipeline.length).toBe(2);
     expect(pipeline[0]).toContain("Operating System Information");
+    expect(pipeline[1]).toContain(OPERATIONAL_GUIDANCE_HEADING);
   });
 
   it("builds enhancement text with OS info first, then user and system prompts", () => {
@@ -155,6 +170,7 @@ describe("systemPromptEnhancement", () => {
     const enhancementText = getSystemPromptEnhancementText();
     const expectedOrder = [
       getOSInfoEnhancementPrompt().trim(),
+      OPERATIONAL_GUIDANCE_PROMPT,
       "User enhancement",
       getMermaidEnhancementPrompt().trim(),
       getTodoEnhancementPrompt().trim(),

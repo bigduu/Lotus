@@ -14,6 +14,17 @@ import {
 
 const SYSTEM_PROMPT_ENHANCEMENT_KEY = "bamboo_system_prompt_enhancement";
 
+const getBambooOperationalGuidancePrompt = (): string => {
+  return [
+    "## Bamboo Operational Guidance",
+    "",
+    "- For recurring or delayed tasks, use the `schedule_tasks` tool to create and manage schedule jobs instead of only describing manual steps.",
+    "- The `schedule_tasks` tool supports: `list`, `create`, `patch`, `delete`, `run_now`, and `list_sessions`.",
+    "- Bamboo configuration is stored in `${BAMBOO_DATA_DIR}/config.json`.",
+    "- Default config path: `~/.bamboo/config.json` (macOS/Linux) or `%USERPROFILE%\\\\.bamboo\\\\config.json` (Windows).",
+  ].join("\n");
+};
+
 const joinPromptSegments = (segments: string[]): string => {
   const normalized = segments
     .map((segment) => segment.trim())
@@ -40,7 +51,7 @@ const buildWorkspaceContextSegment = (workspacePath?: string): string => {
   }
   return [
     `Workspace path: ${normalized}`,
-    "If you need to inspect files, check the workspace first, then check the bamboo data directory in the user's home directory (use OS-appropriate path format).",
+    "If you need to inspect files, check the workspace first, then check Bamboo data at `${BAMBOO_DATA_DIR}` (default `~/.bamboo`) and the config file at `${BAMBOO_DATA_DIR}/config.json`.",
   ].join("\n");
 };
 
@@ -70,6 +81,7 @@ export const getSystemPromptEnhancementPipeline = (
 
   // OS info enhancement is ALWAYS included first (user cannot disable)
   pipeline.push(getOSInfoEnhancementPrompt().trim());
+  pipeline.push(getBambooOperationalGuidancePrompt().trim());
 
   const userEnhancement = getSystemPromptEnhancement().trim();
 
