@@ -16,7 +16,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
       title={
         <Space size={token.marginXS} wrap>
           <span>{skill.name}</span>
-          {skill.category && <Tag color="blue">{skill.category}</Tag>}
+          {skill.license && <Tag color="blue">License: {skill.license}</Tag>}
         </Space>
       }
       styles={{ body: { padding: token.paddingMD } }}
@@ -27,10 +27,13 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
         style={{ width: "100%" }}
       >
         <Text type="secondary">{skill.description}</Text>
-        {skill.tags.length > 0 && (
+        {skill.compatibility && (
+          <Text type="secondary">Compatibility: {skill.compatibility}</Text>
+        )}
+        {skill.tool_refs.length > 0 && (
           <Space size={token.marginXXS} wrap>
-            {skill.tags.map((tag) => (
-              <Tag key={tag}>{tag}</Tag>
+            {skill.tool_refs.map((toolRef) => (
+              <Tag key={toolRef}>{toolRef}</Tag>
             ))}
           </Space>
         )}

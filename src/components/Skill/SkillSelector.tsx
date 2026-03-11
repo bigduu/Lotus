@@ -35,8 +35,9 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
           searchText: [
             skill.name,
             skill.description,
-            skill.category,
-            ...skill.tags,
+            skill.license ?? "",
+            skill.compatibility ?? "",
+            ...skill.tool_refs,
           ]
             .join(" ")
             .toLowerCase(),

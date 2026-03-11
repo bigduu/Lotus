@@ -19,7 +19,7 @@ const { Text } = Typography;
 
 type SelectionHint =
   | { type: "mcp"; label: string; serverId?: string; toolName?: string }
-  | { type: "skill"; label: string; category?: string };
+  | { type: "skill"; label: string; skillId?: string };
 
 const extractSelectionHints = (
   input: string,
@@ -53,12 +53,15 @@ const extractSelectionHints = (
     );
     if (skillMatch) {
       const label = skillMatch[1] ?? "";
-      const categoryMatch = label.match(/\(Category:\s*(.+?)\s*\)\s*$/);
-      const category = categoryMatch?.[1];
+      const idMatch = label.match(/\(ID:\s*([^)]+)\)\s*$/i);
+      const skillId = idMatch?.[1]?.trim();
+      const displayLabel = idMatch
+        ? label.replace(/\(ID:\s*([^)]+)\)\s*$/i, "").trim()
+        : label;
       hints.push({
         type: "skill",
-        label,
-        category,
+        label: displayLabel || label,
+        skillId,
       });
       continue;
     }
@@ -240,9 +243,10 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
               <Space wrap size="small">
                 <Tag color="green">Skill</Tag>
                 <Text strong>Selected</Text>
-                {hint.category && (
+                {hint.label && <Text>{hint.label}</Text>}
+                {hint.skillId && (
                   <Text type="secondary">
-                    <Text code>{hint.category}</Text>
+                    <Text code>{hint.skillId}</Text>
                   </Text>
                 )}
               </Space>

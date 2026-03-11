@@ -18,8 +18,9 @@ export interface CommandItem {
     // Skill
     prompt?: string;
     toolRefs?: string[];
-    workflowRefs?: string[];
-    visibility?: "public" | "private";
+    license?: string | null;
+    compatibility?: string | null;
+    metadata?: unknown;
 
     // MCP
     serverId?: string;

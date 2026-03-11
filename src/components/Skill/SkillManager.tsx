@@ -3,19 +3,15 @@ import {
   Card,
   Input,
   List,
-  Select,
   message,
   Spin,
   Empty,
   Row,
-  Col,
   Button,
 } from "antd";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useAppStore } from "../../pages/ChatPage/store";
 import { SkillCard } from "./SkillCard";
-
-const { Option } = Select;
 
 // Refresh interval in milliseconds (30 seconds)
 const REFRESH_INTERVAL = 30000;
@@ -32,9 +28,6 @@ export const SkillManager = () => {
 
   // Local state
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(
-    undefined,
-  );
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   // Load skills on mount and periodically (with refresh from disk)
@@ -76,25 +69,23 @@ export const SkillManager = () => {
     }
   }, [skillsError, clearSkillsError]);
 
-  // Get unique categories
-  const categories = Array.from(
-    new Set(skills.map((skill) => skill.category)),
-  ).sort();
-
   // Filter skills
   const filteredSkills = skills.filter((skill) => {
-    // Search filter
-    if (
-      searchQuery &&
-      !skill.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-      !skill.description.toLowerCase().includes(searchQuery.toLowerCase())
-    ) {
-      return false;
-    }
+    const normalizedSearch = searchQuery.trim().toLowerCase();
+    if (normalizedSearch) {
+      const searchableText = [
+        skill.name,
+        skill.description,
+        skill.license ?? "",
+        skill.compatibility ?? "",
+        ...skill.tool_refs,
+      ]
+        .join(" ")
+        .toLowerCase();
 
-    // Category filter
-    if (selectedCategory && skill.category !== selectedCategory) {
-      return false;
+      if (!searchableText.includes(normalizedSearch)) {
+        return false;
+      }
     }
 
     return true;
@@ -141,31 +132,14 @@ export const SkillManager = () => {
           changes. Auto-refresh every 30s.
         </div>
         {/* Filters */}
-        <Row gutter={[16, 16]} style={{ marginBottom: "24px" }}>
-          <Col xs={24} sm={12} md={8}>
-            <Input
-              placeholder="Search skills..."
-              prefix={<SearchOutlined />}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              allowClear
-            />
-          </Col>
-          <Col xs={24} sm={12} md={6}>
-            <Select
-              placeholder="Filter by category"
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              style={{ width: "100%" }}
-              allowClear
-            >
-              {categories.map((category) => (
-                <Option key={category} value={category}>
-                  {category}
-                </Option>
-              ))}
-            </Select>
-          </Col>
+        <Row style={{ marginBottom: "24px" }}>
+          <Input
+            placeholder="Search skills..."
+            prefix={<SearchOutlined />}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            allowClear
+          />
         </Row>
 
         {/* Skills Grid */}
@@ -173,7 +147,7 @@ export const SkillManager = () => {
           {filteredSkills.length === 0 ? (
             <Empty
               description={
-                searchQuery || selectedCategory
+                searchQuery
                   ? "No skills match your filters"
                   : "No skills found. Add skill folders in ~/.bamboo/skills"
               }

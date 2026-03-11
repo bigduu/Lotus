@@ -172,7 +172,6 @@ export const useInputContainerCommand = ({
           createdAt: new Date().toISOString(),
           type: command.type,
           displayName: command.displayName,
-          category: command.category,
           mcpAlias: command.type === "mcp" ? command.name : undefined,
           mcpServerId:
             command.type === "mcp" ? command.metadata?.serverId : undefined,

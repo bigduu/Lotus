@@ -21,7 +21,6 @@ export class SkillService {
     refresh?: boolean,
   ): Promise<SkillListResponse> {
     const params = new URLSearchParams();
-    if (filter?.category) params.append("category", filter.category);
     if (filter?.search) params.append("search", filter.search);
     if (refresh) params.append("refresh", "true");
 

@@ -34,7 +34,6 @@ export type {
   SkillDefinition,
   SkillFilter,
   SkillListResponse,
-  SkillVisibility,
 } from "./skill/types";
 
 // MCP Service

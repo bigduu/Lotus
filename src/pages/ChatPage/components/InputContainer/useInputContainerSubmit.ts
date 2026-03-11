@@ -63,7 +63,7 @@ export const useInputContainerSubmit = ({
         );
         if (hasToken) {
           const extraInput = trimmedInput.slice(token.length).trim();
-          const skillHint = `[User explicitly selected skill: ${selectedWorkflow.displayName || selectedWorkflow.name}${selectedWorkflow.category ? ` (Category: ${selectedWorkflow.category})` : ""}]`;
+          const skillHint = `[User explicitly selected skill: ${selectedWorkflow.displayName || selectedWorkflow.name} (ID: ${selectedWorkflow.name})]`;
           composedInput = [skillHint, extraInput].filter(Boolean).join("\n\n");
         }
       } else if (selectedWorkflow?.type === "mcp") {
