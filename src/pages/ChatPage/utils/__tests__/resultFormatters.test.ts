@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   createContentPreview,
+  createCompactPreview,
   formatResultContent,
+  getFileChangeDiffStats,
   getStatusColor,
+  parseFileChangeResultPayload,
+  parseUnifiedDiffLines,
   safeStringify,
   shouldCollapseContent,
 } from "../resultFormatters";
@@ -88,5 +92,115 @@ describe("safeStringify", () => {
     circular.self = circular;
 
     expect(safeStringify(circular)).toBe("[object Object]");
+  });
+});
+
+describe("parseFileChangeResultPayload", () => {
+  it("parses checkpoint payload with unified diff", () => {
+    const payload = JSON.stringify({
+      operation: "Edit",
+      message: "Edited file: /tmp/demo.ts",
+      file_path: "/tmp/demo.ts",
+      workspace: "/tmp",
+      checkpoint: {
+        created: true,
+        path: "/tmp/checkpoint/demo.checkpoint",
+      },
+      diff: {
+        unified: "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-console.log('a')\n+console.log('b')",
+        truncated: false,
+      },
+    });
+
+    const parsed = parseFileChangeResultPayload(payload);
+    expect(parsed).not.toBeNull();
+    expect(parsed?.operation).toBe("Edit");
+    expect(parsed?.file_path).toBe("/tmp/demo.ts");
+    expect(parsed?.checkpoint?.created).toBe(true);
+    expect(parsed?.diff.unified).toContain("@@ -1,1 +1,1 @@");
+  });
+
+  it("returns null for non-file-change payload", () => {
+    const payload = JSON.stringify({ hello: "world" });
+    expect(parseFileChangeResultPayload(payload)).toBeNull();
+  });
+});
+
+describe("parseUnifiedDiffLines", () => {
+  it("classifies add/remove/modified lines correctly", () => {
+    const lines = parseUnifiedDiffLines(
+      [
+        "--- a/demo.ts",
+        "+++ b/demo.ts",
+        "@@ -1,2 +1,3 @@",
+        " const a = 1;",
+        "-const oldValue = a;",
+        "+const newValue = a;",
+        "@@ -5,0 +6,1 @@",
+        "+const extra = true;",
+        "@@ -9,1 +10,0 @@",
+        "-const deleted = false;",
+      ].join("\n"),
+    );
+
+    expect(lines.some((line) => line.kind === "meta")).toBe(true);
+    expect(lines.some((line) => line.kind === "hunk")).toBe(true);
+    expect(lines.some((line) => line.kind === "context")).toBe(true);
+    expect(lines.some((line) => line.kind === "modified_remove")).toBe(true);
+    expect(lines.some((line) => line.kind === "modified_add")).toBe(true);
+    expect(lines.some((line) => line.kind === "add")).toBe(true);
+    expect(lines.some((line) => line.kind === "remove")).toBe(true);
+  });
+});
+
+describe("getFileChangeDiffStats", () => {
+  it("uses unified diff stats as fallback when explicit counts are missing", () => {
+    const payload = JSON.stringify({
+      operation: "Edit",
+      file_path: "/tmp/demo.ts",
+      diff: {
+        unified:
+          "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,2 +1,2 @@\n-const oldValue = 1;\n+const newValue = 1;\n+const added = true;",
+      },
+    });
+
+    expect(getFileChangeDiffStats(payload)).toEqual({
+      added: 2,
+      removed: 1,
+    });
+  });
+
+  it("prefers explicit added/removed counts when provided", () => {
+    const payload = JSON.stringify({
+      operation: "Edit",
+      file_path: "/tmp/demo.ts",
+      diff: {
+        unified:
+          "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-const a = 1;\n+const a = 2;",
+        added_lines: 8,
+        removed_lines: 3,
+      },
+    });
+
+    expect(getFileChangeDiffStats(payload)).toEqual({
+      added: 8,
+      removed: 3,
+    });
+  });
+});
+
+describe("createCompactPreview", () => {
+  it("creates file-change specific preview", () => {
+    const payload = JSON.stringify({
+      operation: "Write",
+      file_path: "/tmp/src/main.rs",
+      diff: {
+        unified: "--- a/main.rs\n+++ b/main.rs",
+      },
+    });
+
+    const preview = createCompactPreview(payload);
+    expect(preview).toContain("Write:");
+    expect(preview).toContain("main.rs");
   });
 });

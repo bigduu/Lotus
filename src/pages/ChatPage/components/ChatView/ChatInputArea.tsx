@@ -4,7 +4,7 @@ import { Flex } from "antd";
 import { InputContainer } from "../InputContainer";
 import type { WorkflowDraft } from "../InputContainer";
 import ActiveToolMessageCard, {
-  type PendingToolCall,
+  type SessionDiffSummary,
 } from "./ActiveToolMessageCard";
 
 type ChatInputAreaProps = {
@@ -13,8 +13,7 @@ type ChatInputAreaProps = {
   maxWidth: string;
   onWorkflowDraftChange: (draft: WorkflowDraft | null) => void;
   showMessagesView: boolean;
-  pendingToolCalls: PendingToolCall[];
-  activeToolSessionId?: string | null;
+  sessionDiffSummary: SessionDiffSummary | null;
 };
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -23,8 +22,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   maxWidth,
   onWorkflowDraftChange,
   showMessagesView,
-  pendingToolCalls,
-  activeToolSessionId,
+  sessionDiffSummary,
 }) => {
   return (
     <Flex
@@ -43,8 +41,8 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       >
         {showMessagesView && (
           <ActiveToolMessageCard
-            pendingToolCalls={pendingToolCalls}
-            activeToolSessionId={activeToolSessionId}
+            sessionDiffSummary={sessionDiffSummary}
+            sessionId={chatId}
           />
         )}
         <InputContainer

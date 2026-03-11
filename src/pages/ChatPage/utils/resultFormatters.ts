@@ -6,6 +6,51 @@ export interface FormattedResult {
   parsedJson?: unknown;
 }
 
+export interface FileChangeCheckpoint {
+  created: boolean;
+  id?: string;
+  path?: string;
+  size_bytes?: number;
+  reason?: string;
+}
+
+export interface FileChangeDiff {
+  unified: string;
+  old_line_count?: number;
+  new_line_count?: number;
+  added_lines?: number;
+  removed_lines?: number;
+  truncated?: boolean;
+}
+
+export interface FileChangeResultPayload {
+  operation: string;
+  message?: string;
+  file_path: string;
+  workspace?: string;
+  checkpoint?: FileChangeCheckpoint;
+  diff: FileChangeDiff;
+}
+
+export interface DiffStats {
+  added: number;
+  removed: number;
+}
+
+export type DiffLineKind =
+  | "meta"
+  | "hunk"
+  | "context"
+  | "add"
+  | "remove"
+  | "modified_add"
+  | "modified_remove";
+
+export interface DiffLine {
+  kind: DiffLineKind;
+  text: string;
+}
+
 export interface CollapseOptions {
   maxLines?: number;
   maxCharacters?: number;
@@ -14,6 +59,175 @@ export interface CollapseOptions {
 const DEFAULT_COLLAPSE_OPTIONS: Required<CollapseOptions> = {
   maxLines: 8,
   maxCharacters: 500,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const toStringValue = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
+
+const toNumberValue = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const toBooleanValue = (value: unknown): boolean | undefined =>
+  typeof value === "boolean" ? value : undefined;
+
+export const parseFileChangeResultPayload = (
+  content: string,
+): FileChangeResultPayload | null => {
+  if (!content) {
+    return null;
+  }
+
+  const trimmed = content.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (!isRecord(parsed)) {
+      return null;
+    }
+
+    const filePath = toStringValue(parsed.file_path);
+    const operation = toStringValue(parsed.operation);
+    const diffRaw = parsed.diff;
+    if (!filePath || !operation || !isRecord(diffRaw)) {
+      return null;
+    }
+
+    const unified = toStringValue(diffRaw.unified);
+    if (!unified) {
+      return null;
+    }
+
+    const checkpointRaw = parsed.checkpoint;
+    const checkpoint: FileChangeCheckpoint | undefined = isRecord(checkpointRaw)
+      ? {
+          created: toBooleanValue(checkpointRaw.created) ?? false,
+          id: toStringValue(checkpointRaw.id),
+          path: toStringValue(checkpointRaw.path),
+          size_bytes: toNumberValue(checkpointRaw.size_bytes),
+          reason: toStringValue(checkpointRaw.reason),
+        }
+      : undefined;
+
+    return {
+      operation,
+      message: toStringValue(parsed.message),
+      file_path: filePath,
+      workspace: toStringValue(parsed.workspace),
+      checkpoint,
+      diff: {
+        unified,
+        old_line_count: toNumberValue(diffRaw.old_line_count),
+        new_line_count: toNumberValue(diffRaw.new_line_count),
+        added_lines: toNumberValue(diffRaw.added_lines),
+        removed_lines: toNumberValue(diffRaw.removed_lines),
+        truncated: toBooleanValue(diffRaw.truncated),
+      },
+    };
+  } catch {
+    return null;
+  }
+};
+
+const isRemovedLine = (line: string): boolean =>
+  line.startsWith("-") && !line.startsWith("---");
+
+const isAddedLine = (line: string): boolean =>
+  line.startsWith("+") && !line.startsWith("+++");
+
+export const parseUnifiedDiffLines = (unified: string): DiffLine[] => {
+  const rawLines = unified.split("\n");
+  const output: DiffLine[] = [];
+
+  let index = 0;
+  while (index < rawLines.length) {
+    const line = rawLines[index] ?? "";
+
+    if (line.startsWith("--- ") || line.startsWith("+++ ")) {
+      output.push({ kind: "meta", text: line });
+      index += 1;
+      continue;
+    }
+    if (line.startsWith("@@")) {
+      output.push({ kind: "hunk", text: line });
+      index += 1;
+      continue;
+    }
+
+    if (isRemovedLine(line)) {
+      const removedBlock: string[] = [];
+      while (index < rawLines.length && isRemovedLine(rawLines[index] ?? "")) {
+        removedBlock.push(rawLines[index] ?? "");
+        index += 1;
+      }
+
+      const addedBlock: string[] = [];
+      while (index < rawLines.length && isAddedLine(rawLines[index] ?? "")) {
+        addedBlock.push(rawLines[index] ?? "");
+        index += 1;
+      }
+
+      if (addedBlock.length > 0) {
+        removedBlock.forEach((item) =>
+          output.push({ kind: "modified_remove", text: item }),
+        );
+        addedBlock.forEach((item) =>
+          output.push({ kind: "modified_add", text: item }),
+        );
+      } else {
+        removedBlock.forEach((item) =>
+          output.push({ kind: "remove", text: item }),
+        );
+      }
+      continue;
+    }
+
+    if (isAddedLine(line)) {
+      output.push({ kind: "add", text: line });
+      index += 1;
+      continue;
+    }
+
+    output.push({ kind: "context", text: line });
+    index += 1;
+  }
+
+  return output;
+};
+
+export const extractDiffStatsFromUnified = (unified: string): DiffStats => {
+  let added = 0;
+  let removed = 0;
+
+  for (const line of unified.split("\n")) {
+    if (isAddedLine(line)) {
+      added += 1;
+      continue;
+    }
+    if (isRemovedLine(line)) {
+      removed += 1;
+    }
+  }
+
+  return { added, removed };
+};
+
+export const getFileChangeDiffStats = (content: string): DiffStats | null => {
+  const payload = parseFileChangeResultPayload(content);
+  if (!payload) {
+    return null;
+  }
+
+  const fallback = extractDiffStatsFromUnified(payload.diff.unified);
+  return {
+    added: payload.diff.added_lines ?? fallback.added,
+    removed: payload.diff.removed_lines ?? fallback.removed,
+  };
 };
 
 /**
@@ -168,6 +382,15 @@ export const createCompactPreview = (content: string): string => {
 
   const maxLength = 60;
   const trimmed = content.trim();
+  const fileChangePayload = parseFileChangeResultPayload(trimmed);
+  if (fileChangePayload) {
+    const target =
+      fileChangePayload.file_path.split(/[\\/]/).pop() || fileChangePayload.file_path;
+    const summary = `${fileChangePayload.operation}: ${target}`;
+    return summary.length <= maxLength
+      ? summary
+      : summary.substring(0, maxLength).trimEnd() + "…";
+  }
 
   if (trimmed.length <= maxLength) {
     return trimmed;

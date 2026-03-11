@@ -36,6 +36,40 @@ describe("AgentClient", () => {
     await expect(client.deleteSession("session-1")).rejects.toThrow();
   });
 
+  it("restores session state for a target message", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        success: true,
+        session_id: "session-1",
+        target_message_id: "msg-1",
+        restore_files: true,
+        messages_removed: 3,
+        message_count: 8,
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+
+    await client.restoreSessionState("session-1", {
+      target_message_id: "msg-1",
+      restore_files: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session-1/restore"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"target_message_id":"msg-1"'),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"restore_files":true'),
+      }),
+    );
+  });
+
   // ========== MODEL REQUIREMENT ARCHITECTURE TESTS ==========
   // These tests ensure the design principle:
   // "Frontend must explicitly specify model in requests"

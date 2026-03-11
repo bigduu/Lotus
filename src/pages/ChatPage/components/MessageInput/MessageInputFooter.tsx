@@ -5,7 +5,7 @@ const { Text } = Typography;
 
 interface MessageInputFooterProps {
   charCount: number;
-  maxCharCount: number;
+  maxCharCount?: number;
   isOverCharLimit: boolean;
   isNearCharLimit: boolean;
   isProcessingAttachments: boolean;
@@ -20,6 +20,11 @@ const MessageInputFooter: React.FC<MessageInputFooterProps> = ({
   isProcessingAttachments,
   token,
 }) => {
+  const hasCharLimit =
+    typeof maxCharCount === "number" &&
+    Number.isFinite(maxCharCount) &&
+    maxCharCount > 0;
+
   // Avoid always reserving vertical space for the footer. Show only when it's useful.
   if (!isProcessingAttachments && !isNearCharLimit && !isOverCharLimit) {
     return null;
@@ -27,20 +32,22 @@ const MessageInputFooter: React.FC<MessageInputFooterProps> = ({
 
   return (
     <>
-      <Flex justify="flex-end" style={{ marginTop: token.marginXXS }}>
-        <Text
-          type={
-            isOverCharLimit
-              ? "danger"
-              : isNearCharLimit
-                ? "warning"
-                : "secondary"
-          }
-          style={{ fontSize: token.fontSizeSM }}
-        >
-          {charCount.toLocaleString()} / {maxCharCount.toLocaleString()}
-        </Text>
-      </Flex>
+      {hasCharLimit && (
+        <Flex justify="flex-end" style={{ marginTop: token.marginXXS }}>
+          <Text
+            type={
+              isOverCharLimit
+                ? "danger"
+                : isNearCharLimit
+                  ? "warning"
+                  : "secondary"
+            }
+            style={{ fontSize: token.fontSizeSM }}
+          >
+            {charCount.toLocaleString()} / {maxCharCount.toLocaleString()}
+          </Text>
+        </Flex>
+      )}
 
       {isProcessingAttachments && (
         <Space size="small" style={{ marginTop: token.marginXS }}>

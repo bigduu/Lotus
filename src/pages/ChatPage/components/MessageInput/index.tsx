@@ -75,7 +75,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onWorkflowCommandChange,
   onFileReferenceChange,
   onFileReferenceButtonClick,
-  maxCharCount = 8000,
+  maxCharCount,
 }) => {
   const {
     isStreaming,
@@ -92,8 +92,14 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const { token } = theme.useToken();
   const [messageApi, contextHolder] = message.useMessage();
   const charCount = value.length;
-  const isOverCharLimit = charCount > maxCharCount;
-  const isNearCharLimit = !isOverCharLimit && charCount >= maxCharCount * 0.9;
+  const hasCharLimit =
+    typeof maxCharCount === "number" &&
+    Number.isFinite(maxCharCount) &&
+    maxCharCount > 0;
+  const isOverCharLimit = hasCharLimit ? charCount > maxCharCount : false;
+  const isNearCharLimit = hasCharLimit
+    ? !isOverCharLimit && charCount >= maxCharCount * 0.9
+    : false;
 
   const {
     images,

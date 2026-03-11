@@ -7,6 +7,7 @@ import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { renderCodeBlock } from "../../../../shared/components/Markdown/MarkdownCodeBlock";
+import { openExternalLink } from "../../../../shared/utils/openExternalLink";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -129,14 +130,31 @@ const createStreamingMarkdownComponents = (token: any): Components => ({
     </Card>
   ),
 
-  a: ({ children, href }) => (
-    <Text
-      style={{ color: token.colorLink }}
-      onClick={() => href && window.open(href, "_blank", "noopener,noreferrer")}
-    >
-      {children}
-    </Text>
-  ),
+  a: ({ children, href }) => {
+    const link = typeof href === "string" ? href.trim() : "";
+    if (!link) {
+      return <>{children}</>;
+    }
+
+    return (
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(event) => {
+          event.preventDefault();
+          void openExternalLink(link);
+        }}
+        style={{
+          color: token.colorLink,
+          textDecoration: "underline",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {children}
+      </a>
+    );
+  },
 
   table: ({ children }) => (
     <Card

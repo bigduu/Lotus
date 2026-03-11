@@ -1,13 +1,17 @@
 import { Card, Typography } from "antd";
 import type { Components } from "react-markdown";
 import { renderCodeBlock } from "./MarkdownCodeBlock";
+import { openExternalLink } from "../../utils/openExternalLink";
 
 const { Text } = Typography;
 
 export const createMarkdownComponents = (
   token: any,
   options?: {
-    onFixMermaid?: (chart: string, renderError?: string) => Promise<void> | void;
+    onFixMermaid?: (
+      chart: string,
+      renderError?: string,
+    ) => Promise<void> | void;
   },
 ): Components => ({
   p: ({ children }) => (
@@ -91,14 +95,33 @@ export const createMarkdownComponents = (
     </Card>
   ),
 
-  a: ({ children, href }) => (
-    <Text
-      style={{ color: token.colorLink }}
-      onClick={() => href && window.open(href, "_blank", "noopener,noreferrer")}
-    >
-      {children}
-    </Text>
-  ),
+  a: ({ children, href }) => {
+    const link = typeof href === "string" ? href.trim() : "";
+    if (!link) {
+      return <>{children}</>;
+    }
+
+    return (
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={(event) => {
+          event.preventDefault();
+          // Avoid triggering card-level events when interacting with links.
+          event.stopPropagation();
+          void openExternalLink(link);
+        }}
+        style={{
+          color: token.colorLink,
+          textDecoration: "underline",
+          overflowWrap: "anywhere",
+        }}
+      >
+        {children}
+      </a>
+    );
+  },
 
   table: ({ children }) => (
     <Card

@@ -219,6 +219,27 @@ export interface TruncateSessionMessagesResponse {
   message_count: number;
 }
 
+export interface RestoreSessionStateRequest {
+  target_message_id: string;
+  restore_files: boolean;
+}
+
+export interface RestoreSessionStateResponse {
+  success: boolean;
+  session_id: string;
+  target_message_id: string;
+  restore_files: boolean;
+  messages_removed: number;
+  message_count: number;
+  restored_files?: number;
+  deleted_files?: number;
+  file_errors?: Array<{
+    file_path: string;
+    checkpoint_path?: string | null;
+    error: string;
+  }>;
+}
+
 export interface ScheduleRunConfig {
   system_prompt?: string;
   task_message?: string;
@@ -384,6 +405,21 @@ export class AgentClient {
     const encodedSessionId = encodeURIComponent(sessionId);
     return agentApiClient.post<TruncateSessionMessagesResponse>(
       `sessions/${encodedSessionId}/messages/truncate`,
+      req,
+    );
+  }
+
+  /**
+   * Restore session state to a specific message.
+   * Optionally reverts file changes using checkpoints from tool results.
+   */
+  async restoreSessionState(
+    sessionId: string,
+    req: RestoreSessionStateRequest,
+  ): Promise<RestoreSessionStateResponse> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    return agentApiClient.post<RestoreSessionStateResponse>(
+      `sessions/${encodedSessionId}/restore`,
       req,
     );
   }

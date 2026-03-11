@@ -20,7 +20,7 @@ interface UseMessageInputHandlersProps {
     errorMessage?: string;
   };
   isOverCharLimit: boolean;
-  maxCharCount: number;
+  maxCharCount?: number;
   messageApi: {
     error: (content: string) => void;
   };
@@ -52,8 +52,12 @@ export const useMessageInputHandlers = ({
     }
 
     if (isOverCharLimit) {
+      const maxLengthLabel =
+        typeof maxCharCount === "number"
+          ? maxCharCount.toLocaleString()
+          : "configured";
       messageApi.error(
-        `Message exceeds the maximum length of ${maxCharCount.toLocaleString()} characters.`,
+        `Message exceeds the maximum length of ${maxLengthLabel} characters.`,
       );
       return;
     }

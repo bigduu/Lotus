@@ -9,6 +9,7 @@ import type { WorkspaceFileEntry } from "../../types/workspace";
 
 interface UseInputContainerSubmitProps {
   attachments: ProcessedFile[];
+  referenceText: string | null;
   selectedWorkflow: WorkflowDraft | null;
   matchesWorkflowToken: (value: string, workflowName: string) => boolean;
   fileReferences: Map<string, WorkspaceFileEntry>;
@@ -23,6 +24,7 @@ interface UseInputContainerSubmitProps {
 
 export const useInputContainerSubmit = ({
   attachments,
+  referenceText,
   selectedWorkflow,
   matchesWorkflowToken,
   fileReferences,
@@ -38,6 +40,7 @@ export const useInputContainerSubmit = ({
     async (message: string, images?: ImageFile[]) => {
       const trimmedInput = message.trim();
       const attachmentSummary = summarizeAttachments(attachments);
+      const normalizedReferenceText = referenceText?.trim() ?? "";
       let composedInput = trimmedInput;
 
       // Handle different command types
@@ -94,7 +97,11 @@ export const useInputContainerSubmit = ({
         return;
       }
 
-      const composedMessage = [composedInput, attachmentSummary]
+      const composedMessage = [
+        normalizedReferenceText,
+        composedInput,
+        attachmentSummary,
+      ]
         .filter(Boolean)
         .join("\n\n");
 
@@ -150,6 +157,7 @@ export const useInputContainerSubmit = ({
       setContent,
       setFileReferences,
       setReferenceText,
+      referenceText,
     ],
   );
 

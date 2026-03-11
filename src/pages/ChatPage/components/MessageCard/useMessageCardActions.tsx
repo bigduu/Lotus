@@ -5,6 +5,8 @@ import {
   CopyOutlined,
   DeleteOutlined,
   DownloadOutlined,
+  HistoryOutlined,
+  RedoOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { App as AntApp } from "antd";
@@ -16,6 +18,8 @@ interface UseMessageCardActionsProps {
   messageId?: string;
   currentChatId?: string | null;
   onDelete?: (messageId: string) => void;
+  onRestoreChat?: () => void | Promise<void>;
+  onRestoreFilesAndChat?: () => void | Promise<void>;
   cardRef: RefObject<HTMLDivElement>;
 }
 
@@ -24,6 +28,8 @@ export const useMessageCardActions = ({
   messageId,
   currentChatId,
   onDelete,
+  onRestoreChat,
+  onRestoreFilesAndChat,
   cardRef,
 }: UseMessageCardActionsProps) => {
   const { message: appMessage } = AntApp.useApp();
@@ -102,6 +108,27 @@ export const useMessageCardActions = ({
 
   const contextMenuItems = useMemo(() => {
     const baseItems: NonNullable<MenuProps["items"]> = [
+      ...(onRestoreChat && onRestoreFilesAndChat && currentChatId && messageId
+        ? [
+            {
+              key: "restore-chat",
+              label: "Restore chat to this message",
+              icon: <HistoryOutlined />,
+              onClick: () => {
+                void onRestoreChat();
+              },
+            },
+            {
+              key: "restore-chat-files",
+              label: "Restore files + chat to this message",
+              icon: <RedoOutlined />,
+              onClick: () => {
+                void onRestoreFilesAndChat();
+              },
+            },
+            { type: "divider" as const },
+          ]
+        : []),
       {
         key: "copy",
         label: "Copy",
@@ -152,8 +179,11 @@ export const useMessageCardActions = ({
     messageId,
     messageText,
     onDelete,
+    onRestoreChat,
+    onRestoreFilesAndChat,
     referenceMessage,
     selectedText,
+    currentChatId,
   ]);
 
   return {

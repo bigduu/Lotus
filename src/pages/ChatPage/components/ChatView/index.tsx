@@ -11,7 +11,6 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { selectChatById, useAppStore } from "../../store";
 import {
-  isAssistantToolCallMessage,
   isAssistantToolResultMessage,
   type Message,
 } from "../../types/chat";
@@ -28,7 +27,11 @@ import {
   useChatViewMessages,
   type RenderableEntry,
 } from "./useChatViewMessages";
-import type { PendingToolCall } from "./ActiveToolMessageCard";
+import type { SessionDiffSummary } from "./ActiveToolMessageCard";
+import {
+  getFileChangeDiffStats,
+  parseFileChangeResultPayload,
+} from "../../utils/resultFormatters";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -87,31 +90,67 @@ export const ChatView: React.FC<ChatViewProps> = ({
     ? processingChats.has(chatId)
     : false;
 
-  const pendingToolCalls = useMemo<PendingToolCall[]>(() => {
-    if (!currentMessages || currentMessages.length === 0) return [];
-
-    const completedToolCallIds = new Set<string>();
-    for (const msg of currentMessages) {
-      if (isAssistantToolResultMessage(msg) && msg.toolCallId) {
-        completedToolCallIds.add(msg.toolCallId);
-      }
+  const sessionDiffSummary = useMemo<SessionDiffSummary | null>(() => {
+    if (!currentMessages || currentMessages.length === 0) {
+      return null;
     }
 
-    const pendingById = new Map<string, PendingToolCall>();
+    const files = new Map<
+      string,
+      { added: number; removed: number; diffChunks: string[]; truncated: boolean }
+    >();
+    let totalAdded = 0;
+    let totalRemoved = 0;
+    let changedTools = 0;
+
     for (const msg of currentMessages) {
-      if (!isAssistantToolCallMessage(msg)) continue;
-      for (const call of msg.toolCalls ?? []) {
-        if (completedToolCallIds.has(call.toolCallId)) continue;
-        pendingById.set(call.toolCallId, {
-          toolCallId: call.toolCallId,
-          toolName: call.toolName,
-          parameters: call.parameters,
-          streamingOutput: call.streamingOutput,
+      if (!isAssistantToolResultMessage(msg)) continue;
+
+      const content = msg.result?.result ?? "";
+      const payload = parseFileChangeResultPayload(content);
+      const diffStats = getFileChangeDiffStats(content);
+      if (!payload || !diffStats) continue;
+
+      changedTools += 1;
+      totalAdded += diffStats.added;
+      totalRemoved += diffStats.removed;
+
+      const existing = files.get(payload.file_path);
+      if (existing) {
+        existing.added += diffStats.added;
+        existing.removed += diffStats.removed;
+        existing.diffChunks.push(payload.diff.unified);
+        existing.truncated = existing.truncated || Boolean(payload.diff.truncated);
+      } else {
+        files.set(payload.file_path, {
+          added: diffStats.added,
+          removed: diffStats.removed,
+          diffChunks: [payload.diff.unified],
+          truncated: Boolean(payload.diff.truncated),
         });
       }
     }
 
-    return Array.from(pendingById.values());
+    if (files.size === 0) {
+      return null;
+    }
+
+    const fileSummaries = Array.from(files.entries())
+      .map(([filePath, stats]) => ({
+        filePath,
+        added: stats.added,
+        removed: stats.removed,
+        unifiedDiff: stats.diffChunks.join("\n\n"),
+        truncated: stats.truncated,
+      }))
+      .sort((a, b) => a.filePath.localeCompare(b.filePath));
+
+    return {
+      totalAdded,
+      totalRemoved,
+      files: fileSummaries,
+      changedTools,
+    };
   }, [currentMessages]);
 
   const interactionState = useMemo(() => {
@@ -272,18 +311,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const getScrollButtonPosition = () => {
     return screens.xs ? 16 : 32;
   };
-
-  const activeToolSessionId = useMemo(() => {
-    // Prefer the latest tool session with a pending tool, so "View output" jumps
-    // to the most relevant live output in the message list.
-    for (let i = renderableMessagesWithDraft.length - 1; i >= 0; i--) {
-      const entry = renderableMessagesWithDraft[i];
-      if (!entry) continue;
-      if (!("type" in entry) || entry.type !== "tool_session") continue;
-      if (entry.tools.some((t) => !t.result)) return entry.id;
-    }
-    return null;
-  }, [renderableMessagesWithDraft]);
 
   return (
     <Layout
@@ -450,8 +477,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           maxWidth={showMessagesView ? getContainerMaxWidth() : "100%"}
           onWorkflowDraftChange={setWorkflowDraft}
           showMessagesView={Boolean(showMessagesView)}
-          pendingToolCalls={pendingToolCalls}
-          activeToolSessionId={activeToolSessionId}
+          sessionDiffSummary={sessionDiffSummary}
         />
       </Flex>
     </Layout>

@@ -8,7 +8,11 @@ import React, {
 } from "react";
 import { App as AntApp, Space, theme, Tag, Alert, Spin } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
-import { ToolOutlined, RobotOutlined, SettingOutlined } from "@ant-design/icons";
+import {
+  ToolOutlined,
+  RobotOutlined,
+  SettingOutlined,
+} from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
@@ -31,6 +35,7 @@ const FileReferenceSelector = lazy(() => import("../FileReferenceSelector"));
 
 const { useToken } = theme;
 const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
+const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
 
 type ChatSendMessageEventDetail = {
   content: string;
@@ -38,6 +43,12 @@ type ChatSendMessageEventDetail = {
   handled?: boolean;
   resolve?: () => void;
   reject?: (error: unknown) => void;
+};
+
+type ChatReferenceTextEventDetail = {
+  text: string;
+  chatId?: string | null;
+  handled?: boolean;
 };
 
 export type WorkflowDraft = {
@@ -107,9 +118,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [chatId, setReferenceText],
   );
 
-  const isProcessing = chatId
-    ? processingChats.has(chatId)
-    : false;
+  const isProcessing = chatId ? processingChats.has(chatId) : false;
 
   const {
     sendMessage,
@@ -182,6 +191,54 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     };
   }, [activeChatId, chatId, sendMessage]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleReferenceText = (event: Event) => {
+      const customEvent = event as CustomEvent<ChatReferenceTextEventDetail>;
+      if (!customEvent.detail || typeof customEvent.detail.text !== "string") {
+        return;
+      }
+
+      const targetChatId =
+        typeof customEvent.detail.chatId === "string"
+          ? customEvent.detail.chatId
+          : null;
+      const shouldHandle = targetChatId
+        ? chatId === targetChatId
+        : chatId !== null && chatId === activeChatId;
+      if (!shouldHandle) {
+        return;
+      }
+
+      const nextReferenceText = customEvent.detail.text.trim();
+      if (!nextReferenceText) {
+        return;
+      }
+
+      customEvent.detail.handled = true;
+      setReferenceTextPersisted(nextReferenceText);
+
+      requestAnimationFrame(() => {
+        textAreaRef.current?.focus();
+      });
+    };
+
+    window.addEventListener(
+      CHAT_REFERENCE_TEXT_EVENT,
+      handleReferenceText as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        CHAT_REFERENCE_TEXT_EVENT,
+        handleReferenceText as EventListener,
+      );
+    };
+  }, [activeChatId, chatId, setReferenceTextPersisted]);
+
   const isStreaming = isProcessing;
   // Use the global Ant App context message API to avoid mounting a per-pane
   // rc-notification container (which can cause update-depth loops in some layouts).
@@ -234,6 +291,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   const { handleSubmit } = useInputContainerSubmit({
     attachments,
+    referenceText,
     selectedWorkflow: commandState.selectedCommand,
     matchesWorkflowToken: commandState.matchesCommandToken,
     fileReferences: fileReferenceState.fileReferences,
@@ -265,12 +323,27 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       };
     }
     if (agentAvailable === null) {
-      return { color: "default", icon: <RobotOutlined />, text: "Checking...", actionable: false };
+      return {
+        color: "default",
+        icon: <RobotOutlined />,
+        text: "Checking...",
+        actionable: false,
+      };
     }
     if (agentAvailable) {
-      return { color: "success", icon: <RobotOutlined />, text: "Agent Mode", actionable: false };
+      return {
+        color: "success",
+        icon: <RobotOutlined />,
+        text: "Agent Mode",
+        actionable: false,
+      };
     }
-    return { color: "red", icon: <RobotOutlined />, text: "Agent Unavailable", actionable: false };
+    return {
+      color: "red",
+      icon: <RobotOutlined />,
+      text: "Agent Unavailable",
+      actionable: false,
+    };
   }, [activeModel, agentAvailable]);
 
   // Handle clicking on model status to open settings
@@ -424,7 +497,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         onFileReferenceButtonClick={
           fileReferenceState.handleFileReferenceButtonClick
         }
-        maxCharCount={8000}
         interaction={{
           isStreaming,
           hasMessages: currentMessages.some((m) => m.role === "user"),

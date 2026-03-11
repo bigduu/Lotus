@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
-import { Card, Dropdown, Flex, Grid, Space, theme } from "antd";
+import { App as AntApp, Card, Dropdown, Flex, Grid, Space, theme } from "antd";
 import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
@@ -11,6 +11,7 @@ import {
   createReferenceButton,
 } from "../ActionButtonGroup";
 import { useAppStore } from "../../store";
+import { agentClient } from "../../services/AgentService";
 import {
   isTodoListMessage,
   isUserFileReferenceMessage,
@@ -62,8 +63,11 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 }) => {
   const { role, id: messageId } = message;
   const { token } = useToken();
+  const { message: appMessage } = AntApp.useApp();
   const screens = useBreakpoint();
   const updateChat = useAppStore((state) => state.updateChat);
+  const loadChatHistory = useAppStore((state) => state.loadChatHistory);
+  const refreshChats = useAppStore((state) => state.refreshChats);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState<boolean>(false);
 
@@ -130,6 +134,56 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const onFixMermaid = useMessageCardMermaidFix(messageId);
 
+  const restoreSessionState = useCallback(
+    async (restoreFiles: boolean) => {
+      if (!chatId || !messageId) {
+        appMessage.warning("Cannot restore this message");
+        return;
+      }
+
+      try {
+        const result = await agentClient.restoreSessionState(chatId, {
+          target_message_id: messageId,
+          restore_files: restoreFiles,
+        });
+
+        await loadChatHistory(chatId, { mode: "replace" });
+        await refreshChats();
+
+        const fileErrorCount = result.file_errors?.length ?? 0;
+        if (fileErrorCount > 0) {
+          appMessage.warning(
+            `Chat restored. ${fileErrorCount} file(s) could not be restored.`,
+          );
+          return;
+        }
+
+        if (restoreFiles) {
+          appMessage.success(
+            `Files and chat restored (${result.messages_removed} message(s) removed).`,
+          );
+        } else {
+          appMessage.success(
+            `Chat restored (${result.messages_removed} message(s) removed).`,
+          );
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to restore session";
+        appMessage.error(message);
+      }
+    },
+    [appMessage, chatId, loadChatHistory, messageId, refreshChats],
+  );
+
+  const onRestoreChat = useCallback(() => {
+    void restoreSessionState(false);
+  }, [restoreSessionState]);
+
+  const onRestoreFilesAndChat = useCallback(() => {
+    void restoreSessionState(true);
+  }, [restoreSessionState]);
+
   const {
     contextMenuItems,
     handleMouseUp,
@@ -140,6 +194,8 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     messageId,
     currentChatId: chatId,
     onDelete,
+    onRestoreChat,
+    onRestoreFilesAndChat,
     cardRef,
   });
 

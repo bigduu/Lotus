@@ -24,6 +24,10 @@ import type {
   AssistantToolResultMessage,
 } from "../../types/chat";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
+import {
+  getFileChangeDiffStats,
+  parseFileChangeResultPayload,
+} from "../../utils/resultFormatters";
 
 const { Text } = Typography;
 
@@ -165,6 +169,24 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
     };
   }, [completedCount, pendingCount, hasErrors, tools.length]);
 
+  const sessionDiffStats = useMemo(() => {
+    let added = 0;
+    let removed = 0;
+    let changedTools = 0;
+
+    tools.forEach((item) => {
+      const content = item.result?.result?.result;
+      if (!content) return;
+      const stats = getFileChangeDiffStats(content);
+      if (!stats) return;
+      added += stats.added;
+      removed += stats.removed;
+      changedTools += 1;
+    });
+
+    return { added, removed, changedTools };
+  }, [tools]);
+
   const collapseItems: CollapseProps["items"] = useMemo(() => {
     return tools
       .map((item, index) => {
@@ -177,6 +199,12 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
           toolCall.parameters,
         );
         const mcpParts = parseMcpToolAlias(toolCall.toolName);
+        const toolDiffStats = item.result
+          ? getFileChangeDiffStats(item.result.result.result)
+          : null;
+        const fileChangePayload = item.result
+          ? parseFileChangeResultPayload(item.result.result.result)
+          : null;
 
         return {
           key: item.call.id,
@@ -228,6 +256,38 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
               >
                 {intent}
               </Text>
+              {fileChangePayload && (
+                <Text
+                  type="secondary"
+                  ellipsis
+                  style={{ maxWidth: 180, fontSize: token.fontSizeSM }}
+                >
+                  {fileChangePayload.file_path.split(/[\\/]/).pop() ||
+                    fileChangePayload.file_path}
+                </Text>
+              )}
+              {toolDiffStats && (
+                <Space size={4} style={{ marginLeft: token.marginXS }}>
+                  <Text
+                    style={{
+                      color: token.colorSuccess,
+                      fontSize: token.fontSizeSM,
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    }}
+                  >
+                    +{toolDiffStats.added}
+                  </Text>
+                  <Text
+                    style={{
+                      color: token.colorError,
+                      fontSize: token.fontSizeSM,
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                    }}
+                  >
+                    -{toolDiffStats.removed}
+                  </Text>
+                </Space>
+              )}
             </div>
           ),
           children: (
@@ -298,6 +358,28 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
           count={tools.length}
           style={{ backgroundColor: token.colorPrimary }}
         />
+        {sessionDiffStats.changedTools > 0 && (
+          <Space size={4} style={{ marginInlineStart: token.marginXS }}>
+            <Text
+              style={{
+                color: token.colorSuccess,
+                fontSize: token.fontSizeSM,
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              }}
+            >
+              +{sessionDiffStats.added}
+            </Text>
+            <Text
+              style={{
+                color: token.colorError,
+                fontSize: token.fontSizeSM,
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+              }}
+            >
+              -{sessionDiffStats.removed}
+            </Text>
+          </Space>
+        )}
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
           {sessionStatus.text}
         </Text>
