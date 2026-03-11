@@ -2,12 +2,15 @@ import React, { useState } from "react";
 import { Button, Card, message } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 import LazyMermaidChart from "../MermaidChart/LazyMermaidChart";
+import MermaidChart from "../MermaidChart";
 import { copyText } from "@shared/utils/clipboard";
 import {
   getSyntaxTheme,
   registeredLanguages,
   SyntaxHighlighter,
 } from "./markdownSyntax";
+
+export type MermaidRenderMode = "lazy" | "eager";
 
 interface CodeBlockWithCopyProps {
   language: string;
@@ -180,6 +183,7 @@ export const renderCodeBlock = (
   codeString: string,
   token: any,
   onFixMermaid?: (chart: string, renderError?: string) => Promise<void> | void,
+  mermaidRenderMode: MermaidRenderMode = "lazy",
 ) => {
   try {
     if (!codeString || typeof codeString !== "string") {
@@ -198,6 +202,9 @@ export const renderCodeBlock = (
       if (!trimmedChart) {
         console.warn("Empty Mermaid chart content");
         return null;
+      }
+      if (mermaidRenderMode === "eager") {
+        return <MermaidChart chart={trimmedChart} onFix={onFixMermaid} />;
       }
       return <LazyMermaidChart chart={trimmedChart} onFix={onFixMermaid} />;
     }

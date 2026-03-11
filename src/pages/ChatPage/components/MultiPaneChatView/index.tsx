@@ -3,6 +3,7 @@ import { Button, Flex, theme } from "antd";
 import {
   BorderHorizontalOutlined,
   BorderVerticleOutlined,
+  CheckSquareOutlined,
   CloseOutlined,
 } from "@ant-design/icons";
 
@@ -16,6 +17,7 @@ import {
 } from "@shared/store/uiLayoutStore";
 import { ResizableSplit } from "@shared/components/ResizableSplit";
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
+import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "../ChatView/events";
 
 import "./styles.css";
 
@@ -120,6 +122,25 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
               const next = useUILayoutStore.getState();
               const nextChatId = next.leafChatIds[next.activeLeafId] ?? null;
               if (nextChatId) selectChat(nextChatId);
+            }}
+          />
+
+          <Button
+            size="small"
+            type="text"
+            icon={<CheckSquareOutlined />}
+            disabled={!chatId}
+            title="Select Messages to Export"
+            aria-label="Select Messages to Export"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!chatId) return;
+              window.dispatchEvent(
+                new CustomEvent(CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT, {
+                  detail: { chatId },
+                }),
+              );
             }}
           />
 

@@ -26,6 +26,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
   return (
     <div
       ref={containerRef}
+      data-mermaid-loading={isLoading ? "true" : "false"}
       className={className}
       style={{
         textAlign: "center",
@@ -84,6 +85,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
           {({ zoomIn, zoomOut, resetTransform }) => (
             <>
               <div
+                data-mermaid-controls="true"
                 style={{
                   position: "absolute",
                   top: 8,

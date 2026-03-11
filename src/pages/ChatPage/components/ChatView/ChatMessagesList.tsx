@@ -1,5 +1,5 @@
 import React from "react";
-import { Flex, Layout } from "antd";
+import { Checkbox, Flex, Layout } from "antd";
 
 import SystemMessageCard from "../SystemMessageCard";
 import MessageCard from "../MessageCard";
@@ -34,6 +34,10 @@ type ChatMessagesListProps = {
   workflowDraftId?: string;
   interactionState: InteractionState;
   padding: number;
+  selectionMode: boolean;
+  selectedMessageIds: ReadonlySet<string>;
+  selectableMessageIds: ReadonlySet<string>;
+  onToggleMessageSelection: (messageId: string) => void;
 };
 
 export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
@@ -52,7 +56,36 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   workflowDraftId,
   interactionState,
   padding,
+  selectionMode,
+  selectedMessageIds,
+  selectableMessageIds,
+  onToggleMessageSelection,
 }) => {
+  const renderMessageSelectionCheckbox = (
+    messageId: string,
+    align: "flex-start" | "flex-end",
+  ) => {
+    if (!selectionMode) return null;
+
+    const isSelectable = selectableMessageIds.has(messageId);
+    return (
+      <Checkbox
+        checked={selectedMessageIds.has(messageId)}
+        disabled={!isSelectable}
+        onChange={() => {
+          if (isSelectable) {
+            onToggleMessageSelection(messageId);
+          }
+        }}
+        style={{
+          marginTop: 8,
+          marginLeft: align === "flex-end" ? 8 : 0,
+          marginRight: align === "flex-start" ? 8 : 0,
+        }}
+      />
+    );
+  };
+
   return (
     <Content
       className={`chat-view-messages-list ${
@@ -129,15 +162,32 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                       </div>
                     </Flex>
                   ) : convertedEntry.message.role === "system" ? (
-                    <SystemMessageCard
-                      currentChat={currentChat}
-                      message={convertedEntry.message}
-                    />
+                    <Flex
+                      align="flex-start"
+                      style={{ width: "100%", maxWidth: "100%" }}
+                    >
+                      {renderMessageSelectionCheckbox(
+                        convertedEntry.message.id,
+                        "flex-start",
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <SystemMessageCard
+                          currentChat={currentChat}
+                          message={convertedEntry.message}
+                        />
+                      </div>
+                    </Flex>
                   ) : (
                     <Flex
                       justify={convertedEntry.align}
+                      align="flex-start"
                       style={{ width: "100%", maxWidth: "100%" }}
                     >
+                      {convertedEntry.align === "flex-start" &&
+                        renderMessageSelectionCheckbox(
+                          convertedEntry.message.id,
+                          convertedEntry.align,
+                        )}
                       <div
                         style={{
                           width:
@@ -158,6 +208,11 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                           }
                         />
                       </div>
+                      {convertedEntry.align === "flex-end" &&
+                        renderMessageSelectionCheckbox(
+                          convertedEntry.message.id,
+                          convertedEntry.align,
+                        )}
                     </Flex>
                   )}
                 </div>

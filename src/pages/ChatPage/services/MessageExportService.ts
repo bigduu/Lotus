@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
+import { createMarkdownComponents } from "../../../shared/components/Markdown/markdownComponents";
 
 export type MessageExportFormat = "markdown" | "pdf";
 
@@ -18,6 +19,26 @@ const sanitizeFilenamePart = (value: string): string => {
   const safe = trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-");
   return safe || "message";
 };
+
+const PDF_EXPORT_TOKEN = {
+  marginSM: 12,
+  marginXS: 6,
+  paddingXS: 6,
+  paddingSM: 10,
+  padding: 12,
+  borderRadiusSM: 8,
+  fontSizeSM: 12,
+  colorPrimary: "#1677ff",
+  colorPrimaryBg: "#e6f4ff",
+  colorTextSecondary: "#595959",
+  colorText: "#1f1f1f",
+  colorLink: "#1677ff",
+  colorBgContainer: "#ffffff",
+  colorBorder: "#d9d9d9",
+  boxShadowSecondary: "none",
+} as const;
+
+const MERMAID_LOADING_SELECTOR = '[data-mermaid-loading="true"]';
 
 export class MessageExportService {
   static async exportMessageText(args: {
@@ -81,10 +102,8 @@ export class MessageExportService {
   }
 
   private static async generatePdfFromText(content: string): Promise<Uint8Array> {
-    // PDF export should reflect the rendered Markdown, not the raw source.
-    // We render Markdown into a temporary DOM node and let html2pdf (html2canvas + jsPDF)
-    // capture it into the PDF. This keeps the feature isolated (no global state updates)
-    // and only runs on demand.
+    // PDF export should match the markdown renderer used in MessageCard,
+    // including custom code/mermaid rendering.
     if (typeof document === "undefined") {
       throw new Error("PDF export is unavailable in this environment");
     }
@@ -93,6 +112,10 @@ export class MessageExportService {
     const { jsPDF } = await import("jspdf");
     const { createRoot } = await import("react-dom/client");
     const { flushSync } = await import("react-dom");
+
+    const markdownComponents = createMarkdownComponents(PDF_EXPORT_TOKEN, {
+      mermaidRenderMode: "eager",
+    });
 
     const overlay = document.createElement("div");
     overlay.style.position = "fixed";
@@ -140,17 +163,11 @@ export class MessageExportService {
 
     const style = document.createElement("style");
     style.textContent = `
+      .md-export { color: #111; }
       .md-export h1 { font-size: 24px; margin: 0 0 16px; }
       .md-export h2 { font-size: 18px; margin: 18px 0 12px; }
       .md-export h3 { font-size: 16px; margin: 14px 0 10px; }
-      .md-export p { margin: 0 0 10px; }
-      .md-export ul, .md-export ol { margin: 0 0 10px 20px; padding: 0; }
-      .md-export li { margin: 0 0 6px; }
-      .md-export pre { background: #f6f6f6; padding: 12px; border-radius: 8px; overflow: hidden; }
-      .md-export code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-      .md-export blockquote { border-left: 4px solid #ddd; margin: 0 0 10px; padding: 0 0 0 12px; color: #444; }
-      .md-export table { border-collapse: collapse; width: 100%; margin: 0 0 10px; }
-      .md-export th, .md-export td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+      .md-export [data-mermaid-controls="true"] { display: none !important; }
     `;
     container.appendChild(style);
 
@@ -170,6 +187,7 @@ export class MessageExportService {
           {
             remarkPlugins: [remarkGfm, remarkBreaks],
             rehypePlugins: [rehypeSanitize],
+            components: markdownComponents,
           },
           content || "",
         ),
@@ -177,25 +195,8 @@ export class MessageExportService {
     });
 
     try {
-      // Ensure layout + fonts settle before capture.
-      await new Promise<void>((resolve) =>
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
-      );
-      // Some environments support FontFaceSet; wait best-effort.
-      await (document as any).fonts?.ready?.catch?.(() => undefined);
-
-      const canvas = await html2canvas(container, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        foreignObjectRendering: true,
-      });
-
-      // Basic guard: if we somehow got a 0x0 canvas, abort.
-      if (!canvas.width || !canvas.height) {
-        throw new Error("PDF render failed (empty canvas)");
-      }
+      await this.waitForExportRenderReady(container);
+      const canvas = await this.renderCanvasWithFallback(html2canvas, container);
 
       // Render canvas into A4 pages (pt units).
       const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
@@ -257,5 +258,67 @@ export class MessageExportService {
       overlay.remove();
       container.remove();
     }
+  }
+
+  private static async waitForExportRenderReady(
+    container: HTMLElement,
+  ): Promise<void> {
+    // Ensure layout + fonts settle before capture.
+    await new Promise<void>((resolve) =>
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+    );
+    await (document as any).fonts?.ready?.catch?.(() => undefined);
+
+    const start = Date.now();
+    const timeoutMs = 6000;
+    while (Date.now() - start < timeoutMs) {
+      const pendingMermaid = container.querySelector(MERMAID_LOADING_SELECTOR);
+      if (!pendingMermaid) {
+        // Give one more frame to flush post-render layout changes.
+        await new Promise<void>((resolve) =>
+          requestAnimationFrame(() => resolve()),
+        );
+        return;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 50));
+    }
+  }
+
+  private static async renderCanvasWithFallback(
+    html2canvas: (
+      element: HTMLElement,
+      options: Record<string, unknown>,
+    ) => Promise<HTMLCanvasElement>,
+    container: HTMLElement,
+  ): Promise<HTMLCanvasElement> {
+    const baseOptions = {
+      backgroundColor: "#ffffff",
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+    };
+
+    try {
+      const canvas = await html2canvas(container, {
+        ...baseOptions,
+        foreignObjectRendering: true,
+      });
+      if (canvas.width && canvas.height) {
+        return canvas;
+      }
+    } catch (error) {
+      console.warn("PDF capture with foreignObjectRendering=true failed:", error);
+    }
+
+    const fallbackCanvas = await html2canvas(container, {
+      ...baseOptions,
+      foreignObjectRendering: false,
+    });
+
+    if (!fallbackCanvas.width || !fallbackCanvas.height) {
+      throw new Error("PDF render failed (empty canvas)");
+    }
+
+    return fallbackCanvas;
   }
 }

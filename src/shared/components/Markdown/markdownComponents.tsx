@@ -1,6 +1,9 @@
 import { Card, Typography } from "antd";
 import type { Components } from "react-markdown";
-import { renderCodeBlock } from "./MarkdownCodeBlock";
+import {
+  renderCodeBlock,
+  type MermaidRenderMode,
+} from "./MarkdownCodeBlock";
 import { openExternalLink } from "../../utils/openExternalLink";
 
 const { Text } = Typography;
@@ -12,6 +15,7 @@ export const createMarkdownComponents = (
       chart: string,
       renderError?: string,
     ) => Promise<void> | void;
+    mermaidRenderMode?: MermaidRenderMode;
   },
 ): Components => ({
   p: ({ children }) => (
@@ -76,7 +80,13 @@ export const createMarkdownComponents = (
       return null;
     }
 
-    return renderCodeBlock(language, codeString, token, options?.onFixMermaid);
+    return renderCodeBlock(
+      language,
+      codeString,
+      token,
+      options?.onFixMermaid,
+      options?.mermaidRenderMode,
+    );
   },
 
   blockquote: ({ children }) => (
