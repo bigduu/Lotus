@@ -10,7 +10,7 @@ import type { ChatItem, Message } from "../../types/chat";
 export interface UseChatState {
   // State from store
   chats: ChatItem[];
-  currentChatId: string | null;
+  currentSessionId: string | null;
   currentChat: ChatItem | null;
   isProcessing: boolean;
 
@@ -21,56 +21,56 @@ export interface UseChatState {
   chatCount: number;
 
   // Store actions (re-exported for convenience)
-  addMessage: (chatId: string, message: Message) => Promise<void>;
-  deleteMessage: (chatId: string, messageId: string) => void;
-  selectChat: (chatId: string | null) => void;
-  deleteChat: (chatId: string) => Promise<void>;
-  deleteChats: (chatIds: string[]) => Promise<void>;
-  pinChat: (chatId: string) => void;
-  unpinChat: (chatId: string) => void;
-  updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
+  addMessage: (sessionId: string, message: Message) => Promise<void>;
+  deleteMessage: (sessionId: string, messageId: string) => void;
+  selectSession: (sessionId: string | null) => void;
+  deleteSession: (sessionId: string) => Promise<void>;
+  deleteSessions: (sessionIds: string[]) => Promise<void>;
+  pinSession: (sessionId: string) => void;
+  unpinSession: (sessionId: string) => void;
+  updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
   loadChats: () => Promise<void>;
-  setChatProcessing: (chatId: string, isProcessing: boolean) => void;
+  setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
 }
 
 export function useChatState(): UseChatState {
   const {
     chats,
-    currentChatId,
+    currentSessionId,
     currentChat,
     addMessage,
-    selectChat,
-    deleteChat,
-    deleteChats,
+    selectSession,
+    deleteSession,
+    deleteSessions,
     deleteMessage,
-    updateChat,
-    pinChat,
-    unpinChat,
+    updateSession,
+    pinSession,
+    unpinSession,
     loadChats,
     processingChats,
-    setChatProcessing,
+    setSessionProcessing,
   } = useAppStore(
     useShallow((state) => ({
       chats: state.chats,
-      currentChatId: state.currentChatId,
+      currentSessionId: state.currentSessionId,
       currentChat: selectCurrentChat(state),
       addMessage: state.addMessage,
-      selectChat: state.selectChat,
-      deleteChat: state.deleteChat,
-      deleteChats: state.deleteChats,
+      selectSession: state.selectSession,
+      deleteSession: state.deleteSession,
+      deleteSessions: state.deleteSessions,
       deleteMessage: state.deleteMessage,
-      updateChat: state.updateChat,
-      pinChat: state.pinChat,
-      unpinChat: state.unpinChat,
+      updateSession: state.updateSession,
+      pinSession: state.pinSession,
+      unpinSession: state.unpinSession,
       loadChats: state.loadChats,
       processingChats: state.processingChats,
-      setChatProcessing: state.setChatProcessing,
+      setSessionProcessing: state.setSessionProcessing,
     })),
   );
 
   // Derived processing state for current chat
-  const isProcessing = currentChatId
-    ? processingChats.has(currentChatId)
+  const isProcessing = currentSessionId
+    ? processingChats.has(currentSessionId)
     : false;
 
   // --- DERIVED STATE ---
@@ -94,7 +94,7 @@ export function useChatState(): UseChatState {
   return {
     // State
     chats,
-    currentChatId,
+    currentSessionId,
     currentChat,
     isProcessing,
     baseMessages,
@@ -105,13 +105,13 @@ export function useChatState(): UseChatState {
     // Actions
     addMessage,
     deleteMessage,
-    selectChat,
-    deleteChat,
-    deleteChats,
-    pinChat,
-    unpinChat,
-    updateChat,
+    selectSession,
+    deleteSession,
+    deleteSessions,
+    pinSession,
+    unpinSession,
+    updateSession,
     loadChats,
-    setChatProcessing,
+    setSessionProcessing,
   };
 }

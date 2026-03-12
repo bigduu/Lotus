@@ -17,10 +17,10 @@ export interface UseMessageStreaming {
 }
 
 interface UseMessageStreamingDeps {
-  chatId: string | null;
-  addMessage: (chatId: string, message: Message) => Promise<void>;
-  setChatProcessing: (chatId: string, isProcessing: boolean) => void;
-  updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
+  sessionId: string | null;
+  addMessage: (sessionId: string, message: Message) => Promise<void>;
+  setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
+  updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
 }
 
 /**
@@ -50,10 +50,10 @@ export function useMessageStreaming(
   const activeModel = useActiveModel();
   const currentProvider = useProviderStore((state) => state.currentProvider);
 
-  // Fetch chat internally based on chatId
+  // Fetch chat internally based on sessionId
   const currentChat = useAppStore((state) =>
-    deps.chatId
-      ? state.chats.find((chat) => chat.id === deps.chatId) || null
+    deps.sessionId
+      ? state.chats.find((chat) => chat.id === deps.sessionId) || null
       : null,
   );
 
@@ -82,7 +82,7 @@ export function useMessageStreaming(
    * Note: Event subscription is handled by useAgentEventSubscription hook in ChatView
    */
   const sendWithAgent = useCallback(
-    async (content: string, chatId: string, userMessage: UserMessage) => {
+    async (content: string, sessionId: string, userMessage: UserMessage) => {
       // Validate model is available (TypeScript type guard)
       if (!activeModel) {
         throw new Error("Model not selected");
@@ -104,7 +104,7 @@ export function useMessageStreaming(
         // Step 1: Send message to Agent
         const response = await agentClientRef.current.sendMessage({
           message: content,
-          session_id: chatId,
+          session_id: sessionId,
           enhance_prompt: enhancePrompt || undefined,
           workspace_path: workspacePath || undefined,
           images: userMessage.images
@@ -119,27 +119,27 @@ export function useMessageStreaming(
         });
 
         const { session_id } = response;
-        if (session_id !== chatId) {
+        if (session_id !== sessionId) {
           console.warn(
-            `[useMessageStreaming] Backend returned unexpected session_id=${session_id} for chatId=${chatId}`,
+            `[useMessageStreaming] Backend returned unexpected session_id=${session_id} for sessionId=${sessionId}`,
           );
         }
 
         // Step 2: Trigger execution (idempotent)
-        const executeResult = await agentClientRef.current.execute(chatId, activeModel);
+        const executeResult = await agentClientRef.current.execute(sessionId, activeModel);
         console.log("[Agent] Execute status:", executeResult.status);
 
         // Step 3: Set processing flag to activate event subscription (handled by useAgentEventSubscription)
         if (["started", "already_running"].includes(executeResult.status)) {
-          deps.setChatProcessing(chatId, true);
+          deps.setSessionProcessing(sessionId, true);
         } else if (executeResult.status === "completed") {
           // Session already completed, no need to process
           console.log("[Agent] Session already completed");
-          deps.setChatProcessing(chatId, false);
+          deps.setSessionProcessing(sessionId, false);
         } else {
           // Error or other status
           console.error("[Agent] Execute failed:", executeResult.status);
-          deps.setChatProcessing(chatId, false);
+          deps.setSessionProcessing(sessionId, false);
           throw new Error(`Execute failed: ${executeResult.status}`);
         }
       } catch (error) {
@@ -159,7 +159,7 @@ export function useMessageStreaming(
         return;
       }
 
-      if (!deps.chatId) {
+      if (!deps.sessionId) {
         modal.info({
           title: "No Chat ID",
           content: "Chat ID is required to send a message.",
@@ -194,7 +194,7 @@ export function useMessageStreaming(
         return;
       }
 
-      const chatId = deps.chatId;
+      const sessionId = deps.sessionId;
       const messageImages =
         images?.map((img) => ({
           id: img.id,
@@ -212,15 +212,15 @@ export function useMessageStreaming(
         images: messageImages,
       };
 
-      await deps.addMessage(chatId, userMessage);
+      await deps.addMessage(sessionId, userMessage);
 
       try {
         console.log("[useChatStreaming] Using Agent Server");
-        await sendWithAgent(content, chatId, userMessage);
+        await sendWithAgent(content, sessionId, userMessage);
         // Note: Don't set processing false here - let useAgentEventSubscription handle it
       } catch (error) {
         if (streamingMessageIdRef.current) {
-          streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
+          streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
         }
         streamingMessageIdRef.current = null;
         streamingContentRef.current = "";
@@ -232,15 +232,15 @@ export function useMessageStreaming(
           appMessage.error("Failed to send message. Please try again.");
           setAgentAvailability(false);
         }
-        deps.setChatProcessing(chatId, false); // Only set false on error
+        deps.setSessionProcessing(sessionId, false); // Only set false on error
       } finally {
         abortRef.current = null;
         if (streamingMessageIdRef.current) {
-          streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
+          streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
         }
         streamingMessageIdRef.current = null;
         streamingContentRef.current = "";
-        // Removed: deps.setChatProcessing(chatId, false) - useAgentEventSubscription handles this
+        // Removed: deps.setSessionProcessing(sessionId, false) - useAgentEventSubscription handles this
       }
     },
     [
@@ -265,7 +265,7 @@ export function useMessageStreaming(
       return;
     }
 
-    if (!deps.chatId) {
+    if (!deps.sessionId) {
       modal.info({
         title: "No Chat ID",
         content: "Chat ID is required to retry.",
@@ -291,46 +291,46 @@ export function useMessageStreaming(
       return;
     }
 
-    const chatId = deps.chatId;
+    const sessionId = deps.sessionId;
 
     // Clear any lingering local draft so we don't show stale streaming content.
     if (streamingMessageIdRef.current) {
-      streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
+      streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
     }
     streamingMessageIdRef.current = null;
     streamingContentRef.current = "";
 
     try {
       // Server-side truncate: keep last user message, drop assistant/tool tail.
-      await agentClientRef.current.truncateSessionMessages(chatId, {
+      await agentClientRef.current.truncateSessionMessages(sessionId, {
         mode: "after_last_user",
       });
 
       // Immediately reconcile UI with persisted history so old assistant/tool tail disappears.
       // (Avoid relying on per-message deletes; backend is the source of truth.)
-      await useAppStore.getState().loadChatHistory(chatId, { mode: "replace" });
+      await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
       // Activate event subscription (handled by useAgentEventSubscription).
-      deps.setChatProcessing(chatId, true);
+      deps.setSessionProcessing(sessionId, true);
 
       // Re-run execution (idempotent).
-      const executeResult = await agentClientRef.current.execute(chatId, activeModel);
+      const executeResult = await agentClientRef.current.execute(sessionId, activeModel);
       if (["started", "already_running"].includes(executeResult.status)) {
         // Keep processing true.
         return;
       }
       if (executeResult.status === "completed") {
         // Nothing to do (e.g. no pending user message).
-        deps.setChatProcessing(chatId, false);
+        deps.setSessionProcessing(sessionId, false);
         return;
       }
 
-      deps.setChatProcessing(chatId, false);
+      deps.setSessionProcessing(sessionId, false);
       throw new Error(`Execute failed: ${executeResult.status}`);
     } catch (error) {
       console.error("[useMessageStreaming] Retry failed:", error);
       appMessage.error("Retry failed. Please try again.");
-      deps.setChatProcessing(chatId, false);
+      deps.setSessionProcessing(sessionId, false);
     } finally {
       abortRef.current = null;
     }

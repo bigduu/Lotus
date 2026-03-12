@@ -186,6 +186,8 @@ export interface SessionSummary {
   message_count: number;
   has_attachments: boolean;
   is_running: boolean;
+  last_run_status?: string;
+  last_run_error?: string;
 }
 
 export interface ListSessionsResponse {

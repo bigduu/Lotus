@@ -15,12 +15,12 @@ import { ChatItem as ChatItemType } from "../../types/chat";
 interface ChatItemProps {
   chat: ChatItemType;
   isSelected: boolean;
-  onSelect: (chatId: string) => void;
-  onDelete: (chatId: string) => void;
-  onPin: (chatId: string) => void;
-  onUnpin: (chatId: string) => void;
-  onEdit?: (chatId: string, newTitle: string) => void;
-  onGenerateTitle?: (chatId: string) => void;
+  onSelect: (sessionId: string) => void;
+  onDelete: (sessionId: string) => void;
+  onPin: (sessionId: string) => void;
+  onUnpin: (sessionId: string) => void;
+  onEdit?: (sessionId: string, newTitle: string) => void;
+  onGenerateTitle?: (sessionId: string) => void;
   isGeneratingTitle?: boolean;
   titleGenerationError?: string;
 }

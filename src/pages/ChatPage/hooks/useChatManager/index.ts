@@ -30,10 +30,10 @@ export const useChatManager = () => {
 
   // Phase 4: Message streaming (Agent Server)
   const streaming = useMessageStreaming({
-    chatId: state.currentChatId,
+    sessionId: state.currentSessionId,
     addMessage: state.addMessage,
-    setChatProcessing: state.setChatProcessing,
-    updateChat: state.updateChat,
+    setSessionProcessing: state.setSessionProcessing,
+    updateSession: state.updateSession,
   });
 
   // Phase 5: Chat history management
@@ -45,7 +45,7 @@ export const useChatManager = () => {
   return {
     // State from useChatState
     chats: state.chats,
-    currentChatId: state.currentChatId,
+    currentSessionId: state.currentSessionId,
     currentChat: state.currentChat,
     pinnedChats: state.pinnedChats,
     unpinnedChats: state.unpinnedChats,
@@ -66,12 +66,12 @@ export const useChatManager = () => {
     // Actions from useChatState
     addMessage: state.addMessage,
     deleteMessage: state.deleteMessage,
-    selectChat: state.selectChat,
-    deleteChat: state.deleteChat,
-    deleteChats: state.deleteChats,
-    pinChat: state.pinChat,
-    unpinChat: state.unpinChat,
-    updateChat: state.updateChat,
+    selectSession: state.selectSession,
+    deleteSession: state.deleteSession,
+    deleteSessions: state.deleteSessions,
+    pinSession: state.pinSession,
+    unpinSession: state.unpinSession,
+    updateSession: state.updateSession,
     loadChats: state.loadChats,
 
     // Actions from useChatTitleGeneration

@@ -1,7 +1,7 @@
 {
   "name": "@bigduu/lotus",
   "private": false,
-  "version": "2026.3.20",
+  "version": "2026.3.30",
   "description": "Standalone Lotus frontend assets for Bodhi shell and web runtime.",
   "license": "MIT",
   "repository": {

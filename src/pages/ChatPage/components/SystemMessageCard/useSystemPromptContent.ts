@@ -44,7 +44,7 @@ export const useSystemPromptContent = ({
     }
   }, [message.id, message.role, systemMessageContent]);
 
-  const currentChatId = currentChat?.id ?? null;
+  const currentSessionId = currentChat?.id ?? null;
   const systemPromptId = currentChat?.config?.systemPromptId ?? null;
   const workspacePath = currentChat?.config?.workspacePath ?? null;
 
@@ -64,7 +64,7 @@ export const useSystemPromptContent = ({
     // Reset any previously fetched preset when switching chats/prompts.
     setPresetPrompt(null);
     lastPresetLoadKeyRef.current = null;
-  }, [currentChatId, systemPromptId]);
+  }, [currentSessionId, systemPromptId]);
 
   useEffect(() => {
     if (!systemPromptId) {
@@ -77,7 +77,7 @@ export const useSystemPromptContent = ({
     }
 
     // Avoid re-fetch loops when upstream dependencies are unstable (e.g. config objects).
-    const loadKey = `${currentChatId ?? "no-chat"}:${promptId}`;
+    const loadKey = `${currentSessionId ?? "no-chat"}:${promptId}`;
     if (lastPresetLoadKeyRef.current === loadKey) {
       return;
     }
@@ -114,7 +114,7 @@ export const useSystemPromptContent = ({
       cancelled = true;
     };
   }, [
-    currentChatId,
+    currentSessionId,
     systemPromptId,
     systemPromptService,
     userPrompt?.content,

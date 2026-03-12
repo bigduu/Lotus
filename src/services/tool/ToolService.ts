@@ -26,6 +26,7 @@ export interface ParameterValue {
 export interface ToolExecutionRequest {
   tool_name: string;
   parameters: ParameterValue[];
+  session_id?: string;
 }
 
 export interface ToolUIInfo {

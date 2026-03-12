@@ -10,7 +10,7 @@ interface UseInputContainerCommandProps {
   setContent: (value: string) => void;
   onWorkflowDraftChange?: (workflow: WorkflowDraft | null) => void;
   acknowledgeManualInput: () => void;
-  currentChatId: string | null;
+  currentSessionId: string | null;
   textAreaRef: React.RefObject<TextAreaRef>;
   content: string;
 }
@@ -19,7 +19,7 @@ export const useInputContainerCommand = ({
   setContent,
   onWorkflowDraftChange,
   acknowledgeManualInput,
-  currentChatId,
+  currentSessionId,
   textAreaRef,
   content,
 }: UseInputContainerCommandProps) => {
@@ -32,7 +32,7 @@ export const useInputContainerCommand = ({
   useEffect(() => {
     setSelectedCommand(null);
     onWorkflowDraftChange?.(null);
-  }, [currentChatId, onWorkflowDraftChange]);
+  }, [currentSessionId, onWorkflowDraftChange]);
 
   const matchesCommandToken = useCallback(
     (value: string, commandName: string) => {

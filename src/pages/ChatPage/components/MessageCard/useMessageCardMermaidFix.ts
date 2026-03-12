@@ -87,10 +87,10 @@ export const useMessageCardMermaidFix = (messageId: string) => {
   return useCallback(
     async (chart: string, renderError?: string) => {
       const state = useAppStore.getState();
-      const currentChatId = state.currentChatId;
-      const currentChat = state.chats.find((c) => c.id === currentChatId);
+      const currentSessionId = state.currentSessionId;
+      const currentChat = state.chats.find((c) => c.id === currentSessionId);
 
-      if (!currentChatId || !currentChat) {
+      if (!currentSessionId || !currentChat) {
         throw new Error("No active chat available");
       }
 
@@ -121,7 +121,7 @@ export const useMessageCardMermaidFix = (messageId: string) => {
         m.id === messageId ? { ...m, content: updatedContent } : m,
       );
 
-      state.updateChat(currentChatId, { messages: updatedMessages });
+      state.updateSession(currentSessionId, { messages: updatedMessages });
     },
     [messageId, activeModel],
   );

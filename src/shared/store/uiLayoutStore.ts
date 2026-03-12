@@ -46,9 +46,9 @@ export type UILayoutSnapshotV2 = {
   tree: LayoutNode;
   activeLeafId: string;
   /**
-   * leafId -> chatId (or null if empty)
+   * leafId -> sessionId (or null if empty)
    */
-  leafChatIds: Record<string, string | null>;
+  leafSessionIds: Record<string, string | null>;
   /**
    * splitNodeId -> [firstPx, secondPx]
    */
@@ -68,7 +68,7 @@ const DEFAULT_LAYOUT_V2: UILayoutSnapshotV2 = {
   sidebar: DEFAULT_SIDEBAR,
   tree: { type: "leaf", id: "lt" },
   activeLeafId: "lt",
-  leafChatIds: { lt: null },
+  leafSessionIds: { lt: null },
   splitSizesPx: {},
 };
 
@@ -97,12 +97,12 @@ const getSplitIdsFromTree = (node: LayoutNode): string[] => {
   ];
 };
 
-export const findLeafIdByChatId = (
-  leafChatIds: Record<string, string | null>,
-  chatId: string,
+export const findLeafIdBySessionId = (
+  leafSessionIds: Record<string, string | null>,
+  sessionId: string,
 ): string | null => {
-  for (const [leafId, mappedChatId] of Object.entries(leafChatIds)) {
-    if (mappedChatId === chatId) return leafId;
+  for (const [leafId, mappedSessionId] of Object.entries(leafSessionIds)) {
+    if (mappedSessionId === sessionId) return leafId;
   }
   return null;
 };
@@ -172,14 +172,14 @@ const toSnapshot = (state: {
   sidebar: SidebarLayout;
   tree: LayoutNode;
   activeLeafId: string;
-  leafChatIds: Record<string, string | null>;
+  leafSessionIds: Record<string, string | null>;
   splitSizesPx: Record<string, [number, number]>;
 }): UILayoutSnapshotV2 => ({
   v: 2,
   sidebar: state.sidebar,
   tree: state.tree,
   activeLeafId: state.activeLeafId,
-  leafChatIds: state.leafChatIds,
+  leafSessionIds: state.leafSessionIds,
   splitSizesPx: state.splitSizesPx,
 });
 
@@ -208,7 +208,7 @@ type UILayoutSnapshotV1 = {
   }>;
   panes?: Partial<{
     activePaneId: "lt" | "lb" | "rt" | "rb";
-    chatIds: Record<"lt" | "lb" | "rt" | "rb", string | null>;
+    sessionIds: Record<"lt" | "lb" | "rt" | "rb", string | null>;
   }>;
 };
 
@@ -218,8 +218,8 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
   const mode = v1.view?.mode ?? "single";
   const twoDirection = v1.view?.twoDirection ?? "horizontal";
 
-  const leafChatIds: Record<string, string | null> = {
-    ...(v1.panes?.chatIds || {}),
+  const leafSessionIds: Record<string, string | null> = {
+    ...(v1.panes?.sessionIds || {}),
   } as any;
 
   const activeLeafId = v1.panes?.activePaneId ?? "lt";
@@ -232,7 +232,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
       sidebar,
       tree: { type: "leaf", id: "lt" },
       activeLeafId: activeLeafId === "lt" ? "lt" : "lt",
-      leafChatIds: { lt: leafChatIds.lt ?? null },
+      leafSessionIds: { lt: leafSessionIds.lt ?? null },
       splitSizesPx: {},
     };
   }
@@ -276,8 +276,8 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
       sidebar,
       tree,
       activeLeafId: leafIds.includes(activeLeafId) ? activeLeafId : leafIds[0],
-      leafChatIds: Object.fromEntries(
-        leafIds.map((id) => [id, leafChatIds[id] ?? null]),
+      leafSessionIds: Object.fromEntries(
+        leafIds.map((id) => [id, leafSessionIds[id] ?? null]),
       ),
       splitSizesPx,
     };
@@ -324,8 +324,8 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
     sidebar,
     tree,
     activeLeafId: leafIds.includes(activeLeafId) ? activeLeafId : leafIds[0],
-    leafChatIds: Object.fromEntries(
-      leafIds.map((id) => [id, leafChatIds[id] ?? null]),
+    leafSessionIds: Object.fromEntries(
+      leafIds.map((id) => [id, leafSessionIds[id] ?? null]),
     ),
     splitSizesPx,
   };
@@ -346,11 +346,11 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
       const leafIds = getLeafIdsFromTree(tree);
       const splitIds = getSplitIdsFromTree(tree);
 
-      const leafChatIds: Record<string, string | null> = {};
+      const leafSessionIds: Record<string, string | null> = {};
       leafIds.forEach((leafId) => {
-        leafChatIds[leafId] =
-          typeof parsed.leafChatIds?.[leafId] === "string"
-            ? parsed.leafChatIds[leafId]
+        leafSessionIds[leafId] =
+          typeof parsed.leafSessionIds?.[leafId] === "string"
+            ? parsed.leafSessionIds[leafId]
             : null;
       });
 
@@ -373,7 +373,7 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
         sidebar,
         tree,
         activeLeafId,
-        leafChatIds,
+        leafSessionIds,
         splitSizesPx,
       };
     }
@@ -398,8 +398,8 @@ export type UILayoutState = UILayoutSnapshotV2 & {
   setSidebarWidthPx: (widthPx: number) => void;
 
   setActiveLeafId: (leafId: string) => void;
-  setLeafChatId: (leafId: string, chatId: string | null) => void;
-  clearChatFromAllLeaves: (chatId: string) => void;
+  setLeafSessionId: (leafId: string, sessionId: string | null) => void;
+  clearSessionFromAllLeaves: (sessionId: string) => void;
 
   splitLeaf: (leafId: string, layout: SplitLayout) => void;
   closeLeaf: (leafId: string) => void;
@@ -420,7 +420,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: { ...state.sidebar, collapsed },
         tree: state.tree,
         activeLeafId: state.activeLeafId,
-        leafChatIds: state.leafChatIds,
+        leafSessionIds: state.leafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
       persistLayout(next);
@@ -441,7 +441,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: { ...state.sidebar, widthPx: clamped },
         tree: state.tree,
         activeLeafId: state.activeLeafId,
-        leafChatIds: state.leafChatIds,
+        leafSessionIds: state.leafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
       persistLayout(next);
@@ -466,7 +466,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: leafId,
-        leafChatIds: state.leafChatIds,
+        leafSessionIds: state.leafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
       persistLayout(next);
@@ -474,29 +474,29 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
     });
   },
 
-  setLeafChatId: (leafId, chatId) => {
+  setLeafSessionId: (leafId, sessionId) => {
     set((state) => {
       const leafIds = getLeafIdsFromTree(state.tree);
       if (!leafIds.includes(leafId)) return state;
-      if ((state.leafChatIds[leafId] ?? null) === chatId) {
+      if ((state.leafSessionIds[leafId] ?? null) === sessionId) {
         return state;
       }
 
-      uiLayoutDebug("setLeafChatId", {
+      uiLayoutDebug("setLeafSessionId", {
         leafId,
-        fromChatId: state.leafChatIds[leafId] ?? null,
-        toChatId: chatId,
+        fromSessionId: state.leafSessionIds[leafId] ?? null,
+        toSessionId: sessionId,
       });
 
-      const nextLeafChatIds: Record<string, string | null> = {
-        ...state.leafChatIds,
-        [leafId]: chatId,
+      const nextLeafSessionIds: Record<string, string | null> = {
+        ...state.leafSessionIds,
+        [leafId]: sessionId,
       };
 
       // Keep mapping limited to current leaves.
       leafIds.forEach((id) => {
-        if (!(id in nextLeafChatIds)) {
-          nextLeafChatIds[id] = null;
+        if (!(id in nextLeafSessionIds)) {
+          nextLeafSessionIds[id] = null;
         }
       });
 
@@ -504,7 +504,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
-        leafChatIds: nextLeafChatIds,
+        leafSessionIds: nextLeafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
       persistLayout(next);
@@ -512,16 +512,16 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
     });
   },
 
-  clearChatFromAllLeaves: (chatId) => {
+  clearSessionFromAllLeaves: (sessionId) => {
     set((state) => {
-      const nextLeafChatIds: Record<string, string | null> = {
-        ...state.leafChatIds,
+      const nextLeafSessionIds: Record<string, string | null> = {
+        ...state.leafSessionIds,
       };
 
       let didChange = false;
-      for (const [leafId, mapped] of Object.entries(nextLeafChatIds)) {
-        if (mapped === chatId) {
-          nextLeafChatIds[leafId] = null;
+      for (const [leafId, mapped] of Object.entries(nextLeafSessionIds)) {
+        if (mapped === sessionId) {
+          nextLeafSessionIds[leafId] = null;
           didChange = true;
         }
       }
@@ -534,7 +534,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
-        leafChatIds: nextLeafChatIds,
+        leafSessionIds: nextLeafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
       persistLayout(next);
@@ -559,8 +559,8 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         newLeafId,
       );
 
-      const nextLeafChatIds: Record<string, string | null> = {
-        ...state.leafChatIds,
+      const nextLeafSessionIds: Record<string, string | null> = {
+        ...state.leafSessionIds,
         [newLeafId]: null,
       };
 
@@ -569,7 +569,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         tree: nextTree,
         // Make the new pane active so the user can pick a chat for it.
         activeLeafId: newLeafId,
-        leafChatIds: nextLeafChatIds,
+        leafSessionIds: nextLeafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
       persistLayout(next);
@@ -590,9 +590,9 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       const nextLeafIds = getLeafIdsFromTree(nextTree);
       const nextSplitIds = getSplitIdsFromTree(nextTree);
 
-      const nextLeafChatIds: Record<string, string | null> = {};
+      const nextLeafSessionIds: Record<string, string | null> = {};
       nextLeafIds.forEach((id) => {
-        nextLeafChatIds[id] = state.leafChatIds[id] ?? null;
+        nextLeafSessionIds[id] = state.leafSessionIds[id] ?? null;
       });
 
       const nextSplitSizesPx: Record<string, [number, number]> = {};
@@ -612,7 +612,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: state.sidebar,
         tree: nextTree,
         activeLeafId: nextActiveLeafId,
-        leafChatIds: nextLeafChatIds,
+        leafSessionIds: nextLeafSessionIds,
         splitSizesPx: nextSplitSizesPx,
       });
       persistLayout(next);
@@ -630,7 +630,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
-        leafChatIds: state.leafChatIds,
+        leafSessionIds: state.leafSessionIds,
         splitSizesPx: { ...state.splitSizesPx, [splitId]: sizes },
       });
       persistLayout(next);
@@ -661,7 +661,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
-        leafChatIds: state.leafChatIds,
+        leafSessionIds: state.leafSessionIds,
         splitSizesPx: nextSplitSizesPx,
       });
       persistLayout(next);

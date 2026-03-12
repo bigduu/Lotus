@@ -16,7 +16,7 @@ type InteractionState = {
 
 type ChatMessagesListProps = {
   currentChat: ChatItem | null;
-  currentChatId: string | null;
+  currentSessionId: string | null;
   convertRenderableEntry: (entry: RenderableEntry) => ConvertedEntry;
   handleDeleteMessage: (messageId: string) => void;
   handleMessagesScroll: (e: React.UIEvent<HTMLElement>) => void;
@@ -42,7 +42,7 @@ type ChatMessagesListProps = {
 
 export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   currentChat,
-  currentChatId,
+  currentSessionId,
   convertRenderableEntry,
   handleDeleteMessage,
   handleMessagesScroll,
@@ -198,7 +198,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                         }}
                       >
                         <MessageCard
-                          chatId={currentChatId}
+                          sessionId={currentSessionId}
                           message={convertedEntry.message}
                           messageType={convertedEntry.messageType}
                           onDelete={
@@ -220,7 +220,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
             })}
           </div>
         )}
-      {interactionState.matches("THINKING") && currentChatId && (
+      {interactionState.matches("THINKING") && currentSessionId && (
         <div style={{ paddingTop: rowGap }}>
           <Flex
             justify="flex-start"
@@ -232,7 +232,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                 maxWidth: screens.xs ? "100%" : "90%",
               }}
             >
-              <StreamingMessageCard chatId={currentChatId} />
+              <StreamingMessageCard sessionId={currentSessionId} />
             </div>
           </Flex>
         </div>

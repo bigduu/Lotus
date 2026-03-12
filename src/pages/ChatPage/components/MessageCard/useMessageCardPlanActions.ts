@@ -3,26 +3,26 @@ import { useAppStore } from "../../store";
 import type { ChatItem } from "../../types/chat";
 
 interface UseMessageCardPlanActionsProps {
-  currentChatId?: string | null;
-  updateChat: (chatId: string, update: Partial<ChatItem>) => void;
+  currentSessionId?: string | null;
+  updateSession: (sessionId: string, update: Partial<ChatItem>) => void;
   sendMessage: (message: string) => Promise<void>;
 }
 
 export const useMessageCardPlanActions = ({
-  currentChatId,
-  updateChat,
+  currentSessionId,
+  updateSession,
   sendMessage,
 }: UseMessageCardPlanActionsProps) => {
   const handleExecutePlan = useCallback(async () => {
-    if (!currentChatId) return;
+    if (!currentSessionId) return;
 
     // Get current chat state lazily at execution time
     const state = useAppStore.getState();
-    const currentChat = state.chats.find((c) => c.id === currentChatId);
+    const currentChat = state.chats.find((c) => c.id === currentSessionId);
     if (!currentChat) return;
 
     try {
-      updateChat(currentChatId, {
+      updateSession(currentSessionId, {
         config: {
           ...currentChat.config,
           agentRole: "actor",
@@ -31,7 +31,7 @@ export const useMessageCardPlanActions = ({
     } catch (error) {
       console.error("Failed to switch to Actor role:", error);
     }
-  }, [currentChatId, updateChat]);
+  }, [currentSessionId, updateSession]);
 
   const handleRefinePlan = useCallback(
     async (feedback: string) => {

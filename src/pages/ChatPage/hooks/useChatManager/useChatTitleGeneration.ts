@@ -18,14 +18,14 @@ export interface UseChatTitleGeneration {
   autoGenerateTitles: boolean;
   isUpdatingAutoTitlePreference: boolean;
   generateChatTitle: (
-    chatId: string,
+    sessionId: string,
     options?: { force?: boolean },
   ) => Promise<void>;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
   isDefaultTitle: (title: string | undefined | null) => boolean;
 }
 
-type ChatTitleState = Pick<UseChatState, "chats" | "updateChat">;
+type ChatTitleState = Pick<UseChatState, "chats" | "updateSession">;
 
 export function useChatTitleGeneration(
   state: ChatTitleState,
@@ -58,8 +58,8 @@ export function useChatTitleGeneration(
   }, []);
 
   const generateChatTitle = useCallback(
-    async (chatId: string, options?: { force?: boolean }) => {
-      const chat = state.chats.find((c) => c.id === chatId);
+    async (sessionId: string, options?: { force?: boolean }) => {
+      const chat = state.chats.find((c) => c.id === sessionId);
       if (!chat) {
         return;
       }
@@ -79,10 +79,10 @@ export function useChatTitleGeneration(
       const MAX_AUTO_MESSAGES = 6;
 
       if (isAuto) {
-        if (titleGenerationInFlightRef.current.has(chatId)) {
+        if (titleGenerationInFlightRef.current.has(sessionId)) {
           return;
         }
-        if (autoTitleGeneratedRef.current.has(chatId)) {
+        if (autoTitleGeneratedRef.current.has(sessionId)) {
           return;
         }
         if (!isDefaultTitle(chat.title)) {
@@ -96,10 +96,10 @@ export function useChatTitleGeneration(
         }
       }
 
-      titleGenerationInFlightRef.current.add(chatId);
+      titleGenerationInFlightRef.current.add(sessionId);
       setTitleGenerationState((prev) => ({
         ...prev,
-        [chatId]: { status: "loading" },
+        [sessionId]: { status: "loading" },
       }));
 
       try {
@@ -111,14 +111,14 @@ export function useChatTitleGeneration(
           throw new Error("Generated title is empty");
         }
 
-        state.updateChat(chatId, { title: candidate });
+        state.updateSession(sessionId, { title: candidate });
         if (!isAuto || candidate.toLowerCase() !== "new chat") {
-          autoTitleGeneratedRef.current.add(chatId);
+          autoTitleGeneratedRef.current.add(sessionId);
         }
 
         setTitleGenerationState((prev) => ({
           ...prev,
-          [chatId]: { status: "idle" },
+          [sessionId]: { status: "idle" },
         }));
 
         if (options?.force) {
@@ -129,7 +129,7 @@ export function useChatTitleGeneration(
           error instanceof Error ? error.message : "Failed to generate title";
         setTitleGenerationState((prev) => ({
           ...prev,
-          [chatId]: { status: "error", error: errorMessage },
+          [sessionId]: { status: "error", error: errorMessage },
         }));
         if (options?.force) {
           appMessage?.error?.(errorMessage);
@@ -137,7 +137,7 @@ export function useChatTitleGeneration(
           appMessage?.warning?.(errorMessage);
         }
       } finally {
-        titleGenerationInFlightRef.current.delete(chatId);
+        titleGenerationInFlightRef.current.delete(sessionId);
       }
     },
     [appMessage, autoGenerateTitles, isDefaultTitle, activeModel, state],

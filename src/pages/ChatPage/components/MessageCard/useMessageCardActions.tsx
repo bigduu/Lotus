@@ -16,7 +16,7 @@ import { copyText } from "@shared/utils/clipboard";
 interface UseMessageCardActionsProps {
   messageText: string;
   messageId?: string;
-  currentChatId?: string | null;
+  currentSessionId?: string | null;
   onDelete?: (messageId: string) => void;
   onRestoreChat?: () => void | Promise<void>;
   onRestoreFilesAndChat?: () => void | Promise<void>;
@@ -26,7 +26,7 @@ interface UseMessageCardActionsProps {
 export const useMessageCardActions = ({
   messageText,
   messageId,
-  currentChatId,
+  currentSessionId,
   onDelete,
   onRestoreChat,
   onRestoreFilesAndChat,
@@ -48,15 +48,15 @@ export const useMessageCardActions = ({
   }, []);
 
   const referenceMessage = useCallback(() => {
-    if (!currentChatId) return;
+    if (!currentSessionId) return;
     const referenceText = selectedText
       ? createReference(selectedText)
       : createReference(messageText);
     const event = new CustomEvent("reference-text", {
-      detail: { text: referenceText, chatId: currentChatId },
+      detail: { text: referenceText, sessionId: currentSessionId },
     });
     window.dispatchEvent(event);
-  }, [createReference, currentChatId, messageText, selectedText]);
+  }, [createReference, currentSessionId, messageText, selectedText]);
 
   const exportContent = useCallback(
     async (format: "markdown" | "pdf") => {
@@ -69,7 +69,7 @@ export const useMessageCardActions = ({
       const result = await MessageExportService.exportMessageText({
         format,
         content: text,
-        chatId: currentChatId ?? null,
+        sessionId: currentSessionId ?? null,
         messageId: messageId ?? null,
       });
 
@@ -83,7 +83,7 @@ export const useMessageCardActions = ({
         appMessage.error(result.error || "Export failed");
       }
     },
-    [appMessage, currentChatId, messageId, messageText, selectedText],
+    [appMessage, currentSessionId, messageId, messageText, selectedText],
   );
 
   const handleMouseUp = useCallback(
@@ -108,7 +108,7 @@ export const useMessageCardActions = ({
 
   const contextMenuItems = useMemo(() => {
     const baseItems: NonNullable<MenuProps["items"]> = [
-      ...(onRestoreChat && onRestoreFilesAndChat && currentChatId && messageId
+      ...(onRestoreChat && onRestoreFilesAndChat && currentSessionId && messageId
         ? [
             {
               key: "restore-chat",
@@ -183,7 +183,7 @@ export const useMessageCardActions = ({
     onRestoreFilesAndChat,
     referenceMessage,
     selectedText,
-    currentChatId,
+    currentSessionId,
   ]);
 
   return {

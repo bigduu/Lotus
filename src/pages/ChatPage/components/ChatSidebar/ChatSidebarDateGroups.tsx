@@ -19,14 +19,14 @@ type ChatSidebarDateGroupsProps = {
   sortedDateKeys: string[];
   expandedKeys: string[];
   onCollapseChange: (keys: string | string[]) => void;
-  currentChatId: string | null;
-  onSelectChat: (chatId: string) => void;
-  onDeleteChat: (chatId: string) => void;
+  currentSessionId: string | null;
+  onSelectChat: (sessionId: string) => void;
+  onDeleteChat: (sessionId: string) => void;
   onDeleteByDate: (dateKey: string) => void;
-  onPinChat: (chatId: string) => void;
-  onUnpinChat: (chatId: string) => void;
-  onEditTitle: (chatId: string, title: string) => void;
-  onGenerateTitle: (chatId: string) => void;
+  onPinChat: (sessionId: string) => void;
+  onUnpinChat: (sessionId: string) => void;
+  onEditTitle: (sessionId: string, title: string) => void;
+  onGenerateTitle: (sessionId: string) => void;
   titleGenerationState: Record<
     string,
     { status: "loading" | "error" | "idle"; error?: string }
@@ -42,7 +42,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   sortedDateKeys,
   expandedKeys,
   onCollapseChange,
-  currentChatId,
+  currentSessionId,
   onSelectChat,
   onDeleteChat,
   onDeleteByDate,
@@ -199,7 +199,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <ChatItemComponent
                             chat={chat}
-                            isSelected={chat.id === currentChatId}
+                            isSelected={chat.id === currentSessionId}
                             onSelect={onSelectChat}
                             onDelete={onDeleteChat}
                             onPin={onPinChat}
@@ -229,7 +229,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                               <div key={child.id} style={{ paddingLeft: 12 }}>
                                 <ChatItemComponent
                                   chat={child}
-                                  isSelected={child.id === currentChatId}
+                                  isSelected={child.id === currentSessionId}
                                   onSelect={onSelectChat}
                                   onDelete={onDeleteChat}
                                   onPin={onPinChat}

@@ -2,15 +2,15 @@ import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockStoreState: any = {
-  currentChatId: null,
+  currentSessionId: null,
   chats: [],
   deleteMessage: vi.fn(),
-  updateChat: vi.fn(),
+  updateSession: vi.fn(),
   loadChatHistory: vi.fn(),
   subSessionsByParent: {},
-  selectChat: vi.fn(),
-  setChatProcessing: vi.fn(),
-  isChatProcessing: vi.fn(() => false),
+  selectSession: vi.fn(),
+  setSessionProcessing: vi.fn(),
+  isSessionProcessing: vi.fn(() => false),
   processingChats: new Set<string>(),
   tokenUsages: {},
   truncationOccurred: {},
@@ -38,9 +38,9 @@ vi.mock("../../store", () => ({
       setState: vi.fn(),
     },
   ),
-  selectChatById:
-    (chatId: string | null) => (state: typeof mockStoreState) =>
-      chatId ? state.chats.find((c: any) => c.id === chatId) || null : null,
+  selectSessionById:
+    (sessionId: string | null) => (state: typeof mockStoreState) =>
+      sessionId ? state.chats.find((c: any) => c.id === sessionId) || null : null,
 }));
 
 vi.mock("../ChatView/useChatViewMessages", () => ({
@@ -94,7 +94,7 @@ import { ChatView } from "../ChatView";
 describe("ChatView scroll button group", () => {
   beforeEach(() => {
     mockStoreState.deleteMessage.mockReset();
-    mockStoreState.updateChat.mockReset();
+    mockStoreState.updateSession.mockReset();
   });
 
   it("renders a FloatButton.Group with the expected fixed position", () => {

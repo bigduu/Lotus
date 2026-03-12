@@ -44,14 +44,14 @@ export class MessageExportService {
   static async exportMessageText(args: {
     format: MessageExportFormat;
     content: string;
-    chatId?: string | null;
+    sessionId?: string | null;
     messageId?: string | null;
     filenamePrefix?: string;
   }): Promise<{ success: boolean; filename?: string; error?: string }> {
     const {
       format,
       content,
-      chatId = null,
+      sessionId = null,
       messageId = null,
       filenamePrefix,
     } = args;
@@ -60,7 +60,7 @@ export class MessageExportService {
       filenamePrefix ||
       [
         "chat-message",
-        chatId ? sanitizeFilenamePart(chatId.slice(0, 8)) : null,
+        sessionId ? sanitizeFilenamePart(sessionId.slice(0, 8)) : null,
         messageId ? sanitizeFilenamePart(messageId.slice(0, 8)) : null,
       ]
         .filter(Boolean)

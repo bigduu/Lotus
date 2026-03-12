@@ -40,10 +40,10 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   ],
   processingChats: new Set<string>(),
   addMessage: vi.fn(),
-  setChatProcessing: vi.fn(),
+  setSessionProcessing: vi.fn(),
   updateTokenUsage: vi.fn(),
   setTruncationInfo: vi.fn(),
-  updateChat: vi.fn(),
+  updateSession: vi.fn(),
   updateMessage: vi.fn(),
   setTodoList: vi.fn(),
   updateTodoListDelta: vi.fn(),
@@ -59,7 +59,7 @@ const createMockState = (overrides: Partial<any> = {}) => ({
 
 describe("useAgentEventSubscription", () => {
   let mockSubscribeToEvents: ReturnType<typeof vi.fn>;
-  let mockSetChatProcessing: ReturnType<typeof vi.fn>;
+  let mockSetSessionProcessing: ReturnType<typeof vi.fn>;
   let mockAddMessage: ReturnType<typeof vi.fn>;
   let mockState: any;
   let mockStore: any;
@@ -67,12 +67,12 @@ describe("useAgentEventSubscription", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
 
-    mockSetChatProcessing = vi.fn();
+    mockSetSessionProcessing = vi.fn();
     mockAddMessage = vi.fn();
 
     mockState = createMockState({
       addMessage: mockAddMessage,
-      setChatProcessing: mockSetChatProcessing,
+      setSessionProcessing: mockSetSessionProcessing,
     });
 
     // Import the mocked modules to get the mocks
@@ -152,7 +152,7 @@ describe("useAgentEventSubscription", () => {
       );
 
       // Should reset processing state on error
-      expect(mockSetChatProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
     });
 
     consoleSpy.mockRestore();
@@ -183,7 +183,7 @@ describe("useAgentEventSubscription", () => {
     });
 
     await waitFor(() => {
-      expect(mockSetChatProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
     });
   });
 
@@ -220,7 +220,7 @@ describe("useAgentEventSubscription", () => {
           finishReason: "error",
         }),
       );
-      expect(mockSetChatProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
     });
   });
 
@@ -267,7 +267,7 @@ describe("useAgentEventSubscription", () => {
       expect(mockSubscribeToEvents.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
 
-    expect(mockSetChatProcessing).not.toHaveBeenCalledWith("session-1", false);
+    expect(mockSetSessionProcessing).not.toHaveBeenCalledWith("session-1", false);
   });
 
   it("should handle token streaming", async () => {
@@ -309,7 +309,7 @@ describe("useAgentEventSubscription", () => {
     );
 
     const updateMessage = vi.fn(
-      (_chatId: string, messageId: string, patch: any) => {
+      (_sessionId: string, messageId: string, patch: any) => {
         // Simulate store mutation so subsequent onToolToken calls can append.
         const msg = mockState.chats[0].messages.find((m: any) => m.id === messageId);
         if (!msg) return;
@@ -319,7 +319,7 @@ describe("useAgentEventSubscription", () => {
       },
     );
     let toolCallMessageId: string | undefined;
-    const addMessage = vi.fn((_chatId: string, msg: any) => {
+    const addMessage = vi.fn((_sessionId: string, msg: any) => {
       // Simulate store mutation so onToolToken can find the message.
       toolCallMessageId = msg?.id;
       mockState.chats[0].messages.push(msg);
@@ -328,7 +328,7 @@ describe("useAgentEventSubscription", () => {
     mockState = createMockState({
       addMessage,
       updateMessage,
-      setChatProcessing: mockSetChatProcessing,
+      setSessionProcessing: mockSetSessionProcessing,
     });
 
     mockState.processingChats = new Set(["session-1"]);

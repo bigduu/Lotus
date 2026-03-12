@@ -11,13 +11,13 @@ export interface TokenBudgetState {
 }
 
 export interface TokenBudgetActions {
-  updateTokenUsage: (chatId: string, usage: TokenUsage) => void;
+  updateTokenUsage: (sessionId: string, usage: TokenUsage) => void;
   setTruncationInfo: (
-    chatId: string,
+    sessionId: string,
     truncationOccurred: boolean,
     segmentsRemoved: number,
   ) => void;
-  clearTokenUsage: (chatId: string) => void;
+  clearTokenUsage: (sessionId: string) => void;
 }
 
 export type TokenBudgetSlice = TokenBudgetState & TokenBudgetActions;
@@ -32,31 +32,31 @@ export const createTokenBudgetSlice: StateCreator<
   truncationOccurred: {},
   segmentsRemoved: {},
 
-  updateTokenUsage: (chatId, usage) =>
+  updateTokenUsage: (sessionId, usage) =>
     set((state) => ({
       tokenUsages: {
         ...state.tokenUsages,
-        [chatId]: usage,
+        [sessionId]: usage,
       },
     })),
 
-  setTruncationInfo: (chatId, truncationOccurred, segmentsRemoved) =>
+  setTruncationInfo: (sessionId, truncationOccurred, segmentsRemoved) =>
     set((state) => ({
       truncationOccurred: {
         ...state.truncationOccurred,
-        [chatId]: truncationOccurred,
+        [sessionId]: truncationOccurred,
       },
       segmentsRemoved: {
         ...state.segmentsRemoved,
-        [chatId]: segmentsRemoved,
+        [sessionId]: segmentsRemoved,
       },
     })),
 
-  clearTokenUsage: (chatId) =>
+  clearTokenUsage: (sessionId) =>
     set((state) => {
-      const { [chatId]: _, ...remainingUsages } = state.tokenUsages;
-      const { [chatId]: __, ...remainingTruncation } = state.truncationOccurred;
-      const { [chatId]: ___, ...remainingSegments } = state.segmentsRemoved;
+      const { [sessionId]: _, ...remainingUsages } = state.tokenUsages;
+      const { [sessionId]: __, ...remainingTruncation } = state.truncationOccurred;
+      const { [sessionId]: ___, ...remainingSegments } = state.segmentsRemoved;
       return {
         tokenUsages: remainingUsages,
         truncationOccurred: remainingTruncation,

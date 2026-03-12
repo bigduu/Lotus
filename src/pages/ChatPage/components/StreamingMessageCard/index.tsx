@@ -232,13 +232,13 @@ const createStreamingMarkdownComponents = (token: any): Components => ({
 });
 
 interface StreamingMessageCardProps {
-  chatId: string;
+  sessionId: string;
 }
 
 const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
-  ({ chatId }) => {
+  ({ sessionId }) => {
     const { token } = useToken();
-    const messageId = `streaming-${chatId}`;
+    const messageId = `streaming-${sessionId}`;
     const [content, setContent] = useState<string>(
       () => streamingMessageBus.getLatest(messageId) ?? "",
     );

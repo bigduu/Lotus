@@ -14,8 +14,8 @@ export interface UseChatOperations {
     options?: Partial<Omit<ChatItem, "id">>,
   ) => Promise<void>;
   createChatWithSystemPrompt: (prompt: UserSystemPrompt) => Promise<void>;
-  toggleChatPin: (chatId: string) => void;
-  updateChatTitle: (chatId: string, newTitle: string) => void;
+  toggleChatPin: (sessionId: string) => void;
+  updateChatTitle: (sessionId: string, newTitle: string) => void;
   deleteEmptyChats: () => Promise<void>;
   deleteAllUnpinnedChats: () => Promise<void>;
   deleteAllChats: () => Promise<void>;
@@ -92,18 +92,18 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
   );
 
   const toggleChatPin = useCallback(
-    (chatId: string) => {
-      const chat = state.chats.find((c) => c.id === chatId);
+    (sessionId: string) => {
+      const chat = state.chats.find((c) => c.id === sessionId);
       if (chat) {
-        chat.pinned ? state.unpinChat(chatId) : state.pinChat(chatId);
+        chat.pinned ? state.unpinSession(sessionId) : state.pinSession(sessionId);
       }
     },
     [state],
   );
 
   const updateChatTitle = useCallback(
-    (chatId: string, newTitle: string) => {
-      state.updateChat(chatId, { title: newTitle });
+    (sessionId: string, newTitle: string) => {
+      state.updateSession(sessionId, { title: newTitle });
     },
     [state],
   );

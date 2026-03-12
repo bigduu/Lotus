@@ -1,5 +1,5 @@
 type StreamingMessageUpdate = {
-  chatId: string;
+  sessionId: string;
   messageId: string;
   content: string | null;
 };
@@ -70,12 +70,12 @@ export const streamingMessageBus = {
       rafHandle = requestAnimationFrame(flushPending);
     }
   },
-  clear(chatId: string, messageId: string) {
+  clear(sessionId: string, messageId: string) {
     latestContent.delete(messageId);
     pendingUpdates.delete(messageId);
     notifyMessage(messageId, null);
     updateListeners.forEach((listener) =>
-      listener({ chatId, messageId, content: null }),
+      listener({ sessionId, messageId, content: null }),
     );
   },
 };

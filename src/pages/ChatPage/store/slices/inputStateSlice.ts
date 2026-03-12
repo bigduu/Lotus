@@ -18,21 +18,21 @@ export interface InputState {
 }
 
 export interface InputStateSliceState {
-  // Map of chatId to input state
+  // Map of sessionId to input state
   inputStates: Record<string, InputState>;
 }
 
 export interface InputStateSliceActions {
   // Set input content for a chat
-  setInputContent: (chatId: string, content: string) => void;
+  setInputContent: (sessionId: string, content: string) => void;
   // Set reference text for a chat
-  setReferenceText: (chatId: string, referenceText: string | null) => void;
+  setReferenceText: (sessionId: string, referenceText: string | null) => void;
   // Set attachments for a chat
-  setAttachments: (chatId: string, attachments: Attachment[]) => void;
+  setAttachments: (sessionId: string, attachments: Attachment[]) => void;
   // Clear all input state for a chat
-  clearInputState: (chatId: string) => void;
+  clearInputState: (sessionId: string) => void;
   // Get input state for a chat (returns default if not found)
-  getInputState: (chatId: string) => InputState;
+  getInputState: (sessionId: string) => InputState;
 }
 
 export type InputStateSlice = InputStateSliceState & InputStateSliceActions;
@@ -53,52 +53,52 @@ export const createInputStateSlice: StateCreator<
   inputStates: {},
 
   // Set input content for a chat
-  setInputContent: (chatId, content) =>
+  setInputContent: (sessionId, content) =>
     set((state) => ({
       inputStates: {
         ...state.inputStates,
-        [chatId]: {
-          ...(state.inputStates[chatId] || DEFAULT_INPUT_STATE),
+        [sessionId]: {
+          ...(state.inputStates[sessionId] || DEFAULT_INPUT_STATE),
           content,
         },
       },
     })),
 
   // Set reference text for a chat
-  setReferenceText: (chatId, referenceText) =>
+  setReferenceText: (sessionId, referenceText) =>
     set((state) => ({
       inputStates: {
         ...state.inputStates,
-        [chatId]: {
-          ...(state.inputStates[chatId] || DEFAULT_INPUT_STATE),
+        [sessionId]: {
+          ...(state.inputStates[sessionId] || DEFAULT_INPUT_STATE),
           referenceText,
         },
       },
     })),
 
   // Set attachments for a chat
-  setAttachments: (chatId, attachments) =>
+  setAttachments: (sessionId, attachments) =>
     set((state) => ({
       inputStates: {
         ...state.inputStates,
-        [chatId]: {
-          ...(state.inputStates[chatId] || DEFAULT_INPUT_STATE),
+        [sessionId]: {
+          ...(state.inputStates[sessionId] || DEFAULT_INPUT_STATE),
           attachments,
         },
       },
     })),
 
   // Clear all input state for a chat
-  clearInputState: (chatId) =>
+  clearInputState: (sessionId) =>
     set((state) => {
-      const { [chatId]: _, ...remainingInputStates } = state.inputStates;
+      const { [sessionId]: _, ...remainingInputStates } = state.inputStates;
       return {
         inputStates: remainingInputStates,
       };
     }),
 
   // Get input state for a chat (returns default if not found)
-  getInputState: (chatId) => {
-    return get().inputStates[chatId] || DEFAULT_INPUT_STATE;
+  getInputState: (sessionId) => {
+    return get().inputStates[sessionId] || DEFAULT_INPUT_STATE;
   },
 });

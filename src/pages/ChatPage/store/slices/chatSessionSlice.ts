@@ -82,6 +82,8 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     lastActivityAt: s.last_activity_at,
     messageCount: s.message_count,
     hasAttachments: s.has_attachments,
+    lastRunStatus: s.last_run_status,
+    lastRunError: s.last_run_error,
     title: s.title || "Session",
     createdAt: createdAtMs,
     pinned: s.pinned,
@@ -261,8 +263,8 @@ const mapHistoryMessagesToUi = (
 export interface ChatSlice {
   // State (backend session list)
   chats: ChatItem[];
-  currentChatId: string | null;
-  latestActiveChatId: string | null;
+  currentSessionId: string | null;
+  latestActiveSessionId: string | null;
   processingChats: Set<string>;
   autoGenerateTitles: boolean;
   isUpdatingAutoTitlePreference: boolean;
@@ -285,26 +287,26 @@ export interface ChatSlice {
 
   // Actions
   addChat: (chat: Omit<ChatItem, "id">) => Promise<string>;
-  selectChat: (chatId: string | null) => void;
-  deleteChat: (chatId: string) => Promise<void>;
-  deleteChats: (chatIds: string[]) => Promise<void>;
-  updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
-  pinChat: (chatId: string) => void;
-  unpinChat: (chatId: string) => void;
+  selectSession: (sessionId: string | null) => void;
+  deleteSession: (sessionId: string) => Promise<void>;
+  deleteSessions: (sessionIds: string[]) => Promise<void>;
+  updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
+  pinSession: (sessionId: string) => void;
+  unpinSession: (sessionId: string) => void;
 
-  addMessage: (chatId: string, message: Message) => Promise<void>;
-  setMessages: (chatId: string, messages: Message[]) => void;
+  addMessage: (sessionId: string, message: Message) => Promise<void>;
+  setMessages: (sessionId: string, messages: Message[]) => void;
   updateMessage: (
-    chatId: string,
+    sessionId: string,
     messageId: string,
     updates: Partial<Message>,
   ) => void;
-  deleteMessage: (chatId: string, messageId: string) => void;
+  deleteMessage: (sessionId: string, messageId: string) => void;
 
   loadChats: () => Promise<void>;
   refreshChats: () => Promise<void>;
   loadChatHistory: (
-    chatId: string,
+    sessionId: string,
     options?: {
       mode?: "replace" | "monotonic";
       retries?: number;
@@ -328,8 +330,8 @@ export interface ChatSlice {
   ) => void;
   clearSubSessionProgress: (parentSessionId: string, childSessionId: string) => void;
 
-  setChatProcessing: (chatId: string, isProcessing: boolean) => void;
-  isChatProcessing: (chatId: string) => boolean;
+  setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
+  isSessionProcessing: (sessionId: string) => boolean;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
 }
 
@@ -338,8 +340,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   get,
 ) => ({
   chats: [],
-  currentChatId: null,
-  latestActiveChatId: null,
+  currentSessionId: null,
+  latestActiveSessionId: null,
   processingChats: new Set<string>(),
   autoGenerateTitles: true,
   isUpdatingAutoTitlePreference: false,
@@ -372,65 +374,65 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       return {
         ...state,
         chats,
-        currentChatId: newChat.id,
-        latestActiveChatId: newChat.id,
+        currentSessionId: newChat.id,
+        latestActiveSessionId: newChat.id,
       };
     });
 
     return newChat.id;
   },
 
-  selectChat: (chatId) => {
+  selectSession: (sessionId) => {
     const prev = get();
-    if (prev.currentChatId === chatId && prev.latestActiveChatId === chatId) {
+    if (prev.currentSessionId === sessionId && prev.latestActiveSessionId === sessionId) {
       return;
     }
-    set({ currentChatId: chatId, latestActiveChatId: chatId });
+    set({ currentSessionId: sessionId, latestActiveSessionId: sessionId });
   },
 
-  deleteChat: async (chatId) => {
+  deleteSession: async (sessionId) => {
     try {
-      await agentClient.deleteSession(chatId);
+      await agentClient.deleteSession(sessionId);
     } catch (error) {
-      console.error(`[ChatSlice] Failed to delete backend session ${chatId}:`, error);
+      console.error(`[ChatSlice] Failed to delete backend session ${sessionId}:`, error);
     }
 
     set((state) => {
       const toDelete = new Set<string>();
       for (const chat of state.chats) {
-        if (chat.id === chatId) toDelete.add(chat.id);
-        if (chat.rootSessionId === chatId) toDelete.add(chat.id);
+        if (chat.id === sessionId) toDelete.add(chat.id);
+        if (chat.rootSessionId === sessionId) toDelete.add(chat.id);
       }
 
       const newChats = state.chats.filter((c) => !toDelete.has(c.id));
       const nextCurrent =
-        state.currentChatId && toDelete.has(state.currentChatId)
+        state.currentSessionId && toDelete.has(state.currentSessionId)
           ? null
-          : state.currentChatId;
+          : state.currentSessionId;
       const nextLatest =
-        state.latestActiveChatId && toDelete.has(state.latestActiveChatId)
+        state.latestActiveSessionId && toDelete.has(state.latestActiveSessionId)
           ? (newChats[0]?.id ?? null)
-          : state.latestActiveChatId;
+          : state.latestActiveSessionId;
 
       return {
         ...state,
         chats: newChats,
-        currentChatId: nextCurrent,
-        latestActiveChatId: nextLatest,
+        currentSessionId: nextCurrent,
+        latestActiveSessionId: nextLatest,
       };
     });
   },
 
-  deleteChats: async (chatIds) => {
-    for (const id of chatIds) {
-      await get().deleteChat(id);
+  deleteSessions: async (sessionIds) => {
+    for (const id of sessionIds) {
+      await get().deleteSession(id);
     }
   },
 
-  updateChat: (chatId, updates) => {
+  updateSession: (sessionId, updates) => {
     set((state) => {
       const chats = state.chats.map((chat) =>
-        chat.id === chatId ? { ...chat, ...updates } : chat,
+        chat.id === sessionId ? { ...chat, ...updates } : chat,
       );
       return { ...state, chats };
     });
@@ -444,36 +446,36 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       patch.pinned = (updates as any).pinned;
     }
     if (Object.keys(patch).length > 0) {
-      agentClient.patchSession(chatId, patch).catch((e) => {
-        console.warn(`[ChatSlice] Failed to patch session ${chatId}:`, e);
+      agentClient.patchSession(sessionId, patch).catch((e) => {
+        console.warn(`[ChatSlice] Failed to patch session ${sessionId}:`, e);
       });
     }
   },
 
-  pinChat: (chatId) => {
-    get().updateChat(chatId, { pinned: true });
+  pinSession: (sessionId) => {
+    get().updateSession(sessionId, { pinned: true });
   },
 
-  unpinChat: (chatId) => {
-    get().updateChat(chatId, { pinned: false });
+  unpinSession: (sessionId) => {
+    get().updateSession(sessionId, { pinned: false });
   },
 
-  setMessages: (chatId, messages) => {
-    const chat = get().chats.find((c) => c.id === chatId);
+  setMessages: (sessionId, messages) => {
+    const chat = get().chats.find((c) => c.id === sessionId);
     if (chat) {
-      get().updateChat(chatId, { messages });
+      get().updateSession(sessionId, { messages });
     }
   },
 
-  addMessage: async (chatId, message) => {
-    const chat = get().chats.find((c) => c.id === chatId);
+  addMessage: async (sessionId, message) => {
+    const chat = get().chats.find((c) => c.id === sessionId);
     if (!chat) return;
     const updatedMessages = [...chat.messages, message];
-    get().updateChat(chatId, { messages: updatedMessages });
+    get().updateSession(sessionId, { messages: updatedMessages });
   },
 
-  updateMessage: (chatId, messageId, updates) => {
-    const chat = get().chats.find((c) => c.id === chatId);
+  updateMessage: (sessionId, messageId, updates) => {
+    const chat = get().chats.find((c) => c.id === sessionId);
     if (!chat) return;
 
     const updatedMessages = chat.messages.map((msg) => {
@@ -489,19 +491,19 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       return updatedMsg as Message;
     });
 
-    get().updateChat(chatId, { messages: updatedMessages });
+    get().updateSession(sessionId, { messages: updatedMessages });
   },
 
-  deleteMessage: (chatId, messageId) => {
-    const chat = get().chats.find((c) => c.id === chatId);
+  deleteMessage: (sessionId, messageId) => {
+    const chat = get().chats.find((c) => c.id === sessionId);
     if (!chat) return;
     const updatedMessages = chat.messages.filter((msg) => msg.id !== messageId);
-    get().updateChat(chatId, { messages: updatedMessages });
+    get().updateSession(sessionId, { messages: updatedMessages });
 
     // Best-effort persistence: some UI messages are local-only placeholders and may not exist on the backend.
-    agentClient.deleteSessionMessage(chatId, messageId).catch((e) => {
+    agentClient.deleteSessionMessage(sessionId, messageId).catch((e) => {
       console.warn(
-        `[ChatSlice] Failed to delete message ${messageId} from session ${chatId}:`,
+        `[ChatSlice] Failed to delete message ${messageId} from session ${sessionId}:`,
         e,
       );
     });
@@ -538,23 +540,23 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     }
 
     const chats = list.sessions.map(sessionSummaryToChatItem);
-    const currentChatId = chats[0]?.id ?? null;
+    const currentSessionId = chats[0]?.id ?? null;
 
     set({
       chats,
-      latestActiveChatId: currentChatId,
-      currentChatId,
+      latestActiveSessionId: currentSessionId,
+      currentSessionId,
       processingChats: new Set<string>(),
       autoGenerateTitles,
     });
 
-    if (currentChatId) {
+    if (currentSessionId) {
       // Lazy load history for the initial session.
-      await get().loadChatHistory(currentChatId);
+      await get().loadChatHistory(currentSessionId);
     }
   },
 
-  loadChatHistory: async (chatId, options) => {
+  loadChatHistory: async (sessionId, options) => {
     const mode = options?.mode ?? "replace";
     const retries = Math.max(0, options?.retries ?? 0);
     const retryDelayMs = Math.max(0, options?.retryDelayMs ?? 0);
@@ -563,10 +565,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       try {
         // Avoid spurious backend calls when the UI layout references a stale session id.
         // (e.g. after backend reset or manual data cleanup)
-        const chat = get().chats.find((c) => c.id === chatId);
+        const chat = get().chats.find((c) => c.id === sessionId);
         if (!chat) return;
 
-        const history = await agentClient.getHistory(chatId);
+        const history = await agentClient.getHistory(sessionId);
 
         const lastRole = history.messages[history.messages.length - 1]?.role;
         if (
@@ -580,7 +582,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           continue;
         }
 
-        const nextMessages = mapHistoryMessagesToUi(chatId, history.messages);
+        const nextMessages = mapHistoryMessagesToUi(sessionId, history.messages);
 
         if (mode === "monotonic") {
           const prevMessages = chat.messages || [];
@@ -598,21 +600,21 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
             (prevLastRole === "user" && nextLastRole !== "user");
 
           if (!shouldReplace) {
-            get().updateChat(chatId, {
+            get().updateSession(sessionId, {
               messageCount: Math.max(chat.messageCount ?? 0, history.messages.length),
             });
             return;
           }
         }
 
-        get().updateChat(chatId, {
+        get().updateSession(sessionId, {
           messages: nextMessages,
           messageCount: history.messages.length,
         });
         return;
       } catch (error) {
         if (attempt >= retries) {
-          console.warn(`[ChatSlice] Failed to load history for ${chatId}:`, error);
+          console.warn(`[ChatSlice] Failed to load history for ${sessionId}:`, error);
           return;
         }
         const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
@@ -652,16 +654,16 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     });
   },
 
-  setChatProcessing: (chatId, isProcessing) => {
+  setSessionProcessing: (sessionId, isProcessing) => {
     set((state) => {
       const processingChats = new Set(state.processingChats);
-      if (isProcessing) processingChats.add(chatId);
-      else processingChats.delete(chatId);
+      if (isProcessing) processingChats.add(sessionId);
+      else processingChats.delete(sessionId);
       return { processingChats };
     });
   },
 
-  isChatProcessing: (chatId) => get().processingChats.has(chatId),
+  isSessionProcessing: (sessionId) => get().processingChats.has(sessionId),
 
   setAutoGenerateTitlesPreference: async (enabled) => {
     const previousValue = get().autoGenerateTitles;

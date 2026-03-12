@@ -21,14 +21,14 @@ export function useChatHistory(
   );
 
   const retryLastMessage = useCallback(async () => {
-    if (!state.currentChatId || !state.currentChat) return;
+    if (!state.currentSessionId || !state.currentChat) return;
     const history = [...state.baseMessages];
     if (history.length === 0) return;
 
     const lastMessage = history[history.length - 1];
     let trimmedHistory = history;
     if (lastMessage?.role === "assistant") {
-      state.deleteMessage(state.currentChatId, lastMessage.id);
+      state.deleteMessage(state.currentSessionId, lastMessage.id);
       trimmedHistory = history.slice(0, -1);
     }
 
@@ -48,7 +48,7 @@ export function useChatHistory(
     deps,
     state.baseMessages,
     state.currentChat,
-    state.currentChatId,
+    state.currentSessionId,
     state.deleteMessage,
   ]);
 

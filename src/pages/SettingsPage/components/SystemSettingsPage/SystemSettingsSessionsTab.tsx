@@ -13,7 +13,7 @@ export default function SystemSettingsSessionsTab() {
   const { modal, message } = AntApp.useApp();
 
   const chats = useAppStore((s) => s.chats);
-  const currentChatId = useAppStore((s) => s.currentChatId);
+  const currentSessionId = useAppStore((s) => s.currentSessionId);
   const refreshChats = useAppStore((s) => s.refreshChats);
   const loadChats = useAppStore((s) => s.loadChats);
   const loadChatHistory = useAppStore((s) => s.loadChatHistory);
@@ -22,9 +22,9 @@ export default function SystemSettingsSessionsTab() {
   const [busy, setBusy] = useState(false);
 
   const current = useMemo(() => {
-    if (!currentChatId) return null;
-    return chats.find((c) => c.id === currentChatId) ?? null;
-  }, [chats, currentChatId]);
+    if (!currentSessionId) return null;
+    return chats.find((c) => c.id === currentSessionId) ?? null;
+  }, [chats, currentSessionId]);
 
   const run = async (fn: () => Promise<void>) => {
     if (busy) return;

@@ -156,22 +156,22 @@ const getChatLookup = (
   return lookup;
 };
 
-export const selectChatById =
-  (chatId: string | null) =>
+export const selectSessionById =
+  (sessionId: string | null) =>
   (state: AppState): ChatItem | null => {
-    if (!chatId) {
+    if (!sessionId) {
       return null;
     }
 
-    return getChatLookup(state.chats).get(chatId) ?? null;
+    return getChatLookup(state.chats).get(sessionId) ?? null;
   };
 
 export const selectCurrentChat = (state: AppState): ChatItem | null => {
-  if (!state.currentChatId) {
+  if (!state.currentSessionId) {
     return null;
   }
 
-  return getChatLookup(state.chats).get(state.currentChatId) ?? null;
+  return getChatLookup(state.chats).get(state.currentSessionId) ?? null;
 };
 
 export const selectCurrentMessages = (state: AppState): Message[] =>

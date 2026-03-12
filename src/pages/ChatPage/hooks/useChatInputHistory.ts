@@ -7,7 +7,7 @@ interface NavigateResult {
   applied: boolean;
 }
 
-export const useChatInputHistory = (chatId: string | null) => {
+export const useChatInputHistory = (sessionId: string | null) => {
   const historyMapRef = useRef<Map<string, string[]>>(new Map());
   const navigationAppliedRef = useRef(false);
   const [historyIndex, setHistoryIndex] = useState<number | null>(null);
@@ -15,11 +15,11 @@ export const useChatInputHistory = (chatId: string | null) => {
   useEffect(() => {
     setHistoryIndex(null);
     navigationAppliedRef.current = false;
-  }, [chatId]);
+  }, [sessionId]);
 
   const recordEntry = useCallback(
     (entry: string) => {
-      if (!chatId) {
+      if (!sessionId) {
         return;
       }
       const trimmed = entry.trim();
@@ -27,26 +27,26 @@ export const useChatInputHistory = (chatId: string | null) => {
         return;
       }
 
-      const history = historyMapRef.current.get(chatId) ?? [];
+      const history = historyMapRef.current.get(sessionId) ?? [];
       if (history[history.length - 1] === trimmed) {
         return;
       }
 
       const updatedHistory = [...history, trimmed].slice(-50);
-      historyMapRef.current.set(chatId, updatedHistory);
+      historyMapRef.current.set(sessionId, updatedHistory);
       setHistoryIndex(null);
       navigationAppliedRef.current = false;
     },
-    [chatId],
+    [sessionId],
   );
 
   const navigate = useCallback(
     (direction: HistoryDirection, currentValue: string): NavigateResult => {
-      if (!chatId) {
+      if (!sessionId) {
         return { value: null, applied: false };
       }
 
-      const history = historyMapRef.current.get(chatId) ?? [];
+      const history = historyMapRef.current.get(sessionId) ?? [];
       if (history.length === 0) {
         return { value: null, applied: false };
       }
@@ -85,7 +85,7 @@ export const useChatInputHistory = (chatId: string | null) => {
       navigationAppliedRef.current = true;
       return { value: history[nextIndex] ?? null, applied: true };
     },
-    [chatId, historyIndex],
+    [sessionId, historyIndex],
   );
 
   const acknowledgeManualInput = useCallback(() => {
@@ -100,13 +100,13 @@ export const useChatInputHistory = (chatId: string | null) => {
   }, [historyIndex]);
 
   const clearHistory = useCallback(() => {
-    if (!chatId) {
+    if (!sessionId) {
       return;
     }
-    historyMapRef.current.delete(chatId);
+    historyMapRef.current.delete(sessionId);
     setHistoryIndex(null);
     navigationAppliedRef.current = false;
-  }, [chatId]);
+  }, [sessionId]);
 
   return {
     recordEntry,

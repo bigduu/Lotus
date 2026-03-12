@@ -1,4 +1,4 @@
-import { findLeafIdByChatId, useUILayoutStore } from "@shared/store/uiLayoutStore";
+import { findLeafIdBySessionId, useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
 
 import { useAppStore } from "../store";
@@ -56,13 +56,13 @@ const ensureSessionVisibleAndLoaded = async (
   // Optionally enable SSE subscription when the backend runner is active.
   // This is best-effort and won't start execution.
   if (options?.forceSubscribe) {
-    store.setChatProcessing(sessionId, true);
+    store.setSessionProcessing(sessionId, true);
     return;
   }
 
   const shouldSubscribeIfRunning = options?.subscribeIfRunning ?? true;
   if (shouldSubscribeIfRunning && chat.isRunning) {
-    store.setChatProcessing(sessionId, true);
+    store.setSessionProcessing(sessionId, true);
   }
 };
 
@@ -76,17 +76,17 @@ const ensureSessionVisibleAndLoaded = async (
 export const openSession = (sessionId: string, options?: OpenSessionOptions) => {
   const {
     activeLeafId,
-    leafChatIds,
-    setLeafChatId,
+    leafSessionIds,
+    setLeafSessionId,
     setActiveLeafId,
   } = useUILayoutStore.getState();
 
-  const existingLeafId = findLeafIdByChatId(leafChatIds, sessionId);
-  const activeLeafChatId = leafChatIds[activeLeafId] ?? null;
+  const existingLeafId = findLeafIdBySessionId(leafSessionIds, sessionId);
+  const activeLeafSessionId = leafSessionIds[activeLeafId] ?? null;
 
   uiLayoutDebug("openSession (input)", {
     activeLeafId,
-    activeLeafChatId,
+    activeLeafSessionId,
     sessionId,
     existingLeafId,
   });
@@ -99,9 +99,9 @@ export const openSession = (sessionId: string, options?: OpenSessionOptions) => 
         leafId: activeLeafId,
         sessionId,
       });
-    } else if (!activeLeafChatId) {
+    } else if (!activeLeafSessionId) {
       // Prefer filling empty active pane even if session is open elsewhere.
-      setLeafChatId(activeLeafId, sessionId);
+      setLeafSessionId(activeLeafId, sessionId);
       setActiveLeafId(activeLeafId);
       uiLayoutDebug("openSession (decision)", {
         action: "assign_to_empty_active_leaf",
@@ -119,7 +119,7 @@ export const openSession = (sessionId: string, options?: OpenSessionOptions) => 
       });
     }
   } else {
-    setLeafChatId(activeLeafId, sessionId);
+    setLeafSessionId(activeLeafId, sessionId);
     uiLayoutDebug("openSession (decision)", {
       action: "assign_to_active_leaf",
       leafId: activeLeafId,
@@ -127,7 +127,7 @@ export const openSession = (sessionId: string, options?: OpenSessionOptions) => 
     });
   }
 
-  useAppStore.getState().selectChat(sessionId);
+  useAppStore.getState().selectSession(sessionId);
 
   // Best-effort background sync so Sidebar + view can render even for sessions
   // that were created while the UI wasn't watching.

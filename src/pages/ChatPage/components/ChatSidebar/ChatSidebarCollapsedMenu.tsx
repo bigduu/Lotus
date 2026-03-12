@@ -5,21 +5,21 @@ import type { ChatItem } from "../../types/chat";
 
 type ChatSidebarCollapsedMenuProps = {
   chats: ChatItem[];
-  currentChatId: string | null;
-  onSelectChat: (chatId: string) => void;
+  currentSessionId: string | null;
+  onSelectChat: (sessionId: string) => void;
   screens: { xs?: boolean };
   token: any;
 };
 
 export const ChatSidebarCollapsedMenu: React.FC<
   ChatSidebarCollapsedMenuProps
-> = ({ chats, currentChatId, onSelectChat, screens, token }) => {
+> = ({ chats, currentSessionId, onSelectChat, screens, token }) => {
   const items = useMemo(() => chats, [chats]);
 
   return (
     <Flex vertical gap={8} style={{ width: "100%" }}>
       {items.map((chat) => {
-        const isSelected = chat.id === currentChatId;
+        const isSelected = chat.id === currentSessionId;
 
         return (
           <button

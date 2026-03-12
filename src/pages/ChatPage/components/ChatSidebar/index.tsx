@@ -23,7 +23,7 @@ export const ChatSidebar: React.FC = () => {
     expandedRootIds,
     toggleRootExpanded,
     collapsed,
-    currentChatId,
+    currentSessionId,
     expandedKeys,
     groupedChatsByDate,
     handleCollapseChange,
@@ -36,13 +36,13 @@ export const ChatSidebar: React.FC = () => {
     handleOpenSettings,
     handleSystemPromptSelect,
     isNewChatSelectorOpen,
-    pinChat,
-    selectChat,
+    pinSession,
+    selectSession,
     setCollapsed,
     sortedDateKeys,
     systemPrompts,
     titleGenerationState,
-    unpinChat,
+    unpinSession,
   } = useChatSidebarState();
 
   useEffect(() => {
@@ -105,12 +105,12 @@ export const ChatSidebar: React.FC = () => {
             sortedDateKeys={sortedDateKeys}
             expandedKeys={expandedKeys}
             onCollapseChange={handleCollapseChange}
-            currentChatId={currentChatId}
-            onSelectChat={selectChat}
+            currentSessionId={currentSessionId}
+            onSelectChat={selectSession}
             onDeleteChat={handleDelete}
             onDeleteByDate={handleDeleteByDate}
-            onPinChat={pinChat}
-            onUnpinChat={unpinChat}
+            onPinChat={pinSession}
+            onUnpinChat={unpinSession}
             onEditTitle={handleEditTitle}
             onGenerateTitle={handleGenerateTitle}
             titleGenerationState={titleGenerationState}
@@ -119,8 +119,8 @@ export const ChatSidebar: React.FC = () => {
         ) : (
           <ChatSidebarCollapsedMenu
             chats={chats}
-            currentChatId={currentChatId}
-            onSelectChat={selectChat}
+            currentSessionId={currentSessionId}
+            onSelectChat={selectSession}
             screens={screens}
             token={token}
           />

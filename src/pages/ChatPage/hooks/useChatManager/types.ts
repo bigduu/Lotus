@@ -2,23 +2,23 @@ import type { ChatItem, Message, UserSystemPrompt } from "../../types/chat";
 
 export interface UseChatState {
   chats: ChatItem[];
-  currentChatId: string | null;
+  currentSessionId: string | null;
   currentChat: ChatItem | null;
   isProcessing: boolean;
   baseMessages: Message[];
   pinnedChats: ChatItem[];
   unpinnedChats: ChatItem[];
   chatCount: number;
-  addMessage: (chatId: string, message: Message) => Promise<void>;
-  deleteMessage: (chatId: string, messageId: string) => void;
-  selectChat: (chatId: string | null) => void;
-  deleteChat: (chatId: string) => Promise<void>;
-  deleteChats: (chatIds: string[]) => Promise<void>;
-  pinChat: (chatId: string) => void;
-  unpinChat: (chatId: string) => void;
-  updateChat: (chatId: string, updates: Partial<ChatItem>) => void;
+  addMessage: (sessionId: string, message: Message) => Promise<void>;
+  deleteMessage: (sessionId: string, messageId: string) => void;
+  selectSession: (sessionId: string | null) => void;
+  deleteSession: (sessionId: string) => Promise<void>;
+  deleteSessions: (sessionIds: string[]) => Promise<void>;
+  pinSession: (sessionId: string) => void;
+  unpinSession: (sessionId: string) => void;
+  updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
   loadChats: () => Promise<void>;
-  setChatProcessing: (chatId: string, isProcessing: boolean) => void;
+  setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
 }
 
 export interface UseChatTitleGeneration {
@@ -29,7 +29,7 @@ export interface UseChatTitleGeneration {
   autoGenerateTitles: boolean;
   isUpdatingAutoTitlePreference: boolean;
   generateChatTitle: (
-    chatId: string,
+    sessionId: string,
     options?: { force?: boolean },
   ) => Promise<void>;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
@@ -42,8 +42,8 @@ export interface UseChatOperations {
     options?: Partial<Omit<ChatItem, "id">>,
   ) => Promise<void>;
   createChatWithSystemPrompt: (prompt: UserSystemPrompt) => Promise<void>;
-  toggleChatPin: (chatId: string) => void;
-  updateChatTitle: (chatId: string, newTitle: string) => void;
+  toggleChatPin: (sessionId: string) => void;
+  updateChatTitle: (sessionId: string, newTitle: string) => void;
   deleteEmptyChats: () => void;
   deleteAllUnpinnedChats: () => void;
 }

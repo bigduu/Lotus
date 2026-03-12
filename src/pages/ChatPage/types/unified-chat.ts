@@ -71,7 +71,7 @@ export interface AttachmentRequest {
 
 // Chat session
 export interface ChatSession {
-  chatId: string;
+  sessionId: string;
   isActive: boolean;
   startedAt: Date;
   lastActivity: Date;
@@ -111,7 +111,7 @@ export type ExtendedMessage = Message & {
   timestamp: Date; // Compatible with existing code
   createdAt: string; // Creation time
   updatedAt?: Date; // Update time
-  chatId?: string; // ID of the chat it belongs to
+  sessionId?: string; // ID of the chat it belongs to
   attachments?: AttachmentResult[]; // List of attachments
 };
 
@@ -171,21 +171,21 @@ export interface ApprovalAction {
 
 // Flow control result
 export interface ChatFlow {
-  chatId: string;
+  sessionId: string;
   status: "created" | "ready" | "error";
   chat: ChatItem;
 }
 
 export interface MessageFlow {
   messageId: string;
-  chatId: string;
+  sessionId: string;
   status: "sent" | "processing" | "completed" | "error";
   message: ExtendedMessage;
 }
 
 export interface StreamResult {
   messageId: string;
-  chatId: string;
+  sessionId: string;
   status: "streaming" | "completed" | "error";
   content: string;
 }
@@ -208,12 +208,12 @@ export interface ApprovalFlow {
 export interface Operation {
   type:
     | "addChat"
-    | "updateChat"
-    | "deleteChat"
+    | "updateSession"
+    | "deleteSession"
     | "addMessage"
     | "updateMessage"
     | "deleteMessage";
-  chatId?: string;
+  sessionId?: string;
   messageId?: string;
   data: any;
   options?: any; // Operation options
@@ -246,7 +246,7 @@ export interface TransactionResult {
 // State management types
 export interface ChatState {
   chats: Map<string, ChatItem>;
-  currentChatId: string | null;
+  currentSessionId: string | null;
   isProcessing: boolean;
   listeners: Set<StateListener>;
   transactions: Map<string, Transaction>;
@@ -254,7 +254,7 @@ export interface ChatState {
 
 export interface StateUpdates {
   chats?: ChatItem[];
-  currentChatId?: string | null;
+  currentSessionId?: string | null;
   isProcessing?: boolean;
 }
 

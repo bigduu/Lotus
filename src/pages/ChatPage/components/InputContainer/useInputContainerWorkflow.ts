@@ -7,14 +7,14 @@ interface UseInputContainerWorkflowProps {
   setContent: (value: string) => void;
   onWorkflowDraftChange?: (workflow: WorkflowDraft | null) => void;
   acknowledgeManualInput: () => void;
-  currentChatId: string | null;
+  currentSessionId: string | null;
 }
 
 export const useInputContainerWorkflow = ({
   setContent,
   onWorkflowDraftChange,
   acknowledgeManualInput,
-  currentChatId,
+  currentSessionId,
 }: UseInputContainerWorkflowProps) => {
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [workflowSearchText, setWorkflowSearchText] = useState("");
@@ -24,7 +24,7 @@ export const useInputContainerWorkflow = ({
   useEffect(() => {
     setSelectedWorkflow(null);
     onWorkflowDraftChange?.(null);
-  }, [currentChatId, onWorkflowDraftChange]);
+  }, [currentSessionId, onWorkflowDraftChange]);
 
   const matchesWorkflowToken = useCallback(
     (value: string, workflowName: string) => {

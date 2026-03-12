@@ -16,7 +16,7 @@ import {
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
-import { selectChatById, useAppStore } from "../../store";
+import { selectSessionById, useAppStore } from "../../store";
 import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
@@ -39,7 +39,7 @@ const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
 
 type ChatSendMessageEventDetail = {
   content: string;
-  chatId?: string | null;
+  sessionId?: string | null;
   handled?: boolean;
   resolve?: () => void;
   reject?: (error: unknown) => void;
@@ -47,7 +47,7 @@ type ChatSendMessageEventDetail = {
 
 type ChatReferenceTextEventDetail = {
   text: string;
-  chatId?: string | null;
+  sessionId?: string | null;
   handled?: boolean;
 };
 
@@ -68,32 +68,32 @@ export type WorkflowDraft = {
 };
 
 interface InputContainerProps {
-  chatId?: string | null;
+  sessionId?: string | null;
   isCenteredLayout?: boolean;
   onWorkflowDraftChange?: (workflow: WorkflowDraft | null) => void;
 }
 
 export const InputContainer: React.FC<InputContainerProps> = ({
-  chatId: chatIdProp,
+  sessionId: sessionIdProp,
   isCenteredLayout = false,
   onWorkflowDraftChange,
 }) => {
   const textAreaRef = useRef<TextAreaRef>(null); // Add ref for cursor position
   const { token } = useToken();
   const openSettings = useSettingsViewStore((state) => state.open);
-  const chatId = useAppStore((state) => chatIdProp ?? state.currentChatId);
-  const activeChatId = useAppStore((state) => state.currentChatId);
-  const currentChat = useAppStore(selectChatById(chatId));
+  const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
+  const activeSessionId = useAppStore((state) => state.currentSessionId);
+  const currentChat = useAppStore(selectSessionById(sessionId));
   const currentMessages = currentChat?.messages || [];
   const addMessage = useAppStore((state) => state.addMessage);
-  const updateChat = useAppStore((state) => state.updateChat);
+  const updateSession = useAppStore((state) => state.updateSession);
   const processingChats = useAppStore((state) => state.processingChats);
-  const setChatProcessing = useAppStore((state) => state.setChatProcessing);
+  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
   const activeModel = useActiveModel();
 
   // Get input state from Zustand slice (persisted per session)
   const inputState = useAppStore((state) =>
-    chatId ? state.inputStates[chatId] : undefined,
+    sessionId ? state.inputStates[sessionId] : undefined,
   );
   const setInputContent = useAppStore((state) => state.setInputContent);
   const setReferenceText = useAppStore((state) => state.setReferenceText);
@@ -103,22 +103,22 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const referenceText = inputState?.referenceText || null;
   const setContent = useCallback(
     (newContent: string) => {
-      if (chatId) {
-        setInputContent(chatId, newContent);
+      if (sessionId) {
+        setInputContent(sessionId, newContent);
       }
     },
-    [chatId, setInputContent],
+    [sessionId, setInputContent],
   );
   const setReferenceTextPersisted = useCallback(
     (newRefText: string | null) => {
-      if (chatId) {
-        setReferenceText(chatId, newRefText);
+      if (sessionId) {
+        setReferenceText(sessionId, newRefText);
       }
     },
-    [chatId, setReferenceText],
+    [sessionId, setReferenceText],
   );
 
-  const isProcessing = chatId ? processingChats.has(chatId) : false;
+  const isProcessing = sessionId ? processingChats.has(sessionId) : false;
 
   const {
     sendMessage,
@@ -126,10 +126,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     cancel: cancelMessage,
     agentAvailable,
   } = useMessageStreaming({
-    chatId,
+    sessionId,
     addMessage,
-    setChatProcessing,
-    updateChat,
+    setSessionProcessing,
+    updateSession,
   });
 
   useEffect(() => {
@@ -143,15 +143,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         return;
       }
 
-      // If a target chatId is provided, only the matching pane should handle it.
+      // If a target sessionId is provided, only the matching pane should handle it.
       // Otherwise, default to the globally active chat to avoid sending from all panes.
-      const targetChatId =
-        typeof customEvent.detail.chatId === "string"
-          ? customEvent.detail.chatId
+      const targetSessionId =
+        typeof customEvent.detail.sessionId === "string"
+          ? customEvent.detail.sessionId
           : null;
-      const shouldHandle = targetChatId
-        ? chatId === targetChatId
-        : chatId !== null && chatId === activeChatId;
+      const shouldHandle = targetSessionId
+        ? sessionId === targetSessionId
+        : sessionId !== null && sessionId === activeSessionId;
       if (!shouldHandle) {
         return;
       }
@@ -189,7 +189,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         handleExternalSend as EventListener,
       );
     };
-  }, [activeChatId, chatId, sendMessage]);
+  }, [activeSessionId, sessionId, sendMessage]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -202,13 +202,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         return;
       }
 
-      const targetChatId =
-        typeof customEvent.detail.chatId === "string"
-          ? customEvent.detail.chatId
+      const targetSessionId =
+        typeof customEvent.detail.sessionId === "string"
+          ? customEvent.detail.sessionId
           : null;
-      const shouldHandle = targetChatId
-        ? chatId === targetChatId
-        : chatId !== null && chatId === activeChatId;
+      const shouldHandle = targetSessionId
+        ? sessionId === targetSessionId
+        : sessionId !== null && sessionId === activeSessionId;
       if (!shouldHandle) {
         return;
       }
@@ -237,7 +237,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         handleReferenceText as EventListener,
       );
     };
-  }, [activeChatId, chatId, setReferenceTextPersisted]);
+  }, [activeSessionId, sessionId, setReferenceTextPersisted]);
 
   const isStreaming = isProcessing;
   // Use the global Ant App context message API to avoid mounting a per-pane
@@ -253,7 +253,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const autoToolPrefix = undefined;
 
   const { recordEntry, navigate, acknowledgeManualInput } =
-    useChatInputHistory(chatId);
+    useChatInputHistory(sessionId);
 
   const {
     attachments,
@@ -267,7 +267,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setContent,
     onWorkflowDraftChange,
     acknowledgeManualInput,
-    currentChatId: chatId,
+    currentSessionId: sessionId,
     textAreaRef,
     content,
   });
@@ -275,9 +275,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const fileReferenceState = useInputContainerFileReferences({
     content,
     setContent,
-    currentChatId: chatId,
+    currentSessionId: sessionId,
     currentChat,
-    updateChat,
+    updateSession,
     messageApi,
   });
 
@@ -305,7 +305,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   });
 
   const { retryLastMessage, handleHistoryNavigate } = useInputContainerHistory({
-    currentChatId: chatId,
+    currentSessionId: sessionId,
     currentChat,
     currentMessages,
     retryLastTurn,

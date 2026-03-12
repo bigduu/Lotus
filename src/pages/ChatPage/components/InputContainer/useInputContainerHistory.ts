@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { Message } from "../../types/chat";
 
 interface UseInputContainerHistoryProps {
-  currentChatId: string | null;
+  currentSessionId: string | null;
   currentChat: any | null;
   currentMessages: Message[];
   retryLastTurn: () => Promise<void>;
@@ -16,14 +16,14 @@ interface UseInputContainerHistoryProps {
 }
 
 export const useInputContainerHistory = ({
-  currentChatId,
+  currentSessionId,
   currentChat,
   currentMessages,
   retryLastTurn,
   navigate,
 }: UseInputContainerHistoryProps) => {
   const retryLastMessage = useCallback(async () => {
-    if (!currentChatId || !currentChat) return;
+    if (!currentSessionId || !currentChat) return;
     const history = [...currentMessages];
     if (history.length === 0) return;
 
@@ -35,7 +35,7 @@ export const useInputContainerHistory = ({
     if (lastUserIndex === -1) return;
 
     await retryLastTurn();
-  }, [currentChat, currentChatId, currentMessages, retryLastTurn]);
+  }, [currentChat, currentSessionId, currentMessages, retryLastTurn]);
 
   const handleHistoryNavigate = useCallback(
     (direction: "previous" | "next", currentValue: string): string | null => {

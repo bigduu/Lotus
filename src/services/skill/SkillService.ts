@@ -39,8 +39,8 @@ export class SkillService {
   /**
    * Get tools filtered by skills
    */
-  async getFilteredTools(chatId?: string): Promise<unknown[]> {
-    const params = chatId ? `?chat_id=${encodeURIComponent(chatId)}` : "";
+  async getFilteredTools(sessionId?: string): Promise<unknown[]> {
+    const params = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
     const data = await apiClient.get<{ tools?: unknown[] }>(
       `skills/filtered-tools${params}`,
     );

@@ -42,21 +42,21 @@ const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
 
 type ChatSendMessageEventDetail = {
   content: string;
-  chatId?: string | null;
+  sessionId?: string | null;
   handled?: boolean;
   resolve?: () => void;
   reject?: (error: unknown) => void;
 };
 
 interface MessageCardProps {
-  chatId: string | null;
+  sessionId: string | null;
   message: Message;
   onDelete?: (messageId: string) => void;
   messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
 }
 
 const MessageCardComponent: React.FC<MessageCardProps> = ({
-  chatId,
+  sessionId,
   message,
   onDelete,
   messageType,
@@ -65,7 +65,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   const { token } = useToken();
   const { message: appMessage } = AntApp.useApp();
   const screens = useBreakpoint();
-  const updateChat = useAppStore((state) => state.updateChat);
+  const updateSession = useAppStore((state) => state.updateSession);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
   const refreshChats = useAppStore((state) => state.refreshChats);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -73,7 +73,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   // Select only the boolean we need, not the whole Set
   const isProcessing = useAppStore((state) => {
-    return chatId ? state.processingChats.has(chatId) : false;
+    return sessionId ? state.processingChats.has(sessionId) : false;
   });
 
   const sendMessage = useCallback((content: string) => {
@@ -84,7 +84,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     return new Promise<void>((resolve, reject) => {
       const detail: ChatSendMessageEventDetail = {
         content,
-        chatId,
+        sessionId,
         handled: false,
         resolve,
         reject,
@@ -136,18 +136,18 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const restoreSessionState = useCallback(
     async (restoreFiles: boolean) => {
-      if (!chatId || !messageId) {
+      if (!sessionId || !messageId) {
         appMessage.warning("Cannot restore this message");
         return;
       }
 
       try {
-        const result = await agentClient.restoreSessionState(chatId, {
+        const result = await agentClient.restoreSessionState(sessionId, {
           target_message_id: messageId,
           restore_files: restoreFiles,
         });
 
-        await loadChatHistory(chatId, { mode: "replace" });
+        await loadChatHistory(sessionId, { mode: "replace" });
         await refreshChats();
 
         const fileErrorCount = result.file_errors?.length ?? 0;
@@ -173,7 +173,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
         appMessage.error(message);
       }
     },
-    [appMessage, chatId, loadChatHistory, messageId, refreshChats],
+    [appMessage, sessionId, loadChatHistory, messageId, refreshChats],
   );
 
   const onRestoreChat = useCallback(() => {
@@ -192,7 +192,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   } = useMessageCardActions({
     messageText,
     messageId,
-    currentChatId: chatId,
+    currentSessionId: sessionId,
     onDelete,
     onRestoreChat,
     onRestoreFilesAndChat,
@@ -225,8 +225,8 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const { handleExecutePlan, handleRefinePlan, handleQuestionAnswer } =
     useMessageCardPlanActions({
-      currentChatId: chatId,
-      updateChat,
+      currentSessionId: sessionId,
+      updateSession,
       sendMessage,
     });
 
@@ -234,7 +234,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     return (
       <PlanMessageCard
         plan={parsedPlan}
-        contextId={chatId || ""}
+        contextId={sessionId || ""}
         onExecute={handleExecutePlan}
         onRefine={handleRefinePlan}
         timestamp={formattedTimestamp ?? undefined}
@@ -250,7 +250,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     return (
       <QuestionMessageCard
         question={parsedQuestion}
-        contextId={chatId || ""}
+        contextId={sessionId || ""}
         onAnswer={handleQuestionAnswer}
         disabled={isProcessing || false}
         timestamp={formattedTimestamp ?? undefined}

@@ -19,7 +19,7 @@ export interface UseChatOpenAIStreaming {
 
 interface UseChatOpenAIStreamingDeps {
   currentChat: ChatItem | null;
-  addMessage: (chatId: string, message: Message) => Promise<void>;
+  addMessage: (sessionId: string, message: Message) => Promise<void>;
   setProcessing: (isProcessing: boolean) => void;
 }
 
@@ -48,11 +48,11 @@ export function useChatOpenAIStreaming(
 
   const resolveTools = useCallback(
     async (
-      chatId?: string,
+      sessionId?: string,
     ): Promise<OpenAI.Chat.Completions.ChatCompletionTool[]> => {
       if (toolsCacheRef.current) return toolsCacheRef.current;
       try {
-        const toolDefs = await skillService.getFilteredTools(chatId);
+        const toolDefs = await skillService.getFilteredTools(sessionId);
         const typedToolDefs =
           toolDefs as OpenAI.Chat.Completions.ChatCompletionTool[];
         toolsCacheRef.current = typedToolDefs;
@@ -93,7 +93,7 @@ export function useChatOpenAIStreaming(
         return;
       }
 
-      const chatId = deps.currentChat.id;
+      const sessionId = deps.currentChat.id;
       const messageImages =
         images?.map((img) => ({
           id: img.id,
@@ -112,7 +112,7 @@ export function useChatOpenAIStreaming(
       };
 
       const updatedMessages = [...deps.currentChat.messages, userMessage];
-      await deps.addMessage(chatId, userMessage);
+      await deps.addMessage(sessionId, userMessage);
 
       deps.setProcessing(true);
       const controller = new AbortController();
@@ -120,7 +120,7 @@ export function useChatOpenAIStreaming(
 
       try {
         const client = getOpenAIClient();
-        const tools = await resolveTools(chatId);
+        const tools = await resolveTools(sessionId);
 
         // Model must be loaded before sending - fail fast if not available
         if (!activeModel) {
@@ -133,7 +133,7 @@ export function useChatOpenAIStreaming(
         const openaiMessages = buildMessages(updatedMessages);
 
         await streamOpenAIWithTools({
-          chatId,
+          sessionId,
           client,
           tools,
           model,
@@ -145,7 +145,7 @@ export function useChatOpenAIStreaming(
         });
       } catch (error) {
         if (streamingMessageIdRef.current) {
-          streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
+          streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
         }
         streamingMessageIdRef.current = null;
         streamingContentRef.current = "";
@@ -161,7 +161,7 @@ export function useChatOpenAIStreaming(
       } finally {
         abortRef.current = null;
         if (streamingMessageIdRef.current) {
-          streamingMessageBus.clear(chatId, streamingMessageIdRef.current);
+          streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
         }
         streamingMessageIdRef.current = null;
         streamingContentRef.current = "";

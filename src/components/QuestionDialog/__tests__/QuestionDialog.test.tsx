@@ -23,15 +23,15 @@ vi.mock("../../../services/api", () => ({
 }));
 
 describe("QuestionDialog", () => {
-  const mockSetChatProcessing = vi.fn();
-  const mockIsChatProcessing = vi.fn();
+  const mockSetSessionProcessing = vi.fn();
+  const mockIsSessionProcessing = vi.fn();
   const defaultProps = {
     sessionId: "test-session-1",
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIsChatProcessing.mockReturnValue(false);
+    mockIsSessionProcessing.mockReturnValue(false);
     // Ensure provider store has a default model available (QuestionDialog uses it for resume).
     useProviderStore.setState({
       currentProvider: "openai",
@@ -48,8 +48,8 @@ describe("QuestionDialog", () => {
     (useAppStore as any).mockImplementation((selector: (state: any) => any) => {
       if (typeof selector === "function") {
         return selector({
-          setChatProcessing: mockSetChatProcessing,
-          isChatProcessing: mockIsChatProcessing,
+          setSessionProcessing: mockSetSessionProcessing,
+          isSessionProcessing: mockIsSessionProcessing,
           chats: [],
           // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
           // (it may auto-default to models[0] elsewhere).
@@ -57,8 +57,8 @@ describe("QuestionDialog", () => {
         });
       }
       return {
-        setChatProcessing: mockSetChatProcessing,
-        isChatProcessing: mockIsChatProcessing,
+        setSessionProcessing: mockSetSessionProcessing,
+        isSessionProcessing: mockIsSessionProcessing,
         chats: [],
         selectedModel: "gpt-5-ultra-expensive",
       };
@@ -169,8 +169,8 @@ describe("QuestionDialog", () => {
         { model: "gpt-5-mini" },
       );
 
-      // Should set processing to activate subscription (but chatId is undefined in test)
-      // Note: In real usage, chatId would be found from the sessionId
+      // Should set processing to activate subscription (but sessionId is undefined in test)
+      // Note: In real usage, sessionId would be found from the sessionId
     });
   });
 

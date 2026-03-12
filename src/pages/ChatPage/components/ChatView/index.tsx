@@ -26,7 +26,7 @@ import {
 } from "@ant-design/icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
-import { selectChatById, useAppStore } from "../../store";
+import { selectSessionById, useAppStore } from "../../store";
 import {
   isAssistantToolResultMessage,
   type Message,
@@ -91,9 +91,9 @@ const buildBatchExportMarkdown = (
 export type ChatViewProps = {
   /**
    * If omitted, falls back to the globally selected chat.
-   * Multi-pane mode should always pass an explicit chatId.
+   * Multi-pane mode should always pass an explicit sessionId.
    */
-  chatId?: string | null;
+  sessionId?: string | null;
   /**
    * When embedded in split panes, use full width and tighter spacing.
    */
@@ -101,12 +101,12 @@ export type ChatViewProps = {
 };
 
 export const ChatView: React.FC<ChatViewProps> = ({
-  chatId: chatIdProp,
+  sessionId: sessionIdProp,
   embedded = false,
 }) => {
   const { message: appMessage } = AntApp.useApp();
-  const chatId = useAppStore((state) => chatIdProp ?? state.currentChatId);
-  const currentChat = useAppStore(selectChatById(chatId));
+  const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
+  const currentChat = useAppStore(selectSessionById(sessionId));
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
   const processingChats = useAppStore((state) => state.processingChats);
@@ -118,29 +118,29 @@ export const ChatView: React.FC<ChatViewProps> = ({
     [currentChat],
   );
   const hasTodoList = useAppStore((state) =>
-    chatId ? Boolean(state.todoLists[chatId]) : false,
+    sessionId ? Boolean(state.todoLists[sessionId]) : false,
   );
   const hasSubSessions = useAppStore((state) => {
-    if (!chatId) return false;
-    const progressMap = state.subSessionsByParent[chatId];
+    if (!sessionId) return false;
+    const progressMap = state.subSessionsByParent[sessionId];
     if (progressMap && Object.keys(progressMap).length > 0) return true;
     return state.chats.some(
-      (c) => c.kind === "child" && c.parentSessionId === chatId,
+      (c) => c.kind === "child" && c.parentSessionId === sessionId,
     );
   });
 
   // Lazy-load history when switching sessions (backend is source of truth).
   useEffect(() => {
-    if (!chatId) return;
-    const chat = useAppStore.getState().chats.find((c) => c.id === chatId);
+    if (!sessionId) return;
+    const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
     if (chat && Array.isArray(chat.messages) && chat.messages.length > 0) {
       return;
     }
-    void loadChatHistory(chatId);
-  }, [chatId, loadChatHistory]);
+    void loadChatHistory(sessionId);
+  }, [sessionId, loadChatHistory]);
 
-  const isProcessing = chatId
-    ? processingChats.has(chatId)
+  const isProcessing = sessionId
+    ? processingChats.has(sessionId)
     : false;
 
   const sessionDiffSummary = useMemo<SessionDiffSummary | null>(() => {
@@ -224,11 +224,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const handleDeleteMessage = useCallback(
     (messageId: string) => {
-      if (chatId) {
-        deleteMessage(chatId, messageId);
+      if (sessionId) {
+        deleteMessage(sessionId, messageId);
       }
     },
-    [chatId, deleteMessage],
+    [sessionId, deleteMessage],
   );
 
   const messagesListRef = useRef<HTMLDivElement>(null);
@@ -262,7 +262,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setWorkflowDraft(null);
     setSelectionMode(false);
     setSelectedMessageIds(new Set());
-  }, [chatId]);
+  }, [sessionId]);
 
   const { systemPromptMessage, renderableMessages, convertRenderableEntry } =
     useChatViewMessages(currentChat, currentMessages);
@@ -271,7 +271,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const hasWorkflowDraft = Boolean(workflowDraft?.content);
   const hasSystemPrompt = Boolean(systemPromptMessage);
   const showMessagesView =
-    chatId && (hasMessages || hasSystemPrompt || hasWorkflowDraft);
+    sessionId && (hasMessages || hasSystemPrompt || hasWorkflowDraft);
 
   // In split-pane mode, the PaneShell shows floating split/close buttons at the top-right.
   // Reserve some horizontal space so token usage (also top-right) isn't covered on hover.
@@ -388,7 +388,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const handleExportSelectedMessages = useCallback(
     async (format: "markdown" | "pdf") => {
-      if (!chatId) {
+      if (!sessionId) {
         appMessage.warning("No active chat");
         return;
       }
@@ -402,7 +402,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       const result = await MessageExportService.exportMessageText({
         format,
         content,
-        chatId,
+        sessionId,
         filenamePrefix: `chat-messages-${selectedMessages.length}`,
       });
 
@@ -416,7 +416,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       }
       appMessage.error(result.error || "Export failed");
     },
-    [appMessage, chatId, selectedMessages],
+    [appMessage, sessionId, selectedMessages],
   );
 
   useEffect(() => {
@@ -425,9 +425,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
     const onToggleSelectionMode = (
       event: Event,
     ) => {
-      const customEvent = event as CustomEvent<{ chatId?: string | null }>;
-      const targetChatId = customEvent.detail?.chatId ?? null;
-      if (!chatId || targetChatId !== chatId) {
+      const customEvent = event as CustomEvent<{ sessionId?: string | null }>;
+      const targetSessionId = customEvent.detail?.sessionId ?? null;
+      if (!sessionId || targetSessionId !== sessionId) {
         return;
       }
       handleToggleSelectionMode();
@@ -443,24 +443,24 @@ export const ChatView: React.FC<ChatViewProps> = ({
         onToggleSelectionMode as EventListener,
       );
     };
-  }, [chatId, handleToggleSelectionMode]);
+  }, [sessionId, handleToggleSelectionMode]);
 
   // In v2, frontend chat id === backend session id.
   const agentSessionId = currentChat?.id;
 
   // Get token usage - prefer store (real-time), fallback to chat config (persisted)
-  const storeTokenUsage = chatId ? tokenUsages[chatId] : null;
+  const storeTokenUsage = sessionId ? tokenUsages[sessionId] : null;
   const configTokenUsage = currentChat?.config?.tokenUsage;
   const currentTokenUsage = storeTokenUsage || configTokenUsage || null;
 
-  const storeTruncation = chatId
-    ? truncationOccurred[chatId]
+  const storeTruncation = sessionId
+    ? truncationOccurred[sessionId]
     : false;
   const configTruncation = currentChat?.config?.truncationOccurred;
   const currentTruncationOccurred =
     storeTruncation || configTruncation || false;
 
-  const storeSegments = chatId ? segmentsRemoved[chatId] : 0;
+  const storeSegments = sessionId ? segmentsRemoved[sessionId] : 0;
   const configSegments = currentChat?.config?.segmentsRemoved;
   const currentSegmentsRemoved = storeSegments || configSegments || 0;
 
@@ -510,7 +510,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     showScrollToBottom,
     showScrollToTop,
   } = useChatViewScroll({
-    currentChatId: chatId,
+    currentSessionId: sessionId,
     interactionState,
     messagesListRef,
     renderableMessages: renderableMessagesWithDraft,
@@ -603,7 +603,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         )}
 
-        {chatId && hasSubSessions && (
+        {sessionId && hasSubSessions && (
           <div
             style={{
               paddingTop: token.paddingXS,
@@ -615,7 +615,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <SubSessionsPanel parentSessionId={chatId} />
+            <SubSessionsPanel parentSessionId={sessionId} />
           </div>
         )}
 
@@ -696,7 +696,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
         <ChatMessagesList
           currentChat={currentChat}
-          currentChatId={chatId}
+          currentSessionId={sessionId}
           convertRenderableEntry={convertRenderableEntry}
           handleDeleteMessage={handleDeleteMessage}
           handleMessagesScroll={handleMessagesScroll}
@@ -763,7 +763,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         )}
 
         <ChatInputArea
-          chatId={chatId}
+          sessionId={sessionId}
           isCenteredLayout={!showMessagesView}
           maxWidth={showMessagesView ? getContainerMaxWidth() : "100%"}
           onWorkflowDraftChange={setWorkflowDraft}

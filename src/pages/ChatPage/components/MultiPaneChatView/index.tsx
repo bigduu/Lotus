@@ -29,19 +29,19 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const { token } = useToken();
 
   const tree = useUILayoutStore((s) => s.tree);
-  const leafChatIds = useUILayoutStore((s) => s.leafChatIds);
+  const leafSessionIds = useUILayoutStore((s) => s.leafSessionIds);
   const activeLeafId = useUILayoutStore((s) => s.activeLeafId);
   const setActiveLeafId = useUILayoutStore((s) => s.setActiveLeafId);
   const splitLeaf = useUILayoutStore((s) => s.splitLeaf);
   const closeLeaf = useUILayoutStore((s) => s.closeLeaf);
 
-  const selectChat = useAppStore((s) => s.selectChat);
+  const selectSession = useAppStore((s) => s.selectSession);
 
   const leafCount = useMemo(() => getLeafIdsFromTree(tree).length, [tree]);
   const canSplit = leafCount < MAX_PANES;
   const canClose = leafCount > 1;
 
-  const chatId = leafChatIds[leafId] ?? null;
+  const sessionId = leafSessionIds[leafId] ?? null;
   const isActive = activeLeafId === leafId;
 
   return (
@@ -50,18 +50,18 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
       onMouseDownCapture={() => {
         uiLayoutDebug("pane focus (mouse)", {
           leafId,
-          chatId,
+          sessionId,
           prevActiveLeafId: activeLeafId,
         });
         setActiveLeafId(leafId);
-        if (chatId) {
-          selectChat(chatId);
+        if (sessionId) {
+          selectSession(sessionId);
         }
       }}
       onFocusCapture={() => {
         uiLayoutDebug("pane focus (focus)", {
           leafId,
-          chatId,
+          sessionId,
           prevActiveLeafId: activeLeafId,
         });
         setActiveLeafId(leafId);
@@ -102,8 +102,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
               splitLeaf(leafId, "horizontal");
               // New pane becomes active; keep global selection consistent.
               const next = useUILayoutStore.getState();
-              const nextChatId = next.leafChatIds[next.activeLeafId] ?? null;
-              if (nextChatId) selectChat(nextChatId);
+              const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+              if (nextSessionId) selectSession(nextSessionId);
             }}
           />
 
@@ -120,8 +120,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
               uiLayoutDebug("pane split request", { leafId, layout: "vertical" });
               splitLeaf(leafId, "vertical");
               const next = useUILayoutStore.getState();
-              const nextChatId = next.leafChatIds[next.activeLeafId] ?? null;
-              if (nextChatId) selectChat(nextChatId);
+              const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+              if (nextSessionId) selectSession(nextSessionId);
             }}
           />
 
@@ -129,16 +129,16 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             size="small"
             type="text"
             icon={<CheckSquareOutlined />}
-            disabled={!chatId}
+            disabled={!sessionId}
             title="Select Messages to Export"
             aria-label="Select Messages to Export"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (!chatId) return;
+              if (!sessionId) return;
               window.dispatchEvent(
                 new CustomEvent(CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT, {
-                  detail: { chatId },
+                  detail: { sessionId },
                 }),
               );
             }}
@@ -158,15 +158,15 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
               uiLayoutDebug("pane close request", { leafId });
               closeLeaf(leafId);
               const next = useUILayoutStore.getState();
-              const nextChatId = next.leafChatIds[next.activeLeafId] ?? null;
-              selectChat(nextChatId);
+              const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+              selectSession(nextSessionId);
             }}
           />
         </Flex>
       </div>
 
-      {chatId ? (
-        <ChatView chatId={chatId} embedded={true} />
+      {sessionId ? (
+        <ChatView sessionId={sessionId} embedded={true} />
       ) : (
         <Flex
           vertical
@@ -219,18 +219,18 @@ export const MultiPaneChatView: React.FC = () => {
   const { token } = useToken();
 
   const tree = useUILayoutStore((s) => s.tree);
-  const leafChatIds = useUILayoutStore((s) => s.leafChatIds);
+  const leafSessionIds = useUILayoutStore((s) => s.leafSessionIds);
   const activeLeafId = useUILayoutStore((s) => s.activeLeafId);
   const setActiveLeafId = useUILayoutStore((s) => s.setActiveLeafId);
-  const setLeafChatId = useUILayoutStore((s) => s.setLeafChatId);
-  const clearChatFromAllLeaves = useUILayoutStore((s) => s.clearChatFromAllLeaves);
+  const setLeafSessionId = useUILayoutStore((s) => s.setLeafSessionId);
+  const clearSessionFromAllLeaves = useUILayoutStore((s) => s.clearSessionFromAllLeaves);
 
   const chats = useAppStore((s) => s.chats);
-  const currentChatId = useAppStore((s) => s.currentChatId);
+  const currentSessionId = useAppStore((s) => s.currentSessionId);
 
   const didSeedInitialChatRef = useRef(false);
   const leafIds = useMemo(() => getLeafIdsFromTree(tree), [tree]);
-  const chatIdSet = useMemo(() => new Set(chats.map((c) => c.id)), [chats]);
+  const sessionIdSet = useMemo(() => new Set(chats.map((c) => c.id)), [chats]);
 
   // Ensure active leaf is always valid.
   useEffect(() => {
@@ -242,29 +242,29 @@ export const MultiPaneChatView: React.FC = () => {
 
   // Prune deleted chats from pane assignments.
   useEffect(() => {
-    for (const [leafId, mappedChatId] of Object.entries(leafChatIds)) {
-      if (mappedChatId && !chatIdSet.has(mappedChatId)) {
-        setLeafChatId(leafId, null);
+    for (const [leafId, mappedSessionId] of Object.entries(leafSessionIds)) {
+      if (mappedSessionId && !sessionIdSet.has(mappedSessionId)) {
+        setLeafSessionId(leafId, null);
       }
     }
-  }, [chatIdSet, leafChatIds, setLeafChatId]);
+  }, [sessionIdSet, leafSessionIds, setLeafSessionId]);
 
   // Seed initial pane assignment once so fresh sessions aren't blank.
   useEffect(() => {
-    if (!currentChatId) return;
+    if (!currentSessionId) return;
     if (didSeedInitialChatRef.current) return;
-    const hasAny = Object.values(leafChatIds).some(Boolean);
+    const hasAny = Object.values(leafSessionIds).some(Boolean);
     if (!hasAny) {
-      setLeafChatId(activeLeafId, currentChatId);
+      setLeafSessionId(activeLeafId, currentSessionId);
       didSeedInitialChatRef.current = true;
       return;
     }
     didSeedInitialChatRef.current = true;
-  }, [activeLeafId, currentChatId, leafChatIds, setLeafChatId]);
+  }, [activeLeafId, currentSessionId, leafSessionIds, setLeafSessionId]);
 
-  // NOTE: We intentionally avoid "two-way binding" between global `currentChatId`
+  // NOTE: We intentionally avoid "two-way binding" between global `currentSessionId`
   // and pane assignments. The sidebar and pane click handlers already coordinate
-  // `setLeafChatId(...)` and `selectChat(...)`. Extra sync effects here can create
+  // `setLeafSessionId(...)` and `selectSession(...)`. Extra sync effects here can create
   // selection ping-pong (especially during Create New Session) and trigger
   // "Maximum update depth exceeded".
 
@@ -272,15 +272,15 @@ export const MultiPaneChatView: React.FC = () => {
   useEffect(() => {
     // This is intentionally coarse: it keeps UI layout consistent if some other flow
     // deletes chats without going through ChatSidebar handlers.
-    const mappedChatIds = new Set(
-      Object.values(leafChatIds).filter(Boolean) as string[],
+    const mappedSessionIds = new Set(
+      Object.values(leafSessionIds).filter(Boolean) as string[],
     );
-    for (const mappedChatId of mappedChatIds) {
-      if (!chatIdSet.has(mappedChatId)) {
-        clearChatFromAllLeaves(mappedChatId);
+    for (const mappedSessionId of mappedSessionIds) {
+      if (!sessionIdSet.has(mappedSessionId)) {
+        clearSessionFromAllLeaves(mappedSessionId);
       }
     }
-  }, [chatIdSet, clearChatFromAllLeaves, leafChatIds]);
+  }, [sessionIdSet, clearSessionFromAllLeaves, leafSessionIds]);
 
   return (
     <div

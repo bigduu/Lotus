@@ -7,7 +7,9 @@ const runBundleCheck = () => {
 import viteConfig from './vite.config.ts'
 import { build } from 'vite'
 
-const config = typeof viteConfig === 'function' ? await viteConfig() : viteConfig
+const config = typeof viteConfig === 'function'
+  ? await viteConfig({ command: 'build', mode: 'development', isSsrBuild: false, isPreview: false })
+  : viteConfig
 const result = await build({
   ...config,
   logLevel: 'silent',

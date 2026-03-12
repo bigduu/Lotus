@@ -40,7 +40,7 @@ interface OpenAIFinalMessage {
 }
 
 interface StreamOpenAIWithToolsParams {
-  chatId: string;
+  sessionId: string;
   client: OpenAI;
   tools: OpenAI.Chat.Completions.ChatCompletionTool[];
   model: string;
@@ -49,7 +49,7 @@ interface StreamOpenAIWithToolsParams {
   streamingMessageIdRef: React.MutableRefObject<string | null>;
   streamingContentRef: React.MutableRefObject<string>;
   addMessage: (
-    chatId: string,
+    sessionId: string,
     message:
       | AssistantTextMessage
       | AssistantToolCallMessage
@@ -58,7 +58,7 @@ interface StreamOpenAIWithToolsParams {
 }
 
 export const streamOpenAIWithTools = async ({
-  chatId,
+  sessionId,
   client,
   tools,
   model,
@@ -71,11 +71,11 @@ export const streamOpenAIWithTools = async ({
   let currentMessages = openaiMessages;
 
   for (let step = 0; step < 3; step += 1) {
-    const streamingMessageId = `streaming-${chatId}`;
+    const streamingMessageId = `streaming-${sessionId}`;
     streamingMessageIdRef.current = streamingMessageId;
     streamingContentRef.current = "";
     streamingMessageBus.publish({
-      chatId,
+      sessionId,
       messageId: streamingMessageId,
       content: "",
     });
@@ -128,7 +128,7 @@ export const streamOpenAIWithTools = async ({
         const nextContent = `${streamingContentRef.current}${delta.content}`;
         streamingContentRef.current = nextContent;
         streamingMessageBus.publish({
-          chatId,
+          sessionId,
           messageId: streamingMessageId,
           content: nextContent,
         });
@@ -171,7 +171,7 @@ export const streamOpenAIWithTools = async ({
     if (!sawContent && finalMessage?.content) {
       streamingContentRef.current = finalMessage.content;
       streamingMessageBus.publish({
-        chatId,
+        sessionId,
         messageId: streamingMessageId,
         content: finalMessage.content,
       });
@@ -187,15 +187,15 @@ export const streamOpenAIWithTools = async ({
           content: streamingContentRef.current,
           createdAt: new Date().toISOString(),
         };
-        await addMessage(chatId, assistantMessage);
+        await addMessage(sessionId, assistantMessage);
       }
-      streamingMessageBus.clear(chatId, streamingMessageId);
+      streamingMessageBus.clear(sessionId, streamingMessageId);
       streamingMessageIdRef.current = null;
       streamingContentRef.current = "";
       break;
     }
 
-    streamingMessageBus.clear(chatId, streamingMessageId);
+    streamingMessageBus.clear(sessionId, streamingMessageId);
     streamingMessageIdRef.current = null;
     streamingContentRef.current = "";
 
@@ -217,7 +217,7 @@ export const streamOpenAIWithTools = async ({
       createdAt: new Date().toISOString(),
     };
 
-    await addMessage(chatId, toolCallMessage);
+    await addMessage(sessionId, toolCallMessage);
 
     currentMessages = [
       ...currentMessages,
@@ -243,6 +243,7 @@ export const streamOpenAIWithTools = async ({
       const result = await toolService.executeTool({
         tool_name: call.function.name,
         parameters,
+        session_id: sessionId,
       });
 
       const toolResultMessage: AssistantToolResultMessage = {
@@ -260,7 +261,7 @@ export const streamOpenAIWithTools = async ({
         createdAt: new Date().toISOString(),
       };
 
-      await addMessage(chatId, toolResultMessage);
+      await addMessage(sessionId, toolResultMessage);
 
       currentMessages = [
         ...currentMessages,

@@ -47,13 +47,11 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // from ever appearing.
   const emptyCountRef = useRef(0);
 
-  const setChatProcessing = useAppStore((state) => state.setChatProcessing);
+  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
   const activeModel = useActiveModel();
 
-  // v2: chatId === sessionId
-  const chatId = sessionId;
-  const isChatProcessing = useAppStore((state) =>
-    chatId ? state.isChatProcessing(chatId) : false,
+  const isSessionProcessing = useAppStore((state) =>
+    sessionId ? state.isSessionProcessing(sessionId) : false,
   );
 
   // Fetch pending question
@@ -92,7 +90,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // When the agent is actively running, poll faster so the dialog shows quickly.
   // Otherwise keep it light.
   const pollInterval =
-    pendingQuestion?.has_pending_question || isChatProcessing ? 3000 : 15000;
+    pendingQuestion?.has_pending_question || isSessionProcessing ? 3000 : 15000;
 
   useEffect(() => {
     fetchPendingQuestion();
@@ -149,8 +147,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
 
           // Set processing flag to activate event subscription
           if (["started", "already_running"].includes(executeResult.status)) {
-            if (chatId) {
-              setChatProcessing(chatId, true);
+            if (sessionId) {
+              setSessionProcessing(sessionId, true);
             }
           }
         }

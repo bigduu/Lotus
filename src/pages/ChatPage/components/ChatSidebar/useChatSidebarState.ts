@@ -3,26 +3,26 @@ import { Modal } from "antd";
 
 import {
   getChatCountByDate,
-  getChatIdsByDate,
+  getSessionIdsByDate,
   getDateGroupKeyForChat,
   getSortedDateKeys,
   groupChatsByDate,
 } from "../../utils/chatUtils";
 import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
 import { useChatTitleGeneration } from "../../hooks/useChatManager/useChatTitleGeneration";
-import { selectChatById, useAppStore } from "../../store";
+import { selectSessionById, useAppStore } from "../../store";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { openSession } from "../../utils/openSession";
 
 export const useChatSidebarState = () => {
   const chats = useAppStore((state) => state.chats);
-  const currentChatId = useAppStore((state) => state.currentChatId);
-  const deleteChat = useAppStore((state) => state.deleteChat);
-  const deleteChats = useAppStore((state) => state.deleteChats);
-  const pinChat = useAppStore((state) => state.pinChat);
-  const unpinChat = useAppStore((state) => state.unpinChat);
-  const updateChat = useAppStore((state) => state.updateChat);
+  const currentSessionId = useAppStore((state) => state.currentSessionId);
+  const deleteSession = useAppStore((state) => state.deleteSession);
+  const deleteSessions = useAppStore((state) => state.deleteSessions);
+  const pinSession = useAppStore((state) => state.pinSession);
+  const unpinSession = useAppStore((state) => state.unpinSession);
+  const updateSession = useAppStore((state) => state.updateSession);
   const addChat = useAppStore((state) => state.addChat);
   const lastSelectedPromptId = useAppStore(
     (state) => state.lastSelectedPromptId,
@@ -31,13 +31,13 @@ export const useChatSidebarState = () => {
 
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
   const setSidebarCollapsed = useUILayoutStore((s) => s.setSidebarCollapsed);
-  const clearChatFromAllLeaves = useUILayoutStore(
-    (s) => s.clearChatFromAllLeaves,
+  const clearSessionFromAllLeaves = useUILayoutStore(
+    (s) => s.clearSessionFromAllLeaves,
   );
 
   const { generateChatTitle, titleGenerationState } = useChatTitleGeneration({
     chats,
-    updateChat,
+    updateSession,
   });
 
   const createNewChat = useCallback(
@@ -70,12 +70,12 @@ export const useChatSidebarState = () => {
         currentInteraction: null,
         ...options,
       };
-      const newChatId = await addChat(newChatData);
+      const newSessionId = await addChat(newChatData);
 
       // Assign the new chat to the currently active pane (read from store to
       // avoid stale closures when the user just split panes).
       const { activeLeafId: targetLeafId } = useUILayoutStore.getState();
-      useUILayoutStore.getState().setLeafChatId(targetLeafId, newChatId);
+      useUILayoutStore.getState().setLeafSessionId(targetLeafId, newSessionId);
       useUILayoutStore.getState().setActiveLeafId(targetLeafId);
     },
     [
@@ -90,7 +90,7 @@ export const useChatSidebarState = () => {
     new Set(["Today"]),
   );
 
-  const currentChat = useAppStore(selectChatById(currentChatId));
+  const currentChat = useAppStore(selectSessionById(currentSessionId));
 
   const currentDateGroupKey = useMemo(() => {
     return currentChat ? getDateGroupKeyForChat(currentChat) : null;
@@ -149,8 +149,8 @@ export const useChatSidebarState = () => {
   const sortedDateKeys = getSortedDateKeys(groupedChatsByDate);
 
   const handlePinChat = useCallback(
-    (chatId: string) => {
-      pinChat(chatId);
+    (sessionId: string) => {
+      pinSession(sessionId);
       // Pinned chats move into the "Pinned" group; expand it so the chat doesn't
       // appear to "disappear" immediately after pinning.
       setExpandedDates((prev) => {
@@ -160,18 +160,18 @@ export const useChatSidebarState = () => {
         return next;
       });
     },
-    [pinChat],
+    [pinSession],
   );
 
   const handleUnpinChat = useCallback(
-    (chatId: string) => {
+    (sessionId: string) => {
       // Compute the destination group key (best-effort) so the chat remains visible.
-      const chat = chats.find((c) => c.id === chatId);
+      const chat = chats.find((c) => c.id === sessionId);
       const nextGroupKey = chat
         ? getDateGroupKeyForChat({ ...chat, pinned: false })
         : null;
 
-      unpinChat(chatId);
+      unpinSession(sessionId);
 
       if (!nextGroupKey) return;
       setExpandedDates((prev) => {
@@ -181,10 +181,10 @@ export const useChatSidebarState = () => {
         return next;
       });
     },
-    [chats, unpinChat],
+    [chats, unpinSession],
   );
 
-  const handleDelete = (chatId: string) => {
+  const handleDelete = (sessionId: string) => {
     Modal.confirm({
       title: "Delete Session",
       content:
@@ -193,8 +193,8 @@ export const useChatSidebarState = () => {
       okType: "danger",
       cancelText: "Cancel",
       onOk: () => {
-        clearChatFromAllLeaves(chatId);
-        deleteChat(chatId);
+        clearSessionFromAllLeaves(sessionId);
+        deleteSession(sessionId);
       },
     });
   };
@@ -205,20 +205,20 @@ export const useChatSidebarState = () => {
     openSettings("chat");
   };
 
-  const handleEditTitle = (chatId: string, newTitle: string) => {
-    updateChat(chatId, { title: newTitle });
+  const handleEditTitle = (sessionId: string, newTitle: string) => {
+    updateSession(sessionId, { title: newTitle });
   };
 
-  const handleGenerateTitle = async (chatId: string) => {
+  const handleGenerateTitle = async (sessionId: string) => {
     try {
-      await generateChatTitle(chatId, { force: true });
+      await generateChatTitle(sessionId, { force: true });
     } catch (error) {
       console.error("Failed to generate title:", error);
     }
   };
 
   const handleDeleteByDate = (dateKey: string) => {
-    const chatIds = getChatIdsByDate(groupedChatsByDate, dateKey);
+    const sessionIds = getSessionIdsByDate(groupedChatsByDate, dateKey);
     const chatCount = getChatCountByDate(groupedChatsByDate, dateKey);
 
     Modal.confirm({
@@ -228,8 +228,8 @@ export const useChatSidebarState = () => {
       okType: "danger",
       cancelText: "Cancel",
       onOk: () => {
-        chatIds.forEach((id) => clearChatFromAllLeaves(id));
-        deleteChats(chatIds);
+        sessionIds.forEach((id) => clearSessionFromAllLeaves(id));
+        deleteSessions(sessionIds);
       },
     });
   };
@@ -264,7 +264,7 @@ export const useChatSidebarState = () => {
     }
   };
 
-  const selectChat = useCallback((chatId: string) => openSession(chatId), []);
+  const selectSession = useCallback((sessionId: string) => openSession(sessionId), []);
 
   // Root -> expanded children state (UI-only)
   const [expandedRoots, setExpandedRoots] = useState<Set<string>>(new Set());
@@ -273,7 +273,7 @@ export const useChatSidebarState = () => {
     const next = new Set(expandedRoots);
 
     // Ensure current selection is visible.
-    const current = chats.find((c) => c.id === currentChatId);
+    const current = chats.find((c) => c.id === currentSessionId);
     if (current) {
       const rootId =
         current.kind === "child"
@@ -291,7 +291,7 @@ export const useChatSidebarState = () => {
     }
 
     return next;
-  }, [chats, currentChatId, expandedRoots]);
+  }, [chats, currentSessionId, expandedRoots]);
 
   const toggleRootExpanded = useCallback((rootId: string) => {
     setExpandedRoots((prev) => {
@@ -308,7 +308,7 @@ export const useChatSidebarState = () => {
     expandedRootIds,
     toggleRootExpanded,
     collapsed: sidebarCollapsed,
-    currentChatId,
+    currentSessionId,
     expandedKeys,
     groupedChatsByDate,
     handleCollapseChange,
@@ -321,12 +321,12 @@ export const useChatSidebarState = () => {
     handleOpenSettings,
     handleSystemPromptSelect,
     isNewChatSelectorOpen,
-    pinChat: handlePinChat,
-    selectChat,
+    pinSession: handlePinChat,
+    selectSession,
     setCollapsed: setSidebarCollapsed,
     sortedDateKeys,
     systemPrompts,
     titleGenerationState,
-    unpinChat: handleUnpinChat,
+    unpinSession: handleUnpinChat,
   };
 };

@@ -79,10 +79,10 @@ describe("useMessageStreaming", () => {
 
   it("starts global health-check polling once on mount", async () => {
     const deps = {
-      chatId: null,
+      sessionId: null,
       addMessage: vi.fn(),
-      setChatProcessing: vi.fn(),
-      updateChat: vi.fn(),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
     };
 
     renderHook(() => useMessageStreaming(deps));
@@ -115,10 +115,10 @@ describe("useMessageStreaming", () => {
     mockStoreState.chats = [mockChat];
 
     const deps = {
-      chatId: "chat-1",
+      sessionId: "chat-1",
       addMessage: vi.fn(),
-      setChatProcessing: vi.fn(),
-      updateChat: vi.fn(),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
     };
 
     const { result } = renderHook(() => useMessageStreaming(deps));
@@ -158,10 +158,10 @@ describe("useMessageStreaming", () => {
     mockStoreState.chats = [mockChat];
 
     const deps = {
-      chatId: "chat-1",
+      sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setChatProcessing: vi.fn(),
-      updateChat: vi.fn(),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
     };
 
     const { result } = renderHook(() => useMessageStreaming(deps));
@@ -210,10 +210,10 @@ describe("useMessageStreaming", () => {
     mockStoreState.chats = [mockChat];
 
     const deps = {
-      chatId: "chat-1",
+      sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setChatProcessing: vi.fn(),
-      updateChat: vi.fn(),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
     };
 
     const { result } = renderHook(() => useMessageStreaming(deps));
@@ -266,12 +266,12 @@ describe("useMessageStreaming", () => {
     mockStoreState.chats = [mockChat];
 
     const deps = {
-      chatId: "chat-1",
+      sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setChatProcessing: vi.fn((chatId: string, isProcessing: boolean) => {
-        order.push(`processing:${chatId}:${String(isProcessing)}`);
+      setSessionProcessing: vi.fn((sessionId: string, isProcessing: boolean) => {
+        order.push(`processing:${sessionId}:${String(isProcessing)}`);
       }),
-      updateChat: vi.fn(),
+      updateSession: vi.fn(),
     };
 
     const { result } = renderHook(() => useMessageStreaming(deps));

@@ -70,12 +70,12 @@ function resolveIndexFromDeletedAnchor(
 }
 
 export function useScrollAnchorPersistence(args: {
-  currentChatId: string | null;
+  currentSessionId: string | null;
   messagesListRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
   rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
 }) {
-  const { currentChatId, messagesListRef, renderableMessages, rowVirtualizer } =
+  const { currentSessionId, messagesListRef, renderableMessages, rowVirtualizer } =
     args;
 
   const restoredChatsRef = useRef<Set<string>>(new Set());
@@ -150,7 +150,7 @@ export function useScrollAnchorPersistence(args: {
   );
 
   const flushSave = useCallback(
-    (chatId: string) => {
+    (sessionId: string) => {
       if (isRestoringRef.current) return;
       const anchor = computeAnchorNow();
       if (!anchor) return;
@@ -164,7 +164,7 @@ export function useScrollAnchorPersistence(args: {
         return;
       }
 
-      saveScrollAnchor(chatId, anchor);
+      saveScrollAnchor(sessionId, anchor);
       lastSavedRef.current = anchor;
     },
     [computeAnchorNow],
@@ -172,44 +172,44 @@ export function useScrollAnchorPersistence(args: {
 
   const handleScroll = useCallback(
     (_e: React.UIEvent<HTMLElement>) => {
-      if (!currentChatId) return;
+      if (!currentSessionId) return;
       if (isRestoringRef.current) return;
 
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
 
-      const chatIdAtSchedule = currentChatId;
+      const sessionIdAtSchedule = currentSessionId;
       saveTimeoutRef.current = setTimeout(() => {
-        flushSave(chatIdAtSchedule);
+        flushSave(sessionIdAtSchedule);
       }, SAVE_DEBOUNCE_MS);
     },
-    [currentChatId, flushSave],
+    [currentSessionId, flushSave],
   );
 
   // Flush pending save when switching chat/unmounting
   useEffect(() => {
-    const chatIdAtRender = currentChatId;
+    const sessionIdAtRender = currentSessionId;
     return () => {
-      if (!chatIdAtRender) return;
+      if (!sessionIdAtRender) return;
       if (saveTimeoutRef.current) {
         clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = null;
       }
-      flushSave(chatIdAtRender);
+      flushSave(sessionIdAtRender);
     };
-  }, [currentChatId, flushSave]);
+  }, [currentSessionId, flushSave]);
 
   // Restore (layout effect to reduce "jump from top")
   useLayoutEffect(() => {
-    if (!currentChatId) return;
+    if (!currentSessionId) return;
     const el = messagesListRef.current;
     if (!el) return;
     if (renderableMessages.length === 0) return;
 
-    if (restoredChatsRef.current.has(currentChatId)) return;
+    if (restoredChatsRef.current.has(currentSessionId)) return;
 
-    const saved = loadScrollAnchor(currentChatId);
+    const saved = loadScrollAnchor(currentSessionId);
     if (!saved) {
-      restoredChatsRef.current.add(currentChatId);
+      restoredChatsRef.current.add(currentSessionId);
       return;
     }
 
@@ -220,7 +220,7 @@ export function useScrollAnchorPersistence(args: {
         : resolveIndexFromDeletedAnchor(saved, renderableMessages);
 
     if (index == null) {
-      restoredChatsRef.current.add(currentChatId);
+      restoredChatsRef.current.add(currentSessionId);
       return;
     }
 
@@ -249,12 +249,12 @@ export function useScrollAnchorPersistence(args: {
       if (restoreTokenRef.current !== token) return;
 
       isRestoringRef.current = false;
-      restoredChatsRef.current.add(currentChatId);
+      restoredChatsRef.current.add(currentSessionId);
 
       el.style.overflowAnchor = "";
 
       // Persist the final stabilized anchor
-      flushSave(currentChatId);
+      flushSave(currentSessionId);
     });
 
     return () => {
@@ -262,7 +262,7 @@ export function useScrollAnchorPersistence(args: {
       if (restoreTokenRef.current === token) restoreTokenRef.current++;
     };
   }, [
-    currentChatId,
+    currentSessionId,
     idToIndex,
     renderableMessages,
     renderableMessages.length,

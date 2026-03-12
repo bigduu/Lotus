@@ -11,7 +11,7 @@ type InteractionState = {
 };
 
 type UseChatViewScrollArgs = {
-  currentChatId: string | null;
+  currentSessionId: string | null;
   interactionState: InteractionState;
   messagesListRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
@@ -19,7 +19,7 @@ type UseChatViewScrollArgs = {
 };
 
 export const useChatViewScroll = ({
-  currentChatId,
+  currentSessionId,
   interactionState,
   messagesListRef,
   renderableMessages,
@@ -32,7 +32,7 @@ export const useChatViewScroll = ({
 
   // Use scroll anchor persistence
   const { handleScroll: handleScrollPersistence } = useScrollAnchorPersistence({
-    currentChatId,
+    currentSessionId,
     messagesListRef,
     renderableMessages,
     rowVirtualizer,
@@ -159,12 +159,12 @@ export const useChatViewScroll = ({
 
   useEffect(() => {
     return streamingMessageBus.subscribe((update) => {
-      if (update.chatId !== currentChatId) return;
+      if (update.sessionId !== currentSessionId) return;
       if (userHasScrolledUpRef.current) return;
       if (!update.content) return;
       scrollToBottom();
     });
-  }, [currentChatId, scrollToBottom]);
+  }, [currentSessionId, scrollToBottom]);
 
   useEffect(() => {
     // Only auto-scroll when streaming, not on initial load
@@ -197,13 +197,13 @@ export const useChatViewScroll = ({
     const atTop = scrollTop < topThreshold;
     setShowScrollToBottom(!atBottom);
     setShowScrollToTop(!atTop && renderableMessages.length > 3);
-  }, [renderableMessages.length, currentChatId]);
+  }, [renderableMessages.length, currentSessionId]);
 
   // Reset first load flag when switching chats
   useEffect(() => {
     isFirstLoadRef.current = true;
     userHasScrolledUpRef.current = false;
-  }, [currentChatId]);
+  }, [currentSessionId]);
 
   return {
     handleMessagesScroll,

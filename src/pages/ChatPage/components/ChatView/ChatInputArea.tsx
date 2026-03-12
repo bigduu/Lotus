@@ -8,7 +8,7 @@ import ActiveToolMessageCard, {
 } from "./ActiveToolMessageCard";
 
 type ChatInputAreaProps = {
-  chatId: string | null;
+  sessionId: string | null;
   isCenteredLayout: boolean;
   maxWidth: string;
   onWorkflowDraftChange: (draft: WorkflowDraft | null) => void;
@@ -17,7 +17,7 @@ type ChatInputAreaProps = {
 };
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
-  chatId,
+  sessionId,
   isCenteredLayout,
   maxWidth,
   onWorkflowDraftChange,
@@ -42,11 +42,11 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
         {showMessagesView && (
           <ActiveToolMessageCard
             sessionDiffSummary={sessionDiffSummary}
-            sessionId={chatId}
+            sessionId={sessionId}
           />
         )}
         <InputContainer
-          chatId={chatId}
+          sessionId={sessionId}
           isCenteredLayout={isCenteredLayout}
           onWorkflowDraftChange={onWorkflowDraftChange}
         />

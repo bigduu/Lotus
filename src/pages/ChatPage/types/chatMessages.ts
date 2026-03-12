@@ -176,6 +176,8 @@ export interface ChatItem {
   lastActivityAt?: string;
   messageCount?: number;
   hasAttachments?: boolean;
+  lastRunStatus?: string;
+  lastRunError?: string;
   title: string;
   createdAt: number;
   pinned?: boolean;

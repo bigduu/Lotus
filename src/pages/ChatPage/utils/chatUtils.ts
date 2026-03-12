@@ -199,7 +199,7 @@ export const getSortedDateKeys = (
 /**
  * Get all chat IDs from a specific date group
  */
-export const getChatIdsByDate = (
+export const getSessionIdsByDate = (
   grouped: Record<string, ChatItem[]>,
   dateKey: string,
 ): string[] => {

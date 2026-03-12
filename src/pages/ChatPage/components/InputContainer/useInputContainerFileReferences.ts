@@ -7,18 +7,18 @@ import { workspaceApiService } from "../../services/WorkspaceApiService";
 interface UseInputContainerFileReferencesProps {
   content: string;
   setContent: (value: string) => void;
-  currentChatId: string | null;
+  currentSessionId: string | null;
   currentChat: any | null;
-  updateChat: (chatId: string, update: any) => void;
+  updateSession: (sessionId: string, update: any) => void;
   messageApi: MessageInstance;
 }
 
 export const useInputContainerFileReferences = ({
   content,
   setContent,
-  currentChatId,
+  currentSessionId,
   currentChat,
-  updateChat,
+  updateSession,
   messageApi,
 }: UseInputContainerFileReferencesProps) => {
   const [fileReferences, setFileReferences] = useState<
@@ -48,10 +48,10 @@ export const useInputContainerFileReferences = ({
     setWorkspaceFiles([]);
     setFileReferences(new Map());
     lastWorkspacePathRef.current = currentChat?.config.workspacePath ?? null;
-  }, [currentChatId, currentChat?.config.workspacePath]);
+  }, [currentSessionId, currentChat?.config.workspacePath]);
 
   const fetchWorkspaceFiles = useCallback(
-    async (_chatId: string, workspacePath: string) => {
+    async (_sessionId: string, workspacePath: string) => {
       setIsWorkspaceLoading(true);
       setWorkspaceFiles([]);
       setWorkspaceError(null);
@@ -83,7 +83,7 @@ export const useInputContainerFileReferences = ({
         return;
       }
 
-      if (!currentChatId || !currentChat) {
+      if (!currentSessionId || !currentChat) {
         setShowFileSelector(false);
         return;
       }
@@ -103,10 +103,10 @@ export const useInputContainerFileReferences = ({
         lastWorkspacePathRef.current !== workspacePath ||
         workspaceFiles.length === 0
       ) {
-        fetchWorkspaceFiles(currentChatId, workspacePath);
+        fetchWorkspaceFiles(currentSessionId, workspacePath);
       }
     },
-    [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length],
+    [currentChat, currentSessionId, fetchWorkspaceFiles, workspaceFiles.length],
   );
 
   const handleFileReferenceSelect = useCallback(
@@ -145,7 +145,7 @@ export const useInputContainerFileReferences = ({
   }, []);
 
   const handleFileReferenceButtonClick = useCallback(() => {
-    if (!currentChatId || !currentChat) {
+    if (!currentSessionId || !currentChat) {
       return;
     }
 
@@ -165,9 +165,9 @@ export const useInputContainerFileReferences = ({
       lastWorkspacePathRef.current !== workspacePath ||
       workspaceFiles.length === 0
     ) {
-      fetchWorkspaceFiles(currentChatId, workspacePath);
+      fetchWorkspaceFiles(currentSessionId, workspacePath);
     }
-  }, [currentChat, currentChatId, fetchWorkspaceFiles, workspaceFiles.length]);
+  }, [currentChat, currentSessionId, fetchWorkspaceFiles, workspaceFiles.length]);
 
   const handleWorkspaceModalCancel = useCallback(() => {
     setIsWorkspaceModalVisible(false);
@@ -176,7 +176,7 @@ export const useInputContainerFileReferences = ({
 
   const handleWorkspaceModalSubmit = useCallback(
     async (path: string) => {
-      if (!currentChat || !currentChatId) return;
+      if (!currentChat || !currentSessionId) return;
       const trimmedPath = path.trim();
       if (!trimmedPath) {
         messageApi.error("Workspace path cannot be empty");
@@ -185,7 +185,7 @@ export const useInputContainerFileReferences = ({
 
       setIsSavingWorkspace(true);
       try {
-        updateChat(currentChatId, {
+        updateSession(currentSessionId, {
           config: {
             ...currentChat.config,
             workspacePath: trimmedPath,
@@ -206,7 +206,7 @@ export const useInputContainerFileReferences = ({
         setIsSavingWorkspace(false);
       }
     },
-    [currentChat, currentChatId, messageApi, updateChat],
+    [currentChat, currentSessionId, messageApi, updateSession],
   );
 
   return {

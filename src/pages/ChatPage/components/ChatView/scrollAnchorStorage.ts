@@ -29,10 +29,10 @@ function readAll(): Store {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
     const out: Store = {};
-    for (const [chatId, value] of Object.entries(
+    for (const [sessionId, value] of Object.entries(
       parsed as Record<string, unknown>,
     )) {
-      if (isAnchorV1(value)) out[chatId] = value;
+      if (isAnchorV1(value)) out[sessionId] = value;
     }
     return out;
   } catch {
@@ -48,18 +48,18 @@ function writeAll(next: Store) {
   }
 }
 
-export function loadScrollAnchor(chatId: string): ScrollAnchorV1 | null {
-  return readAll()[chatId] ?? null;
+export function loadScrollAnchor(sessionId: string): ScrollAnchorV1 | null {
+  return readAll()[sessionId] ?? null;
 }
 
-export function saveScrollAnchor(chatId: string, anchor: ScrollAnchorV1) {
+export function saveScrollAnchor(sessionId: string, anchor: ScrollAnchorV1) {
   const all = readAll();
-  all[chatId] = anchor;
+  all[sessionId] = anchor;
   writeAll(all);
 }
 
-export function clearScrollAnchor(chatId: string) {
+export function clearScrollAnchor(sessionId: string) {
   const all = readAll();
-  delete all[chatId];
+  delete all[sessionId];
   writeAll(all);
 }

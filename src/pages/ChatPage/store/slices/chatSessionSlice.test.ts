@@ -74,11 +74,11 @@ describe("chatSessionSlice deletion", () => {
     store.setState((state) => ({
       ...state,
       chats: [chat],
-      currentChatId: chat.id,
-      latestActiveChatId: chat.id,
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
     }));
 
-    await store.getState().deleteChat(chat.id);
+    await store.getState().deleteSession(chat.id);
 
     expect(deleteSessionMock).toHaveBeenCalledWith("session-1");
     expect(store.getState().chats).toHaveLength(0);
@@ -92,11 +92,11 @@ describe("chatSessionSlice deletion", () => {
     store.setState((state) => ({
       ...state,
       chats: [chat],
-      currentChatId: chat.id,
-      latestActiveChatId: chat.id,
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
     }));
 
-    await expect(store.getState().deleteChat(chat.id)).resolves.toBeUndefined();
+    await expect(store.getState().deleteSession(chat.id)).resolves.toBeUndefined();
 
     expect(deleteSessionMock).toHaveBeenCalledWith("session-1");
     expect(store.getState().chats).toHaveLength(0);
@@ -113,11 +113,11 @@ describe("chatSessionSlice deletion", () => {
     store.setState((state) => ({
       ...state,
       chats,
-      currentChatId: chats[0].id,
-      latestActiveChatId: chats[0].id,
+      currentSessionId: chats[0].id,
+      latestActiveSessionId: chats[0].id,
     }));
 
-    await store.getState().deleteChats(chats.map((chat) => chat.id));
+    await store.getState().deleteSessions(chats.map((chat) => chat.id));
 
     expect(deleteSessionMock).toHaveBeenCalledTimes(3);
     expect(deleteSessionMock).toHaveBeenNthCalledWith(1, "session-1");
