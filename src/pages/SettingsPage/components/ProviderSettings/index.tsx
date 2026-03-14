@@ -56,7 +56,8 @@ const RESPONSES_ONLY_MODELS_HELP = (
   <Space direction="vertical" size={4}>
     <Text type="secondary">
       Some models only support the OpenAI Responses API (not chat/completions).
-      Add model ids here to force Bamboo to use upstream <Text code>/responses</Text>.
+      Add model ids here to force Bamboo to use upstream{" "}
+      <Text code>/responses</Text>.
     </Text>
     <Text type="secondary">
       Supports exact match (e.g. <Text code>gpt-5.3-codex</Text>) and prefix
@@ -64,6 +65,14 @@ const RESPONSES_ONLY_MODELS_HELP = (
     </Text>
   </Space>
 );
+
+type ModelProvider = "openai" | "anthropic" | "gemini" | "copilot";
+
+const formatModelsForSelect = (models: string[]) =>
+  models.map((model) => ({
+    value: model,
+    label: model,
+  }));
 
 /**
  * Provider Settings Component
@@ -372,7 +381,9 @@ export const ProviderSettings: React.FC = () => {
       // De-dupe by name to avoid antd warnings.
       .filter(
         (field, index, arr) =>
-          arr.findIndex((f) => JSON.stringify(f.name) === JSON.stringify(field.name)) === index,
+          arr.findIndex(
+            (f) => JSON.stringify(f.name) === JSON.stringify(field.name),
+          ) === index,
       );
 
     if (fields.length) {
@@ -380,7 +391,9 @@ export const ProviderSettings: React.FC = () => {
     }
   };
 
-  const validateProviderPatch = async (values: ProviderConfig): Promise<{
+  const validateProviderPatch = async (
+    values: ProviderConfig,
+  ): Promise<{
     valid: boolean;
     message?: string;
   }> => {
@@ -401,7 +414,10 @@ export const ProviderSettings: React.FC = () => {
       const providerIssues = result.errors?.provider || [];
       applyValidationIssuesToForm(providerIssues, provider);
       const first = providerIssues[0];
-      return { valid: false, message: first?.message || "Invalid configuration" };
+      return {
+        valid: false,
+        message: first?.message || "Invalid configuration",
+      };
     } catch (error) {
       // Validation is best-effort; if it fails (network/server mismatch), fall back to strict
       // backend validation on save.
@@ -410,10 +426,24 @@ export const ProviderSettings: React.FC = () => {
     }
   };
 
-  const handleFetchOpenAIModels = async (options?: {
-    force?: boolean;
-    showMessage?: boolean;
-  }) => {
+  const handleFetchProviderModels = async (
+    provider: ModelProvider,
+    options?: {
+      force?: boolean;
+      showMessage?: boolean;
+    },
+  ) => {
+    const providerLabel: Record<ModelProvider, string> = {
+      openai: "OpenAI",
+      anthropic: "Anthropic",
+      gemini: "Gemini",
+      copilot: "Copilot",
+    };
+    const fallbackMessage =
+      provider === "copilot"
+        ? "Failed to fetch models. Please authenticate Copilot and try again."
+        : "Failed to fetch models. Please check your API key and base URL.";
+
     if (!options?.force && availableModels.length > 0) return;
 
     try {
@@ -421,136 +451,15 @@ export const ProviderSettings: React.FC = () => {
       setModelsFetchError(null);
       setHasTriedFetchModels(true);
 
-      // Use backend to fetch models with real API key
-      const models = await settingsService.fetchProviderModels("openai");
-
-      // Format models for Select component
-      const formattedModels = models.map((model: string) => ({
-        value: model,
-        label: model,
-      }));
-
-      setAvailableModels(formattedModels);
-      if (options?.showMessage !== false) {
-        message.success(`Found ${formattedModels.length} available models`);
-      }
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      setModelsFetchError(errorMessage);
-      if (options?.showMessage !== false) {
-        message.error(
-          errorMessage
-            ? `Failed to fetch models: ${errorMessage}`
-            : "Failed to fetch models. Please check your API key and base URL.",
-        );
-      }
-      console.error("Failed to fetch OpenAI models:", error);
-    } finally {
-      setFetchingModels(false);
-    }
-  };
-
-  const handleFetchAnthropicModels = async (options?: {
-    force?: boolean;
-    showMessage?: boolean;
-  }) => {
-    if (!options?.force && availableModels.length > 0) return;
-
-    try {
-      setFetchingModels(true);
-      setModelsFetchError(null);
-      setHasTriedFetchModels(true);
-
-      // Use backend to fetch models with real API key
-      const models = await settingsService.fetchProviderModels("anthropic");
-
-      // Format models for Select component
-      const formattedModels = models.map((model: string) => ({
-        value: model,
-        label: model,
-      }));
-
-      setAvailableModels(formattedModels);
-      if (options?.showMessage !== false) {
-        message.success(`Found ${formattedModels.length} available models`);
-      }
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      setModelsFetchError(errorMessage);
-      if (options?.showMessage !== false) {
-        message.error(
-          errorMessage
-            ? `Failed to fetch models: ${errorMessage}`
-            : "Failed to fetch models. Please check your API key and base URL.",
-        );
-      }
-      console.error("Failed to fetch Anthropic models:", error);
-    } finally {
-      setFetchingModels(false);
-    }
-  };
-
-  const handleFetchGeminiModels = async (options?: {
-    force?: boolean;
-    showMessage?: boolean;
-  }) => {
-    if (!options?.force && availableModels.length > 0) return;
-
-    try {
-      setFetchingModels(true);
-      setModelsFetchError(null);
-      setHasTriedFetchModels(true);
-
-      // Use backend to fetch models with real API key
-      const models = await settingsService.fetchProviderModels("gemini");
-
-      // Format models for Select component
-      const formattedModels = models.map((model: string) => ({
-        value: model,
-        label: model,
-      }));
-
-      setAvailableModels(formattedModels);
-      if (options?.showMessage !== false) {
-        message.success(`Found ${formattedModels.length} available models`);
-      }
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      setModelsFetchError(errorMessage);
-      if (options?.showMessage !== false) {
-        message.error(
-          errorMessage
-            ? `Failed to fetch models: ${errorMessage}`
-            : "Failed to fetch models. Please check your API key and base URL.",
-        );
-      }
-      console.error("Failed to fetch Gemini models:", error);
-    } finally {
-      setFetchingModels(false);
-    }
-  };
-
-  const handleFetchCopilotModels = async (options?: {
-    force?: boolean;
-    showMessage?: boolean;
-  }) => {
-    if (!options?.force && availableModels.length > 0) return;
-
-    try {
-      setFetchingModels(true);
-      setModelsFetchError(null);
-      setHasTriedFetchModels(true);
-
-      // Copilot models are exposed via the OpenAI-compatible /openai/v1/models endpoint.
-      const models = await modelService.getModels();
-      const formattedModels = models.map((model: string) => ({
-        value: model,
-        label: model,
-      }));
+      const models =
+        provider === "copilot"
+          ? await modelService.getModels()
+          : await settingsService.fetchProviderModels(provider);
+      const formattedModels = formatModelsForSelect(models);
 
       setAvailableModels(formattedModels);
 
-      if (formattedModels.length === 0) {
+      if (provider === "copilot" && formattedModels.length === 0) {
         const msg =
           "No models returned. Authenticate Copilot first, then fetch models.";
         setModelsFetchError(msg);
@@ -568,10 +477,13 @@ export const ProviderSettings: React.FC = () => {
         message.error(
           errorMessage
             ? `Failed to fetch models: ${errorMessage}`
-            : "Failed to fetch models. Please authenticate Copilot and try again.",
+            : fallbackMessage,
         );
       }
-      console.error("Failed to fetch Copilot models:", error);
+      console.error(
+        `Failed to fetch ${providerLabel[provider]} models:`,
+        error,
+      );
     } finally {
       setFetchingModels(false);
     }
@@ -669,7 +581,7 @@ export const ProviderSettings: React.FC = () => {
   };
 
   const handleFetchModelsWithSave = async (
-    provider: "openai" | "anthropic" | "gemini" | "copilot",
+    provider: ModelProvider,
     options?: { force?: boolean },
   ) => {
     // If we already have models and this isn't an explicit refresh, do nothing.
@@ -694,19 +606,11 @@ export const ProviderSettings: React.FC = () => {
       return;
     }
 
-    if (provider === "openai") {
-      await handleFetchOpenAIModels({ force: options?.force });
-    } else if (provider === "anthropic") {
-      await handleFetchAnthropicModels({ force: options?.force });
-    } else if (provider === "gemini") {
-      await handleFetchGeminiModels({ force: options?.force });
-    } else {
-      await handleFetchCopilotModels({ force: options?.force });
-    }
+    await handleFetchProviderModels(provider, { force: options?.force });
   };
 
   const handleModelDropdownOpen = async (
-    provider: "openai" | "anthropic" | "gemini" | "copilot",
+    provider: ModelProvider,
     open: boolean,
   ) => {
     if (!open) return;
@@ -718,7 +622,7 @@ export const ProviderSettings: React.FC = () => {
   };
 
   const handleModelChange = async (
-    provider: "openai" | "anthropic" | "gemini" | "copilot",
+    provider: ModelProvider,
     value: string | undefined,
   ) => {
     if (!value) return; // Don't auto-save cleared values
@@ -751,10 +655,58 @@ export const ProviderSettings: React.FC = () => {
       setModelAutoSaveStatus("error");
       setModelAutoSaveError(errorMessage);
       message.error(
-        errorMessage ? `Failed to update model: ${errorMessage}` : "Failed to update model",
+        errorMessage
+          ? `Failed to update model: ${errorMessage}`
+          : "Failed to update model",
       );
     }
   };
+
+  const renderModelFetchExtra = (
+    provider: ModelProvider,
+    sourceLabel: "API" | "backend",
+  ) => (
+    <Space direction="vertical" size={4}>
+      <Space size="small">
+        <Button
+          type="link"
+          size="small"
+          onClick={() => handleFetchModelsWithSave(provider, { force: true })}
+          loading={fetchingModels}
+          style={{ padding: 0 }}
+        >
+          {fetchingModels
+            ? "Fetching models..."
+            : availableModels.length > 0
+              ? `Refresh available models from ${sourceLabel}`
+              : `Fetch available models from ${sourceLabel}`}
+        </Button>
+        {modelAutoSaveStatus === "saving" && <Spin size="small" />}
+        {modelAutoSaveStatus === "success" && (
+          <CheckCircleOutlined style={{ color: "#52c41a" }} />
+        )}
+        {modelAutoSaveStatus === "error" && (
+          <Tooltip title={modelAutoSaveError || "Failed to save model change"}>
+            <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
+          </Tooltip>
+        )}
+      </Space>
+      {modelsFetchError && (
+        <Space size="small">
+          <Tooltip title={modelsFetchError}>
+            <Text type="danger">Failed to fetch models</Text>
+          </Tooltip>
+          <Button
+            size="small"
+            onClick={() => handleFetchModelsWithSave(provider, { force: true })}
+            loading={fetchingModels}
+          >
+            Retry
+          </Button>
+        </Space>
+      )}
+    </Space>
+  );
 
   const renderProviderFields = () => {
     switch (currentProvider) {
@@ -775,7 +727,11 @@ export const ProviderSettings: React.FC = () => {
                 { required: true, message: "Please enter your OpenAI API key" },
               ]}
             >
-              <Input.Password data-testid="api-key-input" placeholder="sk-..." prefix={<KeyOutlined />} />
+              <Input.Password
+                data-testid="api-key-input"
+                placeholder="sk-..."
+                prefix={<KeyOutlined />}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "openai", "base_url"]}
@@ -788,56 +744,7 @@ export const ProviderSettings: React.FC = () => {
               name={["providers", "openai", "model"]}
               label="Default Model"
               rules={[{ required: true, message: "Please select a model" }]}
-              extra={
-                <Space direction="vertical" size={4}>
-                  <Space size="small">
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() =>
-                        handleFetchModelsWithSave("openai", { force: true })
-                      }
-                      loading={fetchingModels}
-                      style={{ padding: 0 }}
-                    >
-                      {fetchingModels
-                        ? "Fetching models..."
-                        : availableModels.length > 0
-                          ? "Refresh available models from API"
-                          : "Fetch available models from API"}
-                    </Button>
-                    {modelAutoSaveStatus === "saving" && <Spin size="small" />}
-                    {modelAutoSaveStatus === "success" && (
-                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                    )}
-                    {modelAutoSaveStatus === "error" && (
-                      <Tooltip
-                        title={
-                          modelAutoSaveError || "Failed to save model change"
-                        }
-                      >
-                        <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
-                      </Tooltip>
-                    )}
-                  </Space>
-                  {modelsFetchError && (
-                    <Space size="small">
-                      <Tooltip title={modelsFetchError}>
-                        <Text type="danger">Failed to fetch models</Text>
-                      </Tooltip>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          handleFetchModelsWithSave("openai", { force: true })
-                        }
-                        loading={fetchingModels}
-                      >
-                        Retry
-                      </Button>
-                    </Space>
-                  )}
-                </Space>
-              }
+              extra={renderModelFetchExtra("openai", "API")}
             >
               <Select
                 placeholder="Select a model"
@@ -909,56 +816,7 @@ export const ProviderSettings: React.FC = () => {
               name={["providers", "anthropic", "model"]}
               label="Default Model"
               rules={[{ required: true, message: "Please select a model" }]}
-              extra={
-                <Space direction="vertical" size={4}>
-                  <Space size="small">
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() =>
-                        handleFetchModelsWithSave("anthropic", { force: true })
-                      }
-                      loading={fetchingModels}
-                      style={{ padding: 0 }}
-                    >
-                      {fetchingModels
-                        ? "Fetching models..."
-                        : availableModels.length > 0
-                          ? "Refresh available models from API"
-                          : "Fetch available models from API"}
-                    </Button>
-                    {modelAutoSaveStatus === "saving" && <Spin size="small" />}
-                    {modelAutoSaveStatus === "success" && (
-                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                    )}
-                    {modelAutoSaveStatus === "error" && (
-                      <Tooltip
-                        title={
-                          modelAutoSaveError || "Failed to save model change"
-                        }
-                      >
-                        <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
-                      </Tooltip>
-                    )}
-                  </Space>
-                  {modelsFetchError && (
-                    <Space size="small">
-                      <Tooltip title={modelsFetchError}>
-                        <Text type="danger">Failed to fetch models</Text>
-                      </Tooltip>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          handleFetchModelsWithSave("anthropic", { force: true })
-                        }
-                        loading={fetchingModels}
-                      >
-                        Retry
-                      </Button>
-                    </Space>
-                  )}
-                </Space>
-              }
+              extra={renderModelFetchExtra("anthropic", "API")}
             >
               <Select
                 placeholder="Select a model"
@@ -1022,56 +880,7 @@ export const ProviderSettings: React.FC = () => {
               name={["providers", "gemini", "model"]}
               label="Default Model"
               rules={[{ required: true, message: "Please select a model" }]}
-              extra={
-                <Space direction="vertical" size={4}>
-                  <Space size="small">
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() =>
-                        handleFetchModelsWithSave("gemini", { force: true })
-                      }
-                      loading={fetchingModels}
-                      style={{ padding: 0 }}
-                    >
-                      {fetchingModels
-                        ? "Fetching models..."
-                        : availableModels.length > 0
-                          ? "Refresh available models from API"
-                          : "Fetch available models from API"}
-                    </Button>
-                    {modelAutoSaveStatus === "saving" && <Spin size="small" />}
-                    {modelAutoSaveStatus === "success" && (
-                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                    )}
-                    {modelAutoSaveStatus === "error" && (
-                      <Tooltip
-                        title={
-                          modelAutoSaveError || "Failed to save model change"
-                        }
-                      >
-                        <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
-                      </Tooltip>
-                    )}
-                  </Space>
-                  {modelsFetchError && (
-                    <Space size="small">
-                      <Tooltip title={modelsFetchError}>
-                        <Text type="danger">Failed to fetch models</Text>
-                      </Tooltip>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          handleFetchModelsWithSave("gemini", { force: true })
-                        }
-                        loading={fetchingModels}
-                      >
-                        Retry
-                      </Button>
-                    </Space>
-                  )}
-                </Space>
-              }
+              extra={renderModelFetchExtra("gemini", "API")}
             >
               <Select
                 placeholder="Select a model"
@@ -1111,7 +920,12 @@ export const ProviderSettings: React.FC = () => {
           availableModels.length > 0
             ? availableModels
             : configuredCopilotModel
-              ? [{ value: configuredCopilotModel, label: configuredCopilotModel }]
+              ? [
+                  {
+                    value: configuredCopilotModel,
+                    label: configuredCopilotModel,
+                  },
+                ]
               : [];
 
         return (
@@ -1189,56 +1003,7 @@ export const ProviderSettings: React.FC = () => {
               name={["providers", "copilot", "model"]}
               label="Default Model"
               rules={[{ required: true, message: "Please select a model" }]}
-              extra={
-                <Space direction="vertical" size={4}>
-                  <Space size="small">
-                    <Button
-                      type="link"
-                      size="small"
-                      onClick={() =>
-                        handleFetchModelsWithSave("copilot", { force: true })
-                      }
-                      loading={fetchingModels}
-                      style={{ padding: 0 }}
-                    >
-                      {fetchingModels
-                        ? "Fetching models..."
-                        : availableModels.length > 0
-                          ? "Refresh available models from backend"
-                          : "Fetch available models from backend"}
-                    </Button>
-                    {modelAutoSaveStatus === "saving" && <Spin size="small" />}
-                    {modelAutoSaveStatus === "success" && (
-                      <CheckCircleOutlined style={{ color: "#52c41a" }} />
-                    )}
-                    {modelAutoSaveStatus === "error" && (
-                      <Tooltip
-                        title={
-                          modelAutoSaveError || "Failed to save model change"
-                        }
-                      >
-                        <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
-                      </Tooltip>
-                    )}
-                  </Space>
-                  {modelsFetchError && (
-                    <Space size="small">
-                      <Tooltip title={modelsFetchError}>
-                        <Text type="danger">Failed to fetch models</Text>
-                      </Tooltip>
-                      <Button
-                        size="small"
-                        onClick={() =>
-                          handleFetchModelsWithSave("copilot", { force: true })
-                        }
-                        loading={fetchingModels}
-                      >
-                        Retry
-                      </Button>
-                    </Space>
-                  )}
-                </Space>
-              }
+              extra={renderModelFetchExtra("copilot", "backend")}
             >
               <Select
                 placeholder="Select a model"

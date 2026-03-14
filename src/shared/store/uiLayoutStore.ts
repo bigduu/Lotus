@@ -183,12 +183,25 @@ const toSnapshot = (state: {
   splitSizesPx: state.splitSizesPx,
 });
 
+type PersistableLayoutState = Pick<
+  UILayoutSnapshotV2,
+  "sidebar" | "tree" | "activeLeafId" | "leafSessionIds" | "splitSizesPx"
+>;
+
 const persistLayout = (snapshot: UILayoutSnapshotV2) => {
   try {
     storageService.setLayout(JSON.stringify(snapshot));
   } catch (error) {
     console.warn("[uiLayoutStore] Failed to persist layout:", error);
   }
+};
+
+const commitLayoutState = (
+  state: PersistableLayoutState,
+): UILayoutSnapshotV2 => {
+  const snapshot = toSnapshot(state);
+  persistLayout(snapshot);
+  return snapshot;
 };
 
 // ---- Migration from previous v1 shape (best-effort) ----
@@ -416,15 +429,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       if (state.sidebar.collapsed === collapsed) {
         return state;
       }
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: { ...state.sidebar, collapsed },
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -437,15 +448,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       if (state.sidebar.widthPx === clamped) {
         return state;
       }
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: { ...state.sidebar, widthPx: clamped },
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -462,15 +471,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         to: leafId,
       });
 
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: leafId,
         leafSessionIds: state.leafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -500,15 +507,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         }
       });
 
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: nextLeafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -530,15 +535,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         return state;
       }
 
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: nextLeafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -564,7 +567,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         [newLeafId]: null,
       };
 
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: state.sidebar,
         tree: nextTree,
         // Make the new pane active so the user can pick a chat for it.
@@ -572,8 +575,6 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         leafSessionIds: nextLeafSessionIds,
         splitSizesPx: state.splitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -608,15 +609,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
             ? state.activeLeafId
             : nextLeafIds[0];
 
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: state.sidebar,
         tree: nextTree,
         activeLeafId: nextActiveLeafId,
         leafSessionIds: nextLeafSessionIds,
         splitSizesPx: nextSplitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -626,15 +625,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       if (existing && existing[0] === sizes[0] && existing[1] === sizes[1]) {
         return state;
       }
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,
         splitSizesPx: { ...state.splitSizesPx, [splitId]: sizes },
       });
-      persistLayout(next);
-      return next;
     });
   },
 
@@ -657,15 +654,13 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         return state;
       }
 
-      const next = toSnapshot({
+      return commitLayoutState({
         sidebar: state.sidebar,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,
         splitSizesPx: nextSplitSizesPx,
       });
-      persistLayout(next);
-      return next;
     });
   },
 }));

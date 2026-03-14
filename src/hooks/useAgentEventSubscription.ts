@@ -34,7 +34,9 @@ export function useAgentEventSubscription() {
 
   // Stable store actions
   const addMessage = useAppStore((state) => state.addMessage);
-  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
+  const setSessionProcessing = useAppStore(
+    (state) => state.setSessionProcessing,
+  );
   const updateTokenUsage = useAppStore((state) => state.updateTokenUsage);
   const setTruncationInfo = useAppStore((state) => state.setTruncationInfo);
   const updateSession = useAppStore((state) => state.updateSession);
@@ -74,7 +76,10 @@ export function useAgentEventSubscription() {
 
   // Reconnect backoff state (sessionId -> state)
   const reconnectStateBySessionRef = useRef<
-    Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null }>
+    Map<
+      string,
+      { attempt: number; timer: ReturnType<typeof setTimeout> | null }
+    >
   >(new Map());
 
   const clearReconnect = useCallback((sessionId: string) => {
@@ -85,31 +90,36 @@ export function useAgentEventSubscription() {
     reconnectStateBySessionRef.current.delete(sessionId);
   }, []);
 
-  const cleanupChat = useCallback((sessionId: string, opts?: { clearDraft?: boolean }) => {
-    clearReconnect(sessionId);
-    pendingSessionIdsRef.current.delete(sessionId);
+  const cleanupChat = useCallback(
+    (sessionId: string, opts?: { clearDraft?: boolean }) => {
+      clearReconnect(sessionId);
+      pendingSessionIdsRef.current.delete(sessionId);
 
-    const existing = subscriptionsBySessionRef.current.get(sessionId);
-    if (!existing) return;
+      const existing = subscriptionsBySessionRef.current.get(sessionId);
+      if (!existing) return;
 
-    subscriptionsBySessionRef.current.delete(sessionId);
+      subscriptionsBySessionRef.current.delete(sessionId);
 
-    // Abort SSE
-    existing.controller.abort();
+      // Abort SSE
+      existing.controller.abort();
 
-    // Clear streaming placeholder only when we really want to discard the draft.
-    // This lets us preserve in-memory draft content across view switches and
-    // transient resubscribe cycles (e.g. network hiccups) without touching storage.
-    const streaming = streamingStateBySessionRef.current.get(existing.sessionId);
-    if (streaming) {
-      if (opts?.clearDraft) {
-        streamingMessageBus.clear(streaming.sessionId, streaming.messageId);
+      // Clear streaming placeholder only when we really want to discard the draft.
+      // This lets us preserve in-memory draft content across view switches and
+      // transient resubscribe cycles (e.g. network hiccups) without touching storage.
+      const streaming = streamingStateBySessionRef.current.get(
+        existing.sessionId,
+      );
+      if (streaming) {
+        if (opts?.clearDraft) {
+          streamingMessageBus.clear(streaming.sessionId, streaming.messageId);
+        }
+        streamingStateBySessionRef.current.delete(existing.sessionId);
+      } else if (opts?.clearDraft) {
+        streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
       }
-      streamingStateBySessionRef.current.delete(existing.sessionId);
-    } else if (opts?.clearDraft) {
-      streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
-    }
-  }, []);
+    },
+    [],
+  );
 
   const startSubscription = useCallback(
     (sessionId: string) => {
@@ -117,7 +127,10 @@ export function useAgentEventSubscription() {
       clearReconnect(sessionId);
 
       const controller = new AbortController();
-      subscriptionsBySessionRef.current.set(sessionId, { sessionId, controller });
+      subscriptionsBySessionRef.current.set(sessionId, {
+        sessionId,
+        controller,
+      });
 
       const messageId = `streaming-${sessionId}`;
       const existingDraft = streamingMessageBus.getLatest(messageId);
@@ -132,6 +145,28 @@ export function useAgentEventSubscription() {
       if (existingDraft === null) {
         streamingMessageBus.publish({ sessionId, messageId, content: "" });
       }
+
+      const scheduleReconnect = () => {
+        const prev = reconnectStateBySessionRef.current.get(sessionId);
+        const attempt = prev?.attempt ?? 0;
+        const delayMs = Math.min(5000, 250 * Math.pow(2, attempt));
+
+        cleanupChat(sessionId, { clearDraft: false });
+        const timer = setTimeout(() => {
+          reconnectStateBySessionRef.current.delete(sessionId);
+          if (!useAppStore.getState().processingChats.has(sessionId)) return;
+          const chat = useAppStore
+            .getState()
+            .chats.find((c) => c.id === sessionId);
+          const sid = chat?.id?.trim();
+          if (!sid) return;
+          startSubscription(sid);
+        }, delayMs);
+        reconnectStateBySessionRef.current.set(sessionId, {
+          attempt: attempt + 1,
+          timer,
+        });
+      };
 
       agentClientRef.current
         .subscribeToEvents(
@@ -181,13 +216,18 @@ export function useAgentEventSubscription() {
                 .chats.find((c) => c.id === sessionId);
               if (!chat) return;
               const msg = chat?.messages.find((m) => m.id === messageId) as any;
-              if (!msg || msg.type !== "tool_call" || !Array.isArray(msg.toolCalls)) {
+              if (
+                !msg ||
+                msg.type !== "tool_call" ||
+                !Array.isArray(msg.toolCalls)
+              ) {
                 return;
               }
 
               const updatedToolCalls = msg.toolCalls.map((call: any) => {
                 if (call.toolCallId !== toolCallId) return call;
-                const next = (call.streamingOutput || "") + (tokenContent || "");
+                const next =
+                  (call.streamingOutput || "") + (tokenContent || "");
                 return { ...call, streamingOutput: next };
               });
 
@@ -198,7 +238,8 @@ export function useAgentEventSubscription() {
 
             onToolComplete: (toolCallId, result: AgentEvent["result"]) => {
               // Retrieve tool name tracked in onToolStart
-              const toolName = toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
+              const toolName =
+                toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
               toolNamesByCallIdRef.current.delete(toolCallId);
               toolCallMessageIdByCallIdRef.current.delete(toolCallId);
 
@@ -338,8 +379,12 @@ export function useAgentEventSubscription() {
                 // Convert the streaming draft into a normal assistant message immediately so it
                 // doesn't "disappear" when we turn off processing UI.
                 if (hasStreamedContent) {
-                  const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
-                  const last = chat?.messages?.[chat.messages.length - 1] as any;
+                  const chat = useAppStore
+                    .getState()
+                    .chats.find((c) => c.id === sessionId);
+                  const last = chat?.messages?.[
+                    chat.messages.length - 1
+                  ] as any;
                   const lastIsSame =
                     last?.role === "assistant" &&
                     last?.type === "text" &&
@@ -367,27 +412,31 @@ export function useAgentEventSubscription() {
                   waitForAssistant: true,
                 });
 
-              // Mark parent completed. If there are background children, keep the SSE
-              // subscription alive to forward sub-session progress.
-              const bg =
-                backgroundChildrenByParentRef.current.get(sessionId) ??
-                ({ children: new Set<string>(), parentDone: false } as const);
-              backgroundChildrenByParentRef.current.set(sessionId, {
-                children: new Set(bg.children),
-                parentDone: true,
-              });
+                // Mark parent completed. If there are background children, keep the SSE
+                // subscription alive to forward sub-session progress.
+                const bg =
+                  backgroundChildrenByParentRef.current.get(sessionId) ??
+                  ({ children: new Set<string>(), parentDone: false } as const);
+                backgroundChildrenByParentRef.current.set(sessionId, {
+                  children: new Set(bg.children),
+                  parentDone: true,
+                });
 
-              if (bg.children.size === 0) {
-                cleanupChat(sessionId, { clearDraft: true });
-                setSessionProcessing(sessionId, false);
-              } else {
-                // Clear the draft but keep subscription.
-                const entry = subscriptionsBySessionRef.current.get(sessionId);
-                if (entry) {
-                  streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
-                  streamingStateBySessionRef.current.delete(entry.sessionId);
+                if (bg.children.size === 0) {
+                  cleanupChat(sessionId, { clearDraft: true });
+                  setSessionProcessing(sessionId, false);
+                } else {
+                  // Clear the draft but keep subscription.
+                  const entry =
+                    subscriptionsBySessionRef.current.get(sessionId);
+                  if (entry) {
+                    streamingMessageBus.clear(
+                      sessionId,
+                      `streaming-${sessionId}`,
+                    );
+                    streamingStateBySessionRef.current.delete(entry.sessionId);
+                  }
                 }
-              }
               })();
             },
 
@@ -439,13 +488,17 @@ export function useAgentEventSubscription() {
               void refreshChats();
             },
 
-            onSubSessionEvent: (parentSessionId, childSessionId, evt: AgentEvent) => {
+            onSubSessionEvent: (
+              parentSessionId,
+              childSessionId,
+              evt: AgentEvent,
+            ) => {
               // Maintain a small rolling preview for fast UI feedback.
               if (evt.type === "token" && typeof evt.content === "string") {
                 const prev =
-                  useAppStore.getState().subSessionsByParent?.[parentSessionId]?.[
-                    childSessionId
-                  ]?.outputPreview || "";
+                  useAppStore.getState().subSessionsByParent?.[
+                    parentSessionId
+                  ]?.[childSessionId]?.outputPreview || "";
                 const next = (prev + evt.content).slice(-2000);
                 upsertSubSessionProgress(parentSessionId, childSessionId, {
                   outputPreview: next,
@@ -464,7 +517,12 @@ export function useAgentEventSubscription() {
               });
             },
 
-            onSubSessionCompleted: (parentSessionId, childSessionId, status, error) => {
+            onSubSessionCompleted: (
+              parentSessionId,
+              childSessionId,
+              status,
+              error,
+            ) => {
               const bg =
                 backgroundChildrenByParentRef.current.get(parentSessionId) ??
                 ({ children: new Set<string>(), parentDone: false } as const);
@@ -496,27 +554,16 @@ export function useAgentEventSubscription() {
           // Stream ended without throwing. Backend SSE should be long-lived; treat this as a
           // disconnect and attempt to resubscribe (unless we were explicitly aborted).
           if (controller.signal.aborted) return;
-          const stillProcessing = useAppStore.getState().processingChats.has(sessionId);
+          const stillProcessing = useAppStore
+            .getState()
+            .processingChats.has(sessionId);
           if (!stillProcessing) {
             cleanupChat(sessionId, { clearDraft: true });
             return;
           }
 
           // Restart subscription with backoff.
-          const prev = reconnectStateBySessionRef.current.get(sessionId);
-          const attempt = prev?.attempt ?? 0;
-          const delayMs = Math.min(5000, 250 * Math.pow(2, attempt));
-
-          cleanupChat(sessionId, { clearDraft: false });
-          const timer = setTimeout(() => {
-            reconnectStateBySessionRef.current.delete(sessionId);
-            if (!useAppStore.getState().processingChats.has(sessionId)) return;
-            const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
-            const sid = chat?.id?.trim();
-            if (!sid) return;
-            startSubscription(sid);
-          }, delayMs);
-          reconnectStateBySessionRef.current.set(sessionId, { attempt: attempt + 1, timer });
+          scheduleReconnect();
         })
         .catch((err) => {
           // If we explicitly aborted, do nothing (normal cleanup path).
@@ -525,26 +572,15 @@ export function useAgentEventSubscription() {
           // Some runtimes surface network disconnects as AbortError even when we didn't abort.
           // In that case, attempt to resubscribe instead of tearing down processing state.
           if (isAbortError(err)) {
-            const stillProcessing = useAppStore.getState().processingChats.has(sessionId);
+            const stillProcessing = useAppStore
+              .getState()
+              .processingChats.has(sessionId);
             if (!stillProcessing) {
               cleanupChat(sessionId, { clearDraft: true });
               return;
             }
 
-            const prev = reconnectStateBySessionRef.current.get(sessionId);
-            const attempt = prev?.attempt ?? 0;
-            const delayMs = Math.min(5000, 250 * Math.pow(2, attempt));
-
-            cleanupChat(sessionId, { clearDraft: false });
-            const timer = setTimeout(() => {
-              reconnectStateBySessionRef.current.delete(sessionId);
-              if (!useAppStore.getState().processingChats.has(sessionId)) return;
-              const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
-              const sid = chat?.id?.trim();
-              if (!sid) return;
-              startSubscription(sid);
-            }, delayMs);
-            reconnectStateBySessionRef.current.set(sessionId, { attempt: attempt + 1, timer });
+            scheduleReconnect();
             return;
           }
 
@@ -577,7 +613,8 @@ export function useAgentEventSubscription() {
 
       pendingSessionIdsRef.current.delete(normalizedSessionId);
 
-      const existing = subscriptionsBySessionRef.current.get(normalizedSessionId);
+      const existing =
+        subscriptionsBySessionRef.current.get(normalizedSessionId);
       if (existing?.sessionId === normalizedSessionId) return;
 
       // If we need to restart the SSE connection (e.g. sessionId changed),
@@ -594,7 +631,9 @@ export function useAgentEventSubscription() {
     processingChats.forEach((sessionId) => ensureSubscription(sessionId));
 
     // Stop subscriptions for chats no longer processing
-    for (const sessionId of Array.from(subscriptionsBySessionRef.current.keys())) {
+    for (const sessionId of Array.from(
+      subscriptionsBySessionRef.current.keys(),
+    )) {
       if (!processingChats.has(sessionId)) {
         cleanupChat(sessionId, { clearDraft: true });
       }
@@ -629,7 +668,9 @@ export function useAgentEventSubscription() {
   // Effect B: unmount cleanup only
   useEffect(() => {
     return () => {
-      for (const sessionId of Array.from(subscriptionsBySessionRef.current.keys())) {
+      for (const sessionId of Array.from(
+        subscriptionsBySessionRef.current.keys(),
+      )) {
         cleanupChat(sessionId, { clearDraft: true });
       }
     };
