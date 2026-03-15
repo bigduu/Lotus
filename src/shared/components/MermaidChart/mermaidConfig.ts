@@ -22,8 +22,24 @@ export const errorCache = new Map<
   { count: number; lastSeen: number }
 >();
 
+const GANTT_HEADER_RE = /^(\s*%%\{[\s\S]*?\}%%\s*)*\s*gantt\b/i;
+
+const normalizeGanttPunctuation = (chart: string): string => {
+  return chart
+    .replace(/：/g, ":")
+    .replace(/，/g, ",")
+    .replace(/；/g, ";")
+    .replace(/（/g, "(")
+    .replace(/）/g, ")")
+    .replace(/－/g, "-");
+};
+
 export const normalizeMermaidChart = (chart: string): string => {
-  return chart.replace(/\[([\s\S]*?)\]/g, (match, rawLabel) => {
+  const input = GANTT_HEADER_RE.test(chart)
+    ? normalizeGanttPunctuation(chart)
+    : chart;
+
+  return input.replace(/\[([\s\S]*?)\]/g, (match, rawLabel) => {
     const label = String(rawLabel);
     const hasNewline = /\r?\n/.test(label);
     const hasParen = /[()]/.test(label);

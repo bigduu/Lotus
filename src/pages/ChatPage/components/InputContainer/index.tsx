@@ -17,7 +17,6 @@ import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
 import { selectSessionById, useAppStore } from "../../store";
-import { useSystemPrompt } from "../../hooks/useSystemPrompt";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
 import { useInputContainerFileReferences } from "./useInputContainerFileReferences";
@@ -243,9 +242,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Use the global Ant App context message API to avoid mounting a per-pane
   // rc-notification container (which can cause update-depth loops in some layouts).
   const { message: messageApi } = AntApp.useApp();
-
-  const systemPromptId = currentChat?.config.systemPromptId || null;
-  useSystemPrompt(systemPromptId);
 
   const isToolSpecificMode = false;
   const isRestrictConversation = false;

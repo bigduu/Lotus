@@ -1,5 +1,5 @@
 import React from "react";
-import { Checkbox, Flex, Layout } from "antd";
+import { Checkbox, Divider, Flex, Layout } from "antd";
 
 import SystemMessageCard from "../SystemMessageCard";
 import MessageCard from "../MessageCard";
@@ -120,7 +120,8 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
 
               const convertedEntry = convertRenderableEntry(entry);
               const key =
-                convertedEntry.type === "tool_session"
+                convertedEntry.type === "tool_session" ||
+                convertedEntry.type === "compression_divider"
                   ? convertedEntry.id
                   : convertedEntry.message.id;
               const isLast = virtualRow.index === renderableMessages.length - 1;
@@ -139,7 +140,11 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                     paddingBottom: isLast ? 0 : rowGap,
                   }}
                 >
-                  {convertedEntry.type === "tool_session" ? (
+                  {convertedEntry.type === "compression_divider" ? (
+                    <Divider plain style={{ margin: "6px 0 10px 0" }}>
+                      {convertedEntry.label}
+                    </Divider>
+                  ) : convertedEntry.type === "tool_session" ? (
                     <Flex
                       justify="flex-start"
                       style={{ width: "100%", maxWidth: "100%" }}
@@ -155,9 +160,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                           tools={convertedEntry.tools}
                           sessionId={convertedEntry.sessionId}
                           createdAt={convertedEntry.createdAt}
-                          defaultExpanded={convertedEntry.tools.some(
-                            (t) => !t.result,
-                          )}
+                          defaultExpanded={false}
                         />
                       </div>
                     </Flex>

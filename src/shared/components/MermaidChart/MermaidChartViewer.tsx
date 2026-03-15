@@ -1,28 +1,96 @@
-import React from "react";
-import { Button } from "antd";
+import React, { useCallback, useState } from "react";
+import { DownloadOutlined } from "@ant-design/icons";
+import { App as AntApp, Button, Tooltip } from "antd";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import { FileOperationsService } from "@shared/services/FileOperationsService";
 
 interface MermaidChartViewerProps {
   svg: string;
   height: number;
   isLoading: boolean;
   initialScale: number;
+  chartKey?: string;
   className?: string;
   style?: React.CSSProperties;
   token: any;
   containerRef: React.RefObject<HTMLDivElement>;
 }
 
+const normalizeSvgMarkup = (svgMarkup: string): string => {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(svgMarkup, "image/svg+xml");
+  const svgElement = xmlDoc.querySelector("svg");
+  if (!svgElement) {
+    return svgMarkup;
+  }
+
+  if (!svgElement.getAttribute("xmlns")) {
+    svgElement.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+  }
+  if (!svgElement.getAttribute("xmlns:xlink")) {
+    svgElement.setAttribute("xmlns:xlink", "http://www.w3.org/1999/xlink");
+  }
+
+  const serialized = new XMLSerializer().serializeToString(svgElement);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${serialized}`;
+};
+
 const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
   svg,
   height,
   isLoading,
   initialScale,
+  chartKey,
   className,
   style,
   token,
   containerRef,
 }) => {
+  const { message: appMessage } = AntApp.useApp();
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExportSvg = useCallback(async () => {
+    if (!svg || isExporting) {
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const normalizedSvg = normalizeSvgMarkup(svg);
+      const bytes = new TextEncoder().encode(normalizedSvg);
+      const prefix = chartKey ? `mermaid-${chartKey.slice(0, 8)}` : "mermaid-graph";
+      const defaultPath = FileOperationsService.generateTimestampedFilename(
+        prefix,
+        "svg",
+      );
+
+      const result = await FileOperationsService.saveBinaryFile(
+        bytes,
+        FileOperationsService.FILTERS.SVG,
+        defaultPath,
+      );
+
+      if (result.success) {
+        appMessage.success(`Saved: ${result.filename}`);
+        return;
+      }
+
+      if (result.error?.toLowerCase().includes("cancel")) {
+        return;
+      }
+
+      appMessage.error(result.error || "Export failed");
+    } catch (error) {
+      const exportError =
+        error instanceof Error ? error.message : "Failed to export Mermaid graph";
+      appMessage.error(exportError);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [appMessage, chartKey, isExporting, svg]);
+
+  const exportDisabled = isLoading || !svg || isExporting;
+
   return (
     <div
       ref={containerRef}
@@ -125,6 +193,19 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                 >
                   ⌂
                 </Button>
+                <Tooltip title="Export SVG">
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<DownloadOutlined />}
+                    disabled={exportDisabled}
+                    loading={isExporting}
+                    onClick={() => {
+                      void handleExportSvg();
+                    }}
+                    style={{ fontSize: 11, padding: "2px 6px" }}
+                  />
+                </Tooltip>
               </div>
 
               <TransformComponent

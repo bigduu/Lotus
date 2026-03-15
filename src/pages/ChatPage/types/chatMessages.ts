@@ -74,6 +74,15 @@ interface BaseMessage {
   createdAt: string;
   isError?: boolean;
   isAuthError?: boolean;
+  isCompressed?: boolean;
+  compressedEventId?: string;
+}
+
+export interface CompressionEvent {
+  id: string;
+  createdAt: string;
+  messagesCompressed: number;
+  segmentsRemoved: number;
 }
 
 export interface SystemMessage extends BaseMessage {
@@ -191,6 +200,7 @@ export interface ChatItem {
     tokenUsage?: TokenUsage;
     truncationOccurred?: boolean;
     segmentsRemoved?: number;
+    compressionEvents?: CompressionEvent[];
   };
   currentInteraction: {
     machineState: string; // Legacy field, no longer used

@@ -5,8 +5,14 @@ import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
 import type { AppState } from "../";
 
 const LAST_SELECTED_PROMPT_ID_LS_KEY = "copilot_last_selected_prompt_id";
-const CUSTOM_PROMPTS_LS_KEY = "copilot_custom_system_prompts_v2";
+const LEGACY_CUSTOM_PROMPTS_LS_KEY = "copilot_custom_system_prompts_v2";
+const LEGACY_PROMPTS_MIGRATED_LS_KEY =
+  "copilot_custom_system_prompts_v2_migrated_to_backend";
+const DEFAULT_PROMPT_ID = "general_assistant";
+const MAX_PROMPT_ID_LENGTH = 80;
+
 const systemPromptService = SystemPromptService.getInstance();
+let legacyMigrationPromise: Promise<void> | null = null;
 
 // Helper function to generate ID from name
 function generateIdFromName(name: string): string {
@@ -21,7 +27,165 @@ function generateIdFromName(name: string): string {
     return `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
   }
 
-  return sanitized;
+  return sanitized.slice(0, MAX_PROMPT_ID_LENGTH);
+}
+
+function sanitizePresetId(rawValue: unknown): string | null {
+  if (typeof rawValue !== "string") return null;
+  const normalized = rawValue
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (!normalized) {
+    return null;
+  }
+  return normalized.slice(0, MAX_PROMPT_ID_LENGTH);
+}
+
+function ensureUniqueId(baseId: string, existingIds: Set<string>): string {
+  if (!existingIds.has(baseId)) {
+    return baseId;
+  }
+
+  let index = 2;
+  while (true) {
+    const suffix = `_${index}`;
+    const prefix = baseId.slice(0, Math.max(0, MAX_PROMPT_ID_LENGTH - suffix.length));
+    const candidate = `${prefix}${suffix}`;
+    if (!existingIds.has(candidate)) {
+      return candidate;
+    }
+    index += 1;
+  }
+}
+
+function loadLegacyCustomPrompts(): UserSystemPrompt[] {
+  try {
+    const stored = localStorage.getItem(LEGACY_CUSTOM_PROMPTS_LS_KEY);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+
+    const seen = new Set<string>();
+    const prompts: UserSystemPrompt[] = [];
+
+    for (const item of parsed) {
+      const name = typeof item?.name === "string" ? item.name.trim() : "";
+      const content =
+        typeof item?.content === "string" ? item.content.trim() : "";
+      if (!name || !content) continue;
+
+      const rawId = sanitizePresetId(item?.id);
+      const baseId = rawId || generateIdFromName(name);
+      const id = ensureUniqueId(baseId, seen);
+      if (id === DEFAULT_PROMPT_ID) {
+        continue;
+      }
+      seen.add(id);
+
+      prompts.push({
+        id,
+        name,
+        content,
+        description:
+          typeof item?.description === "string"
+            ? item.description.trim() || undefined
+            : undefined,
+        isDefault: Boolean(item?.isDefault),
+      });
+    }
+
+    return prompts;
+  } catch (error) {
+    console.error("[promptSlice] Failed to read legacy custom prompts:", error);
+    return [];
+  }
+}
+
+function isLegacyMigrationComplete(): boolean {
+  try {
+    return localStorage.getItem(LEGACY_PROMPTS_MIGRATED_LS_KEY) === "1";
+  } catch (error) {
+    console.error("[promptSlice] Failed to read migration marker:", error);
+    return false;
+  }
+}
+
+function markLegacyMigrationComplete(): void {
+  try {
+    localStorage.setItem(LEGACY_PROMPTS_MIGRATED_LS_KEY, "1");
+  } catch (error) {
+    console.error("[promptSlice] Failed to write migration marker:", error);
+  }
+}
+
+function clearLegacyCustomPrompts(): void {
+  try {
+    localStorage.removeItem(LEGACY_CUSTOM_PROMPTS_LS_KEY);
+  } catch (error) {
+    console.error("[promptSlice] Failed to clear legacy custom prompts:", error);
+  }
+}
+
+async function migrateLegacyPromptsToBackend(): Promise<void> {
+  if (isLegacyMigrationComplete()) {
+    return;
+  }
+
+  const legacyPrompts = loadLegacyCustomPrompts();
+  if (legacyPrompts.length === 0) {
+    clearLegacyCustomPrompts();
+    markLegacyMigrationComplete();
+    return;
+  }
+
+  const existingPrompts = await systemPromptService.getSystemPromptPresets();
+  const existingIds = new Set(existingPrompts.map((prompt) => prompt.id));
+  let hasFailures = false;
+
+  for (const legacyPrompt of legacyPrompts) {
+    const name = legacyPrompt.name?.trim();
+    const content = legacyPrompt.content?.trim();
+    if (!name || !content) continue;
+
+    if (legacyPrompt.id === DEFAULT_PROMPT_ID || legacyPrompt.isDefault) {
+      continue;
+    }
+
+    const baseId = sanitizePresetId(legacyPrompt.id) || generateIdFromName(name);
+    const id = ensureUniqueId(baseId, existingIds);
+
+    try {
+      const created = await systemPromptService.createSystemPromptPreset({
+        id,
+        name,
+        content,
+        description: legacyPrompt.description,
+      });
+      existingIds.add(created.id);
+    } catch (error) {
+      hasFailures = true;
+      console.error(
+        `[promptSlice] Failed to migrate legacy prompt '${name}' to backend:`,
+        error,
+      );
+    }
+  }
+
+  if (!hasFailures) {
+    clearLegacyCustomPrompts();
+    markLegacyMigrationComplete();
+  }
+}
+
+async function runLegacyPromptMigrationOnce(): Promise<void> {
+  if (!legacyMigrationPromise) {
+    legacyMigrationPromise = migrateLegacyPromptsToBackend().finally(() => {
+      legacyMigrationPromise = null;
+    });
+  }
+  await legacyMigrationPromise;
 }
 
 export interface PromptSlice {
@@ -48,48 +212,43 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
 
   // System prompt management
   loadSystemPrompts: async () => {
-    let prompts: UserSystemPrompt[] = [];
     try {
-      const presets = await systemPromptService.getSystemPromptPresets();
-      prompts = presets.map((p: UserSystemPrompt) => ({
-        id: p.id,
-        name: p.name,
-        content: p.content,
-        description: p.description,
-        isDefault: Boolean(p.isDefault),
-      }));
+      await runLegacyPromptMigrationOnce();
     } catch (error) {
-      console.error("Failed to load system prompts from config:", error);
+      console.warn("[promptSlice] Legacy prompt migration skipped:", error);
     }
 
-    const customPrompts = loadCustomPrompts();
-    let merged = mergePrompts(prompts, customPrompts);
+    let backendPrompts: UserSystemPrompt[] = [];
+    try {
+      backendPrompts = await systemPromptService.getSystemPromptPresets();
+    } catch (error) {
+      console.error("Failed to load system prompts from backend:", error);
+    }
+
+    let merged = backendPrompts.length
+      ? backendPrompts
+      : getDefaultSystemPrompts();
+
+    if (!isLegacyMigrationComplete()) {
+      const legacyPrompts = loadLegacyCustomPrompts();
+      merged = mergePrompts(merged, legacyPrompts);
+    }
+
     if (merged.length === 0) {
       merged = getDefaultSystemPrompts();
-      saveCustomPrompts(merged);
     }
+
     set({ systemPrompts: merged });
   },
 
   addSystemPrompt: async (promptData) => {
     try {
-      // Generate ID from name if not provided
-      const id = generateIdFromName(promptData.name);
-
-      const customPrompts = loadCustomPrompts();
-      if (customPrompts.some((prompt) => prompt.id === id)) {
-        throw new Error(`System prompt '${id}' already exists`);
-      }
-
-      const newPrompt: UserSystemPrompt = {
-        id,
+      await systemPromptService.createSystemPromptPreset({
+        id: generateIdFromName(promptData.name),
         name: promptData.name,
         content: promptData.content,
         description: promptData.description,
-        isDefault: false,
-      };
-      const updatedCustom = [...customPrompts, newPrompt];
-      saveCustomPrompts(updatedCustom);
+      });
       await get().loadSystemPrompts();
     } catch (error) {
       console.error("Failed to add system prompt:", error);
@@ -99,23 +258,7 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
 
   updateSystemPrompt: async (promptToUpdate) => {
     try {
-      const customPrompts = loadCustomPrompts();
-      const index = customPrompts.findIndex(
-        (prompt) => prompt.id === promptToUpdate.id,
-      );
-      if (index === -1) {
-        throw new Error(`System prompt '${promptToUpdate.id}' is read-only`);
-      }
-      const updated = [...customPrompts];
-      updated[index] = {
-        ...updated[index],
-        name: promptToUpdate.name,
-        content: promptToUpdate.content,
-        description: promptToUpdate.description,
-        isDefault: false,
-      };
-      saveCustomPrompts(updated);
-
+      await systemPromptService.updateSystemPromptPreset(promptToUpdate);
       await get().loadSystemPrompts();
     } catch (error) {
       console.error("Failed to update system prompt:", error);
@@ -125,12 +268,7 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
 
   deleteSystemPrompt: async (promptId) => {
     try {
-      const customPrompts = loadCustomPrompts();
-      const updated = customPrompts.filter((prompt) => prompt.id !== promptId);
-      if (updated.length === customPrompts.length) {
-        throw new Error(`System prompt '${promptId}' is read-only`);
-      }
-      saveCustomPrompts(updated);
+      await systemPromptService.deleteSystemPromptPreset(promptId);
       await get().loadSystemPrompts();
     } catch (error) {
       console.error("Failed to delete system prompt:", error);
@@ -150,46 +288,6 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
     }
   },
 });
-
-const loadCustomPrompts = (): UserSystemPrompt[] => {
-  try {
-    const stored = localStorage.getItem(CUSTOM_PROMPTS_LS_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    const prompts = Array.isArray(parsed) ? parsed : [];
-
-    // Migration: Fix prompts with empty or missing IDs
-    const needsMigration = prompts.some(
-      (p) => !p.id || p.id.trim() === "" || !p.id.match(/^[a-z0-9_]+$/),
-    );
-
-    if (needsMigration) {
-      const fixedPrompts = prompts.map((p) => {
-        if (!p.id || p.id.trim() === "" || !p.id.match(/^[a-z0-9_]+$/)) {
-          const newId = `prompt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-          return { ...p, id: newId };
-        }
-        return p;
-      });
-      // Save the fixed prompts
-      saveCustomPrompts(fixedPrompts);
-      return fixedPrompts;
-    }
-
-    return prompts;
-  } catch (error) {
-    console.error("Failed to load custom system prompts:", error);
-    return [];
-  }
-};
-
-const saveCustomPrompts = (prompts: UserSystemPrompt[]): void => {
-  try {
-    localStorage.setItem(CUSTOM_PROMPTS_LS_KEY, JSON.stringify(prompts));
-  } catch (error) {
-    console.error("Failed to save custom system prompts:", error);
-  }
-};
 
 const mergePrompts = (
   presets: UserSystemPrompt[],

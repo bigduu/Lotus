@@ -13,11 +13,13 @@ import { AgentClient, SessionSummary } from "../../services/AgentService";
 import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
 import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
 import type { AppState } from "../";
+import { useProviderStore } from "./providerSlice";
 
 const AUTO_TITLE_KEY = "copilot_auto_generate_titles";
 const agentClient = AgentClient.getInstance();
-const DEFAULT_BASE_SYSTEM_PROMPT =
-  getDefaultSystemPrompts()[0]?.content?.trim() || "";
+const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
+const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
+const DEFAULT_BASE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT?.content?.trim() || "";
 
 const safeRandomId = (): string => {
   try {
@@ -89,12 +91,13 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     pinned: s.pinned,
     messages: [],
     config: {
-      systemPromptId: "general_assistant",
+      systemPromptId: DEFAULT_SYSTEM_PROMPT_ID,
       baseSystemPrompt: DEFAULT_BASE_SYSTEM_PROMPT,
       lastUsedEnhancedPrompt: null,
       tokenUsage,
       truncationOccurred: s.token_usage?.truncation_occurred,
       segmentsRemoved: s.token_usage?.segments_removed,
+      compressionEvents: [],
     },
     currentInteraction: null,
   };
@@ -106,6 +109,8 @@ const mapHistoryMessagesToUi = (
     id: string;
     role: "user" | "assistant" | "tool" | "system";
     content: string;
+    compressed?: boolean;
+    compressed_by_event_id?: string;
     content_parts?: Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string; detail?: string } }
@@ -142,6 +147,8 @@ const mapHistoryMessagesToUi = (
         id: msg.id,
         createdAt,
         content: msg.content || "",
+        isCompressed: Boolean(msg.compressed),
+        compressedEventId: msg.compressed_by_event_id,
       };
       out.push(sys);
       continue;
@@ -188,6 +195,8 @@ const mapHistoryMessagesToUi = (
         createdAt,
         content: msg.content || "",
         images: images.length ? images : undefined,
+        isCompressed: Boolean(msg.compressed),
+        compressedEventId: msg.compressed_by_event_id,
       };
       out.push(user);
       continue;
@@ -196,6 +205,20 @@ const mapHistoryMessagesToUi = (
     if (msg.role === "assistant") {
       const toolCalls = msg.tool_calls || [];
       if (toolCalls.length > 0) {
+        const assistantText = (msg.content || "").trim();
+        if (assistantText) {
+          const asst: AssistantTextMessage = {
+            role: "assistant",
+            type: "text",
+            id: `${msg.id}_text`,
+            createdAt,
+            content: msg.content || "",
+            isCompressed: Boolean(msg.compressed),
+            compressedEventId: msg.compressed_by_event_id,
+          };
+          out.push(asst);
+        }
+
         for (const call of toolCalls) {
           toolNameByCallId.set(call.id, call.function?.name || "unknown");
         }
@@ -216,6 +239,8 @@ const mapHistoryMessagesToUi = (
             })(),
             streamingOutput: "",
           })),
+          isCompressed: Boolean(msg.compressed),
+          compressedEventId: msg.compressed_by_event_id,
         };
         out.push(toolCallMsg);
         continue;
@@ -227,6 +252,8 @@ const mapHistoryMessagesToUi = (
         id: msg.id,
         createdAt,
         content: msg.content || "",
+        isCompressed: Boolean(msg.compressed),
+        compressedEventId: msg.compressed_by_event_id,
       };
       out.push(asst);
       continue;
@@ -248,6 +275,8 @@ const mapHistoryMessagesToUi = (
           display_preference: "Default",
         },
         isError: false,
+        isCompressed: Boolean(msg.compressed),
+        compressedEventId: msg.compressed_by_event_id,
       };
       out.push(toolResult);
       continue;
@@ -328,7 +357,10 @@ export interface ChatSlice {
       outputPreview?: string;
     }>,
   ) => void;
-  clearSubSessionProgress: (parentSessionId: string, childSessionId: string) => void;
+  clearSubSessionProgress: (
+    parentSessionId: string,
+    childSessionId: string,
+  ) => void;
 
   setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
   isSessionProcessing: (sessionId: string) => boolean;
@@ -350,11 +382,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   addChat: async (chatData) => {
     const title = (chatData.title || "New Session").trim();
     const basePrompt = chatData.config?.baseSystemPrompt?.trim() || "";
+    const activeModel = useProviderStore.getState().getActiveModel()?.trim();
+    const model = activeModel || undefined;
 
     const created = await agentClient.createSession({
       title,
       system_prompt: basePrompt || undefined,
-      model: undefined,
+      model,
     });
 
     const newChat: ChatItem = {
@@ -370,7 +404,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     };
 
     set((state) => {
-      const chats = [newChat, ...state.chats.filter((c) => c.id !== newChat.id)];
+      const chats = [
+        newChat,
+        ...state.chats.filter((c) => c.id !== newChat.id),
+      ];
       return {
         ...state,
         chats,
@@ -384,7 +421,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
   selectSession: (sessionId) => {
     const prev = get();
-    if (prev.currentSessionId === sessionId && prev.latestActiveSessionId === sessionId) {
+    if (
+      prev.currentSessionId === sessionId &&
+      prev.latestActiveSessionId === sessionId
+    ) {
       return;
     }
     set({ currentSessionId: sessionId, latestActiveSessionId: sessionId });
@@ -394,7 +434,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     try {
       await agentClient.deleteSession(sessionId);
     } catch (error) {
-      console.error(`[ChatSlice] Failed to delete backend session ${sessionId}:`, error);
+      console.error(
+        `[ChatSlice] Failed to delete backend session ${sessionId}:`,
+        error,
+      );
     }
 
     set((state) => {
@@ -517,7 +560,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       const prevById = new Map(state.chats.map((c) => [c.id, c]));
       const merged = next.map((c) => {
         const prev = prevById.get(c.id);
-        return prev ? { ...c, messages: prev.messages, config: prev.config } : c;
+        return prev
+          ? { ...c, messages: prev.messages, config: prev.config }
+          : c;
       });
       return { ...state, chats: merged };
     });
@@ -534,7 +579,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     if (!list.sessions || list.sessions.length === 0) {
       const created = await agentClient.createSession({
         title: "New Session",
-        system_prompt: DEFAULT_BASE_SYSTEM_PROMPT || undefined,
       });
       list = { sessions: [created.session] };
     }
@@ -577,12 +621,18 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           attempt < retries
         ) {
           // Backoff to give the backend time to persist the assistant reply.
-          const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
+          const delay =
+            retryDelayMs > 0
+              ? retryDelayMs * (attempt + 1)
+              : 200 * (attempt + 1);
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
 
-        const nextMessages = mapHistoryMessagesToUi(sessionId, history.messages);
+        const nextMessages = mapHistoryMessagesToUi(
+          sessionId,
+          history.messages,
+        );
 
         if (mode === "monotonic") {
           const prevMessages = chat.messages || [];
@@ -601,7 +651,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
           if (!shouldReplace) {
             get().updateSession(sessionId, {
-              messageCount: Math.max(chat.messageCount ?? 0, history.messages.length),
+              messageCount: Math.max(
+                chat.messageCount ?? 0,
+                history.messages.length,
+              ),
             });
             return;
           }
@@ -610,14 +663,27 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
         get().updateSession(sessionId, {
           messages: nextMessages,
           messageCount: history.messages.length,
+          config: {
+            ...(chat.config || {}),
+            compressionEvents: (history.compression_events || []).map((event) => ({
+              id: event.id,
+              createdAt: event.created_at,
+              messagesCompressed: event.messages_compressed,
+              segmentsRemoved: event.segments_removed,
+            })),
+          },
         });
         return;
       } catch (error) {
         if (attempt >= retries) {
-          console.warn(`[ChatSlice] Failed to load history for ${sessionId}:`, error);
+          console.warn(
+            `[ChatSlice] Failed to load history for ${sessionId}:`,
+            error,
+          );
           return;
         }
-        const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
+        const delay =
+          retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -671,7 +737,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     try {
       localStorage.setItem(AUTO_TITLE_KEY, String(enabled));
     } catch (error) {
-      console.warn("[ChatSlice] Failed to update auto-title preference:", error);
+      console.warn(
+        "[ChatSlice] Failed to update auto-title preference:",
+        error,
+      );
       set({ autoGenerateTitles: previousValue });
       throw error;
     } finally {

@@ -125,13 +125,22 @@ export function useMessageStreaming(
           );
         }
 
-        // Step 2: Trigger execution (idempotent)
-        const executeResult = await agentClientRef.current.execute(sessionId, activeModel);
+        // Step 2: Activate processing/subscription before execute so early events
+        // (tool_start/tool_token) are not missed.
+        deps.setSessionProcessing(sessionId, true);
+        // Yield once to let subscription effect bind before execution starts.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        // Step 3: Trigger execution (idempotent)
+        const executeResult = await agentClientRef.current.execute(
+          sessionId,
+          activeModel,
+        );
         console.log("[Agent] Execute status:", executeResult.status);
 
-        // Step 3: Set processing flag to activate event subscription (handled by useAgentEventSubscription)
+        // Keep/adjust processing state based on execute result.
         if (["started", "already_running"].includes(executeResult.status)) {
-          deps.setSessionProcessing(sessionId, true);
+          // keep true
         } else if (executeResult.status === "completed") {
           // Session already completed, no need to process
           console.log("[Agent] Session already completed");
@@ -308,13 +317,18 @@ export function useMessageStreaming(
 
       // Immediately reconcile UI with persisted history so old assistant/tool tail disappears.
       // (Avoid relying on per-message deletes; backend is the source of truth.)
-      await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
+      await useAppStore
+        .getState()
+        .loadChatHistory(sessionId, { mode: "replace" });
 
       // Activate event subscription (handled by useAgentEventSubscription).
       deps.setSessionProcessing(sessionId, true);
 
       // Re-run execution (idempotent).
-      const executeResult = await agentClientRef.current.execute(sessionId, activeModel);
+      const executeResult = await agentClientRef.current.execute(
+        sessionId,
+        activeModel,
+      );
       if (["started", "already_running"].includes(executeResult.status)) {
         // Keep processing true.
         return;

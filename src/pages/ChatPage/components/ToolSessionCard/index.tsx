@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import {
   Collapse,
   Space,
@@ -43,11 +43,76 @@ export interface ToolSessionCardProps {
   defaultExpanded?: boolean;
 }
 
+interface PersistedToolSessionState {
+  isExpanded: boolean;
+  expandedTools: string[];
+}
+
+const TOOL_SESSION_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-tool-collapse:";
+
+const getToolSessionCollapseStorageKey = (
+  sessionId: string,
+  toolSessionId: string,
+): string =>
+  `${TOOL_SESSION_COLLAPSE_STORAGE_KEY_PREFIX}${sessionId}:${toolSessionId}`;
+
+const readPersistedToolSessionState = (
+  sessionId: string,
+  toolSessionId: string,
+): PersistedToolSessionState | null => {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(
+      getToolSessionCollapseStorageKey(sessionId, toolSessionId),
+    );
+    if (!raw) return null;
+
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    const isExpanded =
+      "isExpanded" in parsed && typeof parsed.isExpanded === "boolean"
+        ? parsed.isExpanded
+        : true;
+    const expandedTools =
+      "expandedTools" in parsed && Array.isArray(parsed.expandedTools)
+        ? parsed.expandedTools.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [];
+
+    return { isExpanded, expandedTools };
+  } catch {
+    return null;
+  }
+};
+
+const writePersistedToolSessionState = (
+  sessionId: string,
+  toolSessionId: string,
+  state: PersistedToolSessionState,
+): void => {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      getToolSessionCollapseStorageKey(sessionId, toolSessionId),
+      JSON.stringify(state),
+    );
+  } catch {
+    // Best-effort only.
+  }
+};
+
 interface ToolItemStatus {
   icon: React.ReactNode;
   color: string;
   text: string;
 }
+
+const getToolItemKey = (item: ToolSessionItem): string =>
+  item.call.toolCalls?.[0]?.toolCallId || item.call.id;
 
 function getToolStatus(
   item: ToolSessionItem,
@@ -114,18 +179,94 @@ function generateToolIntent(
 
 const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
   tools,
+  sessionId,
   defaultExpanded = false,
 }) => {
   const { token } = theme.useToken();
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => {
-    // Expand the last tool by default if there's a pending one
-    const pendingTool = tools.find((t) => !t.result);
-    if (pendingTool) {
-      return new Set([pendingTool.call.id]);
-    }
-    return new Set();
+  const isSingleToolSession = tools.length === 1;
+  const toolSessionStorageId = useMemo(() => {
+    const firstTool = tools[0];
+    const firstCall = firstTool?.call?.toolCalls?.[0];
+    return firstCall?.toolCallId || firstTool?.call?.id || "unknown";
+  }, [tools]);
+  const defaultExpandedToolKey = useMemo(() => {
+    const first = tools[0];
+    return first ? getToolItemKey(first) : null;
+  }, [tools]);
+
+  const [isExpanded, setIsExpanded] = useState<boolean>(() => {
+    const persisted = readPersistedToolSessionState(
+      sessionId,
+      toolSessionStorageId,
+    );
+    if (persisted) return persisted.isExpanded;
+    return defaultExpanded;
   });
+
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => {
+    const persisted = readPersistedToolSessionState(
+      sessionId,
+      toolSessionStorageId,
+    );
+    if (persisted) {
+      return new Set(persisted.expandedTools);
+    }
+    return new Set(
+      defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : [],
+    );
+  });
+
+  useEffect(() => {
+    const persisted = readPersistedToolSessionState(
+      sessionId,
+      toolSessionStorageId,
+    );
+    if (persisted) {
+      setIsExpanded(persisted.isExpanded);
+      setExpandedTools(new Set(persisted.expandedTools));
+      return;
+    }
+
+    setIsExpanded(defaultExpanded);
+    setExpandedTools(
+      new Set(
+        defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : [],
+      ),
+    );
+  }, [
+    defaultExpanded,
+    defaultExpandedToolKey,
+    sessionId,
+    toolSessionStorageId,
+  ]);
+
+  useEffect(() => {
+    const validToolKeys = new Set(tools.map((item) => getToolItemKey(item)));
+    setExpandedTools((previous) => {
+      const next = new Set<string>();
+      let changed = false;
+
+      previous.forEach((key) => {
+        if (validToolKeys.has(key)) {
+          next.add(key);
+        } else {
+          changed = true;
+        }
+      });
+
+      if (!changed && next.size === previous.size) {
+        return previous;
+      }
+      return next;
+    });
+  }, [tools]);
+
+  useEffect(() => {
+    writePersistedToolSessionState(sessionId, toolSessionStorageId, {
+      isExpanded,
+      expandedTools: Array.from(expandedTools),
+    });
+  }, [sessionId, toolSessionStorageId, isExpanded, expandedTools]);
 
   const { completedCount, pendingCount, hasErrors } = useMemo(() => {
     let completed = 0;
@@ -187,6 +328,24 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
     return { added, removed, changedTools };
   }, [tools]);
 
+  const headerTitle = useMemo(() => {
+    if (tools.length !== 1) {
+      return "Tool Session";
+    }
+
+    const call = tools[0]?.call?.toolCalls?.[0];
+    if (!call) {
+      return "Tool Session";
+    }
+
+    const mcpParts = parseMcpToolAlias(call.toolName);
+    if (mcpParts) {
+      return `MCP ${mcpParts.serverId}: ${mcpParts.toolName}`;
+    }
+
+    return call.toolName || "Tool Session";
+  }, [tools]);
+
   const collapseItems: CollapseProps["items"] = useMemo(() => {
     return tools
       .map((item, index) => {
@@ -207,7 +366,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
           : null;
 
         return {
-          key: item.call.id,
+          key: getToolItemKey(item),
           label: (
             <div
               style={{
@@ -272,7 +431,8 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                     style={{
                       color: token.colorSuccess,
                       fontSize: token.fontSizeSM,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontFamily:
+                        "ui-monospace, SFMono-Regular, Menlo, monospace",
                     }}
                   >
                     +{toolDiffStats.added}
@@ -281,7 +441,8 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                     style={{
                       color: token.colorError,
                       fontSize: token.fontSizeSM,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontFamily:
+                        "ui-monospace, SFMono-Regular, Menlo, monospace",
                     }}
                   >
                     -{toolDiffStats.removed}
@@ -301,7 +462,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                 parameters={toolCall.parameters}
                 toolCallId={toolCall.toolCallId}
                 streamingOutput={toolCall.streamingOutput}
-                defaultExpanded={true}
+                defaultExpanded={false}
               />
               {item.result &&
                 item.result.result.display_preference !== "Hidden" && (
@@ -324,17 +485,42 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
-  }, [tools, expandedTools, token]);
+  }, [tools, token]);
+
+  const toolsList = (
+    <div style={{ padding: token.paddingSM }}>
+      <Collapse
+        ghost
+        activeKey={Array.from(expandedTools)}
+        onChange={(keys) => {
+          // keys 是 string | string[]
+          const newExpandedKeys = new Set<string>(
+            Array.isArray(keys) ? keys : keys ? [keys] : [],
+          );
+          setExpandedTools(newExpandedKeys);
+        }}
+        items={collapseItems}
+      />
+    </div>
+  );
+
+  const cardContainerStyle: React.CSSProperties = {
+    backgroundColor: token.colorBgElevated,
+    border: `1px solid ${token.colorBorder}`,
+    borderRadius: token.borderRadiusLG,
+    overflow: "hidden",
+  };
+
+  if (isSingleToolSession) {
+    return (
+      <div style={{ width: "100%" }}>
+        <div style={cardContainerStyle}>{toolsList}</div>
+      </div>
+    );
+  }
 
   return (
-    <div
-      style={{
-        backgroundColor: token.colorBgElevated,
-        border: `1px solid ${token.colorBorder}`,
-        borderRadius: token.borderRadiusLG,
-        overflow: "hidden",
-      }}
-    >
+    <div style={cardContainerStyle}>
       {/* Session Header */}
       <div
         style={{
@@ -352,7 +538,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
       >
         <ToolOutlined style={{ color: token.colorPrimary }} />
         <Text strong style={{ flex: 1 }}>
-          Tool Session
+          {headerTitle}
         </Text>
         <Badge
           count={tools.length}
@@ -393,22 +579,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
       </div>
 
       {/* Tools List */}
-      {isExpanded && (
-        <div style={{ padding: token.paddingSM }}>
-          <Collapse
-            ghost
-            activeKey={Array.from(expandedTools)}
-            onChange={(keys) => {
-              // keys 是 string | string[]
-              const newExpandedKeys = new Set<string>(
-                Array.isArray(keys) ? keys : keys ? [keys] : [],
-              );
-              setExpandedTools(newExpandedKeys);
-            }}
-            items={collapseItems}
-          />
-        </div>
-      )}
+      {isExpanded && toolsList}
     </div>
   );
 };

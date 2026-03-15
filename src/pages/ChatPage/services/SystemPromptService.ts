@@ -1,13 +1,56 @@
-const SYSTEM_PROMPT_KEY = "system_prompt";
-const SYSTEM_PROMPT_SELECTED_ID_KEY = "system_prompt_selected_id";
+import { agentApiClient } from "../../../services/api";
+import type { UserSystemPrompt } from "../types/chat";
+import { getDefaultSystemPrompts } from "../utils/defaultSystemPrompts";
+
+const DEPRECATED_PROMPT_STORAGE_KEYS = [
+  "system_prompt",
+  "system_prompt_selected_id",
+];
+
+interface PromptPresetItem {
+  id: string;
+  name: string;
+  description?: string;
+  content: string;
+  is_default?: boolean;
+}
+
+interface PromptPresetListResponse {
+  prompts?: PromptPresetItem[];
+}
+
+interface PromptPresetResponse {
+  prompt?: PromptPresetItem;
+}
+
+interface CreatePromptPresetRequest {
+  id?: string;
+  name: string;
+  description?: string;
+  content: string;
+}
+
+interface PatchPromptPresetRequest {
+  name?: string;
+  description?: string;
+  content?: string;
+}
+
+const mapPresetToUserPrompt = (preset: PromptPresetItem): UserSystemPrompt => ({
+  id: preset.id,
+  name: preset.name || preset.id,
+  content: preset.content || "",
+  description: preset.description,
+  isDefault: Boolean(preset.is_default),
+});
 
 /**
- * SystemPromptService - Simplified version
- * Gets system prompts directly from SystemPromptService backend API
- * No longer depends on ToolCategory system
+ * System prompt access service.
+ * Runtime source of truth is backend `/api/v1/prompt-presets`.
  */
 export class SystemPromptService {
   private static instance: SystemPromptService;
+  private deprecatedKeysCleanupDone = false;
 
   private constructor() {}
 
@@ -15,123 +58,110 @@ export class SystemPromptService {
     if (!SystemPromptService.instance) {
       SystemPromptService.instance = new SystemPromptService();
     }
+    SystemPromptService.instance.cleanupDeprecatedPromptStorageKeys();
     return SystemPromptService.instance;
   }
 
-  /**
-   * Get global system prompt (maintain backward compatibility)
-   */
-  getGlobalSystemPrompt(): string {
+  private cleanupDeprecatedPromptStorageKeys(): void {
+    if (this.deprecatedKeysCleanupDone) return;
+    this.deprecatedKeysCleanupDone = true;
     try {
-      const storedPrompt = localStorage.getItem(SYSTEM_PROMPT_KEY);
-      if (!storedPrompt) {
-        throw new Error(
-          "System prompt not configured, please configure it first",
-        );
+      for (const key of DEPRECATED_PROMPT_STORAGE_KEYS) {
+        localStorage.removeItem(key);
       }
-      return storedPrompt;
     } catch (error) {
-      console.error("Error loading global system prompt:", error);
-      throw new Error(
-        "System prompt not configured, please configure it first",
+      console.warn(
+        "[SystemPromptService] Failed to cleanup deprecated prompt storage keys:",
+        error,
       );
     }
   }
 
   /**
-   * Update global system prompt (maintain backward compatibility)
+   * Get all prompt presets from backend.
    */
-  updateGlobalSystemPrompt(prompt: string): void {
+  async getSystemPromptPresets(): Promise<UserSystemPrompt[]> {
     try {
-      if (!prompt || !prompt.trim()) {
-        throw new Error("System prompt cannot be empty");
+      const data =
+        await agentApiClient.get<PromptPresetListResponse>("prompt-presets");
+      const prompts = Array.isArray(data?.prompts) ? data.prompts : [];
+      const presets = prompts
+        .filter((preset) => preset.id && preset.id.trim().length > 0)
+        .map(mapPresetToUserPrompt);
+      if (presets.length > 0) {
+        return presets;
       }
-      localStorage.setItem(SYSTEM_PROMPT_KEY, prompt.trim());
-      console.log("Global system prompt updated successfully");
     } catch (error) {
-      console.error("Error saving system prompt:", error);
+      console.error("Failed to load prompt presets from backend:", error);
     }
+
+    return getDefaultSystemPrompts();
   }
 
   /**
-   * Get currently selected preset ID
+   * Create a custom prompt preset.
    */
-  getSelectedSystemPromptPresetId(): string {
-    try {
-      const id = localStorage.getItem(SYSTEM_PROMPT_SELECTED_ID_KEY);
-      if (!id) {
-        throw new Error(
-          "System prompt preset ID not set, must be configured from the backend first",
-        );
-      }
-      return id;
-    } catch (error) {
-      console.error("Error loading selected system prompt preset ID:", error);
-      throw new Error(
-        "System prompt preset ID configuration is missing, no frontend default is provided",
-      );
+  async createSystemPromptPreset(
+    req: CreatePromptPresetRequest,
+  ): Promise<UserSystemPrompt> {
+    const payload: CreatePromptPresetRequest = {
+      name: req.name,
+      content: req.content,
+    };
+    if (req.id?.trim()) {
+      payload.id = req.id.trim();
     }
+    if (req.description !== undefined) {
+      payload.description = req.description;
+    }
+
+    const data = await agentApiClient.post<PromptPresetResponse>(
+      "prompt-presets",
+      payload,
+    );
+    if (!data?.prompt) {
+      throw new Error("Backend did not return created prompt preset");
+    }
+    return mapPresetToUserPrompt(data.prompt);
   }
 
   /**
-   * Set currently selected preset ID
+   * Update an existing custom prompt preset.
    */
-  setSelectedSystemPromptPresetId(id: string): void {
-    try {
-      localStorage.setItem(SYSTEM_PROMPT_SELECTED_ID_KEY, id);
-    } catch (error) {
-      console.error("Error saving selected system prompt preset ID:", error);
+  async updateSystemPromptPreset(
+    prompt: UserSystemPrompt,
+  ): Promise<UserSystemPrompt> {
+    const encodedId = encodeURIComponent(prompt.id);
+    const payload: PatchPromptPresetRequest = {
+      name: prompt.name,
+      content: prompt.content,
+      description: prompt.description,
+    };
+
+    const data = await agentApiClient.patch<PromptPresetResponse>(
+      `prompt-presets/${encodedId}`,
+      payload,
+    );
+    if (!data?.prompt) {
+      throw new Error("Backend did not return updated prompt preset");
     }
+    return mapPresetToUserPrompt(data.prompt);
   }
 
   /**
-   * Get system prompts directly from SystemPromptService
-   * No longer depends on tool categories
+   * Delete a custom prompt preset.
    */
-  async getSystemPromptPresets(): Promise<any[]> {
-    try {
-      const { BambooConfigService } = await import("./SettingsConfigService");
-      const configService = BambooConfigService.getInstance();
-      const data = await configService.getSystemPrompts();
-      const prompts = Array.isArray(data.prompts) ? data.prompts : [];
-
-      // Convert to preset format for backward compatibility
-      const presets = prompts.map((prompt: any) => {
-        return {
-          id: prompt.id,
-          name: prompt.name || prompt.id,
-          content: prompt.content || "",
-          description: prompt.description || prompt.id,
-          category: prompt.id,
-          mode: "general", // Default to general mode
-          autoToolPrefix: undefined,
-          allowedTools: [],
-          restrictConversation: false,
-          isDefault: prompt.id === "general_assistant", // Mark general_assistant as default
-        };
-      });
-
-      return presets;
-    } catch (error) {
-      console.error("Failed to get system prompts from backend:", error);
-      // Return empty array instead of throwing to prevent UI breaking
-      // The user can still create chats without a system prompt
-      console.warn("Returning empty prompts array due to error");
-      return [];
-    }
+  async deleteSystemPromptPreset(promptId: string): Promise<void> {
+    const encodedId = encodeURIComponent(promptId);
+    await agentApiClient.delete(`prompt-presets/${encodedId}`);
   }
-
-  /**
-   * Default preset configuration has been removed - frontend relies entirely on backend for configuration
-   * No longer provides any hardcoded default values
-   */
 
   /**
    * Find preset by preset ID
    */
-  async findPresetById(id: string): Promise<any | undefined> {
+  async findPresetById(id: string): Promise<UserSystemPrompt | undefined> {
     const presets = await this.getSystemPromptPresets();
-    return presets.find((preset: any) => preset.id === id);
+    return presets.find((preset) => preset.id === id);
   }
 
   /**
@@ -143,67 +173,9 @@ export class SystemPromptService {
     const preset = await this.findPresetById(selectedPresetId);
     if (preset) return preset.content;
 
-    // Fallback to global system prompt
-    return this.getGlobalSystemPrompt();
+    const presets = await this.getSystemPromptPresets();
+    const defaultPreset = presets.find((item) => item.isDefault) || presets[0];
+    return defaultPreset?.content || "";
   }
 
-  /**
-   * Deprecated: Tool-specific mode is no longer supported
-   * Always returns false
-   */
-  async isToolSpecificMode(_presetId: string): Promise<boolean> {
-    return false;
-  }
-
-  /**
-   * Deprecated: Allowed tools list is no longer supported
-   * Returns empty array
-   */
-  async getAllowedTools(_presetId: string): Promise<string[]> {
-    return [];
-  }
-
-  /**
-   * Deprecated: Auto tool prefix is no longer supported
-   * Returns undefined
-   */
-  async getAutoToolPrefix(_presetId: string): Promise<string | undefined> {
-    return undefined;
-  }
-
-  /**
-   * Deprecated: Conversation restriction is no longer supported
-   * Always returns false
-   */
-  async isConversationRestricted(_presetId: string): Promise<boolean> {
-    return false;
-  }
-
-  /**
-   * Get enhanced system prompt from backend
-   */
-  async getEnhancedSystemPrompt(promptId: string): Promise<string> {
-    try {
-      const preset = await this.findPresetById(promptId);
-      return preset?.content || "";
-    } catch (error) {
-      console.error(
-        `[SystemPromptService] Failed to get enhanced prompt for ${promptId}:`,
-        error,
-      );
-      // Fall back to base content on error
-      const preset = await this.findPresetById(promptId);
-      return preset?.content || "";
-    }
-  }
-
-  /**
-   * Get enhanced system prompt from base content
-   * For cases where we have content but no prompt ID
-   */
-  async getEnhancedSystemPromptFromContent(
-    baseContent: string,
-  ): Promise<string> {
-    return baseContent;
-  }
 }

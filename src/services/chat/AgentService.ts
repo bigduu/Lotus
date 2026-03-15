@@ -147,10 +147,18 @@ export interface ExecuteResponse {
 
 export interface HistoryResponse {
   session_id: string;
+  compression_events?: Array<{
+    id: string;
+    created_at: string;
+    messages_compressed: number;
+    segments_removed: number;
+  }>;
   messages: Array<{
     id: string;
     role: "user" | "assistant" | "tool" | "system";
     content: string;
+    compressed?: boolean;
+    compressed_by_event_id?: string;
     content_parts?: Array<
       | { type: "text"; text: string }
       | { type: "image_url"; image_url: { url: string; detail?: string } }
@@ -202,6 +210,18 @@ export interface CreateSessionRequest {
 
 export interface CreateSessionResponse {
   session: SessionSummary;
+}
+
+export interface SessionSystemPromptResponse {
+  session_id: string;
+  base_system_prompt: string;
+  enhancement_prompt?: string;
+  workspace_context?: string;
+  skill_context?: string;
+  tool_guide_context?: string;
+  external_memory?: string;
+  todo_list?: string;
+  effective_system_prompt: string;
 }
 
 export interface PatchSessionRequest {
@@ -385,6 +405,18 @@ export class AgentClient {
   async patchSession(sessionId: string, req: PatchSessionRequest): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     await agentApiClient.patch(`sessions/${encodedSessionId}`, req);
+  }
+
+  /**
+   * Get a session prompt snapshot (effective system prompt + extracted sections).
+   */
+  async getSessionSystemPrompt(
+    sessionId: string,
+  ): Promise<SessionSystemPromptResponse> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    return agentApiClient.get<SessionSystemPromptResponse>(
+      `sessions/${encodedSessionId}/system-prompt`,
+    );
   }
 
   /**

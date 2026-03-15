@@ -3,34 +3,49 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ChatItem } from "../../types/chat";
 import { createChatSlice, type ChatSlice } from "./chatSessionSlice";
+import { useProviderStore } from "./providerSlice";
 
-const { deleteSessionMock } = vi.hoisted(() => ({
+const {
+  deleteSessionMock,
+  getHistoryMock,
+  listSessionsMock,
+  createSessionMock,
+  patchSessionMock,
+} = vi.hoisted(() => ({
   deleteSessionMock: vi.fn(),
+  getHistoryMock: vi.fn(async () => ({
+    session_id: "session-1",
+    compression_events: [],
+    messages: [],
+  })),
+  listSessionsMock: vi.fn(async () => ({ sessions: [] })),
+  createSessionMock: vi.fn(async () => ({
+    session: {
+      id: "session-1",
+      kind: "root",
+      title: "New Session",
+      pinned: false,
+      root_session_id: "session-1",
+      spawn_depth: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      last_activity_at: new Date().toISOString(),
+      message_count: 0,
+      has_attachments: false,
+      is_running: false,
+    },
+  })),
+  patchSessionMock: vi.fn(async () => undefined),
 }));
 
 vi.mock("../../services/AgentService", () => ({
   AgentClient: {
     getInstance: vi.fn(() => ({
       deleteSession: deleteSessionMock,
-      listSessions: vi.fn(async () => ({ sessions: [] })),
-      createSession: vi.fn(async () => ({
-        session: {
-          id: "session-1",
-          kind: "root",
-          title: "New Session",
-          pinned: false,
-          root_session_id: "session-1",
-          spawn_depth: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-          last_activity_at: new Date().toISOString(),
-          message_count: 0,
-          has_attachments: false,
-          is_running: false,
-        },
-      })),
-      patchSession: vi.fn(async () => undefined),
-      getHistory: vi.fn(async () => ({ session_id: "session-1", messages: [] })),
+      listSessions: listSessionsMock,
+      createSession: createSessionMock,
+      patchSession: patchSessionMock,
+      getHistory: getHistoryMock,
     })),
   },
 }));
@@ -61,10 +76,28 @@ const createTestStore = (): StoreApi<ChatSlice> => {
   );
 };
 
+const resetProviderStore = () => {
+  useProviderStore.setState({
+    currentProvider: "copilot",
+    providerConfig: {
+      provider: "copilot",
+      providers: {},
+    },
+    isLoading: false,
+    error: null,
+  });
+};
+
 describe("chatSessionSlice deletion", () => {
   beforeEach(() => {
     deleteSessionMock.mockReset();
     deleteSessionMock.mockResolvedValue(undefined);
+    getHistoryMock.mockReset();
+    getHistoryMock.mockResolvedValue({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [],
+    });
   });
 
   it("deletes the linked backend session before removing a chat", async () => {
@@ -96,7 +129,9 @@ describe("chatSessionSlice deletion", () => {
       latestActiveSessionId: chat.id,
     }));
 
-    await expect(store.getState().deleteSession(chat.id)).resolves.toBeUndefined();
+    await expect(
+      store.getState().deleteSession(chat.id),
+    ).resolves.toBeUndefined();
 
     expect(deleteSessionMock).toHaveBeenCalledWith("session-1");
     expect(store.getState().chats).toHaveLength(0);
@@ -124,5 +159,188 @@ describe("chatSessionSlice deletion", () => {
     expect(deleteSessionMock).toHaveBeenNthCalledWith(2, "session-2");
     expect(deleteSessionMock).toHaveBeenNthCalledWith(3, "session-3");
     expect(store.getState().chats).toHaveLength(0);
+  });
+});
+
+describe("chatSessionSlice history mapping", () => {
+  beforeEach(() => {
+    getHistoryMock.mockReset();
+  });
+
+  it("keeps assistant text when message also contains tool calls", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "Detailed report body",
+          tool_calls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "TodoWrite",
+                arguments: '{"todos":[]}',
+              },
+            },
+          ],
+          created_at: "2026-03-15T00:00:00Z",
+        },
+        {
+          id: "tool-1",
+          role: "tool",
+          content: "Todo list updated",
+          tool_call_id: "tool-call-1",
+          created_at: "2026-03-15T00:00:01Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "replace" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated).toBeDefined();
+    expect(updated?.messages).toHaveLength(3);
+    expect(updated?.messages[0]).toMatchObject({
+      role: "assistant",
+      type: "text",
+      content: "Detailed report body",
+    });
+    expect(updated?.messages[1]).toMatchObject({
+      role: "assistant",
+      type: "tool_call",
+    });
+    expect(updated?.messages[2]).toMatchObject({
+      role: "assistant",
+      type: "tool_result",
+      toolCallId: "tool-call-1",
+    });
+  });
+
+  it("maps compressed flags and compression events from history", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [
+        {
+          id: "cevt-1",
+          created_at: "2026-03-15T10:00:00Z",
+          messages_compressed: 2,
+          segments_removed: 1,
+        },
+      ],
+      messages: [
+        {
+          id: "old-user",
+          role: "user",
+          content: "old context",
+          compressed: true,
+          compressed_by_event_id: "cevt-1",
+          created_at: "2026-03-15T09:59:00Z",
+        },
+        {
+          id: "new-user",
+          role: "user",
+          content: "active context",
+          created_at: "2026-03-15T10:01:00Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "replace" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated?.messages[0]).toMatchObject({
+      id: "old-user",
+      role: "user",
+      isCompressed: true,
+      compressedEventId: "cevt-1",
+    });
+    expect(updated?.config.compressionEvents).toEqual([
+      {
+        id: "cevt-1",
+        createdAt: "2026-03-15T10:00:00Z",
+        messagesCompressed: 2,
+        segmentsRemoved: 1,
+      },
+    ]);
+  });
+});
+
+describe("chatSessionSlice session model propagation", () => {
+  beforeEach(() => {
+    createSessionMock.mockReset();
+    createSessionMock.mockResolvedValue({
+      session: {
+        id: "session-1",
+        kind: "root",
+        title: "New Session",
+        pinned: false,
+        root_session_id: "session-1",
+        spawn_depth: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        last_activity_at: new Date().toISOString(),
+        message_count: 0,
+        has_attachments: false,
+        is_running: false,
+      },
+    });
+    resetProviderStore();
+  });
+
+  it("passes active provider model into createSession", async () => {
+    const store = createTestStore();
+    useProviderStore.setState({
+      currentProvider: "copilot",
+      providerConfig: {
+        provider: "copilot",
+        providers: {
+          copilot: { model: "gpt-5.2" },
+        },
+      },
+    });
+
+    const { id: _id, ...chatData } = createChat("temp-chat");
+    await store.getState().addChat(chatData);
+
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gpt-5.2",
+      }),
+    );
+  });
+
+  it("keeps model undefined when provider model is unavailable", async () => {
+    const store = createTestStore();
+    const { id: _id, ...chatData } = createChat("temp-chat");
+    await store.getState().addChat(chatData);
+
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: undefined,
+      }),
+    );
   });
 });

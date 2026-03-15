@@ -12,6 +12,16 @@ const inFlight = new Map<string, Promise<MermaidRenderResult>>();
 
 let mermaidPromise: Promise<any> | null = null;
 
+const countInvalidNegativeRectWidths = (svgMarkup: string): number => {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(svgMarkup, "image/svg+xml");
+  const rects = Array.from(doc.querySelectorAll("rect"));
+  return rects.reduce((count, rect) => {
+    const width = Number(rect.getAttribute("width"));
+    return Number.isFinite(width) && width < 0 ? count + 1 : count;
+  }, 0);
+};
+
 async function getMermaid() {
   if (!mermaidPromise) {
     mermaidPromise = import("mermaid");
@@ -60,11 +70,26 @@ export function renderMermaidCached(
 
     // 用 chartKey 派生一个确定性的 id，避免每次 render 生成不同 id 导致缓存难复用
     const id = `mermaid-${chartKey}`;
-    // Mermaid v11 expects a DOM container in some environments; provide a hidden
-    // element to ensure rendering works reliably across WebViews (e.g. Tauri).
+    // Mermaid v11 expects a real DOM container in some environments.
+    // NOTE: Do NOT use width:0 here. Some diagrams (notably gantt) derive layout
+    // from the host width and can emit negative SVG rect widths when container
+    // width is zero, which results in blank charts without parser errors.
     const renderHost = document.createElement("div");
-    renderHost.style.cssText =
-      "position:absolute;left:-9999px;top:-9999px;width:0;height:0;overflow:hidden;visibility:hidden;";
+    const viewportWidth = Math.max(
+      1600,
+      window.innerWidth || 0,
+      document.documentElement?.clientWidth || 0,
+    );
+    renderHost.style.cssText = [
+      "position:absolute",
+      "left:-9999px",
+      "top:-9999px",
+      `width:${viewportWidth}px`,
+      `min-width:${viewportWidth}px`,
+      "visibility:hidden",
+      "pointer-events:none",
+      "overflow:visible",
+    ].join(";");
     document.body.appendChild(renderHost);
     let renderResult: any;
     try {
@@ -73,6 +98,13 @@ export function renderMermaidCached(
       document.body.removeChild(renderHost);
     }
     const svg = renderResult.svg ?? renderResult;
+
+    const invalidNegativeRectCount = countInvalidNegativeRectWidths(svg);
+    if (invalidNegativeRectCount > 0) {
+      throw new Error(
+        `Mermaid rendered invalid SVG (${invalidNegativeRectCount} rect widths < 0)`,
+      );
+    }
 
     // 使用 DOMParser 测量 SVG 尺寸
     const parser = new DOMParser();

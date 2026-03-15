@@ -2,8 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Message, UserSystemPrompt } from "../../types/chat";
 import { SystemPromptService } from "../../services/SystemPromptService";
-import { getEffectiveSystemPrompt } from "../../../../shared/utils/systemPromptEnhancement";
-import { useProviderStore } from "../../store/slices/providerSlice";
+import { AgentClient } from "../../services/AgentService";
 
 type UseSystemPromptContentArgs = {
   currentChat: {
@@ -31,11 +30,15 @@ export const useSystemPromptContent = ({
     () => SystemPromptService.getInstance(),
     [],
   );
-  const currentProvider = useProviderStore((state) => state.currentProvider);
+  const agentClient = useMemo(() => AgentClient.getInstance(), []);
   const systemMessageContent =
     message.role === "system" && typeof message.content === "string"
       ? message.content
       : "";
+  const hasPersistedSystemMessage =
+    message.role === "system" &&
+    !message.id.startsWith("system-prompt-") &&
+    systemMessageContent.trim().length > 0;
 
   useEffect(() => {
     if (message.role === "system") {
@@ -46,7 +49,6 @@ export const useSystemPromptContent = ({
 
   const currentSessionId = currentChat?.id ?? null;
   const systemPromptId = currentChat?.config?.systemPromptId ?? null;
-  const workspacePath = currentChat?.config?.workspacePath ?? null;
 
   const userPrompt = useMemo(() => {
     if (!systemPromptId) {
@@ -98,7 +100,10 @@ export const useSystemPromptContent = ({
         setPresetPrompt((prev) => {
           if (!prev && !next) return prev;
           if (prev && next) {
-            if (prev.content === next.content && prev.description === next.description) {
+            if (
+              prev.content === next.content &&
+              prev.description === next.description
+            ) {
               return prev;
             }
           }
@@ -121,24 +126,46 @@ export const useSystemPromptContent = ({
   ]);
 
   const loadEnhancedPrompt = useCallback(async () => {
-    if (!basePrompt || loadingEnhanced) return;
+    if (loadingEnhanced) return;
 
     setLoadingEnhanced(true);
     try {
-      const enhanced = getEffectiveSystemPrompt(
-        basePrompt,
-        workspacePath ?? undefined,
-        currentProvider,
-      );
+      if (currentSessionId) {
+        try {
+          const snapshot = await agentClient.getSessionSystemPrompt(
+            currentSessionId,
+          );
+          const effectivePrompt = snapshot.effective_system_prompt?.trim();
+          if (effectivePrompt) {
+            setEnhancedPrompt(effectivePrompt);
+            setShowEnhanced(true);
+            return;
+          }
+        } catch (error) {
+          console.warn("Failed to load backend prompt snapshot:", error);
+        }
+      }
 
-      setEnhancedPrompt(enhanced);
-      setShowEnhanced(true);
+      if (hasPersistedSystemMessage) {
+        setEnhancedPrompt(systemMessageContent);
+        setShowEnhanced(true);
+        return;
+      }
+      console.warn(
+        "Enhanced prompt snapshot unavailable; keeping base prompt view.",
+      );
     } catch (error) {
       console.error("Failed to load enhanced prompt:", error);
     } finally {
       setLoadingEnhanced(false);
     }
-  }, [basePrompt, loadingEnhanced, workspacePath, currentProvider]);
+  }, [
+    agentClient,
+    currentSessionId,
+    hasPersistedSystemMessage,
+    loadingEnhanced,
+    systemMessageContent,
+  ]);
 
   const promptToDisplay = useMemo(() => {
     if (showEnhanced && enhancedPrompt) {

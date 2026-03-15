@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SubSessionsPanel } from "./SubSessionsPanel";
@@ -10,9 +10,22 @@ const mockStoreState: any = {
   subSessionsByParent: {},
   chats: [],
   loadChatHistory: vi.fn(),
+  refreshChats: vi.fn(),
+  setSessionProcessing: vi.fn(),
   pinSession: vi.fn(),
   unpinSession: vi.fn(),
+  deleteSession: vi.fn(),
+  upsertSubSessionProgress: vi.fn(),
+  clearSubSessionProgress: vi.fn(),
 };
+
+const { mockAgentClient, mockUseActiveModel } = vi.hoisted(() => ({
+  mockAgentClient: {
+    truncateSessionMessages: vi.fn(),
+    execute: vi.fn(),
+  },
+  mockUseActiveModel: vi.fn<() => string | undefined>(() => "test-model"),
+}));
 
 vi.mock("../../store", () => ({
   useAppStore: (selector: (state: typeof mockStoreState) => unknown) =>
@@ -23,12 +36,43 @@ vi.mock("../../utils/openSession", () => ({
   openSession: vi.fn(),
 }));
 
+vi.mock("../../services/AgentService", () => ({
+  agentClient: mockAgentClient,
+}));
+
+vi.mock("../../hooks/useActiveModel", () => ({
+  useActiveModel: () => mockUseActiveModel(),
+}));
+
 describe("SubSessionsPanel", () => {
   beforeEach(() => {
     localStorage.clear();
     mockStoreState.loadChatHistory.mockReset();
+    mockStoreState.refreshChats.mockReset();
+    mockStoreState.setSessionProcessing.mockReset();
     mockStoreState.pinSession.mockReset();
     mockStoreState.unpinSession.mockReset();
+    mockStoreState.deleteSession.mockReset();
+    mockStoreState.upsertSubSessionProgress.mockReset();
+    mockStoreState.clearSubSessionProgress.mockReset();
+    mockStoreState.deleteSession.mockResolvedValue(undefined);
+
+    mockAgentClient.truncateSessionMessages.mockReset();
+    mockAgentClient.execute.mockReset();
+    mockAgentClient.truncateSessionMessages.mockResolvedValue({
+      success: true,
+      session_id: "child-session-1",
+      messages_removed: 1,
+      message_count: 2,
+    });
+    mockAgentClient.execute.mockResolvedValue({
+      session_id: "child-session-1",
+      status: "completed",
+      events_url: "/api/v1/events/child-session-1",
+    });
+    mockUseActiveModel.mockReset();
+    mockUseActiveModel.mockReturnValue("test-model");
+
     mockStoreState.subSessionsByParent = {
       [PARENT_SESSION_ID]: {
         "child-session-1": {
@@ -103,7 +147,9 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByTestId("sub-sessions-toggle"));
 
     expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-collapsed-hint")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("sub-sessions-collapsed-hint"),
+    ).toBeInTheDocument();
     expect(localStorage.getItem(COLLAPSE_STORAGE_KEY)).toBe("1");
 
     unmount();
@@ -111,7 +157,9 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Expand");
+    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent(
+      "Expand",
+    );
   });
 
   it("auto-collapses when child sessions exceed threshold and no preference is saved", () => {
@@ -120,7 +168,9 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Expand");
+    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent(
+      "Expand",
+    );
   });
 
   it("respects persisted expanded preference even when child sessions exceed threshold", () => {
@@ -228,5 +278,81 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByText(/Status:\s*pending/i)).toBeInTheDocument();
+  });
+
+  it("retries existing child session in place", async () => {
+    mockStoreState.subSessionsByParent = {
+      [PARENT_SESSION_ID]: {
+        "child-session-1": {
+          title: "Child Session 1",
+          status: "pending",
+        },
+      },
+    };
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+
+    await waitFor(() => {
+      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith(
+        "child-session-1",
+        { mode: "after_last_user" },
+      );
+    });
+    expect(mockAgentClient.execute).toHaveBeenCalledWith(
+      "child-session-1",
+      "test-model",
+    );
+    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith(
+      "child-session-1",
+      true,
+    );
+    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith(
+      "child-session-1",
+      false,
+    );
+  });
+
+  it("deletes existing child session", async () => {
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    fireEvent.click(screen.getByTestId("sub-session-delete-child-session-1"));
+
+    await waitFor(() => {
+      expect(mockStoreState.deleteSession).toHaveBeenCalledWith(
+        "child-session-1",
+      );
+    });
+    expect(mockStoreState.clearSubSessionProgress).toHaveBeenCalledWith(
+      PARENT_SESSION_ID,
+      "child-session-1",
+    );
+  });
+
+  it("marks retry as error when no active model is configured", async () => {
+    mockStoreState.subSessionsByParent = {
+      [PARENT_SESSION_ID]: {
+        "child-session-1": {
+          title: "Child Session 1",
+          status: "pending",
+        },
+      },
+    };
+    mockUseActiveModel.mockReturnValue(undefined);
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+
+    await waitFor(() => {
+      expect(mockStoreState.upsertSubSessionProgress).toHaveBeenCalledWith(
+        PARENT_SESSION_ID,
+        "child-session-1",
+        expect.objectContaining({
+          status: "error",
+        }),
+      );
+    });
+    expect(mockAgentClient.truncateSessionMessages).not.toHaveBeenCalled();
+    expect(mockAgentClient.execute).not.toHaveBeenCalled();
   });
 });

@@ -24,7 +24,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Always enabled when rendered (LazyMermaidChart controls when to render)
-    const { renderState } = useMermaidRenderState(chart, true);
+    const { renderState, chartKey } = useMermaidRenderState(chart, true);
     const { svg, height, svgWidth, error, isLoading } = renderState;
 
     const calculateInitialScale = () => {
@@ -78,6 +78,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
         height={height}
         isLoading={isLoading}
         initialScale={initialScale}
+        chartKey={chartKey}
         className={className}
         style={style}
         token={token}

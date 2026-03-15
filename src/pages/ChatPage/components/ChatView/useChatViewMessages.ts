@@ -20,6 +20,12 @@ export type RenderableEntry =
       messageType?: MessageType;
     }
   | {
+      type: "compression_divider";
+      id: string;
+      createdAt: string;
+      label: string;
+    }
+  | {
       type: "tool_session";
       id: string;
       sessionId: string;
@@ -33,6 +39,12 @@ export type ConvertedEntry =
       message: Message;
       align: "flex-start" | "flex-end";
       messageType?: MessageType;
+    }
+  | {
+      type: "compression_divider";
+      id: string;
+      createdAt: string;
+      label: string;
     }
   | {
       type: "tool_session";
@@ -51,14 +63,27 @@ function isToolSessionEntry(
   return "type" in entry && entry.type === "tool_session";
 }
 
-/**
- * Check if a message is a tool-related message (call or result)
- */
-function isToolMessage(message: Message): boolean {
-  if (message.role !== "assistant") return false;
-  const type = (message as any).type;
-  return type === "tool_call" || type === "tool_result";
+function isCompressionDividerEntry(
+  entry: RenderableEntry,
+): entry is Extract<RenderableEntry, { type: "compression_divider" }> {
+  return "type" in entry && entry.type === "compression_divider";
 }
+
+const toTimestamp = (iso: string | undefined): number => {
+  const parsed = Date.parse(iso || "");
+  return Number.isFinite(parsed) ? parsed : Number.MAX_SAFE_INTEGER;
+};
+
+const getEntryCreatedAt = (entry: RenderableEntry): string => {
+  if ("type" in entry) {
+    return entry.createdAt;
+  }
+  return entry.message.createdAt;
+};
+
+const isSystemEntry = (entry: RenderableEntry): boolean => {
+  return !("type" in entry) && entry.message.role === "system";
+};
 
 /**
  * Check if a message is a tool call
@@ -81,44 +106,74 @@ function isToolResultMessage(
 }
 
 /**
- * Group consecutive tool messages into sessions
+ * Split and pair tool call/result messages into per-call entries.
+ *
+ * This keeps streaming and persisted-history rendering consistent:
+ * one tool invocation maps to one visual message entry.
  */
 function groupToolMessages(
   messages: Message[],
 ): Array<Message | ToolSessionItem[]> {
   const result: Array<Message | ToolSessionItem[]> = [];
-  let currentToolSession: ToolSessionItem[] = [];
+  const itemsByToolCallId = new Map<string, ToolSessionItem>();
 
   for (const message of messages) {
-    if (isToolMessage(message)) {
-      if (isToolCallMessage(message)) {
-        // Start a new tool item for the call
-        currentToolSession.push({ call: message });
-      } else if (isToolResultMessage(message)) {
-        // Find the matching call by toolCallId and add result
-        const matchingCallIndex = currentToolSession.findIndex(
-          (item) =>
-            item.call.toolCalls?.some(
-              (tc) => tc.toolCallId === message.toolCallId,
-            ),
-        );
-        if (matchingCallIndex !== -1) {
-          currentToolSession[matchingCallIndex].result = message;
-        }
+    if (isToolCallMessage(message)) {
+      const toolCalls = message.toolCalls || [];
+      if (toolCalls.length === 0) {
+        result.push(message);
+        continue;
       }
-    } else {
-      // Not a tool message - flush current session if any
-      if (currentToolSession.length > 0) {
-        result.push(currentToolSession);
-        currentToolSession = [];
-      }
-      result.push(message);
-    }
-  }
 
-  // Flush remaining tool session
-  if (currentToolSession.length > 0) {
-    result.push(currentToolSession);
+      toolCalls.forEach((toolCall, index) => {
+        const callId = toolCall.toolCallId || `${message.id}-${index}`;
+        const singleCallMessage: AssistantToolCallMessage = {
+          ...message,
+          id: `${message.id}:${callId}`,
+          toolCalls: [{ ...toolCall, toolCallId: callId }],
+        };
+        const item: ToolSessionItem = { call: singleCallMessage };
+        itemsByToolCallId.set(callId, item);
+        result.push([item]);
+      });
+      continue;
+    }
+
+    if (isToolResultMessage(message)) {
+      const toolCallId = message.toolCallId;
+      const existing = toolCallId
+        ? itemsByToolCallId.get(toolCallId)
+        : undefined;
+      if (existing) {
+        existing.result = message;
+      } else {
+        const fallbackCallId = toolCallId || `unknown-${message.id}`;
+        const syntheticCall: AssistantToolCallMessage = {
+          role: "assistant",
+          type: "tool_call",
+          id: `synthetic-tool-call:${message.id}`,
+          createdAt: message.createdAt,
+          toolCalls: [
+            {
+              toolCallId: fallbackCallId,
+              toolName: message.toolName || "unknown",
+              parameters: {},
+              streamingOutput: "",
+            },
+          ],
+          isCompressed: message.isCompressed,
+          compressedEventId: message.compressedEventId,
+        };
+        const orphanItem: ToolSessionItem = {
+          call: syntheticCall,
+          result: message,
+        };
+        result.push([orphanItem]);
+      }
+      continue;
+    }
+
+    result.push(message);
   }
 
   return result;
@@ -156,6 +211,15 @@ export const useChatViewMessages = (
 
   const convertRenderableEntry = useCallback(
     (entry: RenderableEntry): ConvertedEntry => {
+      if (isCompressionDividerEntry(entry)) {
+        return {
+          type: "compression_divider",
+          id: entry.id,
+          createdAt: entry.createdAt,
+          label: entry.label,
+        };
+      }
+
       // Handle tool session type
       if (isToolSessionEntry(entry)) {
         return {
@@ -218,20 +282,23 @@ export const useChatViewMessages = (
       return true;
     });
 
-    // Group consecutive tool messages into sessions
+    // Build per-tool visual entries (stable between streaming and persisted history)
     const grouped = groupToolMessages(filtered);
+    const entries: RenderableEntry[] = [];
 
-    const entries: RenderableEntry[] = grouped.map((group, index) => {
+    grouped.forEach((group, index) => {
       if (Array.isArray(group)) {
-        // This is a tool session
         const firstTool = group[0];
-        return {
+        const firstCall = firstTool?.call?.toolCalls?.[0];
+        const toolCallId = firstCall?.toolCallId || firstTool?.call?.id;
+        entries.push({
           type: "tool_session",
-          id: `tool-session-${firstTool?.call?.id || index}`,
-          sessionId: `session-${firstTool?.call?.id || index}`,
+          id: `tool-session-${toolCallId || index}`,
+          sessionId: currentChat?.id || "default",
           tools: group,
           createdAt: firstTool?.call?.createdAt || new Date().toISOString(),
-        };
+        });
+        return;
       }
 
       // This is a regular message
@@ -250,10 +317,10 @@ export const useChatViewMessages = (
         }
       }
 
-      return {
+      entries.push({
         message,
         messageType: inferredType,
-      };
+      });
     });
 
     const hasSystemMessage = filtered.some((item) => item.role === "system");
@@ -261,8 +328,43 @@ export const useChatViewMessages = (
       entries.unshift({ message: systemPromptMessage });
     }
 
+    // Insert compression events into timeline by timestamp so newer messages
+    // naturally appear below historical compression separators.
+    const compressionEvents = currentChat?.config?.compressionEvents || [];
+    const firstNonSystemIndex = entries.findIndex(
+      (entry) => !isSystemEntry(entry),
+    );
+    const insertBoundary =
+      firstNonSystemIndex === -1 ? entries.length : firstNonSystemIndex;
+
+    for (const event of compressionEvents) {
+      const divider: RenderableEntry = {
+        type: "compression_divider",
+        id: `compression-divider-${event.id}`,
+        createdAt: event.createdAt,
+        label: `Context compressed - ${event.messagesCompressed} messages archived`,
+      };
+      const eventTs = toTimestamp(event.createdAt);
+      const insertIndex = entries.findIndex(
+        (entry, index) =>
+          index >= insertBoundary &&
+          toTimestamp(getEntryCreatedAt(entry)) > eventTs,
+      );
+      if (insertIndex === -1) {
+        entries.push(divider);
+      } else {
+        entries.splice(insertIndex, 0, divider);
+      }
+    }
+
     return entries;
-  }, [currentMessages, shouldHideMessage, systemPromptMessage]);
+  }, [
+    currentChat?.config?.compressionEvents,
+    currentChat?.id,
+    currentMessages,
+    shouldHideMessage,
+    systemPromptMessage,
+  ]);
 
   return {
     systemPromptMessage,

@@ -184,6 +184,43 @@ export function useAgentEventSubscription() {
             },
 
             onToolStart: (toolCallId, toolName, args) => {
+              // Flush any buffered assistant draft before tool execution starts
+              // so streaming view keeps a natural "assistant text -> tool call" order.
+              const streamingState =
+                streamingStateBySessionRef.current.get(sessionId);
+              const bufferedRaw = streamingState?.content || "";
+              if (bufferedRaw.trim().length > 0) {
+                const chat = useAppStore
+                  .getState()
+                  .chats.find((c) => c.id === sessionId);
+                const last = chat?.messages?.[chat.messages.length - 1] as any;
+                const lastIsSame =
+                  last?.role === "assistant" &&
+                  last?.type === "text" &&
+                  typeof last?.content === "string" &&
+                  last.content === bufferedRaw;
+
+                if (!lastIsSame) {
+                  void addMessage(sessionId, {
+                    id: `assistant-${Date.now()}`,
+                    role: "assistant",
+                    type: "text",
+                    content: bufferedRaw,
+                    createdAt: new Date().toISOString(),
+                    metadata: { sessionId, model: "agent" },
+                  });
+                }
+
+                if (streamingState) {
+                  streamingState.content = "";
+                  streamingMessageBus.publish({
+                    sessionId: streamingState.sessionId,
+                    messageId: streamingState.messageId,
+                    content: "",
+                  });
+                }
+              }
+
               // Track tool name for later use in onToolComplete
               toolNamesByCallIdRef.current.set(toolCallId, toolName);
 
@@ -480,7 +517,9 @@ export function useAgentEventSubscription() {
 
               upsertSubSessionProgress(parentSessionId, childSessionId, {
                 title,
-                status: "running",
+                // "started" now means "created + queued". Mark as pending until
+                // we observe child events/heartbeat/completion.
+                status: "pending",
                 lastEventAt: new Date().toISOString(),
               });
 
@@ -501,11 +540,13 @@ export function useAgentEventSubscription() {
                   ]?.[childSessionId]?.outputPreview || "";
                 const next = (prev + evt.content).slice(-2000);
                 upsertSubSessionProgress(parentSessionId, childSessionId, {
+                  status: "running",
                   outputPreview: next,
                   lastEventAt: new Date().toISOString(),
                 });
               } else {
                 upsertSubSessionProgress(parentSessionId, childSessionId, {
+                  status: "running",
                   lastEventAt: new Date().toISOString(),
                 });
               }
@@ -513,6 +554,7 @@ export function useAgentEventSubscription() {
 
             onSubSessionHeartbeat: (parentSessionId, childSessionId, ts) => {
               upsertSubSessionProgress(parentSessionId, childSessionId, {
+                status: "running",
                 lastHeartbeatAt: ts,
               });
             },
