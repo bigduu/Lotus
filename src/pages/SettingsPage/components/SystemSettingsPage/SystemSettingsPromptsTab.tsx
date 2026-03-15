@@ -10,6 +10,7 @@ import {
   Typography,
   theme,
 } from "antd";
+import { useTranslation } from "react-i18next";
 
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
 const { Text } = Typography;
@@ -40,6 +41,7 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
   onCopilotAskUserToggle,
   onSaveEnhancement,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const tabGap = token.marginLG;
 
@@ -56,50 +58,49 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
           size={token.marginXS}
           style={{ width: "100%" }}
         >
-          <Text strong>System Prompt Enhancement</Text>
+          <Text strong>{t("settings.promptsTab.title")}</Text>
           <Flex align="center" gap={token.marginSM}>
-            <Text strong>Mermaid Enhancement</Text>
+            <Text strong>{t("settings.promptsTab.mermaidEnhancement")}</Text>
             <Switch
               checked={mermaidEnhancementEnabled}
               onChange={onMermaidToggle}
-              checkedChildren="ON"
-              unCheckedChildren="OFF"
+              checkedChildren={t("settings.promptsTab.switchOn")}
+              unCheckedChildren={t("settings.promptsTab.switchOff")}
             />
           </Flex>
           <Flex align="center" gap={token.marginSM}>
-            <Text strong>TODO List Generation</Text>
+            <Text strong>{t("settings.promptsTab.todoListGeneration")}</Text>
             <Switch
               checked={todoEnhancementEnabled}
               onChange={onTodoToggle}
-              checkedChildren="ON"
-              unCheckedChildren="OFF"
+              checkedChildren={t("settings.promptsTab.switchOn")}
+              unCheckedChildren={t("settings.promptsTab.switchOff")}
             />
           </Flex>
           {showCopilotAskUserEnhancement && (
             <Flex align="center" gap={token.marginSM}>
-              <Text strong>Copilot ask_user Before Finish</Text>
+              <Text strong>{t("settings.promptsTab.copilotAskUserBeforeFinish")}</Text>
               <Switch
                 checked={copilotAskUserEnhancementEnabled}
                 onChange={onCopilotAskUserToggle}
-                checkedChildren="ON"
-                unCheckedChildren="OFF"
+                checkedChildren={t("settings.promptsTab.switchOn")}
+                unCheckedChildren={t("settings.promptsTab.switchOff")}
               />
             </Flex>
           )}
           <Input.TextArea
             rows={6}
-            placeholder="Add global enhancement text to append to every system prompt."
+            placeholder={t("settings.promptsTab.enhancementPlaceholder")}
             value={promptEnhancement}
             onChange={(event) => onPromptEnhancementChange(event.target.value)}
           />
           <Flex justify="flex-end">
             <Button type="primary" onClick={onSaveEnhancement}>
-              Save Enhancement
+              {t("settings.promptsTab.saveEnhancement")}
             </Button>
           </Flex>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            This text is appended first, followed by enabled system enhancements
-            before each request is sent.
+            {t("settings.promptsTab.description")}
           </Text>
         </Space>
       </Card>

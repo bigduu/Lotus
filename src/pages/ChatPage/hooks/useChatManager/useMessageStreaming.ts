@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { App as AntApp } from "antd";
-import { AgentClient } from "../../services/AgentService";
+import { AgentClient, type ReasoningEffort } from "../../services/AgentService";
 import type { ChatItem, Message, UserMessage } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
@@ -10,8 +10,12 @@ import { useActiveModel } from "../useActiveModel";
 import { useProviderStore } from "../../store/slices/providerSlice";
 
 export interface UseMessageStreaming {
-  sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
-  retryLastTurn: () => Promise<void>;
+  sendMessage: (
+    content: string,
+    images?: ImageFile[],
+    reasoningEffort?: ReasoningEffort,
+  ) => Promise<void>;
+  retryLastTurn: (reasoningEffort?: ReasoningEffort) => Promise<void>;
   cancel: () => void;
   agentAvailable: boolean | null;
 }
@@ -82,7 +86,12 @@ export function useMessageStreaming(
    * Note: Event subscription is handled by useAgentEventSubscription hook in ChatView
    */
   const sendWithAgent = useCallback(
-    async (content: string, sessionId: string, userMessage: UserMessage) => {
+    async (
+      content: string,
+      sessionId: string,
+      userMessage: UserMessage,
+      reasoningEffort?: ReasoningEffort,
+    ) => {
       // Validate model is available (TypeScript type guard)
       if (!activeModel) {
         throw new Error("Model not selected");
@@ -132,10 +141,13 @@ export function useMessageStreaming(
         await new Promise((resolve) => setTimeout(resolve, 0));
 
         // Step 3: Trigger execution (idempotent)
-        const executeResult = await agentClientRef.current.execute(
-          sessionId,
-          activeModel,
-        );
+        const executeResult = reasoningEffort
+          ? await agentClientRef.current.execute(
+              sessionId,
+              activeModel,
+              reasoningEffort,
+            )
+          : await agentClientRef.current.execute(sessionId, activeModel);
         console.log("[Agent] Execute status:", executeResult.status);
 
         // Keep/adjust processing state based on execute result.
@@ -159,7 +171,11 @@ export function useMessageStreaming(
   );
 
   const sendMessage = useCallback(
-    async (content: string, images?: ImageFile[]) => {
+    async (
+      content: string,
+      images?: ImageFile[],
+      reasoningEffort?: ReasoningEffort,
+    ) => {
       if (!currentChat) {
         modal.info({
           title: "No Active Chat",
@@ -225,7 +241,7 @@ export function useMessageStreaming(
 
       try {
         console.log("[useChatStreaming] Using Agent Server");
-        await sendWithAgent(content, sessionId, userMessage);
+        await sendWithAgent(content, sessionId, userMessage, reasoningEffort);
         // Note: Don't set processing false here - let useAgentEventSubscription handle it
       } catch (error) {
         if (streamingMessageIdRef.current) {
@@ -265,7 +281,8 @@ export function useMessageStreaming(
     ],
   );
 
-  const retryLastTurn = useCallback(async () => {
+  const retryLastTurn = useCallback(
+    async (reasoningEffort?: ReasoningEffort) => {
     if (!currentChat) {
       modal.info({
         title: "No Active Chat",
@@ -325,10 +342,13 @@ export function useMessageStreaming(
       deps.setSessionProcessing(sessionId, true);
 
       // Re-run execution (idempotent).
-      const executeResult = await agentClientRef.current.execute(
-        sessionId,
-        activeModel,
-      );
+      const executeResult = reasoningEffort
+        ? await agentClientRef.current.execute(
+            sessionId,
+            activeModel,
+            reasoningEffort,
+          )
+        : await agentClientRef.current.execute(sessionId, activeModel);
       if (["started", "already_running"].includes(executeResult.status)) {
         // Keep processing true.
         return;
@@ -348,15 +368,17 @@ export function useMessageStreaming(
     } finally {
       abortRef.current = null;
     }
-  }, [
-    activeModel,
-    agentAvailable,
-    appMessage,
-    checkAgentAvailability,
-    currentChat,
-    deps,
-    modal,
-  ]);
+    },
+    [
+      activeModel,
+      agentAvailable,
+      appMessage,
+      checkAgentAvailability,
+      currentChat,
+      deps,
+      modal,
+    ],
+  );
 
   return {
     sendMessage,

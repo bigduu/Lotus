@@ -3,6 +3,7 @@ import { Button, Popconfirm, Space, Table, Tag, theme } from "antd";
 import type { TableProps } from "antd";
 import { ServerStatus, type McpServer } from "@services/mcp";
 import type { McpServerAction } from "../hooks/useMcpSettings";
+import { useTranslation } from "react-i18next";
 
 interface McpServerTableProps {
   servers: McpServer[];
@@ -45,30 +46,40 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
   onRefreshTools,
   isServerActionLoading,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
 
   const columns = useMemo<TableProps<McpServer>["columns"]>(
     () => [
       {
         key: "name",
-        title: "Name",
+        title: t("settings.mcpServerTable.columns.name"),
         render: (_, record) => record.name || record.id,
       },
       {
         key: "transport",
-        title: "Transport Type",
+        title: t("settings.mcpServerTable.columns.transportType"),
         render: (_, record) =>
-          record.config.transport.type === "sse" ? "SSE" : "Stdio",
+          record.config.transport.type === "sse"
+            ? t("settings.mcpServerTable.transportOptions.sse")
+            : t("settings.mcpServerTable.transportOptions.stdio"),
         width: 140,
       },
       {
         key: "status",
-        title: "Status",
+        title: t("settings.mcpServerTable.columns.status"),
         render: (_, record) => {
           const status = record.runtime?.status ?? ServerStatus.Stopped;
+          const statusLabelMap: Record<ServerStatus, string> = {
+            [ServerStatus.Connecting]: t("settings.mcpTab.status.connecting"),
+            [ServerStatus.Ready]: t("settings.mcpTab.status.ready"),
+            [ServerStatus.Degraded]: t("settings.mcpTab.status.degraded"),
+            [ServerStatus.Stopped]: t("settings.mcpTab.status.stopped"),
+            [ServerStatus.Error]: t("settings.mcpTab.status.error"),
+          };
           return (
             <Tag color={statusColorMap[status]} style={{ marginInlineEnd: 0 }}>
-              {status.toUpperCase()}
+              {statusLabelMap[status]}
             </Tag>
           );
         },
@@ -76,13 +87,13 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
       },
       {
         key: "toolCount",
-        title: "Tool Count",
+        title: t("settings.mcpServerTable.columns.toolCount"),
         render: (_, record) => record.runtime?.tool_count ?? 0,
         width: 100,
       },
       {
         key: "actions",
-        title: "Actions",
+        title: t("settings.mcpServerTable.columns.actions"),
         width: 360,
         render: (_, record) => {
           const status = record.runtime?.status ?? ServerStatus.Stopped;
@@ -96,13 +107,15 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                   onEditServer?.(record);
                 }}
               >
-                Edit
+                {t("settings.mcpServerTable.actions.edit")}
               </Button>
               <Popconfirm
-                title="Delete MCP server"
-                description={`Delete server \"${record.name || record.id}\"?`}
+                title={t("settings.mcpServerTable.deleteTitle")}
+                description={t("settings.mcpServerTable.deleteDescription", {
+                  name: record.name || record.id,
+                })}
                 onConfirm={() => onDeleteServer?.(record)}
-                okText="Delete"
+                okText={t("settings.mcpServerTable.actions.delete")}
                 okButtonProps={{
                   danger: true,
                   loading: isServerActionLoading?.(record.id, "delete"),
@@ -114,7 +127,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                   loading={isServerActionLoading?.(record.id, "delete")}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  Delete
+                  {t("settings.mcpServerTable.actions.delete")}
                 </Button>
               </Popconfirm>
 
@@ -127,7 +140,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                   }}
                   loading={isServerActionLoading?.(record.id, "disconnect")}
                 >
-                  Disconnect
+                  {t("settings.mcpServerTable.actions.disconnect")}
                 </Button>
               ) : (
                 <Button
@@ -140,7 +153,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                   }}
                   loading={isServerActionLoading?.(record.id, "connect")}
                 >
-                  Connect
+                  {t("settings.mcpServerTable.actions.connect")}
                 </Button>
               )}
 
@@ -152,7 +165,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                 }}
                 loading={isServerActionLoading?.(record.id, "refresh")}
               >
-                Refresh Tools
+                {t("settings.mcpServerTable.actions.refreshTools")}
               </Button>
             </Space>
           );
@@ -166,6 +179,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
       onDisconnectServer,
       onEditServer,
       onRefreshTools,
+      t,
       token.marginXS,
     ],
   );
@@ -177,7 +191,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
       dataSource={servers}
       loading={loading}
       pagination={false}
-      locale={{ emptyText: "No MCP servers configured" }}
+      locale={{ emptyText: t("settings.mcpServerTable.empty") }}
       onRow={(record) => ({
         onClick: () => onSelectServer?.(record.id),
         style: {

@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 
 import type { ForwardEndpointMetrics } from "../../../../../services/metrics";
 
@@ -22,11 +23,12 @@ const { useToken } = theme;
 const ForwardEndpointDistribution: React.FC<
   ForwardEndpointDistributionProps
 > = ({ data, loading }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
 
   if (loading) {
     return (
-      <Card size="small" title="Endpoint Distribution">
+      <Card size="small" title={t("settings.charts.endpointDistribution")}>
         <div style={{ width: "100%", height: 240 }}>
           <div
             style={{
@@ -37,7 +39,7 @@ const ForwardEndpointDistribution: React.FC<
               color: token.colorTextSecondary,
             }}
           >
-            Loading...
+            {t("settings.common.loading")}
           </div>
         </div>
       </Card>
@@ -46,7 +48,7 @@ const ForwardEndpointDistribution: React.FC<
 
   if (data.length === 0) {
     return (
-      <Card size="small" title="Endpoint Distribution">
+      <Card size="small" title={t("settings.charts.endpointDistribution")}>
         <div
           style={{
             display: "flex",
@@ -56,7 +58,7 @@ const ForwardEndpointDistribution: React.FC<
             color: token.colorTextSecondary,
           }}
         >
-          No forward metrics available for this range.
+          {t("settings.charts.noForwardMetrics")}
         </div>
       </Card>
     );
@@ -70,7 +72,7 @@ const ForwardEndpointDistribution: React.FC<
   }));
 
   return (
-    <Card size="small" title="Endpoint Distribution">
+    <Card size="small" title={t("settings.charts.endpointDistribution")}>
       <div style={{ width: "100%", height: 240 }}>
         <ResponsiveContainer>
           <BarChart data={chartData}>
@@ -87,14 +89,14 @@ const ForwardEndpointDistribution: React.FC<
             <Bar
               dataKey="successful"
               fill="#52c41a"
-              name="Successful"
+              name={t("settings.common.successful")}
               fillOpacity={0.8}
               radius={[4, 4, 0, 0]}
             />
             <Bar
               dataKey="failed"
               fill="#ff7875"
-              name="Failed"
+              name={t("settings.common.failed")}
               fillOpacity={0.8}
               radius={[4, 4, 0, 0]}
             />

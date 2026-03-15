@@ -1,5 +1,6 @@
 import { Badge, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { useTranslation } from "react-i18next";
 
 import type { ForwardRequestMetrics } from "../../../../../services/metrics";
 
@@ -35,9 +36,10 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
   requests,
   loading,
 }) => {
+  const { t } = useTranslation();
   const columns: ColumnsType<ForwardRequestMetrics> = [
     {
-      title: "ID",
+      title: t("settings.metricsTable.forward.columns.id"),
       dataIndex: "forward_id",
       key: "forward_id",
       width: 120,
@@ -48,7 +50,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       ),
     },
     {
-      title: "Endpoint",
+      title: t("settings.metricsTable.forward.columns.endpoint"),
       dataIndex: "endpoint",
       key: "endpoint",
       width: 150,
@@ -57,22 +59,26 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       ),
     },
     {
-      title: "Model",
+      title: t("settings.metricsTable.forward.columns.model"),
       dataIndex: "model",
       key: "model",
       width: 120,
     },
     {
-      title: "Type",
+      title: t("settings.metricsTable.forward.columns.type"),
       dataIndex: "is_stream",
       key: "is_stream",
       width: 80,
       render: (value: boolean) => (
-        <Tag color={value ? "purple" : "cyan"}>{value ? "Stream" : "Sync"}</Tag>
+        <Tag color={value ? "purple" : "cyan"}>
+          {value
+            ? t("settings.metricsTable.forward.typeStream")
+            : t("settings.metricsTable.forward.typeSync")}
+        </Tag>
       ),
     },
     {
-      title: "Status",
+      title: t("settings.metricsTable.forward.columns.status"),
       key: "status",
       width: 100,
       render: (_, record) => {
@@ -103,7 +109,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       },
     },
     {
-      title: "Tokens",
+      title: t("settings.metricsTable.forward.columns.tokens"),
       key: "tokens",
       width: 100,
       render: (_, record) =>
@@ -114,14 +120,14 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
         ),
     },
     {
-      title: "Duration",
+      title: t("settings.metricsTable.forward.columns.duration"),
       dataIndex: "duration_ms",
       key: "duration_ms",
       width: 100,
       render: (value?: number | null) => formatDuration(value),
     },
     {
-      title: "Started",
+      title: t("settings.metricsTable.forward.columns.started"),
       dataIndex: "started_at",
       key: "started_at",
       width: 160,
@@ -130,7 +136,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       ),
     },
     {
-      title: "Error",
+      title: t("settings.metricsTable.forward.columns.error"),
       dataIndex: "error",
       key: "error",
       width: 200,
@@ -155,12 +161,13 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       pagination={{
         pageSize: 10,
         showSizeChanger: true,
-        showTotal: (total) => `${total} requests`,
+        showTotal: (total) =>
+          t("settings.metricsTable.forward.totalRequests", { total }),
         pageSizeOptions: ["10", "20", "50", "100"],
       }}
       scroll={{ x: 1200 }}
       locale={{
-        emptyText: "No forward requests recorded for this range",
+        emptyText: t("settings.metricsTable.forward.empty"),
       }}
     />
   );

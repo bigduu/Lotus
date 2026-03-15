@@ -1,5 +1,6 @@
 import { Card, Empty, Skeleton, Typography } from "antd";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { useTranslation } from "react-i18next";
 
 import type { ModelMetrics } from "@services/metrics";
 
@@ -16,9 +17,10 @@ const ModelDistribution: React.FC<ModelDistributionProps> = ({
   data,
   loading,
 }) => {
+  const { t } = useTranslation();
   if (loading) {
     return (
-      <Card size="small" title="Model Distribution">
+      <Card size="small" title={t("settings.charts.modelDistribution")}>
         <Skeleton active paragraph={{ rows: 5 }} />
       </Card>
     );
@@ -30,15 +32,15 @@ const ModelDistribution: React.FC<ModelDistributionProps> = ({
   }));
 
   return (
-    <Card size="small" title="Model Distribution">
+    <Card size="small" title={t("settings.charts.modelDistribution")}>
       {chartData.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="No model metrics available"
+          description={t("settings.charts.noModelMetrics")}
         />
       ) : (
         <>
-          <Text type="secondary">Share of total tokens consumed by model.</Text>
+          <Text type="secondary">{t("settings.charts.modelDistributionDescription")}</Text>
           <div style={{ width: "100%", height: 280, marginTop: 12 }}>
             <ResponsiveContainer>
               <PieChart>

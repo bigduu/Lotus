@@ -117,6 +117,7 @@ export interface AssistantTextMessage extends BaseMessage {
       completion_tokens: number;
       total_tokens: number;
     };
+    reasoning?: string;
     should_continue?: boolean;
     continue_reason?: string;
     continuation_count?: number;

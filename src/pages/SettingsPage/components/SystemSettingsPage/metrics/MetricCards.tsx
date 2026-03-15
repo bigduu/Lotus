@@ -1,4 +1,5 @@
 import { Card, Col, Row, Skeleton, Statistic, theme } from "antd";
+import { useTranslation } from "react-i18next";
 
 import type { MetricsSummary, SessionMetrics } from "@services/metrics";
 
@@ -43,6 +44,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({
   sessions,
   loading,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
 
   if (loading) {
@@ -56,7 +58,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Total Sessions"
+            title={t("settings.metricsCards.totalSessions")}
             value={summary?.total_sessions ?? 0}
             precision={0}
           />
@@ -65,7 +67,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Chat Tokens"
+            title={t("settings.metricsCards.chatTokens")}
             value={summary?.total_tokens.total_tokens ?? 0}
             precision={0}
           />
@@ -74,7 +76,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Total Tool Calls"
+            title={t("settings.metricsCards.totalToolCalls")}
             value={summary?.total_tool_calls ?? 0}
             precision={0}
           />
@@ -83,7 +85,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Avg Session Duration"
+            title={t("settings.metricsCards.avgSessionDuration")}
             value={
               averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"
             }

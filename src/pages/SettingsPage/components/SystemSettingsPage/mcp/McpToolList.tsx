@@ -1,6 +1,7 @@
 import { Card, Collapse, Empty, List, Space, Typography } from "antd";
 import type { McpServer, McpToolInfo } from "../../../../../services/mcp";
 import JsonSchemaViewer from "../../../../../shared/components/JsonSchemaViewer";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 
@@ -18,18 +19,19 @@ export const McpToolList: React.FC<McpToolListProps> = ({
   tools,
   loading = false,
 }) => {
+  const { t } = useTranslation();
   return (
-    <Card title="MCP Tools" size="small">
+    <Card title={t("settings.mcpToolList.title")} size="small">
       {!server ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="Select a server to inspect its MCP tools"
+          description={t("settings.mcpToolList.selectServerHint")}
         />
       ) : (
         <List
           loading={loading}
           dataSource={tools}
-          locale={{ emptyText: "No tools found for this server" }}
+          locale={{ emptyText: t("settings.mcpToolList.empty") }}
           renderItem={(tool) => {
             const expectedAlias = buildExpectedAlias(
               tool.server_id,
@@ -40,11 +42,12 @@ export const McpToolList: React.FC<McpToolListProps> = ({
                 <Space direction="vertical" size={2} style={{ width: "100%" }}>
                   <Text strong>{tool.original_name}</Text>
                   <Text type="secondary">
-                    {tool.description || "No description available"}
+                    {tool.description || t("settings.mcpToolList.noDescription")}
                   </Text>
                   <Text code>{tool.alias}</Text>
                   <Text type="secondary">
-                    Alias mapping: <Text code>{expectedAlias}</Text>
+                    {t("settings.mcpToolList.aliasMapping")}:{" "}
+                    <Text code>{expectedAlias}</Text>
                   </Text>
                   {tool.parameters !== undefined && (
                     <Collapse
@@ -52,7 +55,7 @@ export const McpToolList: React.FC<McpToolListProps> = ({
                       items={[
                         {
                           key: "schema",
-                          label: "Parameters schema",
+                          label: t("settings.mcpToolList.parametersSchema"),
                           children: (
                             <JsonSchemaViewer schema={tool.parameters} />
                           ),

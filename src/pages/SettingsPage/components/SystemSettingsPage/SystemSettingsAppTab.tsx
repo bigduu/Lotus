@@ -10,6 +10,7 @@ import {
   theme,
   Divider,
 } from "antd";
+import { useTranslation } from "react-i18next";
 import {
   DeleteOutlined,
   WarningOutlined,
@@ -46,6 +47,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
   isResetting,
   darkModeKey,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
 
   return (
@@ -56,21 +58,20 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
         style={{ width: "100%" }}
       >
         <Flex align="center" gap={token.marginSM}>
-          <Text strong>Auto-generate Session Titles</Text>
+          <Text strong>{t("settings.appTab.autoGenerateTitle")}</Text>
           <Switch
             checked={autoGenerateTitles}
             loading={isUpdatingAutoTitlePreference}
             onChange={onAutoTitleToggle}
-            checkedChildren="ON"
-            unCheckedChildren="OFF"
+            checkedChildren={t("settings.appTab.switchOn")}
+            unCheckedChildren={t("settings.appTab.switchOff")}
           />
         </Flex>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          When enabled, the app generates a descriptive title after the first
-          assistant response.
+          {t("settings.appTab.autoGenerateTitleDesc")}
         </Text>
         <Flex align="center" gap={token.marginSM}>
-          <Text strong>Dark Mode</Text>
+          <Text strong>{t("settings.appTab.darkMode")}</Text>
           <Switch
             data-testid="dark-mode-toggle"
             checked={themeMode === "dark"}
@@ -79,44 +80,44 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
               onThemeModeChange(mode);
               localStorage.setItem(darkModeKey, mode);
             }}
-            checkedChildren="Dark"
-            unCheckedChildren="Light"
+            checkedChildren={t("settings.appTab.darkModeDark")}
+            unCheckedChildren={t("settings.appTab.darkModeLight")}
           />
         </Flex>
         <Popconfirm
-          title="Delete all sessions"
-          description="Are you sure? This will delete all sessions except pinned."
+          title={t("settings.appTab.deleteAllTitle")}
+          description={t("settings.appTab.deleteAllDescription")}
           onConfirm={onDeleteAll}
-          okText="Yes, delete all"
-          cancelText="Cancel"
+          okText={t("settings.appTab.confirmDeleteAll")}
+          cancelText={t("settings.appTab.cancel")}
           placement="top"
         >
           <Button danger block icon={<DeleteOutlined />}>
-            Delete All Sessions
+            {t("settings.appTab.deleteAllButton")}
           </Button>
         </Popconfirm>
         <Popconfirm
-          title="Delete empty sessions"
-          description="Are you sure? This will delete all sessions with no messages (except pinned)."
+          title={t("settings.appTab.deleteEmptyTitle")}
+          description={t("settings.appTab.deleteEmptyDescription")}
           onConfirm={onDeleteEmpty}
-          okText="Yes, delete empty"
-          cancelText="Cancel"
+          okText={t("settings.appTab.confirmDeleteEmpty")}
+          cancelText={t("settings.appTab.cancel")}
           placement="top"
         >
           <Button danger block icon={<DeleteOutlined />}>
-            Delete Empty Sessions
+            {t("settings.appTab.deleteEmptyButton")}
           </Button>
         </Popconfirm>
         <Popconfirm
-          title="Clear Local Storage"
-          description="Are you sure? This will delete all local storage data and reset the application."
+          title={t("settings.appTab.clearLocalStorageTitle")}
+          description={t("settings.appTab.clearLocalStorageDescription")}
           onConfirm={onClearLocalStorage}
-          okText="Yes, clear it"
-          cancelText="Cancel"
+          okText={t("settings.appTab.confirmClear")}
+          cancelText={t("settings.appTab.cancel")}
           placement="top"
         >
           <Button danger block icon={<DeleteOutlined />}>
-            Clear Local Storage
+            {t("settings.appTab.clearLocalStorageButton")}
           </Button>
         </Popconfirm>
 
@@ -125,30 +126,30 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
         <Flex align="center" gap={token.marginSM}>
           <WarningOutlined style={{ color: token.colorError }} />
           <Text strong style={{ color: token.colorError }}>
-            Danger Zone
+            {t("settings.appTab.dangerZone")}
           </Text>
         </Flex>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          These actions cannot be undone. All data will be permanently deleted.
+          {t("settings.appTab.dangerDescription")}
         </Text>
 
         <Popconfirm
-          title="Reset Application"
+          title={t("settings.appTab.resetApplicationTitle")}
           description={
             <div>
-              <p>Are you sure? This will:</p>
+              <p>{t("settings.appTab.resetApplicationIntro")}</p>
               <ul style={{ margin: 0, paddingLeft: 16 }}>
-                <li>Delete ALL sessions (including pinned)</li>
-                <li>Clear all local storage data</li>
-                <li>Reset config.json to default</li>
-                <li>Trigger the initial setup flow on next launch</li>
-                <li>Reload the application</li>
+                <li>{t("settings.appTab.resetStepDeleteAllSessions")}</li>
+                <li>{t("settings.appTab.resetStepClearStorage")}</li>
+                <li>{t("settings.appTab.resetStepResetConfig")}</li>
+                <li>{t("settings.appTab.resetStepSetupFlow")}</li>
+                <li>{t("settings.appTab.resetStepReload")}</li>
               </ul>
             </div>
           }
           onConfirm={onResetApp}
-          okText="Yes, reset everything"
-          cancelText="Cancel"
+          okText={t("settings.appTab.resetConfirm")}
+          cancelText={t("settings.appTab.cancel")}
           placement="top"
           okButtonProps={{ danger: true }}
         >
@@ -160,7 +161,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
             icon={<RedoOutlined />}
             loading={isResetting}
           >
-            Reset Application (All Data)
+            {t("settings.appTab.resetButton")}
           </Button>
         </Popconfirm>
       </Space>

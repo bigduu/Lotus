@@ -10,6 +10,7 @@ interface MessageInputControlsLeftProps {
   fileInputRef: React.RefObject<HTMLInputElement>;
   onFileInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onFileReferenceButtonClick?: () => void;
+  extraControl?: React.ReactNode;
 }
 
 const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
@@ -20,6 +21,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
   fileInputRef,
   onFileInputChange,
   onFileReferenceButtonClick,
+  extraControl,
 }) => {
   return (
     <Flex
@@ -74,6 +76,8 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
           title="Reference workspace files (@)"
         />
       )}
+
+      {extraControl}
     </Flex>
   );
 };

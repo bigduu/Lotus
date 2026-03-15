@@ -1,5 +1,5 @@
 import React, { useEffect, useState, memo, useMemo } from "react";
-import { Card, Flex, Space, Typography, theme } from "antd";
+import { Card, Collapse, Flex, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -239,8 +239,12 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
   ({ sessionId }) => {
     const { token } = useToken();
     const messageId = `streaming-${sessionId}`;
+    const reasoningMessageId = `streaming-reasoning-${sessionId}`;
     const [content, setContent] = useState<string>(
       () => streamingMessageBus.getLatest(messageId) ?? "",
+    );
+    const [reasoningContent, setReasoningContent] = useState<string>(
+      () => streamingMessageBus.getLatest(reasoningMessageId) ?? "",
     );
 
     useEffect(() => {
@@ -248,6 +252,12 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
         setContent(next ?? "");
       });
     }, [messageId]);
+
+    useEffect(() => {
+      return streamingMessageBus.subscribeMessage(reasoningMessageId, (next) => {
+        setReasoningContent(next ?? "");
+      });
+    }, [reasoningMessageId]);
 
     // 准备 Markdown 渲染配置
     // 流式阶段使用简化版配置（不渲染 Mermaid 图表，避免内容不完整导致的错误）
@@ -289,6 +299,33 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
             </Text>
           </Flex>
           <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
+            {reasoningContent ? (
+              <Collapse
+                size="small"
+                defaultActiveKey={["reasoning"]}
+                style={{
+                  marginBottom: token.marginSM,
+                  background: token.colorBgContainer,
+                  borderColor: token.colorBorderSecondary,
+                }}
+                items={[
+                  {
+                    key: "reasoning",
+                    label: <Text strong>Reasoning</Text>,
+                    children: (
+                      <ReactMarkdown
+                        remarkPlugins={markdownPlugins}
+                        rehypePlugins={rehypePlugins}
+                        components={markdownComponents}
+                      >
+                        {reasoningContent}
+                      </ReactMarkdown>
+                    ),
+                  },
+                ]}
+              />
+            ) : null}
+
             {!content ? (
               <Text italic>Assistant is thinking...</Text>
             ) : (

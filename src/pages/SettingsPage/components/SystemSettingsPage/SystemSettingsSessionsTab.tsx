@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { App as AntApp } from "antd";
 import { Button, Card, Flex, Switch, Typography } from "antd";
+import { useTranslation } from "react-i18next";
 
 import { AgentClient } from "../../../ChatPage/services/AgentService";
 import { useAppStore } from "../../../ChatPage/store";
@@ -10,6 +11,7 @@ const { Text } = Typography;
 const agentClient = AgentClient.getInstance();
 
 export default function SystemSettingsSessionsTab() {
+  const { t } = useTranslation();
   const { modal, message } = AntApp.useApp();
 
   const chats = useAppStore((s) => s.chats);
@@ -38,15 +40,16 @@ export default function SystemSettingsSessionsTab() {
 
   return (
     <Flex vertical gap={16}>
-      <Card size="small" title="Current Session">
+      <Card size="small" title={t("settings.sessionsTab.currentSessionTitle")}>
         {current ? (
           <Flex vertical gap={4}>
             <Text strong ellipsis>
               {current.title}
             </Text>
             <Text type="secondary" ellipsis>
-              id: {current.id}
-              {"  "}•{"  "}kind: {current.kind}
+              {t("settings.sessionsTab.id")}: {current.id}
+              {"  "}•{"  "}
+              {t("settings.sessionsTab.kind")}: {current.kind}
             </Text>
             <Flex gap={8} wrap="wrap" style={{ marginTop: 8 }}>
               <Button
@@ -54,35 +57,34 @@ export default function SystemSettingsSessionsTab() {
                 loading={busy}
                 onClick={() => {
                   modal.confirm({
-                    title: "Clear Session Messages",
-                    content:
-                      "This clears messages/attachments for the current session but keeps the session entry.",
-                    okText: "Clear",
+                    title: t("settings.sessionsTab.clearMessagesTitle"),
+                    content: t("settings.sessionsTab.clearMessagesContent"),
+                    okText: t("settings.sessionsTab.clear"),
                     okButtonProps: { danger: true },
-                    cancelText: "Cancel",
+                    cancelText: t("settings.sessionsTab.cancel"),
                     onOk: async () => {
                       await run(async () => {
                         await agentClient.clearSession(current.id);
                         await loadChatHistory(current.id);
                         await refreshChats();
-                        message.success("Session cleared");
+                        message.success(t("settings.sessionsTab.sessionCleared"));
                       });
                     },
                   });
                 }}
               >
-                Clear Messages
+                {t("settings.sessionsTab.clearMessages")}
               </Button>
             </Flex>
           </Flex>
         ) : (
-          <Text type="secondary">No active session.</Text>
+          <Text type="secondary">{t("settings.sessionsTab.noActiveSession")}</Text>
         )}
       </Card>
 
-      <Card size="small" title="Bulk Cleanup">
+      <Card size="small" title={t("settings.sessionsTab.bulkCleanupTitle")}>
         <Flex align="center" gap={8} style={{ marginBottom: 12 }}>
-          <Text>Keep pinned</Text>
+          <Text>{t("settings.sessionsTab.keepPinned")}</Text>
           <Switch checked={keepPinned} onChange={setKeepPinned} />
         </Flex>
 
@@ -92,24 +94,24 @@ export default function SystemSettingsSessionsTab() {
             loading={busy}
             onClick={() => {
               modal.confirm({
-                title: "Delete All Sessions",
+                title: t("settings.sessionsTab.deleteAllTitle"),
                 content: keepPinned
-                  ? "Deletes all sessions except pinned."
-                  : "Deletes all sessions including pinned.",
-                okText: "Delete",
+                  ? t("settings.sessionsTab.deleteAllKeepPinned")
+                  : t("settings.sessionsTab.deleteAllIncludePinned"),
+                okText: t("settings.sessionsTab.delete"),
                 okButtonProps: { danger: true },
-                cancelText: "Cancel",
+                cancelText: t("settings.sessionsTab.cancel"),
                 onOk: async () => {
                   await run(async () => {
                     await agentClient.cleanupSessions("all", keepPinned);
                     await loadChats();
-                    message.success("Cleanup complete");
+                    message.success(t("settings.sessionsTab.cleanupComplete"));
                   });
                 },
               });
             }}
           >
-            Delete All
+            {t("settings.sessionsTab.deleteAll")}
           </Button>
 
           <Button
@@ -117,24 +119,24 @@ export default function SystemSettingsSessionsTab() {
             loading={busy}
             onClick={() => {
               modal.confirm({
-                title: "Delete Empty Sessions",
+                title: t("settings.sessionsTab.deleteEmptyTitle"),
                 content: keepPinned
-                  ? "Deletes empty sessions except pinned."
-                  : "Deletes empty sessions including pinned.",
-                okText: "Delete",
+                  ? t("settings.sessionsTab.deleteEmptyKeepPinned")
+                  : t("settings.sessionsTab.deleteEmptyIncludePinned"),
+                okText: t("settings.sessionsTab.delete"),
                 okButtonProps: { danger: true },
-                cancelText: "Cancel",
+                cancelText: t("settings.sessionsTab.cancel"),
                 onOk: async () => {
                   await run(async () => {
                     await agentClient.cleanupSessions("empty", keepPinned);
                     await loadChats();
-                    message.success("Cleanup complete");
+                    message.success(t("settings.sessionsTab.cleanupComplete"));
                   });
                 },
               });
             }}
           >
-            Delete Empty
+            {t("settings.sessionsTab.deleteEmpty")}
           </Button>
 
           <Button
@@ -142,31 +144,31 @@ export default function SystemSettingsSessionsTab() {
             loading={busy}
             onClick={() => {
               modal.confirm({
-                title: "Delete Child Sessions",
+                title: t("settings.sessionsTab.deleteChildrenTitle"),
                 content: keepPinned
-                  ? "Deletes all child sessions except pinned."
-                  : "Deletes all child sessions including pinned.",
-                okText: "Delete",
+                  ? t("settings.sessionsTab.deleteChildrenKeepPinned")
+                  : t("settings.sessionsTab.deleteChildrenIncludePinned"),
+                okText: t("settings.sessionsTab.delete"),
                 okButtonProps: { danger: true },
-                cancelText: "Cancel",
+                cancelText: t("settings.sessionsTab.cancel"),
                 onOk: async () => {
                   await run(async () => {
                     await agentClient.cleanupSessions("children", keepPinned);
                     await loadChats();
-                    message.success("Cleanup complete");
+                    message.success(t("settings.sessionsTab.cleanupComplete"));
                   });
                 },
               });
             }}
           >
-            Delete Children
+            {t("settings.sessionsTab.deleteChildren")}
           </Button>
         </Flex>
       </Card>
 
-      <Card size="small" title="Development Reset">
+      <Card size="small" title={t("settings.sessionsTab.devResetTitle")}>
         <Text type="secondary">
-          Greenfield reset for session storage (deletes sessions/ and resets sessions.json).
+          {t("settings.sessionsTab.devResetDescription")}
         </Text>
         <Flex style={{ marginTop: 12 }}>
           <Button
@@ -175,23 +177,22 @@ export default function SystemSettingsSessionsTab() {
             loading={busy}
             onClick={() => {
               modal.confirm({
-                title: "Reset Session Storage (Dev)",
-                content:
-                  "This deletes ALL sessions (including pinned/child) and resets the sessions index. A new empty session will be created after refresh.",
-                okText: "Reset",
+                title: t("settings.sessionsTab.devResetConfirmTitle"),
+                content: t("settings.sessionsTab.devResetConfirmContent"),
+                okText: t("settings.sessionsTab.reset"),
                 okButtonProps: { danger: true },
-                cancelText: "Cancel",
+                cancelText: t("settings.sessionsTab.cancel"),
                 onOk: async () => {
                   await run(async () => {
                     await agentClient.devResetSessions();
                     await loadChats();
-                    message.success("Session storage reset");
+                    message.success(t("settings.sessionsTab.devResetDone"));
                   });
                 },
               });
             }}
           >
-            Dev Reset Sessions
+            {t("settings.sessionsTab.devResetAction")}
           </Button>
         </Flex>
       </Card>

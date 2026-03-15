@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Flex } from "antd";
 import { PlusOutlined, SettingOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 type ChatSidebarFooterProps = {
   collapsed: boolean;
@@ -17,8 +18,9 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   screens,
   token,
 }) => {
-  const newChatLabel = "New Session";
-  const settingsLabel = "System Settings";
+  const { t } = useTranslation();
+  const newChatLabel = t("chat.sidebar.newSession");
+  const settingsLabel = t("settings.page.title");
 
   return (
     <Flex

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Flex, Layout, Tabs, Typography, message, theme } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { useChatManager } from "../../../ChatPage/hooks/useChatManager";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
 import {
@@ -34,6 +35,7 @@ import { ProviderSettings } from "../ProviderSettings";
 import { SkillManager } from "../../../../components/Skill";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
 import ModelLimitsSettings from "../../ModelLimitsSettings";
+import type { AppLocale } from "../../../../shared/i18n/types";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -43,12 +45,17 @@ const DARK_MODE_KEY = "bamboo_dark_mode";
 const SystemSettingsPage = ({
   themeMode,
   onThemeModeChange,
+  locale,
+  onLocaleChange,
   onBack,
 }: {
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
+  locale: AppLocale;
+  onLocaleChange: (locale: AppLocale) => void;
   onBack: () => void;
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const {
     deleteAllUnpinnedChats,
@@ -75,17 +82,17 @@ const SystemSettingsPage = ({
 
   const handleDeleteAll = () => {
     void deleteAllUnpinnedChats();
-    msgApi.success("All sessions deleted (except pinned)");
+    msgApi.success(t("settings.notifications.deleteAllSuccess"));
   };
 
   const handleDeleteEmpty = () => {
     void deleteEmptyChats();
-    msgApi.success("Empty sessions deleted (except pinned)");
+    msgApi.success(t("settings.notifications.deleteEmptySuccess"));
   };
 
   const handleClearLocalStorage = () => {
     localStorage.clear();
-    msgApi.success("Local storage has been cleared");
+    msgApi.success(t("settings.notifications.localStorageCleared"));
   };
 
   const handleResetApp = async () => {
@@ -103,7 +110,7 @@ const SystemSettingsPage = ({
       // 4. Clear localStorage
       localStorage.clear();
 
-      msgApi.success("Application reset successful. Reloading...");
+      msgApi.success(t("settings.notifications.resetSuccessReloading"));
 
       // 5. Reload the page after a short delay
       setTimeout(() => {
@@ -112,7 +119,9 @@ const SystemSettingsPage = ({
     } catch (error) {
       console.error("Failed to reset application:", error);
       msgApi.error(
-        error instanceof Error ? error.message : "Failed to reset application",
+        error instanceof Error
+          ? error.message
+          : t("settings.notifications.resetFailed"),
       );
       setIsResetting(false);
     }
@@ -123,17 +132,17 @@ const SystemSettingsPage = ({
       await setAutoGenerateTitlesPreference(checked);
       msgApi.success(
         checked
-          ? "Auto title generation enabled"
-          : "Auto title generation disabled",
+          ? t("settings.notifications.autoTitleEnabled")
+          : t("settings.notifications.autoTitleDisabled"),
       );
     } catch (error) {
-      msgApi.error("Failed to update auto title preference");
+      msgApi.error(t("settings.notifications.autoTitleUpdateFailed"));
     }
   };
 
   const handleSaveEnhancement = () => {
     setSystemPromptEnhancement(promptEnhancement);
-    msgApi.success("System prompt enhancement saved");
+    msgApi.success(t("settings.notifications.promptEnhancementSaved"));
   };
 
   const handleMermaidToggle = (checked: boolean) => {
@@ -180,9 +189,9 @@ const SystemSettingsPage = ({
       >
         <Flex align="center" gap={token.marginSM}>
           <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
-            Back
+            {t("settings.page.back")}
           </Button>
-          <Text strong>System Settings</Text>
+          <Text strong>{t("settings.page.title")}</Text>
         </Flex>
       </Flex>
       <Layout.Content
@@ -198,12 +207,18 @@ const SystemSettingsPage = ({
           items={[
             {
               key: "config",
-              label: "Config",
-              children: <SystemSettingsConfigTab msgApi={msgApi} />,
+              label: t("settings.page.tabs.config"),
+              children: (
+                <SystemSettingsConfigTab
+                  msgApi={msgApi}
+                  locale={locale}
+                  onLocaleChange={onLocaleChange}
+                />
+              ),
             },
             {
               key: "prompts",
-              label: "Prompts",
+              label: t("settings.page.tabs.prompts"),
               children: (
                 <SystemSettingsPromptsTab
                   promptEnhancement={promptEnhancement}
@@ -223,47 +238,47 @@ const SystemSettingsPage = ({
             },
             {
               key: "mermaid",
-              label: "Mermaid",
+              label: t("settings.page.tabs.mermaid"),
               children: <MermaidSettingsTab />,
             },
             {
               key: "skills",
-              label: "Skills",
+              label: t("settings.page.tabs.skills"),
               children: <SkillManager />,
             },
             {
               key: "workflows",
-              label: "Workflows",
+              label: t("settings.page.tabs.workflows"),
               children: <SystemSettingsWorkflowsTab />,
             },
             {
               key: "mcp",
-              label: "MCP",
+              label: t("settings.page.tabs.mcp"),
               children: <SystemSettingsMcpTab />,
             },
             {
               key: "model-limits",
-              label: "Model Limits",
+              label: t("settings.page.tabs.modelLimits"),
               children: <ModelLimitsSettings />,
             },
             {
               key: "metrics",
-              label: "Metrics",
+              label: t("settings.page.tabs.metrics"),
               children: <SystemSettingsMetricsTab />,
             },
             {
               key: "schedules",
-              label: "Schedules",
+              label: t("settings.page.tabs.schedules"),
               children: <SystemSettingsSchedulesTab />,
             },
             {
               key: "sessions",
-              label: "Sessions",
+              label: t("settings.page.tabs.sessions"),
               children: <SystemSettingsSessionsTab />,
             },
             {
               key: "app",
-              label: "App",
+              label: t("settings.page.tabs.app"),
               children: (
                 <SystemSettingsAppTab
                   autoGenerateTitles={autoGenerateTitles}
@@ -282,17 +297,17 @@ const SystemSettingsPage = ({
             },
             {
               key: "provider",
-              label: "Provider",
+              label: t("settings.page.tabs.provider"),
               children: <ProviderSettings />,
             },
             {
               key: "hooks",
-              label: "Hooks",
+              label: t("settings.page.tabs.hooks"),
               children: <SystemSettingsHooksTab />,
             },
             {
               key: "masking",
-              label: "Masking",
+              label: t("settings.page.tabs.masking"),
               children: <SystemSettingsKeywordMaskingTab />,
             },
           ]}

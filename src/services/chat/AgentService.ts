@@ -9,6 +9,7 @@ import { agentApiClient } from "../api";
 // Agent Event Types (matching Rust backend)
 export type AgentEventType =
   | "token"
+  | "reasoning_token"
   | "tool_token"
   | "tool_start"
   | "tool_complete"
@@ -26,6 +27,8 @@ export type AgentEventType =
   | "sub_session_completed"
   | "complete"
   | "error";
+
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
 
 export interface TokenBudgetUsage {
   system_tokens: number;
@@ -145,6 +148,11 @@ export interface ExecuteResponse {
   events_url: string;
 }
 
+export interface ExecuteRequest {
+  model: string;
+  reasoning_effort?: ReasoningEffort;
+}
+
 export interface HistoryResponse {
   session_id: string;
   compression_events?: Array<{
@@ -172,6 +180,7 @@ export interface HistoryResponse {
       };
     }>;
     tool_call_id?: string;
+    reasoning?: string;
     created_at: string;
   }>;
 }
@@ -266,6 +275,7 @@ export interface ScheduleRunConfig {
   system_prompt?: string;
   task_message?: string;
   model?: string;
+  reasoning_effort?: ReasoningEffort;
   workspace_path?: string;
   enhance_prompt?: string;
   auto_execute?: boolean;
@@ -309,6 +319,7 @@ export interface ListScheduleSessionsResponse {
 // Event handlers type
 export interface AgentEventHandlers {
   onToken?: (content: string) => void;
+  onReasoningToken?: (content: string) => void;
   onToolToken?: (toolCallId: string, content: string) => void;
   onToolStart?: (
     toolCallId: string,
@@ -381,8 +392,16 @@ export class AgentClient {
    * Execute agent for a session (idempotent)
    * Returns status: started | already_running | completed | error | cancelled
    */
-  async execute(sessionId: string, model: string): Promise<ExecuteResponse> {
-    return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, { model });
+  async execute(
+    sessionId: string,
+    model: string,
+    reasoningEffort?: ReasoningEffort,
+  ): Promise<ExecuteResponse> {
+    const payload: ExecuteRequest = { model };
+    if (reasoningEffort) {
+      payload.reasoning_effort = reasoningEffort;
+    }
+    return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, payload);
   }
 
   /**
@@ -639,6 +658,9 @@ export class AgentClient {
     switch (event.type) {
       case "token":
         handlers.onToken?.(event.content || "");
+        break;
+      case "reasoning_token":
+        handlers.onReasoningToken?.(event.content || "");
         break;
       case "tool_token":
         handlers.onToolToken?.(event.tool_call_id || "", event.content || "");

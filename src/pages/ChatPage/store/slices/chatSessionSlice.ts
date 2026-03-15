@@ -132,6 +132,7 @@ const mapHistoryMessagesToUi = (
       function: { name: string; arguments: string };
     }>;
     tool_call_id?: string;
+    reasoning?: string;
     created_at: string;
   }>,
 ): Message[] => {
@@ -207,12 +208,17 @@ const mapHistoryMessagesToUi = (
       if (toolCalls.length > 0) {
         const assistantText = (msg.content || "").trim();
         if (assistantText) {
+          const metadata =
+            typeof msg.reasoning === "string" && msg.reasoning.trim().length > 0
+              ? { reasoning: msg.reasoning }
+              : {};
           const asst: AssistantTextMessage = {
             role: "assistant",
             type: "text",
             id: `${msg.id}_text`,
             createdAt,
             content: msg.content || "",
+            metadata,
             isCompressed: Boolean(msg.compressed),
             compressedEventId: msg.compressed_by_event_id,
           };
@@ -246,12 +252,17 @@ const mapHistoryMessagesToUi = (
         continue;
       }
 
+      const metadata =
+        typeof msg.reasoning === "string" && msg.reasoning.trim().length > 0
+          ? { reasoning: msg.reasoning }
+          : {};
       const asst: AssistantTextMessage = {
         role: "assistant",
         type: "text",
         id: msg.id,
         createdAt,
         content: msg.content || "",
+        metadata,
         isCompressed: Boolean(msg.compressed),
         compressedEventId: msg.compressed_by_event_id,
       };

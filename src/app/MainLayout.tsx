@@ -13,18 +13,23 @@ import { useProviderStore } from "../pages/ChatPage/store/slices/providerSlice";
 import { MultiPaneChatView } from "../pages/ChatPage/components/MultiPaneChatView";
 import { useUILayoutStore } from "../shared/store/uiLayoutStore";
 import { ResizableSplit } from "../shared/components/ResizableSplit";
+import type { AppLocale } from "../shared/i18n/types";
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
-}> = ({ themeMode, onThemeModeChange }) => {
+  locale: AppLocale;
+  onLocaleChange: (locale: AppLocale) => void;
+}> = ({ themeMode, onThemeModeChange, locale, onLocaleChange }) => {
   const settingsOpen = useSettingsViewStore((s) => s.isOpen);
   const closeSettings = useSettingsViewStore((s) => s.close);
   const { token } = theme.useToken();
   const mermaidSettings = useMermaidSettings();
 
   // Load provider configuration once for the whole app.
-  const loadProviderConfig = useProviderStore((state) => state.loadProviderConfig);
+  const loadProviderConfig = useProviderStore(
+    (state) => state.loadProviderConfig,
+  );
   useEffect(() => {
     loadProviderConfig();
   }, [loadProviderConfig]);
@@ -50,7 +55,9 @@ export const MainLayout: React.FC<{
   // Sidebar sizing (persisted)
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
   const sidebarWidthPx = useUILayoutStore((s) => s.sidebar.widthPx);
-  const sidebarCollapsedWidthPx = useUILayoutStore((s) => s.sidebar.collapsedWidthPx);
+  const sidebarCollapsedWidthPx = useUILayoutStore(
+    (s) => s.sidebar.collapsedWidthPx,
+  );
   const sidebarMinWidthPx = useUILayoutStore((s) => s.sidebar.minWidthPx);
   const sidebarMaxWidthPx = useUILayoutStore((s) => s.sidebar.maxWidthPx);
   const setSidebarWidthPx = useUILayoutStore((s) => s.setSidebarWidthPx);
@@ -79,6 +86,8 @@ export const MainLayout: React.FC<{
           <SystemSettingsPage
             themeMode={themeMode}
             onThemeModeChange={onThemeModeChange}
+            locale={locale}
+            onLocaleChange={onLocaleChange}
             onBack={closeSettings}
           />
         </Layout>

@@ -30,6 +30,7 @@ const createMemoryStorage = (): Storage => {
 // Some environments predefine a non-WebStorage `localStorage`.
 globalThis.localStorage = createMemoryStorage();
 globalThis.sessionStorage = createMemoryStorage();
+await import("@shared/i18n");
 
 // Always mock fetch to prevent network calls in tests
 global.fetch = vi.fn();

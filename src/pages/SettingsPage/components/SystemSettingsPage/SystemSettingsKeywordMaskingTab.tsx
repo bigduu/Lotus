@@ -19,6 +19,7 @@ import {
   SaveOutlined,
 } from "@ant-design/icons";
 import { ServiceFactory } from "../../../../services/common/ServiceFactory";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -32,25 +33,25 @@ interface KeywordEntry {
 const keywordExamples = [
   {
     value: "literal-token",
-    label: "Mask a literal token",
+    labelKey: "settings.keywordMaskingTab.example.literalToken",
     match_type: "exact",
     pattern: "sk-",
   },
   {
     value: "github",
-    label: "Mask GitHub tokens",
+    labelKey: "settings.keywordMaskingTab.example.githubTokens",
     match_type: "regex",
     pattern: "ghp_[A-Za-z0-9]+",
   },
   {
     value: "aws",
-    label: "Mask AWS keys",
+    labelKey: "settings.keywordMaskingTab.example.awsKeys",
     match_type: "regex",
     pattern: "AKIA[0-9A-Z]{16}",
   },
   {
     value: "email",
-    label: "Mask email addresses",
+    labelKey: "settings.keywordMaskingTab.example.emails",
     match_type: "regex",
     pattern: "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
   },
@@ -79,6 +80,7 @@ const applyPreviewMasking = (
 };
 
 const SystemSettingsKeywordMaskingTab: React.FC = () => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [entries, setEntries] = useState<KeywordEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -104,7 +106,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       // Type assertion to match the frontend enum type
       setEntries(response.entries as KeywordEntry[]);
     } catch (error) {
-      message.error("Failed to load keyword masking configuration");
+      message.error(t("settings.keywordMaskingTab.loadFailed"));
       console.error(error);
     } finally {
       setLoading(false);
@@ -121,7 +123,9 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
         const errorMessages = validationResult.errors
           .map((e) => `Entry ${e.index + 1}: ${e.message}`)
           .join("; ");
-        message.error(`Validation failed: ${errorMessages}`);
+        message.error(
+          `${t("settings.keywordMaskingTab.validationFailedPrefix")}: ${errorMessages}`,
+        );
         return false;
       }
 
@@ -129,11 +133,13 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       const response = await serviceFactory.updateKeywordMaskingConfig(newEntries);
       // Type assertion to match the frontend enum type
       setEntries(response.entries as KeywordEntry[]);
-      message.success("Keyword masking configuration saved");
+      message.success(t("settings.keywordMaskingTab.saveSuccess"));
       return true;
     } catch (error) {
       message.error(
-        error instanceof Error ? error.message : "Failed to save configuration",
+        error instanceof Error
+          ? error.message
+          : t("settings.keywordMaskingTab.saveFailed"),
       );
       return false;
     }
@@ -169,7 +175,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     if (editingIndex === null) return;
 
     if (!editPattern.trim()) {
-      message.error("Pattern cannot be empty");
+      message.error(t("settings.keywordMaskingTab.patternRequired"));
       return;
     }
 
@@ -209,7 +215,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
 
   return (
     <Card
-      title="Keyword Masking"
+      title={t("settings.keywordMaskingTab.title")}
       extra={
         <Button
           data-testid="add-keyword"
@@ -218,21 +224,19 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
           onClick={handleAddEntry}
           loading={loading}
         >
-          Add Keyword
+          {t("settings.keywordMaskingTab.addKeyword")}
         </Button>
       }
     >
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <Text type="secondary">
-          Configure keywords to be masked before sending to Copilot API. Use
-          exact match for literal strings or regex for pattern matching. All
-          matches will be replaced with [MASKED].
+          {t("settings.keywordMaskingTab.description")}
         </Text>
 
         <List
           loading={loading}
           dataSource={entries}
-          locale={{ emptyText: "No keyword masking rules configured" }}
+          locale={{ emptyText: t("settings.keywordMaskingTab.empty") }}
           renderItem={(item, index) => (
             <List.Item
               style={{
@@ -252,7 +256,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         onClick={handleSaveEdit}
                       />,
                       <Button key="cancel" onClick={handleCancelEdit}>
-                        Cancel
+                        {t("settings.keywordMaskingTab.cancel")}
                       </Button>,
                     ]
                   : [
@@ -277,7 +281,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                   <>
                     <Input
                       data-testid="keyword-pattern-input"
-                      placeholder="Enter pattern to match"
+                      placeholder={t("settings.keywordMaskingTab.patternPlaceholder")}
                       value={editPattern}
                       onChange={(e) => setEditPattern(e.target.value)}
                       autoFocus
@@ -285,8 +289,8 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                     <Flex gap={8} align="center" wrap="wrap">
                       <Select
                         data-testid="keyword-examples-select"
-                        aria-label="Examples"
-                        placeholder="Examples"
+                        aria-label={t("settings.keywordMaskingTab.examples")}
+                        placeholder={t("settings.keywordMaskingTab.examples")}
                         value={exampleValue}
                         onChange={(value) => {
                           setExampleValue(value);
@@ -299,7 +303,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         }}
                         options={keywordExamples.map((example) => ({
                           value: example.value,
-                          label: example.label,
+                          label: t(example.labelKey),
                         }))}
                         style={{ minWidth: 220 }}
                       />
@@ -307,26 +311,32 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         value={editMatchType}
                         onChange={setEditMatchType}
                         options={[
-                          { value: "exact", label: "Exact Match" },
-                          { value: "regex", label: "Regex Pattern" },
+                          {
+                            value: "exact",
+                            label: t("settings.keywordMaskingTab.exactMatch"),
+                          },
+                          {
+                            value: "regex",
+                            label: t("settings.keywordMaskingTab.regexPattern"),
+                          },
                         ]}
                         style={{ width: 150 }}
                       />
                       <Switch
                         checked={editEnabled}
                         onChange={setEditEnabled}
-                        checkedChildren="Enabled"
-                        unCheckedChildren="Disabled"
+                        checkedChildren={t("settings.keywordMaskingTab.enabled")}
+                        unCheckedChildren={t("settings.keywordMaskingTab.disabled")}
                       />
                     </Flex>
                     <Flex vertical gap={6}>
-                      <Text type="secondary">Sample text</Text>
+                      <Text type="secondary">{t("settings.keywordMaskingTab.sampleText")}</Text>
                       <Input
-                        placeholder="Enter sample text"
+                        placeholder={t("settings.keywordMaskingTab.sampleTextPlaceholder")}
                         value={previewText}
                         onChange={(e) => setPreviewText(e.target.value)}
                       />
-                      <Text type="secondary">Masked preview</Text>
+                      <Text type="secondary">{t("settings.keywordMaskingTab.maskedPreview")}</Text>
                       <Input
                         readOnly
                         value={preview.masked}
@@ -341,16 +351,16 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                   // View mode
                   <Flex justify="space-between" align="center">
                     <Flex vertical gap={4}>
-                      <Text strong>{item.pattern || "(empty)"}</Text>
+                      <Text strong>{item.pattern || t("settings.keywordMaskingTab.emptyPattern")}</Text>
                       <Flex gap={8}>
                         <Text type="secondary" style={{ fontSize: 12 }}>
                           {item.match_type === "regex"
-                            ? "Regex Pattern"
-                            : "Exact Match"}
+                            ? t("settings.keywordMaskingTab.regexPattern")
+                            : t("settings.keywordMaskingTab.exactMatch")}
                         </Text>
                         {!item.enabled && (
                           <Text type="warning" style={{ fontSize: 12 }}>
-                            Disabled
+                            {t("settings.keywordMaskingTab.disabled")}
                           </Text>
                         )}
                       </Flex>

@@ -1,4 +1,5 @@
 import { Card, Col, Row, Skeleton, Statistic, theme } from "antd";
+import { useTranslation } from "react-i18next";
 
 import type {
   CombinedSummary,
@@ -64,6 +65,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
   sessions,
   loading,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
 
   if (loading) {
@@ -80,7 +82,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Total Requests"
+            title={t("settings.unifiedMetricsCards.totalRequests")}
             value={combinedSummary?.total_requests ?? 0}
             precision={0}
             valueStyle={{ color: token.colorPrimary }}
@@ -90,7 +92,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Total Tokens"
+            title={t("settings.unifiedMetricsCards.totalTokens")}
             value={combinedSummary?.total_tokens ?? 0}
             precision={0}
           />
@@ -99,7 +101,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Success Rate"
+            title={t("settings.unifiedMetricsCards.successRate")}
             value={successRate}
             suffix="%"
             valueStyle={{
@@ -116,7 +118,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Avg Response Time"
+            title={t("settings.unifiedMetricsCards.avgResponseTime")}
             value={formatDuration(avgForwardDuration)}
           />
         </Card>
@@ -126,7 +128,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Chat Sessions"
+            title={t("settings.unifiedMetricsCards.chatSessions")}
             value={chatSummary?.total_sessions ?? 0}
             precision={0}
           />
@@ -135,7 +137,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Chat Tokens"
+            title={t("settings.unifiedMetricsCards.chatTokens")}
             value={chatSummary?.total_tokens.total_tokens ?? 0}
             precision={0}
           />
@@ -144,7 +146,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Tool Calls"
+            title={t("settings.unifiedMetricsCards.toolCalls")}
             value={chatSummary?.total_tool_calls ?? 0}
             precision={0}
           />
@@ -153,7 +155,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Avg Session Duration"
+            title={t("settings.unifiedMetricsCards.avgSessionDuration")}
             value={
               averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"
             }
@@ -165,7 +167,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Forward Requests"
+            title={t("settings.unifiedMetricsCards.forwardRequests")}
             value={forwardSummary?.total_requests ?? 0}
             precision={0}
           />
@@ -174,7 +176,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Forward Tokens"
+            title={t("settings.unifiedMetricsCards.forwardTokens")}
             value={forwardSummary?.total_tokens.total_tokens ?? 0}
             precision={0}
           />
@@ -183,7 +185,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Successful"
+            title={t("settings.unifiedMetricsCards.successful")}
             value={forwardSummary?.successful_requests ?? 0}
             precision={0}
             valueStyle={{ color: "#52c41a" }}
@@ -193,7 +195,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Failed"
+            title={t("settings.unifiedMetricsCards.failed")}
             value={forwardSummary?.failed_requests ?? 0}
             precision={0}
             valueStyle={{

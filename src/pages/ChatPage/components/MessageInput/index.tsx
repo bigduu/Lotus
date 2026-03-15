@@ -55,6 +55,7 @@ interface MessageInputProps {
   onFileReferenceChange?: (info: FileReferenceInfo) => void;
   onFileReferenceButtonClick?: () => void;
   maxCharCount?: number;
+  leftControlsExtra?: React.ReactNode;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -76,6 +77,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onFileReferenceChange,
   onFileReferenceButtonClick,
   maxCharCount,
+  leftControlsExtra,
 }) => {
   const {
     isStreaming,
@@ -224,6 +226,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             fileInputRef={fileInputRef}
             onFileInputChange={handleFileInputChange}
             onFileReferenceButtonClick={onFileReferenceButtonClick}
+            extraControl={leftControlsExtra}
           />
 
           {/* Text input */}

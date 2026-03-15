@@ -18,6 +18,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Bar,
   BarChart,
@@ -108,37 +109,8 @@ const formatDuration = (durationMs?: number | null): string => {
   return `${seconds}s`;
 };
 
-const roundColumns: ColumnsType<RoundMetrics> = [
-  {
-    title: "Round",
-    dataIndex: "round_id",
-    key: "round_id",
-    render: (value: string) => `${value.slice(0, 8)}...`,
-  },
-  {
-    title: "Status",
-    dataIndex: "status",
-    key: "status",
-  },
-  {
-    title: "Duration",
-    dataIndex: "duration_ms",
-    key: "duration_ms",
-    render: (value?: number | null) => formatDuration(value),
-  },
-  {
-    title: "Tokens",
-    key: "tokens",
-    render: (_, round) => round.token_usage.total_tokens.toLocaleString(),
-  },
-  {
-    title: "Tool Calls",
-    key: "tool_calls",
-    render: (_, round) => round.tool_calls.length,
-  },
-];
-
 const SystemSettingsMetricsTab: React.FC = () => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
@@ -259,6 +231,40 @@ const SystemSettingsMetricsTab: React.FC = () => {
     return durations[Math.max(0, Math.min(index, durations.length - 1))];
   }, [forwardRequests]);
 
+  const roundColumns: ColumnsType<RoundMetrics> = useMemo(
+    () => [
+      {
+        title: t("settings.metricsDashboard.roundColumns.round"),
+        dataIndex: "round_id",
+        key: "round_id",
+        render: (value: string) => `${value.slice(0, 8)}...`,
+      },
+      {
+        title: t("settings.metricsDashboard.roundColumns.status"),
+        dataIndex: "status",
+        key: "status",
+      },
+      {
+        title: t("settings.metricsDashboard.roundColumns.duration"),
+        dataIndex: "duration_ms",
+        key: "duration_ms",
+        render: (value?: number | null) => formatDuration(value),
+      },
+      {
+        title: t("settings.metricsDashboard.roundColumns.tokens"),
+        key: "tokens",
+        render: (_: unknown, round: RoundMetrics) =>
+          round.token_usage.total_tokens.toLocaleString(),
+      },
+      {
+        title: t("settings.metricsDashboard.roundColumns.toolCalls"),
+        key: "tool_calls",
+        render: (_: unknown, round: RoundMetrics) => round.tool_calls.length,
+      },
+    ],
+    [t],
+  );
+
   const compactStats = useMemo(() => {
     const totalSessions = summary?.total_sessions ?? 0;
     const totalSessionTokens = summary?.total_tokens.total_tokens ?? 0;
@@ -321,94 +327,102 @@ const SystemSettingsMetricsTab: React.FC = () => {
       realizedMinutesEstimate > 0
         ? Math.min(
             MAX_SPEED_MULTIPLIER,
-            Number((manualMinutesEstimate / realizedMinutesEstimate).toFixed(2)),
+            Number(
+              (manualMinutesEstimate / realizedMinutesEstimate).toFixed(2),
+            ),
           )
         : 1;
 
     return [
       {
-        title: "Combined Tokens",
+        title: t("settings.metricsDashboard.compactStats.combinedTokens"),
         value: totalCombinedTokens,
       },
       {
-        title: "Chat Tokens",
+        title: t("settings.metricsDashboard.compactStats.chatTokens"),
         value: totalSessionTokens,
       },
       {
-        title: "Forward Tokens",
+        title: t("settings.metricsDashboard.compactStats.forwardTokens"),
         value: totalForwardTokens,
       },
       {
-        title: "Avg Tokens / Session",
+        title: t("settings.metricsDashboard.compactStats.avgTokensPerSession"),
         value:
           totalSessions > 0
             ? Math.round(totalSessionTokens / totalSessions)
             : 0,
       },
       {
-        title: "Est. Time Saved",
+        title: t("settings.metricsDashboard.compactStats.estimatedTimeSaved"),
         value: savedDurationEstimate,
       },
       {
-        title: "Est. Efficiency Lift",
+        title: t(
+          "settings.metricsDashboard.compactStats.estimatedEfficiencyLift",
+        ),
         value: efficiencyLiftEstimate,
         suffix: "%",
       },
       {
-        title: "Est. Speed Multiplier",
+        title: t(
+          "settings.metricsDashboard.compactStats.estimatedSpeedMultiplier",
+        ),
         value: speedMultiplierEstimate,
-        suffix: "x",
+        suffix: t("settings.metricsDashboard.multiplierSuffix"),
       },
       {
-        title: "Est. Saved Workdays",
+        title: t(
+          "settings.metricsDashboard.compactStats.estimatedSavedWorkdays",
+        ),
         value: savedWorkdaysEstimate,
       },
       {
-        title: "Avg Rounds / Session",
+        title: t("settings.metricsDashboard.compactStats.avgRoundsPerSession"),
         value:
           totalSessions > 0
             ? Number((totalRounds / totalSessions).toFixed(2))
             : 0,
       },
       {
-        title: "Tool Calls / Session",
+        title: t("settings.metricsDashboard.compactStats.toolCallsPerSession"),
         value:
           totalSessions > 0
             ? Number((totalToolCalls / totalSessions).toFixed(2))
             : 0,
       },
       {
-        title: "Active Session Rate",
+        title: t("settings.metricsDashboard.compactStats.activeSessionRate"),
         value: Number(activeRate.toFixed(1)),
         suffix: "%",
       },
       {
-        title: "Avg Tokens / Forward",
+        title: t("settings.metricsDashboard.compactStats.avgTokensPerForward"),
         value:
           totalForwardRequests > 0
             ? Math.round(totalForwardTokens / totalForwardRequests)
             : 0,
       },
       {
-        title: "Forward Error Rate",
+        title: t("settings.metricsDashboard.compactStats.forwardErrorRate"),
         value: Number(errorRate.toFixed(1)),
         suffix: "%",
       },
       {
-        title: "Streaming Ratio",
+        title: t("settings.metricsDashboard.compactStats.streamingRatio"),
         value: Number(streamRate.toFixed(1)),
         suffix: "%",
       },
       {
-        title: "P95 Forward Latency",
+        title: t("settings.metricsDashboard.compactStats.p95ForwardLatency"),
         value: formatDuration(p95ForwardDuration),
       },
       {
-        title: "Model Coverage",
+        title: t("settings.metricsDashboard.compactStats.modelCoverage"),
         value: modelMetrics.length,
       },
       {
-        title: "Endpoint Coverage",
+        title: t("settings.metricsDashboard.compactStats.endpointCoverage"),
         value: endpointMetrics.length,
       },
     ];
@@ -420,6 +434,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
     p95ForwardDuration,
     sessions,
     summary,
+    t,
   ]);
 
   const selectedSession = sessionDetail?.session;
@@ -434,7 +449,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
 
       <Card
         size="small"
-        title="Filters"
+        title={t("settings.metricsDashboard.filtersTitle")}
         extra={
           <Button
             icon={<ReloadOutlined />}
@@ -444,19 +459,19 @@ const SystemSettingsMetricsTab: React.FC = () => {
               void refreshForward();
             }}
           >
-            Refresh
+            {t("settings.metricsDashboard.refresh")}
           </Button>
         }
       >
         <Space wrap>
           <DatePicker
-            placeholder="Start date"
+            placeholder={t("settings.metricsDashboard.startDate")}
             onChange={(value) => {
               setStartDate(value ? value.format("YYYY-MM-DD") : undefined);
             }}
           />
           <DatePicker
-            placeholder="End date"
+            placeholder={t("settings.metricsDashboard.endDate")}
             onChange={(value) => {
               setEndDate(value ? value.format("YYYY-MM-DD") : undefined);
             }}
@@ -464,7 +479,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
           <Select
             allowClear
             style={{ minWidth: 180 }}
-            placeholder="Model"
+            placeholder={t("settings.metricsDashboard.model")}
             value={selectedModel}
             options={modelOptions}
             onChange={(value) => {
@@ -475,7 +490,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
             style={{ width: 120 }}
             value={days}
             options={[7, 14, 30, 90].map((value) => ({
-              label: `${value} days`,
+              label: t("settings.metricsDashboard.daysOption", { value }),
               value,
             }))}
             onChange={(value) => {
@@ -486,9 +501,18 @@ const SystemSettingsMetricsTab: React.FC = () => {
             style={{ width: 140 }}
             value={granularity}
             options={[
-              { label: "Daily", value: "daily" },
-              { label: "Weekly", value: "weekly" },
-              { label: "Monthly", value: "monthly" },
+              {
+                label: t("settings.metricsDashboard.granularity.daily"),
+                value: "daily",
+              },
+              {
+                label: t("settings.metricsDashboard.granularity.weekly"),
+                value: "weekly",
+              },
+              {
+                label: t("settings.metricsDashboard.granularity.monthly"),
+                value: "monthly",
+              },
             ]}
             onChange={(value: MetricsGranularity) => {
               setGranularity(value);
@@ -497,14 +521,14 @@ const SystemSettingsMetricsTab: React.FC = () => {
         </Space>
       </Card>
 
-      <Card size="small" title="Dashboard">
+      <Card size="small" title={t("settings.metricsDashboard.dashboardTitle")}>
         <Tabs
           size="small"
           destroyInactiveTabPane
           items={[
             {
               key: "overview",
-              label: "Overview",
+              label: t("settings.metricsDashboard.tabs.overview"),
               children: (
                 <Space
                   direction="vertical"
@@ -522,10 +546,10 @@ const SystemSettingsMetricsTab: React.FC = () => {
                   />
                   <Card
                     size="small"
-                    title="Derived Metrics (Compact)"
+                    title={t("settings.metricsDashboard.derivedMetricsTitle")}
                     extra={
                       <Text type="secondary">
-                        More dimensions without extra page length
+                        {t("settings.metricsDashboard.derivedMetricsSubtitle")}
                       </Text>
                     }
                   >
@@ -553,14 +577,17 @@ const SystemSettingsMetricsTab: React.FC = () => {
                       type="secondary"
                       style={{ display: "block", marginTop: token.marginXS }}
                     >
-                      Efficiency estimates use conservative assumptions:{" "}
-                      {MANUAL_TOKEN_THROUGHPUT_PER_MINUTE} manual tokens/min +{" "}
-                      {MANUAL_TOOL_TASK_MINUTES} min/tool vs{" "}
-                      {ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE} assisted tokens/min
-                      + {ASSISTED_TOOL_TASK_MINUTES} min/tool, then apply{" "}
-                      {Math.round(ESTIMATE_REALIZATION_FACTOR * 100)}% realization
-                      and caps ({MAX_EFFICIENCY_LIFT_PERCENT}% /{" "}
-                      {MAX_SPEED_MULTIPLIER}x).
+                      {t("settings.metricsDashboard.efficiencyHint", {
+                        manualTpm: MANUAL_TOKEN_THROUGHPUT_PER_MINUTE,
+                        manualToolMinutes: MANUAL_TOOL_TASK_MINUTES,
+                        assistedTpm: ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE,
+                        assistedToolMinutes: ASSISTED_TOOL_TASK_MINUTES,
+                        realization: Math.round(
+                          ESTIMATE_REALIZATION_FACTOR * 100,
+                        ),
+                        maxLift: MAX_EFFICIENCY_LIFT_PERCENT,
+                        maxMultiplier: MAX_SPEED_MULTIPLIER,
+                      })}
                     </Text>
                   </Card>
                 </Space>
@@ -568,7 +595,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
             },
             {
               key: "analysis",
-              label: "Analysis",
+              label: t("settings.metricsDashboard.tabs.analysis"),
               children: (
                 <Space
                   direction="vertical"
@@ -598,10 +625,13 @@ const SystemSettingsMetricsTab: React.FC = () => {
                       gap: token.marginSM,
                     }}
                   >
-                    <Card size="small" title="Tool Usage Frequency">
+                    <Card
+                      size="small"
+                      title={t("settings.metricsDashboard.toolUsageTitle")}
+                    >
                       {toolUsageData.length === 0 ? (
                         <Text type="secondary">
-                          No tool calls recorded for this range.
+                          {t("settings.metricsDashboard.noToolUsage")}
                         </Text>
                       ) : (
                         <div style={{ width: "100%", height: 240 }}>
@@ -620,7 +650,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
                               <Bar
                                 dataKey="count"
                                 fill="#1677ff"
-                                name="Calls"
+                                name={t("settings.metricsDashboard.calls")}
                               />
                             </BarChart>
                           </ResponsiveContainer>
@@ -628,10 +658,15 @@ const SystemSettingsMetricsTab: React.FC = () => {
                       )}
                     </Card>
 
-                    <Card size="small" title="Daily Activity Heatmap">
+                    <Card
+                      size="small"
+                      title={t(
+                        "settings.metricsDashboard.activityHeatmapTitle",
+                      )}
+                    >
                       {activityData.points.length === 0 ? (
                         <Text type="secondary">
-                          No activity available for this range.
+                          {t("settings.metricsDashboard.noActivity")}
                         </Text>
                       ) : (
                         <div
@@ -663,10 +698,14 @@ const SystemSettingsMetricsTab: React.FC = () => {
                                 {point.label}
                               </div>
                               <div style={{ fontWeight: 600, marginTop: 4 }}>
-                                {point.sessions} sessions
+                                {t("settings.metricsDashboard.sessionsCount", {
+                                  count: point.sessions,
+                                })}
                               </div>
                               <div style={{ fontSize: 12 }}>
-                                {point.tokens.toLocaleString()} tokens
+                                {t("settings.metricsDashboard.tokensAmount", {
+                                  value: point.tokens.toLocaleString(),
+                                })}
                               </div>
                             </div>
                           ))}
@@ -684,7 +723,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
             },
             {
               key: "records",
-              label: "Records",
+              label: t("settings.metricsDashboard.tabs.records"),
               children: (
                 <Tabs
                   size="small"
@@ -692,13 +731,15 @@ const SystemSettingsMetricsTab: React.FC = () => {
                   items={[
                     {
                       key: "sessions",
-                      label: `Sessions (${sessions.length})`,
+                      label: t("settings.metricsDashboard.sessionsTabLabel", {
+                        count: sessions.length,
+                      }),
                       children: (
                         <Card
                           size="small"
                           extra={
                             <Text type="secondary">
-                              Click a session for full round detail
+                              {t("settings.metricsDashboard.sessionsHint")}
                             </Text>
                           }
                         >
@@ -714,7 +755,9 @@ const SystemSettingsMetricsTab: React.FC = () => {
                     },
                     {
                       key: "forward-requests",
-                      label: `Forward Requests (${forwardRequests.length})`,
+                      label: t("settings.metricsDashboard.forwardTabLabel", {
+                        count: forwardRequests.length,
+                      }),
                       children: (
                         <Card size="small">
                           <ForwardRequestTable
@@ -733,7 +776,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
       </Card>
 
       <Modal
-        title="Session Metrics"
+        title={t("settings.metricsDashboard.sessionMetricsTitle")}
         open={Boolean(sessionDetail)}
         onCancel={clearSessionDetail}
         onOk={clearSessionDetail}
@@ -741,7 +784,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
         destroyOnClose
       >
         {isSessionDetailLoading ? (
-          <Text>Loading session details...</Text>
+          <Text>{t("settings.metricsDashboard.loadingSessionDetails")}</Text>
         ) : selectedSession ? (
           <Space
             direction="vertical"
@@ -749,25 +792,40 @@ const SystemSettingsMetricsTab: React.FC = () => {
             size={token.marginMD}
           >
             <Descriptions size="small" bordered column={2}>
-              <Descriptions.Item label="Session ID" span={2}>
+              <Descriptions.Item
+                label={t("settings.metricsDashboard.sessionDetail.sessionId")}
+                span={2}
+              >
                 {selectedSession.session_id}
               </Descriptions.Item>
-              <Descriptions.Item label="Model">
+              <Descriptions.Item
+                label={t("settings.metricsDashboard.sessionDetail.model")}
+              >
                 {selectedSession.model}
               </Descriptions.Item>
-              <Descriptions.Item label="Status">
+              <Descriptions.Item
+                label={t("settings.metricsDashboard.sessionDetail.status")}
+              >
                 {selectedSession.status}
               </Descriptions.Item>
-              <Descriptions.Item label="Duration">
+              <Descriptions.Item
+                label={t("settings.metricsDashboard.sessionDetail.duration")}
+              >
                 {formatDuration(selectedSession.duration_ms)}
               </Descriptions.Item>
-              <Descriptions.Item label="Messages">
+              <Descriptions.Item
+                label={t("settings.metricsDashboard.sessionDetail.messages")}
+              >
                 {selectedSession.message_count}
               </Descriptions.Item>
-              <Descriptions.Item label="Total Tokens">
+              <Descriptions.Item
+                label={t("settings.metricsDashboard.sessionDetail.totalTokens")}
+              >
                 {selectedSession.total_token_usage.total_tokens.toLocaleString()}
               </Descriptions.Item>
-              <Descriptions.Item label="Tool Calls">
+              <Descriptions.Item
+                label={t("settings.metricsDashboard.sessionDetail.toolCalls")}
+              >
                 {selectedSession.tool_call_count}
               </Descriptions.Item>
             </Descriptions>
@@ -781,7 +839,9 @@ const SystemSettingsMetricsTab: React.FC = () => {
             />
           </Space>
         ) : (
-          <Text type="secondary">No detail available.</Text>
+          <Text type="secondary">
+            {t("settings.metricsDashboard.noDetail")}
+          </Text>
         )}
       </Modal>
     </Space>

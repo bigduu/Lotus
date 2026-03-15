@@ -6,17 +6,19 @@ import React, {
   useRef,
   useCallback,
 } from "react";
-import { App as AntApp, Space, theme, Tag, Alert, Spin } from "antd";
+import { App as AntApp, Space, theme, Tag, Alert, Spin, Dropdown, Button } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import {
   ToolOutlined,
   RobotOutlined,
   SettingOutlined,
+  ExperimentOutlined,
 } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
 import { selectSessionById, useAppStore } from "../../store";
+import { readPersistedInputReasoningEffort } from "../../store/slices/inputStateSlice";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
 import { useInputContainerFileReferences } from "./useInputContainerFileReferences";
@@ -26,6 +28,8 @@ import { useInputContainerHistory } from "./useInputContainerHistory";
 import { getInputContainerPlaceholder } from "./inputContainerPlaceholder";
 import { useActiveModel } from "../../hooks/useActiveModel";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
+import { useProviderStore } from "../../store/slices/providerSlice";
+import type { ReasoningEffort } from "../../services/AgentService";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const CommandSelector = lazy(() => import("../CommandSelector"));
@@ -35,6 +39,15 @@ const FileReferenceSelector = lazy(() => import("../FileReferenceSelector"));
 const { useToken } = theme;
 const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
 const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
+const REASONING_EFFORT_OPTIONS: Array<{
+  value: ReasoningEffort;
+  label: string;
+}> = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "XHigh" },
+];
 
 type ChatSendMessageEventDetail = {
   content: string;
@@ -96,10 +109,28 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   );
   const setInputContent = useAppStore((state) => state.setInputContent);
   const setReferenceText = useAppStore((state) => state.setReferenceText);
+  const setInputReasoningEffort = useAppStore(
+    (state) => state.setInputReasoningEffort,
+  );
+  const currentProvider = useProviderStore((state) => state.currentProvider);
+  const providerConfig = useProviderStore((state) => state.providerConfig);
 
   // Use persisted state or empty defaults
   const content = inputState?.content || "";
   const referenceText = inputState?.referenceText || null;
+  const providerDefaultReasoningEffort = useMemo<ReasoningEffort | undefined>(
+    () => providerConfig.providers[currentProvider]?.reasoning_effort,
+    [providerConfig, currentProvider],
+  );
+  const persistedReasoningEffort = useMemo<ReasoningEffort | undefined>(
+    () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
+    [sessionId],
+  );
+  const reasoningEffort: ReasoningEffort =
+    inputState?.reasoningEffort ??
+    persistedReasoningEffort ??
+    providerDefaultReasoningEffort ??
+    "medium";
   const setContent = useCallback(
     (newContent: string) => {
       if (sessionId) {
@@ -115,6 +146,14 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
     },
     [sessionId, setReferenceText],
+  );
+  const setReasoningEffortPersisted = useCallback(
+    (nextEffort: ReasoningEffort) => {
+      if (sessionId) {
+        setInputReasoningEffort(sessionId, nextEffort);
+      }
+    },
+    [sessionId, setInputReasoningEffort],
   );
 
   const isProcessing = sessionId ? processingChats.has(sessionId) : false;
@@ -168,7 +207,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         return;
       }
 
-      sendMessage(contentValue)
+      sendMessage(contentValue, undefined, reasoningEffort)
         .then(() => {
           customEvent.detail?.resolve?.();
         })
@@ -188,7 +227,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         handleExternalSend as EventListener,
       );
     };
-  }, [activeSessionId, sessionId, sendMessage]);
+  }, [activeSessionId, sessionId, sendMessage, reasoningEffort]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -291,6 +330,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     selectedWorkflow: commandState.selectedCommand,
     matchesWorkflowToken: commandState.matchesCommandToken,
     fileReferences: fileReferenceState.fileReferences,
+    reasoningEffort,
     sendMessage,
     recordEntry,
     clearWorkflowDraft: commandState.clearCommandDraft,
@@ -304,6 +344,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     currentSessionId: sessionId,
     currentChat,
     currentMessages,
+    reasoningEffort,
     retryLastTurn,
     navigate,
   });
@@ -366,6 +407,50 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     allowedTools,
     autoToolPrefix,
   ]);
+
+  const currentReasoningLabel = useMemo(
+    () =>
+      REASONING_EFFORT_OPTIONS.find((option) => option.value === reasoningEffort)
+        ?.label ?? reasoningEffort,
+    [reasoningEffort],
+  );
+
+  const reasoningControl = (
+    <Dropdown
+      trigger={["click"]}
+      placement="topLeft"
+      disabled={!activeModel || isStreaming}
+      menu={{
+        selectable: true,
+        selectedKeys: [reasoningEffort],
+        items: REASONING_EFFORT_OPTIONS.map((option) => ({
+          key: option.value,
+          label: option.label,
+        })),
+        onClick: ({ key }) => {
+          setReasoningEffortPersisted(key as ReasoningEffort);
+        },
+      }}
+    >
+      <Button
+        type="text"
+        icon={<ExperimentOutlined />}
+        size="small"
+        disabled={!activeModel || isStreaming}
+        style={{
+          minWidth: "auto",
+          padding: "4px",
+          height: 32,
+          width: 32,
+          color:
+            reasoningEffort === "medium"
+              ? token.colorTextSecondary
+              : token.colorPrimary,
+        }}
+        title={`Reasoning: ${currentReasoningLabel}`}
+      />
+    </Dropdown>
+  );
 
   return (
     <div
@@ -493,6 +578,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         onFileReferenceButtonClick={
           fileReferenceState.handleFileReferenceButtonClick
         }
+        leftControlsExtra={reasoningControl}
         interaction={{
           isStreaming,
           hasMessages: currentMessages.some((m) => m.role === "user"),

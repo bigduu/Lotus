@@ -15,6 +15,7 @@ import {
 } from "antd";
 import { RestOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { theme } from "antd";
+import { useTranslation } from "react-i18next";
 import {
   useMermaidSettings,
   useUpdateMermaidSettings,
@@ -25,6 +26,7 @@ const { Title, Text } = Typography;
 const { useToken } = theme;
 
 export const MermaidSettingsTab: React.FC = () => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const settings = useMermaidSettings();
   const updateSettings = useUpdateMermaidSettings();
@@ -48,10 +50,10 @@ export const MermaidSettingsTab: React.FC = () => {
   return (
     <div style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
       <Title level={3} style={{ marginBottom: "8px" }}>
-        Mermaid Diagram Settings
+        {t("settings.mermaidTab.title")}
       </Title>
       <Text type="secondary" style={{ display: "block", marginBottom: "24px" }}>
-        Customize how Mermaid diagrams are rendered in your chats
+        {t("settings.mermaidTab.description")}
       </Text>
 
       <Form
@@ -62,7 +64,7 @@ export const MermaidSettingsTab: React.FC = () => {
       >
         {/* Theme Selection */}
         <Card
-          title="Theme"
+          title={t("settings.mermaidTab.themeCardTitle")}
           style={{ marginBottom: "16px" }}
           styles={{
             header: { backgroundColor: token.colorBgElevated },
@@ -74,8 +76,8 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="theme"
                 label={
                   <Space>
-                    Mermaid Theme
-                    <Tooltip title="Choose a built-in Mermaid theme. 'Default' and 'Neutral' auto-switch between light/dark based on app theme.">
+                    {t("settings.mermaidTab.themeLabel")}
+                    <Tooltip title={t("settings.mermaidTab.themeTooltip")}>
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -85,37 +87,38 @@ export const MermaidSettingsTab: React.FC = () => {
               >
                 <Select>
                   <Select.Option value="default">
-                    Default (Auto Light/Dark)
+                    {t("settings.mermaidTab.themeOptions.default")}
                   </Select.Option>
                   <Select.Option value="neutral">
-                    Neutral (Auto Light/Dark)
+                    {t("settings.mermaidTab.themeOptions.neutral")}
                   </Select.Option>
-                  <Select.Option value="dark">Dark</Select.Option>
+                  <Select.Option value="dark">
+                    {t("settings.mermaidTab.themeOptions.dark")}
+                  </Select.Option>
                   <Select.Option value="forest">
-                    Forest (Green Tones)
+                    {t("settings.mermaidTab.themeOptions.forest")}
                   </Select.Option>
-                  <Select.Option value="base">Base (Minimal)</Select.Option>
+                  <Select.Option value="base">
+                    {t("settings.mermaidTab.themeOptions.base")}
+                  </Select.Option>
                 </Select>
               </Form.Item>
             </Col>
           </Row>
 
           <Text type="secondary" style={{ display: "block", marginTop: "8px" }}>
-            <strong>Theme Descriptions:</strong>
-            <br />• <strong>Default</strong>: Classic Mermaid look, auto-adapts
-            to light/dark
-            <br />• <strong>Neutral</strong>: Gray tones, auto-adapts to
-            light/dark
-            <br />• <strong>Dark</strong>: Always dark theme
-            <br />• <strong>Forest</strong>: Green color scheme, good for
-            technical diagrams
-            <br />• <strong>Base</strong>: Minimal styling, for custom theming
+            <strong>{t("settings.mermaidTab.themeDescriptionsTitle")}</strong>
+            <br />• {t("settings.mermaidTab.themeDescriptions.default")}
+            <br />• {t("settings.mermaidTab.themeDescriptions.neutral")}
+            <br />• {t("settings.mermaidTab.themeDescriptions.dark")}
+            <br />• {t("settings.mermaidTab.themeDescriptions.forest")}
+            <br />• {t("settings.mermaidTab.themeDescriptions.base")}
           </Text>
         </Card>
 
         {/* Global Settings */}
         <Card
-          title="Global Settings"
+          title={t("settings.mermaidTab.globalCardTitle")}
           style={{ marginBottom: "16px" }}
           styles={{
             header: { backgroundColor: token.colorBgElevated },
@@ -127,8 +130,8 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="fontSize"
                 label={
                   <Space>
-                    Font Size
-                    <Tooltip title="Base font size for all diagram text (in pixels)">
+                    {t("settings.mermaidTab.fontSizeLabel")}
+                    <Tooltip title={t("settings.mermaidTab.fontSizeTooltip")}>
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -151,8 +154,10 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="defaultScale"
                 label={
                   <Space>
-                    Default Zoom
-                    <Tooltip title="Initial zoom level for diagrams (1.0 = 100%)">
+                    {t("settings.mermaidTab.defaultZoomLabel")}
+                    <Tooltip
+                      title={t("settings.mermaidTab.defaultZoomTooltip")}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -174,8 +179,10 @@ export const MermaidSettingsTab: React.FC = () => {
             name="useMaxWidth"
             label={
               <Space>
-                Responsive Width
-                <Tooltip title="Enable to make diagrams adapt to container width. Disable for fixed-width diagrams.">
+                {t("settings.mermaidTab.responsiveWidthLabel")}
+                <Tooltip
+                  title={t("settings.mermaidTab.responsiveWidthTooltip")}
+                >
                   <InfoCircleOutlined
                     style={{ color: token.colorTextSecondary }}
                   />
@@ -184,13 +191,16 @@ export const MermaidSettingsTab: React.FC = () => {
             }
             valuePropName="checked"
           >
-            <Switch checkedChildren="Auto" unCheckedChildren="Fixed" />
+            <Switch
+              checkedChildren={t("settings.mermaidTab.switchAuto")}
+              unCheckedChildren={t("settings.mermaidTab.switchFixed")}
+            />
           </Form.Item>
         </Card>
 
         {/* Flowchart Settings */}
         <Card
-          title="Flowchart Settings"
+          title={t("settings.mermaidTab.flowchartCardTitle")}
           style={{ marginBottom: "16px" }}
           styles={{
             header: { backgroundColor: token.colorBgElevated },
@@ -202,8 +212,12 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="flowchartNodeSpacing"
                 label={
                   <Space>
-                    Node Spacing
-                    <Tooltip title="Horizontal spacing between nodes">
+                    {t("settings.mermaidTab.flowchartNodeSpacingLabel")}
+                    <Tooltip
+                      title={t(
+                        "settings.mermaidTab.flowchartNodeSpacingTooltip",
+                      )}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -225,8 +239,12 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="flowchartRankSpacing"
                 label={
                   <Space>
-                    Rank Spacing
-                    <Tooltip title="Vertical spacing between layers">
+                    {t("settings.mermaidTab.flowchartRankSpacingLabel")}
+                    <Tooltip
+                      title={t(
+                        "settings.mermaidTab.flowchartRankSpacingTooltip",
+                      )}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -248,8 +266,10 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="flowchartCurve"
                 label={
                   <Space>
-                    Curve Type
-                    <Tooltip title="Type of curve for connections">
+                    {t("settings.mermaidTab.flowchartCurveTypeLabel")}
+                    <Tooltip
+                      title={t("settings.mermaidTab.flowchartCurveTypeTooltip")}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -258,9 +278,15 @@ export const MermaidSettingsTab: React.FC = () => {
                 }
               >
                 <Select>
-                  <Select.Option value="basis">Smooth (Basis)</Select.Option>
-                  <Select.Option value="linear">Linear</Select.Option>
-                  <Select.Option value="cardinal">Cardinal</Select.Option>
+                  <Select.Option value="basis">
+                    {t("settings.mermaidTab.flowchartCurveOptions.basis")}
+                  </Select.Option>
+                  <Select.Option value="linear">
+                    {t("settings.mermaidTab.flowchartCurveOptions.linear")}
+                  </Select.Option>
+                  <Select.Option value="cardinal">
+                    {t("settings.mermaidTab.flowchartCurveOptions.cardinal")}
+                  </Select.Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -269,7 +295,7 @@ export const MermaidSettingsTab: React.FC = () => {
 
         {/* Sequence Diagram Settings */}
         <Card
-          title="Sequence Diagram Settings"
+          title={t("settings.mermaidTab.sequenceCardTitle")}
           style={{ marginBottom: "16px" }}
           styles={{
             header: { backgroundColor: token.colorBgElevated },
@@ -281,8 +307,12 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="sequenceActorMargin"
                 label={
                   <Space>
-                    Actor Margin
-                    <Tooltip title="Spacing between actors">
+                    {t("settings.mermaidTab.sequenceActorMarginLabel")}
+                    <Tooltip
+                      title={t(
+                        "settings.mermaidTab.sequenceActorMarginTooltip",
+                      )}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -304,8 +334,12 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="sequenceMessageMargin"
                 label={
                   <Space>
-                    Message Margin
-                    <Tooltip title="Spacing between messages">
+                    {t("settings.mermaidTab.sequenceMessageMarginLabel")}
+                    <Tooltip
+                      title={t(
+                        "settings.mermaidTab.sequenceMessageMarginTooltip",
+                      )}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -327,8 +361,10 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="sequenceWidth"
                 label={
                   <Space>
-                    Actor Width
-                    <Tooltip title="Width of each actor box">
+                    {t("settings.mermaidTab.sequenceActorWidthLabel")}
+                    <Tooltip
+                      title={t("settings.mermaidTab.sequenceActorWidthTooltip")}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -350,8 +386,12 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="sequenceHeight"
                 label={
                   <Space>
-                    Actor Height
-                    <Tooltip title="Height of each actor box">
+                    {t("settings.mermaidTab.sequenceActorHeightLabel")}
+                    <Tooltip
+                      title={t(
+                        "settings.mermaidTab.sequenceActorHeightTooltip",
+                      )}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -372,7 +412,7 @@ export const MermaidSettingsTab: React.FC = () => {
 
         {/* Gantt Chart Settings */}
         <Card
-          title="Gantt Chart Settings"
+          title={t("settings.mermaidTab.ganttCardTitle")}
           style={{ marginBottom: "16px" }}
           styles={{
             header: { backgroundColor: token.colorBgElevated },
@@ -384,8 +424,10 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="ganttBarHeight"
                 label={
                   <Space>
-                    Bar Height
-                    <Tooltip title="Height of each task bar">
+                    {t("settings.mermaidTab.ganttBarHeightLabel")}
+                    <Tooltip
+                      title={t("settings.mermaidTab.ganttBarHeightTooltip")}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -408,8 +450,10 @@ export const MermaidSettingsTab: React.FC = () => {
                 name="ganttTopPadding"
                 label={
                   <Space>
-                    Top Padding
-                    <Tooltip title="Space at the top of the chart">
+                    {t("settings.mermaidTab.ganttTopPaddingLabel")}
+                    <Tooltip
+                      title={t("settings.mermaidTab.ganttTopPaddingTooltip")}
+                    >
                       <InfoCircleOutlined
                         style={{ color: token.colorTextSecondary }}
                       />
@@ -431,7 +475,7 @@ export const MermaidSettingsTab: React.FC = () => {
         {/* Actions */}
         <Space>
           <Button icon={<RestOutlined />} onClick={handleReset}>
-            Reset to Defaults
+            {t("settings.mermaidTab.resetToDefaults")}
           </Button>
         </Space>
 
@@ -439,14 +483,13 @@ export const MermaidSettingsTab: React.FC = () => {
 
         {/* Preview */}
         <Card
-          title="Preview"
+          title={t("settings.mermaidTab.previewTitle")}
           styles={{
             header: { backgroundColor: token.colorBgElevated },
           }}
         >
           <Text type="secondary">
-            Changes are applied immediately. Try creating or viewing a diagram
-            to see your settings in action.
+            {t("settings.mermaidTab.previewDescription")}
           </Text>
         </Card>
       </Form>

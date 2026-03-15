@@ -47,22 +47,19 @@ import {
   type BambooConfigValidationIssue,
 } from "../../../../services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
+import { useTranslation } from "react-i18next";
 
 const { Option } = Select;
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
 
-const RESPONSES_ONLY_MODELS_HELP = (
+const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
   <Space direction="vertical" size={4}>
     <Text type="secondary">
-      Some models only support the OpenAI Responses API (not chat/completions).
-      Add model ids here to force Bamboo to use upstream{" "}
+      {t("settings.providerTab.responsesOnlyHelp1")}{" "}
       <Text code>/responses</Text>.
     </Text>
-    <Text type="secondary">
-      Supports exact match (e.g. <Text code>gpt-5.3-codex</Text>) and prefix
-      match with a trailing <Text code>*</Text> (e.g. <Text code>gpt-5*</Text>).
-    </Text>
+    <Text type="secondary">{t("settings.providerTab.responsesOnlyHelp2")}</Text>
   </Space>
 );
 
@@ -80,6 +77,7 @@ const formatModelsForSelect = (models: string[]) =>
  * Allows users to configure and switch between different LLM providers.
  */
 export const ProviderSettings: React.FC = () => {
+  const { t } = useTranslation();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [applyingConfig, setApplyingConfig] = useState(false);
@@ -224,7 +222,7 @@ export const ProviderSettings: React.FC = () => {
       form.setFieldsValue(config);
       setConfigLoaded(true);
     } catch (error) {
-      message.error("Failed to load provider config");
+      message.error(t("settings.providerTab.loadConfigFailed"));
       console.error("Failed to load provider config:", error);
     } finally {
       setLoading(false);
@@ -240,7 +238,7 @@ export const ProviderSettings: React.FC = () => {
       console.error("Failed to check Copilot auth status:", error);
       setCopilotAuthStatus({
         authenticated: false,
-        message: "Failed to check status",
+        message: t("settings.providerTab.checkStatusFailed"),
       });
     } finally {
       setCheckingCopilotAuth(false);
@@ -255,7 +253,7 @@ export const ProviderSettings: React.FC = () => {
       setDeviceCodeInfo(deviceCode);
       setIsDeviceCodeModalVisible(true);
     } catch (error) {
-      message.error("Failed to start Copilot authentication");
+      message.error(t("settings.providerTab.startCopilotAuthFailed"));
       console.error("Failed to start Copilot authentication:", error);
     } finally {
       setAuthenticatingCopilot(false);
@@ -273,15 +271,15 @@ export const ProviderSettings: React.FC = () => {
         interval: deviceCodeInfo.interval || 5,
         expires_in: deviceCodeInfo.expires_in,
       });
-      message.success("Copilot authentication successful!");
+      message.success(t("settings.providerTab.copilotAuthSuccess"));
       setIsDeviceCodeModalVisible(false);
       setDeviceCodeInfo(null);
       await checkCopilotAuthStatus();
       // Reload provider to use the new authentication
       await settingsService.reloadConfig();
-      message.success("Provider reloaded with new authentication.");
+      message.success(t("settings.providerTab.providerReloaded"));
     } catch (error) {
-      message.error("Authentication completion failed. Please try again.");
+      message.error(t("settings.providerTab.completeAuthFailed"));
       console.error("Authentication completion failed:", error);
     } finally {
       setCompletingAuth(false);
@@ -295,12 +293,11 @@ export const ProviderSettings: React.FC = () => {
       try {
         await copyText(deviceCodeInfo.user_code);
         setCopiedUserCode(true);
-        message.success("User code copied to clipboard!");
+        message.success(t("settings.providerTab.userCodeCopied"));
         setTimeout(() => setCopiedUserCode(false), 2000);
       } catch (error) {
         message.error(
-          "Failed to copy code. Please manually copy: " +
-            deviceCodeInfo.user_code,
+          `${t("settings.providerTab.copyCodeFailedPrefix")} ${deviceCodeInfo.user_code}`,
         );
       }
     }
@@ -310,10 +307,10 @@ export const ProviderSettings: React.FC = () => {
     try {
       setAuthenticatingCopilot(true);
       await settingsService.logoutCopilot();
-      message.success("Logged out from Copilot");
+      message.success(t("settings.providerTab.logoutSuccess"));
       await checkCopilotAuthStatus();
     } catch (error) {
-      message.error("Failed to logout from Copilot");
+      message.error(t("settings.providerTab.logoutFailed"));
       console.error("Failed to logout:", error);
     } finally {
       setAuthenticatingCopilot(false);
@@ -333,7 +330,7 @@ export const ProviderSettings: React.FC = () => {
   const getErrorMessage = (error: unknown): string => {
     if (isApiError(error)) return error.message;
     if (error instanceof Error) return error.message;
-    return "Unknown error";
+    return t("settings.providerTab.unknownError");
   };
 
   const clearProviderValidationErrors = (provider: ProviderType) => {
@@ -416,7 +413,7 @@ export const ProviderSettings: React.FC = () => {
       const first = providerIssues[0];
       return {
         valid: false,
-        message: first?.message || "Invalid configuration",
+        message: first?.message || t("settings.providerTab.invalidConfig"),
       };
     } catch (error) {
       // Validation is best-effort; if it fails (network/server mismatch), fall back to strict
@@ -434,15 +431,15 @@ export const ProviderSettings: React.FC = () => {
     },
   ) => {
     const providerLabel: Record<ModelProvider, string> = {
-      openai: "OpenAI",
-      anthropic: "Anthropic",
-      gemini: "Gemini",
-      copilot: "Copilot",
+      openai: t("settings.providerTab.providerNames.openai"),
+      anthropic: t("settings.providerTab.providerNames.anthropic"),
+      gemini: t("settings.providerTab.providerNames.gemini"),
+      copilot: t("settings.providerTab.providerNames.copilot"),
     };
     const fallbackMessage =
       provider === "copilot"
-        ? "Failed to fetch models. Please authenticate Copilot and try again."
-        : "Failed to fetch models. Please check your API key and base URL.";
+        ? t("settings.providerTab.fetchModelsCopilotFailed")
+        : t("settings.providerTab.fetchModelsFailed");
 
     if (!options?.force && availableModels.length > 0) return;
 
@@ -460,15 +457,18 @@ export const ProviderSettings: React.FC = () => {
       setAvailableModels(formattedModels);
 
       if (provider === "copilot" && formattedModels.length === 0) {
-        const msg =
-          "No models returned. Authenticate Copilot first, then fetch models.";
+        const msg = t("settings.providerTab.noModelsReturned");
         setModelsFetchError(msg);
         if (options?.showMessage !== false) message.warning(msg);
         return;
       }
 
       if (options?.showMessage !== false) {
-        message.success(`Found ${formattedModels.length} available models`);
+        message.success(
+          t("settings.providerTab.foundModels", {
+            count: formattedModels.length,
+          }),
+        );
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error);
@@ -476,7 +476,7 @@ export const ProviderSettings: React.FC = () => {
       if (options?.showMessage !== false) {
         message.error(
           errorMessage
-            ? `Failed to fetch models: ${errorMessage}`
+            ? `${t("settings.providerTab.fetchModelsErrorPrefix")}: ${errorMessage}`
             : fallbackMessage,
         );
       }
@@ -506,9 +506,12 @@ export const ProviderSettings: React.FC = () => {
 
       const validation = await validateProviderPatch(values);
       if (!validation.valid) {
-        const errorMessage = validation.message || "Invalid configuration";
+        const errorMessage =
+          validation.message || t("settings.providerTab.invalidConfig");
         if (options?.showMessage !== false) {
-          message.error(`Invalid configuration: ${errorMessage}`);
+          message.error(
+            `${t("settings.providerTab.invalidConfigPrefix")}: ${errorMessage}`,
+          );
         }
         if (options?.throwOnError) throw new Error(errorMessage);
         return;
@@ -517,15 +520,15 @@ export const ProviderSettings: React.FC = () => {
       console.log("Saving provider config:", payload);
       await settingsService.saveProviderConfig(payload);
       if (options?.showMessage !== false) {
-        message.success("Configuration saved successfully");
+        message.success(t("settings.providerTab.saveConfigSuccess"));
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       if (options?.showMessage !== false) {
         message.error(
           errorMessage
-            ? `Failed to save configuration: ${errorMessage}`
-            : "Failed to save configuration",
+            ? `${t("settings.providerTab.saveConfigErrorPrefix")}: ${errorMessage}`
+            : t("settings.providerTab.saveConfigFailed"),
         );
       }
       console.error("Failed to save configuration:", error);
@@ -552,7 +555,7 @@ export const ProviderSettings: React.FC = () => {
 
       if (options?.showMessage !== false) {
         message.success(
-          "Configuration applied successfully. Changes will take effect for new conversations.",
+          t("settings.providerTab.applyConfigSuccess"),
         );
       }
     } catch (error) {
@@ -560,8 +563,8 @@ export const ProviderSettings: React.FC = () => {
       if (options?.showMessage !== false) {
         message.error(
           errorMessage
-            ? `Failed to apply configuration: ${errorMessage}`
-            : "Failed to apply configuration",
+            ? `${t("settings.providerTab.applyConfigErrorPrefix")}: ${errorMessage}`
+            : t("settings.providerTab.applyConfigFailed"),
         );
       }
       console.error("Failed to apply configuration:", error);
@@ -600,8 +603,8 @@ export const ProviderSettings: React.FC = () => {
       setHasTriedFetchModels(true);
       message.error(
         errorMessage
-          ? `Failed to save configuration: ${errorMessage}`
-          : "Failed to save configuration",
+          ? `${t("settings.providerTab.saveConfigErrorPrefix")}: ${errorMessage}`
+          : t("settings.providerTab.saveConfigFailed"),
       );
       return;
     }
@@ -649,15 +652,15 @@ export const ProviderSettings: React.FC = () => {
       await handleApply({ showMessage: false, throwOnError: true });
 
       setModelAutoSaveStatus("success");
-      message.success("Model updated successfully");
+      message.success(t("settings.providerTab.modelUpdated"));
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       setModelAutoSaveStatus("error");
       setModelAutoSaveError(errorMessage);
       message.error(
         errorMessage
-          ? `Failed to update model: ${errorMessage}`
-          : "Failed to update model",
+          ? `${t("settings.providerTab.updateModelErrorPrefix")}: ${errorMessage}`
+          : t("settings.providerTab.updateModelFailed"),
       );
     }
   };
@@ -676,17 +679,21 @@ export const ProviderSettings: React.FC = () => {
           style={{ padding: 0 }}
         >
           {fetchingModels
-            ? "Fetching models..."
+            ? t("settings.providerTab.fetchingModels")
             : availableModels.length > 0
-              ? `Refresh available models from ${sourceLabel}`
-              : `Fetch available models from ${sourceLabel}`}
+              ? t("settings.providerTab.refreshModelsFrom", { source: sourceLabel })
+              : t("settings.providerTab.fetchModelsFrom", { source: sourceLabel })}
         </Button>
         {modelAutoSaveStatus === "saving" && <Spin size="small" />}
         {modelAutoSaveStatus === "success" && (
           <CheckCircleOutlined style={{ color: "#52c41a" }} />
         )}
         {modelAutoSaveStatus === "error" && (
-          <Tooltip title={modelAutoSaveError || "Failed to save model change"}>
+          <Tooltip
+            title={
+              modelAutoSaveError || t("settings.providerTab.saveModelChangeFailed")
+            }
+          >
             <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
           </Tooltip>
         )}
@@ -694,14 +701,14 @@ export const ProviderSettings: React.FC = () => {
       {modelsFetchError && (
         <Space size="small">
           <Tooltip title={modelsFetchError}>
-            <Text type="danger">Failed to fetch models</Text>
+            <Text type="danger">{t("settings.providerTab.fetchModelsFailedShort")}</Text>
           </Tooltip>
           <Button
             size="small"
             onClick={() => handleFetchModelsWithSave(provider, { force: true })}
             loading={fetchingModels}
           >
-            Retry
+            {t("settings.providerTab.retry")}
           </Button>
         </Space>
       )}
@@ -714,17 +721,20 @@ export const ProviderSettings: React.FC = () => {
         return (
           <>
             <Alert
-              message="OpenAI Configuration"
-              description="Enter your OpenAI API key to use GPT models. You can optionally specify a custom base URL for proxy servers."
+              message={t("settings.providerTab.openaiConfigTitle")}
+              description={t("settings.providerTab.openaiConfigDescription")}
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
             />
             <Form.Item
               name={["providers", "openai", "api_key"]}
-              label="OpenAI API Key"
+              label={t("settings.providerTab.openaiApiKey")}
               rules={[
-                { required: true, message: "Please enter your OpenAI API key" },
+                {
+                  required: true,
+                  message: t("settings.providerTab.openaiApiKeyRequired"),
+                },
               ]}
             >
               <Input.Password
@@ -735,19 +745,24 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
             <Form.Item
               name={["providers", "openai", "base_url"]}
-              label="Base URL (Optional)"
-              extra="Leave empty to use the default OpenAI API endpoint. Include full path (e.g., /v1) if needed."
+              label={t("settings.providerTab.baseUrlOptional")}
+              extra={t("settings.providerTab.openaiBaseUrlHelp")}
             >
               <Input placeholder="https://api.openai.com/v1" />
             </Form.Item>
             <Form.Item
               name={["providers", "openai", "model"]}
-              label="Default Model"
-              rules={[{ required: true, message: "Please select a model" }]}
+              label={t("settings.providerTab.defaultModel")}
+              rules={[
+                {
+                  required: true,
+                  message: t("settings.providerTab.selectModelRequired"),
+                },
+              ]}
               extra={renderModelFetchExtra("openai", "API")}
             >
               <Select
-                placeholder="Select a model"
+                placeholder={t("settings.providerTab.selectModel")}
                 allowClear
                 showSearch
                 loading={fetchingModels}
@@ -771,8 +786,8 @@ export const ProviderSettings: React.FC = () => {
 
             <Form.Item
               name={["providers", "openai", "responses_only_models"]}
-              label="Responses-Only Models (Optional)"
-              extra={RESPONSES_ONLY_MODELS_HELP}
+              label={t("settings.providerTab.responsesOnlyModelsOptional")}
+              extra={renderResponsesOnlyModelsHelp(t)}
             >
               <Select
                 mode="tags"
@@ -787,19 +802,19 @@ export const ProviderSettings: React.FC = () => {
         return (
           <>
             <Alert
-              message="Anthropic Configuration"
-              description="Enter your Anthropic API key to use Claude models."
+              message={t("settings.providerTab.anthropicConfigTitle")}
+              description={t("settings.providerTab.anthropicConfigDescription")}
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
             />
             <Form.Item
               name={["providers", "anthropic", "api_key"]}
-              label="Anthropic API Key"
+              label={t("settings.providerTab.anthropicApiKey")}
               rules={[
                 {
                   required: true,
-                  message: "Please enter your Anthropic API key",
+                  message: t("settings.providerTab.anthropicApiKeyRequired"),
                 },
               ]}
             >
@@ -807,19 +822,24 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "base_url"]}
-              label="Base URL (Optional)"
-              extra="Leave empty to use the default Anthropic API endpoint. Include full path (e.g., /v1) if needed."
+              label={t("settings.providerTab.baseUrlOptional")}
+              extra={t("settings.providerTab.anthropicBaseUrlHelp")}
             >
               <Input placeholder="https://api.anthropic.com/v1" />
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "model"]}
-              label="Default Model"
-              rules={[{ required: true, message: "Please select a model" }]}
+              label={t("settings.providerTab.defaultModel")}
+              rules={[
+                {
+                  required: true,
+                  message: t("settings.providerTab.selectModelRequired"),
+                },
+              ]}
               extra={renderModelFetchExtra("anthropic", "API")}
             >
               <Select
-                placeholder="Select a model"
+                placeholder={t("settings.providerTab.selectModel")}
                 allowClear
                 showSearch
                 loading={fetchingModels}
@@ -842,8 +862,8 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "max_tokens"]}
-              label="Max Tokens (Optional)"
-              extra="Maximum number of tokens to generate"
+              label={t("settings.providerTab.maxTokensOptional")}
+              extra={t("settings.providerTab.maxTokensHelp")}
             >
               <Input type="number" placeholder="4096" min={1} max={100000} />
             </Form.Item>
@@ -854,36 +874,44 @@ export const ProviderSettings: React.FC = () => {
         return (
           <>
             <Alert
-              message="Google Gemini Configuration"
-              description="Enter your Google AI API key to use Gemini models."
+              message={t("settings.providerTab.geminiConfigTitle")}
+              description={t("settings.providerTab.geminiConfigDescription")}
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
             />
             <Form.Item
               name={["providers", "gemini", "api_key"]}
-              label="Gemini API Key"
+              label={t("settings.providerTab.geminiApiKey")}
               rules={[
-                { required: true, message: "Please enter your Gemini API key" },
+                {
+                  required: true,
+                  message: t("settings.providerTab.geminiApiKeyRequired"),
+                },
               ]}
             >
               <Password placeholder="AIza..." prefix={<KeyOutlined />} />
             </Form.Item>
             <Form.Item
               name={["providers", "gemini", "base_url"]}
-              label="Base URL (Optional)"
-              extra="Leave empty to use the default Google AI API endpoint. Include full path if needed."
+              label={t("settings.providerTab.baseUrlOptional")}
+              extra={t("settings.providerTab.geminiBaseUrlHelp")}
             >
               <Input placeholder="https://generativelanguage.googleapis.com/v1beta" />
             </Form.Item>
             <Form.Item
               name={["providers", "gemini", "model"]}
-              label="Default Model"
-              rules={[{ required: true, message: "Please select a model" }]}
+              label={t("settings.providerTab.defaultModel")}
+              rules={[
+                {
+                  required: true,
+                  message: t("settings.providerTab.selectModelRequired"),
+                },
+              ]}
               extra={renderModelFetchExtra("gemini", "API")}
             >
               <Select
-                placeholder="Select a model"
+                placeholder={t("settings.providerTab.selectModel")}
                 allowClear
                 showSearch
                 loading={fetchingModels}
@@ -931,8 +959,8 @@ export const ProviderSettings: React.FC = () => {
         return (
           <>
             <Alert
-              message="GitHub Copilot Configuration"
-              description="GitHub Copilot uses OAuth authentication. No API key is required. Make sure you have an active GitHub Copilot subscription."
+              message={t("settings.providerTab.copilotConfigTitle")}
+              description={t("settings.providerTab.copilotConfigDescription")}
               type="info"
               showIcon
             />
@@ -940,17 +968,17 @@ export const ProviderSettings: React.FC = () => {
             <Card
               size="small"
               style={{ marginTop: 16, marginBottom: 16 }}
-              title="Authentication Status"
+              title={t("settings.providerTab.authStatusTitle")}
               extra={
                 checkingCopilotAuth ? (
                   <Spin size="small" />
                 ) : copilotAuthStatus?.authenticated ? (
                   <Tag icon={<CheckCircleOutlined />} color="success">
-                    Authenticated
+                    {t("settings.providerTab.authenticated")}
                   </Tag>
                 ) : (
                   <Tag icon={<CloseCircleOutlined />} color="error">
-                    Not Authenticated
+                    {t("settings.providerTab.notAuthenticated")}
                   </Tag>
                 )
               }
@@ -969,7 +997,7 @@ export const ProviderSettings: React.FC = () => {
                     onClick={handleCopilotLogout}
                     loading={authenticatingCopilot}
                   >
-                    Logout from Copilot
+                    {t("settings.providerTab.logoutCopilot")}
                   </Button>
                 ) : (
                   <Button
@@ -978,35 +1006,40 @@ export const ProviderSettings: React.FC = () => {
                     onClick={handleCopilotAuthenticate}
                     loading={authenticatingCopilot}
                   >
-                    Authenticate Copilot
+                    {t("settings.providerTab.authenticateCopilot")}
                   </Button>
                 )}
                 <Button
                   onClick={checkCopilotAuthStatus}
                   loading={checkingCopilotAuth}
                 >
-                  Refresh Status
+                  {t("settings.providerTab.refreshStatus")}
                 </Button>
               </Space>
             </Card>
 
             <Form.Item
               name={["providers", "copilot", "headless_auth"]}
-              label="Headless Authentication"
+              label={t("settings.providerTab.headlessAuth")}
               valuePropName="checked"
-              extra="Print login URL in console instead of opening browser automatically"
+              extra={t("settings.providerTab.headlessAuthHelp")}
             >
               <Switch />
             </Form.Item>
 
             <Form.Item
               name={["providers", "copilot", "model"]}
-              label="Default Model"
-              rules={[{ required: true, message: "Please select a model" }]}
+              label={t("settings.providerTab.defaultModel")}
+              rules={[
+                {
+                  required: true,
+                  message: t("settings.providerTab.selectModelRequired"),
+                },
+              ]}
               extra={renderModelFetchExtra("copilot", "backend")}
             >
               <Select
-                placeholder="Select a model"
+                placeholder={t("settings.providerTab.selectModel")}
                 allowClear
                 showSearch
                 loading={fetchingModels}
@@ -1017,8 +1050,8 @@ export const ProviderSettings: React.FC = () => {
                   ) : (
                     <Text type="secondary">
                       {copilotAuthStatus?.authenticated
-                        ? 'No models loaded yet. Click "Fetch available models from backend".'
-                        : "Authenticate Copilot first, then fetch models."}
+                        ? t("settings.providerTab.noModelsLoaded")
+                        : t("settings.providerTab.authFirstThenFetch")}
                     </Text>
                   )
                 }
@@ -1037,8 +1070,8 @@ export const ProviderSettings: React.FC = () => {
 
             <Form.Item
               name={["providers", "copilot", "responses_only_models"]}
-              label="Responses-Only Models (Optional)"
-              extra={RESPONSES_ONLY_MODELS_HELP}
+              label={t("settings.providerTab.responsesOnlyModelsOptional")}
+              extra={renderResponsesOnlyModelsHelp(t)}
             >
               <Select
                 mode="tags"
@@ -1048,16 +1081,11 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
 
             <Paragraph type="secondary">
-              To use GitHub Copilot:
+              {t("settings.providerTab.copilotUsageTitle")}
               <ul style={{ marginTop: 8, marginBottom: 0 }}>
-                <li>Ensure you have an active GitHub Copilot subscription</li>
-                <li>
-                  Click "Authenticate Copilot" to start the device code flow
-                </li>
-                <li>
-                  Follow the instructions in your terminal to complete
-                  authentication
-                </li>
+                <li>{t("settings.providerTab.copilotUsageStep1")}</li>
+                <li>{t("settings.providerTab.copilotUsageStep2")}</li>
+                <li>{t("settings.providerTab.copilotUsageStep3")}</li>
               </ul>
             </Paragraph>
           </>
@@ -1071,18 +1099,17 @@ export const ProviderSettings: React.FC = () => {
 
   return (
     <Card
-      title="LLM Provider Configuration"
+      title={t("settings.providerTab.title")}
       loading={loading && !configLoaded}
       extra={
         <Text type="secondary">
-          Current Provider:{" "}
+          {t("settings.providerTab.currentProvider")}:{" "}
           <Text strong>{PROVIDER_LABELS[currentProvider]}</Text>
         </Text>
       }
     >
       <Paragraph type="secondary">
-        Configure your preferred LLM provider. Configuration will be saved and
-        applied when you click "Save and Apply Configuration".
+        {t("settings.providerTab.description")}
       </Paragraph>
 
       <Divider />
@@ -1095,8 +1122,13 @@ export const ProviderSettings: React.FC = () => {
       >
         <Form.Item
           name="provider"
-          label="Active LLM Provider"
-          rules={[{ required: true, message: "Please select a provider" }]}
+          label={t("settings.providerTab.activeProvider")}
+          rules={[
+            {
+              required: true,
+              message: t("settings.providerTab.selectProviderRequired"),
+            },
+          ]}
         >
           <Select onChange={handleProviderChange} size="large">
             {(Object.keys(PROVIDER_LABELS) as ProviderType[]).map((key) => (
@@ -1122,14 +1154,14 @@ export const ProviderSettings: React.FC = () => {
             loading={loading || applyingConfig}
             size="large"
           >
-            Save and Apply Configuration
+            {t("settings.providerTab.saveAndApply")}
           </Button>
         </Space>
       </Form>
 
       {/* Device Code Modal for Copilot Authentication */}
       <Modal
-        title="Copilot Authentication"
+        title={t("settings.providerTab.copilotAuthModalTitle")}
         open={isDeviceCodeModalVisible}
         onCancel={() => setIsDeviceCodeModalVisible(false)}
         footer={[
@@ -1137,7 +1169,7 @@ export const ProviderSettings: React.FC = () => {
             key="cancel"
             onClick={() => setIsDeviceCodeModalVisible(false)}
           >
-            Cancel
+            {t("settings.providerTab.cancel")}
           </Button>,
           <Button
             key="complete"
@@ -1145,19 +1177,19 @@ export const ProviderSettings: React.FC = () => {
             onClick={handleCompleteAuth}
             loading={completingAuth}
           >
-            I've Completed Authorization
+            {t("settings.providerTab.completedAuthorization")}
           </Button>,
         ]}
       >
         {deviceCodeInfo && (
           <Space direction="vertical" size="large" style={{ width: "100%" }}>
             <Alert
-              message="Browser opened automatically"
+              message={t("settings.providerTab.browserOpened")}
               description={
                 <ol>
-                  <li>A GitHub page should have opened in your browser</li>
-                  <li>Copy the code below and paste it on the GitHub page</li>
-                  <li>Click "Continue" on GitHub to authorize</li>
+                  <li>{t("settings.providerTab.authStep1")}</li>
+                  <li>{t("settings.providerTab.authStep2")}</li>
+                  <li>{t("settings.providerTab.authStep3")}</li>
                 </ol>
               }
               type="info"
@@ -1166,7 +1198,7 @@ export const ProviderSettings: React.FC = () => {
             {/* Verification URL */}
             <Card size="small">
               <Space direction="vertical" style={{ width: "100%" }}>
-                <Text type="secondary">1. Visit this URL:</Text>
+                <Text type="secondary">{t("settings.providerTab.visitUrl")}</Text>
                 <Space>
                   <Text copyable={{ text: deviceCodeInfo.verification_uri }}>
                     {deviceCodeInfo.verification_uri}
@@ -1178,7 +1210,7 @@ export const ProviderSettings: React.FC = () => {
             {/* User Code */}
             <Card style={{ textAlign: "center", background: "#f5f5f5" }}>
               <Space direction="vertical" style={{ width: "100%" }}>
-                <Text type="secondary">2. Enter this code:</Text>
+                <Text type="secondary">{t("settings.providerTab.enterCode")}</Text>
                 <Space>
                   <Text
                     style={{
@@ -1201,7 +1233,9 @@ export const ProviderSettings: React.FC = () => {
                     onClick={handleCopyUserCode}
                     type={copiedUserCode ? "default" : "primary"}
                   >
-                    {copiedUserCode ? "Copied!" : "Copy Code"}
+                    {copiedUserCode
+                      ? t("settings.providerTab.copied")
+                      : t("settings.providerTab.copyCode")}
                   </Button>
                 </Space>
                 <div style={{ marginTop: 8 }}>
@@ -1222,8 +1256,7 @@ export const ProviderSettings: React.FC = () => {
             </Card>
 
             <Paragraph type="secondary">
-              After clicking "Continue" on GitHub, click the "I've Completed
-              Authorization" button below.
+              {t("settings.providerTab.afterContinueHint")}
             </Paragraph>
           </Space>
         )}

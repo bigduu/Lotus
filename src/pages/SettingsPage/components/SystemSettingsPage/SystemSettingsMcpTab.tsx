@@ -13,6 +13,7 @@ import {
   theme,
 } from "antd";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ServerStatus,
   mcpService,
@@ -30,14 +31,6 @@ const { useToken } = theme;
 const { TextArea } = Input;
 
 type ImportMode = "merge" | "replace";
-
-const statusLabelMap: Record<ServerStatus, string> = {
-  [ServerStatus.Connecting]: "Connecting",
-  [ServerStatus.Ready]: "Ready",
-  [ServerStatus.Degraded]: "Degraded",
-  [ServerStatus.Stopped]: "Stopped",
-  [ServerStatus.Error]: "Error",
-};
 
 const statusColorMap: Record<ServerStatus, string> = {
   [ServerStatus.Connecting]: "blue",
@@ -110,6 +103,7 @@ const toMainstreamMcpServersChunk = (
 };
 
 const SystemSettingsMcpTab: React.FC = () => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [msgApi, contextHolder] = message.useMessage();
   const {
@@ -131,6 +125,17 @@ const SystemSettingsMcpTab: React.FC = () => {
     refreshAll,
     isServerActionLoading,
   } = useMcpSettings();
+
+  const statusLabelMap: Record<ServerStatus, string> = useMemo(
+    () => ({
+      [ServerStatus.Connecting]: t("settings.mcpTab.status.connecting"),
+      [ServerStatus.Ready]: t("settings.mcpTab.status.ready"),
+      [ServerStatus.Degraded]: t("settings.mcpTab.status.degraded"),
+      [ServerStatus.Stopped]: t("settings.mcpTab.status.stopped"),
+      [ServerStatus.Error]: t("settings.mcpTab.status.error"),
+    }),
+    [t],
+  );
 
   const [isServerModalOpen, setIsServerModalOpen] = useState(false);
   const [serverModalMode, setServerModalMode] = useState<"create" | "edit">(
@@ -171,19 +176,23 @@ const SystemSettingsMcpTab: React.FC = () => {
   const handleDeleteServer = async (server: McpServer) => {
     try {
       await deleteServer(server.id);
-      msgApi.success("MCP server deleted");
+      msgApi.success(t("settings.mcpTab.serverDeleted"));
     } catch (deleteError) {
-      msgApi.error(getErrorMessage(deleteError, "Failed to delete MCP server"));
+      msgApi.error(
+        getErrorMessage(deleteError, t("settings.mcpTab.deleteServerFailed")),
+      );
     }
   };
 
   const handleConnectServer = async (server: McpServer) => {
     try {
       await connectServer(server.id);
-      msgApi.success(`Connected to ${server.name || server.id}`);
+      msgApi.success(
+        t("settings.mcpTab.connectedTo", { name: server.name || server.id }),
+      );
     } catch (connectError) {
       msgApi.error(
-        getErrorMessage(connectError, "Failed to connect MCP server"),
+        getErrorMessage(connectError, t("settings.mcpTab.connectServerFailed")),
       );
     }
   };
@@ -191,10 +200,15 @@ const SystemSettingsMcpTab: React.FC = () => {
   const handleDisconnectServer = async (server: McpServer) => {
     try {
       await disconnectServer(server.id);
-      msgApi.success(`Disconnected ${server.name || server.id}`);
+      msgApi.success(
+        t("settings.mcpTab.disconnected", { name: server.name || server.id }),
+      );
     } catch (disconnectError) {
       msgApi.error(
-        getErrorMessage(disconnectError, "Failed to disconnect MCP server"),
+        getErrorMessage(
+          disconnectError,
+          t("settings.mcpTab.disconnectServerFailed"),
+        ),
       );
     }
   };
@@ -202,19 +216,25 @@ const SystemSettingsMcpTab: React.FC = () => {
   const handleRefreshServerTools = async (server: McpServer) => {
     try {
       await refreshServerTools(server.id);
-      msgApi.success(`Tools refreshed for ${server.name || server.id}`);
+      msgApi.success(
+        t("settings.mcpTab.toolsRefreshedFor", {
+          name: server.name || server.id,
+        }),
+      );
     } catch (refreshError) {
-      msgApi.error(getErrorMessage(refreshError, "Failed to refresh tools"));
+      msgApi.error(
+        getErrorMessage(refreshError, t("settings.mcpTab.refreshToolsFailed")),
+      );
     }
   };
 
   const handleRefreshAll = async () => {
     try {
       await refreshAll();
-      msgApi.success("MCP status refreshed");
+      msgApi.success(t("settings.mcpTab.statusRefreshed"));
     } catch (refreshError) {
       msgApi.error(
-        getErrorMessage(refreshError, "Failed to refresh MCP status"),
+        getErrorMessage(refreshError, t("settings.mcpTab.refreshStatusFailed")),
       );
     }
   };
@@ -235,19 +255,25 @@ const SystemSettingsMcpTab: React.FC = () => {
     try {
       if (serverModalMode === "edit") {
         if (!editingServer) {
-          msgApi.error("No server selected for editing");
+          msgApi.error(t("settings.mcpTab.noServerForEditing"));
           return;
         }
         await updateServer(editingServer.id, config);
-        msgApi.success(`Saved ${editingServer.name || editingServer.id}`);
+        msgApi.success(
+          t("settings.mcpTab.savedServer", {
+            name: editingServer.name || editingServer.id,
+          }),
+        );
       } else {
         await addServer(config);
-        msgApi.success(`Added ${config.name || config.id}`);
+        msgApi.success(
+          t("settings.mcpTab.addedServer", { name: config.name || config.id }),
+        );
       }
       setIsServerModalOpen(false);
       setEditingServer(null);
     } catch (e) {
-      msgApi.error(getErrorMessage(e, "Failed to save MCP server"));
+      msgApi.error(getErrorMessage(e, t("settings.mcpTab.saveServerFailed")));
     }
   };
 
@@ -264,7 +290,7 @@ const SystemSettingsMcpTab: React.FC = () => {
 
     try {
       await copyText(text);
-      msgApi.success("Copied MCP config to clipboard");
+      msgApi.success(t("settings.mcpTab.copiedConfig"));
     } catch {
       // Clipboard can be blocked depending on platform/webview permissions.
       // Fall back to showing the exported JSON in the modal for manual copy.
@@ -272,7 +298,7 @@ const SystemSettingsMcpTab: React.FC = () => {
       setImportError(null);
       setImportMode("merge");
       setImportJson(text);
-      msgApi.warning("Clipboard not available. Export is shown in the modal.");
+      msgApi.warning(t("settings.mcpTab.clipboardUnavailable"));
     }
   };
 
@@ -284,22 +310,22 @@ const SystemSettingsMcpTab: React.FC = () => {
       parsed = JSON.parse(importJson);
     } catch (e) {
       setImportError(
-        `Invalid JSON: ${e instanceof Error ? e.message : "Unknown error"}`,
+        `${t("settings.mcpTab.invalidJsonPrefix")}: ${
+          e instanceof Error ? e.message : t("settings.mcpTab.unknownError")
+        }`,
       );
       return;
     }
 
     if (!parsed || typeof parsed !== "object") {
-      setImportError("JSON must be an object");
+      setImportError(t("settings.mcpTab.jsonMustBeObject"));
       return;
     }
 
     const record = parsed as Record<string, unknown>;
     const mcpServers = record.mcpServers;
     if (!mcpServers || typeof mcpServers !== "object") {
-      setImportError(
-        "Missing 'mcpServers'. Paste a full Claude Desktop-style config chunk: { \"mcpServers\": { ... } }",
-      );
+      setImportError(t("settings.mcpTab.missingMcpServers"));
       return;
     }
 
@@ -312,20 +338,23 @@ const SystemSettingsMcpTab: React.FC = () => {
 
       const startFailures = response.start_errors?.length ?? 0;
       msgApi.success(
-        `Imported ${response.server_ids.length} server(s) (${response.added} added, ${response.updated} updated, ${response.removed} removed).` +
-          (startFailures ? ` ${startFailures} failed to start.` : ""),
+        t("settings.mcpTab.importSummary", {
+          count: response.server_ids.length,
+          added: response.added,
+          updated: response.updated,
+          removed: response.removed,
+          failed: startFailures,
+        }),
       );
       if (startFailures) {
-        msgApi.warning(
-          `Some servers did not start. Config is saved; open the server list to see errors.`,
-        );
+        msgApi.warning(t("settings.mcpTab.importStartFailures"));
       }
 
       setIsImportOpen(false);
       setImportJson("");
       await handleRefreshAll();
     } catch (error) {
-      setImportError(getErrorMessage(error, "Failed to import MCP servers"));
+      setImportError(getErrorMessage(error, t("settings.mcpTab.importFailed")));
       // Keep textarea content so the user can fix and retry.
     } finally {
       setIsImporting(false);
@@ -338,18 +367,16 @@ const SystemSettingsMcpTab: React.FC = () => {
 
       {error ? <Alert type="error" showIcon message={error} /> : null}
 
-      <Card size="small" title="MCP Overview">
+      <Card size="small" title={t("settings.mcpTab.overviewTitle")}>
         <Space
           direction="vertical"
           size={token.marginXS}
           style={{ width: "100%" }}
         >
-          <Text type="secondary">
-            Configure external MCP servers and inspect registered tool aliases.
-          </Text>
+          <Text type="secondary">{t("settings.mcpTab.overviewDescription")}</Text>
           <Space wrap>
-            <Tag>Total servers: {statusSummary.totalServers}</Tag>
-            <Tag>Total tools: {statusSummary.totalTools}</Tag>
+            <Tag>{t("settings.mcpTab.totalServers", { count: statusSummary.totalServers })}</Tag>
+            <Tag>{t("settings.mcpTab.totalTools", { count: statusSummary.totalTools })}</Tag>
             {Object.values(ServerStatus).map((status) => (
               <Tag key={status} color={statusColorMap[status]}>
                 {statusLabelMap[status]}: {statusSummary.byStatus[status]}
@@ -361,11 +388,11 @@ const SystemSettingsMcpTab: React.FC = () => {
 
       <Card
         size="small"
-        title="MCP Servers"
+        title={t("settings.mcpTab.serversTitle")}
         extra={
           <Space>
             <Button type="primary" onClick={openCreateServerModal}>
-              Add Server
+              {t("settings.mcpTab.addServer")}
             </Button>
             <Button
               icon={<ReloadOutlined />}
@@ -374,13 +401,13 @@ const SystemSettingsMcpTab: React.FC = () => {
                 void handleRefreshAll();
               }}
             >
-              Refresh All
+              {t("settings.mcpTab.refreshAll")}
             </Button>
             <Button icon={<CopyOutlined />} onClick={() => void handleExport()}>
-              Export
+              {t("settings.mcpTab.export")}
             </Button>
             <Button icon={<UploadOutlined />} onClick={openImportModal}>
-              Import
+              {t("settings.mcpTab.import")}
             </Button>
           </Space>
         }
@@ -420,8 +447,8 @@ const SystemSettingsMcpTab: React.FC = () => {
 
       <Modal
         open={isImportOpen}
-        title="Import MCP Servers"
-        okText="Import"
+        title={t("settings.mcpTab.importModalTitle")}
+        okText={t("settings.mcpTab.import")}
         onOk={() => void handleImport()}
         okButtonProps={{ loading: isImporting }}
         onCancel={() => {
@@ -434,7 +461,7 @@ const SystemSettingsMcpTab: React.FC = () => {
       >
         <Space direction="vertical" style={{ width: "100%" }} size="middle">
           <Text type="secondary">
-            Paste a Claude Desktop-style config chunk. Example:
+            {t("settings.mcpTab.importHint")}
             <br />
             <Text code>{`{ "mcpServers": { "filesystem": { "command": "npx", "args": ["-y", "..."] } } }`}</Text>
           </Text>
@@ -446,10 +473,10 @@ const SystemSettingsMcpTab: React.FC = () => {
             buttonStyle="solid"
           >
             <Radio.Button value="merge">
-              Merge (Upsert)
+              {t("settings.mcpTab.importModeMerge")}
             </Radio.Button>
             <Radio.Button value="replace">
-              Replace (Delete Others)
+              {t("settings.mcpTab.importModeReplace")}
             </Radio.Button>
           </Radio.Group>
 
@@ -457,7 +484,7 @@ const SystemSettingsMcpTab: React.FC = () => {
             <Alert
               type="warning"
               showIcon
-              message="Replace mode will remove existing MCP servers not present in the imported mcpServers."
+              message={t("settings.mcpTab.replaceWarning")}
             />
           ) : null}
 

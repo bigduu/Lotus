@@ -10,6 +10,7 @@ import {
   Typography,
   theme,
 } from "antd";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -41,6 +42,7 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
   hasBackendOverride,
   defaultBackendBaseUrl,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const tabGap = token.marginLG;
 
@@ -52,10 +54,10 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
           size={token.marginXS}
           style={{ width: "100%" }}
         >
-          <Text strong>Select Model</Text>
+          <Text strong>{t("settings.modelTab.selectModelTitle")}</Text>
           {isLoadingModels ? (
             <div style={{ textAlign: "center", padding: token.paddingMD }}>
-              <Spin tip="Loading models..." />
+              <Spin tip={t("settings.modelTab.loadingModels")} />
             </div>
           ) : modelsError ? (
             <Text type="danger">{modelsError}</Text>
@@ -65,7 +67,7 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
               style={{ width: "100%" }}
               value={selectedModel}
               onChange={onModelChange}
-              placeholder="Select a model"
+              placeholder={t("settings.modelTab.selectModelPlaceholder")}
               showSearch
               optionFilterProp="children"
               options={models.map((m) => ({ label: m, value: m }))}
@@ -85,7 +87,7 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
           size={token.marginXS}
           style={{ width: "100%" }}
         >
-          <Text strong>Backend API Base URL</Text>
+          <Text strong>{t("settings.modelTab.backendApiBaseUrlTitle")}</Text>
           <Input
             placeholder={defaultBackendBaseUrl}
             value={backendBaseUrl}
@@ -96,19 +98,20 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
               disabled={!hasBackendOverride}
               onClick={onResetBackendBaseUrl}
             >
-              Reset to Default
+              {t("settings.modelTab.resetToDefault")}
             </Button>
             <Button
               data-testid="save-general-settings"
               type="primary"
               onClick={onSaveBackendBaseUrl}
             >
-              Save
+              {t("settings.modelTab.save")}
             </Button>
           </Flex>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Must be a full base URL including <Text code>/v1</Text> (e.g.{" "}
-            <Text code>http://127.0.0.1:9562/v1</Text>).
+            {t("settings.modelTab.backendApiHint", {
+              example: "http://127.0.0.1:9562/v1",
+            })}
           </Text>
         </Space>
       </Card>

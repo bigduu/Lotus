@@ -4,6 +4,7 @@ import {
   summarizeAttachments,
   type ProcessedFile,
 } from "../../utils/fileUtils";
+import type { ReasoningEffort } from "../../services/AgentService";
 import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "../../types/workspace";
 
@@ -13,7 +14,12 @@ interface UseInputContainerSubmitProps {
   selectedWorkflow: WorkflowDraft | null;
   matchesWorkflowToken: (value: string, workflowName: string) => boolean;
   fileReferences: Map<string, WorkspaceFileEntry>;
-  sendMessage: (content: string, images?: ImageFile[]) => Promise<void>;
+  reasoningEffort: ReasoningEffort;
+  sendMessage: (
+    content: string,
+    images?: ImageFile[],
+    reasoningEffort?: ReasoningEffort,
+  ) => Promise<void>;
   recordEntry: (entry: string) => void;
   clearWorkflowDraft: () => void;
   setContent: (value: string) => void;
@@ -28,6 +34,7 @@ export const useInputContainerSubmit = ({
   selectedWorkflow,
   matchesWorkflowToken,
   fileReferences,
+  reasoningEffort,
   sendMessage,
   recordEntry,
   clearWorkflowDraft,
@@ -130,15 +137,15 @@ export const useInputContainerSubmit = ({
               paths: referencedFiles.map((f) => f.path),
               display_text: composedMessage,
             });
-            await sendMessage(structuredMessage, images);
+            await sendMessage(structuredMessage, images, reasoningEffort);
           } else {
-            await sendMessage(composedMessage, images);
+            await sendMessage(composedMessage, images, reasoningEffort);
           }
         } else {
-          await sendMessage(composedMessage, images);
+          await sendMessage(composedMessage, images, reasoningEffort);
         }
       } else {
-        await sendMessage(composedMessage, images);
+        await sendMessage(composedMessage, images, reasoningEffort);
       }
 
       setReferenceText(null);
@@ -151,6 +158,7 @@ export const useInputContainerSubmit = ({
       fileReferences,
       matchesWorkflowToken,
       recordEntry,
+      reasoningEffort,
       selectedWorkflow,
       sendMessage,
       setAttachments,

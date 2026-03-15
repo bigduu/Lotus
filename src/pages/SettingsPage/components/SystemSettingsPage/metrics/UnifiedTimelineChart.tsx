@@ -1,4 +1,5 @@
 import { Card, Empty, Skeleton, Typography } from "antd";
+import { useTranslation } from "react-i18next";
 import {
   CartesianGrid,
   Legend,
@@ -23,25 +24,26 @@ const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({
   data,
   loading,
 }) => {
+  const { t } = useTranslation();
   if (loading) {
     return (
-      <Card size="small" title="Token Usage Over Time (Chat + Forward)">
+      <Card size="small" title={t("settings.charts.unifiedTokenUsageOverTime")}>
         <Skeleton active paragraph={{ rows: 5 }} />
       </Card>
     );
   }
 
   return (
-    <Card size="small" title="Token Usage Over Time (Chat + Forward)">
+    <Card size="small" title={t("settings.charts.unifiedTokenUsageOverTime")}>
       {data.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description="No token usage available"
+          description={t("settings.charts.noTokenUsage")}
         />
       ) : (
         <>
           <Text type="secondary">
-            Combined chat and forward token usage over time.
+            {t("settings.charts.unifiedTokenUsageDescription")}
           </Text>
           <div style={{ width: "100%", height: 280, marginTop: 12 }}>
             <ResponsiveContainer>
@@ -54,7 +56,7 @@ const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({
                 <Line
                   type="monotone"
                   dataKey="total_tokens"
-                  name="Total"
+                  name={t("settings.charts.total")}
                   stroke="#1677ff"
                   strokeWidth={2}
                   dot={false}
@@ -62,14 +64,14 @@ const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({
                 <Line
                   type="monotone"
                   dataKey="chat_tokens"
-                  name="Chat"
+                  name={t("settings.charts.chat")}
                   stroke="#52c41a"
                   dot={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="forward_tokens"
-                  name="Forward"
+                  name={t("settings.charts.forward")}
                   stroke="#fa8c16"
                   dot={false}
                 />

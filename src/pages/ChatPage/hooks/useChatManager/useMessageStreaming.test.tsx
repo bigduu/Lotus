@@ -230,7 +230,7 @@ describe("useMessageStreaming", () => {
     );
   });
 
-  it("does not set processing true until after execute starts (avoid early /events subscribe)", async () => {
+  it("sets processing true before execute so early events are not missed", async () => {
     mockStoreState.agentAvailability = true;
 
     const order: string[] = [];
@@ -280,8 +280,7 @@ describe("useMessageStreaming", () => {
       await result.current.sendMessage("hello");
     });
 
-    // The key safety property: we should not turn on processing (which triggers SSE subscribe)
-    // before the user message is persisted and the agent execution is started.
-    expect(order).toEqual(["chat", "execute", "processing:chat-1:true"]);
+    // The key safety property: subscribe early so first execution events are not missed.
+    expect(order).toEqual(["chat", "processing:chat-1:true", "execute"]);
   });
 });

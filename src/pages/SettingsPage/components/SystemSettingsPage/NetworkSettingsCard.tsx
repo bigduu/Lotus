@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button, Card, Input, Space, Typography, Alert, theme } from "antd";
+import { useTranslation } from "react-i18next";
 import { useBambooConfigStore } from "../../../../shared/stores/bambooConfigStore";
 
 const { Text } = Typography;
@@ -24,8 +25,11 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
   onSave,
   isLoading,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
-  const proxyAuthStatus = useBambooConfigStore((state) => state.proxyAuthStatus);
+  const proxyAuthStatus = useBambooConfigStore(
+    (state) => state.proxyAuthStatus,
+  );
   const isLoadingProxyAuthStatus = useBambooConfigStore(
     (state) => state.isLoadingProxyAuthStatus,
   );
@@ -78,7 +82,10 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
   };
 
   return (
-    <Card size="small" title={<Text strong>Network Settings</Text>}>
+    <Card
+      size="small"
+      title={<Text strong>{t("settings.networkCard.title")}</Text>}
+    >
       <Space
         direction="vertical"
         size={token.marginSM}
@@ -90,13 +97,13 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
           size={token.marginXXS}
           style={{ width: "100%" }}
         >
-          <Text type="secondary">HTTP Proxy</Text>
+          <Text type="secondary">{t("settings.networkCard.httpProxy")}</Text>
           <Input
             data-testid="proxy-url"
             style={{ width: "100%" }}
             value={httpProxy}
             onChange={(e) => onHttpProxyChange(e.target.value)}
-            placeholder="http://proxy.example.com:8080"
+            placeholder={t("settings.networkCard.proxyPlaceholder")}
             disabled={isLoading}
           />
         </Space>
@@ -107,12 +114,12 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
           size={token.marginXXS}
           style={{ width: "100%" }}
         >
-          <Text type="secondary">HTTPS Proxy</Text>
+          <Text type="secondary">{t("settings.networkCard.httpsProxy")}</Text>
           <Input
             style={{ width: "100%" }}
             value={httpsProxy}
             onChange={(e) => onHttpsProxyChange(e.target.value)}
-            placeholder="http://proxy.example.com:8080"
+            placeholder={t("settings.networkCard.proxyPlaceholder")}
             disabled={isLoading}
           />
         </Space>
@@ -120,14 +127,16 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
         {/* Proxy Authentication */}
         <Card
           size="small"
-          title="Proxy Authentication"
+          title={t("settings.networkCard.proxyAuthTitle")}
           style={{ marginTop: token.marginSM }}
         >
           {proxyAuthStatus?.configured ? (
             <Space direction="vertical" style={{ width: "100%" }}>
               <Alert
                 type="success"
-                message={`Configured for user: ${proxyAuthStatus.username ?? ""}`}
+                message={t("settings.networkCard.proxyConfiguredForUser", {
+                  username: proxyAuthStatus.username ?? "",
+                })}
                 showIcon
               />
               <Button
@@ -135,7 +144,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
                 loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
                 danger
               >
-                Clear Credentials
+                {t("settings.networkCard.clearCredentials")}
               </Button>
             </Space>
           ) : (
@@ -145,7 +154,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
               style={{ width: "100%" }}
             >
               <Input
-                placeholder="Username"
+                placeholder={t("settings.networkCard.username")}
                 value={proxyAuthForm.username}
                 onChange={(e) =>
                   setProxyAuthForm((prev) => ({
@@ -155,7 +164,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
                 }
               />
               <Input.Password
-                placeholder="Password"
+                placeholder={t("settings.networkCard.password")}
                 value={proxyAuthForm.password}
                 onChange={(e) =>
                   setProxyAuthForm((prev) => ({
@@ -170,7 +179,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
                 loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
                 disabled={!proxyAuthForm.username.trim()}
               >
-                Apply
+                {t("settings.networkCard.apply")}
               </Button>
             </Space>
           )}
@@ -178,7 +187,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
 
         {/* Info */}
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          Proxy credentials are stored encrypted in ~/.bamboo/config.json
+          {t("settings.networkCard.credentialsStorageNote")}
         </Text>
 
         {/* Save buttons */}
@@ -197,7 +206,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
             }
             disabled={isLoading}
           >
-            Reload
+            {t("settings.networkCard.reload")}
           </Button>
           <Button
             data-testid="save-proxy-settings"
@@ -209,7 +218,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
             }
             disabled={isLoading}
           >
-            Save
+            {t("settings.networkCard.save")}
           </Button>
         </div>
       </Space>

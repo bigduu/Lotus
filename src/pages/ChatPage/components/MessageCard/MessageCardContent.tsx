@@ -1,5 +1,5 @@
 import React, { memo } from "react";
-import { Space, Typography, Button, Alert, Tag } from "antd";
+import { Space, Typography, Button, Alert, Tag, Collapse } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -162,10 +162,6 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     );
   }
 
-  if (message.role === "assistant" && !messageText) {
-    return <Text italic>Assistant is thinking...</Text>;
-  }
-
   // Check if this is an authentication error message
   if (message.isAuthError) {
     return (
@@ -203,9 +199,42 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     message.role === "user"
       ? extractSelectionHints(messageText)
       : { cleanText: messageText, hints: [] };
+  const assistantReasoning =
+    message.role === "assistant" &&
+    (message as any).type === "text" &&
+    typeof (message as any).metadata?.reasoning === "string"
+      ? ((message as any).metadata.reasoning as string)
+      : "";
+  const hasAssistantReasoning = assistantReasoning.trim().length > 0;
+
+  if (message.role === "assistant" && !messageText && !hasAssistantReasoning) {
+    return <Text italic>Assistant is thinking...</Text>;
+  }
 
   return (
     <Space direction="vertical" style={{ width: "100%" }} size="small">
+      {hasAssistantReasoning ? (
+        <Collapse
+          size="small"
+          defaultActiveKey={["reasoning"]}
+          items={[
+            {
+              key: "reasoning",
+              label: <Text strong>Reasoning</Text>,
+              children: (
+                <ReactMarkdown
+                  remarkPlugins={markdownPlugins}
+                  rehypePlugins={rehypePlugins}
+                  components={markdownComponents}
+                >
+                  {assistantReasoning}
+                </ReactMarkdown>
+              ),
+            },
+          ]}
+        />
+      ) : null}
+
       {hints.map((hint, idx) => {
         if (hint.type === "mcp") {
           return (
@@ -256,13 +285,15 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
         );
       })}
 
-      <ReactMarkdown
-        remarkPlugins={markdownPlugins}
-        rehypePlugins={rehypePlugins}
-        components={markdownComponents}
-      >
-        {isUserToolCall ? formatUserToolCall(cleanText) : cleanText}
-      </ReactMarkdown>
+      {cleanText ? (
+        <ReactMarkdown
+          remarkPlugins={markdownPlugins}
+          rehypePlugins={rehypePlugins}
+          components={markdownComponents}
+        >
+          {isUserToolCall ? formatUserToolCall(cleanText) : cleanText}
+        </ReactMarkdown>
+      ) : null}
     </Space>
   );
 };

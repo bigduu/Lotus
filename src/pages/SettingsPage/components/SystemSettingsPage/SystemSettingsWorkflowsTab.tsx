@@ -22,6 +22,7 @@ import {
   type WorkflowMetadata,
 } from "../../../ChatPage/services/WorkflowManagerService";
 import { ServiceFactory } from "../../../../services/common/ServiceFactory";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -36,6 +37,7 @@ const isSafeWorkflowName = (name: string) => {
 };
 
 const SystemSettingsWorkflowsTab: React.FC = () => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [msgApi, contextHolder] = message.useMessage();
   const [workflows, setWorkflows] = useState<WorkflowMetadata[]>([]);
@@ -60,7 +62,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
       setWorkflows(result);
       return result;
     } catch (error) {
-      msgApi.error("Failed to load workflows");
+      msgApi.error(t("settings.workflowsTab.loadFailed"));
       return [];
     } finally {
       setIsLoading(false);
@@ -81,7 +83,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
         const result = await workflowService.getWorkflow(workflow.name);
         setEditorContent(result.content ?? "");
       } catch (error) {
-        msgApi.error("Failed to load workflow content");
+        msgApi.error(t("settings.workflowsTab.loadContentFailed"));
         setEditorContent("");
       } finally {
         setIsLoadingContent(false);
@@ -99,12 +101,12 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
 
   const handleSave = useCallback(async () => {
     if (!isSafeWorkflowName(editorName)) {
-      msgApi.error("Invalid workflow name");
+      msgApi.error(t("settings.workflowsTab.invalidName"));
       return;
     }
     const exists = workflows.some((workflow) => workflow.name === editorName);
     if (!selectedWorkflow && exists) {
-      msgApi.error("A workflow with this name already exists");
+      msgApi.error(t("settings.workflowsTab.nameAlreadyExists"));
       return;
     }
 
@@ -112,7 +114,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
     try {
       const serviceFactory = ServiceFactory.getInstance();
       await serviceFactory.saveWorkflow(editorName, editorContent);
-      msgApi.success("Workflow saved");
+      msgApi.success(t("settings.workflowsTab.saved"));
       setIsDirty(false);
       const updatedList = await loadWorkflows();
       const updated = updatedList.find((item) => item.name === editorName);
@@ -121,7 +123,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
       }
     } catch (error) {
       msgApi.error(
-        error instanceof Error ? error.message : "Failed to save workflow",
+        error instanceof Error ? error.message : t("settings.workflowsTab.saveFailed"),
       );
     } finally {
       setIsSaving(false);
@@ -132,6 +134,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
     loadWorkflows,
     msgApi,
     selectedWorkflow,
+    t,
     workflows,
   ]);
 
@@ -140,25 +143,27 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
       try {
         const serviceFactory = ServiceFactory.getInstance();
         await serviceFactory.deleteWorkflow(workflow.name);
-        msgApi.success("Workflow deleted");
+        msgApi.success(t("settings.workflowsTab.deleted"));
         if (selectedWorkflow?.name === workflow.name) {
           handleCreateNew();
         }
         await loadWorkflows();
       } catch (error) {
         msgApi.error(
-          error instanceof Error ? error.message : "Failed to delete workflow",
+          error instanceof Error
+            ? error.message
+            : t("settings.workflowsTab.deleteFailed"),
         );
       }
     },
-    [msgApi, selectedWorkflow, loadWorkflows],
+    [loadWorkflows, msgApi, selectedWorkflow, t],
   );
 
   return (
     <div style={{ padding: "24px" }}>
       {contextHolder}
       <Card
-        title="Workflows"
+        title={t("settings.workflowsTab.title")}
         extra={
           <Space>
             <Button
@@ -166,14 +171,14 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
               onClick={loadWorkflows}
               loading={isLoading}
             >
-              Refresh
+              {t("settings.workflowsTab.refresh")}
             </Button>
             <Button
               data-testid="create-workflow"
               icon={<PlusOutlined />}
               onClick={handleCreateNew}
             >
-              New Workflow
+              {t("settings.workflowsTab.newWorkflow")}
             </Button>
             <Button
               data-testid="save-workflow"
@@ -183,21 +188,20 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
               loading={isSaving}
               disabled={!isDirty}
             >
-              Save
+              {t("settings.workflowsTab.save")}
             </Button>
           </Space>
         }
       >
         <Text type="secondary">
-          Workflows are stored in `~/.bamboo/workflows` as Markdown files. Use
-          `/name` to insert a workflow in chat.
+          {t("settings.workflowsTab.description")}
         </Text>
         <Flex gap={token.marginLG} style={{ marginTop: token.marginLG }}>
           <div style={{ width: 320, flexShrink: 0 }}>
             <List
               loading={isLoading}
               dataSource={workflows}
-              locale={{ emptyText: "No workflows found" }}
+              locale={{ emptyText: t("settings.workflowsTab.empty") }}
               renderItem={(workflow) => (
                 <List.Item
                   style={{
@@ -225,8 +229,8 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
                     />,
                   ]}
                 >
-                  <Space direction="vertical" size={0}>
-                    <Text strong>/{workflow.name}</Text>
+                <Space direction="vertical" size={0}>
+                  <Text strong>/{workflow.name}</Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {workflow.filename}
                     </Text>
@@ -243,7 +247,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
             >
               <Input
                 data-testid="workflow-name"
-                placeholder="Workflow name"
+                placeholder={t("settings.workflowsTab.namePlaceholder")}
                 value={editorName}
                 onChange={(e) => {
                   setEditorName(e.target.value);
@@ -254,7 +258,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
               />
               <TextArea
                 data-testid="workflow-content"
-                placeholder="# Workflow Title\n\nDescribe the workflow steps here."
+                placeholder={t("settings.workflowsTab.contentPlaceholder")}
                 value={editorContent}
                 onChange={(e) => {
                   setEditorContent(e.target.value);

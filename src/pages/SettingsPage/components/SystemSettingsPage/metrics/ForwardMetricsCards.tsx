@@ -1,4 +1,5 @@
 import { Card, Col, Row, Skeleton, Statistic, theme } from "antd";
+import { useTranslation } from "react-i18next";
 
 import type { ForwardMetricsSummary } from "../../../../../services/metrics";
 
@@ -35,6 +36,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
   summary,
   loading,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
 
   if (loading) {
@@ -53,7 +55,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Total Forward Requests"
+            title={t("settings.forwardMetricsCards.totalForwardRequests")}
             value={summary?.total_requests ?? 0}
             precision={0}
           />
@@ -62,7 +64,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Success Rate"
+            title={t("settings.forwardMetricsCards.successRate")}
             value={successRate}
             suffix="%"
             valueStyle={{
@@ -79,7 +81,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Forward Tokens"
+            title={t("settings.forwardMetricsCards.forwardTokens")}
             value={summary?.total_tokens.total_tokens ?? 0}
             precision={0}
           />
@@ -88,7 +90,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small">
           <Statistic
-            title="Avg Response Time"
+            title={t("settings.forwardMetricsCards.avgResponseTime")}
             value={formatDuration(summary?.avg_duration_ms)}
           />
         </Card>

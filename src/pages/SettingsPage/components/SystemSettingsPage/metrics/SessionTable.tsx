@@ -1,5 +1,6 @@
 import { Button, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
+import { useTranslation } from "react-i18next";
 
 import type { SessionMetrics } from "../../../../../services/metrics";
 
@@ -62,9 +63,10 @@ const SessionTable: React.FC<SessionTableProps> = ({
   loading,
   onSelectSession,
 }) => {
+  const { t } = useTranslation();
   const columns: ColumnsType<SessionMetrics> = [
     {
-      title: "Session",
+      title: t("settings.metricsTable.session.columns.session"),
       dataIndex: "session_id",
       key: "session_id",
       render: (value: string) => (
@@ -75,13 +77,13 @@ const SessionTable: React.FC<SessionTableProps> = ({
       width: 120,
     },
     {
-      title: "Model",
+      title: t("settings.metricsTable.session.columns.model"),
       dataIndex: "model",
       key: "model",
       width: 160,
     },
     {
-      title: "Status",
+      title: t("settings.metricsTable.session.columns.status"),
       dataIndex: "status",
       key: "status",
       width: 120,
@@ -90,7 +92,7 @@ const SessionTable: React.FC<SessionTableProps> = ({
       ),
     },
     {
-      title: "Started",
+      title: t("settings.metricsTable.session.columns.started"),
       dataIndex: "started_at",
       key: "started_at",
       render: (value: string) => formatDateTime(value),
@@ -101,14 +103,14 @@ const SessionTable: React.FC<SessionTableProps> = ({
       defaultSortOrder: "descend",
     },
     {
-      title: "Duration",
+      title: t("settings.metricsTable.session.columns.duration"),
       dataIndex: "duration_ms",
       key: "duration_ms",
       render: (value?: number | null) => formatDuration(value),
       width: 120,
     },
     {
-      title: "Tokens",
+      title: t("settings.metricsTable.session.columns.tokens"),
       key: "tokens",
       render: (_, record) =>
         record.total_token_usage.total_tokens.toLocaleString(),
@@ -118,21 +120,21 @@ const SessionTable: React.FC<SessionTableProps> = ({
         right.total_token_usage.total_tokens,
     },
     {
-      title: "Tool Calls",
+      title: t("settings.metricsTable.session.columns.toolCalls"),
       dataIndex: "tool_call_count",
       key: "tool_call_count",
       width: 120,
       sorter: (left, right) => left.tool_call_count - right.tool_call_count,
     },
     {
-      title: "Messages",
+      title: t("settings.metricsTable.session.columns.messages"),
       dataIndex: "message_count",
       key: "message_count",
       width: 120,
       sorter: (left, right) => left.message_count - right.message_count,
     },
     {
-      title: "Action",
+      title: t("settings.metricsTable.session.columns.action"),
       key: "action",
       fixed: "right",
       width: 120,
@@ -143,7 +145,7 @@ const SessionTable: React.FC<SessionTableProps> = ({
             onSelectSession(record.session_id);
           }}
         >
-          View
+          {t("settings.metricsTable.session.view")}
         </Button>
       ),
     },

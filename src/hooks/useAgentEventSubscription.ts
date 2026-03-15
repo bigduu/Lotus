@@ -58,7 +58,16 @@ export function useAgentEventSubscription() {
 
   // sessionId -> streaming state
   const streamingStateBySessionRef = useRef<
-    Map<string, { sessionId: string; messageId: string; content: string }>
+    Map<
+      string,
+      {
+        sessionId: string;
+        messageId: string;
+        content: string;
+        reasoningMessageId: string;
+        reasoningContent: string;
+      }
+    >
   >(new Map());
 
   // parentSessionId -> { children, parentDone }
@@ -112,10 +121,15 @@ export function useAgentEventSubscription() {
       if (streaming) {
         if (opts?.clearDraft) {
           streamingMessageBus.clear(streaming.sessionId, streaming.messageId);
+          streamingMessageBus.clear(
+            streaming.sessionId,
+            streaming.reasoningMessageId,
+          );
         }
         streamingStateBySessionRef.current.delete(existing.sessionId);
       } else if (opts?.clearDraft) {
         streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
+        streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
       }
     },
     [],
@@ -133,11 +147,17 @@ export function useAgentEventSubscription() {
       });
 
       const messageId = `streaming-${sessionId}`;
+      const reasoningMessageId = `streaming-reasoning-${sessionId}`;
       const existingDraft = streamingMessageBus.getLatest(messageId);
+      const existingReasoningDraft = streamingMessageBus.getLatest(
+        reasoningMessageId,
+      );
       streamingStateBySessionRef.current.set(sessionId, {
         sessionId,
         messageId,
         content: existingDraft ?? "",
+        reasoningMessageId,
+        reasoningContent: existingReasoningDraft ?? "",
       });
 
       // Only publish an empty placeholder if we don't already have a draft.
@@ -183,22 +203,41 @@ export function useAgentEventSubscription() {
               });
             },
 
+            onReasoningToken: (tokenContent: string) => {
+              const state = streamingStateBySessionRef.current.get(sessionId);
+              if (!state) return;
+              state.reasoningContent += tokenContent;
+              streamingMessageBus.publish({
+                sessionId: state.sessionId,
+                messageId: state.reasoningMessageId,
+                content: state.reasoningContent,
+              });
+            },
+
             onToolStart: (toolCallId, toolName, args) => {
               // Flush any buffered assistant draft before tool execution starts
               // so streaming view keeps a natural "assistant text -> tool call" order.
               const streamingState =
                 streamingStateBySessionRef.current.get(sessionId);
               const bufferedRaw = streamingState?.content || "";
-              if (bufferedRaw.trim().length > 0) {
+              const bufferedReasoningRaw = streamingState?.reasoningContent || "";
+              const hasBufferedContent = bufferedRaw.trim().length > 0;
+              const hasBufferedReasoning = bufferedReasoningRaw.trim().length > 0;
+              if (hasBufferedContent || hasBufferedReasoning) {
                 const chat = useAppStore
                   .getState()
                   .chats.find((c) => c.id === sessionId);
                 const last = chat?.messages?.[chat.messages.length - 1] as any;
+                const lastReasoning =
+                  typeof last?.metadata?.reasoning === "string"
+                    ? last.metadata.reasoning
+                    : "";
                 const lastIsSame =
                   last?.role === "assistant" &&
                   last?.type === "text" &&
                   typeof last?.content === "string" &&
-                  last.content === bufferedRaw;
+                  last.content === bufferedRaw &&
+                  lastReasoning === bufferedReasoningRaw;
 
                 if (!lastIsSame) {
                   void addMessage(sessionId, {
@@ -207,15 +246,27 @@ export function useAgentEventSubscription() {
                     type: "text",
                     content: bufferedRaw,
                     createdAt: new Date().toISOString(),
-                    metadata: { sessionId, model: "agent" },
+                    metadata: {
+                      sessionId,
+                      model: "agent",
+                      ...(hasBufferedReasoning
+                        ? { reasoning: bufferedReasoningRaw }
+                        : {}),
+                    },
                   });
                 }
 
                 if (streamingState) {
                   streamingState.content = "";
+                  streamingState.reasoningContent = "";
                   streamingMessageBus.publish({
                     sessionId: streamingState.sessionId,
                     messageId: streamingState.messageId,
+                    content: "",
+                  });
+                  streamingMessageBus.publish({
+                    sessionId: streamingState.sessionId,
+                    messageId: streamingState.reasoningMessageId,
                     content: "",
                   });
                 }
@@ -411,22 +462,30 @@ export function useAgentEventSubscription() {
               void (async () => {
                 const state = streamingStateBySessionRef.current.get(sessionId);
                 const streamedRaw = state?.content || "";
+                const streamedReasoningRaw = state?.reasoningContent || "";
                 const hasStreamedContent = streamedRaw.trim().length > 0;
+                const hasStreamedReasoning =
+                  streamedReasoningRaw.trim().length > 0;
 
                 // Convert the streaming draft into a normal assistant message immediately so it
                 // doesn't "disappear" when we turn off processing UI.
-                if (hasStreamedContent) {
+                if (hasStreamedContent || hasStreamedReasoning) {
                   const chat = useAppStore
                     .getState()
                     .chats.find((c) => c.id === sessionId);
                   const last = chat?.messages?.[
                     chat.messages.length - 1
                   ] as any;
+                  const lastReasoning =
+                    typeof last?.metadata?.reasoning === "string"
+                      ? last.metadata.reasoning
+                      : "";
                   const lastIsSame =
                     last?.role === "assistant" &&
                     last?.type === "text" &&
                     typeof last?.content === "string" &&
-                    last.content === streamedRaw;
+                    last.content === streamedRaw &&
+                    lastReasoning === streamedReasoningRaw;
 
                   if (!lastIsSame) {
                     await addMessage(sessionId, {
@@ -435,7 +494,13 @@ export function useAgentEventSubscription() {
                       type: "text",
                       content: streamedRaw,
                       createdAt: new Date().toISOString(),
-                      metadata: { sessionId, model: "agent" },
+                      metadata: {
+                        sessionId,
+                        model: "agent",
+                        ...(hasStreamedReasoning
+                          ? { reasoning: streamedReasoningRaw }
+                          : {}),
+                      },
                     });
                   }
                 }
@@ -448,6 +513,33 @@ export function useAgentEventSubscription() {
                   retryDelayMs: 200,
                   waitForAssistant: true,
                 });
+
+                // Fallback for older backends/races: if persisted history still has no
+                // reasoning, re-attach the streamed reasoning locally.
+                if (hasStreamedReasoning) {
+                  const chatAfterSync = useAppStore
+                    .getState()
+                    .chats.find((c) => c.id === sessionId);
+                  const lastAssistantText = [...(chatAfterSync?.messages || [])]
+                    .reverse()
+                    .find(
+                      (msg: any) =>
+                        msg?.role === "assistant" && msg?.type === "text",
+                    ) as any;
+
+                  const hasPersistedReasoning =
+                    typeof lastAssistantText?.metadata?.reasoning === "string" &&
+                    lastAssistantText.metadata.reasoning.trim().length > 0;
+
+                  if (lastAssistantText?.id && !hasPersistedReasoning) {
+                    updateMessage(sessionId, lastAssistantText.id, {
+                      metadata: {
+                        ...(lastAssistantText.metadata || {}),
+                        reasoning: streamedReasoningRaw,
+                      },
+                    } as any);
+                  }
+                }
 
                 // Mark parent completed. If there are background children, keep the SSE
                 // subscription alive to forward sub-session progress.
@@ -470,6 +562,10 @@ export function useAgentEventSubscription() {
                     streamingMessageBus.clear(
                       sessionId,
                       `streaming-${sessionId}`,
+                    );
+                    streamingMessageBus.clear(
+                      sessionId,
+                      `streaming-reasoning-${sessionId}`,
                     );
                     streamingStateBySessionRef.current.delete(entry.sessionId);
                   }

@@ -1,8 +1,19 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Card, Space, Typography, Input, Button, theme, Alert } from "antd";
+import {
+  Card,
+  Space,
+  Typography,
+  Input,
+  Button,
+  theme,
+  Alert,
+  Select,
+} from "antd";
+import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
 import { ModelMappingCard } from "./ModelMappingCard";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
+import type { AppLocale } from "../../../../shared/i18n/types";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -12,11 +23,14 @@ interface SystemSettingsConfigTabProps {
     success: (content: string) => void;
     error: (content: string) => void;
   };
+  locale: AppLocale;
+  onLocaleChange: (locale: AppLocale) => void;
 }
 
 export const SystemSettingsConfigTab: React.FC<
   SystemSettingsConfigTabProps
-> = ({ msgApi }) => {
+> = ({ msgApi, locale, onLocaleChange }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [config, setConfig] = useState({
     http_proxy: "",
@@ -38,11 +52,11 @@ export const SystemSettingsConfigTab: React.FC<
       });
     } catch (error) {
       console.error("Failed to load config:", error);
-      msgApi.error("Failed to load configuration");
+      msgApi.error(t("settings.configTab.loadConfigFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [msgApi]);
+  }, [msgApi, t]);
 
   useEffect(() => {
     loadConfig();
@@ -68,18 +82,18 @@ export const SystemSettingsConfigTab: React.FC<
           Object.values(validation.errors || {})
             .flat()
             .filter(Boolean)[0];
-        msgApi.error(issue?.message || "Invalid configuration");
+        msgApi.error(issue?.message || t("settings.configTab.invalidConfig"));
         return;
       }
 
       await serviceFactory.setBambooConfig(config);
-      msgApi.success("Configuration saved successfully");
+      msgApi.success(t("settings.configTab.saveConfigSuccess"));
     } catch (error) {
       console.error("Failed to save config:", error);
       const message =
         error instanceof Error && error.message.trim()
           ? error.message
-          : "Failed to save configuration";
+          : t("settings.configTab.saveConfigFailed");
       msgApi.error(message);
     } finally {
       setIsLoading(false);
@@ -87,20 +101,20 @@ export const SystemSettingsConfigTab: React.FC<
   };
 
   const handleSaveBackendUrl = async () => {
-    msgApi.success("Backend URL saved");
+    msgApi.success(t("settings.configTab.backendSaved"));
   };
 
   const handleResetBackendUrl = () => {
     setBackendBaseUrl("http://127.0.0.1:9562/v1");
-    msgApi.success("Backend URL reset to default");
+    msgApi.success(t("settings.configTab.backendResetDefault"));
   };
 
   return (
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
       {/* Info Banner */}
       <Alert
-        message="Provider Configuration Moved"
-        description="GitHub Copilot and other provider settings have been moved to the Provider Settings tab. Please configure your providers there."
+        message={t("settings.configTab.providerMovedTitle")}
+        description={t("settings.configTab.providerMovedDescription")}
         type="info"
         showIcon
         closable
@@ -120,8 +134,46 @@ export const SystemSettingsConfigTab: React.FC<
       {/* Model Mapping */}
       <ModelMappingCard />
 
+      <Card
+        size="small"
+        title={<Text strong>{t("settings.configTab.language")}</Text>}
+      >
+        <Select
+          value={locale}
+          style={{ width: 260 }}
+          options={[
+            {
+              label: t("settings.configTab.languageEnglish"),
+              value: "en-US",
+            },
+            {
+              label: t("settings.configTab.languageChinese"),
+              value: "zh-CN",
+            },
+            {
+              label: t("settings.configTab.languageTraditionalChinese"),
+              value: "zh-TW",
+            },
+            {
+              label: t("settings.configTab.languageFrench"),
+              value: "fr-FR",
+            },
+            {
+              label: t("settings.configTab.languageJapanese"),
+              value: "ja-JP",
+            },
+          ]}
+          onChange={(value) => onLocaleChange(value as AppLocale)}
+        />
+      </Card>
+
       {/* Backend Settings */}
-      <Card size="small" title={<Text strong>Backend API Base URL</Text>}>
+      <Card
+        size="small"
+        title={
+          <Text strong>{t("settings.configTab.backendApiBaseUrlTitle")}</Text>
+        }
+      >
         <Space
           direction="vertical"
           size={token.marginSM}
@@ -136,11 +188,11 @@ export const SystemSettingsConfigTab: React.FC<
               style={{ width: "100%" }}
               value={backendBaseUrl}
               onChange={(e) => setBackendBaseUrl(e.target.value)}
-              placeholder="http://127.0.0.1:9562/v1"
+              placeholder={t("settings.configTab.backendApiPlaceholder")}
             />
           </Space>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Must include /v1 path
+            {t("settings.configTab.backendApiHint")}
           </Text>
           <div
             style={{
@@ -149,9 +201,18 @@ export const SystemSettingsConfigTab: React.FC<
               gap: token.marginSM,
             }}
           >
-            <Button data-testid="reset-to-defaults" onClick={handleResetBackendUrl}>Reset to Default</Button>
-            <Button data-testid="save-api-settings" type="primary" onClick={handleSaveBackendUrl}>
-              Save
+            <Button
+              data-testid="reset-to-defaults"
+              onClick={handleResetBackendUrl}
+            >
+              {t("settings.configTab.resetToDefault")}
+            </Button>
+            <Button
+              data-testid="save-api-settings"
+              type="primary"
+              onClick={handleSaveBackendUrl}
+            >
+              {t("settings.configTab.save")}
             </Button>
           </div>
         </Space>

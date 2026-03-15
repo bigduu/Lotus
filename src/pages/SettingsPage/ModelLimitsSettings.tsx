@@ -12,6 +12,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { SaveOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import {
   serviceFactory,
   type BambooConfig,
@@ -33,91 +34,91 @@ interface ModelLimitConfig {
   note: string;
 }
 
-const DEFAULT_MODEL_LIMIT_CONFIGS: ModelLimitConfig[] = [
-  {
-    vendor: "OpenAI (GPT-5)",
-    model_pattern: "gpt-5.4-thinking",
-    max_context_tokens: 1_000_000,
-    max_output_tokens: 128_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Top-tier capability with reasoning depth.",
-  },
-  {
-    vendor: "OpenAI (GPT-5)",
-    model_pattern: "gpt-5.3-codex",
-    max_context_tokens: 1_000_000,
-    max_output_tokens: 128_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Optimized for code refactoring workflows.",
-  },
-  {
-    vendor: "OpenAI (GPT-5)",
-    model_pattern: "gpt-5.2-pro",
-    max_context_tokens: 256_000,
-    max_output_tokens: 64_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Strong logical stability for complex tasks.",
-  },
-  {
-    vendor: "OpenAI (GPT-5)",
-    model_pattern: "gpt-5-mini",
-    max_context_tokens: 400_000,
-    max_output_tokens: 128_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Fast and cost-efficient general-purpose option.",
-  },
-  {
-    vendor: "OpenAI (Legacy)",
-    model_pattern: "gpt-4.1",
-    max_context_tokens: 1_000_000,
-    max_output_tokens: 32_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Classic large-context model with 1M window.",
-  },
-  {
-    vendor: "OpenAI (Legacy)",
-    model_pattern: "gpt-4o",
-    max_context_tokens: 128_000,
-    max_output_tokens: 16_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Low latency, suitable for everyday chat.",
-  },
-  {
-    vendor: "Google",
-    model_pattern: "gemini-2.5-pro",
-    max_context_tokens: 1_000_000,
-    max_output_tokens: 64_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Strong multimodal analysis capabilities.",
-  },
-  {
-    vendor: "Moonshot",
-    model_pattern: "kimi-k2.5",
-    max_context_tokens: 256_000,
-    max_output_tokens: 64_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Preferred for long-form Chinese content.",
-  },
-  {
-    vendor: "Moonshot",
-    model_pattern: "kimi-for-coding",
-    max_context_tokens: 256_000,
-    max_output_tokens: 64_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Tuned for coding-focused scenarios.",
-  },
-  {
-    vendor: "Zhipu",
-    model_pattern: "glm-5",
-    max_context_tokens: 200_000,
-    max_output_tokens: 128_000,
-    safety_margin: DEFAULT_SAFETY_MARGIN,
-    note: "Good for one-shot large-document generation.",
-  },
-];
-
-function createDefaultConfigs(): ModelLimitConfig[] {
-  return DEFAULT_MODEL_LIMIT_CONFIGS.map((item) => ({ ...item }));
+function createDefaultConfigs(
+  t: (key: string, options?: Record<string, unknown>) => string,
+): ModelLimitConfig[] {
+  return [
+    {
+      vendor: "OpenAI (GPT-5)",
+      model_pattern: "gpt-5.4-thinking",
+      max_context_tokens: 1_000_000,
+      max_output_tokens: 128_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.gpt54"),
+    },
+    {
+      vendor: "OpenAI (GPT-5)",
+      model_pattern: "gpt-5.3-codex",
+      max_context_tokens: 1_000_000,
+      max_output_tokens: 128_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.gpt53Codex"),
+    },
+    {
+      vendor: "OpenAI (GPT-5)",
+      model_pattern: "gpt-5.2-pro",
+      max_context_tokens: 256_000,
+      max_output_tokens: 64_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.gpt52Pro"),
+    },
+    {
+      vendor: "OpenAI (GPT-5)",
+      model_pattern: "gpt-5-mini",
+      max_context_tokens: 400_000,
+      max_output_tokens: 128_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.gpt5Mini"),
+    },
+    {
+      vendor: "OpenAI (Legacy)",
+      model_pattern: "gpt-4.1",
+      max_context_tokens: 1_000_000,
+      max_output_tokens: 32_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.gpt41"),
+    },
+    {
+      vendor: "OpenAI (Legacy)",
+      model_pattern: "gpt-4o",
+      max_context_tokens: 128_000,
+      max_output_tokens: 16_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.gpt4o"),
+    },
+    {
+      vendor: "Google",
+      model_pattern: "gemini-2.5-pro",
+      max_context_tokens: 1_000_000,
+      max_output_tokens: 64_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.gemini25Pro"),
+    },
+    {
+      vendor: "Moonshot",
+      model_pattern: "kimi-k2.5",
+      max_context_tokens: 256_000,
+      max_output_tokens: 64_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.kimiK25"),
+    },
+    {
+      vendor: "Moonshot",
+      model_pattern: "kimi-for-coding",
+      max_context_tokens: 256_000,
+      max_output_tokens: 64_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.kimiCoding"),
+    },
+    {
+      vendor: "Zhipu",
+      model_pattern: "glm-5",
+      max_context_tokens: 200_000,
+      max_output_tokens: 128_000,
+      safety_margin: DEFAULT_SAFETY_MARGIN,
+      note: t("settings.modelLimits.defaults.glm5"),
+    },
+  ];
 }
 
 function toSafePositiveInteger(value: unknown, fallback: number): number {
@@ -218,9 +219,12 @@ function getConfigModelLimits(config: BambooConfig): {
   };
 }
 
-function validateModelLimits(configs: ModelLimitConfig[]): string | null {
+function validateModelLimits(
+  configs: ModelLimitConfig[],
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string | null {
   if (configs.length === 0) {
-    return "Please keep at least one model limit row.";
+    return t("settings.modelLimits.validation.atLeastOneRow");
   }
 
   const seenPatterns = new Set<string>();
@@ -228,33 +232,41 @@ function validateModelLimits(configs: ModelLimitConfig[]): string | null {
   for (const config of configs) {
     const pattern = config.model_pattern.trim();
     if (!pattern) {
-      return "Model pattern cannot be empty.";
+      return t("settings.modelLimits.validation.modelPatternEmpty");
     }
 
     const normalizedPattern = pattern.toLowerCase();
     if (seenPatterns.has(normalizedPattern)) {
-      return `Duplicate model pattern: ${pattern}`;
+      return t("settings.modelLimits.validation.duplicateModelPattern", {
+        pattern,
+      });
     }
     seenPatterns.add(normalizedPattern);
 
     if (config.max_context_tokens < 1000) {
-      return `Context window for ${pattern} must be at least 1000.`;
+      return t("settings.modelLimits.validation.contextWindowMin", { pattern });
     }
 
     if (config.max_output_tokens < 1) {
-      return `Max output for ${pattern} must be at least 1.`;
+      return t("settings.modelLimits.validation.maxOutputMin", { pattern });
     }
 
     if (config.max_output_tokens > config.max_context_tokens) {
-      return `Max output for ${pattern} must be <= context window.`;
+      return t("settings.modelLimits.validation.maxOutputExceedsContext", {
+        pattern,
+      });
     }
 
     if (config.safety_margin < 0) {
-      return `Safety margin for ${pattern} cannot be negative.`;
+      return t("settings.modelLimits.validation.safetyMarginNegative", {
+        pattern,
+      });
     }
 
     if (config.safety_margin >= config.max_context_tokens) {
-      return `Safety margin for ${pattern} must be smaller than context window.`;
+      return t("settings.modelLimits.validation.safetyMarginTooLarge", {
+        pattern,
+      });
     }
   }
 
@@ -267,8 +279,9 @@ function validateModelLimits(configs: ModelLimitConfig[]): string | null {
  * Persisted in `config.json` under the root key `model_limits`.
  */
 export const ModelLimitsSettings: React.FC = () => {
+  const { t } = useTranslation();
   const [configs, setConfigs] = useState<ModelLimitConfig[]>(() =>
-    createDefaultConfigs(),
+    createDefaultConfigs(t),
   );
   const [loading, setLoading] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
@@ -306,7 +319,8 @@ export const ModelLimitsSettings: React.FC = () => {
     setLoading(true);
     try {
       const bambooConfig = await serviceFactory.getBambooConfig();
-      const { hasModelLimitsKey, modelLimits } = getConfigModelLimits(bambooConfig);
+      const { hasModelLimitsKey, modelLimits } =
+        getConfigModelLimits(bambooConfig);
 
       if (modelLimits.length > 0) {
         setConfigs(modelLimits);
@@ -314,7 +328,7 @@ export const ModelLimitsSettings: React.FC = () => {
       }
 
       if (hasModelLimitsKey) {
-        setConfigs(createDefaultConfigs());
+        setConfigs(createDefaultConfigs(t));
         return;
       }
 
@@ -324,26 +338,26 @@ export const ModelLimitsSettings: React.FC = () => {
         localStorage.removeItem(LEGACY_MODEL_LIMITS_KEY);
         localStorage.removeItem(LEGACY_BUDGET_STRATEGY_KEY);
         setConfigs(migrated);
-        msgApi.info("Migrated model limits from local storage to global config.");
+        msgApi.info(t("settings.modelLimits.migratedFromLocalStorage"));
         return;
       }
 
-      setConfigs(createDefaultConfigs());
+      setConfigs(createDefaultConfigs(t));
     } catch (error) {
       console.error("Failed to load model limits settings:", error);
-      msgApi.error("Failed to load model limits settings");
-      setConfigs(createDefaultConfigs());
+      msgApi.error(t("settings.modelLimits.loadFailed"));
+      setConfigs(createDefaultConfigs(t));
     } finally {
       setLoading(false);
     }
-  }, [msgApi]);
+  }, [msgApi, t]);
 
   useEffect(() => {
     void loadSettings();
   }, [loadSettings]);
 
   const saveSettings = async () => {
-    const validationError = validateModelLimits(configs);
+    const validationError = validateModelLimits(configs, t);
     if (validationError) {
       msgApi.error(validationError);
       return;
@@ -352,17 +366,17 @@ export const ModelLimitsSettings: React.FC = () => {
     setLoading(true);
     try {
       await serviceFactory.setBambooConfig({ model_limits: configs });
-      msgApi.success("Model limits saved to global config");
+      msgApi.success(t("settings.modelLimits.saveSuccess"));
     } catch (error) {
       console.error("Failed to save model limits settings:", error);
-      msgApi.error("Failed to save model limits settings");
+      msgApi.error(t("settings.modelLimits.saveFailed"));
     } finally {
       setLoading(false);
     }
   };
 
   const resetToDefaults = async () => {
-    const defaults = createDefaultConfigs();
+    const defaults = createDefaultConfigs(t);
 
     setLoading(true);
     try {
@@ -370,10 +384,10 @@ export const ModelLimitsSettings: React.FC = () => {
       setConfigs(defaults);
       localStorage.removeItem(LEGACY_MODEL_LIMITS_KEY);
       localStorage.removeItem(LEGACY_BUDGET_STRATEGY_KEY);
-      msgApi.success("Model limits reset to product defaults");
+      msgApi.success(t("settings.modelLimits.resetSuccess"));
     } catch (error) {
       console.error("Failed to reset model limits settings:", error);
-      msgApi.error("Failed to reset model limits settings");
+      msgApi.error(t("settings.modelLimits.resetFailed"));
     } finally {
       setLoading(false);
     }
@@ -382,27 +396,29 @@ export const ModelLimitsSettings: React.FC = () => {
   const columns: ColumnsType<ModelLimitConfig> = useMemo(
     () => [
       {
-        title: "Vendor/Series",
+        title: t("settings.modelLimits.columns.vendor"),
         dataIndex: "vendor",
         key: "vendor",
         width: 170,
         render: (value: string, _record, index) => (
           <Input
             value={value}
-            placeholder="OpenAI / Google / Moonshot"
-            onChange={(event) => updateConfig(index, { vendor: event.target.value })}
+            placeholder={t("settings.modelLimits.placeholders.vendor")}
+            onChange={(event) =>
+              updateConfig(index, { vendor: event.target.value })
+            }
           />
         ),
       },
       {
-        title: "Model",
+        title: t("settings.modelLimits.columns.model"),
         dataIndex: "model_pattern",
         key: "model_pattern",
         width: 220,
         render: (value: string, _record, index) => (
           <Input
             value={value}
-            placeholder="e.g. gpt-5.4-thinking"
+            placeholder={t("settings.modelLimits.placeholders.model")}
             onChange={(event) =>
               updateConfig(index, { model_pattern: event.target.value })
             }
@@ -410,7 +426,7 @@ export const ModelLimitsSettings: React.FC = () => {
         ),
       },
       {
-        title: "Context Window",
+        title: t("settings.modelLimits.columns.contextWindow"),
         dataIndex: "max_context_tokens",
         key: "max_context_tokens",
         width: 180,
@@ -430,7 +446,7 @@ export const ModelLimitsSettings: React.FC = () => {
         ),
       },
       {
-        title: "Max Output",
+        title: t("settings.modelLimits.columns.maxOutput"),
         dataIndex: "max_output_tokens",
         key: "max_output_tokens",
         width: 160,
@@ -450,50 +466,51 @@ export const ModelLimitsSettings: React.FC = () => {
         ),
       },
       {
-        title: "Notes",
+        title: t("settings.modelLimits.columns.notes"),
         dataIndex: "note",
         key: "note",
         width: 240,
         render: (value: string, _record, index) => (
           <Input
             value={value}
-            placeholder="Optional"
-            onChange={(event) => updateConfig(index, { note: event.target.value })}
+            placeholder={t("settings.modelLimits.placeholders.optional")}
+            onChange={(event) =>
+              updateConfig(index, { note: event.target.value })
+            }
           />
         ),
       },
       {
-        title: "Actions",
+        title: t("settings.modelLimits.columns.actions"),
         key: "actions",
         width: 100,
         render: (_value, _record, index) => (
           <Button danger size="small" onClick={() => removeConfigRow(index)}>
-            Remove
+            {t("settings.modelLimits.actions.remove")}
           </Button>
         ),
       },
     ],
-    [removeConfigRow, updateConfig],
+    [removeConfigRow, t, updateConfig],
   );
 
   return (
     <div className="model-limits-settings">
       {contextHolder}
       <Card>
-        <Title level={4}>Token Budget Model Limits</Title>
+        <Title level={4}>{t("settings.modelLimits.title")}</Title>
         <Paragraph type="secondary">
-          Configure per-model token limits for context budgeting. These settings
-          are persisted globally in Bamboo <Text code>config.json</Text> and used
-          by the backend resolver.
+          {t("settings.modelLimits.descriptionPrefix")}{" "}
+          <Text code>config.json</Text>{" "}
+          {t("settings.modelLimits.descriptionSuffix")}
         </Paragraph>
 
         <Divider />
 
         <Space direction="vertical" size="small" style={{ width: "100%" }}>
-          <Text strong>Model Defaults</Text>
+          <Text strong>{t("settings.modelLimits.defaultsTitle")}</Text>
           <Text type="secondary">
-            Preloaded with your GPT-5 / GPT-4 / Gemini / Kimi / GLM model
-            context and max-output defaults. You can keep editing as needed.
+            {t("settings.modelLimits.defaultsDescription")}
           </Text>
         </Space>
 
@@ -508,24 +525,26 @@ export const ModelLimitsSettings: React.FC = () => {
         />
 
         <Space>
-          <Button onClick={addConfigRow}>Add Row</Button>
+          <Button onClick={addConfigRow}>
+            {t("settings.modelLimits.actions.addRow")}
+          </Button>
           <Button
             type="primary"
             icon={<SaveOutlined />}
             onClick={() => void saveSettings()}
             loading={loading}
           >
-            Save
+            {t("settings.modelLimits.actions.save")}
           </Button>
           <Button
             icon={<ReloadOutlined />}
             onClick={() => void resetToDefaults()}
             loading={loading}
           >
-            Reset to Defaults
+            {t("settings.modelLimits.actions.resetToDefaults")}
           </Button>
           <Button onClick={() => void loadSettings()} loading={loading}>
-            Reload
+            {t("settings.modelLimits.actions.reload")}
           </Button>
         </Space>
       </Card>

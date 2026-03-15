@@ -19,6 +19,7 @@ describe("useInputContainerSubmit", () => {
         selectedWorkflow: null,
         matchesWorkflowToken: vi.fn(() => false),
         fileReferences: new Map(),
+        reasoningEffort: "high",
         sendMessage,
         recordEntry,
         clearWorkflowDraft,
@@ -37,6 +38,7 @@ describe("useInputContainerSubmit", () => {
     expect(sendMessage).toHaveBeenCalledWith(
       "> quoted message\n\nmy reply",
       undefined,
+      "high",
     );
     expect(setReferenceText).toHaveBeenCalledWith(null);
     expect(setContent).toHaveBeenCalledWith("");
@@ -56,6 +58,7 @@ describe("useInputContainerSubmit", () => {
         selectedWorkflow: null,
         matchesWorkflowToken: vi.fn(() => false),
         fileReferences: new Map(),
+        reasoningEffort: "medium",
         sendMessage,
         recordEntry,
         clearWorkflowDraft: vi.fn(),
@@ -71,6 +74,6 @@ describe("useInputContainerSubmit", () => {
     });
 
     expect(recordEntry).toHaveBeenCalledWith("plain reply");
-    expect(sendMessage).toHaveBeenCalledWith("plain reply", undefined);
+    expect(sendMessage).toHaveBeenCalledWith("plain reply", undefined, "medium");
   });
 });

@@ -17,6 +17,7 @@ import {
   Typography,
 } from "antd";
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   createDefaultMcpServerConfig,
   DEFAULT_HEALTHCHECK_INTERVAL_MS,
@@ -145,22 +146,21 @@ const toServerConfig = (
   const preservedRequestTimeoutMs =
     typeof values.requestTimeoutMs === "number"
       ? values.requestTimeoutMs
-      : initialConfig?.request_timeout_ms ?? DEFAULT_REQUEST_TIMEOUT_MS;
+      : (initialConfig?.request_timeout_ms ?? DEFAULT_REQUEST_TIMEOUT_MS);
 
   const preservedHealthcheckIntervalMs =
     typeof values.healthcheckIntervalMs === "number"
       ? values.healthcheckIntervalMs
-      : initialConfig?.healthcheck_interval_ms ?? DEFAULT_HEALTHCHECK_INTERVAL_MS;
+      : (initialConfig?.healthcheck_interval_ms ??
+        DEFAULT_HEALTHCHECK_INTERVAL_MS);
 
-  const preservedAllowedTools =
-    Array.isArray(values.allowedTools)
-      ? values.allowedTools
-      : initialConfig?.allowed_tools ?? [];
+  const preservedAllowedTools = Array.isArray(values.allowedTools)
+    ? values.allowedTools
+    : (initialConfig?.allowed_tools ?? []);
 
-  const preservedDeniedTools =
-    Array.isArray(values.deniedTools)
-      ? values.deniedTools
-      : initialConfig?.denied_tools ?? [];
+  const preservedDeniedTools = Array.isArray(values.deniedTools)
+    ? values.deniedTools
+    : (initialConfig?.denied_tools ?? []);
 
   const transport: TransportConfig =
     values.transportType === "sse"
@@ -170,8 +170,8 @@ const toServerConfig = (
           headers: entriesToHeaders(values.headerEntries || []),
           connect_timeout_ms:
             initialConfig?.transport.type === "sse"
-              ? initialConfig.transport.connect_timeout_ms ??
-                DEFAULT_SSE_CONNECT_TIMEOUT_MS
+              ? (initialConfig.transport.connect_timeout_ms ??
+                DEFAULT_SSE_CONNECT_TIMEOUT_MS)
               : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
         } satisfies SseTransportConfig)
       : ({
@@ -185,8 +185,8 @@ const toServerConfig = (
               : undefined,
           startup_timeout_ms:
             initialConfig?.transport.type === "stdio"
-              ? initialConfig.transport.startup_timeout_ms ??
-                DEFAULT_STDIO_STARTUP_TIMEOUT_MS
+              ? (initialConfig.transport.startup_timeout_ms ??
+                DEFAULT_STDIO_STARTUP_TIMEOUT_MS)
               : DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
         } satisfies StdioTransportConfig);
 
@@ -212,13 +212,17 @@ const formatJson = (config: McpServerConfig | null | undefined): string => {
 
 const validateJson = (
   json: string,
+  t: (key: string, options?: Record<string, unknown>) => string,
 ):
   | { valid: true; config: McpServerConfig }
   | { valid: false; error: string } => {
   try {
     const parsed = JSON.parse(json) as unknown;
     if (!parsed || typeof parsed !== "object") {
-      return { valid: false, error: "JSON must be an object" };
+      return {
+        valid: false,
+        error: t("settings.mcpServerForm.jsonMustBeObject"),
+      };
     }
 
     const record = parsed as Record<string, unknown>;
@@ -228,21 +232,26 @@ const validateJson = (
     if (record.mcpServers && typeof record.mcpServers === "object") {
       return {
         valid: false,
-        error:
-          "Detected 'mcpServers' (bulk config). Use the MCP tab Import button for bulk import, or paste a single server config here.",
+        error: t("settings.mcpServerForm.detectedBulkConfig"),
       };
     }
 
     const id = typeof record.id === "string" ? record.id : "";
     if (!id.trim()) {
-      return { valid: false, error: "Missing or invalid 'id' field" };
+      return {
+        valid: false,
+        error: t("settings.mcpServerForm.missingIdField"),
+      };
     }
 
     // Preferred (internal) format
     if (record.transport && typeof record.transport === "object") {
       const config = record as unknown as McpServerConfig;
       if (!config.transport || typeof config.transport !== "object") {
-        return { valid: false, error: "Missing or invalid 'transport' field" };
+        return {
+          valid: false,
+          error: t("settings.mcpServerForm.missingTransportField"),
+        };
       }
       return { valid: true, config };
     }
@@ -265,10 +274,14 @@ const validateJson = (
         : DEFAULT_HEALTHCHECK_INTERVAL_MS;
 
     const allowed_tools = Array.isArray(record.allowed_tools)
-      ? record.allowed_tools.filter((item): item is string => typeof item === "string")
+      ? record.allowed_tools.filter(
+          (item): item is string => typeof item === "string",
+        )
       : [];
     const denied_tools = Array.isArray(record.denied_tools)
-      ? record.denied_tools.filter((item): item is string => typeof item === "string")
+      ? record.denied_tools.filter(
+          (item): item is string => typeof item === "string",
+        )
       : [];
 
     const name = typeof record.name === "string" ? record.name : undefined;
@@ -281,7 +294,8 @@ const validateJson = (
               if (!item || typeof item !== "object") return null;
               const pair = item as Record<string, unknown>;
               const headerName = typeof pair.name === "string" ? pair.name : "";
-              const headerValue = typeof pair.value === "string" ? pair.value : "";
+              const headerValue =
+                typeof pair.value === "string" ? pair.value : "";
               if (!headerName.trim()) return null;
               return { name: headerName, value: headerValue };
             })
@@ -329,15 +343,14 @@ const validateJson = (
       const envRaw = record.env;
       const env =
         envRaw && typeof envRaw === "object"
-          ? Object.entries(envRaw as Record<string, unknown>).reduce<Record<string, string>>(
-              (acc, [key, value]) => {
-                if (typeof value === "string") {
-                  acc[key] = value;
-                }
-                return acc;
-              },
-              {},
-            )
+          ? Object.entries(envRaw as Record<string, unknown>).reduce<
+              Record<string, string>
+            >((acc, [key, value]) => {
+              if (typeof value === "string") {
+                acc[key] = value;
+              }
+              return acc;
+            }, {})
           : {};
 
       const startup_timeout_ms =
@@ -370,13 +383,17 @@ const validateJson = (
 
     return {
       valid: false,
-      error:
-        "Missing transport info. Expected either 'transport' (Bodhi format) or 'command'/'url' (mainstream MCP format).",
+      error: t("settings.mcpServerForm.missingTransportInfo"),
     };
   } catch (e) {
     return {
       valid: false,
-      error: `Invalid JSON: ${e instanceof Error ? e.message : "Unknown error"}`,
+      error: t("settings.mcpServerForm.invalidJson", {
+        message:
+          e instanceof Error
+            ? e.message
+            : t("settings.mcpServerForm.unknownError"),
+      }),
     };
   }
 };
@@ -389,6 +406,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   onCancel,
   onSubmit,
 }) => {
+  const { t } = useTranslation();
   const [form] = Form.useForm<McpServerFormValues>();
   const [editorMode, setEditorMode] = useState<EditorMode>("form");
   const [jsonValue, setJsonValue] = useState<string>("");
@@ -420,7 +438,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
 
   const handleOk = async () => {
     if (editorMode === "json") {
-      const result = validateJson(jsonValue);
+      const result = validateJson(jsonValue, t);
       if (!result.valid) {
         setJsonError(result.error);
         return;
@@ -448,7 +466,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   const handleJsonChange = (value: string) => {
     setJsonValue(value);
     if (jsonError) {
-      const result = validateJson(value);
+      const result = validateJson(value, t);
       if (result.valid) {
         setJsonError(null);
       }
@@ -467,7 +485,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       }
     } else {
       // Sync JSON to form (if valid)
-      const result = validateJson(jsonValue);
+      const result = validateJson(jsonValue, t);
       if (result.valid) {
         form.setFieldsValue(toFormValues(result.config));
       }
@@ -478,13 +496,17 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
 
   return (
     <Modal
-      title={mode === "edit" ? "Edit MCP Server" : "Add MCP Server"}
+      title={
+        mode === "edit"
+          ? t("settings.mcpServerForm.editTitle")
+          : t("settings.mcpServerForm.addTitle")
+      }
       open={open}
       onCancel={handleCancel}
       onOk={() => {
         void handleOk();
       }}
-      okText="Save"
+      okText={t("settings.mcpServerForm.save")}
       destroyOnClose
       confirmLoading={confirmLoading}
       width={720}
@@ -497,10 +519,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
           buttonStyle="solid"
         >
           <Radio.Button value="form">
-            <FormOutlined /> Form
+            <FormOutlined /> {t("settings.mcpServerForm.modeForm")}
           </Radio.Button>
           <Radio.Button value="json">
-            <CodeOutlined /> JSON
+            <CodeOutlined /> {t("settings.mcpServerForm.modeJson")}
           </Radio.Button>
         </Radio.Group>
       </div>
@@ -508,7 +530,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       {editorMode === "json" && jsonError && (
         <Alert
           type="error"
-          message="JSON Error"
+          message={t("settings.mcpServerForm.jsonError")}
           description={jsonError}
           showIcon
           style={{ marginBottom: 16 }}
@@ -538,12 +560,15 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
         >
           <Form.Item
             name="id"
-            label="Server ID"
+            label={t("settings.mcpServerForm.serverId")}
             rules={[
-              { required: true, message: "Server ID is required" },
+              {
+                required: true,
+                message: t("settings.mcpServerForm.serverIdRequired"),
+              },
               {
                 pattern: /^[a-zA-Z0-9_-]+$/,
-                message: "Use only letters, numbers, underscore, and hyphen",
+                message: t("settings.mcpServerForm.serverIdPatternError"),
               },
             ]}
           >
@@ -554,28 +579,42 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
             />
           </Form.Item>
 
-          <Form.Item name="name" label="Display Name">
+          <Form.Item
+            name="name"
+            label={t("settings.mcpServerForm.displayName")}
+          >
             <Input placeholder="Filesystem MCP" autoComplete="off" />
           </Form.Item>
 
           <Form.Item
             name="enabled"
-            label="Enabled"
+            label={t("settings.mcpServerForm.enabled")}
             valuePropName="checked"
-            extra="Disabled servers stay in config but will not be started."
+            extra={t("settings.mcpServerForm.enabledHelp")}
           >
             <Switch />
           </Form.Item>
 
           <Form.Item
             name="transportType"
-            label="Transport Type"
-            rules={[{ required: true, message: "Transport type is required" }]}
+            label={t("settings.mcpServerForm.transportType")}
+            rules={[
+              {
+                required: true,
+                message: t("settings.mcpServerForm.transportTypeRequired"),
+              },
+            ]}
           >
             <Select
               options={[
-                { label: "Stdio", value: "stdio" },
-                { label: "SSE", value: "sse" },
+                {
+                  label: t("settings.mcpServerForm.transportOptions.stdio"),
+                  value: "stdio",
+                },
+                {
+                  label: t("settings.mcpServerForm.transportOptions.sse"),
+                  value: "sse",
+                },
               ]}
             />
           </Form.Item>
@@ -584,17 +623,25 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
             <>
               <Form.Item
                 name="command"
-                label="Command"
-                rules={[{ required: true, message: "Command is required" }]}
+                label={t("settings.mcpServerForm.command")}
+                rules={[
+                  {
+                    required: true,
+                    message: t("settings.mcpServerForm.commandRequired"),
+                  },
+                ]}
               >
                 <Input placeholder="npx" autoComplete="off" />
               </Form.Item>
 
-              <Form.Item name="args" label="Arguments">
+              <Form.Item
+                name="args"
+                label={t("settings.mcpServerForm.arguments")}
+              >
                 <Select
                   mode="tags"
                   tokenSeparators={[","]}
-                  placeholder="Add an argument and press Enter"
+                  placeholder={t("settings.mcpServerForm.argumentsPlaceholder")}
                   open={false}
                 />
               </Form.Item>
@@ -606,13 +653,13 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       align="center"
                       style={{ justifyContent: "space-between", width: "100%" }}
                     >
-                      <Text strong>Environment Variables</Text>
+                      <Text strong>{t("settings.mcpServerForm.envVars")}</Text>
                       <Button
                         icon={<PlusOutlined />}
                         onClick={() => add({ key: "", value: "" })}
                         type="dashed"
                       >
-                        Add Env
+                        {t("settings.mcpServerForm.addEnv")}
                       </Button>
                     </Space>
 
@@ -625,7 +672,12 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                         <Form.Item
                           {...field}
                           name={[field.name, "key"]}
-                          rules={[{ required: true, message: "Key required" }]}
+                          rules={[
+                            {
+                              required: true,
+                              message: t("settings.mcpServerForm.keyRequired"),
+                            },
+                          ]}
                         >
                           <Input placeholder="MCP_ROOT" autoComplete="off" />
                         </Form.Item>
@@ -651,9 +703,12 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
             <>
               <Form.Item
                 name="url"
-                label="SSE URL"
+                label={t("settings.mcpServerForm.sseUrl")}
                 rules={[
-                  { required: true, message: "SSE URL is required" },
+                  {
+                    required: true,
+                    message: t("settings.mcpServerForm.sseUrlRequired"),
+                  },
                   {
                     validator: async (_, value: string | undefined) => {
                       if (!value) {
@@ -662,7 +717,9 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       try {
                         new URL(value);
                       } catch {
-                        throw new Error("Please enter a valid URL");
+                        throw new Error(
+                          t("settings.mcpServerForm.validUrlRequired"),
+                        );
                       }
                     },
                   },
@@ -681,13 +738,13 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       align="center"
                       style={{ justifyContent: "space-between", width: "100%" }}
                     >
-                      <Text strong>Headers</Text>
+                      <Text strong>{t("settings.mcpServerForm.headers")}</Text>
                       <Button
                         icon={<PlusOutlined />}
                         onClick={() => add({ name: "", value: "" })}
                         type="dashed"
                       >
-                        Add Header
+                        {t("settings.mcpServerForm.addHeader")}
                       </Button>
                     </Space>
 
@@ -701,7 +758,12 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                           {...field}
                           name={[field.name, "name"]}
                           rules={[
-                            { required: true, message: "Header name required" },
+                            {
+                              required: true,
+                              message: t(
+                                "settings.mcpServerForm.headerNameRequired",
+                              ),
+                            },
                           ]}
                         >
                           <Input

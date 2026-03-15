@@ -1,11 +1,13 @@
 import { useCallback } from "react";
 import type { Message } from "../../types/chat";
+import type { ReasoningEffort } from "../../services/AgentService";
 
 interface UseInputContainerHistoryProps {
   currentSessionId: string | null;
   currentChat: any | null;
   currentMessages: Message[];
-  retryLastTurn: () => Promise<void>;
+  reasoningEffort: ReasoningEffort;
+  retryLastTurn: (reasoningEffort?: ReasoningEffort) => Promise<void>;
   navigate: (
     direction: "previous" | "next",
     currentValue: string,
@@ -19,6 +21,7 @@ export const useInputContainerHistory = ({
   currentSessionId,
   currentChat,
   currentMessages,
+  reasoningEffort,
   retryLastTurn,
   navigate,
 }: UseInputContainerHistoryProps) => {
@@ -34,8 +37,14 @@ export const useInputContainerHistory = ({
 
     if (lastUserIndex === -1) return;
 
-    await retryLastTurn();
-  }, [currentChat, currentSessionId, currentMessages, retryLastTurn]);
+    await retryLastTurn(reasoningEffort);
+  }, [
+    currentChat,
+    currentSessionId,
+    currentMessages,
+    reasoningEffort,
+    retryLastTurn,
+  ]);
 
   const handleHistoryNavigate = useCallback(
     (direction: "previous" | "next", currentValue: string): string | null => {

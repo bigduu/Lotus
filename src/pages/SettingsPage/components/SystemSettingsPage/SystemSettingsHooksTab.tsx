@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Flex, Select, Switch, Typography, message, theme } from "antd";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -21,6 +22,7 @@ const getImageFallbackEnabled = (config: any): boolean => {
 };
 
 const SystemSettingsHooksTab: React.FC = () => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [msgApi, contextHolder] = message.useMessage();
   const [isLoading, setIsLoading] = useState(false);
@@ -29,11 +31,14 @@ const SystemSettingsHooksTab: React.FC = () => {
 
   const modeOptions = useMemo(
     () => [
-      { label: "Placeholder", value: "placeholder" as const },
-      { label: "Error", value: "error" as const },
-      { label: "OCR (Windows)", value: "ocr" as const },
+      {
+        label: t("settings.hooksTab.mode.placeholder"),
+        value: "placeholder" as const,
+      },
+      { label: t("settings.hooksTab.mode.error"), value: "error" as const },
+      { label: t("settings.hooksTab.mode.ocr"), value: "ocr" as const },
     ],
-    [],
+    [t],
   );
 
   const load = useCallback(async () => {
@@ -44,7 +49,9 @@ const SystemSettingsHooksTab: React.FC = () => {
       setMode(getImageFallbackMode(config));
     } catch (error) {
       msgApi.error(
-        error instanceof Error ? error.message : "Failed to load hooks settings",
+        error instanceof Error
+          ? error.message
+          : t("settings.hooksTab.loadFailed"),
       );
     } finally {
       setIsLoading(false);
@@ -70,11 +77,15 @@ const SystemSettingsHooksTab: React.FC = () => {
       setIsLoading(true);
       try {
         await patch(checked, mode);
-        msgApi.success(checked ? "Image hooks enabled" : "Image hooks disabled");
+        msgApi.success(
+          checked
+            ? t("settings.hooksTab.enabled")
+            : t("settings.hooksTab.disabled"),
+        );
         await load();
       } catch (error) {
         msgApi.error(
-          error instanceof Error ? error.message : "Failed to update hooks",
+          error instanceof Error ? error.message : t("settings.hooksTab.updateFailed"),
         );
       } finally {
         setIsLoading(false);
@@ -88,11 +99,19 @@ const SystemSettingsHooksTab: React.FC = () => {
       setIsLoading(true);
       try {
         await patch(enabled, nextMode);
-        msgApi.success(`Image hook mode set to: ${nextMode}`);
+        msgApi.success(
+          t("settings.hooksTab.modeUpdated", {
+            mode:
+              modeOptions.find((option) => option.value === nextMode)?.label ??
+              nextMode,
+          }),
+        );
         await load();
       } catch (error) {
         msgApi.error(
-          error instanceof Error ? error.message : "Failed to update hook mode",
+          error instanceof Error
+            ? error.message
+            : t("settings.hooksTab.modeUpdateFailed"),
         );
       } finally {
         setIsLoading(false);
@@ -110,13 +129,13 @@ const SystemSettingsHooksTab: React.FC = () => {
       {contextHolder}
       <Card size="small" loading={isLoading}>
         <Flex vertical gap={token.marginXS}>
-          <Text strong>Image Hooks</Text>
+          <Text strong>{t("settings.hooksTab.title")}</Text>
           <Flex align="center" justify="space-between">
-            <Text>Enable image preflight hook</Text>
+            <Text>{t("settings.hooksTab.enableImagePreflight")}</Text>
             <Switch checked={enabled} onChange={handleEnabledChange} />
           </Flex>
           <Flex align="center" justify="space-between">
-            <Text>Mode</Text>
+            <Text>{t("settings.hooksTab.modeLabel")}</Text>
             <Select
               style={{ width: 180 }}
               value={mode}
@@ -126,8 +145,7 @@ const SystemSettingsHooksTab: React.FC = () => {
             />
           </Flex>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Placeholder mode rewrites images into text summaries (this can break
-            tools that expect real image data). OCR is currently Windows-only.
+            {t("settings.hooksTab.description")}
           </Text>
         </Flex>
       </Card>

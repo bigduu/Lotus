@@ -1,20 +1,32 @@
 import { useEffect, useState } from "react";
-import { App as AntApp, ConfigProvider, theme } from "antd";
+import { App as AntApp, Button, ConfigProvider, theme } from "antd";
+import { useTranslation } from "react-i18next";
 import "./App.css";
+import "@shared/i18n";
 import { MainLayout } from "./MainLayout";
 import { SetupPage } from "../pages/SetupPage";
 import { initializeStore } from "../pages/ChatPage/store";
 import { ServiceFactory } from "../services/common/ServiceFactory";
 import { getBackendBaseUrlSync } from "../shared/utils/backendBaseUrl";
-import { Button } from "antd";
+import i18n from "@shared/i18n";
+import { getAntdLocale } from "@shared/i18n/antdLocale";
+import {
+  APP_LOCALE_STORAGE_KEY,
+  type AppLocale,
+  resolveInitialLocale,
+} from "@shared/i18n/types";
 
 const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
 
 function App() {
+  const { t } = useTranslation();
   const [themeMode, setThemeMode] = useState<"light" | "dark">(() => {
     const saved = localStorage.getItem(THEME_STORAGE_KEY);
     return (saved as "light" | "dark") || "light";
   });
+  const [appLocale, setAppLocale] = useState<AppLocale>(() =>
+    resolveInitialLocale(),
+  );
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const [backendStartupError, setBackendStartupError] = useState<string | null>(
     null,
@@ -25,6 +37,11 @@ function App() {
   useEffect(() => {
     localStorage.setItem(THEME_STORAGE_KEY, themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    localStorage.setItem(APP_LOCALE_STORAGE_KEY, appLocale);
+    void i18n.changeLanguage(appLocale);
+  }, [appLocale]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,7 +69,7 @@ function App() {
               ? error.message
               : "Unknown error";
           setBackendStartupError(
-            `Backend not reachable at ${baseUrl} (last error: ${message})`,
+            t("app.backendNotReachable", { baseUrl, message }),
           );
           // Keep `isSetupComplete` as null so we don't incorrectly show SetupPage.
           return;
@@ -71,7 +88,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [setupProbeNonce]);
+  }, [setupProbeNonce, t]);
 
   useEffect(() => {
     document.body.setAttribute("data-theme", themeMode);
@@ -96,22 +113,30 @@ function App() {
               setSetupProbeNonce((v) => v + 1);
             }}
           >
-            Retry
+            {t("app.retry")}
           </Button>
         </div>
       );
     }
-    return <div style={{ padding: 40, textAlign: "center" }}>Loading...</div>;
+    return (
+      <div style={{ padding: 40, textAlign: "center" }}>{t("app.loading")}</div>
+    );
   }
 
   const appContent = isSetupComplete ? (
-    <MainLayout themeMode={themeMode} onThemeModeChange={setThemeMode} />
+    <MainLayout
+      themeMode={themeMode}
+      onThemeModeChange={setThemeMode}
+      locale={appLocale}
+      onLocaleChange={setAppLocale}
+    />
   ) : (
     <SetupPage />
   );
 
   return (
     <ConfigProvider
+      locale={getAntdLocale(appLocale)}
       theme={{
         token: {
           colorPrimary: "#1677ff",

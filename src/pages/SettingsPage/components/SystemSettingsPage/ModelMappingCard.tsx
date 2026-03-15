@@ -13,6 +13,7 @@ import {
   Input,
   Modal,
 } from "antd";
+import { useTranslation } from "react-i18next";
 import { ReloadOutlined } from "@ant-design/icons";
 import { serviceFactory } from "@services/common/ServiceFactory";
 import { settingsService } from "@services/config/SettingsService";
@@ -35,6 +36,7 @@ interface ModelCache {
 const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes
 
 export const ModelMappingCard: React.FC = () => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [mappings, setMappings] = useState<ModelMapping>({});
   const [availableModels, setAvailableModels] = useState<string[]>([]);
@@ -59,11 +61,11 @@ export const ModelMappingCard: React.FC = () => {
         setCurrentProvider(config.provider || "copilot");
       } catch (error) {
         console.error("Failed to load provider config:", error);
-        setError("Failed to load provider configuration");
+        setError(t("settings.modelMappingCard.loadProviderFailed"));
       }
     };
     loadProviderConfig();
-  }, []);
+  }, [t]);
 
   // Listen for provider config changes (polling every 10 seconds)
   useEffect(() => {
@@ -96,11 +98,11 @@ export const ModelMappingCard: React.FC = () => {
         setMappings(response.mappings || {});
       } catch (error) {
         console.error("Failed to load model mappings:", error);
-        msgApi.error("Failed to load existing mappings");
+        msgApi.error(t("settings.modelMappingCard.loadMappingsFailed"));
       }
     };
     loadMappings();
-  }, [msgApi]);
+  }, [msgApi, t]);
 
   // Fetch models with caching
   const fetchModels = useCallback(
@@ -152,17 +154,17 @@ export const ModelMappingCard: React.FC = () => {
       } catch (error) {
         console.error("Failed to fetch models:", error);
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to load models";
+          error instanceof Error
+            ? error.message
+            : t("settings.modelMappingCard.loadModelsFailed");
         setError(errorMessage);
-        msgApi.error(
-          "Failed to load models. Please check your provider configuration.",
-        );
+        msgApi.error(t("settings.modelMappingCard.loadModelsHint"));
         setAvailableModels([]);
       } finally {
         setIsLoadingModels(false);
       }
     },
-    [currentProvider, modelCache, msgApi],
+    [currentProvider, modelCache, msgApi, t],
   );
 
   // Fetch models when provider changes
@@ -193,16 +195,16 @@ export const ModelMappingCard: React.FC = () => {
 
     try {
       await serviceFactory.setAnthropicModelMapping({ mappings: newMappings });
-      msgApi.success("Model mapping saved");
+      msgApi.success(t("settings.modelMappingCard.mappingSaved"));
     } catch (error) {
       console.error("Failed to save model mapping:", error);
-      msgApi.error("Failed to save model mapping");
+      msgApi.error(t("settings.modelMappingCard.mappingSaveFailed"));
     }
   };
 
   const handleCustomModelSave = async () => {
     if (!customModelName.trim()) {
-      msgApi.warning("Please enter a model name");
+      msgApi.warning(t("settings.modelMappingCard.enterModelName"));
       return;
     }
 
@@ -214,12 +216,12 @@ export const ModelMappingCard: React.FC = () => {
 
     try {
       await serviceFactory.setAnthropicModelMapping({ mappings: newMappings });
-      msgApi.success("Custom model mapping saved");
+      msgApi.success(t("settings.modelMappingCard.customMappingSaved"));
       setCustomModalVisible(false);
       setCustomModelName("");
     } catch (error) {
       console.error("Failed to save custom model mapping:", error);
-      msgApi.error("Failed to save custom model mapping");
+      msgApi.error(t("settings.modelMappingCard.customMappingSaveFailed"));
     }
   };
 
@@ -237,25 +239,27 @@ export const ModelMappingCard: React.FC = () => {
   const modelTypes = [
     {
       key: "opus",
-      label: "Opus",
-      description: 'matches models containing "opus"',
+      label: t("settings.modelMappingCard.modelTypeOpus"),
+      description: t("settings.modelMappingCard.modelTypeOpusDescription"),
     },
     {
       key: "sonnet",
-      label: "Sonnet",
-      description: 'matches models containing "sonnet"',
+      label: t("settings.modelMappingCard.modelTypeSonnet"),
+      description: t("settings.modelMappingCard.modelTypeSonnetDescription"),
     },
     {
       key: "haiku",
-      label: "Haiku",
-      description: 'matches models containing "haiku"',
+      label: t("settings.modelMappingCard.modelTypeHaiku"),
+      description: t("settings.modelMappingCard.modelTypeHaikuDescription"),
     },
   ];
+  const providerLabel =
+    currentProvider.charAt(0).toUpperCase() + currentProvider.slice(1);
 
   const collapseItems = [
     {
       key: "1",
-      label: "Anthropic Model Mapping",
+      label: t("settings.modelMappingCard.collapseTitle"),
       children: (
         <Space
           direction="vertical"
@@ -263,16 +267,16 @@ export const ModelMappingCard: React.FC = () => {
           style={{ width: "100%" }}
         >
           <Text type="secondary">
-            Configure which{" "}
-            {currentProvider.charAt(0).toUpperCase() + currentProvider.slice(1)}{" "}
-            models to use when Claude CLI requests specific models.
+            {t("settings.modelMappingCard.description", {
+              provider: providerLabel,
+            })}
           </Text>
 
           {/* Error Alert with Retry Button */}
           {error && (
             <Alert
               type="error"
-              message="Failed to Load Models"
+              message={t("settings.modelMappingCard.loadModelsErrorTitle")}
               description={error}
               showIcon
               action={
@@ -282,7 +286,7 @@ export const ModelMappingCard: React.FC = () => {
                   onClick={handleRefreshModels}
                   loading={isLoadingModels}
                 >
-                  Retry
+                  {t("settings.modelMappingCard.retry")}
                 </Button>
               }
             />
@@ -291,7 +295,7 @@ export const ModelMappingCard: React.FC = () => {
           {/* Loading State */}
           {isLoadingModels && !error && (
             <div style={{ textAlign: "center", padding: token.paddingMD }}>
-              <Spin tip="Loading models..." />
+              <Spin tip={t("settings.modelMappingCard.loadingModels")} />
             </div>
           )}
 
@@ -316,7 +320,10 @@ export const ModelMappingCard: React.FC = () => {
                     style={{ width: "100%" }}
                     value={mappedModel || undefined}
                     onChange={(value) => handleMappingChange(key, value)}
-                    placeholder={`Select ${label} model`}
+                    placeholder={t(
+                      "settings.modelMappingCard.selectModelPlaceholder",
+                      { label },
+                    )}
                     loading={isLoadingModels}
                     disabled={isLoadingModels || availableModels.length === 0}
                     showSearch
@@ -324,7 +331,10 @@ export const ModelMappingCard: React.FC = () => {
                     optionFilterProp="children"
                     options={[
                       ...availableModels.map((m) => ({ label: m, value: m })),
-                      { label: "✏️ Custom model...", value: "__custom__" },
+                      {
+                        label: `✏️ ${t("settings.modelMappingCard.customModelOption")}`,
+                        value: "__custom__",
+                      },
                     ]}
                     status={!isMappingValid ? "warning" : undefined}
                     filterOption={(input, option) =>
@@ -337,8 +347,9 @@ export const ModelMappingCard: React.FC = () => {
                   {/* Model Validation Warning */}
                   {!isMappingValid && mappedModel && (
                     <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
-                      ⚠️ Mapped model "{mappedModel}" not found in current
-                      provider's available models
+                      {t("settings.modelMappingCard.mappedModelNotFound", {
+                        model: mappedModel,
+                      })}
                     </Text>
                   )}
                 </Space>
@@ -356,7 +367,7 @@ export const ModelMappingCard: React.FC = () => {
               loading={isLoadingModels}
               disabled={!currentProvider}
             >
-              Refresh Models
+              {t("settings.modelMappingCard.refreshModels")}
             </Button>
           </Space>
 
@@ -367,19 +378,23 @@ export const ModelMappingCard: React.FC = () => {
             style={{ width: "100%" }}
           >
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-              Current Provider:{" "}
-              <Text strong>{currentProvider || "Loading..."}</Text>
+              {t("settings.modelMappingCard.currentProvider")}:{" "}
+              <Text strong>
+                {currentProvider ||
+                  t("settings.modelMappingCard.loadingProvider")}
+              </Text>
             </Text>
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-              Available Models: <Text strong>{availableModels.length}</Text>
+              {t("settings.modelMappingCard.availableModels")}:{" "}
+              <Text strong>{availableModels.length}</Text>
               {modelCache[currentProvider] && (
                 <Text type="secondary" style={{ marginLeft: token.marginXXS }}>
-                  (cached)
+                  {t("settings.modelMappingCard.cached")}
                 </Text>
               )}
             </Text>
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-              Stored in:{" "}
+              {t("settings.modelMappingCard.storedIn")}:{" "}
               <Text code>~/.bamboo/anthropic-model-mapping.json</Text>
             </Text>
           </Space>
@@ -399,29 +414,31 @@ export const ModelMappingCard: React.FC = () => {
 
       {/* Custom Model Input Modal */}
       <Modal
-        title="Enter Custom Model Name"
+        title={t("settings.modelMappingCard.customModalTitle")}
         open={customModalVisible}
         onOk={handleCustomModelSave}
         onCancel={() => {
           setCustomModalVisible(false);
           setCustomModelName("");
         }}
-        okText="Save"
-        cancelText="Cancel"
+        okText={t("settings.modelMappingCard.save")}
+        cancelText={t("settings.modelMappingCard.cancel")}
       >
         <Space direction="vertical" style={{ width: "100%" }}>
           <Text type="secondary">
-            Enter a custom model name for <Text strong>{customModelType}</Text>
+            {t("settings.modelMappingCard.customModalDescription", {
+              modelType: customModelType,
+            })}
           </Text>
           <Input
-            placeholder="e.g., gpt-4-turbo-preview"
+            placeholder={t("settings.modelMappingCard.customModalPlaceholder")}
             value={customModelName}
             onChange={(e) => setCustomModelName(e.target.value)}
             onPressEnter={handleCustomModelSave}
             autoFocus
           />
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Note: Make sure the model name is valid for the current provider.
+            {t("settings.modelMappingCard.customModalNote")}
           </Text>
         </Space>
       </Modal>
