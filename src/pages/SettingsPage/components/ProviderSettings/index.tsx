@@ -275,9 +275,6 @@ export const ProviderSettings: React.FC = () => {
       setIsDeviceCodeModalVisible(false);
       setDeviceCodeInfo(null);
       await checkCopilotAuthStatus();
-      // Reload provider to use the new authentication
-      await settingsService.reloadConfig();
-      message.success(t("settings.providerTab.providerReloaded"));
     } catch (error) {
       message.error(t("settings.providerTab.completeAuthFailed"));
       console.error("Authentication completion failed:", error);
