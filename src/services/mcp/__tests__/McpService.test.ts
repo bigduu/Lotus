@@ -163,4 +163,169 @@ describe("mcpService", () => {
       }),
     );
   });
+
+  it("deletes a server", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        message: "Server deleted",
+        server_id: "filesystem",
+      }),
+    );
+
+    await mcpService.deleteServer("filesystem");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/mcp/servers/filesystem",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("connects a server", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        message: "Server connected",
+        server_id: "filesystem",
+      }),
+    );
+
+    await mcpService.connectServer("filesystem");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/mcp/servers/filesystem/connect",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("disconnects a server", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        message: "Server disconnected",
+        server_id: "filesystem",
+      }),
+    );
+
+    await mcpService.disconnectServer("filesystem");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/mcp/servers/filesystem/disconnect",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("refreshes tools for a server", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        message: "Tools refreshed",
+        server_id: "filesystem",
+      }),
+    );
+
+    await mcpService.refreshTools("filesystem");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/mcp/servers/filesystem/refresh",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("imports servers with merge mode", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        message: "Servers imported",
+        servers_added: 2,
+        servers_updated: 1,
+      }),
+    );
+
+    const payload = {
+      mcpServers: {
+        server1: { command: "node", args: ["server1.js"] },
+        server2: { command: "node", args: ["server2.js"] },
+      },
+      mode: "merge" as const,
+    };
+
+    const result = await mcpService.importServers(payload);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/mcp/servers/import",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    );
+    expect(result.servers_added).toBe(2);
+    expect(result.servers_updated).toBe(1);
+  });
+
+  it("imports servers with replace mode", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        message: "Servers replaced",
+        servers_added: 3,
+      }),
+    );
+
+    const payload = {
+      mcpServers: {
+        server1: { command: "node", args: ["server1.js"] },
+      },
+      mode: "replace" as const,
+    };
+
+    const result = await mcpService.importServers(payload);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/mcp/servers/import",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    );
+    expect(result.servers_added).toBe(3);
+  });
+
+  it("handles empty server list", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        servers: [],
+      }),
+    );
+
+    const servers = await mcpService.getServers();
+
+    expect(servers).toEqual([]);
+  });
+
+  it("handles empty tools list", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        tools: null,
+      }),
+    );
+
+    const tools = await mcpService.getTools("filesystem");
+
+    expect(tools).toEqual([]);
+  });
+
+  it("normalizes tool with alternative field names", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        tools: [
+          {
+            serverId: "filesystem",
+            originalName: "write_file",
+            description: "Write file contents",
+          },
+        ],
+      }),
+    );
+
+    const tools = await mcpService.getTools("filesystem");
+
+    expect(tools).toHaveLength(1);
+    expect(tools[0].server_id).toBe("filesystem");
+    expect(tools[0].original_name).toBe("write_file");
+  });
 });

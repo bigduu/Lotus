@@ -70,6 +70,176 @@ describe("AgentClient", () => {
     );
   });
 
+  it("patches a persisted message by ID", async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({ success: true }));
+
+    const client = AgentClient.getInstance();
+
+    await client.patchSessionMessage("session-1", "msg-1", {
+      content: "fixed mermaid content",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session-1/messages/msg-1"),
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"content":"fixed mermaid content"'),
+      }),
+    );
+  });
+
+  it("patches a backend session by ID (with URL encoding)", async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({}));
+
+    const client = AgentClient.getInstance();
+
+    await client.patchSession("session/with space", { title: "Updated" });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session%2Fwith%20space"),
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"title":"Updated"'),
+      }),
+    );
+  });
+
+  it("deletes a persisted message by ID", async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({}));
+
+    const client = AgentClient.getInstance();
+
+    await client.deleteSessionMessage("session-1", "msg-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session-1/messages/msg-1"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("truncates session messages with mode payload", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        success: true,
+        session_id: "session-1",
+        messages_removed: 2,
+        message_count: 10,
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    await client.truncateSessionMessages("session-1", {
+      mode: "after_last_user",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session-1/messages/truncate"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"mode":"after_last_user"'),
+      }),
+    );
+  });
+
+  it("cleans up sessions with mode and keep_pinned", async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({ success: true }));
+    const client = AgentClient.getInstance();
+
+    await client.cleanupSessions("children", true);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/cleanup"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"mode":"children"'),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"keep_pinned":true'),
+      }),
+    );
+  });
+
+  it("calls schedule CRUD endpoints", async () => {
+    fetchMock
+      .mockResolvedValueOnce(mockFetchResponse({ schedules: [] }))
+      .mockResolvedValueOnce(mockFetchResponse({ id: "s1" }))
+      .mockResolvedValueOnce(mockFetchResponse({ id: "s1", enabled: true }))
+      .mockResolvedValueOnce(mockFetchResponse({}))
+      .mockResolvedValueOnce(mockFetchResponse({}))
+      .mockResolvedValueOnce(
+        mockFetchResponse({
+          schedule_id: "s1",
+          sessions: [],
+        }),
+      );
+
+    const client = AgentClient.getInstance();
+    await client.listSchedules();
+    await client.createSchedule({ name: "Daily", interval_seconds: 60 });
+    await client.patchSchedule("sched/1", { enabled: true });
+    await client.runScheduleNow("sched/1");
+    await client.deleteSchedule("sched/1");
+    await client.listScheduleSessions("sched/1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/schedules"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/schedules"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"name":"Daily"'),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/schedules/sched%2F1"),
+      expect.objectContaining({
+        method: "PATCH",
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/schedules/sched%2F1/run"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/schedules/sched%2F1"),
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/schedules/sched%2F1/sessions"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("calls stop generation and history endpoints", async () => {
+    fetchMock
+      .mockResolvedValueOnce(mockFetchResponse({}))
+      .mockResolvedValueOnce(mockFetchResponse({ session_id: "session-1", messages: [] }));
+    const client = AgentClient.getInstance();
+
+    await client.stopGeneration("session-1");
+    await client.getHistory("session-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/stop/session-1"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/history/session-1"),
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("healthCheck returns false on request failure", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("network down"));
+    const client = AgentClient.getInstance();
+    await expect(client.healthCheck()).resolves.toBe(false);
+  });
+
   // ========== MODEL REQUIREMENT ARCHITECTURE TESTS ==========
   // These tests ensure the design principle:
   // "Frontend must explicitly specify model in requests"
@@ -159,5 +329,189 @@ describe("AgentClient", () => {
     );
 
     expect(onToolToken).toHaveBeenCalledWith("call_1", "chunk");
+  });
+
+  it("dispatches todo/sub-session/context events to handlers", () => {
+    const client = AgentClient.getInstance();
+    const handlers = {
+      onTodoListItemProgress: vi.fn(),
+      onTodoEvaluationStarted: vi.fn(),
+      onTodoEvaluationCompleted: vi.fn(),
+      onTokenBudgetUpdated: vi.fn(),
+      onContextSummarized: vi.fn(),
+      onSubSessionStarted: vi.fn(),
+      onSubSessionEvent: vi.fn(),
+      onSubSessionHeartbeat: vi.fn(),
+      onSubSessionCompleted: vi.fn(),
+      onError: vi.fn(),
+    };
+
+    (client as any).handleEvent(
+      {
+        type: "todo_list_item_progress",
+        session_id: "s1",
+        item_id: "item1",
+        status: "in_progress",
+        tool_calls_count: 2,
+        version: 1,
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      { type: "todo_evaluation_started", session_id: "s1", items_count: 5 },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "todo_evaluation_completed",
+        session_id: "s1",
+        updates_count: 2,
+        reasoning: "done",
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "token_budget_updated",
+        usage: {
+          system_tokens: 1,
+          summary_tokens: 1,
+          window_tokens: 1,
+          total_tokens: 3,
+          budget_limit: 10,
+          truncation_occurred: false,
+          segments_removed: 0,
+        },
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "context_summarized",
+        summary_info: {
+          summary: "sum",
+          messages_summarized: 3,
+          tokens_saved: 20,
+        },
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "sub_session_started",
+        parent_session_id: "p",
+        child_session_id: "c",
+        title: "child",
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "sub_session_event",
+        parent_session_id: "p",
+        child_session_id: "c",
+        event: { type: "token", content: "x" },
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "sub_session_heartbeat",
+        parent_session_id: "p",
+        child_session_id: "c",
+        timestamp: "2026-01-01T00:00:00Z",
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "sub_session_completed",
+        parent_session_id: "p",
+        child_session_id: "c",
+        status: "completed",
+      },
+      handlers,
+    );
+    (client as any).handleEvent({ type: "error", message: "boom" }, handlers);
+
+    expect(handlers.onTodoListItemProgress).toHaveBeenCalledTimes(1);
+    expect(handlers.onTodoEvaluationStarted).toHaveBeenCalledWith("s1", 5);
+    expect(handlers.onTodoEvaluationCompleted).toHaveBeenCalledWith(
+      "s1",
+      2,
+      "done",
+    );
+    expect(handlers.onTokenBudgetUpdated).toHaveBeenCalledTimes(1);
+    expect(handlers.onContextSummarized).toHaveBeenCalledWith({
+      summary: "sum",
+      messages_summarized: 3,
+      tokens_saved: 20,
+    });
+    expect(handlers.onSubSessionStarted).toHaveBeenCalledWith("p", "c", "child");
+    expect(handlers.onSubSessionEvent).toHaveBeenCalledTimes(1);
+    expect(handlers.onSubSessionHeartbeat).toHaveBeenCalledTimes(1);
+    expect(handlers.onSubSessionCompleted).toHaveBeenCalledWith(
+      "p",
+      "c",
+      "completed",
+      undefined,
+    );
+    expect(handlers.onError).toHaveBeenCalledWith("boom");
+  });
+
+  it("ignores invalid todo progress status values", () => {
+    const client = AgentClient.getInstance();
+    const onTodoListItemProgress = vi.fn();
+
+    (client as any).handleEvent(
+      {
+        type: "todo_list_item_progress",
+        session_id: "s1",
+        item_id: "item1",
+        status: "not-a-valid-status",
+        tool_calls_count: 2,
+        version: 1,
+      },
+      { onTodoListItemProgress },
+    );
+
+    expect(onTodoListItemProgress).not.toHaveBeenCalled();
+  });
+
+  it("subscribeToEvents parses SSE token and DONE marker", async () => {
+    const client = AgentClient.getInstance();
+    const onToken = vi.fn();
+
+    const chunks = [
+      new TextEncoder().encode('data: {"type":"token","content":"hello"}\n'),
+      new TextEncoder().encode("\n"),
+      new TextEncoder().encode("data: [DONE]\n\n"),
+    ];
+    let index = 0;
+
+    const reader = {
+      read: vi.fn(async () => {
+        if (index < chunks.length) {
+          return { done: false, value: chunks[index++] };
+        }
+        return { done: true, value: undefined };
+      }),
+      releaseLock: vi.fn(),
+    };
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      statusText: "OK",
+      headers: new Headers({ "content-type": "text/event-stream" }),
+      body: {
+        getReader: () => reader,
+      },
+    } as unknown as Response);
+
+    await client.subscribeToEvents("session-1", { onToken });
+
+    expect(onToken).toHaveBeenCalledWith("hello");
+    expect(reader.releaseLock).toHaveBeenCalledTimes(1);
   });
 });

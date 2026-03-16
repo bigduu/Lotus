@@ -6,7 +6,14 @@ export const isCopilotAskUserEnhancementEnabled = (): boolean => {
 };
 
 export const setCopilotAskUserEnhancementEnabled = (enabled: boolean): void => {
-  localStorage.setItem(COPILOT_ASK_USER_ENHANCEMENT_KEY, enabled.toString());
+  try {
+    localStorage.setItem(COPILOT_ASK_USER_ENHANCEMENT_KEY, enabled.toString());
+  } catch (error) {
+    console.error(
+      "[copilotAskUserEnhancement] Failed to persist setting:",
+      error,
+    );
+  }
 };
 
 export const getCopilotAskUserEnhancementPrompt = (): string => {

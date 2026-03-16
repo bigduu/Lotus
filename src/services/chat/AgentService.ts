@@ -271,6 +271,10 @@ export interface RestoreSessionStateResponse {
   }>;
 }
 
+export interface PatchSessionMessageRequest {
+  content: string;
+}
+
 export interface ScheduleRunConfig {
   system_prompt?: string;
   task_message?: string;
@@ -473,6 +477,22 @@ export class AgentClient {
     const encodedSessionId = encodeURIComponent(sessionId);
     return agentApiClient.post<RestoreSessionStateResponse>(
       `sessions/${encodedSessionId}/restore`,
+      req,
+    );
+  }
+
+  /**
+   * Update a single persisted message content in a session.
+   */
+  async patchSessionMessage(
+    sessionId: string,
+    messageId: string,
+    req: PatchSessionMessageRequest,
+  ): Promise<void> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const encodedMessageId = encodeURIComponent(messageId);
+    await agentApiClient.patch(
+      `sessions/${encodedSessionId}/messages/${encodedMessageId}`,
       req,
     );
   }

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
 import { useActiveModel } from "../../hooks/useActiveModel";
+import { agentClient } from "../../services/AgentService";
 
 const extractMermaidCode = (content: string) => {
   const match = content.match(/```mermaid\s*([\s\S]*?)```/i);
@@ -117,11 +118,21 @@ export const useMessageCardMermaidFix = (messageId: string) => {
         throw new Error("Unable to locate Mermaid block to update");
       }
 
-      const updatedMessages = currentChat.messages.map((m) =>
+      await agentClient.patchSessionMessage(currentSessionId, messageId, {
+        content: updatedContent,
+      });
+
+      const latestState = useAppStore.getState();
+      const latestChat = latestState.chats.find((c) => c.id === currentSessionId);
+      if (!latestChat) {
+        throw new Error("No active chat available");
+      }
+
+      const updatedMessages = latestChat.messages.map((m) =>
         m.id === messageId ? { ...m, content: updatedContent } : m,
       );
 
-      state.updateSession(currentSessionId, { messages: updatedMessages });
+      latestState.updateSession(currentSessionId, { messages: updatedMessages });
     },
     [messageId, activeModel],
   );

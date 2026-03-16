@@ -55,15 +55,26 @@ export class ModelService {
         }
 
         // Try to parse error code from body
-        try {
-          const body = JSON.parse(error.body || "{}");
-          if (body.error?.code === "proxy_auth_required") {
-            throw new ProxyAuthRequiredError(
-              body.error.message || error.message,
-            );
+        let body: unknown;
+        if (error.body) {
+          try {
+            body = JSON.parse(error.body);
+          } catch {
+            // Ignore parse errors
           }
-        } catch {
-          // Ignore parse errors
+        }
+
+        if (
+          body &&
+          typeof body === "object" &&
+          "error" in body &&
+          (body as { error?: { code?: string; message?: string } }).error?.code ===
+            "proxy_auth_required"
+        ) {
+          throw new ProxyAuthRequiredError(
+            (body as { error?: { message?: string } }).error?.message ||
+              error.message,
+          );
         }
       }
 
