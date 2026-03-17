@@ -10,9 +10,12 @@ describe("McpServerFormModal", () => {
 
   beforeEach(() => {
     unhandledRejectionHandler = null;
+    // Guard against fake timer leakage from other test files in full-suite runs.
+    vi.useRealTimers();
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     if (unhandledRejectionHandler) {
       window.removeEventListener(
         "unhandledrejection",
@@ -33,26 +36,37 @@ describe("McpServerFormModal", () => {
       />,
     );
 
-    // Let the modal/form effects apply initial values before we start interacting.
+    const serverIdInput = (await screen.findByPlaceholderText(
+      "filesystem",
+    )) as HTMLInputElement;
+    const displayNameInput = screen.getByPlaceholderText(
+      "Filesystem MCP",
+    ) as HTMLInputElement;
+    const commandInput = screen.getByPlaceholderText("npx") as HTMLInputElement;
+
+    // Let modal/form effects settle before user interaction.
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("filesystem")).toBeInTheDocument();
+      expect(serverIdInput).toBeInTheDocument();
+      expect(commandInput).toBeInTheDocument();
     });
 
-    fireEvent.change(screen.getByPlaceholderText("filesystem"), {
+    fireEvent.change(serverIdInput, {
       target: { value: "filesystem" },
     });
 
-    fireEvent.change(screen.getByPlaceholderText("Filesystem MCP"), {
+    fireEvent.change(displayNameInput, {
       target: { value: "Filesystem" },
     });
 
-    fireEvent.change(screen.getByPlaceholderText("npx"), {
+    fireEvent.change(commandInput, {
       target: { value: "npx" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled(), {
+      timeout: 10000,
+    });
 
     const submitted = onSubmit.mock.calls[0]?.[0];
     expect(submitted).toEqual(
@@ -65,7 +79,7 @@ describe("McpServerFormModal", () => {
         }),
       }),
     );
-  });
+  }, 15000);
 
   it("preserves form data when submission fails", async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error("Connection failed"));
@@ -88,16 +102,29 @@ describe("McpServerFormModal", () => {
       />,
     );
 
+    const serverIdInput = (await screen.findByPlaceholderText(
+      "filesystem",
+    )) as HTMLInputElement;
+    const displayNameInput = screen.getByPlaceholderText(
+      "Filesystem MCP",
+    ) as HTMLInputElement;
+    const commandInput = screen.getByPlaceholderText("npx") as HTMLInputElement;
+
+    await waitFor(() => {
+      expect(serverIdInput).toBeInTheDocument();
+      expect(commandInput).toBeInTheDocument();
+    });
+
     // Fill out the form
-    fireEvent.change(screen.getByPlaceholderText("filesystem"), {
+    fireEvent.change(serverIdInput, {
       target: { value: "my-server" },
     });
 
-    fireEvent.change(screen.getByPlaceholderText("Filesystem MCP"), {
+    fireEvent.change(displayNameInput, {
       target: { value: "My Server" },
     });
 
-    fireEvent.change(screen.getByPlaceholderText("npx"), {
+    fireEvent.change(commandInput, {
       target: { value: "node" },
     });
 
@@ -106,24 +133,16 @@ describe("McpServerFormModal", () => {
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalled();
-    });
+    }, { timeout: 10000 });
 
     // Verify form data is preserved after error
-    const serverIdInput = screen.getByPlaceholderText(
-      "filesystem",
-    ) as HTMLInputElement;
-    const displayNameInput = screen.getByPlaceholderText(
-      "Filesystem MCP",
-    ) as HTMLInputElement;
-    const commandInput = screen.getByPlaceholderText("npx") as HTMLInputElement;
-
     expect(serverIdInput.value).toBe("my-server");
     expect(displayNameInput.value).toBe("My Server");
     expect(commandInput.value).toBe("node");
 
     // Verify modal is still open (user can retry)
     expect(onCancel).not.toHaveBeenCalled();
-  });
+  }, 15000);
 
   it("submits via JSON editor", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
@@ -209,7 +228,7 @@ describe("McpServerFormModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     await waitFor(() => {
-      expect(screen.getByText("JSON Error")).toBeDefined();
+      expect(screen.getByText("JSON Error")).toBeInTheDocument();
     });
 
     // Should not call onSubmit

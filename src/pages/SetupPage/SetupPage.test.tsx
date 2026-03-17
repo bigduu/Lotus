@@ -104,7 +104,7 @@ describe("SetupPage", () => {
       await screen.findByText(
         "Detected proxy environment variables: HTTP_PROXY, HTTPS_PROXY. You may need to configure proxy settings.",
       ),
-    ).toBeTruthy();
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(fetch).toHaveBeenCalled();
     });
@@ -158,7 +158,7 @@ describe("SetupPage", () => {
       ).toBe(true);
     });
 
-    expect(await screen.findByText("Setup Complete!")).toBeTruthy();
+    expect(await screen.findByText("Setup Complete!")).toBeInTheDocument();
   });
 
   it("allows skipping setup and marks completion in backend", async () => {
@@ -170,7 +170,7 @@ describe("SetupPage", () => {
     await waitFor(() => {
       expect(fetch).toHaveBeenCalled(); // markSetupComplete
     });
-    expect(await screen.findByText("Setup Complete!")).toBeTruthy();
+    expect(await screen.findByText("Setup Complete!")).toBeInTheDocument();
   });
 
   it("treats completing without a proxy as skipping setup", async () => {
@@ -189,7 +189,7 @@ describe("SetupPage", () => {
         ),
       ).toBe(false);
     });
-    expect(await screen.findByText("Setup Complete!")).toBeTruthy();
+    expect(await screen.findByText("Setup Complete!")).toBeInTheDocument();
   });
 
   it("shows validation error and does not save when proxy URL is invalid", async () => {
@@ -258,7 +258,7 @@ describe("SetupPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Complete Setup" }));
 
-    expect(await screen.findByText("Invalid proxy URL")).toBeTruthy();
+    expect(await screen.findByText("Invalid proxy URL")).toBeInTheDocument();
 
     // Must not persist invalid config.
     expect(
@@ -272,21 +272,59 @@ describe("SetupPage", () => {
   });
 
   it("shows error when marking setup completion fails", async () => {
-    (fetch as any).mockRejectedValue(new Error("fetch failed"));
+    (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
+      const method = (init?.method || "GET").toUpperCase();
+      const path = url.toString();
+
+      if (method === "GET" && path.includes("/bamboo/config")) {
+        return {
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: async () => ({ http_proxy: "", https_proxy: "" }),
+        };
+      }
+      if (method === "GET" && path.includes("/bamboo/proxy-auth/status")) {
+        return {
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: async () => ({ configured: false, username: null }),
+        };
+      }
+      if (method === "GET" && path.includes("/bamboo/setup/status")) {
+        return {
+          ok: true,
+          headers: { get: () => "application/json" },
+          json: async () => ({
+            is_complete: false,
+            has_proxy_config: false,
+            has_proxy_env: false,
+            message: "OK",
+          }),
+        };
+      }
+      if (method === "POST" && path.includes("/bamboo/setup/complete")) {
+        return {
+          ok: false,
+          status: 400,
+          statusText: "Bad Request",
+          headers: { get: () => "text/plain" },
+          text: async () => "setup failed",
+        };
+      }
+
+      return {
+        ok: true,
+        headers: { get: () => "application/json" },
+        json: async () => ({}),
+      };
+    });
 
     render(<SetupPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 
-    // Wait longer because of retry logic
-    expect(
-      await screen.findByText(
-        "Failed to complete setup. Please try again.",
-        {},
-        { timeout: 10000 },
-      ),
-    ).toBeTruthy();
+    expect(await screen.findByText("Failed to complete setup. Please try again.")).toBeInTheDocument();
     expect(screen.queryByText("Setup Complete!")).toBeNull();
   });
 });

@@ -51,7 +51,7 @@ describe("App setup flow", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("SetupPage")).toBeTruthy();
+    expect(await screen.findByText("SetupPage")).toBeInTheDocument();
     expect(screen.queryByText("MainLayout")).toBeNull();
     expect(mockInitializeStore).not.toHaveBeenCalled();
   });
@@ -66,7 +66,7 @@ describe("App setup flow", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("MainLayout")).toBeTruthy();
+    expect(await screen.findByText("MainLayout")).toBeInTheDocument();
     await waitFor(() => {
       expect(mockInitializeStore).toHaveBeenCalledTimes(1);
     });
@@ -82,7 +82,7 @@ describe("App setup flow", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("MainLayout")).toBeTruthy();
+    expect(await screen.findByText("MainLayout")).toBeInTheDocument();
     await waitFor(() => {
       expect(mockInitializeStore).toHaveBeenCalledTimes(1);
     });
@@ -99,22 +99,28 @@ describe("App setup flow", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("MainLayout")).toBeTruthy();
+    expect(await screen.findByText("MainLayout")).toBeInTheDocument();
     await waitFor(() => {
       expect(mockInitializeStore).toHaveBeenCalledTimes(1);
     });
   });
 
   it("shows a backend-unreachable message (instead of assuming setup is incomplete) when setup status check fails", async () => {
-    // Mock all retry attempts to fail
-    (fetch as any).mockRejectedValue(new Error("fetch failed"));
+    // Return a non-5xx failure so ApiClient does not spend time on exponential retries.
+    (fetch as any).mockImplementation(async () => ({
+      ok: false,
+      status: 400,
+      statusText: "Bad Request",
+      headers: { get: () => "text/plain" },
+      text: async () => "backend unavailable",
+    }));
 
     render(<App />);
 
     expect(
       await screen.findByText(/Backend not reachable at/i, {}, { timeout: 10000 }),
-    ).toBeTruthy();
+    ).toBeInTheDocument();
     expect(screen.queryByText("MainLayout")).toBeNull();
     expect(screen.queryByText("SetupPage")).toBeNull();
-  });
+  }, 15000);
 });

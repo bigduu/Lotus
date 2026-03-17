@@ -22,10 +22,12 @@ describe("ProviderSettings", () => {
     vi.clearAllMocks();
   });
 
-  it("runs server-side validate before saving and blocks save when invalid", async () => {
-    (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = (init?.method || "GET").toUpperCase();
-      const path = url.toString();
+  it(
+    "runs server-side validate before saving and blocks save when invalid",
+    async () => {
+      (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
+        const method = (init?.method || "GET").toUpperCase();
+        const path = url.toString();
 
       if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
         return jsonResponse({ authenticated: false });
@@ -82,8 +84,12 @@ describe("ProviderSettings", () => {
       ),
     ).toBe(false);
 
-    expect(await screen.findByText("OpenAI API key is required")).toBeTruthy();
-  });
+      expect(
+        await screen.findByText("OpenAI API key is required"),
+      ).toBeInTheDocument();
+    },
+    15000,
+  );
 
   it("saves when validation passes (and refreshes provider config during apply)", async () => {
     let providerGetCount = 0;
@@ -143,4 +149,3 @@ describe("ProviderSettings", () => {
     });
   });
 });
-

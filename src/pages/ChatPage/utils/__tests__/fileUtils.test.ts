@@ -217,7 +217,9 @@ describe("fileUtils", () => {
       expect(processed[0].content).toBe("test content");
       expect(processed[0].preview).toBe("test content");
       expect(processed[0].lastModified).toBe(1234567890);
-      expect(processed[0].id).toBeDefined();
+      expect(processed[0].id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
     });
 
     it("sets correct properties for binary files", async () => {
