@@ -14,6 +14,7 @@ export interface UseMessageStreaming {
     content: string,
     images?: ImageFile[],
     reasoningEffort?: ReasoningEffort,
+    selectedSkillIds?: string[],
   ) => Promise<void>;
   retryLastTurn: (reasoningEffort?: ReasoningEffort) => Promise<void>;
   cancel: () => void;
@@ -91,6 +92,7 @@ export function useMessageStreaming(
       sessionId: string,
       userMessage: UserMessage,
       reasoningEffort?: ReasoningEffort,
+      selectedSkillIds?: string[],
     ) => {
       // Validate model is available (TypeScript type guard)
       if (!activeModel) {
@@ -116,6 +118,10 @@ export function useMessageStreaming(
           session_id: sessionId,
           enhance_prompt: enhancePrompt || undefined,
           workspace_path: workspacePath || undefined,
+          selected_skill_ids:
+            selectedSkillIds && selectedSkillIds.length > 0
+              ? selectedSkillIds
+              : undefined,
           images: userMessage.images
             ?.filter((img) => Boolean(img.base64))
             .map((img) => ({
@@ -175,6 +181,7 @@ export function useMessageStreaming(
       content: string,
       images?: ImageFile[],
       reasoningEffort?: ReasoningEffort,
+      selectedSkillIds?: string[],
     ) => {
       if (!currentChat) {
         modal.info({
@@ -241,7 +248,13 @@ export function useMessageStreaming(
 
       try {
         console.log("[useChatStreaming] Using Agent Server");
-        await sendWithAgent(content, sessionId, userMessage, reasoningEffort);
+        await sendWithAgent(
+          content,
+          sessionId,
+          userMessage,
+          reasoningEffort,
+          selectedSkillIds,
+        );
         // Note: Don't set processing false here - let useAgentEventSubscription handle it
       } catch (error) {
         if (streamingMessageIdRef.current) {
@@ -283,91 +296,91 @@ export function useMessageStreaming(
 
   const retryLastTurn = useCallback(
     async (reasoningEffort?: ReasoningEffort) => {
-    if (!currentChat) {
-      modal.info({
-        title: "No Active Chat",
-        content: "Please create or select a chat before retrying.",
-      });
-      return;
-    }
-
-    if (!deps.sessionId) {
-      modal.info({
-        title: "No Chat ID",
-        content: "Chat ID is required to retry.",
-      });
-      return;
-    }
-
-    // Validate model is available
-    if (!activeModel) {
-      modal.error({
-        title: "No Model Selected",
-        content: "Please select a model before retrying.",
-      });
-      return;
-    }
-
-    let isAgentAvailable = agentAvailable;
-    if (isAgentAvailable === null) {
-      isAgentAvailable = await checkAgentAvailability();
-    }
-    if (!isAgentAvailable) {
-      appMessage.error("Agent unavailable. Please try again later.");
-      return;
-    }
-
-    const sessionId = deps.sessionId;
-
-    // Clear any lingering local draft so we don't show stale streaming content.
-    if (streamingMessageIdRef.current) {
-      streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
-    }
-    streamingMessageIdRef.current = null;
-    streamingContentRef.current = "";
-
-    try {
-      // Server-side truncate: keep last user message, drop assistant/tool tail.
-      await agentClientRef.current.truncateSessionMessages(sessionId, {
-        mode: "after_last_user",
-      });
-
-      // Immediately reconcile UI with persisted history so old assistant/tool tail disappears.
-      // (Avoid relying on per-message deletes; backend is the source of truth.)
-      await useAppStore
-        .getState()
-        .loadChatHistory(sessionId, { mode: "replace" });
-
-      // Activate event subscription (handled by useAgentEventSubscription).
-      deps.setSessionProcessing(sessionId, true);
-
-      // Re-run execution (idempotent).
-      const executeResult = reasoningEffort
-        ? await agentClientRef.current.execute(
-            sessionId,
-            activeModel,
-            reasoningEffort,
-          )
-        : await agentClientRef.current.execute(sessionId, activeModel);
-      if (["started", "already_running"].includes(executeResult.status)) {
-        // Keep processing true.
+      if (!currentChat) {
+        modal.info({
+          title: "No Active Chat",
+          content: "Please create or select a chat before retrying.",
+        });
         return;
       }
-      if (executeResult.status === "completed") {
-        // Nothing to do (e.g. no pending user message).
+
+      if (!deps.sessionId) {
+        modal.info({
+          title: "No Chat ID",
+          content: "Chat ID is required to retry.",
+        });
+        return;
+      }
+
+      // Validate model is available
+      if (!activeModel) {
+        modal.error({
+          title: "No Model Selected",
+          content: "Please select a model before retrying.",
+        });
+        return;
+      }
+
+      let isAgentAvailable = agentAvailable;
+      if (isAgentAvailable === null) {
+        isAgentAvailable = await checkAgentAvailability();
+      }
+      if (!isAgentAvailable) {
+        appMessage.error("Agent unavailable. Please try again later.");
+        return;
+      }
+
+      const sessionId = deps.sessionId;
+
+      // Clear any lingering local draft so we don't show stale streaming content.
+      if (streamingMessageIdRef.current) {
+        streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
+      }
+      streamingMessageIdRef.current = null;
+      streamingContentRef.current = "";
+
+      try {
+        // Server-side truncate: keep last user message, drop assistant/tool tail.
+        await agentClientRef.current.truncateSessionMessages(sessionId, {
+          mode: "after_last_user",
+        });
+
+        // Immediately reconcile UI with persisted history so old assistant/tool tail disappears.
+        // (Avoid relying on per-message deletes; backend is the source of truth.)
+        await useAppStore
+          .getState()
+          .loadChatHistory(sessionId, { mode: "replace" });
+
+        // Activate event subscription (handled by useAgentEventSubscription).
+        deps.setSessionProcessing(sessionId, true);
+
+        // Re-run execution (idempotent).
+        const executeResult = reasoningEffort
+          ? await agentClientRef.current.execute(
+              sessionId,
+              activeModel,
+              reasoningEffort,
+            )
+          : await agentClientRef.current.execute(sessionId, activeModel);
+        if (["started", "already_running"].includes(executeResult.status)) {
+          // Keep processing true.
+          return;
+        }
+        if (executeResult.status === "completed") {
+          // Nothing to do (e.g. no pending user message).
+          deps.setSessionProcessing(sessionId, false);
+          return;
+        }
+
         deps.setSessionProcessing(sessionId, false);
-        return;
+        throw new Error(`Execute failed: ${executeResult.status}`);
+      } catch (error) {
+        console.error("[useMessageStreaming] Retry failed:", error);
+        appMessage.error("Retry failed. Please try again.");
+        deps.setSessionProcessing(sessionId, false);
+      } finally {
+        abortRef.current = null;
       }
-
-      deps.setSessionProcessing(sessionId, false);
-      throw new Error(`Execute failed: ${executeResult.status}`);
-    } catch (error) {
-      console.error("[useMessageStreaming] Retry failed:", error);
-      appMessage.error("Retry failed. Please try again.");
-      deps.setSessionProcessing(sessionId, false);
-    } finally {
-      abortRef.current = null;
-    }
     },
     [
       activeModel,

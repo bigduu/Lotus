@@ -128,6 +128,7 @@ export interface ChatRequest {
   system_prompt?: string;
   enhance_prompt?: string;
   workspace_path?: string;
+  selected_skill_ids?: string[];
   images?: Array<{
     base64: string;
     name?: string;
@@ -238,10 +239,9 @@ export interface PatchSessionRequest {
   pinned?: boolean;
 }
 
-export type TruncateSessionMessagesRequest =
-  | {
-      mode: "after_last_user";
-    };
+export type TruncateSessionMessagesRequest = {
+  mode: "after_last_user";
+};
 
 export interface TruncateSessionMessagesResponse {
   success: boolean;
@@ -405,7 +405,10 @@ export class AgentClient {
     if (reasoningEffort) {
       payload.reasoning_effort = reasoningEffort;
     }
-    return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, payload);
+    return agentApiClient.post<ExecuteResponse>(
+      `execute/${sessionId}`,
+      payload,
+    );
   }
 
   /**
@@ -418,14 +421,19 @@ export class AgentClient {
   /**
    * Create a new backend session (root).
    */
-  async createSession(req: CreateSessionRequest): Promise<CreateSessionResponse> {
+  async createSession(
+    req: CreateSessionRequest,
+  ): Promise<CreateSessionResponse> {
     return agentApiClient.post<CreateSessionResponse>("sessions", req);
   }
 
   /**
    * Patch a session (title/pinned).
    */
-  async patchSession(sessionId: string, req: PatchSessionRequest): Promise<void> {
+  async patchSession(
+    sessionId: string,
+    req: PatchSessionRequest,
+  ): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     await agentApiClient.patch(`sessions/${encodedSessionId}`, req);
   }
@@ -502,7 +510,10 @@ export class AgentClient {
    *
    * Note: Some UI messages are local-only placeholders and may not exist on the backend.
    */
-  async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {
+  async deleteSessionMessage(
+    sessionId: string,
+    messageId: string,
+  ): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     const encodedMessageId = encodeURIComponent(messageId);
     await agentApiClient.delete(
@@ -794,7 +805,11 @@ export class AgentClient {
         }
         break;
       case "sub_session_heartbeat":
-        if (event.parent_session_id && event.child_session_id && event.timestamp) {
+        if (
+          event.parent_session_id &&
+          event.child_session_id &&
+          event.timestamp
+        ) {
           handlers.onSubSessionHeartbeat?.(
             event.parent_session_id,
             event.child_session_id,

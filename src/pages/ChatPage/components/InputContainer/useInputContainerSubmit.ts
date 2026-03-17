@@ -19,6 +19,7 @@ interface UseInputContainerSubmitProps {
     content: string,
     images?: ImageFile[],
     reasoningEffort?: ReasoningEffort,
+    selectedSkillIds?: string[],
   ) => Promise<void>;
   recordEntry: (entry: string) => void;
   clearWorkflowDraft: () => void;
@@ -49,6 +50,7 @@ export const useInputContainerSubmit = ({
       const attachmentSummary = summarizeAttachments(attachments);
       const normalizedReferenceText = referenceText?.trim() ?? "";
       let composedInput = trimmedInput;
+      let selectedSkillIds: string[] | undefined;
 
       // Handle different command types
       if (selectedWorkflow?.content && selectedWorkflow.type === "workflow") {
@@ -75,6 +77,7 @@ export const useInputContainerSubmit = ({
           const extraInput = trimmedInput.slice(token.length).trim();
           const skillHint = `[User explicitly selected skill: ${selectedWorkflow.displayName || selectedWorkflow.name} (ID: ${selectedWorkflow.name})]`;
           composedInput = [skillHint, extraInput].filter(Boolean).join("\n\n");
+          selectedSkillIds = [selectedWorkflow.name];
         }
       } else if (selectedWorkflow?.type === "mcp") {
         // MCP Tool: add explicit selection hint
@@ -137,15 +140,35 @@ export const useInputContainerSubmit = ({
               paths: referencedFiles.map((f) => f.path),
               display_text: composedMessage,
             });
-            await sendMessage(structuredMessage, images, reasoningEffort);
+            await sendMessage(
+              structuredMessage,
+              images,
+              reasoningEffort,
+              selectedSkillIds,
+            );
           } else {
-            await sendMessage(composedMessage, images, reasoningEffort);
+            await sendMessage(
+              composedMessage,
+              images,
+              reasoningEffort,
+              selectedSkillIds,
+            );
           }
         } else {
-          await sendMessage(composedMessage, images, reasoningEffort);
+          await sendMessage(
+            composedMessage,
+            images,
+            reasoningEffort,
+            selectedSkillIds,
+          );
         }
       } else {
-        await sendMessage(composedMessage, images, reasoningEffort);
+        await sendMessage(
+          composedMessage,
+          images,
+          reasoningEffort,
+          selectedSkillIds,
+        );
       }
 
       setReferenceText(null);
