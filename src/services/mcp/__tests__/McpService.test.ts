@@ -328,4 +328,32 @@ describe("mcpService", () => {
     expect(tools[0].server_id).toBe("filesystem");
     expect(tools[0].original_name).toBe("write_file");
   });
+
+  it("gets all tools when serverId is not provided", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        tools: [
+          {
+            server_id: "filesystem",
+            name: "read_file",
+            description: "Read file contents",
+          },
+          {
+            server_id: "brave-search",
+            name: "search",
+            description: "Search the web",
+          },
+        ],
+      }),
+    );
+
+    const tools = await mcpService.getTools();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/mcp/tools",
+      expect.objectContaining({ method: "GET" })
+    );
+    expect(tools).toHaveLength(2);
+  });
 });
+

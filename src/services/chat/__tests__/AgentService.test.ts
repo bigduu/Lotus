@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from "vitest";
 
 import { AgentClient, ChatRequest } from "../AgentService";
 import { mockFetchError, mockFetchResponse } from "@test/helpers";
@@ -240,26 +248,13 @@ describe("AgentClient", () => {
     await expect(client.healthCheck()).resolves.toBe(false);
   });
 
-  // ========== MODEL REQUIREMENT ARCHITECTURE TESTS ==========
-  // These tests ensure the design principle:
-  // "Frontend must explicitly specify model in requests"
-
   describe("Model Requirement", () => {
-    it("ChatRequest requires model field", () => {
-      // This test verifies at TypeScript level that model is required
-      // ChatRequest interface: model: string (not model?: string)
-      const validRequest: ChatRequest = {
-        message: "Hello",
-        model: "kimi-for-coding",
-      };
-
-      expect(validRequest.model).toBe("kimi-for-coding");
-
-      // TypeScript would prevent this:
-      // const invalidRequest: ChatRequest = {
-      //   message: "Hello",
-      //   // model is missing - TypeScript error
-      // };
+    it("keeps model-related API types strict", () => {
+      expectTypeOf<ChatRequest["model"]>().toEqualTypeOf<string>();
+      expectTypeOf<Parameters<AgentClient["execute"]>[1]>().toEqualTypeOf<string>();
+      expectTypeOf<
+        Parameters<AgentClient["sendMessage"]>[0]["model"]
+      >().toEqualTypeOf<string>();
     });
 
     it("execute method requires model parameter", async () => {
@@ -284,9 +279,6 @@ describe("AgentClient", () => {
           body: expect.stringContaining("kimi-for-coding"),
         }),
       );
-
-      // TypeScript would prevent this:
-      // await client.execute("session-1"); // Missing model parameter
     });
 
     it("sendMessage requires model in request", async () => {
@@ -329,6 +321,191 @@ describe("AgentClient", () => {
     );
 
     expect(onToolToken).toHaveBeenCalledWith("call_1", "chunk");
+  });
+
+  it("dispatches reasoning_token events", () => {
+    const client = AgentClient.getInstance();
+    const onReasoningToken = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "reasoning_token", content: "thinking..." },
+      { onReasoningToken },
+    );
+
+    expect(onReasoningToken).toHaveBeenCalledWith("thinking...");
+  });
+
+  it("dispatches tool_start events", () => {
+    const client = AgentClient.getInstance();
+    const onToolStart = vi.fn();
+
+    (client as any).handleEvent(
+      {
+        type: "tool_start",
+        tool_call_id: "call-1",
+        tool_name: "test_tool",
+        arguments: { arg1: "value1" },
+      },
+      { onToolStart },
+    );
+
+    expect(onToolStart).toHaveBeenCalledWith("call-1", "test_tool", {
+      arg1: "value1",
+    });
+  });
+
+  it("dispatches tool_complete events when result exists", () => {
+    const client = AgentClient.getInstance();
+    const onToolComplete = vi.fn();
+
+    (client as any).handleEvent(
+      {
+        type: "tool_complete",
+        tool_call_id: "call-1",
+        result: { success: true, result: "done" },
+      },
+      { onToolComplete },
+    );
+
+    expect(onToolComplete).toHaveBeenCalledWith("call-1", {
+      success: true,
+      result: "done",
+    });
+  });
+
+  it("does not dispatch tool_complete events when result is missing", () => {
+    const client = AgentClient.getInstance();
+    const onToolComplete = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "tool_complete", tool_call_id: "call-1" },
+      { onToolComplete },
+    );
+
+    expect(onToolComplete).not.toHaveBeenCalled();
+  });
+
+  it("dispatches tool_error events", () => {
+    const client = AgentClient.getInstance();
+    const onToolError = vi.fn();
+
+    (client as any).handleEvent(
+      {
+        type: "tool_error",
+        tool_call_id: "call-1",
+        error: "Execution failed",
+      },
+      { onToolError },
+    );
+
+    expect(onToolError).toHaveBeenCalledWith("call-1", "Execution failed");
+  });
+
+  it("dispatches todo_list_updated events", () => {
+    const client = AgentClient.getInstance();
+    const onTodoListUpdated = vi.fn();
+
+    const todoList = {
+      session_id: "s1",
+      title: "Test List",
+      items: [],
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+
+    (client as any).handleEvent(
+      { type: "todo_list_updated", todo_list: todoList },
+      { onTodoListUpdated },
+    );
+
+    expect(onTodoListUpdated).toHaveBeenCalledWith(todoList);
+  });
+
+  it("does not dispatch todo_list_updated when todo_list is missing", () => {
+    const client = AgentClient.getInstance();
+    const onTodoListUpdated = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "todo_list_updated" },
+      { onTodoListUpdated },
+    );
+
+    expect(onTodoListUpdated).not.toHaveBeenCalled();
+  });
+
+  it("dispatches complete events", () => {
+    const client = AgentClient.getInstance();
+    const onComplete = vi.fn();
+
+    (client as any).handleEvent(
+      {
+        type: "complete",
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 20,
+          total_tokens: 30,
+        },
+      },
+      { onComplete },
+    );
+
+    expect(onComplete).toHaveBeenCalledWith({
+      prompt_tokens: 10,
+      completion_tokens: 20,
+      total_tokens: 30,
+    });
+  });
+
+  it("dispatches error events with message field", () => {
+    const client = AgentClient.getInstance();
+    const onError = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "error", message: "Something went wrong" },
+      { onError },
+    );
+
+    expect(onError).toHaveBeenCalledWith("Something went wrong");
+  });
+
+  it("dispatches error events with error field fallback", () => {
+    const client = AgentClient.getInstance();
+    const onError = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "error", error: "Fallback error" },
+      { onError },
+    );
+
+    expect(onError).toHaveBeenCalledWith("Fallback error");
+  });
+
+  it("handles error events with no message or error field", () => {
+    const client = AgentClient.getInstance();
+    const onError = vi.fn();
+
+    (client as any).handleEvent({ type: "error" }, { onError });
+
+    expect(onError).toHaveBeenCalledWith("Unknown error");
+  });
+
+  it("handles unknown event types", () => {
+    const client = AgentClient.getInstance();
+    const consoleWarnSpy = vi
+      .spyOn(console, "warn")
+      .mockImplementation(() => {});
+
+    (client as any).handleEvent(
+      { type: "unknown_event" as any },
+      {},
+    );
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      "Unknown event type:",
+      expect.objectContaining({ type: "unknown_event" }),
+    );
+
+    consoleWarnSpy.mockRestore();
   });
 
   it("dispatches todo/sub-session/context events to handlers", () => {

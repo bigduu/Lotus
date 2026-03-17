@@ -186,8 +186,9 @@ describe("RecentWorkspacesManager", () => {
         cacheValid: false,
         recentCount: 0,
       });
-      // Error message will be from the retry logic
-      expect(status.error).toBeTruthy();
+      // Error message will be from the retry logic.
+      expect(typeof status.error).toBe("string");
+      expect((status.error ?? "").length).toBeGreaterThan(0);
     });
   });
 });

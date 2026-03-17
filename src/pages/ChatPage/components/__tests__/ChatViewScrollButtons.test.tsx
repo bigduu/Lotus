@@ -101,7 +101,7 @@ describe("ChatView scroll button group", () => {
     const { container } = render(<ChatView />);
     const group = container.querySelector(".ant-float-btn-group");
 
-    expect(group).toBeTruthy();
+    expect(group).not.toBeNull();
     expect((group as HTMLElement).style.bottom).toBe("180px");
     expect((group as HTMLElement).style.right).toBe("32px");
   });

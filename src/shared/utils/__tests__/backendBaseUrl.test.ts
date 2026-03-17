@@ -96,7 +96,7 @@ describe("backendBaseUrl", () => {
     const result = getBackendBaseUrlSync();
 
     // Should return a valid URL (either the default or fallback)
-    expect(result).toBeDefined();
+    expect(typeof result).toBe("string");
     expect(result).toMatch(/^http:/);
 
     consoleSpy.mockRestore();
@@ -137,8 +137,8 @@ describe("backendBaseUrl", () => {
       const url = await getBackendBaseUrl();
 
       // Should return some URL (the default fallback)
-      expect(url).toBeDefined();
       expect(typeof url).toBe("string");
+      expect(url.length).toBeGreaterThan(0);
     });
   });
 });

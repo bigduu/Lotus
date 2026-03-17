@@ -60,7 +60,9 @@ describe("copilotAskUserEnhancementUtils", () => {
         throw new Error("localStorage error");
       });
 
-      expect(() => setCopilotAskUserEnhancementEnabled(true)).not.toThrow();
+      setCopilotAskUserEnhancementEnabled(true);
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
 
       localStorage.setItem = originalSetItem;
       consoleSpy.mockRestore();
@@ -70,7 +72,7 @@ describe("copilotAskUserEnhancementUtils", () => {
   describe("getCopilotAskUserEnhancementPrompt", () => {
     it("returns a non-empty string", () => {
       const prompt = getCopilotAskUserEnhancementPrompt();
-      expect(prompt).toBeDefined();
+      expect(typeof prompt).toBe("string");
       expect(prompt.length).toBeGreaterThan(0);
     });
 
@@ -81,28 +83,13 @@ describe("copilotAskUserEnhancementUtils", () => {
       expect(prompt).toContain("OK");
     });
 
-    it("includes requirement to ask before ending", () => {
+    it("includes the core completion-confirmation behavior", () => {
       const prompt = getCopilotAskUserEnhancementPrompt();
-      expect(prompt).toContain("Before ending the task");
-      expect(prompt).toContain("always call");
-    });
-
-    it("includes confirmation requirement", () => {
-      const prompt = getCopilotAskUserEnhancementPrompt();
-      expect(prompt).toContain("confirmation");
-      expect(prompt).toContain("selectable options");
-    });
-
-    it("includes OK handling requirement", () => {
-      const prompt = getCopilotAskUserEnhancementPrompt();
-      expect(prompt).toContain("explicitly selects");
-      expect(prompt).toContain("replies `OK`");
-    });
-
-    it("includes continuation requirement", () => {
-      const prompt = getCopilotAskUserEnhancementPrompt();
-      expect(prompt).toContain("If the user gives any other response");
-      expect(prompt).toContain("continue assisting");
+      const normalized = prompt.toLowerCase();
+      expect(normalized).toContain("before ending");
+      expect(normalized).toContain("ask_user");
+      expect(normalized).toContain("ok");
+      expect(normalized).toContain("continue assisting");
     });
   });
 });

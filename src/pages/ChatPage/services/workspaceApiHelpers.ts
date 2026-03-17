@@ -1,6 +1,7 @@
 export const buildWorkspaceUrl = (baseUrl: string, endpoint: string) => {
-  const cleanEndpoint = endpoint.startsWith("/") ? endpoint.slice(1) : endpoint;
-  return `${baseUrl}/${cleanEndpoint}`;
+  const cleanBaseUrl = baseUrl.replace(/\/+$/, "");
+  const cleanEndpoint = endpoint.replace(/^\/+/, "");
+  return cleanEndpoint ? `${cleanBaseUrl}/${cleanEndpoint}` : `${cleanBaseUrl}/`;
 };
 
 export const appendQueryParams = (

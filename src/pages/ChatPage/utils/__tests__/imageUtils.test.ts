@@ -263,7 +263,7 @@ describe("imageUtils", () => {
       expect(result.type).toBe("image/jpeg");
       expect(result.base64).toContain("data:image/jpeg;base64,");
       expect(result.preview).toContain("blob:");
-      expect(result.id).toBeDefined();
+      expect(result.id).toMatch(/^img_/);
       expect(result.size).toBe(1024);
     });
 
@@ -485,7 +485,7 @@ describe("imageUtils", () => {
       const canvas = new MockCanvas() as any;
       const result = canvasToBase64(canvas);
 
-      expect(result).toBeDefined();
+      expect(result).toContain("data:image/jpeg;base64,");
     });
   });
 

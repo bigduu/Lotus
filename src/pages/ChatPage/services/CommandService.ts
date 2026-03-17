@@ -25,6 +25,9 @@ export class CommandService {
 
     try {
       const response = await apiClient.get<CommandListResponse>("commands");
+      if (!Array.isArray(response.commands)) {
+        throw new Error("Invalid command list response");
+      }
       this.cache = response.commands;
       this.cacheTime = now;
       console.log("[CommandService] Loaded commands:", this.cache.length);

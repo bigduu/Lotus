@@ -58,8 +58,9 @@ describe("StorageService", () => {
         throw new Error("localStorage error");
       });
 
-      expect(() => service.setTheme("dark")).not.toThrow();
+      service.setTheme("dark");
       expect(errorSpy).toHaveBeenCalled();
+      expect(localStorage.getItem("copilot_ui_theme_v1")).toBeNull();
 
       localStorage.setItem = originalSetItem;
       errorSpy.mockRestore();
@@ -113,8 +114,9 @@ describe("StorageService", () => {
         throw new Error("localStorage error");
       });
 
-      expect(() => service.setLayout('{"sidebar":true}')).not.toThrow();
+      service.setLayout('{"sidebar":true}');
       expect(errorSpy).toHaveBeenCalled();
+      expect(localStorage.getItem("copilot_ui_layout_v1")).toBeNull();
 
       localStorage.setItem = originalSetItem;
       errorSpy.mockRestore();

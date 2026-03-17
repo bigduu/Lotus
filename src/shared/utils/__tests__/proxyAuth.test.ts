@@ -175,7 +175,8 @@ describe("proxyAuth", () => {
     });
 
     it("does not throw when no credentials exist", () => {
-      expect(() => clearStoredProxyAuth()).not.toThrow();
+      clearStoredProxyAuth();
+      expect(localStorage.getItem(PROXY_AUTH_STORAGE_KEY)).toBeNull();
     });
   });
 

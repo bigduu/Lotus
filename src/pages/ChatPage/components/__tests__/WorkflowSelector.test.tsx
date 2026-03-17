@@ -47,7 +47,7 @@ describe("WorkflowSelector", () => {
       />,
     );
 
-    expect(await screen.findByText("/review")).toBeTruthy();
+    expect(await screen.findByText("/review")).toBeInTheDocument();
     expect(screen.queryByText("/plan")).toBeNull();
   });
 
@@ -117,9 +117,13 @@ describe("WorkflowSelector", () => {
       />,
     );
 
-    await screen.findByText("/review");
-    fireEvent.keyDown(document, { key: "Tab" });
+    expect(await screen.findByText("/review")).toBeInTheDocument();
 
-    expect(onAutoComplete).toHaveBeenCalledWith("review");
+    await waitFor(() => {
+      fireEvent.keyDown(document, { key: "Tab" });
+      expect(onAutoComplete).toHaveBeenCalled();
+    });
+
+    expect(onAutoComplete.mock.calls[0]?.[0]).toBe("review");
   });
 });

@@ -339,7 +339,12 @@ describe("useAgentEventSubscription", () => {
 
     await waitFor(() => {
       expect(mockSubscribeToEvents).toHaveBeenCalled();
-      expect(capturedHandlers).toBeTruthy();
+      expect(capturedHandlers).toEqual(
+        expect.objectContaining({
+          onToolStart: expect.any(Function),
+          onToolToken: expect.any(Function),
+        }),
+      );
     });
 
     act(() => {
@@ -352,7 +357,8 @@ describe("useAgentEventSubscription", () => {
     });
 
     await waitFor(() => {
-      expect(toolCallMessageId).toBeTruthy();
+      expect(typeof toolCallMessageId).toBe("string");
+      expect((toolCallMessageId ?? "").length).toBeGreaterThan(0);
       expect(updateMessage).toHaveBeenCalled();
 
       const toolMsg = mockState.chats[0].messages.find(

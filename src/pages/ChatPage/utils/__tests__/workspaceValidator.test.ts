@@ -3,6 +3,7 @@ import {
   workspaceValidator,
   useWorkspaceValidator,
   WorkspaceValidationResult,
+  WorkspaceValidator,
 } from "../workspaceValidator";
 
 // Mock fetch globally
@@ -108,6 +109,54 @@ describe("WorkspaceValidator", () => {
 
       expect(result1).toEqual(result2);
     });
+
+    it("should deduplicate pending validations", async () => {
+      const mockResult: WorkspaceValidationResult = {
+        path: "/pending/workspace",
+        is_valid: true,
+      };
+
+      (fetch as any).mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockResult,
+      });
+
+      // Make two concurrent calls for the same path
+      const promise1 = workspaceValidator.validateWorkspace("/pending/workspace");
+      const promise2 = workspaceValidator.validateWorkspace("/pending/workspace");
+
+      const [result1, result2] = await Promise.all([promise1, promise2]);
+
+      // Should only make one API call
+      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(result1).toEqual(mockResult);
+      expect(result2).toEqual(mockResult);
+    });
+  });
+
+  describe("cache management", () => {
+    it("should clear cache", async () => {
+      const mockResult: WorkspaceValidationResult = {
+        path: "/cache/workspace",
+        is_valid: true,
+      };
+
+      (fetch as any).mockResolvedValue({
+        ok: true,
+        json: async () => mockResult,
+      });
+
+      // First call to populate cache
+      await workspaceValidator.validateWorkspace("/cache/workspace");
+      expect(fetch).toHaveBeenCalledTimes(1);
+
+      // Clear cache
+      workspaceValidator.clearCache();
+
+      // Second call should make new API request
+      await workspaceValidator.validateWorkspace("/cache/workspace");
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe("validateWorkspaceDebounced", () => {
@@ -125,15 +174,15 @@ describe("WorkspaceValidator", () => {
       const callback = vi.fn();
 
       // Multiple rapid calls
-      workspaceValidator.validateWorkspaceDebounced(
+      const cancel1 = workspaceValidator.validateWorkspaceDebounced(
         "/debounced/workspace",
         callback,
       );
-      workspaceValidator.validateWorkspaceDebounced(
+      const cancel2 = workspaceValidator.validateWorkspaceDebounced(
         "/debounced/workspace",
         callback,
       );
-      workspaceValidator.validateWorkspaceDebounced(
+      const cancel3 = workspaceValidator.validateWorkspaceDebounced(
         "/debounced/workspace",
         callback,
       );
@@ -141,8 +190,38 @@ describe("WorkspaceValidator", () => {
       // Wait for debounce
       await new Promise((resolve) => setTimeout(resolve, 350));
 
+      // All callbacks should be called with the same result
       expect(callback).toHaveBeenCalledTimes(3);
       expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("should cancel debounced validation", async () => {
+      const mockResult: WorkspaceValidationResult = {
+        path: "/cancel/workspace",
+        is_valid: true,
+      };
+
+      (fetch as any).mockResolvedValue({
+        ok: true,
+        json: async () => mockResult,
+      });
+
+      const callback = vi.fn();
+
+      const cancel = workspaceValidator.validateWorkspaceDebounced(
+        "/cancel/workspace",
+        callback,
+      );
+
+      // Cancel immediately
+      cancel();
+
+      // Wait for debounce period
+      await new Promise((resolve) => setTimeout(resolve, 350));
+
+      // Should not have called fetch or callback
+      expect(fetch).not.toHaveBeenCalled();
+      expect(callback).not.toHaveBeenCalled();
     });
   });
 

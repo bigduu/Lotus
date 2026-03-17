@@ -58,11 +58,11 @@ describe("SystemPromptSelector", () => {
       />,
     );
 
-    expect(screen.getByText("Select System Prompt")).toBeTruthy();
+    expect(screen.getByText("Select System Prompt")).toBeInTheDocument();
     // Use getAllByText since "Default" appears multiple times (name and tag)
     expect(screen.getAllByText("Default").length).toBeGreaterThan(0);
-    expect(screen.getByText("Custom Prompt")).toBeTruthy();
-    expect(screen.getByText("测试助手")).toBeTruthy();
+    expect(screen.getByText("Custom Prompt")).toBeInTheDocument();
+    expect(screen.getByText("测试助手")).toBeInTheDocument();
   });
 
   it("should auto-select default prompt when opened", async () => {
@@ -218,7 +218,7 @@ describe("SystemPromptSelector", () => {
 
     expect(
       screen.getByText("No system prompts found. Add one in System Settings."),
-    ).toBeTruthy();
+    ).toBeInTheDocument();
   });
 
   it("should prioritize lastSelectedPromptId over default", async () => {

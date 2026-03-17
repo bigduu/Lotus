@@ -211,7 +211,6 @@ describe("chatSessionSlice history mapping", () => {
     await store.getState().loadChatHistory("session-1", { mode: "replace" });
 
     const updated = store.getState().chats.find((c) => c.id === "session-1");
-    expect(updated).toBeDefined();
     expect(updated?.messages).toHaveLength(3);
     expect(updated?.messages[0]).toMatchObject({
       role: "assistant",
