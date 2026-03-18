@@ -1,13 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   mockGenerateTimestampedFilename,
   mockSaveTextFile,
   mockSaveBinaryFile,
+  mockCreateMarkdownComponents,
+  mockHtml2Canvas,
+  mockCreateRoot,
+  mockFlushSync,
+  mockJsPDFConstructor,
+  mockJsPDFAddPage,
+  mockJsPDFAddImage,
+  mockJsPDFOutput,
 } = vi.hoisted(() => ({
   mockGenerateTimestampedFilename: vi.fn(),
   mockSaveTextFile: vi.fn(),
   mockSaveBinaryFile: vi.fn(),
+  mockCreateMarkdownComponents: vi.fn().mockReturnValue({}),
+  mockHtml2Canvas: vi.fn(),
+  mockCreateRoot: vi.fn(),
+  mockFlushSync: vi.fn((cb: () => void) => cb()),
+  mockJsPDFConstructor: vi.fn(),
+  mockJsPDFAddPage: vi.fn(),
+  mockJsPDFAddImage: vi.fn(),
+  mockJsPDFOutput: vi.fn().mockReturnValue(new ArrayBuffer(4)),
 }));
 
 vi.mock("../FileOperationsService", () => ({
@@ -22,11 +38,69 @@ vi.mock("../FileOperationsService", () => ({
   },
 }));
 
+vi.mock("../../../shared/components/Markdown/markdownComponents", () => ({
+  createMarkdownComponents: mockCreateMarkdownComponents,
+}));
+
+vi.mock("html2canvas", () => ({
+  default: mockHtml2Canvas,
+}));
+
+vi.mock("react-dom/client", () => ({
+  createRoot: mockCreateRoot,
+}));
+
+vi.mock("react-dom", () => ({
+  flushSync: mockFlushSync,
+}));
+
+vi.mock("jspdf", () => ({
+  jsPDF: class MockJsPDF {
+    internal = {
+      pageSize: {
+        getWidth: () => 595,
+        getHeight: () => 842,
+      },
+    };
+
+    constructor(options: unknown) {
+      mockJsPDFConstructor(options);
+    }
+
+    addPage = (...args: unknown[]) => mockJsPDFAddPage(...args);
+    addImage = (...args: unknown[]) => mockJsPDFAddImage(...args);
+    output = (...args: unknown[]) => mockJsPDFOutput(...args);
+  },
+}));
+
 import { MessageExportService } from "../MessageExportService";
 
 describe("MessageExportService", () => {
+  const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateRoot.mockReturnValue({
+      render: vi.fn(),
+      unmount: vi.fn(),
+    });
+    mockHtml2Canvas.mockReset();
+    mockHtml2Canvas.mockImplementation(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 1000;
+      canvas.height = 2200;
+      return canvas;
+    });
+    globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    }) as typeof requestAnimationFrame;
+  });
+
+  afterEach(() => {
+    globalThis.requestAnimationFrame = originalRequestAnimationFrame;
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("exports markdown with default sanitized prefix", async () => {
@@ -107,9 +181,10 @@ describe("MessageExportService", () => {
 
   it("returns pdf export error when generation fails", async () => {
     mockGenerateTimestampedFilename.mockReturnValueOnce("chat-message.pdf");
-    vi.spyOn(MessageExportService as any, "generatePdfFromText").mockRejectedValueOnce(
-      new Error("pdf failed"),
-    );
+    vi.spyOn(
+      MessageExportService as any,
+      "generatePdfFromText",
+    ).mockRejectedValueOnce(new Error("pdf failed"));
 
     const result = await MessageExportService.exportMessageText({
       format: "pdf",
@@ -118,5 +193,207 @@ describe("MessageExportService", () => {
 
     expect(mockSaveBinaryFile).not.toHaveBeenCalled();
     expect(result).toEqual({ success: false, error: "pdf failed" });
+  });
+
+  it("sanitizes empty session/message fragments to fallback message name", async () => {
+    mockGenerateTimestampedFilename.mockReturnValueOnce("chat-message.md");
+    mockSaveTextFile.mockResolvedValueOnce({
+      success: true,
+      filename: "chat-message.md",
+    });
+
+    await MessageExportService.exportMessageText({
+      format: "markdown",
+      content: "hi",
+      sessionId: "        ",
+      messageId: "    ",
+    });
+
+    expect(mockGenerateTimestampedFilename).toHaveBeenCalledWith(
+      "chat-message-message-message",
+      "md",
+    );
+  });
+
+  it("handles non-Error pdf exceptions with fallback message", async () => {
+    mockGenerateTimestampedFilename.mockReturnValueOnce("chat-message.pdf");
+    vi.spyOn(
+      MessageExportService as any,
+      "generatePdfFromText",
+    ).mockRejectedValueOnce("boom");
+
+    const result = await MessageExportService.exportMessageText({
+      format: "pdf",
+      content: "render me",
+    });
+
+    expect(result).toEqual({ success: false, error: "Failed to export PDF" });
+  });
+
+  it("returns saveBinaryFile errors for pdf export", async () => {
+    mockGenerateTimestampedFilename.mockReturnValueOnce("chat-message.pdf");
+    vi.spyOn(
+      MessageExportService as any,
+      "generatePdfFromText",
+    ).mockResolvedValueOnce(new Uint8Array([9, 8, 7]));
+    mockSaveBinaryFile.mockResolvedValueOnce({
+      success: false,
+      error: "disk is read-only",
+    });
+
+    const result = await MessageExportService.exportMessageText({
+      format: "pdf",
+      content: "content",
+    });
+
+    expect(result).toEqual({ success: false, error: "disk is read-only" });
+  });
+
+  it("waitForExportRenderReady returns after pending mermaid disappears", async () => {
+    vi.useFakeTimers();
+    const nowSpy = vi.spyOn(Date, "now");
+    nowSpy
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(1)
+      .mockReturnValueOnce(70)
+      .mockReturnValue(120);
+
+    const container = document.createElement("div");
+    const pending = document.createElement("div");
+    pending.setAttribute("data-mermaid-loading", "true");
+    container.appendChild(pending);
+
+    const waitPromise = (MessageExportService as any).waitForExportRenderReady(
+      container,
+    );
+    setTimeout(() => pending.remove(), 60);
+    await vi.advanceTimersByTimeAsync(120);
+    await waitPromise;
+  });
+
+  it("renderCanvasWithFallback retries without foreignObjectRendering after failure", async () => {
+    const warningSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const firstError = new Error("first render failed");
+    const fallbackCanvas = document.createElement("canvas");
+    fallbackCanvas.width = 400;
+    fallbackCanvas.height = 300;
+
+    const html2canvasMock = vi
+      .fn()
+      .mockRejectedValueOnce(firstError)
+      .mockResolvedValueOnce(fallbackCanvas);
+    const container = document.createElement("div");
+
+    const canvas = await (MessageExportService as any).renderCanvasWithFallback(
+      html2canvasMock,
+      container,
+    );
+
+    expect(canvas).toBe(fallbackCanvas);
+    expect(html2canvasMock).toHaveBeenNthCalledWith(
+      1,
+      container,
+      expect.objectContaining({ foreignObjectRendering: true }),
+    );
+    expect(html2canvasMock).toHaveBeenNthCalledWith(
+      2,
+      container,
+      expect.objectContaining({ foreignObjectRendering: false }),
+    );
+    expect(warningSpy).toHaveBeenCalledWith(
+      "PDF capture with foreignObjectRendering=true failed:",
+      firstError,
+    );
+  });
+
+  it("renderCanvasWithFallback throws when fallback render is empty", async () => {
+    const emptyCanvas = document.createElement("canvas");
+    emptyCanvas.width = 0;
+    emptyCanvas.height = 0;
+
+    const html2canvasMock = vi
+      .fn()
+      .mockResolvedValueOnce(emptyCanvas)
+      .mockResolvedValueOnce(emptyCanvas);
+
+    await expect(
+      (MessageExportService as any).renderCanvasWithFallback(
+        html2canvasMock,
+        document.createElement("div"),
+      ),
+    ).rejects.toThrow("PDF render failed (empty canvas)");
+  });
+
+  it("generatePdfFromText renders markdown to multipage PDF and cleans up DOM nodes", async () => {
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue({
+        fillStyle: "#fff",
+        fillRect: vi.fn(),
+        drawImage: vi.fn(),
+      } as any);
+    const dataUrlSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, "toDataURL")
+      .mockReturnValue("data:image/jpeg;base64,abc");
+
+    const bytes = await (MessageExportService as any).generatePdfFromText(
+      "# heading\n\ncontent",
+    );
+
+    expect(mockCreateRoot).toHaveBeenCalledTimes(1);
+    expect(mockFlushSync).toHaveBeenCalledTimes(1);
+    expect(mockHtml2Canvas).toHaveBeenCalled();
+    expect(mockJsPDFConstructor).toHaveBeenCalledWith({
+      unit: "pt",
+      format: "a4",
+      orientation: "portrait",
+    });
+    expect(mockJsPDFAddImage).toHaveBeenCalled();
+    expect(mockJsPDFAddPage).toHaveBeenCalled();
+    expect(mockJsPDFOutput).toHaveBeenCalledWith("arraybuffer");
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(bytes.byteLength).toBe(4);
+    expect(getContextSpy).toHaveBeenCalled();
+    expect(dataUrlSpy).toHaveBeenCalled();
+    expect(document.querySelector('[style*="2147483647"]')).toBeNull();
+    expect(document.querySelector('[style*="2147483646"]')).toBeNull();
+  });
+
+  it("generatePdfFromText throws when slice canvas context is unavailable", async () => {
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(null);
+
+    await expect(
+      (MessageExportService as any).generatePdfFromText("content"),
+    ).rejects.toThrow("PDF render failed (no canvas context)");
+
+    expect(getContextSpy).toHaveBeenCalled();
+  });
+
+  it("generatePdfFromText is unavailable when document is missing", async () => {
+    vi.stubGlobal("document", undefined);
+
+    await expect(
+      (MessageExportService as any).generatePdfFromText("content"),
+    ).rejects.toThrow("PDF export is unavailable in this environment");
+  });
+
+  it("generatePdfFromText accepts empty markdown content", async () => {
+    const getContextSpy = vi
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue({
+        fillStyle: "#fff",
+        fillRect: vi.fn(),
+        drawImage: vi.fn(),
+      } as any);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      "data:image/jpeg;base64,abc",
+    );
+
+    await expect(
+      (MessageExportService as any).generatePdfFromText(""),
+    ).resolves.toBeInstanceOf(Uint8Array);
+    expect(getContextSpy).toHaveBeenCalled();
   });
 });
