@@ -87,7 +87,6 @@ interface InputContainerProps {
 
 export const InputContainer: React.FC<InputContainerProps> = ({
   sessionId: sessionIdProp,
-  isCenteredLayout = false,
   onWorkflowDraftChange,
 }) => {
   const textAreaRef = useRef<TextAreaRef>(null); // Add ref for cursor position
@@ -369,7 +368,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     }
     if (agentAvailable) {
       return {
-        color: "success",
+        color: "default",
         icon: <RobotOutlined />,
         text: "Agent Mode",
         actionable: false,
@@ -458,10 +457,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         // Keep the input area compact; the inner MessageInput already enforces a sensible min-height.
         padding: `${token.paddingXXS}px ${token.paddingSM}px`,
         background: token.colorBgContainer,
-        borderTop: isCenteredLayout
-          ? "none"
-          : `1px solid ${token.colorBorderSecondary}`,
-        boxShadow: isCenteredLayout ? "none" : "0 -2px 8px rgba(0,0,0,0.06)",
+        borderTop: "none",
+        boxShadow: "none",
         width: "100%",
         position: "relative",
         overflow: "visible",

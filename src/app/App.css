@@ -180,3 +180,26 @@ html, body, #root {
     background-color: #2f2f2f;
   }
 }
+
+body[data-theme="light"] .ant-tag-blue,
+body[data-theme="light"] .ant-tag-geekblue {
+  color: #8a8a8a;
+  background: #fafafa;
+  border-color: #d9dada;
+}
+
+body[data-theme="dark"] .ant-tag-blue,
+body[data-theme="dark"] .ant-tag-geekblue {
+  color: #d9d9d9;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+/* Keep switch active state blue while the rest of the theme stays neutral gray. */
+.ant-switch.ant-switch-checked {
+  background-color: #1677ff !important;
+}
+
+.ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) {
+  background-color: #4096ff !important;
+}

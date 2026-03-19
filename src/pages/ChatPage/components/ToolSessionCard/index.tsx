@@ -230,7 +230,9 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
     setIsExpanded(defaultExpanded);
     setExpandedTools(
       new Set(
-        defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : [],
+        defaultExpanded && defaultExpandedToolKey
+          ? [defaultExpandedToolKey]
+          : [],
       ),
     );
   }, [

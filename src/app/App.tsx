@@ -17,6 +17,25 @@ import {
 } from "@shared/i18n/types";
 
 const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
+const LIGHT_THEME_TOKEN = {
+  colorPrimary: "#d9dada",
+  colorPrimaryHover: "#e4e5e5",
+  colorPrimaryActive: "#c8caca",
+  colorInfo: "#d9dada",
+  colorLink: "#8a8a8a",
+  colorLinkHover: "#9c9c9c",
+  colorLinkActive: "#767676",
+  colorTextLightSolid: "#1f1f1f",
+  borderRadius: 6,
+};
+const DARK_THEME_TOKEN = {
+  colorPrimary: "#8f8f8f",
+  colorInfo: "#8f8f8f",
+  colorLink: "#c5c5c5",
+  colorLinkHover: "#d7d7d7",
+  colorLinkActive: "#a6a6a6",
+  borderRadius: 6,
+};
 
 function App() {
   const { t } = useTranslation();
@@ -95,6 +114,18 @@ function App() {
   }, [themeMode]);
 
   useEffect(() => {
+    const invoke = (window as { __TAURI_INTERNALS__?: { invoke?: unknown } })
+      .__TAURI_INTERNALS__?.invoke;
+    if (typeof invoke !== "function") {
+      return;
+    }
+
+    void invoke("set_window_theme", { theme: themeMode }).catch((error: unknown) => {
+      console.warn("[App] Failed to sync native window theme:", error);
+    });
+  }, [themeMode]);
+
+  useEffect(() => {
     if (isSetupComplete) {
       initializeStore();
     }
@@ -138,10 +169,7 @@ function App() {
     <ConfigProvider
       locale={getAntdLocale(appLocale)}
       theme={{
-        token: {
-          colorPrimary: "#1677ff",
-          borderRadius: 6,
-        },
+        token: themeMode === "dark" ? DARK_THEME_TOKEN : LIGHT_THEME_TOKEN,
         algorithm:
           themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
       }}

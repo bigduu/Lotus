@@ -64,8 +64,6 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
             <Switch
               checked={mermaidEnhancementEnabled}
               onChange={onMermaidToggle}
-              checkedChildren={t("settings.promptsTab.switchOn")}
-              unCheckedChildren={t("settings.promptsTab.switchOff")}
             />
           </Flex>
           <Flex align="center" gap={token.marginSM}>
@@ -73,8 +71,6 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
             <Switch
               checked={todoEnhancementEnabled}
               onChange={onTodoToggle}
-              checkedChildren={t("settings.promptsTab.switchOn")}
-              unCheckedChildren={t("settings.promptsTab.switchOff")}
             />
           </Flex>
           {showCopilotAskUserEnhancement && (
@@ -83,8 +79,6 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
               <Switch
                 checked={copilotAskUserEnhancementEnabled}
                 onChange={onCopilotAskUserToggle}
-                checkedChildren={t("settings.promptsTab.switchOn")}
-                unCheckedChildren={t("settings.promptsTab.switchOff")}
               />
             </Flex>
           )}

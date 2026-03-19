@@ -202,6 +202,7 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
         minHeight: 0,
         minWidth: 0,
         width: "100%",
+        position: "relative",
         ...style,
       }}
     >
@@ -217,23 +218,6 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
         <div style={{ flex: 1, minHeight: 0, minWidth: 0 }}>{first}</div>
       </div>
 
-      {handleThickness > 0 ? (
-        <div
-          role="separator"
-          aria-orientation={isRow ? "vertical" : "horizontal"}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerCancel}
-          style={{
-            flex: `0 0 ${handleThickness}px`,
-            cursor: handleCursor,
-            touchAction: "none",
-            background: disabled ? "transparent" : "rgba(0,0,0,0.06)",
-          }}
-        />
-      ) : null}
-
       <div
         style={{
           flex: "1 1 auto",
@@ -245,6 +229,28 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
       >
         <div style={{ flex: 1, minHeight: 0, minWidth: 0 }}>{second}</div>
       </div>
+
+      {handleThickness > 0 ? (
+        <div
+          role="separator"
+          aria-orientation={isRow ? "vertical" : "horizontal"}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerCancel}
+          style={{
+            position: "absolute",
+            top: isRow ? 0 : `${effectiveFirstPx - handleThickness / 2}px`,
+            left: isRow ? `${effectiveFirstPx - handleThickness / 2}px` : 0,
+            width: isRow ? `${handleThickness}px` : "100%",
+            height: isRow ? "100%" : `${handleThickness}px`,
+            cursor: handleCursor,
+            touchAction: "none",
+            background: "transparent",
+            zIndex: 5,
+          }}
+        />
+      ) : null}
     </div>
   );
 };

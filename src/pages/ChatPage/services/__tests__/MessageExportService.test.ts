@@ -324,6 +324,61 @@ describe("MessageExportService", () => {
     ).rejects.toThrow("PDF render failed (empty canvas)");
   });
 
+  it("computeSmartSliceHeight chooses whitespace row near page boundary", () => {
+    const width = 10;
+    const highlightedWhitespaceRow = 388;
+    const canvas = {
+      width,
+      height: 1000,
+      getContext: vi.fn().mockReturnValue({
+        getImageData: (
+          _x: number,
+          y: number,
+          readWidth: number,
+          readHeight: number,
+        ) => {
+          const data = new Uint8ClampedArray(readWidth * readHeight * 4);
+          for (let row = 0; row < readHeight; row += 1) {
+            const globalY = y + row;
+            const pixel = globalY === highlightedWhitespaceRow ? 255 : 0;
+            for (let col = 0; col < readWidth; col += 1) {
+              const index = (row * readWidth + col) * 4;
+              data[index] = pixel;
+              data[index + 1] = pixel;
+              data[index + 2] = pixel;
+              data[index + 3] = 255;
+            }
+          }
+          return { data };
+        },
+      }),
+    } as unknown as HTMLCanvasElement;
+
+    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(
+      canvas,
+      0,
+      400,
+    );
+
+    expect(sliceHeight).toBe(highlightedWhitespaceRow);
+  });
+
+  it("computeSmartSliceHeight falls back to fixed slice height when pixels are unreadable", () => {
+    const canvas = {
+      width: 600,
+      height: 1500,
+      getContext: vi.fn().mockReturnValue(null),
+    } as unknown as HTMLCanvasElement;
+
+    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(
+      canvas,
+      0,
+      500,
+    );
+
+    expect(sliceHeight).toBe(500);
+  });
+
   it("generatePdfFromText renders markdown to multipage PDF and cleans up DOM nodes", async () => {
     const getContextSpy = vi
       .spyOn(HTMLCanvasElement.prototype, "getContext")

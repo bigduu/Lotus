@@ -28,8 +28,8 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
       gap={collapsed ? "small" : "middle"}
       style={{
         padding: collapsed ? 8 : 16,
-        background: token.colorBgContainer,
-        borderTop: `1px solid ${token.colorBorderSecondary}`,
+        background: token.colorFillQuaternary,
+        borderTop: "none",
       }}
     >
       <Button

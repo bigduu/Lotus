@@ -101,7 +101,9 @@ export class MessageExportService {
     }
   }
 
-  private static async generatePdfFromText(content: string): Promise<Uint8Array> {
+  private static async generatePdfFromText(
+    content: string,
+  ): Promise<Uint8Array> {
     // PDF export should match the markdown renderer used in MessageCard,
     // including custom code/mermaid rendering.
     if (typeof document === "undefined") {
@@ -196,10 +198,17 @@ export class MessageExportService {
 
     try {
       await this.waitForExportRenderReady(container);
-      const canvas = await this.renderCanvasWithFallback(html2canvas, container);
+      const canvas = await this.renderCanvasWithFallback(
+        html2canvas,
+        container,
+      );
 
       // Render canvas into A4 pages (pt units).
-      const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
+      const doc = new jsPDF({
+        unit: "pt",
+        format: "a4",
+        orientation: "portrait",
+      });
       const pageWidthPt = doc.internal.pageSize.getWidth();
       const pageHeightPt = doc.internal.pageSize.getHeight();
       const marginPt = 24;
@@ -212,9 +221,19 @@ export class MessageExportService {
       let offsetY = 0;
       let pageIndex = 0;
       while (offsetY < canvas.height) {
+        const computedSliceHeight = this.computeSmartSliceHeight(
+          canvas,
+          offsetY,
+          sliceHeightPx,
+        );
+        const sliceHeight = Math.max(
+          1,
+          Math.min(computedSliceHeight, canvas.height - offsetY),
+        );
+
         const sliceCanvas = document.createElement("canvas");
         sliceCanvas.width = canvas.width;
-        sliceCanvas.height = Math.min(sliceHeightPx, canvas.height - offsetY);
+        sliceCanvas.height = sliceHeight;
 
         const ctx = sliceCanvas.getContext("2d");
         if (!ctx) throw new Error("PDF render failed (no canvas context)");
@@ -227,15 +246,15 @@ export class MessageExportService {
           0,
           offsetY,
           canvas.width,
-          sliceCanvas.height,
+          sliceHeight,
           0,
           0,
           canvas.width,
-          sliceCanvas.height,
+          sliceHeight,
         );
 
         const imgData = sliceCanvas.toDataURL("image/jpeg", 0.92);
-        const sliceHeightPt = sliceCanvas.height / pxPerPt;
+        const sliceHeightPt = sliceHeight / pxPerPt;
 
         if (pageIndex > 0) doc.addPage();
         doc.addImage(
@@ -247,7 +266,7 @@ export class MessageExportService {
           sliceHeightPt,
         );
 
-        offsetY += sliceCanvas.height;
+        offsetY += sliceHeight;
         pageIndex += 1;
       }
 
@@ -307,7 +326,10 @@ export class MessageExportService {
         return canvas;
       }
     } catch (error) {
-      console.warn("PDF capture with foreignObjectRendering=true failed:", error);
+      console.warn(
+        "PDF capture with foreignObjectRendering=true failed:",
+        error,
+      );
     }
 
     const fallbackCanvas = await html2canvas(container, {
@@ -320,5 +342,124 @@ export class MessageExportService {
     }
 
     return fallbackCanvas;
+  }
+
+  private static computeSmartSliceHeight(
+    canvas: HTMLCanvasElement,
+    offsetY: number,
+    targetSliceHeight: number,
+  ): number {
+    const remainingHeight = canvas.height - offsetY;
+    if (remainingHeight <= targetSliceHeight) {
+      return remainingHeight;
+    }
+
+    const preferredBreakY = offsetY + targetSliceHeight;
+    const minSliceHeight = Math.max(1, Math.floor(targetSliceHeight * 0.72));
+    const searchRadius = Math.max(8, Math.floor(targetSliceHeight * 0.12));
+    const minBreakY = Math.max(
+      offsetY + minSliceHeight,
+      preferredBreakY - searchRadius,
+    );
+    const maxBreakY = Math.min(
+      canvas.height - 1,
+      preferredBreakY + searchRadius,
+    );
+
+    const breakY = this.findWhitespaceBreakY(
+      canvas,
+      preferredBreakY,
+      minBreakY,
+      maxBreakY,
+    );
+    if (breakY === null || breakY <= offsetY) {
+      return targetSliceHeight;
+    }
+
+    return breakY - offsetY;
+  }
+
+  private static findWhitespaceBreakY(
+    canvas: HTMLCanvasElement,
+    preferredBreakY: number,
+    minBreakY: number,
+    maxBreakY: number,
+  ): number | null {
+    if (minBreakY > maxBreakY || canvas.width <= 0) {
+      return null;
+    }
+
+    try {
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx || typeof ctx.getImageData !== "function") {
+        return null;
+      }
+
+      const height = maxBreakY - minBreakY + 1;
+      const imageData = ctx.getImageData(
+        0,
+        minBreakY,
+        canvas.width,
+        height,
+      ).data;
+      const rowStride = canvas.width * 4;
+      const sampleStep = Math.max(1, Math.floor(canvas.width / 320));
+      const whiteThreshold = 245;
+      const alphaThreshold = 16;
+      const maxInkRatioForWhitespace = 0.03;
+
+      let bestY: number | null = null;
+      let bestInkRatio = Number.POSITIVE_INFINITY;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      for (let row = 0; row < height; row += 1) {
+        let inkSamples = 0;
+        let totalSamples = 0;
+        const rowOffset = row * rowStride;
+
+        for (let x = 0; x < canvas.width; x += sampleStep) {
+          const index = rowOffset + x * 4;
+          const alpha = imageData[index + 3];
+          totalSamples += 1;
+
+          if (alpha <= alphaThreshold) {
+            continue;
+          }
+
+          const r = imageData[index];
+          const g = imageData[index + 1];
+          const b = imageData[index + 2];
+          if (r < whiteThreshold || g < whiteThreshold || b < whiteThreshold) {
+            inkSamples += 1;
+          }
+        }
+
+        if (totalSamples === 0) {
+          continue;
+        }
+
+        const inkRatio = inkSamples / totalSamples;
+        const y = minBreakY + row;
+        const distance = Math.abs(y - preferredBreakY);
+        const isBetter =
+          inkRatio < bestInkRatio ||
+          (inkRatio === bestInkRatio && distance < bestDistance);
+
+        if (isBetter) {
+          bestInkRatio = inkRatio;
+          bestDistance = distance;
+          bestY = y;
+        }
+      }
+
+      if (bestY === null || bestInkRatio > maxInkRatioForWhitespace) {
+        return null;
+      }
+
+      return bestY;
+    } catch {
+      // Cross-origin images can taint canvas and block pixel reads.
+      return null;
+    }
   }
 }

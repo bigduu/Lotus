@@ -208,10 +208,10 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           style={{
             gap: token.marginXS,
             backgroundColor: token.colorBgContainer,
-            border: `1px solid ${token.colorBorderSecondary}`,
-            borderRadius: token.borderRadius,
+            border: "none",
+            borderRadius: 0,
             padding: `${token.paddingXS}px ${token.paddingSM}px`,
-            transition: "border-color 0.2s",
+            transition: "background-color 0.2s",
             minHeight: 60,
             flex: 1,
             width: "100%",

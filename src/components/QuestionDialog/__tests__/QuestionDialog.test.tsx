@@ -119,7 +119,7 @@ describe("QuestionDialog", () => {
     });
   });
 
-  it("should call /respond and /execute on submit", async () => {
+  it("should submit response with model and mark session processing when auto-resume starts", async () => {
     const { agentApiClient } = await import("../../../services/api");
     (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
@@ -129,12 +129,9 @@ describe("QuestionDialog", () => {
       tool_call_id: "tool-1",
     });
 
-    (agentApiClient.post as any)
-      .mockResolvedValueOnce({}) // /respond
-      .mockResolvedValueOnce({
-        status: "started",
-        events_url: "/events/test-session-1",
-      }); // /execute
+    (agentApiClient.post as any).mockResolvedValueOnce({
+      auto_resume_status: "started",
+    });
 
     await act(async () => {
       render(<QuestionDialog {...defaultProps} />);
@@ -155,22 +152,17 @@ describe("QuestionDialog", () => {
     });
 
     await waitFor(() => {
-      // Should call /respond first
       expect(agentApiClient.post).toHaveBeenCalledWith(
         "respond/test-session-1",
         {
           response: "A",
+          model: "gpt-5-mini",
         },
       );
-
-      // Then call /execute
-      expect(agentApiClient.post).toHaveBeenCalledWith(
-        "execute/test-session-1",
-        { model: "gpt-5-mini" },
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith(
+        "test-session-1",
+        true,
       );
-
-      // Should set processing to activate subscription (but sessionId is undefined in test)
-      // Note: In real usage, sessionId would be found from the sessionId
     });
   });
 
@@ -184,12 +176,9 @@ describe("QuestionDialog", () => {
       tool_call_id: "tool-1",
     });
 
-    (agentApiClient.post as any)
-      .mockResolvedValueOnce({}) // /respond
-      .mockResolvedValueOnce({
-        status: "started",
-        events_url: "/events/test-session-1",
-      }); // /execute
+    (agentApiClient.post as any).mockResolvedValueOnce({
+      auto_resume_status: "started",
+    });
 
     await act(async () => {
       render(<QuestionDialog {...defaultProps} />);
@@ -206,8 +195,9 @@ describe("QuestionDialog", () => {
 
     await waitFor(() => {
       expect(agentApiClient.post).toHaveBeenCalledWith(
-        "execute/test-session-1",
+        "respond/test-session-1",
         {
+          response: "A",
           model: "gpt-5-mini",
         },
       );
@@ -240,9 +230,9 @@ describe("QuestionDialog", () => {
       });
     });
 
-    (agentApiClient.post as any)
-      .mockResolvedValueOnce({}) // /respond
-      .mockResolvedValueOnce({ status: "started" }); // /execute
+    (agentApiClient.post as any).mockResolvedValueOnce({
+      auto_resume_status: "started",
+    });
 
     await act(async () => {
       render(<QuestionDialog {...defaultProps} />);
@@ -316,7 +306,7 @@ describe("QuestionDialog", () => {
     expect(screen.getByText("Late question?")).toBeInTheDocument();
   });
 
-  it("should handle /execute failure gracefully", async () => {
+  it("should handle auto-resume error status gracefully", async () => {
     const { agentApiClient } = await import("../../../services/api");
     (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
@@ -326,9 +316,9 @@ describe("QuestionDialog", () => {
       tool_call_id: "tool-1",
     });
 
-    (agentApiClient.post as any)
-      .mockResolvedValueOnce({}) // /respond succeeds
-      .mockRejectedValueOnce(new Error("Execute failed")); // /execute fails
+    (agentApiClient.post as any).mockResolvedValueOnce({
+      auto_resume_status: "error",
+    });
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -358,19 +348,13 @@ describe("QuestionDialog", () => {
         "respond/test-session-1",
         {
           response: "A",
+          model: "gpt-5-mini",
         },
-      );
-
-      // Should attempt /execute
-      expect(agentApiClient.post).toHaveBeenCalledWith(
-        "execute/test-session-1",
-        { model: "gpt-5-mini" },
       );
 
       // Should log error
       expect(consoleSpy).toHaveBeenCalledWith(
-        "[QuestionDialog] Failed to restart agent execution:",
-        expect.any(Error),
+        "[QuestionDialog] Failed to auto-resume agent execution",
       );
     });
 
@@ -413,9 +397,9 @@ describe("QuestionDialog", () => {
       tool_call_id: "tool-1",
     });
 
-    (agentApiClient.post as any)
-      .mockResolvedValueOnce({})
-      .mockResolvedValueOnce({ status: "started" });
+    (agentApiClient.post as any).mockResolvedValueOnce({
+      auto_resume_status: "started",
+    });
 
     await act(async () => {
       render(<QuestionDialog {...defaultProps} />);
@@ -448,6 +432,7 @@ describe("QuestionDialog", () => {
         "respond/test-session-1",
         {
           response: "My custom response",
+          model: "gpt-5-mini",
         },
       );
     });

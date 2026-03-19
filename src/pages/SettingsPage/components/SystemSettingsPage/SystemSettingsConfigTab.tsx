@@ -8,6 +8,10 @@ import {
   theme,
   Alert,
   Select,
+  List,
+  Spin,
+  Switch,
+  Tabs,
 } from "antd";
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
@@ -17,6 +21,23 @@ import type { AppLocale } from "../../../../shared/i18n/types";
 
 const { Text } = Typography;
 const { useToken } = theme;
+const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:9562/v1";
+
+const normalizeToolNames = (names: string[]): string[] =>
+  [...new Set(names.map((name) => name.trim()).filter((name) => name.length > 0))].sort();
+
+const readDisabledTools = (
+  bambooConfig: Awaited<ReturnType<typeof serviceFactory.getBambooConfig>>,
+): string[] => {
+  const rawDisabled = bambooConfig.tools?.disabled;
+  if (!Array.isArray(rawDisabled)) {
+    return [];
+  }
+
+  return normalizeToolNames(
+    rawDisabled.filter((name): name is string => typeof name === "string"),
+  );
+};
 
 interface SystemSettingsConfigTabProps {
   msgApi: {
@@ -37,19 +58,30 @@ export const SystemSettingsConfigTab: React.FC<
     https_proxy: "",
   });
   const [backendBaseUrl, setBackendBaseUrl] = useState(
-    "http://127.0.0.1:9562/v1",
+    DEFAULT_BACKEND_BASE_URL,
   );
+  const [availableTools, setAvailableTools] = useState<string[]>([]);
+  const [disabledTools, setDisabledTools] = useState<string[]>([]);
+  const [savedDisabledTools, setSavedDisabledTools] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isToolsBusy, setIsToolsBusy] = useState(false);
 
   // Load config
   const loadConfig = useCallback(async () => {
     setIsLoading(true);
     try {
-      const bambooConfig = await serviceFactory.getBambooConfig();
+      const [bambooConfig, toolsResponse] = await Promise.all([
+        serviceFactory.getBambooConfig(),
+        serviceFactory.getBambooTools(),
+      ]);
       setConfig({
         http_proxy: bambooConfig.http_proxy || "",
         https_proxy: bambooConfig.https_proxy || "",
       });
+      const nextDisabled = readDisabledTools(bambooConfig);
+      setDisabledTools(nextDisabled);
+      setSavedDisabledTools(nextDisabled);
+      setAvailableTools(normalizeToolNames(toolsResponse.tools || []));
     } catch (error) {
       console.error("Failed to load config:", error);
       msgApi.error(t("settings.configTab.loadConfigFailed"));
@@ -105,119 +137,247 @@ export const SystemSettingsConfigTab: React.FC<
   };
 
   const handleResetBackendUrl = () => {
-    setBackendBaseUrl("http://127.0.0.1:9562/v1");
+    setBackendBaseUrl(DEFAULT_BACKEND_BASE_URL);
     msgApi.success(t("settings.configTab.backendResetDefault"));
   };
 
+  const handleToolEnabledChange = (toolName: string, enabled: boolean) => {
+    setDisabledTools((previous) => {
+      const next = new Set(previous);
+      if (enabled) {
+        next.delete(toolName);
+      } else {
+        next.add(toolName);
+      }
+      return normalizeToolNames([...next]);
+    });
+  };
+
+  const handleReloadTools = async () => {
+    setIsToolsBusy(true);
+    try {
+      const toolsResponse = await serviceFactory.getBambooTools();
+      setAvailableTools(normalizeToolNames(toolsResponse.tools || []));
+      msgApi.success(t("settings.configTab.toolsReloadSuccess"));
+    } catch (error) {
+      console.error("Failed to reload tools:", error);
+      msgApi.error(t("settings.configTab.toolsLoadFailed"));
+    } finally {
+      setIsToolsBusy(false);
+    }
+  };
+
+  const handleSaveTools = async () => {
+    setIsToolsBusy(true);
+    try {
+      const nextDisabled = normalizeToolNames(disabledTools);
+      await serviceFactory.setBambooConfig({
+        tools: {
+          disabled: nextDisabled,
+        },
+      });
+      setDisabledTools(nextDisabled);
+      setSavedDisabledTools(nextDisabled);
+      msgApi.success(t("settings.configTab.toolsSaveSuccess"));
+    } catch (error) {
+      console.error("Failed to save tool settings:", error);
+      msgApi.error(t("settings.configTab.toolsSaveFailed"));
+    } finally {
+      setIsToolsBusy(false);
+    }
+  };
+
+  const hasToolChanges =
+    JSON.stringify(disabledTools) !== JSON.stringify(savedDisabledTools);
+  const disabledToolSet = new Set(disabledTools);
+
   return (
-    <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-      {/* Info Banner */}
-      <Alert
-        message={t("settings.configTab.providerMovedTitle")}
-        description={t("settings.configTab.providerMovedDescription")}
-        type="info"
-        showIcon
-        closable
+    <Spin spinning={isLoading} tip={t("settings.common.loading")}>
+      <Tabs
+        items={[
+          {
+            key: "general",
+            label: t("settings.configTab.tabs.general"),
+            children: (
+              <Space
+                direction="vertical"
+                size={token.marginMD}
+                style={{ width: "100%" }}
+              >
+                <Alert
+                  message={t("settings.configTab.providerMovedTitle")}
+                  description={t("settings.configTab.providerMovedDescription")}
+                  type="info"
+                  showIcon
+                  closable
+                />
+
+                <NetworkSettingsCard
+                  httpProxy={config.http_proxy}
+                  httpsProxy={config.https_proxy}
+                  onHttpProxyChange={handleHttpProxyChange}
+                  onHttpsProxyChange={handleHttpsProxyChange}
+                  onReload={loadConfig}
+                  onSave={handleSaveConfig}
+                  isLoading={isLoading}
+                />
+
+                <ModelMappingCard />
+
+                <Card
+                  size="small"
+                  title={<Text strong>{t("settings.configTab.language")}</Text>}
+                >
+                  <Select
+                    value={locale}
+                    style={{ width: 260 }}
+                    options={[
+                      {
+                        label: t("settings.configTab.languageEnglish"),
+                        value: "en-US",
+                      },
+                      {
+                        label: t("settings.configTab.languageChinese"),
+                        value: "zh-CN",
+                      },
+                      {
+                        label: t("settings.configTab.languageTraditionalChinese"),
+                        value: "zh-TW",
+                      },
+                      {
+                        label: t("settings.configTab.languageFrench"),
+                        value: "fr-FR",
+                      },
+                      {
+                        label: t("settings.configTab.languageJapanese"),
+                        value: "ja-JP",
+                      },
+                    ]}
+                    onChange={(value) => onLocaleChange(value as AppLocale)}
+                  />
+                </Card>
+
+                <Card
+                  size="small"
+                  title={
+                    <Text strong>
+                      {t("settings.configTab.backendApiBaseUrlTitle")}
+                    </Text>
+                  }
+                >
+                  <Space
+                    direction="vertical"
+                    size={token.marginSM}
+                    style={{ width: "100%" }}
+                  >
+                    <Space
+                      direction="vertical"
+                      size={token.marginXXS}
+                      style={{ width: "100%" }}
+                    >
+                      <Input
+                        style={{ width: "100%" }}
+                        value={backendBaseUrl}
+                        onChange={(e) => setBackendBaseUrl(e.target.value)}
+                        placeholder={t("settings.configTab.backendApiPlaceholder")}
+                      />
+                    </Space>
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                      {t("settings.configTab.backendApiHint")}
+                    </Text>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "flex-end",
+                        gap: token.marginSM,
+                      }}
+                    >
+                      <Button
+                        data-testid="reset-to-defaults"
+                        onClick={handleResetBackendUrl}
+                      >
+                        {t("settings.configTab.resetToDefault")}
+                      </Button>
+                      <Button
+                        data-testid="save-api-settings"
+                        type="primary"
+                        onClick={handleSaveBackendUrl}
+                      >
+                        {t("settings.configTab.save")}
+                      </Button>
+                    </div>
+                  </Space>
+                </Card>
+              </Space>
+            ),
+          },
+          {
+            key: "tools",
+            label: t("settings.configTab.tabs.tools"),
+            children: (
+              <Card
+                size="small"
+                title={<Text strong>{t("settings.configTab.toolsTitle")}</Text>}
+              >
+                <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+                  <Text type="secondary">
+                    {t("settings.configTab.toolsDescription")}
+                  </Text>
+
+                  {availableTools.length === 0 ? (
+                    <Alert
+                      type="info"
+                      showIcon
+                      message={t("settings.configTab.toolsEmpty")}
+                    />
+                  ) : (
+                    <List
+                      bordered
+                      dataSource={availableTools}
+                      renderItem={(toolName) => (
+                        <List.Item
+                          actions={[
+                            <Switch
+                              key={`${toolName}-switch`}
+                              checked={!disabledToolSet.has(toolName)}
+                              onChange={(enabled) =>
+                                handleToolEnabledChange(toolName, enabled)
+                              }
+                            />,
+                          ]}
+                        >
+                          <Text code>{toolName}</Text>
+                        </List.Item>
+                      )}
+                    />
+                  )}
+
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "flex-end",
+                      gap: token.marginSM,
+                    }}
+                  >
+                    <Button onClick={handleReloadTools} loading={isToolsBusy}>
+                      {t("settings.configTab.reloadTools")}
+                    </Button>
+                    <Button
+                      type="primary"
+                      onClick={handleSaveTools}
+                      loading={isToolsBusy}
+                      disabled={!hasToolChanges}
+                    >
+                      {t("settings.configTab.save")}
+                    </Button>
+                  </div>
+                </Space>
+              </Card>
+            ),
+          },
+        ]}
       />
-
-      {/* Network Settings */}
-      <NetworkSettingsCard
-        httpProxy={config.http_proxy}
-        httpsProxy={config.https_proxy}
-        onHttpProxyChange={handleHttpProxyChange}
-        onHttpsProxyChange={handleHttpsProxyChange}
-        onReload={loadConfig}
-        onSave={handleSaveConfig}
-        isLoading={isLoading}
-      />
-
-      {/* Model Mapping */}
-      <ModelMappingCard />
-
-      <Card
-        size="small"
-        title={<Text strong>{t("settings.configTab.language")}</Text>}
-      >
-        <Select
-          value={locale}
-          style={{ width: 260 }}
-          options={[
-            {
-              label: t("settings.configTab.languageEnglish"),
-              value: "en-US",
-            },
-            {
-              label: t("settings.configTab.languageChinese"),
-              value: "zh-CN",
-            },
-            {
-              label: t("settings.configTab.languageTraditionalChinese"),
-              value: "zh-TW",
-            },
-            {
-              label: t("settings.configTab.languageFrench"),
-              value: "fr-FR",
-            },
-            {
-              label: t("settings.configTab.languageJapanese"),
-              value: "ja-JP",
-            },
-          ]}
-          onChange={(value) => onLocaleChange(value as AppLocale)}
-        />
-      </Card>
-
-      {/* Backend Settings */}
-      <Card
-        size="small"
-        title={
-          <Text strong>{t("settings.configTab.backendApiBaseUrlTitle")}</Text>
-        }
-      >
-        <Space
-          direction="vertical"
-          size={token.marginSM}
-          style={{ width: "100%" }}
-        >
-          <Space
-            direction="vertical"
-            size={token.marginXXS}
-            style={{ width: "100%" }}
-          >
-            <Input
-              style={{ width: "100%" }}
-              value={backendBaseUrl}
-              onChange={(e) => setBackendBaseUrl(e.target.value)}
-              placeholder={t("settings.configTab.backendApiPlaceholder")}
-            />
-          </Space>
-          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            {t("settings.configTab.backendApiHint")}
-          </Text>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: token.marginSM,
-            }}
-          >
-            <Button
-              data-testid="reset-to-defaults"
-              onClick={handleResetBackendUrl}
-            >
-              {t("settings.configTab.resetToDefault")}
-            </Button>
-            <Button
-              data-testid="save-api-settings"
-              type="primary"
-              onClick={handleSaveBackendUrl}
-            >
-              {t("settings.configTab.save")}
-            </Button>
-          </div>
-        </Space>
-      </Card>
-    </Space>
+    </Spin>
   );
 };
 

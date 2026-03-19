@@ -11,7 +11,6 @@ import {
 } from "antd";
 import { agentApiClient } from "../../services/api";
 import { useAppStore } from "../../pages/ChatPage/store";
-import { AgentClient } from "../../services/chat/AgentService";
 import { useActiveModel } from "../../pages/ChatPage/hooks/useActiveModel";
 import styles from "./QuestionDialog.module.css";
 
@@ -31,6 +30,10 @@ interface QuestionDialogProps {
   onResponseSubmitted?: () => void;
 }
 
+interface RespondSubmitResult {
+  auto_resume_status?: string;
+}
+
 export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   sessionId,
   onResponseSubmitted,
@@ -47,7 +50,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // from ever appearing.
   const emptyCountRef = useRef(0);
 
-  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
+  const setSessionProcessing = useAppStore(
+    (state) => state.setSessionProcessing,
+  );
   const activeModel = useActiveModel();
 
   const isSessionProcessing = useAppStore((state) =>
@@ -117,8 +122,14 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      // Step 1: Submit response to backend
-      await agentApiClient.post(`respond/${sessionId}`, { response });
+      const modelToUse = activeModel?.trim();
+      const submitResult = await agentApiClient.post<RespondSubmitResult>(
+        `respond/${sessionId}`,
+        {
+          response,
+          model: modelToUse || undefined,
+        },
+      );
 
       message.success("Response submitted, AI will continue processing");
       setPendingQuestion(null);
@@ -126,39 +137,20 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       setCustomInput("");
       emptyCountRef.current = 0;
 
-      // Step 2: Restart agent execution
-      try {
-        // Always resume with the currently-active provider model.
-        const modelToUse = activeModel?.trim();
-        if (!modelToUse) {
-          // Do not guess a model here. The user must explicitly configure one.
-          message.error(
-            "No model configured. Please select a default model in Provider Settings, then resume the agent.",
-          );
-        } else {
-          const executeResult = await AgentClient.getInstance().execute(
-            sessionId,
-            modelToUse,
-          );
-          console.log(
-            "[QuestionDialog] Agent execution restarted:",
-            executeResult.status,
-          );
-
-          // Set processing flag to activate event subscription
-          if (["started", "already_running"].includes(executeResult.status)) {
-            if (sessionId) {
-              setSessionProcessing(sessionId, true);
-            }
-          }
+      const resumeStatus = submitResult?.auto_resume_status;
+      if (["started", "already_running"].includes(resumeStatus || "")) {
+        if (sessionId) {
+          setSessionProcessing(sessionId, true);
         }
-      } catch (execError) {
-        console.error(
-          "[QuestionDialog] Failed to restart agent execution:",
-          execError,
+      } else if (
+        resumeStatus === "invalid_model" ||
+        resumeStatus === "not_requested"
+      ) {
+        message.error(
+          "No model configured. Please select a default model in Provider Settings, then resume the agent.",
         );
-        // Don't show error to user - response was saved successfully
-        // Agent may resume on next interaction
+      } else if (resumeStatus === "error") {
+        console.error("[QuestionDialog] Failed to auto-resume agent execution");
       }
 
       // Notify parent (optional)

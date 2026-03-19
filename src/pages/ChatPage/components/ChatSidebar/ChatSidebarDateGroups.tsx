@@ -153,7 +153,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 type="text"
                 size="small"
                 icon={<DeleteOutlined />}
-                danger
+                style={{ color: token.colorTextTertiary }}
                 onClick={(event) => {
                   event.stopPropagation();
                   onDeleteByDate(dateKey);

@@ -61,6 +61,9 @@ export const MainLayout: React.FC<{
   const sidebarMinWidthPx = useUILayoutStore((s) => s.sidebar.minWidthPx);
   const sidebarMaxWidthPx = useUILayoutStore((s) => s.sidebar.maxWidthPx);
   const setSidebarWidthPx = useUILayoutStore((s) => s.setSidebarWidthPx);
+  const shellRadiusPx = 18;
+  const workspaceInsetPx = 0;
+  const surfaceBorder = "none";
 
   return (
     <Layout
@@ -71,75 +74,121 @@ export const MainLayout: React.FC<{
         background: token.colorBgLayout,
         display: "flex",
         flexDirection: "row",
+        position: "relative",
       }}
     >
-      {settingsOpen ? (
-        <Layout
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            background: token.colorBgContainer,
-            minHeight: 0,
-          }}
-        >
-          <SystemSettingsPage
-            themeMode={themeMode}
-            onThemeModeChange={onThemeModeChange}
-            locale={locale}
-            onLocaleChange={onLocaleChange}
-            onBack={closeSettings}
-          />
-        </Layout>
-      ) : (
-        <>
-          <ChatAutoTitleEffect />
-
-          <ResizableSplit
-            layout="horizontal"
+      <div
+        style={{
+          display: "flex",
+          flex: 1,
+          minHeight: 0,
+          height: "100%",
+          width: "100%",
+          boxSizing: "border-box",
+          paddingTop: workspaceInsetPx,
+          paddingLeft: workspaceInsetPx,
+          paddingRight: workspaceInsetPx,
+          paddingBottom: workspaceInsetPx,
+          background: token.colorFillQuaternary,
+        }}
+      >
+        {settingsOpen ? (
+          <Layout
             style={{
               flex: 1,
-              minHeight: 0,
-              height: "100%",
+              display: "flex",
+              flexDirection: "column",
               background: token.colorBgContainer,
+              minHeight: 0,
+              borderRadius: `${shellRadiusPx}px 0 0 ${shellRadiusPx}px`,
+              border: surfaceBorder,
+              overflow: "hidden",
+              boxShadow: "-8px 0 20px rgba(0, 0, 0, 0.04)",
             }}
-            sizesPx={[
-              sidebarCollapsed ? sidebarCollapsedWidthPx : sidebarWidthPx,
-              0,
-            ]}
-            minFirstPx={
-              sidebarCollapsed ? sidebarCollapsedWidthPx : sidebarMinWidthPx
-            }
-            // Keep the same max behavior by clamping in the store setter.
-            // We still want the drag interaction to feel bounded though.
-            minSecondPx={320}
-            disabled={sidebarCollapsed}
-            handleSizePx={sidebarCollapsed ? 0 : 6}
-            onResizeEnd={([firstPx]) => {
-              if (sidebarCollapsed) return;
-              const clamped = Math.max(
-                sidebarMinWidthPx,
-                Math.min(sidebarMaxWidthPx, firstPx),
-              );
-              setSidebarWidthPx(clamped);
-            }}
-            first={<ChatSidebar />}
-            second={
-              <Layout
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  background: token.colorBgContainer,
-                  minHeight: 0,
-                  height: "100%",
-                }}
-              >
-                <MultiPaneChatView />
-              </Layout>
-            }
-          />
-        </>
-      )}
+          >
+            <SystemSettingsPage
+              themeMode={themeMode}
+              onThemeModeChange={onThemeModeChange}
+              locale={locale}
+              onLocaleChange={onLocaleChange}
+              onBack={closeSettings}
+            />
+          </Layout>
+        ) : (
+          <>
+            <ChatAutoTitleEffect />
+
+            <ResizableSplit
+              layout="horizontal"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                height: "100%",
+                background: "transparent",
+              }}
+              sizesPx={[
+                sidebarCollapsed ? sidebarCollapsedWidthPx : sidebarWidthPx,
+                0,
+              ]}
+              minFirstPx={
+                sidebarCollapsed ? sidebarCollapsedWidthPx : sidebarMinWidthPx
+              }
+              // Keep the same max behavior by clamping in the store setter.
+              // We still want the drag interaction to feel bounded though.
+              minSecondPx={320}
+              disabled={sidebarCollapsed}
+              handleSizePx={sidebarCollapsed ? 0 : 2}
+              onResizeEnd={([firstPx]) => {
+                if (sidebarCollapsed) return;
+                const clamped = Math.max(
+                  sidebarMinWidthPx,
+                  Math.min(sidebarMaxWidthPx, firstPx),
+                );
+                setSidebarWidthPx(clamped);
+              }}
+              first={
+                <div
+                  style={{
+                    height: "100%",
+                    minHeight: 0,
+                    borderRadius: `${shellRadiusPx}px 0 0 ${shellRadiusPx}px`,
+                    border: surfaceBorder,
+                    overflow: "hidden",
+                    background: token.colorFillQuaternary,
+                  }}
+                >
+                  <ChatSidebar />
+                </div>
+              }
+              second={
+                <div
+                  style={{
+                    height: "100%",
+                    minHeight: 0,
+                    borderRadius: `0 ${shellRadiusPx}px ${shellRadiusPx}px 0`,
+                    border: surfaceBorder,
+                    overflow: "hidden",
+                    background: token.colorBgContainer,
+                    boxShadow: "none",
+                  }}
+                >
+                  <Layout
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      background: token.colorBgContainer,
+                      minHeight: 0,
+                      height: "100%",
+                    }}
+                  >
+                    <MultiPaneChatView />
+                  </Layout>
+                </div>
+              }
+            />
+          </>
+        )}
+      </div>
     </Layout>
   );
 };

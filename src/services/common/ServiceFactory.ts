@@ -4,6 +4,10 @@ import { copyText } from "@shared/utils/clipboard";
 /**
  * Bamboo configuration structure
  */
+export interface BambooToolsConfig {
+  disabled?: string[];
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -11,6 +15,7 @@ export interface BambooConfig {
   http_proxy?: string;
   https_proxy?: string;
   headless_auth?: boolean;
+  tools?: BambooToolsConfig;
   [key: string]: unknown;
 }
 
@@ -48,6 +53,11 @@ export interface UtilityService {
    * Get Bamboo config
    */
   getBambooConfig(): Promise<BambooConfig>;
+
+  /**
+   * Get all available Bamboo tool names.
+   */
+  getBambooTools(): Promise<{ tools: string[] }>;
 
   /**
    * Set Bamboo config
@@ -154,6 +164,15 @@ class HttpUtilityService implements Partial<UtilityService> {
     } catch (error) {
       console.error("Failed to fetch Bamboo config:", error);
       return {};
+    }
+  }
+
+  async getBambooTools(): Promise<{ tools: string[] }> {
+    try {
+      return await apiClient.get<{ tools: string[] }>("bamboo/tools");
+    } catch (error) {
+      console.error("Failed to fetch Bamboo tools:", error);
+      return { tools: [] };
     }
   }
 
@@ -330,6 +349,7 @@ export class ServiceFactory {
       copyToClipboard: (text: string) =>
         this.httpUtilityService.copyToClipboard(text),
       getBambooConfig: () => this.httpUtilityService.getBambooConfig(),
+      getBambooTools: () => this.httpUtilityService.getBambooTools(),
       setBambooConfig: (config: BambooConfig) =>
         this.httpUtilityService.setBambooConfig(config),
       validateBambooConfigPatch: (patch: BambooConfig) =>
@@ -369,6 +389,10 @@ export class ServiceFactory {
 
   async getBambooConfig(): Promise<BambooConfig> {
     return this.getUtilityService().getBambooConfig();
+  }
+
+  async getBambooTools(): Promise<{ tools: string[] }> {
+    return this.getUtilityService().getBambooTools();
   }
 
   async setBambooConfig(config: BambooConfig): Promise<BambooConfig> {

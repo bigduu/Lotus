@@ -40,6 +40,7 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const leafCount = useMemo(() => getLeafIdsFromTree(tree).length, [tree]);
   const canSplit = leafCount < MAX_PANES;
   const canClose = leafCount > 1;
+  const hasMultiplePanes = leafCount > 1;
 
   const sessionId = leafSessionIds[leafId] ?? null;
   const isActive = activeLeafId === leafId;
@@ -69,10 +70,12 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
       style={{
         height: "100%",
         minHeight: 0,
-        border: `1px solid ${
-          isActive ? token.colorPrimaryBorder : token.colorBorderSecondary
-        }`,
-        borderRadius: token.borderRadiusLG,
+        border: hasMultiplePanes
+          ? `1px solid ${
+              isActive ? token.colorPrimaryBorder : token.colorBorderSecondary
+            }`
+          : "none",
+        borderRadius: hasMultiplePanes ? token.borderRadiusLG : 0,
         overflow: "hidden",
         background: token.colorBgContainer,
         position: "relative",
@@ -216,8 +219,6 @@ const LayoutNodeView: React.FC<{ node: LayoutNode }> = ({ node }) => {
 };
 
 export const MultiPaneChatView: React.FC = () => {
-  const { token } = useToken();
-
   const tree = useUILayoutStore((s) => s.tree);
   const leafSessionIds = useUILayoutStore((s) => s.leafSessionIds);
   const activeLeafId = useUILayoutStore((s) => s.activeLeafId);
@@ -287,7 +288,7 @@ export const MultiPaneChatView: React.FC = () => {
       style={{
         height: "100%",
         minHeight: 0,
-        padding: token.paddingSM,
+        padding: 0,
       }}
     >
       <LayoutNodeView node={tree} />

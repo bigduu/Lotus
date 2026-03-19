@@ -191,10 +191,7 @@ export const MermaidSettingsTab: React.FC = () => {
             }
             valuePropName="checked"
           >
-            <Switch
-              checkedChildren={t("settings.mermaidTab.switchAuto")}
-              unCheckedChildren={t("settings.mermaidTab.switchFixed")}
-            />
+            <Switch />
           </Form.Item>
         </Card>
 

@@ -89,10 +89,18 @@ export const resources = {
           resetButton: "Reset Application (All Data)",
         },
         configTab: {
+          tabs: {
+            general: "General",
+            tools: "Tools",
+          },
           loadConfigFailed: "Failed to load configuration",
           invalidConfig: "Invalid configuration",
           saveConfigSuccess: "Configuration saved successfully",
           saveConfigFailed: "Failed to save configuration",
+          toolsLoadFailed: "Failed to load available tools",
+          toolsReloadSuccess: "Tool list reloaded",
+          toolsSaveSuccess: "Tool settings saved successfully",
+          toolsSaveFailed: "Failed to save tool settings",
           backendSaved: "Backend URL saved",
           backendResetDefault: "Backend URL reset to default",
           providerMovedTitle: "Provider Configuration Moved",
@@ -109,6 +117,11 @@ export const resources = {
           languageTraditionalChinese: "Traditional Chinese",
           languageFrench: "French",
           languageJapanese: "Japanese",
+          toolsTitle: "Tool Availability",
+          toolsDescription:
+            "Toggle whether each tool can be sent to the AI model. Disabled tools are hidden from model tool schemas.",
+          toolsEmpty: "No tools are currently available.",
+          reloadTools: "Reload Tools",
         },
         networkCard: {
           title: "Network Settings",
@@ -980,10 +993,18 @@ export const resources = {
           resetButton: "重置应用（清空全部数据）",
         },
         configTab: {
+          tabs: {
+            general: "常规",
+            tools: "工具",
+          },
           loadConfigFailed: "加载配置失败",
           invalidConfig: "配置无效",
           saveConfigSuccess: "配置保存成功",
           saveConfigFailed: "保存配置失败",
+          toolsLoadFailed: "加载可用工具失败",
+          toolsReloadSuccess: "工具列表已刷新",
+          toolsSaveSuccess: "工具设置保存成功",
+          toolsSaveFailed: "保存工具设置失败",
           backendSaved: "后端地址已保存",
           backendResetDefault: "后端地址已重置为默认值",
           providerMovedTitle: "Provider 配置已迁移",
@@ -1000,6 +1021,11 @@ export const resources = {
           languageTraditionalChinese: "繁體中文",
           languageFrench: "Français",
           languageJapanese: "日本語",
+          toolsTitle: "工具可用性",
+          toolsDescription:
+            "控制每个工具是否可以发送给 AI 模型。关闭后，该工具不会出现在模型可用工具列表中。",
+          toolsEmpty: "当前没有可用工具。",
+          reloadTools: "刷新工具列表",
         },
         networkCard: {
           title: "网络设置",

@@ -278,7 +278,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
           margin: "0 auto",
           background: token.colorBgLayout,
           borderRadius: token.borderRadiusLG,
-          boxShadow: token.boxShadow,
+          boxShadow: "none",
           position: "relative",
           wordWrap: "break-word",
           overflowWrap: "break-word",

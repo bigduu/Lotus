@@ -41,6 +41,9 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   const [editValue, setEditValue] = useState(chat.title);
   const [isHovered, setIsHovered] = useState(false);
   const { token } = theme.useToken();
+  const selectedBackgroundColor = token.colorFillSecondary;
+  const selectedBorderColor = token.colorBorder;
+  const selectedTitleColor = token.colorText;
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,9 +76,9 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     marginBottom: token.marginXXS,
     cursor: "pointer",
     transition: "background-color 0.2s ease",
-    backgroundColor: isSelected ? token.colorPrimaryBg : "transparent",
+    backgroundColor: isSelected ? selectedBackgroundColor : "transparent",
     borderLeft: isSelected
-      ? `3px solid ${token.colorPrimary}`
+      ? `3px solid ${selectedBorderColor}`
       : "3px solid transparent",
   };
 
@@ -86,7 +89,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     textOverflow: "ellipsis",
     fontSize: token.fontSizeSM,
     fontWeight: isSelected ? token.fontWeightStrong : "normal",
-    color: isSelected ? token.colorPrimary : token.colorText,
+    color: isSelected ? selectedTitleColor : token.colorText,
   };
 
   const editInputStyle: React.CSSProperties = {
@@ -196,7 +199,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               size="small"
               icon={<DeleteOutlined />}
               onClick={handleDelete}
-              danger
+              style={{ color: token.colorTextTertiary }}
             />
           </Tooltip>,
         ]

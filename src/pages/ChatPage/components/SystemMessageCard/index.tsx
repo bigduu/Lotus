@@ -47,7 +47,7 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
         maxWidth: "100%",
         background: token.colorBgContainer,
         borderRadius: token.borderRadiusLG,
-        boxShadow: token.boxShadow,
+        boxShadow: "none",
       }}
     >
       <Space

@@ -58,8 +58,6 @@ const SystemSettingsPage = ({
   const { t } = useTranslation();
   const { token } = useToken();
   const {
-    deleteAllUnpinnedChats,
-    deleteEmptyChats,
     deleteAllChats,
     autoGenerateTitles,
     setAutoGenerateTitlesPreference,
@@ -79,16 +77,7 @@ const SystemSettingsPage = ({
   ] = useState(isCopilotAskUserEnhancementEnabled());
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const showCopilotAskUserEnhancement = currentProvider === "copilot";
-
-  const handleDeleteAll = () => {
-    void deleteAllUnpinnedChats();
-    msgApi.success(t("settings.notifications.deleteAllSuccess"));
-  };
-
-  const handleDeleteEmpty = () => {
-    void deleteEmptyChats();
-    msgApi.success(t("settings.notifications.deleteEmptySuccess"));
-  };
+  const settingsHeaderTopOffsetPx = token.paddingSM;
 
   const handleClearLocalStorage = () => {
     localStorage.clear();
@@ -184,6 +173,7 @@ const SystemSettingsPage = ({
         justify="space-between"
         style={{
           padding: token.padding,
+          paddingTop: token.padding + settingsHeaderTopOffsetPx,
           borderBottom: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
@@ -286,8 +276,6 @@ const SystemSettingsPage = ({
                   onAutoTitleToggle={handleAutoTitleToggle}
                   themeMode={themeMode}
                   onThemeModeChange={onThemeModeChange}
-                  onDeleteAll={handleDeleteAll}
-                  onDeleteEmpty={handleDeleteEmpty}
                   onClearLocalStorage={handleClearLocalStorage}
                   onResetApp={handleResetApp}
                   isResetting={isResetting}

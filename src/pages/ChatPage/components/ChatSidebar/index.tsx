@@ -60,8 +60,8 @@ export const ChatSidebar: React.FC = () => {
       style={{
         width: "100%",
         height: "100%",
-        background: token.colorBgContainer,
-        borderRight: `1px solid ${token.colorBorderSecondary}`,
+        background: token.colorFillQuaternary,
+        borderRight: "none",
         position: "relative",
         overflow: "hidden",
         display: "flex",
@@ -72,11 +72,9 @@ export const ChatSidebar: React.FC = () => {
       <Flex
         justify={collapsed ? "center" : "flex-end"}
         style={{
-          position: "absolute",
-          right: collapsed ? 0 : 8,
-          left: collapsed ? 0 : "auto",
-          top: 8,
-          zIndex: 10,
+          flexShrink: 0,
+          padding: collapsed ? "8px 0 0 0" : "8px 12px 0 12px",
+          minHeight: 34,
         }}
       >
         <Button
@@ -93,7 +91,7 @@ export const ChatSidebar: React.FC = () => {
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          padding: collapsed ? "40px 10px 0 10px" : "40px 12px 0 12px",
+          padding: collapsed ? "8px 10px 0 10px" : "8px 12px 0 12px",
         }}
       >
         {!collapsed ? (

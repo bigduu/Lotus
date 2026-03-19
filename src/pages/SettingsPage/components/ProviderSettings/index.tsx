@@ -15,6 +15,7 @@ import {
   Modal,
   Switch,
   Tooltip,
+  theme,
 } from "antd";
 import {
   SaveOutlined,
@@ -78,6 +79,7 @@ const formatModelsForSelect = (models: string[]) =>
  */
 export const ProviderSettings: React.FC = () => {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [applyingConfig, setApplyingConfig] = useState(false);
@@ -1205,12 +1207,19 @@ export const ProviderSettings: React.FC = () => {
             </Card>
 
             {/* User Code */}
-            <Card style={{ textAlign: "center", background: "#f5f5f5" }}>
+            <Card
+              style={{
+                textAlign: "center",
+                background: token.colorFillTertiary,
+                borderColor: token.colorBorderSecondary,
+              }}
+            >
               <Space direction="vertical" style={{ width: "100%" }}>
                 <Text type="secondary">{t("settings.providerTab.enterCode")}</Text>
                 <Space>
                   <Text
                     style={{
+                      color: token.colorText,
                       fontSize: "32px",
                       fontFamily: "monospace",
                       fontWeight: "bold",

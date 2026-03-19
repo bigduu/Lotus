@@ -101,6 +101,32 @@ describe("ServiceFactory", () => {
       });
     });
 
+    describe("getBambooTools", () => {
+      it("should fetch available tools successfully", async () => {
+        const mockTools = { tools: ["bash", "read_file"] };
+        vi.mocked(apiClient.get).mockResolvedValueOnce(mockTools);
+
+        const result = await serviceFactory.getBambooTools();
+
+        expect(result).toEqual(mockTools);
+        expect(apiClient.get).toHaveBeenCalledWith("bamboo/tools");
+      });
+
+      it("should return empty tools list on error", async () => {
+        vi.mocked(apiClient.get).mockRejectedValueOnce(
+          new Error("Network error"),
+        );
+
+        const result = await serviceFactory.getBambooTools();
+
+        expect(result).toEqual({ tools: [] });
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Failed to fetch Bamboo tools:",
+          expect.any(Error),
+        );
+      });
+    });
+
     describe("setBambooConfig", () => {
       it("should post config successfully", async () => {
         const inputConfig = { model: "new-model" };
@@ -436,6 +462,7 @@ describe("ServiceFactory", () => {
 
       expect(utility).toHaveProperty("copyToClipboard");
       expect(utility).toHaveProperty("getBambooConfig");
+      expect(utility).toHaveProperty("getBambooTools");
       expect(utility).toHaveProperty("setBambooConfig");
       expect(utility).toHaveProperty("validateBambooConfigPatch");
       expect(utility).toHaveProperty("setProxyAuth");

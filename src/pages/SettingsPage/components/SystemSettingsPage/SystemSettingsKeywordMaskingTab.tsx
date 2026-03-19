@@ -325,8 +325,6 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                       <Switch
                         checked={editEnabled}
                         onChange={setEditEnabled}
-                        checkedChildren={t("settings.keywordMaskingTab.enabled")}
-                        unCheckedChildren={t("settings.keywordMaskingTab.disabled")}
                       />
                     </Flex>
                     <Flex vertical gap={6}>

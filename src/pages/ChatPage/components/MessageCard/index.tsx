@@ -303,7 +303,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                   ? token.colorBgLayout
                   : token.colorBgContainer,
             borderRadius: token.borderRadiusLG,
-            boxShadow: token.boxShadow,
+            boxShadow: "none",
             position: "relative",
             wordWrap: "break-word",
             overflowWrap: "break-word",

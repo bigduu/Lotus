@@ -26,8 +26,6 @@ interface SystemSettingsAppTabProps {
   onAutoTitleToggle: (checked: boolean) => void;
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
-  onDeleteAll: () => void;
-  onDeleteEmpty: () => void;
   onClearLocalStorage: () => void;
   onResetApp: () => void;
   isResetting: boolean;
@@ -40,8 +38,6 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
   onAutoTitleToggle,
   themeMode,
   onThemeModeChange,
-  onDeleteAll,
-  onDeleteEmpty,
   onClearLocalStorage,
   onResetApp,
   isResetting,
@@ -63,8 +59,6 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
             checked={autoGenerateTitles}
             loading={isUpdatingAutoTitlePreference}
             onChange={onAutoTitleToggle}
-            checkedChildren={t("settings.appTab.switchOn")}
-            unCheckedChildren={t("settings.appTab.switchOff")}
           />
         </Flex>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
@@ -80,34 +74,8 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
               onThemeModeChange(mode);
               localStorage.setItem(darkModeKey, mode);
             }}
-            checkedChildren={t("settings.appTab.darkModeDark")}
-            unCheckedChildren={t("settings.appTab.darkModeLight")}
           />
         </Flex>
-        <Popconfirm
-          title={t("settings.appTab.deleteAllTitle")}
-          description={t("settings.appTab.deleteAllDescription")}
-          onConfirm={onDeleteAll}
-          okText={t("settings.appTab.confirmDeleteAll")}
-          cancelText={t("settings.appTab.cancel")}
-          placement="top"
-        >
-          <Button danger block icon={<DeleteOutlined />}>
-            {t("settings.appTab.deleteAllButton")}
-          </Button>
-        </Popconfirm>
-        <Popconfirm
-          title={t("settings.appTab.deleteEmptyTitle")}
-          description={t("settings.appTab.deleteEmptyDescription")}
-          onConfirm={onDeleteEmpty}
-          okText={t("settings.appTab.confirmDeleteEmpty")}
-          cancelText={t("settings.appTab.cancel")}
-          placement="top"
-        >
-          <Button danger block icon={<DeleteOutlined />}>
-            {t("settings.appTab.deleteEmptyButton")}
-          </Button>
-        </Popconfirm>
         <Popconfirm
           title={t("settings.appTab.clearLocalStorageTitle")}
           description={t("settings.appTab.clearLocalStorageDescription")}
