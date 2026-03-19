@@ -1,45 +1,49 @@
 // @vitest-environment node
-import { execFileSync } from "node:child_process";
+import { build, loadConfigFromFile, mergeConfig, type ConfigEnv } from "vite";
 import { describe, expect, it } from "vitest";
 
-const runBundleCheck = () => {
-  const script = `
-import viteConfig from './vite.config.ts'
-import { build } from 'vite'
+const runBundleCheck = async () => {
+  const configEnv: ConfigEnv = {
+    command: "build",
+    mode: "development",
+    isSsrBuild: false,
+    isPreview: false,
+  };
+  const loadedConfig = await loadConfigFromFile(configEnv, undefined, process.cwd());
 
-const config = typeof viteConfig === 'function'
-  ? await viteConfig({ command: 'build', mode: 'development', isSsrBuild: false, isPreview: false })
-  : viteConfig
-const result = await build({
-  ...config,
-  logLevel: 'silent',
-  mode: 'development',
-  build: {
-    ...config.build,
-    write: false,
-    emptyOutDir: false,
-  },
-})
-const outputs = Array.isArray(result) ? result.flatMap((item) => item.output) : result.output
-const code = outputs.filter((item) => item.type === 'chunk').map((item) => item.code).join('\\\\n')
-const hasConfigProvider = /(?:\\.|\\b)jsx(?:s|DEV)?\\(\\s*ConfigProvider\\b/.test(code)
-const hasAntApp = /(?:\\.|\\b)jsx(?:s|DEV)?\\(\\s*AntApp\\b/.test(code)
-console.log(JSON.stringify({ hasConfigProvider, hasAntApp }))
-`;
+  if (!loadedConfig) {
+    throw new Error("Failed to load Vite config for bundle check");
+  }
 
-  const output = execFileSync("node", ["--input-type=module", "-e", script], {
-    cwd: process.cwd(),
-    encoding: "utf8",
-    env: { ...process.env, NODE_ENV: "development" },
-  });
+  const result = await build(
+    mergeConfig(loadedConfig.config, {
+      logLevel: "silent",
+      mode: "development",
+      build: {
+        ...loadedConfig.config.build,
+        write: false,
+        emptyOutDir: false,
+      },
+    }),
+  );
 
-  const lines = output.trim().split("\n");
-  return JSON.parse(lines[lines.length - 1] ?? "{}");
+  const outputs = Array.isArray(result)
+    ? result.flatMap((item) => item.output)
+    : result.output;
+  const code = outputs
+    .filter((item) => item.type === "chunk")
+    .map((item) => item.code)
+    .join("\n");
+
+  return {
+    hasConfigProvider: /(?:\.|\b)jsx(?:s|DEV)?\(\s*ConfigProvider\b/.test(code),
+    hasAntApp: /(?:\.|\b)jsx(?:s|DEV)?\(\s*AntApp\b/.test(code),
+  };
 };
 
 describe("App bundle", () => {
-  it("does not leave ConfigProvider or AntApp as free identifiers", () => {
-    const { hasConfigProvider, hasAntApp } = runBundleCheck();
+  it("does not leave ConfigProvider or AntApp as free identifiers", async () => {
+    const { hasConfigProvider, hasAntApp } = await runBundleCheck();
     expect(hasConfigProvider).toBe(false);
     expect(hasAntApp).toBe(false);
   }, 60000); // Increased timeout for CI environment
