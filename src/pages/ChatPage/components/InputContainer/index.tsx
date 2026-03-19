@@ -47,6 +47,7 @@ const REASONING_EFFORT_OPTIONS: Array<{
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
   { value: "xhigh", label: "XHigh" },
+  { value: "max", label: "Max" },
 ];
 
 type ChatSendMessageEventDetail = {

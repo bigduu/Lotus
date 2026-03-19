@@ -59,7 +59,8 @@ const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
   value === "low" ||
   value === "medium" ||
   value === "high" ||
-  value === "xhigh";
+  value === "xhigh" ||
+  value === "max";
 
 const readReasoningBySession = (): Record<string, ReasoningEffort> => {
   if (typeof window === "undefined") {

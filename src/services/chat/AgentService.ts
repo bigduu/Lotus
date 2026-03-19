@@ -28,7 +28,7 @@ export type AgentEventType =
   | "complete"
   | "error";
 
-export type ReasoningEffort = "low" | "medium" | "high" | "xhigh";
+export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
 export interface TokenBudgetUsage {
   system_tokens: number;

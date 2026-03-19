@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   Button,
   Card,
@@ -11,7 +11,10 @@ import {
 } from "antd";
 import { agentApiClient } from "../../services/api";
 import { useAppStore } from "../../pages/ChatPage/store";
+import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useActiveModel } from "../../pages/ChatPage/hooks/useActiveModel";
+import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
+import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
 import styles from "./QuestionDialog.module.css";
 
 const { Text, Title } = Typography;
@@ -54,6 +57,26 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     (state) => state.setSessionProcessing,
   );
   const activeModel = useActiveModel();
+
+  // Resolve reasoning effort (same priority as InputContainer)
+  const inputState = useAppStore((state) =>
+    sessionId ? state.inputStates[sessionId] : undefined,
+  );
+  const currentProvider = useProviderStore((state) => state.currentProvider);
+  const providerConfig = useProviderStore((state) => state.providerConfig);
+  const providerDefaultReasoningEffort = useMemo<ReasoningEffort | undefined>(
+    () => providerConfig.providers[currentProvider]?.reasoning_effort,
+    [providerConfig, currentProvider],
+  );
+  const persistedReasoningEffort = useMemo<ReasoningEffort | undefined>(
+    () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
+    [sessionId],
+  );
+  const reasoningEffort: ReasoningEffort =
+    inputState?.reasoningEffort ??
+    persistedReasoningEffort ??
+    providerDefaultReasoningEffort ??
+    "medium";
 
   const isSessionProcessing = useAppStore((state) =>
     sessionId ? state.isSessionProcessing(sessionId) : false,
@@ -128,6 +151,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         {
           response,
           model: modelToUse || undefined,
+          reasoning_effort: reasoningEffort,
         },
       );
 
