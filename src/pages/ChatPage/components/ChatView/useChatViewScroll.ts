@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import type { Virtualizer } from "@tanstack/react-virtual";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import type { RenderableEntry } from "./useChatViewMessages";
 import { useScrollAnchorPersistence } from "./useScrollAnchorPersistence";
@@ -15,7 +14,6 @@ type UseChatViewScrollArgs = {
   interactionState: InteractionState;
   messagesListRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
-  rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
 };
 
 export const useChatViewScroll = ({
@@ -23,7 +21,6 @@ export const useChatViewScroll = ({
   interactionState,
   messagesListRef,
   renderableMessages,
-  rowVirtualizer,
 }: UseChatViewScrollArgs) => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
@@ -35,7 +32,6 @@ export const useChatViewScroll = ({
     currentSessionId,
     messagesListRef,
     renderableMessages,
-    rowVirtualizer,
   });
 
   const handleMessagesScroll = useCallback(
@@ -119,17 +115,38 @@ export const useChatViewScroll = ({
         return;
       }
 
-      rowVirtualizer.scrollToIndex(targetIndex, { align: "center" });
+      const targetEntry = renderableMessages[targetIndex];
+      const targetElementId =
+        targetEntry && "message" in targetEntry
+          ? targetEntry.message.id
+          : targetEntry && "id" in targetEntry
+            ? targetEntry.id
+            : messageId;
 
+      const messageElement = document.getElementById(
+        `message-${targetElementId}`,
+      );
+      const entryElements = Array.from(
+        messagesListRef.current?.querySelectorAll<HTMLElement>(
+          "[data-chat-entry-id]",
+        ) || [],
+      );
+      const targetElement =
+        messageElement ||
+        entryElements.find(
+          (node) => node.dataset.chatEntryId === targetElementId,
+        );
+
+      if (!targetElement) {
+        console.warn("Message element not found for navigation:", messageId);
+        return;
+      }
+
+      targetElement.scrollIntoView({ behavior: "smooth", block: "center" });
+      targetElement.classList.add("highlight-message");
       setTimeout(() => {
-        const messageElement = document.getElementById(`message-${messageId}`);
-        if (messageElement) {
-          messageElement.classList.add("highlight-message");
-          setTimeout(() => {
-            messageElement.classList.remove("highlight-message");
-          }, 2000);
-        }
-      }, 200);
+        targetElement.classList.remove("highlight-message");
+      }, 2000);
     };
 
     window.addEventListener(
@@ -142,7 +159,7 @@ export const useChatViewScroll = ({
         handleMessageNavigation as EventListener,
       );
     };
-  }, [renderableMessages, rowVirtualizer]);
+  }, [renderableMessages]);
 
   const previousStateRef = useRef(interactionState.value);
   useEffect(() => {

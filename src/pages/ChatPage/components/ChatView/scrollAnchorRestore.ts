@@ -1,17 +1,6 @@
-import type { Virtualizer } from "@tanstack/react-virtual";
-
 const EPS = 1;
 const STABLE_FRAMES = 3;
 const RESTORE_TIMEOUT_MS = 2000;
-
-function getPaddingTopPx(el: HTMLElement): number {
-  const v =
-    typeof window !== "undefined"
-      ? window.getComputedStyle(el).paddingTop
-      : "0";
-  const n = Number.parseFloat(v || "0");
-  return Number.isFinite(n) ? n : 0;
-}
 
 function clampScrollTop(el: HTMLElement, target: number) {
   const max = Math.max(0, el.scrollHeight - el.clientHeight);
@@ -20,17 +9,14 @@ function clampScrollTop(el: HTMLElement, target: number) {
 
 export function restoreScrollAnchorUntilStable(args: {
   scrollEl: HTMLDivElement;
-  rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
-  index: number;
+  getAnchorElement: () => HTMLElement | null;
   offsetPx: number;
   isCancelled: () => boolean;
 }) {
-  const { scrollEl, rowVirtualizer, index, offsetPx, isCancelled } = args;
+  const { scrollEl, getAnchorElement, offsetPx, isCancelled } = args;
 
   return new Promise<void>((resolve) => {
     const startTs = performance.now();
-    const paddingTop = getPaddingTopPx(scrollEl);
-
     let stable = 0;
     let lastScrollTop = -1;
     let lastDesired = Number.NaN;
@@ -41,16 +27,21 @@ export function restoreScrollAnchorUntilStable(args: {
         return;
       }
 
-      const offsetInfo = rowVirtualizer.getOffsetForIndex(index, "start");
-      const itemStart = offsetInfo?.[0];
-
-      if (itemStart == null) {
+      const anchorEl = getAnchorElement();
+      if (!anchorEl) {
         requestAnimationFrame(tick);
         return;
       }
 
+      const containerRect = scrollEl.getBoundingClientRect();
+      const anchorRect = anchorEl.getBoundingClientRect();
+      const currentOffset = anchorRect.top - containerRect.top;
+
       // Desired: make anchor's top offset equal to saved offsetPx
-      const desired = clampScrollTop(scrollEl, itemStart + paddingTop - offsetPx);
+      const desired = clampScrollTop(
+        scrollEl,
+        scrollEl.scrollTop + (currentOffset - offsetPx),
+      );
 
       if (Math.abs(scrollEl.scrollTop - desired) > EPS) {
         scrollEl.scrollTop = desired;

@@ -24,11 +24,6 @@ type ChatMessagesListProps = {
   messagesListRef: React.RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
   rowGap: number;
-  rowVirtualizer: {
-    getTotalSize: () => number;
-    getVirtualItems: () => Array<{ index: number; start: number }>;
-    measureElement: (el: HTMLElement | null) => void;
-  };
   showMessagesView: boolean;
   screens: { xs?: boolean };
   workflowDraftId?: string;
@@ -50,7 +45,6 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   messagesListRef,
   renderableMessages,
   rowGap,
-  rowVirtualizer,
   showMessagesView,
   screens,
   workflowDraftId,
@@ -107,13 +101,13 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
         renderableMessages.length > 0 && (
           <div
             style={{
-              height: rowVirtualizer.getTotalSize(),
+              display: "flex",
+              flexDirection: "column",
+              gap: rowGap,
               width: "100%",
-              position: "relative",
             }}
           >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-              const entry = renderableMessages[virtualRow.index];
+            {renderableMessages.map((entry) => {
               if (!entry) {
                 return null;
               }
@@ -124,20 +118,13 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                 convertedEntry.type === "compression_divider"
                   ? convertedEntry.id
                   : convertedEntry.message.id;
-              const isLast = virtualRow.index === renderableMessages.length - 1;
 
               return (
                 <div
                   key={key}
-                  ref={rowVirtualizer.measureElement}
-                  data-index={virtualRow.index}
+                  data-chat-entry-id={key}
                   style={{
-                    position: "absolute",
-                    top: 0,
-                    left: 0,
                     width: "100%",
-                    transform: `translateY(${virtualRow.start}px)`,
-                    paddingBottom: isLast ? 0 : rowGap,
                   }}
                 >
                   {convertedEntry.type === "compression_divider" ? (

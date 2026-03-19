@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
-import type { Virtualizer } from "@tanstack/react-virtual";
 import type { RenderableEntry } from "./useChatViewMessages";
 import {
   loadScrollAnchor,
@@ -12,23 +11,24 @@ import { restoreScrollAnchorUntilStable } from "./scrollAnchorRestore";
 const SAVE_DEBOUNCE_MS = 300;
 const OFFSET_EPS = 0.5; // localStorage write-threshold
 
-function getPaddingTopPx(el: HTMLElement): number {
-  const v =
-    typeof window !== "undefined"
-      ? window.getComputedStyle(el).paddingTop
-      : "0";
-  const n = Number.parseFloat(v || "0");
-  return Number.isFinite(n) ? n : 0;
-}
-
 function entryId(entry: RenderableEntry): string | null {
-  if ("type" in entry && entry.type === "tool_session") return entry.id;
+  if (
+    "type" in entry &&
+    (entry.type === "tool_session" || entry.type === "compression_divider")
+  ) {
+    return entry.id;
+  }
   if ("message" in entry && entry.message) return entry.message.id;
   return null;
 }
 
 function entryCreatedAt(entry: RenderableEntry): string | undefined {
-  if ("type" in entry && entry.type === "tool_session") return entry.createdAt;
+  if (
+    "type" in entry &&
+    (entry.type === "tool_session" || entry.type === "compression_divider")
+  ) {
+    return entry.createdAt;
+  }
   if ("message" in entry && entry.message) return entry.message.createdAt;
   return undefined;
 }
@@ -69,14 +69,53 @@ function resolveIndexFromDeletedAnchor(
   return null;
 }
 
+function getEntryElements(scrollEl: HTMLDivElement): HTMLElement[] {
+  return Array.from(
+    scrollEl.querySelectorAll<HTMLElement>("[data-chat-entry-id]"),
+  );
+}
+
+function getEntryElementById(
+  scrollEl: HTMLDivElement,
+  id: string,
+): HTMLElement | null {
+  const entryElements = getEntryElements(scrollEl);
+  for (const entryEl of entryElements) {
+    if (entryEl.dataset.chatEntryId === id) return entryEl;
+  }
+  return null;
+}
+
+function getEntryElementByIndex(
+  scrollEl: HTMLDivElement,
+  index: number,
+): HTMLElement | null {
+  const entryElements = getEntryElements(scrollEl);
+  if (entryElements.length === 0) return null;
+  const clamped = Math.max(0, Math.min(entryElements.length - 1, index));
+  return entryElements[clamped] ?? null;
+}
+
+function getFirstVisibleEntry(scrollEl: HTMLDivElement): HTMLElement | null {
+  const entryElements = getEntryElements(scrollEl);
+  if (entryElements.length === 0) return null;
+
+  const viewportTop = scrollEl.getBoundingClientRect().top;
+  for (const entryEl of entryElements) {
+    if (entryEl.getBoundingClientRect().bottom > viewportTop) {
+      return entryEl;
+    }
+  }
+
+  return entryElements[entryElements.length - 1] ?? null;
+}
+
 export function useScrollAnchorPersistence(args: {
   currentSessionId: string | null;
   messagesListRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
-  rowVirtualizer: Virtualizer<HTMLDivElement, Element>;
 }) {
-  const { currentSessionId, messagesListRef, renderableMessages, rowVirtualizer } =
-    args;
+  const { currentSessionId, messagesListRef, renderableMessages } = args;
 
   const restoredChatsRef = useRef<Set<string>>(new Set());
   const isRestoringRef = useRef(false);
@@ -114,40 +153,32 @@ export function useScrollAnchorPersistence(args: {
     return map;
   }, [renderableMessages]);
 
-  const computeAnchorNow = useCallback(
-    (): ScrollAnchorV1 | null => {
-      const el = messagesListRef.current;
-      if (!el) return null;
-      if (renderableMessages.length === 0) return null;
+  const computeAnchorNow = useCallback((): ScrollAnchorV1 | null => {
+    const el = messagesListRef.current;
+    if (!el) return null;
+    if (renderableMessages.length === 0) return null;
 
-      const paddingTop = getPaddingTopPx(el);
+    const anchorEl = getFirstVisibleEntry(el);
+    if (!anchorEl) return null;
 
-      // IMPORTANT: virtualizer's coordinate assumes list starts at 0
-      // Our scroll container has CSS padding, so we subtract it
-      const virtualOffset = el.scrollTop - paddingTop;
+    const anchorId = anchorEl.dataset.chatEntryId;
+    if (!anchorId) return null;
 
-      const item = rowVirtualizer.getVirtualItemForOffset(virtualOffset);
-      if (!item) return null;
+    const containerRect = el.getBoundingClientRect();
+    const anchorRect = anchorEl.getBoundingClientRect();
+    const indexHint = idToIndex.get(anchorId);
+    const entry =
+      typeof indexHint === "number" ? renderableMessages[indexHint] : undefined;
 
-      const entry = renderableMessages[item.index];
-      if (!entry) return null;
-
-      const id = entryId(entry);
-      if (!id) return null;
-
-      const offsetPx = paddingTop + item.start - el.scrollTop;
-
-      return {
-        v: 1,
-        anchorId: id,
-        offsetPx,
-        ts: Date.now(),
-        indexHint: item.index,
-        createdAt: entryCreatedAt(entry),
-      };
-    },
-    [messagesListRef, renderableMessages, rowVirtualizer],
-  );
+    return {
+      v: 1,
+      anchorId,
+      offsetPx: anchorRect.top - containerRect.top,
+      ts: Date.now(),
+      indexHint,
+      createdAt: entry ? entryCreatedAt(entry) : undefined,
+    };
+  }, [idToIndex, messagesListRef, renderableMessages]);
 
   const flushSave = useCallback(
     (sessionId: string) => {
@@ -241,8 +272,8 @@ export function useScrollAnchorPersistence(args: {
 
     restoreScrollAnchorUntilStable({
       scrollEl: el,
-      rowVirtualizer,
-      index,
+      getAnchorElement: () =>
+        getEntryElementById(el, saved.anchorId) ?? getEntryElementByIndex(el, index),
       offsetPx: saved.offsetPx,
       isCancelled,
     }).finally(() => {
@@ -267,7 +298,6 @@ export function useScrollAnchorPersistence(args: {
     renderableMessages,
     renderableMessages.length,
     messagesListRef,
-    rowVirtualizer,
     flushSave,
   ]);
 

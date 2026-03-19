@@ -24,13 +24,9 @@ import {
   DownloadOutlined,
   UpOutlined,
 } from "@ant-design/icons";
-import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { selectSessionById, useAppStore } from "../../store";
-import {
-  isAssistantToolResultMessage,
-  type Message,
-} from "../../types/chat";
+import { isAssistantToolResultMessage, type Message } from "../../types/chat";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessagesList } from "./ChatMessagesList";
 import { TodoList } from "@components/TodoList";
@@ -51,7 +47,9 @@ import {
 } from "../../utils/resultFormatters";
 import { getMessageText } from "../MessageCard/messageCardParsing";
 import { MessageExportService } from "../../services/MessageExportService";
-import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "./events";
+import {
+  CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT,
+} from "./events";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -79,11 +77,9 @@ const buildBatchExportMarkdown = (
     .map(({ message, text }, index) => {
       const roleLabel = getMessageRoleLabel(message);
       const timeLabel = getMessageTimeLabel(message.createdAt);
-      return [
-        `## ${index + 1}. ${roleLabel} · ${timeLabel}`,
-        "",
-        text,
-      ].join("\n");
+      return [`## ${index + 1}. ${roleLabel} · ${timeLabel}`, "", text].join(
+        "\n",
+      );
     })
     .join("\n\n---\n\n");
 };
@@ -105,7 +101,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
   embedded = false,
 }) => {
   const { message: appMessage } = AntApp.useApp();
-  const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
+  const sessionId = useAppStore(
+    (state) => sessionIdProp ?? state.currentSessionId,
+  );
   const currentChat = useAppStore(selectSessionById(sessionId));
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
@@ -139,9 +137,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     void loadChatHistory(sessionId);
   }, [sessionId, loadChatHistory]);
 
-  const isProcessing = sessionId
-    ? processingChats.has(sessionId)
-    : false;
+  const isProcessing = sessionId ? processingChats.has(sessionId) : false;
 
   const sessionDiffSummary = useMemo<SessionDiffSummary | null>(() => {
     if (!currentMessages || currentMessages.length === 0) {
@@ -150,7 +146,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
     const files = new Map<
       string,
-      { added: number; removed: number; diffChunks: string[]; truncated: boolean }
+      {
+        added: number;
+        removed: number;
+        diffChunks: string[];
+        truncated: boolean;
+      }
     >();
     let totalAdded = 0;
     let totalRemoved = 0;
@@ -173,7 +174,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
         existing.added += diffStats.added;
         existing.removed += diffStats.removed;
         existing.diffChunks.push(payload.diff.unified);
-        existing.truncated = existing.truncated || Boolean(payload.diff.truncated);
+        existing.truncated =
+          existing.truncated || Boolean(payload.diff.truncated);
       } else {
         files.set(payload.file_path, {
           added: diffStats.added,
@@ -422,9 +424,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const onToggleSelectionMode = (
-      event: Event,
-    ) => {
+    const onToggleSelectionMode = (event: Event) => {
       const customEvent = event as CustomEvent<{ sessionId?: string | null }>;
       const targetSessionId = customEvent.detail?.sessionId ?? null;
       if (!sessionId || targetSessionId !== sessionId) {
@@ -453,9 +453,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const configTokenUsage = currentChat?.config?.tokenUsage;
   const currentTokenUsage = storeTokenUsage || configTokenUsage || null;
 
-  const storeTruncation = sessionId
-    ? truncationOccurred[sessionId]
-    : false;
+  const storeTruncation = sessionId ? truncationOccurred[sessionId] : false;
   const configTruncation = currentChat?.config?.truncationOccurred;
   const currentTruncationOccurred =
     storeTruncation || configTruncation || false;
@@ -463,42 +461,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const storeSegments = sessionId ? segmentsRemoved[sessionId] : 0;
   const configSegments = currentChat?.config?.segmentsRemoved;
   const currentSegmentsRemoved = storeSegments || configSegments || 0;
-
-  // IMPORTANT: keep virtualizer option callbacks stable.
-  // If these functions change on every render, react-virtual can repeatedly update
-  // internal state during effect flushes and trigger "Maximum update depth exceeded".
-  const estimateRowSize = useCallback(() => 320, []);
-  const getScrollElement = useCallback(() => messagesListRef.current, []);
-  const getItemKey = useCallback(
-    (index: number) => {
-      const entry = renderableMessagesWithDraft[index];
-      if (!entry) return index;
-
-      // stable key: matches React row key logic
-      if ("type" in entry && entry.type === "tool_session") return entry.id;
-      if ("message" in entry && entry.message) return entry.message.id;
-      return index;
-    },
-    [renderableMessagesWithDraft],
-  );
-
-  const virtualizerOptions = useMemo(
-    () => ({
-      count: renderableMessagesWithDraft.length,
-      getScrollElement,
-      estimateSize: estimateRowSize,
-      overscan: 2,
-      getItemKey,
-    }),
-    [
-      estimateRowSize,
-      getItemKey,
-      getScrollElement,
-      renderableMessagesWithDraft.length,
-    ],
-  );
-
-  const rowVirtualizer = useVirtualizer(virtualizerOptions);
 
   const rowGap = token.marginMD;
 
@@ -514,7 +476,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     interactionState,
     messagesListRef,
     renderableMessages: renderableMessagesWithDraft,
-    rowVirtualizer,
   });
 
   const getScrollButtonPosition = () => {
@@ -651,7 +612,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 gap={token.marginXS}
               >
                 <Text type="secondary">
-                  Selected {selectedMessages.length} / {selectableMessages.length}
+                  Selected {selectedMessages.length} /{" "}
+                  {selectableMessages.length}
                 </Text>
                 <Space size={token.marginXS} wrap>
                   <Button size="small" onClick={handleSelectAllMessages}>
@@ -704,7 +666,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
           messagesListRef={messagesListRef}
           renderableMessages={renderableMessagesWithDraft}
           rowGap={rowGap}
-          rowVirtualizer={rowVirtualizer}
           showMessagesView={Boolean(showMessagesView)}
           screens={screens}
           workflowDraftId={workflowDraft?.id}
