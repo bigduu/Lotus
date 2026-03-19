@@ -60,7 +60,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
 
   // Resolve reasoning effort (same priority as InputContainer)
   const inputState = useAppStore((state) =>
-    sessionId ? state.inputStates[sessionId] : undefined,
+    sessionId ? state.inputStates?.[sessionId] : undefined,
   );
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);

@@ -51,6 +51,7 @@ describe("QuestionDialog", () => {
           setSessionProcessing: mockSetSessionProcessing,
           isSessionProcessing: mockIsSessionProcessing,
           chats: [],
+          inputStates: {},
           // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
           // (it may auto-default to models[0] elsewhere).
           selectedModel: "gpt-5-ultra-expensive",
@@ -60,6 +61,7 @@ describe("QuestionDialog", () => {
         setSessionProcessing: mockSetSessionProcessing,
         isSessionProcessing: mockIsSessionProcessing,
         chats: [],
+        inputStates: {},
         selectedModel: "gpt-5-ultra-expensive",
       };
     });
@@ -157,6 +159,7 @@ describe("QuestionDialog", () => {
         {
           response: "A",
           model: "gpt-5-mini",
+          reasoning_effort: "medium",
         },
       );
       expect(mockSetSessionProcessing).toHaveBeenCalledWith(
@@ -199,6 +202,7 @@ describe("QuestionDialog", () => {
         {
           response: "A",
           model: "gpt-5-mini",
+          reasoning_effort: "medium",
         },
       );
     });
@@ -349,6 +353,7 @@ describe("QuestionDialog", () => {
         {
           response: "A",
           model: "gpt-5-mini",
+          reasoning_effort: "medium",
         },
       );
 
@@ -433,6 +438,7 @@ describe("QuestionDialog", () => {
         {
           response: "My custom response",
           model: "gpt-5-mini",
+          reasoning_effort: "medium",
         },
       );
     });
