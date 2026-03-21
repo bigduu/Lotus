@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useCallback, useRef } from "react";
 import { Checkbox, Divider, Flex, Layout } from "antd";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import SystemMessageCard from "../SystemMessageCard";
 import MessageCard from "../MessageCard";
@@ -35,6 +36,14 @@ type ChatMessagesListProps = {
   onToggleMessageSelection: (messageId: string) => void;
 };
 
+/** Stable key for a renderable entry */
+function entryKey(entry: RenderableEntry): string {
+  if ("type" in entry && (entry.type === "tool_session" || entry.type === "compression_divider")) {
+    return entry.id;
+  }
+  return (entry as { message: { id: string } }).message.id;
+}
+
 export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   currentChat,
   currentSessionId,
@@ -55,6 +64,28 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   selectableMessageIds,
   onToggleMessageSelection,
 }) => {
+  // Keep a ref-stable copy of the latest renderableMessages length
+  // so the getItemKey callback doesn't trigger virtualizer resets.
+  const messagesRef = useRef(renderableMessages);
+  messagesRef.current = renderableMessages;
+
+  const getItemKey = useCallback(
+    (index: number) => {
+      const entry = messagesRef.current[index];
+      return entry ? entryKey(entry) : String(index);
+    },
+    [], // messagesRef is stable
+  );
+
+  const virtualizer = useVirtualizer({
+    count: renderableMessages.length,
+    getScrollElement: () => messagesListRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+    gap: rowGap,
+    getItemKey,
+  });
+
   const renderMessageSelectionCheckbox = (
     messageId: string,
     align: "flex-start" | "flex-end",
@@ -80,6 +111,105 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     );
   };
 
+  const renderEntry = (entry: RenderableEntry) => {
+    const convertedEntry = convertRenderableEntry(entry);
+
+    if (convertedEntry.type === "compression_divider") {
+      return (
+        <Divider plain style={{ margin: "6px 0 10px 0" }}>
+          {convertedEntry.label}
+        </Divider>
+      );
+    }
+
+    if (convertedEntry.type === "tool_session") {
+      return (
+        <Flex
+          justify="flex-start"
+          style={{ width: "100%", maxWidth: "100%" }}
+        >
+          <div
+            id={`message-${convertedEntry.id}`}
+            style={{
+              width: "100%",
+              maxWidth: screens.xs ? "100%" : "90%",
+            }}
+          >
+            <ToolSessionCard
+              tools={convertedEntry.tools}
+              sessionId={convertedEntry.sessionId}
+              createdAt={convertedEntry.createdAt}
+              defaultExpanded={false}
+            />
+          </div>
+        </Flex>
+      );
+    }
+
+    if (convertedEntry.message.role === "system") {
+      return (
+        <Flex
+          align="flex-start"
+          style={{ width: "100%", maxWidth: "100%" }}
+        >
+          {renderMessageSelectionCheckbox(
+            convertedEntry.message.id,
+            "flex-start",
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <SystemMessageCard
+              currentChat={currentChat}
+              message={convertedEntry.message}
+            />
+          </div>
+        </Flex>
+      );
+    }
+
+    return (
+      <Flex
+        justify={convertedEntry.align}
+        align="flex-start"
+        style={{ width: "100%", maxWidth: "100%" }}
+      >
+        {convertedEntry.align === "flex-start" &&
+          renderMessageSelectionCheckbox(
+            convertedEntry.message.id,
+            convertedEntry.align,
+          )}
+        <div
+          style={{
+            width:
+              convertedEntry.message.role === "user"
+                ? "85%"
+                : "100%",
+            maxWidth: screens.xs ? "100%" : "90%",
+          }}
+        >
+          <MessageCard
+            sessionId={currentSessionId}
+            message={convertedEntry.message}
+            messageType={convertedEntry.messageType}
+            onDelete={
+              convertedEntry.message.id === workflowDraftId
+                ? undefined
+                : handleDeleteMessage
+            }
+          />
+        </div>
+        {convertedEntry.align === "flex-end" &&
+          renderMessageSelectionCheckbox(
+            convertedEntry.message.id,
+            convertedEntry.align,
+          )}
+      </Flex>
+    );
+  };
+
+  const hasMessages =
+    (showMessagesView || hasSystemPrompt) && renderableMessages.length > 0;
+  const virtualItems = virtualizer.getVirtualItems();
+
   return (
     <Content
       className={`chat-view-messages-list ${
@@ -97,119 +227,40 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
       ref={messagesListRef}
       onScroll={handleMessagesScroll}
     >
-      {(showMessagesView || hasSystemPrompt) &&
-        renderableMessages.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: rowGap,
-              width: "100%",
-            }}
-          >
-            {renderableMessages.map((entry) => {
-              if (!entry) {
-                return null;
-              }
+      {hasMessages && (
+        <div
+          style={{
+            position: "relative",
+            width: "100%",
+            height: virtualizer.getTotalSize(),
+          }}
+        >
+          {virtualItems.map((virtualItem) => {
+            const entry = renderableMessages[virtualItem.index];
+            if (!entry) return null;
 
-              const convertedEntry = convertRenderableEntry(entry);
-              const key =
-                convertedEntry.type === "tool_session" ||
-                convertedEntry.type === "compression_divider"
-                  ? convertedEntry.id
-                  : convertedEntry.message.id;
+            const key = entryKey(entry);
 
-              return (
-                <div
-                  key={key}
-                  data-chat-entry-id={key}
-                  style={{
-                    width: "100%",
-                  }}
-                >
-                  {convertedEntry.type === "compression_divider" ? (
-                    <Divider plain style={{ margin: "6px 0 10px 0" }}>
-                      {convertedEntry.label}
-                    </Divider>
-                  ) : convertedEntry.type === "tool_session" ? (
-                    <Flex
-                      justify="flex-start"
-                      style={{ width: "100%", maxWidth: "100%" }}
-                    >
-                      <div
-                        id={`message-${convertedEntry.id}`}
-                        style={{
-                          width: "100%",
-                          maxWidth: screens.xs ? "100%" : "90%",
-                        }}
-                      >
-                        <ToolSessionCard
-                          tools={convertedEntry.tools}
-                          sessionId={convertedEntry.sessionId}
-                          createdAt={convertedEntry.createdAt}
-                          defaultExpanded={false}
-                        />
-                      </div>
-                    </Flex>
-                  ) : convertedEntry.message.role === "system" ? (
-                    <Flex
-                      align="flex-start"
-                      style={{ width: "100%", maxWidth: "100%" }}
-                    >
-                      {renderMessageSelectionCheckbox(
-                        convertedEntry.message.id,
-                        "flex-start",
-                      )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <SystemMessageCard
-                          currentChat={currentChat}
-                          message={convertedEntry.message}
-                        />
-                      </div>
-                    </Flex>
-                  ) : (
-                    <Flex
-                      justify={convertedEntry.align}
-                      align="flex-start"
-                      style={{ width: "100%", maxWidth: "100%" }}
-                    >
-                      {convertedEntry.align === "flex-start" &&
-                        renderMessageSelectionCheckbox(
-                          convertedEntry.message.id,
-                          convertedEntry.align,
-                        )}
-                      <div
-                        style={{
-                          width:
-                            convertedEntry.message.role === "user"
-                              ? "85%"
-                              : "100%",
-                          maxWidth: screens.xs ? "100%" : "90%",
-                        }}
-                      >
-                        <MessageCard
-                          sessionId={currentSessionId}
-                          message={convertedEntry.message}
-                          messageType={convertedEntry.messageType}
-                          onDelete={
-                            convertedEntry.message.id === workflowDraftId
-                              ? undefined
-                              : handleDeleteMessage
-                          }
-                        />
-                      </div>
-                      {convertedEntry.align === "flex-end" &&
-                        renderMessageSelectionCheckbox(
-                          convertedEntry.message.id,
-                          convertedEntry.align,
-                        )}
-                    </Flex>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+            return (
+              <div
+                key={key}
+                data-chat-entry-id={key}
+                data-index={virtualItem.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualItem.start}px)`,
+                }}
+              >
+                {renderEntry(entry)}
+              </div>
+            );
+          })}
+        </div>
+      )}
       {interactionState.matches("THINKING") && currentSessionId && (
         <div style={{ paddingTop: rowGap }}>
           <Flex

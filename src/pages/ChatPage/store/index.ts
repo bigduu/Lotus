@@ -9,7 +9,7 @@ import {
   TokenBudgetSlice,
   createTokenBudgetSlice,
 } from "./slices/tokenBudgetSlice";
-import { TodoListSlice, createTodoListSlice } from "./slices/todoListSlice";
+import { TaskListSlice, createTaskListSlice } from "./slices/todoListSlice";
 import {
   InputStateSlice,
   createInputStateSlice,
@@ -53,7 +53,7 @@ export type AppState = ChatSlice &
   SessionSlice &
   SkillSlice &
   TokenBudgetSlice &
-  TodoListSlice &
+  TaskListSlice &
   InputStateSlice &
   AgentAvailabilitySlice &
   SessionIndexSyncSlice;
@@ -67,7 +67,7 @@ export const useAppStore = create<AppState>()(
       ...createSessionSlice(set, get, api),
       ...createSkillSlice(set, get, api),
       ...createTokenBudgetSlice(set, get, api),
-      ...createTodoListSlice(set, get, api),
+      ...createTaskListSlice(set, get, api),
       ...createInputStateSlice(set, get, api),
       agentAvailability: null,
       setAgentAvailability: (available) => {

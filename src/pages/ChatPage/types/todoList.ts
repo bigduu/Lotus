@@ -1,29 +1,29 @@
-export type TodoItemStatus =
+export type TaskItemStatus =
   | "pending"
   | "in_progress"
   | "completed"
   | "skipped"
   | "failed";
 
-export type TodoListStatus = "active" | "completed" | "abandoned";
+export type TaskListStatus = "active" | "completed" | "abandoned";
 
-export interface TodoItem {
+export interface TaskItem {
   id: string;
   description: string;
-  status: TodoItemStatus;
+  status: TaskItemStatus;
   order: number;
   metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
 
-export interface TodoListMsg {
+export interface TaskListMsg {
   list_id: string;
   message_id: string;
   title: string;
   description?: string;
-  items: TodoItem[];
-  status: TodoListStatus;
+  items: TaskItem[];
+  status: TaskListStatus;
   created_at: string;
   updated_at: string;
 }

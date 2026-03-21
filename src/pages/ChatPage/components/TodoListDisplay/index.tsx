@@ -16,19 +16,19 @@ import {
   LoadingOutlined,
   MinusCircleOutlined,
 } from "@ant-design/icons";
-import { TodoListMsg, TodoItemStatus } from "../../types/todoList";
+import { TaskListMsg, TaskItemStatus } from "../../types/todoList";
 
-interface TodoListDisplayProps {
-  todoList: TodoListMsg;
+interface TaskListDisplayProps {
+  taskList: TaskListMsg;
 }
 
-export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
-  todoList,
+export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({
+  taskList,
 }) => {
   const { token } = theme.useToken();
   const { Text } = Typography;
 
-  const getStatusTag = (status: TodoItemStatus) => {
+  const getStatusTag = (status: TaskItemStatus) => {
     switch (status) {
       case "pending":
         return (
@@ -66,7 +66,7 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
   };
 
   const getListStatusTag = () => {
-    switch (todoList.status) {
+    switch (taskList.status) {
       case "active":
         return <Tag color="processing">Active</Tag>;
       case "completed":
@@ -79,16 +79,16 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
   };
 
   const completionPercentage = React.useMemo(() => {
-    if (todoList.items.length === 0) return 0;
-    const completed = todoList.items.filter(
+    if (taskList.items.length === 0) return 0;
+    const completed = taskList.items.filter(
       (item) => item.status === "completed",
     ).length;
-    return Math.round((completed / todoList.items.length) * 100);
-  }, [todoList.items]);
+    return Math.round((completed / taskList.items.length) * 100);
+  }, [taskList.items]);
 
   const currentItem = React.useMemo(() => {
-    return todoList.items.find((item) => item.status === "in_progress");
-  }, [todoList.items]);
+    return taskList.items.find((item) => item.status === "in_progress");
+  }, [taskList.items]);
 
   return (
     <Card
@@ -99,9 +99,9 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
       <Flex vertical gap={token.marginSM}>
         <Flex align="center" justify="space-between" wrap="wrap" gap="small">
           <Space direction="vertical" size={2}>
-            <Text strong>{todoList.title}</Text>
-            {todoList.description ? (
-              <Text type="secondary">{todoList.description}</Text>
+            <Text strong>{taskList.title}</Text>
+            {taskList.description ? (
+              <Text type="secondary">{taskList.description}</Text>
             ) : null}
           </Space>
           {getListStatusTag()}
@@ -111,9 +111,9 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
           <Progress
             percent={completionPercentage}
             status={
-              todoList.status === "completed"
+              taskList.status === "completed"
                 ? "success"
-                : todoList.status === "abandoned"
+                : taskList.status === "abandoned"
                   ? "exception"
                   : "active"
             }
@@ -124,7 +124,7 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
 
         <List
           size="small"
-          dataSource={todoList.items}
+          dataSource={taskList.items}
           renderItem={(item) => {
             const isCurrent = currentItem?.id === item.id;
             return (
@@ -162,8 +162,8 @@ export const TodoListDisplay: React.FC<TodoListDisplayProps> = ({
 
         <Flex align="center" justify="space-between" wrap="wrap" gap="small">
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {todoList.items.filter((i) => i.status === "completed").length} /{" "}
-            {todoList.items.length} tasks completed
+            {taskList.items.filter((i) => i.status === "completed").length} /{" "}
+            {taskList.items.length} tasks completed
           </Text>
           {currentItem ? (
             <Text type="secondary" style={{ fontSize: 12 }}>

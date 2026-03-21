@@ -257,7 +257,7 @@ export const streamOpenAIWithTools = async ({
           result: result.result,
           display_preference: result.display_preference,
         },
-        isError: false,
+        isError: !result.success,
         createdAt: new Date().toISOString(),
       };
 

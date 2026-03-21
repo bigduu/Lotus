@@ -1,53 +1,53 @@
 import { StateCreator } from "zustand";
 
-// Todo item status
-export type TodoItemStatus =
+// Task item status
+export type TaskItemStatus =
   | "pending"
   | "in_progress"
   | "completed"
   | "blocked";
 
-// Todo item
-export interface TodoItem {
+// Task item
+export interface TaskItem {
   id: string;
   description: string;
-  status: TodoItemStatus;
+  status: TaskItemStatus;
   depends_on: string[];
   notes: string;
   tool_calls_count?: number; // NEW: number of tool calls
 }
 
-// Todo list
-export interface TodoList {
+// Task list
+export interface TaskList {
   session_id: string;
   title: string;
-  items: TodoItem[];
+  items: TaskItem[];
   created_at: string;
   updated_at: string;
   version?: number;
 }
 
 // Progress info
-export interface TodoProgress {
+export interface TaskProgress {
   completed: number;
   total: number;
   percentage: number;
 }
 
 // Delta update for real-time progress
-export interface TodoListDelta {
+export interface TaskListDelta {
   session_id: string;
   item_id: string;
-  status: TodoItemStatus;
+  status: TaskItemStatus;
   tool_calls_count: number;
   version: number;
 }
 
-export interface TodoListState {
-  // Map of session ID to todo list
-  todoLists: Record<string, TodoList>;
+export interface TaskListState {
+  // Map of session ID to task list
+  taskLists: Record<string, TaskList>;
   // Map of session ID to version (for conflict detection)
-  todoListVersions: Record<string, number>;
+  taskListVersions: Record<string, number>;
   // Map of session ID to active item ID
   activeItems: Record<string, string | null>;
   // Map of session ID to evaluation state (NEW)
@@ -61,59 +61,59 @@ export interface EvaluationState {
   timestamp: number | null;
 }
 
-export interface TodoListActions {
-  // Set full todo list (from TodoListUpdated event)
-  setTodoList: (sessionId: string, todoList: TodoList) => void;
-  // Update from delta (from TodoListItemProgress event)
-  updateTodoListDelta: (sessionId: string, delta: TodoListDelta) => void;
-  // Clear todo list for a session
-  clearTodoList: (sessionId: string) => void;
+export interface TaskListActions {
+  // Set full task list (from TaskListUpdated event)
+  setTaskList: (sessionId: string, taskList: TaskList) => void;
+  // Update from delta (from TaskListItemProgress event)
+  updateTaskListDelta: (sessionId: string, delta: TaskListDelta) => void;
+  // Clear task list for a session
+  clearTaskList: (sessionId: string) => void;
   // Get current version
-  getTodoListVersion: (sessionId: string) => number;
+  getTaskListVersion: (sessionId: string) => number;
   // Set evaluation state (NEW)
   setEvaluationState: (sessionId: string, state: EvaluationState) => void;
   // Clear evaluation state (NEW)
   clearEvaluationState: (sessionId: string) => void;
 }
 
-export type TodoListSlice = TodoListState & TodoListActions;
+export type TaskListSlice = TaskListState & TaskListActions;
 
-export const createTodoListSlice: StateCreator<
-  TodoListSlice,
+export const createTaskListSlice: StateCreator<
+  TaskListSlice,
   [],
   [],
-  TodoListSlice
+  TaskListSlice
 > = (set, get) => ({
   // State
-  todoLists: {},
-  todoListVersions: {},
+  taskLists: {},
+  taskListVersions: {},
   activeItems: {},
   evaluationStates: {},
 
-  // Set full todo list (from TodoListUpdated event)
-  setTodoList: (sessionId, todoList) =>
+  // Set full task list (from TaskListUpdated event)
+  setTaskList: (sessionId, taskList) =>
     set((state) => ({
-      todoLists: {
-        ...state.todoLists,
-        [sessionId]: todoList,
+      taskLists: {
+        ...state.taskLists,
+        [sessionId]: taskList,
       },
-      todoListVersions: {
-        ...state.todoListVersions,
-        [sessionId]: todoList.version || 0,
+      taskListVersions: {
+        ...state.taskListVersions,
+        [sessionId]: taskList.version || 0,
       },
     })),
 
-  // Update from delta (from TodoListItemProgress event)
-  updateTodoListDelta: (sessionId, delta) =>
+  // Update from delta (from TaskListItemProgress event)
+  updateTaskListDelta: (sessionId, delta) =>
     set((state) => {
-      const currentVersion = state.todoListVersions[sessionId] || 0;
+      const currentVersion = state.taskListVersions[sessionId] || 0;
 
       // Ignore outdated updates
       if (delta.version <= currentVersion) {
         return state;
       }
 
-      const currentList = state.todoLists[sessionId];
+      const currentList = state.taskLists[sessionId];
       if (!currentList) {
         // No existing list, ignore delta
         return state;
@@ -131,16 +131,16 @@ export const createTodoListSlice: StateCreator<
       );
 
       return {
-        todoLists: {
-          ...state.todoLists,
+        taskLists: {
+          ...state.taskLists,
           [sessionId]: {
             ...currentList,
             items: updatedItems,
             updated_at: new Date().toISOString(),
           },
         },
-        todoListVersions: {
-          ...state.todoListVersions,
+        taskListVersions: {
+          ...state.taskListVersions,
           [sessionId]: delta.version,
         },
         activeItems: {
@@ -150,25 +150,25 @@ export const createTodoListSlice: StateCreator<
       };
     }),
 
-  // Clear todo list for a session
-  clearTodoList: (sessionId) =>
+  // Clear task list for a session
+  clearTaskList: (sessionId) =>
     set((state) => {
-      const { [sessionId]: _, ...remainingTodoLists } = state.todoLists;
-      const { [sessionId]: __, ...remainingVersions } = state.todoListVersions;
+      const { [sessionId]: _, ...remainingTaskLists } = state.taskLists;
+      const { [sessionId]: __, ...remainingVersions } = state.taskListVersions;
       const { [sessionId]: ___, ...remainingActive } = state.activeItems;
       const { [sessionId]: ____, ...remainingEvaluations } =
         state.evaluationStates;
       return {
-        todoLists: remainingTodoLists,
-        todoListVersions: remainingVersions,
+        taskLists: remainingTaskLists,
+        taskListVersions: remainingVersions,
         activeItems: remainingActive,
         evaluationStates: remainingEvaluations,
       };
     }),
 
   // Get current version
-  getTodoListVersion: (sessionId) => {
-    return get().todoListVersions[sessionId] || 0;
+  getTaskListVersion: (sessionId) => {
+    return get().taskListVersions[sessionId] || 0;
   },
 
   // Set evaluation state (NEW)

@@ -1,14 +1,13 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   Button,
-  Card,
-  Input,
   Radio,
   Space,
   Typography,
   message,
   theme,
 } from "antd";
+import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { agentApiClient } from "../../services/api";
 import { useAppStore } from "../../pages/ChatPage/store";
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
@@ -17,7 +16,7 @@ import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlic
 import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
 import styles from "./QuestionDialog.module.css";
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { useToken } = theme;
 
 export interface PendingQuestion {
@@ -31,6 +30,7 @@ export interface PendingQuestion {
 interface QuestionDialogProps {
   sessionId: string;
   onResponseSubmitted?: () => void;
+  onQuestionAppeared?: () => void;
 }
 
 interface RespondSubmitResult {
@@ -40,21 +40,27 @@ interface RespondSubmitResult {
 export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   sessionId,
   onResponseSubmitted,
+  onQuestionAppeared,
 }) => {
   const { token } = useToken();
   const [pendingQuestion, setPendingQuestion] =
     useState<PendingQuestion | null>(null);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [customInput, setCustomInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   // NOTE: We intentionally avoid permanently stopping polling. The agent may ask
   // questions later in the session; stopping polling would prevent the dialog
   // from ever appearing.
   const emptyCountRef = useRef(0);
+  const onQuestionAppearedRef = useRef(onQuestionAppeared);
+  onQuestionAppearedRef.current = onQuestionAppeared;
 
   const setSessionProcessing = useAppStore(
     (state) => state.setSessionProcessing,
+  );
+  const setPendingQuestionRespond = useAppStore(
+    (state) => state.setPendingQuestionRespond,
   );
   const activeModel = useActiveModel();
 
@@ -114,6 +120,23 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     setIsLoading(true);
   }, [sessionId]);
 
+  // When a new question appears, reset selection and activate respond mode
+  // so that ANY user input (even without selecting "Other") goes through
+  // the respond API instead of being sent as a brand-new message.
+  useEffect(() => {
+    if (pendingQuestion?.has_pending_question) {
+      setSelectedOption(null);
+      setPendingQuestionRespond({
+        sessionId,
+        question: pendingQuestion?.question || "",
+      });
+      setCollapsed(false);
+      onQuestionAppearedRef.current?.();
+    } else {
+      setPendingQuestionRespond(null);
+    }
+  }, [pendingQuestion?.tool_call_id, sessionId, pendingQuestion?.question, setPendingQuestionRespond]);
+
   // Poll for pending question periodically
   // When the agent is actively running, poll faster so the dialog shows quickly.
   // Otherwise keep it light.
@@ -132,13 +155,27 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     return () => clearInterval(interval);
   }, [fetchPendingQuestion, isSubmitting, pollInterval]);
 
-  // Submit response
-  const handleSubmit = async () => {
-    const response =
-      selectedOption === "custom" ? customInput.trim() : selectedOption;
+  // Update selected option. Respond mode stays active for the entire
+  // duration of the pending question (set in the effect above), so we
+  // no longer toggle it per-option.
+  const handleOptionChange = useCallback(
+    (value: string) => {
+      setSelectedOption(value);
+    },
+    [],
+  );
 
-    if (!response) {
-      message.warning("Please select an option or enter a custom answer");
+  // Clean up respond mode when question disappears or component unmounts
+  useEffect(() => {
+    return () => {
+      setPendingQuestionRespond(null);
+    };
+  }, [setPendingQuestionRespond]);
+
+  // Submit response (for predefined options only; custom is handled by InputContainer)
+  const handleSubmit = async () => {
+    if (!selectedOption || selectedOption === "custom") {
+      message.warning("Please select an option");
       return;
     }
 
@@ -149,7 +186,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       const submitResult = await agentApiClient.post<RespondSubmitResult>(
         `respond/${sessionId}`,
         {
-          response,
+          response: selectedOption,
           model: modelToUse || undefined,
           reasoning_effort: reasoningEffort,
         },
@@ -158,7 +195,6 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       message.success("Response submitted, AI will continue processing");
       setPendingQuestion(null);
       setSelectedOption(null);
-      setCustomInput("");
       emptyCountRef.current = 0;
 
       const resumeStatus = submitResult?.auto_resume_status;
@@ -194,110 +230,101 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const { question, options, allow_custom } = pendingQuestion;
 
   return (
-    <Card
+    <div
       className={styles.questionCard}
-      bordered={true}
       style={{
         background: token.colorBgContainer,
         borderColor: token.colorBorderSecondary,
+        border: `1px solid ${token.colorBorderSecondary}`,
       }}
     >
+      {/* Header row: icon + question text + collapse toggle */}
       <div
         className={styles.questionHeader}
-        style={{
-          borderBottom: `1px solid ${token.colorBorderSecondary}`,
+        data-collapsed={collapsed ? "true" : "false"}
+        onClick={() => setCollapsed((prev) => !prev)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") setCollapsed((prev) => !prev);
         }}
       >
-        <Title
-          level={5}
-          className={styles.questionTitle}
-          style={{
-            color: token.colorPrimary,
-          }}
-        >
-          🤔 AI Needs Your Decision
-        </Title>
-      </div>
-
-      <div className={styles.questionContent}>
-        <Text
-          className={styles.questionText}
-          style={{
-            color: token.colorText,
-          }}
-        >
-          {question}
-        </Text>
-
-        <Radio.Group
-          className={styles.optionsGroup}
-          value={selectedOption}
-          onChange={(e) => setSelectedOption(e.target.value)}
-        >
-          <Space direction="vertical" style={{ width: "100%" }}>
-            {options?.map((option, index) => (
-              <Radio
-                key={index}
-                value={option}
-                className={styles.optionItem}
-                style={{
-                  background: token.colorBgContainer,
-                  borderColor: token.colorBorderSecondary,
-                }}
-              >
-                <Text style={{ color: token.colorText }}>{option}</Text>
-              </Radio>
-            ))}
-
-            {allow_custom && (
-              <Radio
-                value="custom"
-                className={styles.optionItem}
-                style={{
-                  background: token.colorBgContainer,
-                  borderColor: token.colorBorderSecondary,
-                }}
-              >
-                <div className={styles.customOption}>
-                  <Text style={{ color: token.colorText }}>
-                    Other (custom input)
-                  </Text>
-                  {selectedOption === "custom" && (
-                    <Input.TextArea
-                      className={styles.customInput}
-                      placeholder="Enter your answer..."
-                      value={customInput}
-                      onChange={(e) => setCustomInput(e.target.value)}
-                      rows={2}
-                      autoFocus
-                    />
-                  )}
-                </div>
-              </Radio>
-            )}
-          </Space>
-        </Radio.Group>
-      </div>
-
-      <div
-        className={styles.questionFooter}
-        style={{
-          borderTop: `1px solid ${token.colorBorderSecondary}`,
-        }}
-      >
+        <span className={styles.headerLeft}>
+          <span className={styles.questionIcon}>🤔</span>
+          <Text
+            strong
+            className={styles.questionText}
+            style={{ color: token.colorPrimary }}
+            title={collapsed ? question : undefined}
+          >
+            {question}
+          </Text>
+        </span>
         <Button
-          type="primary"
-          onClick={handleSubmit}
-          loading={isSubmitting}
-          disabled={
-            !selectedOption ||
-            (selectedOption === "custom" && !customInput.trim())
-          }
-        >
-          Confirm Selection
-        </Button>
+          type="text"
+          size="small"
+          icon={collapsed ? <DownOutlined /> : <UpOutlined />}
+          className={styles.collapseBtn}
+          tabIndex={-1}
+        />
       </div>
-    </Card>
+
+      {/* Collapsible body */}
+      {!collapsed && (
+        <div className={styles.questionBody}>
+          <Radio.Group
+            className={styles.optionsGroup}
+            value={selectedOption}
+            onChange={(e) => handleOptionChange(e.target.value)}
+          >
+            <Space direction="vertical" size={4} style={{ width: "100%" }}>
+              {options?.map((option, index) => (
+                <Radio
+                  key={index}
+                  value={option}
+                  className={styles.optionItem}
+                >
+                  <Text style={{ color: token.colorText }}>{option}</Text>
+                </Radio>
+              ))}
+
+              {allow_custom && (
+                <Radio value="custom" className={styles.optionItem}>
+                  <Space size={4}>
+                    <EditOutlined />
+                    <Text style={{ color: token.colorText }}>
+                      Other (type below)
+                    </Text>
+                  </Space>
+                </Radio>
+              )}
+            </Space>
+          </Radio.Group>
+
+          {selectedOption === "custom" && (
+            <div className={styles.customHint}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                ↓ Type your answer in the input box below and press Enter
+              </Text>
+            </div>
+          )}
+
+          {/* Submit button inline */}
+          {selectedOption && selectedOption !== "custom" && (
+            <div className={styles.questionFooter}>
+              <Button
+                type="primary"
+                size="small"
+                onClick={handleSubmit}
+                loading={isSubmitting}
+              >
+                Confirm
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 

@@ -19,9 +19,19 @@ export interface InputState {
   reasoningEffort: ReasoningEffort;
 }
 
+// When the user selects "Other (custom input)" in QuestionDialog,
+// we activate "respond mode" in InputContainer so the user can type
+// their custom answer using the full-featured input (with image paste, etc.)
+export interface PendingQuestionRespond {
+  sessionId: string;
+  question: string;
+}
+
 export interface InputStateSliceState {
   // Map of sessionId to input state
   inputStates: Record<string, InputState>;
+  // When set, InputContainer enters "respond mode" for the given session
+  pendingQuestionRespond: PendingQuestionRespond | null;
 }
 
 export interface InputStateSliceActions {
@@ -40,6 +50,8 @@ export interface InputStateSliceActions {
   clearInputState: (sessionId: string) => void;
   // Get input state for a chat (returns default if not found)
   getInputState: (sessionId: string) => InputState;
+  // Activate respond mode (InputContainer will submit to respond API)
+  setPendingQuestionRespond: (respond: PendingQuestionRespond | null) => void;
 }
 
 export type InputStateSlice = InputStateSliceState & InputStateSliceActions;
@@ -140,6 +152,7 @@ export const createInputStateSlice: StateCreator<
 > = (set, get) => ({
   // State
   inputStates: {},
+  pendingQuestionRespond: null,
 
   // Set input content for a chat
   setInputContent: (sessionId, content) =>
@@ -212,4 +225,7 @@ export const createInputStateSlice: StateCreator<
   getInputState: (sessionId) => {
     return get().inputStates[sessionId] || defaultInputStateForSession(sessionId);
   },
+
+  // Set or clear pending question respond mode
+  setPendingQuestionRespond: (respond) => set({ pendingQuestionRespond: respond }),
 });

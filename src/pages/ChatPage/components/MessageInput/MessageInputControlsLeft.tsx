@@ -1,6 +1,6 @@
 import React from "react";
 import { Button, Flex } from "antd";
-import { FileTextOutlined, PictureOutlined } from "@ant-design/icons";
+import { FileTextOutlined, PlusOutlined } from "@ant-design/icons";
 
 interface MessageInputControlsLeftProps {
   allowImages: boolean;
@@ -27,8 +27,8 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
     <Flex
       align="center"
       style={{
-        alignSelf: "center",
-        gap: token.marginXS,
+        minWidth: 0,
+        gap: 0,
       }}
     >
       {allowImages && (
@@ -43,18 +43,18 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
           />
           <Button
             type="text"
-            icon={<PictureOutlined />}
+            icon={<PlusOutlined />}
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isStreaming}
             size="small"
             style={{
-              minWidth: "auto",
-              padding: "4px",
-              height: 32,
-              width: 32,
+              minWidth: 36,
+              padding: "0 8px",
+              height: 36,
+              borderRadius: 18,
               color: token.colorTextSecondary,
             }}
-            title="Add images"
+            title="Add attachments"
           />
         </>
       )}
@@ -67,10 +67,10 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
           disabled={disabled || isStreaming}
           size="small"
           style={{
-            minWidth: "auto",
-            padding: "4px",
-            height: 32,
-            width: 32,
+            minWidth: 36,
+            padding: "0 8px",
+            height: 36,
+            borderRadius: 18,
             color: token.colorTextSecondary,
           }}
           title="Reference workspace files (@)"

@@ -32,6 +32,13 @@ export const resources = {
             hooks: "Hooks",
             masking: "Masking",
           },
+          groups: {
+            ai: "AI",
+            toolsAndExtensions: "Tools & Extensions",
+            securityAndPrivacy: "Security",
+            monitoring: "Monitoring",
+            system: "System",
+          },
         },
         notifications: {
           deleteAllSuccess: "All sessions deleted (except pinned)",
@@ -324,7 +331,7 @@ export const resources = {
         promptsTab: {
           title: "System Prompt Enhancement",
           mermaidEnhancement: "Mermaid Enhancement",
-          todoListGeneration: "TODO List Generation",
+          taskListRules: "Shared Task Rules",
           copilotAskUserBeforeFinish: "Copilot ask_user Before Finish",
           switchOn: "ON",
           switchOff: "OFF",
@@ -938,6 +945,13 @@ export const resources = {
             hooks: "Hooks",
             masking: "脱敏",
           },
+          groups: {
+            ai: "AI",
+            toolsAndExtensions: "工具与扩展",
+            securityAndPrivacy: "安全",
+            monitoring: "监控",
+            system: "系统",
+          },
         },
         notifications: {
           deleteAllSuccess: "已删除所有会话（置顶除外）",
@@ -1218,7 +1232,7 @@ export const resources = {
         promptsTab: {
           title: "系统提示增强",
           mermaidEnhancement: "Mermaid 增强",
-          todoListGeneration: "TODO 列表生成",
+          taskListRules: "共享任务规则",
           copilotAskUserBeforeFinish: "Copilot 结束前 ask_user",
           switchOn: "开",
           switchOff: "关",

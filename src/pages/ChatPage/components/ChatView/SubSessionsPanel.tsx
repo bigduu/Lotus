@@ -1,11 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
-import { Button, Card, Flex, Tag, Typography, theme } from "antd";
+import { Button, Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
 
 import { useAppStore } from "../../store";
 import { useActiveModel } from "../../hooks/useActiveModel";
 import { agentClient } from "../../services/AgentService";
 import { openSession } from "../../utils/openSession";
+import { toolService } from "../../../../services/tool/ToolService";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -81,6 +82,8 @@ export interface SubSessionsPanelProps {
   parentSessionId: string;
 }
 
+type SubSessionRetryMode = "regenerate" | "error_retry";
+
 export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   parentSessionId,
 }) => {
@@ -90,6 +93,9 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
     () => readCollapsedState(parentSessionId) ?? false,
   );
   const [retryingChildId, setRetryingChildId] = useState<string | null>(null);
+  const [continuingChildId, setContinuingChildId] = useState<string | null>(
+    null,
+  );
   const [deletingChildId, setDeletingChildId] = useState<string | null>(null);
 
   const subSessionsByParent = useAppStore((s) => s.subSessionsByParent);
@@ -211,7 +217,10 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   }, []);
 
   const runChildSession = useCallback(
-    async (childSessionId: string) => {
+    async (
+      childSessionId: string,
+      retryMode: SubSessionRetryMode = "regenerate",
+    ) => {
       if (!activeModel) {
         upsertSubSessionProgress(parentSessionId, childSessionId, {
           status: "error",
@@ -230,10 +239,14 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
       setSessionProcessing(childSessionId, true);
 
       try {
+        const truncateMode =
+          retryMode === "error_retry" ? "error_retry" : "after_last_user";
         await agentClient.truncateSessionMessages(childSessionId, {
-          mode: "after_last_user",
+          mode: truncateMode,
         });
-        await loadChatHistory(childSessionId, { mode: "replace" });
+        if (retryMode === "regenerate") {
+          await loadChatHistory(childSessionId, { mode: "replace" });
+        }
 
         const executeResult = await agentClient.execute(
           childSessionId,
@@ -276,6 +289,92 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
       refreshChats,
       setSessionProcessing,
       toErrorMessage,
+      upsertSubSessionProgress,
+    ],
+  );
+
+  const continueChildSession = useCallback(
+    async (childSessionId: string) => {
+      const promptFn =
+        typeof window !== "undefined" ? window.prompt.bind(window) : null;
+      if (!promptFn) return;
+
+      const followUp = promptFn(
+        "Send a follow-up message to this child session:",
+        "Continue from where you left off.",
+      );
+      if (followUp === null) return;
+
+      const message = followUp.trim();
+      if (!message) {
+        upsertSubSessionProgress(parentSessionId, childSessionId, {
+          status: "error",
+          error: "Follow-up message cannot be empty.",
+          lastEventAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      setContinuingChildId(childSessionId);
+      upsertSubSessionProgress(parentSessionId, childSessionId, {
+        status: "running",
+        error: undefined,
+        lastEventAt: new Date().toISOString(),
+      });
+      setSessionProcessing(childSessionId, true);
+
+      try {
+        const executeResult = await toolService.executeTool({
+          tool_name: "sub_session_manager",
+          session_id: parentSessionId,
+          parameters: [
+            { name: "action", value: "send_message" },
+            { name: "child_session_id", value: childSessionId },
+            { name: "message", value: message },
+            { name: "auto_run", value: "true" },
+          ],
+        });
+
+        if (!executeResult.success) {
+          throw new Error(executeResult.result || "Follow-up failed");
+        }
+
+        let optimisticStatus = "running";
+        try {
+          const payload = JSON.parse(executeResult.result) as {
+            status?: string;
+          };
+          if (payload.status === "pending") {
+            optimisticStatus = "pending";
+          }
+        } catch {
+          optimisticStatus = "running";
+        }
+
+        upsertSubSessionProgress(parentSessionId, childSessionId, {
+          status: optimisticStatus,
+          error: undefined,
+          lastEventAt: new Date().toISOString(),
+        });
+        await refreshChats();
+      } catch (error) {
+        setSessionProcessing(childSessionId, false);
+        upsertSubSessionProgress(parentSessionId, childSessionId, {
+          status: "error",
+          error:
+            error instanceof Error && error.message.trim()
+              ? error.message
+              : "Failed to continue child session",
+          lastEventAt: new Date().toISOString(),
+        });
+      } finally {
+        setContinuingChildId((prev) => (prev === childSessionId ? null : prev));
+      }
+    },
+    [
+      parentSessionId,
+      refreshChats,
+      setSessionProcessing,
       upsertSubSessionProgress,
     ],
   );
@@ -332,8 +431,9 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
             const status = normalizeSubSessionStatus(it.status);
             const isRunning = status === "running";
             const isRetrying = retryingChildId === it.childSessionId;
+            const isContinuing = continuingChildId === it.childSessionId;
             const isDeleting = deletingChildId === it.childSessionId;
-            const isBusy = isRetrying || isDeleting;
+            const isBusy = isRetrying || isContinuing || isDeleting;
 
             return (
               <Flex
@@ -407,15 +507,46 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                   </Button>
                   <Button
                     size="small"
-                    loading={isRetrying}
-                    disabled={isDeleting || isRunning}
-                    data-testid={`sub-session-retry-${it.childSessionId}`}
+                    loading={isContinuing}
+                    disabled={isDeleting || isRetrying || isRunning}
+                    data-testid={`sub-session-continue-${it.childSessionId}`}
                     onClick={() => {
-                      void runChildSession(it.childSessionId);
+                      void continueChildSession(it.childSessionId);
                     }}
                   >
-                    Retry
+                    Continue
                   </Button>
+                  <Dropdown
+                    trigger={["click"]}
+                    menu={{
+                      items: [
+                        {
+                          key: "regenerate",
+                          label: "Regenerate response",
+                        },
+                        {
+                          key: "error_retry",
+                          label: "Retry failed request",
+                        },
+                      ],
+                      onClick: ({ key }) => {
+                        void runChildSession(
+                          it.childSessionId,
+                          key as SubSessionRetryMode,
+                        );
+                      },
+                    }}
+                    disabled={isDeleting || isRunning || isContinuing}
+                  >
+                    <Button
+                      size="small"
+                      loading={isRetrying}
+                      disabled={isDeleting || isRunning || isContinuing}
+                      data-testid={`sub-session-retry-${it.childSessionId}`}
+                    >
+                      Retry
+                    </Button>
+                  </Dropdown>
                   {typeof it.pinned === "boolean" ? (
                     <Button
                       size="small"

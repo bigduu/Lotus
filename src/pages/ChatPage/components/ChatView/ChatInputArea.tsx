@@ -14,6 +14,7 @@ type ChatInputAreaProps = {
   onWorkflowDraftChange: (draft: WorkflowDraft | null) => void;
   showMessagesView: boolean;
   sessionDiffSummary: SessionDiffSummary | null;
+  contextUsageIndicator?: React.ReactNode;
 };
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -23,6 +24,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   onWorkflowDraftChange,
   showMessagesView,
   sessionDiffSummary,
+  contextUsageIndicator,
 }) => {
   return (
     <Flex
@@ -34,9 +36,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <div
         style={{
           width: "100%",
-          maxWidth,
+          maxWidth: showMessagesView ? "clamp(720px, 68vw, 1240px)" : maxWidth,
           margin: showMessagesView ? "0 auto" : undefined,
           position: "relative",
+          paddingBottom: showMessagesView ? 12 : 0,
         }}
       >
         {showMessagesView && (
@@ -49,6 +52,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           sessionId={sessionId}
           isCenteredLayout={isCenteredLayout}
           onWorkflowDraftChange={onWorkflowDraftChange}
+          statusIndicator={contextUsageIndicator}
         />
       </div>
     </Flex>

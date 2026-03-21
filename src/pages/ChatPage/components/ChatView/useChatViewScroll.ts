@@ -192,6 +192,7 @@ export const useChatViewScroll = ({
   }, [renderableMessages.length, scrollToBottom]);
 
   // 当消息数量变化或切换聊天时，主动检查是否应该显示滚动按钮
+  // 使用 rAF + 延时确保在滚动锚点恢复和 DOM 布局完成后再检查
   useEffect(() => {
     const el = messagesListRef.current;
     if (!el) {
@@ -199,21 +200,37 @@ export const useChatViewScroll = ({
       setShowScrollToTop(false);
       return;
     }
-    // 没有消息时不显示按钮
     if (renderableMessages.length === 0) {
       setShowScrollToBottom(false);
       setShowScrollToTop(false);
       return;
     }
-    // 检查当前滚动位置
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    const scrollTop = el.scrollTop;
-    const bottomThreshold = 150;
-    const topThreshold = 150;
-    const atBottom = distanceFromBottom < bottomThreshold;
-    const atTop = scrollTop < topThreshold;
-    setShowScrollToBottom(!atBottom);
-    setShowScrollToTop(!atTop && renderableMessages.length > 3);
+
+    const checkPosition = () => {
+      const scrollEl = messagesListRef.current;
+      if (!scrollEl) return;
+      const distanceFromBottom =
+        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+      const scrollTop = scrollEl.scrollTop;
+      const bottomThreshold = 150;
+      const topThreshold = 150;
+      const atBottom = distanceFromBottom < bottomThreshold;
+      const atTop = scrollTop < topThreshold;
+      setShowScrollToBottom(!atBottom);
+      setShowScrollToTop(!atTop && renderableMessages.length > 3);
+    };
+
+    // Check immediately
+    checkPosition();
+
+    // Re-check after layout settles (scroll anchor restore is async)
+    let rafId = requestAnimationFrame(() => {
+      checkPosition();
+      // One more delayed check for async scroll restores
+      rafId = requestAnimationFrame(checkPosition);
+    });
+
+    return () => cancelAnimationFrame(rafId);
   }, [renderableMessages.length, currentSessionId]);
 
   // Reset first load flag when switching chats

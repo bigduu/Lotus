@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, Typography, Space, Button, theme } from "antd";
+import { Typography, Space, Button, theme } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -20,16 +20,14 @@ const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
   const cleanDisplayText = displayText.replace(/^> |^>/gm, "");
 
   return (
-    <Card
-      size="small"
+    <div
       style={{
-        marginBottom: token.marginXS,
-        background: token.colorBgElevated,
-        borderRadius: token.borderRadiusSM,
-        boxShadow: token.boxShadowSecondary,
-        border: `1px solid ${token.colorPrimaryBorderHover}`,
+        marginBottom: token.marginSM,
+        background: token.colorFillSecondary,
+        borderRadius: 999,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        padding: `${token.paddingXXS}px ${token.paddingSM}px`,
       }}
-      bodyStyle={{ padding: `${token.paddingXS}px ${token.paddingSM}px` }}
     >
       <Space
         style={{
@@ -40,27 +38,20 @@ const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
       >
         <div style={{ flex: 1 }}>
           <Text
-            strong
             style={{ fontSize: token.fontSizeSM, color: token.colorPrimary }}
           >
-            Referencing:
+            Referencing
           </Text>
-          <div
+          <Text
             style={{
               fontSize: token.fontSizeSM,
-              color: token.colorText,
-              borderLeft: `3px solid ${token.colorPrimary}`,
-              paddingLeft: token.paddingSM,
-              marginTop: token.marginXXS,
-              marginBottom: token.marginXXS,
-              paddingTop: token.paddingXXS,
-              paddingBottom: token.paddingXXS,
-              background: `linear-gradient(to right, ${token.colorPrimaryBg}10, transparent)`,
-              borderRadius: `0 ${token.borderRadiusSM}px ${token.borderRadiusSM}px 0`,
+              color: token.colorTextSecondary,
+              marginLeft: token.marginSM,
             }}
+            ellipsis
           >
             {cleanDisplayText}
-          </div>
+          </Text>
         </div>
         <Button
           type="text"
@@ -70,11 +61,11 @@ const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
           style={{
             marginLeft: token.marginXS,
             color: token.colorTextSecondary,
-            marginTop: -token.marginXXS,
+            borderRadius: 999,
           }}
         />
       </Space>
-    </Card>
+    </div>
   );
 };
 

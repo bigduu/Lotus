@@ -1,5 +1,5 @@
 import React from "react";
-import { Button, Card, Flex, Typography } from "antd";
+import { Button, Flex, Typography } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import type { ImageFile } from "../../utils/imageUtils";
 
@@ -23,10 +23,14 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
   if (!allowImages || images.length === 0) return null;
 
   return (
-    <Card
-      size="small"
-      styles={{ body: { padding: token.paddingXS } }}
-      style={{ marginBottom: token.marginXS }}
+    <div
+      style={{
+        marginBottom: token.marginSM,
+        padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+        borderRadius: 999,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        background: token.colorFillSecondary,
+      }}
     >
       <Flex align="center" wrap="wrap" gap={token.marginXS}>
         <Text
@@ -42,7 +46,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
               position: "relative",
               width: 32,
               height: 32,
-              borderRadius: token.borderRadiusSM,
+              borderRadius: 999,
               overflow: "hidden",
               border: `1px solid ${token.colorBorderSecondary}`,
               cursor: "pointer",
@@ -74,12 +78,12 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
             marginLeft: "auto",
             minWidth: "auto",
             padding: "0 4px",
-            height: 20,
+            height: 24,
           }}
           title="Clear all images"
         />
       </Flex>
-    </Card>
+    </div>
   );
 };
 

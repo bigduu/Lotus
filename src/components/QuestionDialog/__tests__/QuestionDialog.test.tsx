@@ -25,6 +25,7 @@ vi.mock("../../../services/api", () => ({
 describe("QuestionDialog", () => {
   const mockSetSessionProcessing = vi.fn();
   const mockIsSessionProcessing = vi.fn();
+  const mockSetPendingQuestionRespond = vi.fn();
   const defaultProps = {
     sessionId: "test-session-1",
   };
@@ -50,6 +51,7 @@ describe("QuestionDialog", () => {
         return selector({
           setSessionProcessing: mockSetSessionProcessing,
           isSessionProcessing: mockIsSessionProcessing,
+          setPendingQuestionRespond: mockSetPendingQuestionRespond,
           chats: [],
           inputStates: {},
           // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
@@ -60,6 +62,7 @@ describe("QuestionDialog", () => {
       return {
         setSessionProcessing: mockSetSessionProcessing,
         isSessionProcessing: mockIsSessionProcessing,
+        setPendingQuestionRespond: mockSetPendingQuestionRespond,
         chats: [],
         inputStates: {},
         selectedModel: "gpt-5-ultra-expensive",
@@ -148,7 +151,7 @@ describe("QuestionDialog", () => {
     fireEvent.click(optionA);
 
     // Submit
-    const submitButton = screen.getByText("Confirm Selection");
+    const submitButton = screen.getByText("Confirm");
     await act(async () => {
       fireEvent.click(submitButton);
     });
@@ -193,7 +196,7 @@ describe("QuestionDialog", () => {
 
     fireEvent.click(screen.getByText("A"));
     await act(async () => {
-      fireEvent.click(screen.getByText("Confirm Selection"));
+      fireEvent.click(screen.getByText("Confirm"));
     });
 
     await waitFor(() => {
@@ -254,7 +257,7 @@ describe("QuestionDialog", () => {
     const optionA = screen.getByText("A");
     fireEvent.click(optionA);
 
-    const submitButton = screen.getByText("Confirm Selection");
+    const submitButton = screen.getByText("Confirm");
     await act(async () => {
       fireEvent.click(submitButton);
     });
@@ -341,7 +344,7 @@ describe("QuestionDialog", () => {
     const optionA = screen.getByText("A");
     fireEvent.click(optionA);
 
-    const submitButton = screen.getByText("Confirm Selection");
+    const submitButton = screen.getByText("Confirm");
     await act(async () => {
       fireEvent.click(submitButton);
     });
@@ -402,10 +405,6 @@ describe("QuestionDialog", () => {
       tool_call_id: "tool-1",
     });
 
-    (agentApiClient.post as any).mockResolvedValueOnce({
-      auto_resume_status: "started",
-    });
-
     await act(async () => {
       render(<QuestionDialog {...defaultProps} />);
     });
@@ -413,34 +412,39 @@ describe("QuestionDialog", () => {
     // Wait for loading to complete and question to appear
     await waitFor(
       () => {
-        expect(screen.getByText("Other (custom input)")).toBeInTheDocument();
+        expect(
+          screen.getByText("Other (type below)"),
+        ).toBeInTheDocument();
       },
       { timeout: 3000 },
     );
 
-    // Select custom option
-    const customOption = screen.getByText("Other (custom input)");
+    // Select custom option — this should activate respond mode via the store
+    const customOption = screen.getByText(
+      "Other (type below)",
+    );
     fireEvent.click(customOption);
 
-    // Enter custom text
-    const textArea = screen.getByPlaceholderText("Enter your answer...");
-    fireEvent.change(textArea, { target: { value: "My custom response" } });
-
-    // Submit
-    const submitButton = screen.getByText("Confirm Selection");
-    await act(async () => {
-      fireEvent.click(submitButton);
+    // Verify that setPendingQuestionRespond was called with the correct payload
+    expect(mockSetPendingQuestionRespond).toHaveBeenCalledWith({
+      sessionId: "test-session-1",
+      question: "Test?",
     });
 
-    await waitFor(() => {
-      expect(agentApiClient.post).toHaveBeenCalledWith(
-        "respond/test-session-1",
-        {
-          response: "My custom response",
-          model: "gpt-5-mini",
-          reasoning_effort: "medium",
-        },
-      );
-    });
+    // In custom mode, no submit button is shown (user submits via InputContainer)
+    expect(screen.queryByText("Confirm")).not.toBeInTheDocument();
+
+    // A hint should appear guiding the user to the input box below
+    expect(
+      screen.getByText(
+        /Type your answer in the input box below/,
+      ),
+    ).toBeInTheDocument();
+
+    // Switching back to a predefined option should clear respond mode
+    const optionA = screen.getByText("A");
+    fireEvent.click(optionA);
+
+    expect(mockSetPendingQuestionRespond).toHaveBeenCalledWith(null);
   });
 });

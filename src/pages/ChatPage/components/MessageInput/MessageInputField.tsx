@@ -57,7 +57,7 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
             left: 0,
             right: 0,
             bottom: 0,
-            padding: "8px 0",
+            padding: "4px 2px",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             overflowWrap: "anywhere",
@@ -106,14 +106,14 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
         onPaste={onPaste}
         placeholder={placeholder}
         disabled={disabled}
-        autoSize={{ minRows: 2, maxRows: 6 }}
+        autoSize={{ minRows: 3, maxRows: 8 }}
         variant="borderless"
         onScroll={onScrollSync}
         style={{
           resize: "none",
           flex: 1,
           fontSize: token.fontSize,
-          padding: "8px 0",
+          padding: "4px 2px",
           lineHeight: "1.5",
           border: "none",
           outline: "none",

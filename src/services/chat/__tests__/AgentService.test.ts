@@ -149,6 +149,30 @@ describe("AgentClient", () => {
     );
   });
 
+  it("marks session for error retry without truncation", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        success: true,
+        session_id: "session-1",
+        messages_removed: 0,
+        message_count: 12,
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    await client.truncateSessionMessages("session-1", {
+      mode: "error_retry",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session-1/messages/truncate"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"mode":"error_retry"'),
+      }),
+    );
+  });
+
   it("cleans up sessions with mode and keep_pinned", async () => {
     fetchMock.mockResolvedValue(mockFetchResponse({ success: true }));
     const client = AgentClient.getInstance();
@@ -226,7 +250,9 @@ describe("AgentClient", () => {
   it("calls stop generation and history endpoints", async () => {
     fetchMock
       .mockResolvedValueOnce(mockFetchResponse({}))
-      .mockResolvedValueOnce(mockFetchResponse({ session_id: "session-1", messages: [] }));
+      .mockResolvedValueOnce(
+        mockFetchResponse({ session_id: "session-1", messages: [] }),
+      );
     const client = AgentClient.getInstance();
 
     await client.stopGeneration("session-1");
@@ -251,7 +277,9 @@ describe("AgentClient", () => {
   describe("Model Requirement", () => {
     it("keeps model-related API types strict", () => {
       expectTypeOf<ChatRequest["model"]>().toEqualTypeOf<string>();
-      expectTypeOf<Parameters<AgentClient["execute"]>[1]>().toEqualTypeOf<string>();
+      expectTypeOf<
+        Parameters<AgentClient["execute"]>[1]
+      >().toEqualTypeOf<string>();
       expectTypeOf<
         Parameters<AgentClient["sendMessage"]>[0]["model"]
       >().toEqualTypeOf<string>();
@@ -401,11 +429,11 @@ describe("AgentClient", () => {
     expect(onToolError).toHaveBeenCalledWith("call-1", "Execution failed");
   });
 
-  it("dispatches todo_list_updated events", () => {
+  it("dispatches task_list_updated events", () => {
     const client = AgentClient.getInstance();
-    const onTodoListUpdated = vi.fn();
+    const onTaskListUpdated = vi.fn();
 
-    const todoList = {
+    const taskList = {
       session_id: "s1",
       title: "Test List",
       items: [],
@@ -414,23 +442,23 @@ describe("AgentClient", () => {
     };
 
     (client as any).handleEvent(
-      { type: "todo_list_updated", todo_list: todoList },
-      { onTodoListUpdated },
+      { type: "task_list_updated", task_list: taskList },
+      { onTaskListUpdated },
     );
 
-    expect(onTodoListUpdated).toHaveBeenCalledWith(todoList);
+    expect(onTaskListUpdated).toHaveBeenCalledWith(taskList);
   });
 
-  it("does not dispatch todo_list_updated when todo_list is missing", () => {
+  it("does not dispatch task_list_updated when task_list is missing", () => {
     const client = AgentClient.getInstance();
-    const onTodoListUpdated = vi.fn();
+    const onTaskListUpdated = vi.fn();
 
     (client as any).handleEvent(
-      { type: "todo_list_updated" },
-      { onTodoListUpdated },
+      { type: "task_list_updated" },
+      { onTaskListUpdated },
     );
 
-    expect(onTodoListUpdated).not.toHaveBeenCalled();
+    expect(onTaskListUpdated).not.toHaveBeenCalled();
   });
 
   it("dispatches complete events", () => {
@@ -495,10 +523,7 @@ describe("AgentClient", () => {
       .spyOn(console, "warn")
       .mockImplementation(() => {});
 
-    (client as any).handleEvent(
-      { type: "unknown_event" as any },
-      {},
-    );
+    (client as any).handleEvent({ type: "unknown_event" as any }, {});
 
     expect(consoleWarnSpy).toHaveBeenCalledWith(
       "Unknown event type:",
@@ -508,12 +533,12 @@ describe("AgentClient", () => {
     consoleWarnSpy.mockRestore();
   });
 
-  it("dispatches todo/sub-session/context events to handlers", () => {
+  it("dispatches task/sub-session/context events to handlers", () => {
     const client = AgentClient.getInstance();
     const handlers = {
-      onTodoListItemProgress: vi.fn(),
-      onTodoEvaluationStarted: vi.fn(),
-      onTodoEvaluationCompleted: vi.fn(),
+      onTaskListItemProgress: vi.fn(),
+      onTaskEvaluationStarted: vi.fn(),
+      onTaskEvaluationCompleted: vi.fn(),
       onTokenBudgetUpdated: vi.fn(),
       onContextSummarized: vi.fn(),
       onSubSessionStarted: vi.fn(),
@@ -525,7 +550,7 @@ describe("AgentClient", () => {
 
     (client as any).handleEvent(
       {
-        type: "todo_list_item_progress",
+        type: "task_list_item_progress",
         session_id: "s1",
         item_id: "item1",
         status: "in_progress",
@@ -535,12 +560,12 @@ describe("AgentClient", () => {
       handlers,
     );
     (client as any).handleEvent(
-      { type: "todo_evaluation_started", session_id: "s1", items_count: 5 },
+      { type: "task_evaluation_started", session_id: "s1", items_count: 5 },
       handlers,
     );
     (client as any).handleEvent(
       {
-        type: "todo_evaluation_completed",
+        type: "task_evaluation_completed",
         session_id: "s1",
         updates_count: 2,
         reasoning: "done",
@@ -611,9 +636,9 @@ describe("AgentClient", () => {
     );
     (client as any).handleEvent({ type: "error", message: "boom" }, handlers);
 
-    expect(handlers.onTodoListItemProgress).toHaveBeenCalledTimes(1);
-    expect(handlers.onTodoEvaluationStarted).toHaveBeenCalledWith("s1", 5);
-    expect(handlers.onTodoEvaluationCompleted).toHaveBeenCalledWith(
+    expect(handlers.onTaskListItemProgress).toHaveBeenCalledTimes(1);
+    expect(handlers.onTaskEvaluationStarted).toHaveBeenCalledWith("s1", 5);
+    expect(handlers.onTaskEvaluationCompleted).toHaveBeenCalledWith(
       "s1",
       2,
       "done",
@@ -624,7 +649,11 @@ describe("AgentClient", () => {
       messages_summarized: 3,
       tokens_saved: 20,
     });
-    expect(handlers.onSubSessionStarted).toHaveBeenCalledWith("p", "c", "child");
+    expect(handlers.onSubSessionStarted).toHaveBeenCalledWith(
+      "p",
+      "c",
+      "child",
+    );
     expect(handlers.onSubSessionEvent).toHaveBeenCalledTimes(1);
     expect(handlers.onSubSessionHeartbeat).toHaveBeenCalledTimes(1);
     expect(handlers.onSubSessionCompleted).toHaveBeenCalledWith(
@@ -636,23 +665,23 @@ describe("AgentClient", () => {
     expect(handlers.onError).toHaveBeenCalledWith("boom");
   });
 
-  it("ignores invalid todo progress status values", () => {
+  it("ignores invalid task progress status values", () => {
     const client = AgentClient.getInstance();
-    const onTodoListItemProgress = vi.fn();
+    const onTaskListItemProgress = vi.fn();
 
     (client as any).handleEvent(
       {
-        type: "todo_list_item_progress",
+        type: "task_list_item_progress",
         session_id: "s1",
         item_id: "item1",
         status: "not-a-valid-status",
         tool_calls_count: 2,
         version: 1,
       },
-      { onTodoListItemProgress },
+      { onTaskListItemProgress },
     );
 
-    expect(onTodoListItemProgress).not.toHaveBeenCalled();
+    expect(onTaskListItemProgress).not.toHaveBeenCalled();
   });
 
   it("subscribeToEvents parses SSE token and DONE marker", async () => {

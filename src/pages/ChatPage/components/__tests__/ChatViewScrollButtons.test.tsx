@@ -97,12 +97,18 @@ describe("ChatView scroll button group", () => {
     mockStoreState.updateSession.mockReset();
   });
 
-  it("renders a FloatButton.Group with the expected fixed position", () => {
+  it("renders scroll button container with the expected absolute position", () => {
     const { container } = render(<ChatView />);
-    const group = container.querySelector(".ant-float-btn-group");
+    // The scroll buttons are now in a plain div with position: absolute
+    // Look for a container that has FloatButton children
+    const floatBtns = container.querySelectorAll(".ant-float-btn");
+    expect(floatBtns.length).toBeGreaterThan(0);
 
-    expect(group).not.toBeNull();
-    expect((group as HTMLElement).style.bottom).toBe("180px");
-    expect((group as HTMLElement).style.right).toBe("32px");
+    // The parent div should have absolute positioning
+    const wrapper = floatBtns[0].parentElement;
+    expect(wrapper).not.toBeNull();
+    expect((wrapper as HTMLElement).style.position).toBe("absolute");
+    expect((wrapper as HTMLElement).style.bottom).toBe("180px");
+    expect((wrapper as HTMLElement).style.right).toBe("32px");
   });
 });

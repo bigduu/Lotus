@@ -191,8 +191,8 @@ describe("chatSessionSlice history mapping", () => {
               id: "tool-call-1",
               type: "function",
               function: {
-                name: "TodoWrite",
-                arguments: '{"todos":[]}',
+                name: "Task",
+                arguments: '{"tasks":[]}',
               },
             },
           ],
@@ -201,7 +201,7 @@ describe("chatSessionSlice history mapping", () => {
         {
           id: "tool-1",
           role: "tool",
-          content: "Todo list updated",
+          content: "Task list updated",
           tool_call_id: "tool-call-1",
           created_at: "2026-03-15T00:00:01Z",
         },
@@ -225,6 +225,64 @@ describe("chatSessionSlice history mapping", () => {
       role: "assistant",
       type: "tool_result",
       toolCallId: "tool-call-1",
+      isError: false,
+    });
+  });
+
+  it("preserves failed tool status from history", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          tool_calls: [
+            {
+              id: "tool-call-err",
+              type: "function",
+              function: {
+                name: "Edit",
+                arguments: '{"file_path":"/tmp/demo.ts","patch":"..."}',
+              },
+            },
+          ],
+          created_at: "2026-03-15T00:00:00Z",
+        },
+        {
+          id: "tool-err",
+          role: "tool",
+          content: "Error: Invalid arguments",
+          tool_call_id: "tool-call-err",
+          tool_success: false,
+          created_at: "2026-03-15T00:00:01Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "replace" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated?.messages[0]).toMatchObject({
+      role: "assistant",
+      type: "tool_call",
+    });
+    expect(updated?.messages[1]).toMatchObject({
+      role: "assistant",
+      type: "tool_result",
+      toolCallId: "tool-call-err",
+      isError: true,
     });
   });
 

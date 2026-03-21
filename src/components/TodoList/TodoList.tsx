@@ -30,7 +30,7 @@ import {
 const { Text } = Typography;
 
 // Type definitions (matching backend)
-export interface TodoItem {
+export interface TaskItem {
   id: string;
   description: string;
   status: "pending" | "in_progress" | "completed" | "blocked";
@@ -39,10 +39,10 @@ export interface TodoItem {
   tool_calls_count?: number;
 }
 
-export interface TodoListData {
+export interface TaskListData {
   session_id: string;
   title: string;
-  items: TodoItem[];
+  items: TaskItem[];
   progress: {
     completed: number;
     total: number;
@@ -50,14 +50,14 @@ export interface TodoListData {
   };
 }
 
-interface TodoListProps {
+interface TaskListPanelProps {
   sessionId: string;
   initialCollapsed?: boolean;
 }
 
 // Status configuration
 const statusConfig: Record<
-  TodoItem["status"],
+  TaskItem["status"],
   { icon: React.ReactNode; color: string; text: string; tagColor: string }
 > = {
   pending: {
@@ -86,17 +86,26 @@ const statusConfig: Record<
   },
 };
 
-export const TodoList: React.FC<TodoListProps> = ({
+export const TodoList: React.FC<TaskListPanelProps> = ({
   sessionId,
   initialCollapsed = true,
 }) => {
   const { token } = theme.useToken();
+  const sessionSummary = useAppStore((state) =>
+    state.chats.find((chat) => chat.id === sessionId),
+  );
+  const sharedSessionId =
+    sessionSummary?.kind === "child"
+      ? sessionSummary.parentSessionId ||
+        sessionSummary.rootSessionId ||
+        sessionId
+      : sessionId;
 
   // Get from Zustand store (real-time updates via useAgentEventSubscription)
-  const todoListData = useAppStore((state) => state.todoLists[sessionId]);
-  const activeItemId = useAppStore((state) => state.activeItems[sessionId]);
+  const taskListData = useAppStore((state) => state.taskLists[sharedSessionId]);
+  const activeItemId = useAppStore((state) => state.activeItems[sharedSessionId]);
   const evaluationState = useAppStore(
-    (state) => state.evaluationStates[sessionId],
+    (state) => state.evaluationStates[sharedSessionId],
   );
 
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
@@ -107,21 +116,21 @@ export const TodoList: React.FC<TodoListProps> = ({
   const evaluationReasoning = evaluationState?.reasoning || null;
 
   // Transform store data to display format
-  const todoList: TodoListData | null = todoListData
+  const taskList: TaskListData | null = taskListData
     ? {
-        session_id: todoListData.session_id,
-        title: todoListData.title,
-        items: todoListData.items,
+        session_id: taskListData.session_id,
+        title: taskListData.title,
+        items: taskListData.items,
         progress: {
-          completed: todoListData.items.filter((i) => i.status === "completed")
+          completed: taskListData.items.filter((i) => i.status === "completed")
             .length,
-          total: todoListData.items.length,
+          total: taskListData.items.length,
           percentage:
-            todoListData.items.length > 0
+            taskListData.items.length > 0
               ? Math.round(
-                  (todoListData.items.filter((i) => i.status === "completed")
+                  (taskListData.items.filter((i) => i.status === "completed")
                     .length /
-                    todoListData.items.length) *
+                    taskListData.items.length) *
                     100,
                 )
               : 0,
@@ -129,8 +138,8 @@ export const TodoList: React.FC<TodoListProps> = ({
       }
     : null;
 
-  // If no todo list, don't render anything
-  if (!todoList) {
+  // If no task list, don't render anything
+  if (!taskList) {
     return null;
   }
 
@@ -150,7 +159,7 @@ export const TodoList: React.FC<TodoListProps> = ({
     }
   };
 
-  const { title, items, progress } = todoList;
+  const { title, items, progress } = taskList;
   const isCompleted = progress.percentage === 100;
 
   return (

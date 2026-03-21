@@ -67,9 +67,7 @@ describe("ToolService", () => {
     });
 
     it("should parse tool command with description", () => {
-      const result = toolService.parseUserCommand(
-        "/my_tool do something cool",
-      );
+      const result = toolService.parseUserCommand("/my_tool do something cool");
 
       expect(result).toEqual({
         tool_name: "my_tool",
@@ -194,8 +192,10 @@ describe("ToolService", () => {
   describe("executeTool", () => {
     it("should execute tool successfully", async () => {
       const mockResult = {
-        output: "success",
-        metadata: { duration: 100 },
+        tool_name: "test_tool",
+        success: true,
+        result: "success",
+        display_preference: "Default",
       };
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         result: JSON.stringify(mockResult),
@@ -213,7 +213,12 @@ describe("ToolService", () => {
     });
 
     it("should execute tool with session_id", async () => {
-      const mockResult = { output: "done" };
+      const mockResult = {
+        tool_name: "test_tool",
+        success: true,
+        result: "done",
+        display_preference: "Default",
+      };
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         result: JSON.stringify(mockResult),
       });
@@ -232,12 +237,14 @@ describe("ToolService", () => {
 
     it("should handle complex result JSON", async () => {
       const mockResult = {
-        output: {
+        tool_name: "complex_tool",
+        success: false,
+        result: JSON.stringify({
           nested: {
             data: [1, 2, 3],
           },
-        },
-        status: "completed",
+        }),
+        display_preference: "Collapsible",
       };
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         result: JSON.stringify(mockResult),
@@ -283,7 +290,12 @@ describe("ToolService", () => {
 
     it("should log execution attempt", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({
-        result: JSON.stringify({ output: "ok" }),
+        result: JSON.stringify({
+          tool_name: "logged_tool",
+          success: true,
+          result: "ok",
+          display_preference: "Default",
+        }),
       });
 
       const request = {
@@ -300,7 +312,12 @@ describe("ToolService", () => {
     });
 
     it("should log parsed result", async () => {
-      const mockResult = { output: "test" };
+      const mockResult = {
+        tool_name: "test",
+        success: true,
+        result: "test",
+        display_preference: "Default",
+      };
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         result: JSON.stringify(mockResult),
       });
@@ -336,7 +353,12 @@ describe("ToolService", () => {
     });
 
     it("should handle empty parameters array", async () => {
-      const mockResult = { success: true };
+      const mockResult = {
+        tool_name: "no_params",
+        success: true,
+        result: "",
+        display_preference: "Default",
+      };
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         result: JSON.stringify(mockResult),
       });
@@ -350,7 +372,12 @@ describe("ToolService", () => {
     });
 
     it("should handle multiple parameters", async () => {
-      const mockResult = { success: true };
+      const mockResult = {
+        tool_name: "multi_param",
+        success: true,
+        result: "",
+        display_preference: "Default",
+      };
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         result: JSON.stringify(mockResult),
       });

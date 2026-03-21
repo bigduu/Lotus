@@ -18,7 +18,8 @@ import { useProviderStore } from "./providerSlice";
 const AUTO_TITLE_KEY = "copilot_auto_generate_titles";
 const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
-const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
+const DEFAULT_SYSTEM_PROMPT_ID =
+  DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
 const DEFAULT_BASE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT?.content?.trim() || "";
 
 const safeRandomId = (): string => {
@@ -132,6 +133,7 @@ const mapHistoryMessagesToUi = (
       function: { name: string; arguments: string };
     }>;
     tool_call_id?: string;
+    tool_success?: boolean;
     reasoning?: string;
     created_at: string;
   }>,
@@ -273,6 +275,11 @@ const mapHistoryMessagesToUi = (
     if (msg.role === "tool") {
       const toolCallId = msg.tool_call_id || "unknown";
       const toolName = toolNameByCallId.get(toolCallId) || "unknown";
+      const inferredError =
+        msg.tool_success === false ||
+        (msg.tool_success == null &&
+          typeof msg.content === "string" &&
+          msg.content.trimStart().startsWith("Error:"));
       const toolResult: AssistantToolResultMessage = {
         role: "assistant",
         type: "tool_result",
@@ -285,7 +292,7 @@ const mapHistoryMessagesToUi = (
           result: msg.content || "",
           display_preference: "Default",
         },
-        isError: false,
+        isError: inferredError,
         isCompressed: Boolean(msg.compressed),
         compressedEventId: msg.compressed_by_event_id,
       };
@@ -676,12 +683,14 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           messageCount: history.messages.length,
           config: {
             ...(chat.config || {}),
-            compressionEvents: (history.compression_events || []).map((event) => ({
-              id: event.id,
-              createdAt: event.created_at,
-              messagesCompressed: event.messages_compressed,
-              segmentsRemoved: event.segments_removed,
-            })),
+            compressionEvents: (history.compression_events || []).map(
+              (event) => ({
+                id: event.id,
+                createdAt: event.created_at,
+                messagesCompressed: event.messages_compressed,
+                segmentsRemoved: event.segments_removed,
+              }),
+            ),
           },
         });
         return;

@@ -37,13 +37,14 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
         icon={<PlusOutlined />}
         onClick={onNewChat}
         block={!collapsed}
-        shape={collapsed ? "circle" : "default"}
+        shape="default"
         size={collapsed ? "large" : screens.xs ? "small" : "middle"}
         title={newChatLabel}
         aria-label={newChatLabel}
-        style={
-          collapsed ? { width: "44px", height: "44px", margin: "0 auto" } : {}
-        }
+        style={{
+          ...(collapsed ? { width: "44px", height: "44px", margin: "0 auto" } : {}),
+          borderRadius: token.borderRadiusLG,
+        }}
       >
         {!collapsed && newChatLabel}
       </Button>
@@ -53,13 +54,14 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
         icon={<SettingOutlined />}
         onClick={onOpenSettings}
         block={!collapsed}
-        shape={collapsed ? "circle" : "default"}
+        shape="default"
         size={collapsed ? "large" : screens.xs ? "small" : "middle"}
         title={settingsLabel}
         aria-label={settingsLabel}
-        style={
-          collapsed ? { width: "44px", height: "44px", margin: "0 auto" } : {}
-        }
+        style={{
+          ...(collapsed ? { width: "44px", height: "44px", margin: "0 auto" } : {}),
+          borderRadius: token.borderRadiusLG,
+        }}
       >
         {!collapsed && settingsLabel}
       </Button>

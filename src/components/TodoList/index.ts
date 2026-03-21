@@ -1,2 +1,2 @@
-export { TodoList, type TodoListData, type TodoItem } from "./TodoList";
+export { TodoList, type TaskListData, type TaskItem } from "./TodoList";
 export { default } from "./TodoList";

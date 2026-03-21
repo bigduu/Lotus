@@ -12,9 +12,9 @@ import {
   setMermaidEnhancementEnabled,
 } from "../mermaidUtils";
 import {
-  getTodoEnhancementPrompt,
-  setTodoEnhancementEnabled,
-} from "../todoEnhancementUtils";
+  getTaskEnhancementPrompt,
+  setTaskEnhancementEnabled,
+} from "../taskEnhancementUtils";
 import {
   getCopilotAskUserEnhancementPrompt,
   setCopilotAskUserEnhancementEnabled,
@@ -35,7 +35,7 @@ describe("systemPromptEnhancement", () => {
   beforeEach(() => {
     localStorage.clear();
     setMermaidEnhancementEnabled(false);
-    setTodoEnhancementEnabled(false);
+    setTaskEnhancementEnabled(false);
     setCopilotAskUserEnhancementEnabled(false);
   });
 
@@ -73,7 +73,7 @@ describe("systemPromptEnhancement", () => {
   it("builds enhancement text with user and system prompts in order", () => {
     setSystemPromptEnhancement("User enhancement");
     setMermaidEnhancementEnabled(true);
-    setTodoEnhancementEnabled(true);
+    setTaskEnhancementEnabled(true);
 
     expect(getSystemPromptEnhancementText()).toBe(
       [
@@ -81,7 +81,7 @@ describe("systemPromptEnhancement", () => {
         OPERATIONAL_GUIDANCE_PROMPT,
         "User enhancement",
         getMermaidEnhancementPrompt().trim(),
-        getTodoEnhancementPrompt().trim(),
+        getTaskEnhancementPrompt().trim(),
       ].join("\n\n"),
     );
   });
@@ -92,13 +92,13 @@ describe("systemPromptEnhancement", () => {
   });
 
   it("returns only enabled system enhancements when user text is empty", () => {
-    setTodoEnhancementEnabled(true);
+    setTaskEnhancementEnabled(true);
 
     expect(getSystemPromptEnhancementText()).toBe(
       [
         getOSInfoEnhancementPrompt().trim(),
         OPERATIONAL_GUIDANCE_PROMPT,
-        getTodoEnhancementPrompt().trim(),
+        getTaskEnhancementPrompt().trim(),
       ].join("\n\n"),
     );
   });
@@ -141,7 +141,7 @@ describe("systemPromptEnhancement", () => {
   it("OS info enhancement is always first in the pipeline", () => {
     setSystemPromptEnhancement("User enhancement");
     setMermaidEnhancementEnabled(true);
-    setTodoEnhancementEnabled(true);
+    setTaskEnhancementEnabled(true);
 
     const pipeline = getSystemPromptEnhancementPipeline();
 
@@ -153,7 +153,7 @@ describe("systemPromptEnhancement", () => {
   it("OS info enhancement is included even when all other enhancements are disabled", () => {
     setSystemPromptEnhancement("");
     setMermaidEnhancementEnabled(false);
-    setTodoEnhancementEnabled(false);
+    setTaskEnhancementEnabled(false);
 
     const pipeline = getSystemPromptEnhancementPipeline();
 
@@ -165,7 +165,7 @@ describe("systemPromptEnhancement", () => {
   it("builds enhancement text with OS info first, then user and system prompts", () => {
     setSystemPromptEnhancement("User enhancement");
     setMermaidEnhancementEnabled(true);
-    setTodoEnhancementEnabled(true);
+    setTaskEnhancementEnabled(true);
 
     const enhancementText = getSystemPromptEnhancementText();
     const expectedOrder = [
@@ -173,7 +173,7 @@ describe("systemPromptEnhancement", () => {
       OPERATIONAL_GUIDANCE_PROMPT,
       "User enhancement",
       getMermaidEnhancementPrompt().trim(),
-      getTodoEnhancementPrompt().trim(),
+      getTaskEnhancementPrompt().trim(),
     ].join("\n\n");
 
     expect(enhancementText).toBe(expectedOrder);

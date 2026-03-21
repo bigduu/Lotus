@@ -13,7 +13,7 @@ import {
 import { useAppStore } from "../../store";
 import { agentClient } from "../../services/AgentService";
 import {
-  isTodoListMessage,
+  isTaskListMessage,
   isUserFileReferenceMessage,
   type Message,
 } from "../../types/chat";
@@ -258,8 +258,8 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     );
   }
 
-  if (isTodoListMessage(message)) {
-    return <TodoListDisplay todoList={message.todoList} />;
+  if (isTaskListMessage(message)) {
+    return <TodoListDisplay taskList={message.taskList} />;
   }
 
   if (isUserFileReferenceMessage(message)) {

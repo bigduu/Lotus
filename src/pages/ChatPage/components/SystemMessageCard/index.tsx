@@ -1,4 +1,4 @@
-import React, { useCallback } from "react";
+import React, { memo, useCallback } from "react";
 import { Button, Card, Flex, Space, Typography, theme } from "antd";
 import { CopyOutlined, EyeOutlined } from "@ant-design/icons";
 
@@ -16,7 +16,7 @@ interface SystemMessageCardProps {
   message: Message;
 }
 
-const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
+const SystemMessageCardComponent: React.FC<SystemMessageCardProps> = ({
   currentChat,
   message,
 }) => {
@@ -116,4 +116,6 @@ const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   );
 };
 
+const SystemMessageCard = memo(SystemMessageCardComponent);
+SystemMessageCard.displayName = "SystemMessageCard";
 export default SystemMessageCard;

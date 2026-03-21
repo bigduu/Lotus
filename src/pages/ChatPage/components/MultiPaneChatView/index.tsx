@@ -34,15 +34,17 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const setActiveLeafId = useUILayoutStore((s) => s.setActiveLeafId);
   const splitLeaf = useUILayoutStore((s) => s.splitLeaf);
   const closeLeaf = useUILayoutStore((s) => s.closeLeaf);
+  const setLeafSessionId = useUILayoutStore((s) => s.setLeafSessionId);
 
   const selectSession = useAppStore((s) => s.selectSession);
 
+  const sessionId = leafSessionIds[leafId] ?? null;
   const leafCount = useMemo(() => getLeafIdsFromTree(tree).length, [tree]);
   const canSplit = leafCount < MAX_PANES;
-  const canClose = leafCount > 1;
+  const canClosePane = leafCount > 1;
+  const canClearSession = Boolean(sessionId);
+  const canClose = canClosePane || canClearSession;
   const hasMultiplePanes = leafCount > 1;
-
-  const sessionId = leafSessionIds[leafId] ?? null;
   const isActive = activeLeafId === leafId;
 
   return (
@@ -159,7 +161,12 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
               e.preventDefault();
               e.stopPropagation();
               uiLayoutDebug("pane close request", { leafId });
-              closeLeaf(leafId);
+              if (canClosePane) {
+                closeLeaf(leafId);
+              } else {
+                // Keep the last pane, but allow users to close (clear) its active chat.
+                setLeafSessionId(leafId, null);
+              }
               const next = useUILayoutStore.getState();
               const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
               selectSession(nextSessionId);

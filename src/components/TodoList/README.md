@@ -43,16 +43,16 @@ function ChatPage() {
 ### HTTP API
 
 ```
-GET /api/v1/todo/{session_id}
+GET /api/v1/task/{session_id}
 ```
 
-Returns complete Todo List information.
+Returns complete Task List information.
 
 ```
-GET /api/v1/todo/{session_id}/exists
+GET /api/v1/task/{session_id}/exists
 ```
 
-Checks if a Todo List exists.
+Checks if a Task List exists.
 
 ### SSE Events
 
@@ -79,8 +79,8 @@ Example:
 const eventSource = new EventSource('/api/v1/events/session-123');
 eventSource.onmessage = (event) => {
   const data = JSON.parse(event.data);
-  if (data.type === "todo_list_updated") {
-    console.log('Todo list updated:', data.todo_list);
+  if (data.type === "task_list_updated") {
+    console.log('Task list updated:', data.task_list);
   }
 };
 ```
@@ -89,29 +89,16 @@ eventSource.onmessage = (event) => {
 
 AI can manage task lists through the following tools:
 
-### create_todo_list
+### Task
 
-Create a task list:
+Create or replace task list:
 
 ```json
 {
-  "title": "Refactor Code",
-  "items": [
-    { "id": "1", "description": "Analyze code" },
-    { "id": "2", "description": "Write implementation", "depends_on": ["1"] }
+  "tasks": [
+    { "content": "Analyze code", "status": "in_progress", "activeForm": "Analyzing code" },
+    { "content": "Write implementation", "status": "pending" }
   ]
-}
-```
-
-### update_todo_item
-
-Update task status:
-
-```json
-{
-  "item_id": "1",
-  "status": "completed",
-  "notes": "Analysis completed"
 }
 ```
 

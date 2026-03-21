@@ -3,8 +3,8 @@ import {
   AgentClient,
   TokenBudgetUsage,
   ContextSummaryInfo,
-  TodoList,
-  TodoListDelta,
+  TaskList,
+  TaskListDelta,
   AgentEvent,
 } from "../services/chat/AgentService";
 import { useAppStore } from "../pages/ChatPage/store";
@@ -19,15 +19,23 @@ type SubscriptionEntry = {
 const isAbortError = (err: unknown) =>
   (err as any)?.name === "AbortError" || (err as any)?.code === 20;
 
-const MAX_TODO_EVALUATION_REASONING_CHARS = 220;
+const MAX_TASK_EVALUATION_REASONING_CHARS = 220;
 
 const compactEvaluationReasoning = (reasoning: string): string => {
   const normalized = reasoning.replace(/\s+/g, " ").trim();
-  if (normalized.length <= MAX_TODO_EVALUATION_REASONING_CHARS) {
+  if (normalized.length <= MAX_TASK_EVALUATION_REASONING_CHARS) {
     return normalized;
   }
-  return `${normalized.slice(0, MAX_TODO_EVALUATION_REASONING_CHARS)}...`;
+  return `${normalized.slice(0, MAX_TASK_EVALUATION_REASONING_CHARS)}...`;
 };
+
+const isTaskItemStatus = (
+  status: AgentEvent["status"],
+): status is TaskListDelta["status"] =>
+  status === "pending" ||
+  status === "in_progress" ||
+  status === "completed" ||
+  status === "blocked";
 
 export function useAgentEventSubscription() {
   const processingChats = useAppStore((state) => state.processingChats);
@@ -41,8 +49,8 @@ export function useAgentEventSubscription() {
   const setTruncationInfo = useAppStore((state) => state.setTruncationInfo);
   const updateSession = useAppStore((state) => state.updateSession);
   const updateMessage = useAppStore((state) => state.updateMessage);
-  const setTodoList = useAppStore((state) => state.setTodoList);
-  const updateTodoListDelta = useAppStore((state) => state.updateTodoListDelta);
+  const setTaskList = useAppStore((state) => state.setTaskList);
+  const updateTaskListDelta = useAppStore((state) => state.updateTaskListDelta);
   const setEvaluationState = useAppStore((state) => state.setEvaluationState);
   const upsertSubSessionProgress = useAppStore(
     (state) => state.upsertSubSessionProgress,
@@ -412,26 +420,26 @@ export function useAgentEventSubscription() {
               );
             },
 
-            onTodoListUpdated: (todoList: TodoList) => {
-              if (todoList.session_id) {
-                setTodoList(todoList.session_id, todoList);
+            onTaskListUpdated: (taskList: TaskList) => {
+              if (taskList.session_id) {
+                setTaskList(taskList.session_id, taskList);
               }
             },
 
-            onTodoListItemProgress: (delta: TodoListDelta) => {
+            onTaskListItemProgress: (delta: TaskListDelta) => {
               if (delta.session_id) {
-                updateTodoListDelta(delta.session_id, delta);
+                updateTaskListDelta(delta.session_id, delta);
               }
             },
 
-            onTodoListCompleted: (_sid, totalRounds, totalToolCalls) => {
+            onTaskListCompleted: (_sid, totalRounds, totalToolCalls) => {
               message.success(
                 `All tasks completed! Total rounds: ${totalRounds}, Tool calls: ${totalToolCalls}`,
                 3,
               );
             },
 
-            onTodoEvaluationStarted: (sid, itemsCount) => {
+            onTaskEvaluationStarted: (sid, itemsCount) => {
               setEvaluationState(sid, {
                 isEvaluating: true,
                 reasoning: null,
@@ -440,7 +448,7 @@ export function useAgentEventSubscription() {
               message.info(`Evaluating ${itemsCount} task(s)...`, 2);
             },
 
-            onTodoEvaluationCompleted: (sid, updatesCount, reasoning) => {
+            onTaskEvaluationCompleted: (sid, updatesCount, reasoning) => {
               const compactReasoning = compactEvaluationReasoning(reasoning);
               setEvaluationState(sid, {
                 isEvaluating: false,
@@ -459,7 +467,25 @@ export function useAgentEventSubscription() {
             },
 
             onComplete: () => {
+              // Capture the controller that owns THIS execution run.  The async
+              // body below may outlive this subscription (e.g. loadChatHistory
+              // retries take ~2s).  If the user responds to ask_user and a *new*
+              // subscription starts for the same sessionId in the meantime, we
+              // must NOT clean up the new one.
+              const ownerController = controller;
+
               void (async () => {
+                // Detect if a *different* subscription took over for the same
+                // sessionId while we were waiting (e.g. loadChatHistory retries).
+                // When that happens the current ref entry will point to a
+                // different controller, meaning our cleanup would kill the live
+                // successor.
+                const isSuperseded = () => {
+                  const cur =
+                    subscriptionsBySessionRef.current.get(sessionId);
+                  return cur != null && cur.controller !== ownerController;
+                };
+
                 const state = streamingStateBySessionRef.current.get(sessionId);
                 const streamedRaw = state?.content || "";
                 const streamedReasoningRaw = state?.reasoningContent || "";
@@ -540,6 +566,10 @@ export function useAgentEventSubscription() {
                     } as any);
                   }
                 }
+
+                // If another subscription already took over (user responded quickly),
+                // do NOT tear down the active subscription or mark processing as false.
+                if (isSuperseded()) return;
 
                 // Mark parent completed. If there are background children, keep the SSE
                 // subscription alive to forward sub-session progress.
@@ -628,6 +658,53 @@ export function useAgentEventSubscription() {
               childSessionId,
               evt: AgentEvent,
             ) => {
+              if (evt.type === "task_list_updated" && evt.task_list) {
+                const sharedSessionId =
+                  evt.task_list.session_id || parentSessionId;
+                setTaskList(sharedSessionId, evt.task_list);
+                return;
+              }
+              if (evt.type === "task_list_item_progress") {
+                const sharedSessionId = evt.session_id || parentSessionId;
+                if (
+                  typeof evt.item_id === "string" &&
+                  isTaskItemStatus(evt.status) &&
+                  typeof evt.tool_calls_count === "number" &&
+                  typeof evt.version === "number"
+                ) {
+                  updateTaskListDelta(sharedSessionId, {
+                    session_id: sharedSessionId,
+                    item_id: evt.item_id,
+                    status: evt.status,
+                    tool_calls_count: evt.tool_calls_count,
+                    version: evt.version,
+                  });
+                }
+                return;
+              }
+              if (evt.type === "task_evaluation_started") {
+                const sharedSessionId = evt.session_id || parentSessionId;
+                setEvaluationState(sharedSessionId, {
+                  isEvaluating: true,
+                  reasoning: null,
+                  timestamp: Date.now(),
+                });
+                return;
+              }
+              if (evt.type === "task_evaluation_completed") {
+                const sharedSessionId = evt.session_id || parentSessionId;
+                const updatesCount = evt.updates_count ?? 0;
+                setEvaluationState(sharedSessionId, {
+                  isEvaluating: false,
+                  reasoning:
+                    updatesCount > 0
+                      ? compactEvaluationReasoning(evt.reasoning ?? "")
+                      : null,
+                  timestamp: Date.now(),
+                });
+                return;
+              }
+
               // Maintain a small rolling preview for fast UI feedback.
               if (evt.type === "token" && typeof evt.content === "string") {
                 const prev =
@@ -692,6 +769,13 @@ export function useAgentEventSubscription() {
           // Stream ended without throwing. Backend SSE should be long-lived; treat this as a
           // disconnect and attempt to resubscribe (unless we were explicitly aborted).
           if (controller.signal.aborted) return;
+
+          // If a newer subscription already replaced this one (e.g. user
+          // responded to ask_user quickly), don't interfere with it.
+          const currentSub =
+            subscriptionsBySessionRef.current.get(sessionId);
+          if (currentSub && currentSub.controller !== controller) return;
+
           const stillProcessing = useAppStore
             .getState()
             .processingChats.has(sessionId);
@@ -734,8 +818,8 @@ export function useAgentEventSubscription() {
       setTruncationInfo,
       updateSession,
       updateMessage,
-      setTodoList,
-      updateTodoListDelta,
+      setTaskList,
+      updateTaskListDelta,
       setEvaluationState,
       cleanupChat,
       clearReconnect,
@@ -753,9 +837,18 @@ export function useAgentEventSubscription() {
 
       const existing =
         subscriptionsBySessionRef.current.get(normalizedSessionId);
-      if (existing?.sessionId === normalizedSessionId) return;
+      // Only skip if the existing subscription is still alive (controller not aborted).
+      // When onComplete is still running its async cleanup (loadChatHistory with retries),
+      // the subscription entry lingers but the SSE reader has already finished.
+      // In that case we must restart so events from the next execution run are captured.
+      if (
+        existing?.sessionId === normalizedSessionId &&
+        !existing.controller.signal.aborted
+      ) {
+        return;
+      }
 
-      // If we need to restart the SSE connection (e.g. sessionId changed),
+      // If we need to restart the SSE connection (e.g. sessionId changed or stale entry),
       // keep any existing draft in-memory so the UI doesn't lose what it already rendered.
       if (existing) cleanupChat(normalizedSessionId, { clearDraft: false });
       startSubscription(normalizedSessionId);

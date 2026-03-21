@@ -1,26 +1,56 @@
 .questionCard {
-  margin: 12px 0;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  margin: 4px 0;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 }
 
 .questionHeader {
-  padding-bottom: 12px;
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  cursor: pointer;
+  user-select: none;
+  gap: 8px;
 }
 
-.questionTitle {
-  margin: 0 !important;
+.questionHeader:hover {
+  opacity: 0.85;
 }
 
-.questionContent {
-  padding: 8px 0;
+.headerLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.questionIcon {
+  font-size: 14px;
+  flex-shrink: 0;
 }
 
 .questionText {
-  font-size: 15px;
-  display: block;
-  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Truncate only when collapsed (parent applies this via data-collapsed) */
+.questionHeader[data-collapsed="true"] .questionText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collapseBtn {
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.questionBody {
+  padding: 4px 12px 8px;
 }
 
 .optionsGroup {
@@ -28,30 +58,28 @@
 }
 
 .optionItem {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid transparent;
+  padding: 3px 8px;
+  border-radius: 6px;
   width: 100%;
-  transition: all 0.2s;
+  transition: all 0.15s;
+  font-size: 13px;
 }
 
 .optionItem:hover {
-  border-color: #1890ff;
+  background: rgba(24, 144, 255, 0.04);
 }
 
-.customOption {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.customInput {
-  margin-top: 8px;
+.customHint {
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: rgba(24, 144, 255, 0.04);
+  text-align: center;
 }
 
 .questionFooter {
   display: flex;
   justify-content: flex-end;
-  padding-top: 16px;
-  margin-top: 16px;
+  padding-top: 4px;
+  margin-top: 4px;
 }

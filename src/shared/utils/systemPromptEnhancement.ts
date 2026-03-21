@@ -3,9 +3,9 @@ import {
   isMermaidEnhancementEnabled,
 } from "./mermaidUtils";
 import {
-  getTodoEnhancementPrompt,
-  isTodoEnhancementEnabled,
-} from "./todoEnhancementUtils";
+  getTaskEnhancementPrompt,
+  isTaskEnhancementEnabled,
+} from "./taskEnhancementUtils";
 import { getOSInfoEnhancementPrompt } from "./osInfoUtils";
 import {
   getCopilotAskUserEnhancementPrompt,
@@ -93,8 +93,8 @@ export const getSystemPromptEnhancementPipeline = (
     pipeline.push(getMermaidEnhancementPrompt().trim());
   }
 
-  if (isTodoEnhancementEnabled()) {
-    pipeline.push(getTodoEnhancementPrompt().trim());
+  if (isTaskEnhancementEnabled()) {
+    pipeline.push(getTaskEnhancementPrompt().trim());
   }
 
   const normalizedProvider = (currentProvider ?? "").trim().toLowerCase();

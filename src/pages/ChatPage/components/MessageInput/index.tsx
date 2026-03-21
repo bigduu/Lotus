@@ -19,13 +19,14 @@ import MessageInputFooter from "./MessageInputFooter";
 import { useMessageInputAttachments } from "./useMessageInputAttachments";
 import { useMessageInputEffects } from "./useMessageInputEffects";
 import { useMessageInputHandlers } from "./useMessageInputHandlers";
+import type { MessageRetryMode } from "./types";
 // ToolService import removed - no longer needed for tool validation
 
 export interface MessageInputInteractionControls {
   isStreaming: boolean;
   hasMessages: boolean;
   allowRetry?: boolean;
-  onRetry?: () => void;
+  onRetry?: (mode: MessageRetryMode) => void;
   onCancel?: () => void;
   onHistoryNavigate?: (
     direction: "previous" | "next",
@@ -183,11 +184,18 @@ export const MessageInput: React.FC<MessageInputProps> = ({
       <div
         style={{
           position: "relative",
-          border: isDragOver ? `2px dashed ${token.colorPrimary}` : "none",
-          borderRadius: token.borderRadius,
-          backgroundColor: isDragOver ? token.colorPrimaryBg : "transparent",
+          border: `1px solid ${
+            isDragOver ? token.colorPrimary : token.colorBorderSecondary
+          }`,
+          borderRadius: 28,
+          backgroundColor: isDragOver
+            ? token.colorPrimaryBgHover
+            : token.colorBgElevated,
+          boxShadow: token.boxShadowSecondary,
           transition: "all 0.2s ease",
           width: "100%",
+          padding: `${token.paddingSM}px`,
+          overflow: "hidden",
         }}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -204,31 +212,13 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
         {/* Input with integrated buttons */}
         <Flex
-          align="stretch"
+          vertical
           style={{
             gap: token.marginXS,
-            backgroundColor: token.colorBgContainer,
-            border: "none",
-            borderRadius: 0,
-            padding: `${token.paddingXS}px ${token.paddingSM}px`,
-            transition: "background-color 0.2s",
-            minHeight: 60,
-            flex: 1,
+            minHeight: 132,
             width: "100%",
           }}
         >
-          {/* Left side buttons */}
-          <MessageInputControlsLeft
-            allowImages={allowImages}
-            disabled={disabled}
-            isStreaming={isStreaming}
-            token={token}
-            fileInputRef={fileInputRef}
-            onFileInputChange={handleFileInputChange}
-            onFileReferenceButtonClick={onFileReferenceButtonClick}
-            extraControl={leftControlsExtra}
-          />
-
           {/* Text input */}
           <MessageInputField
             value={value}
@@ -244,21 +234,44 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onScrollSync={syncOverlayScroll}
           />
 
-          {/* Right side buttons */}
-          <MessageInputControlsRight
-            allowRetry={allowRetry}
-            hasMessages={hasMessages}
-            isStreaming={isStreaming}
-            disabled={disabled}
-            onRetry={handleRetry}
-            onCancel={onCancel}
-            onSubmit={handleSubmit}
-            value={value}
-            images={images}
-            isOverCharLimit={isOverCharLimit}
-            token={token}
-            statusIndicator={statusIndicator}
-          />
+          <Flex align="center" justify="space-between" gap={token.marginSM}>
+            <Flex
+              align="center"
+              gap={token.marginXS}
+              style={{
+                minWidth: 0,
+                flex: 1,
+              }}
+            >
+              {/* Left side buttons */}
+              <MessageInputControlsLeft
+                allowImages={allowImages}
+                disabled={disabled}
+                isStreaming={isStreaming}
+                token={token}
+                fileInputRef={fileInputRef}
+                onFileInputChange={handleFileInputChange}
+                onFileReferenceButtonClick={onFileReferenceButtonClick}
+                extraControl={leftControlsExtra}
+              />
+            </Flex>
+
+            {/* Right side buttons */}
+            <MessageInputControlsRight
+              allowRetry={allowRetry}
+              hasMessages={hasMessages}
+              isStreaming={isStreaming}
+              disabled={disabled}
+              onRetry={handleRetry}
+              onCancel={onCancel}
+              onSubmit={handleSubmit}
+              value={value}
+              images={images}
+              isOverCharLimit={isOverCharLimit}
+              token={token}
+              statusIndicator={statusIndicator}
+            />
+          </Flex>
         </Flex>
       </div>
 

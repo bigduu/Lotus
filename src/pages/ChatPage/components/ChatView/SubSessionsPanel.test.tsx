@@ -19,13 +19,18 @@ const mockStoreState: any = {
   clearSubSessionProgress: vi.fn(),
 };
 
-const { mockAgentClient, mockUseActiveModel } = vi.hoisted(() => ({
-  mockAgentClient: {
-    truncateSessionMessages: vi.fn(),
-    execute: vi.fn(),
-  },
-  mockUseActiveModel: vi.fn<() => string | undefined>(() => "test-model"),
-}));
+const { mockAgentClient, mockUseActiveModel, mockToolService } = vi.hoisted(
+  () => ({
+    mockAgentClient: {
+      truncateSessionMessages: vi.fn(),
+      execute: vi.fn(),
+    },
+    mockToolService: {
+      executeTool: vi.fn(),
+    },
+    mockUseActiveModel: vi.fn<() => string | undefined>(() => "test-model"),
+  }),
+);
 
 vi.mock("../../store", () => ({
   useAppStore: (selector: (state: typeof mockStoreState) => unknown) =>
@@ -38,6 +43,10 @@ vi.mock("../../utils/openSession", () => ({
 
 vi.mock("../../services/AgentService", () => ({
   agentClient: mockAgentClient,
+}));
+
+vi.mock("../../../../services/tool/ToolService", () => ({
+  toolService: mockToolService,
 }));
 
 vi.mock("../../hooks/useActiveModel", () => ({
@@ -69,6 +78,16 @@ describe("SubSessionsPanel", () => {
       session_id: "child-session-1",
       status: "completed",
       events_url: "/api/v1/events/child-session-1",
+    });
+    mockToolService.executeTool.mockReset();
+    mockToolService.executeTool.mockResolvedValue({
+      tool_name: "sub_session_manager",
+      success: true,
+      result: JSON.stringify({
+        child_session_id: "child-session-1",
+        status: "queued",
+      }),
+      display_preference: "Collapsible",
     });
     mockUseActiveModel.mockReset();
     mockUseActiveModel.mockReturnValue("test-model");
@@ -292,6 +311,10 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+    await waitFor(() => {
+      expect(screen.getByText("Regenerate response")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Regenerate response"));
 
     await waitFor(() => {
       expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith(
@@ -299,6 +322,10 @@ describe("SubSessionsPanel", () => {
         { mode: "after_last_user" },
       );
     });
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith(
+      "child-session-1",
+      { mode: "replace" },
+    );
     expect(mockAgentClient.execute).toHaveBeenCalledWith(
       "child-session-1",
       "test-model",
@@ -311,6 +338,78 @@ describe("SubSessionsPanel", () => {
       "child-session-1",
       false,
     );
+  });
+
+  it("retries failed request while preserving history", async () => {
+    mockStoreState.subSessionsByParent = {
+      [PARENT_SESSION_ID]: {
+        "child-session-1": {
+          title: "Child Session 1",
+          status: "error",
+        },
+      },
+    };
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+    await waitFor(() => {
+      expect(screen.getByText("Retry failed request")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Retry failed request"));
+
+    await waitFor(() => {
+      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith(
+        "child-session-1",
+        { mode: "error_retry" },
+      );
+    });
+    expect(mockStoreState.loadChatHistory).not.toHaveBeenCalled();
+    expect(mockAgentClient.execute).toHaveBeenCalledWith(
+      "child-session-1",
+      "test-model",
+    );
+  });
+
+  it("sends a follow-up message to an existing child session", async () => {
+    mockStoreState.subSessionsByParent = {
+      [PARENT_SESSION_ID]: {
+        "child-session-1": {
+          title: "Child Session 1",
+          status: "pending",
+        },
+      },
+    };
+    const promptSpy = vi
+      .spyOn(window, "prompt")
+      .mockReturnValue("Continue with the parser failure first.");
+
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    fireEvent.click(screen.getByTestId("sub-session-continue-child-session-1"));
+
+    await waitFor(() => {
+      expect(mockToolService.executeTool).toHaveBeenCalledWith({
+        tool_name: "sub_session_manager",
+        session_id: PARENT_SESSION_ID,
+        parameters: [
+          { name: "action", value: "send_message" },
+          { name: "child_session_id", value: "child-session-1" },
+          {
+            name: "message",
+            value: "Continue with the parser failure first.",
+          },
+          { name: "auto_run", value: "true" },
+        ],
+      });
+    });
+
+    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith(
+      "child-session-1",
+      true,
+    );
+    expect(mockStoreState.refreshChats).toHaveBeenCalled();
+
+    promptSpy.mockRestore();
   });
 
   it("deletes existing child session", async () => {
@@ -342,6 +441,10 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+    await waitFor(() => {
+      expect(screen.getByText("Regenerate response")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Regenerate response"));
 
     await waitFor(() => {
       expect(mockStoreState.upsertSubSessionProgress).toHaveBeenCalledWith(

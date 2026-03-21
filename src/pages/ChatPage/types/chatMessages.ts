@@ -1,4 +1,4 @@
-import type { TodoListMsg } from "./todoList";
+import type { TaskListMsg } from "./todoList";
 import type { TokenUsage } from "./tokenBudget";
 
 export type AgentRole = "planner" | "actor";
@@ -157,10 +157,10 @@ export interface WorkflowResultMessage extends BaseMessage {
   content: string;
 }
 
-export interface AssistantTodoListMessage extends BaseMessage {
+export interface AssistantTaskListMessage extends BaseMessage {
   role: "assistant";
-  type: "todo_list";
-  todoList: TodoListMsg;
+  type: "task_list";
+  taskList: TaskListMsg;
 }
 
 export type Message =
@@ -169,7 +169,7 @@ export type Message =
   | AssistantTextMessage
   | AssistantToolCallMessage
   | AssistantToolResultMessage
-  | AssistantTodoListMessage
+  | AssistantTaskListMessage
   | WorkflowResultMessage
   | SystemMessage;
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { Card, List, Typography, Button, theme, Space, Tag } from "antd";
+import { Typography, Button, theme, Space, Tag, Tooltip } from "antd";
 import { CloseOutlined, FileTextOutlined } from "@ant-design/icons";
 import { ProcessedFile } from "../../utils/fileUtils";
 
@@ -24,85 +24,66 @@ const FilePreview: React.FC<FilePreviewProps> = ({
   }
 
   return (
-    <Card
-      size="small"
+    <div
       style={{
-        marginBottom: token.marginXS,
-        background: token.colorBgElevated,
-        borderRadius: token.borderRadiusSM,
+        marginBottom: token.marginSM,
+        padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+        borderRadius: 999,
+        background: token.colorFillSecondary,
         border: `1px solid ${token.colorBorderSecondary}`,
       }}
-      bodyStyle={{ padding: token.paddingSM }}
-      title={
-        <Space align="center" size={token.marginXS}>
-          <FileTextOutlined />
-          <Text strong>Attached Files</Text>
-          <Tag color="geekblue">{files.length}</Tag>
-        </Space>
-      }
-      extra={
-        onClear ? (
-          <Button type="text" size="small" onClick={onClear}>
-            Clear All
-          </Button>
-        ) : null
-      }
     >
-      <List
-        dataSource={files}
-        renderItem={(file) => (
-          <List.Item
-            key={file.id}
-            style={{
-              alignItems: "flex-start",
-              padding: `${token.paddingXS}px 0`,
-            }}
-            actions={[
-              <Button
-                key="remove"
-                type="text"
-                size="small"
-                icon={<CloseOutlined />}
-                onClick={() => onRemove(file.id)}
+      <Space
+        align="center"
+        size={token.marginXS}
+        style={{ width: "100%", justifyContent: "space-between" }}
+      >
+        <Space align="center" wrap size={token.marginXS}>
+          <FileTextOutlined style={{ color: token.colorTextSecondary }} />
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            {files.length} file{files.length > 1 ? "s" : ""}
+          </Text>
+          {files.map((file) => (
+            <Tooltip
+              key={file.id}
+              title={`${file.type || "unknown"} • ${(file.size / 1024).toFixed(1)} KB`}
+            >
+              <Tag
+                closable
+                onClose={(event) => {
+                  event.preventDefault();
+                  onRemove(file.id);
+                }}
+                style={{
+                  borderRadius: 999,
+                  marginInlineEnd: 0,
+                  maxWidth: 220,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
               >
-                Remove
-              </Button>,
-            ]}
+                {file.name}
+              </Tag>
+            </Tooltip>
+          ))}
+        </Space>
+
+        {onClear ? (
+          <Button
+            type="text"
+            size="small"
+            icon={<CloseOutlined />}
+            onClick={onClear}
+            style={{
+              borderRadius: 999,
+            }}
           >
-            <List.Item.Meta
-              title={
-                <Space direction="vertical" size={token.marginXXS}>
-                  <Text strong>{file.name}</Text>
-                  <Space size={token.marginXS}>
-                    <Tag>{file.type || "unknown"}</Tag>
-                    <Tag color="purple">{(file.size / 1024).toFixed(1)} KB</Tag>
-                    <Tag color="cyan">
-                      {file.kind === "text" ? "Text" : "Binary"}
-                    </Tag>
-                  </Space>
-                </Space>
-              }
-              description={
-                <div
-                  style={{
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-word",
-                    fontFamily: "var(--ant-font-family-code)",
-                    background: token.colorFillTertiary,
-                    borderRadius: token.borderRadiusSM,
-                    padding: token.paddingXS,
-                    maxHeight: 160,
-                    overflowY: "auto",
-                  }}
-                >
-                  {file.preview}
-                </div>
-              }
-            />
-          </List.Item>
-        )}
-      />
-    </Card>
+            Clear
+          </Button>
+        ) : null}
+      </Space>
+    </div>
   );
 };
 

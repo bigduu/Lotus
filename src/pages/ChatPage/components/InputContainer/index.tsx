@@ -1,18 +1,30 @@
 import React, {
   useMemo,
   useEffect,
+  useState,
   lazy,
   Suspense,
   useRef,
   useCallback,
 } from "react";
-import { App as AntApp, Space, theme, Tag, Alert, Spin, Dropdown, Button } from "antd";
+import {
+  App as AntApp,
+  Space,
+  theme,
+  Tag,
+  Alert,
+  Spin,
+  Dropdown,
+  Button,
+} from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import {
   ToolOutlined,
   RobotOutlined,
   SettingOutlined,
   ExperimentOutlined,
+  LoadingOutlined,
+  DownOutlined,
 } from "@ant-design/icons";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
@@ -27,9 +39,20 @@ import { useInputContainerSubmit } from "./useInputContainerSubmit";
 import { useInputContainerHistory } from "./useInputContainerHistory";
 import { getInputContainerPlaceholder } from "./inputContainerPlaceholder";
 import { useActiveModel } from "../../hooks/useActiveModel";
-import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useProviderStore } from "../../store/slices/providerSlice";
+import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import type { ReasoningEffort } from "../../services/AgentService";
+import {
+  type ProviderType,
+  OPENAI_MODELS,
+  ANTHROPIC_MODELS,
+  GEMINI_MODELS,
+  COPILOT_MODELS,
+} from "../../types/providerConfig";
+import { settingsService } from "@services/config/SettingsService";
+import { modelService } from "@services/chat/ModelService";
+import { agentApiClient } from "../../../../services/api";
+import type { ImageFile } from "../../utils/imageUtils";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const CommandSelector = lazy(() => import("../CommandSelector"));
@@ -39,6 +62,8 @@ const FileReferenceSelector = lazy(() => import("../FileReferenceSelector"));
 const { useToken } = theme;
 const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
 const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
+const MODEL_OPTIONS_CACHE_PREFIX = "chat-model-options-cache-v1";
+const MODEL_OPTIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const REASONING_EFFORT_OPTIONS: Array<{
   value: ReasoningEffort;
   label: string;
@@ -49,6 +74,53 @@ const REASONING_EFFORT_OPTIONS: Array<{
   { value: "xhigh", label: "XHigh" },
   { value: "max", label: "Max" },
 ];
+
+type ModelOption = { value: string; label: string };
+type ModelCachePayload = {
+  timestamp: number;
+  options: ModelOption[];
+};
+
+const getModelOptionsCacheKey = (provider: ProviderType) =>
+  `${MODEL_OPTIONS_CACHE_PREFIX}:${provider}`;
+
+const readModelOptionsCache = (provider: ProviderType): ModelOption[] | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(getModelOptionsCacheKey(provider));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as ModelCachePayload;
+    if (!parsed || !Array.isArray(parsed.options)) return null;
+    if (Date.now() - parsed.timestamp > MODEL_OPTIONS_CACHE_TTL_MS) return null;
+    return parsed.options
+      .filter(
+        (item) =>
+          item &&
+          typeof item.value === "string" &&
+          item.value.trim().length > 0 &&
+          typeof item.label === "string",
+      )
+      .map((item) => ({ value: item.value, label: item.label }));
+  } catch {
+    return null;
+  }
+};
+
+const writeModelOptionsCache = (
+  provider: ProviderType,
+  options: ModelOption[],
+): void => {
+  if (typeof window === "undefined") return;
+  try {
+    const payload: ModelCachePayload = {
+      timestamp: Date.now(),
+      options,
+    };
+    localStorage.setItem(getModelOptionsCacheKey(provider), JSON.stringify(payload));
+  } catch {
+    // Ignore cache write failures.
+  }
+};
 
 type ChatSendMessageEventDetail = {
   content: string;
@@ -84,11 +156,13 @@ interface InputContainerProps {
   sessionId?: string | null;
   isCenteredLayout?: boolean;
   onWorkflowDraftChange?: (workflow: WorkflowDraft | null) => void;
+  statusIndicator?: React.ReactNode;
 }
 
 export const InputContainer: React.FC<InputContainerProps> = ({
   sessionId: sessionIdProp,
   onWorkflowDraftChange,
+  statusIndicator,
 }) => {
   const textAreaRef = useRef<TextAreaRef>(null); // Add ref for cursor position
   const { token } = useToken();
@@ -101,6 +175,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const updateSession = useAppStore((state) => state.updateSession);
   const processingChats = useAppStore((state) => state.processingChats);
   const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
+  const pendingQuestionRespond = useAppStore(
+    (state) => state.pendingQuestionRespond,
+  );
+  const setPendingQuestionRespond = useAppStore(
+    (state) => state.setPendingQuestionRespond,
+  );
   const activeModel = useActiveModel();
 
   // Get input state from Zustand slice (persisted per session)
@@ -114,6 +194,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   );
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
+  const [modelOptions, setModelOptions] = useState<
+    ModelOption[]
+  >([]);
+  const [isModelOptionsLoading, setIsModelOptionsLoading] = useState(false);
+  const [modelOptionsError, setModelOptionsError] = useState<string | null>(null);
+  const [isSavingModel, setIsSavingModel] = useState(false);
 
   // Use persisted state or empty defaults
   const content = inputState?.content || "";
@@ -162,7 +248,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     sendMessage,
     retryLastTurn,
     cancel: cancelMessage,
-    agentAvailable,
   } = useMessageStreaming({
     sessionId,
     addMessage,
@@ -340,6 +425,69 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setFileReferences: fileReferenceState.setFileReferences,
   });
 
+  // Respond mode: when QuestionDialog activates "Other (custom input)",
+  // InputContainer submits to the respond API instead of sending a new message.
+  const isRespondMode = Boolean(
+    pendingQuestionRespond && pendingQuestionRespond.sessionId === sessionId,
+  );
+
+  const handleRespondSubmit = useCallback(
+    async (responseText: string) => {
+      const trimmed = responseText.trim();
+      if (!trimmed || !sessionId) return;
+
+      try {
+        const modelToUse = activeModel?.trim();
+        const result = await agentApiClient.post<{ auto_resume_status?: string }>(
+          `respond/${sessionId}`,
+          {
+            response: trimmed,
+            model: modelToUse || undefined,
+            reasoning_effort: reasoningEffort,
+          },
+        );
+
+        messageApi.success("Response submitted, AI will continue processing");
+        setContent("");
+        setPendingQuestionRespond(null);
+
+        const resumeStatus = result?.auto_resume_status;
+        if (
+          resumeStatus &&
+          ["started", "already_running"].includes(resumeStatus)
+        ) {
+          setSessionProcessing(sessionId, true);
+        }
+      } catch (err) {
+        console.error("[InputContainer] Failed to submit respond:", err);
+        messageApi.error(
+          err instanceof Error ? err.message : "Submission failed",
+        );
+      }
+    },
+    [
+      sessionId,
+      activeModel,
+      reasoningEffort,
+      messageApi,
+      setContent,
+      setPendingQuestionRespond,
+      setSessionProcessing,
+    ],
+  );
+
+  // Wrap handleSubmit: in respond mode, redirect to respond API
+  const effectiveHandleSubmit = useCallback(
+    async (message: string, images?: ImageFile[]) => {
+      if (isRespondMode) {
+        await handleRespondSubmit(message);
+      } else {
+        await handleSubmit(message, images);
+      }
+    },
+    [isRespondMode, handleRespondSubmit, handleSubmit],
+  );
+
   const { retryLastMessage, handleHistoryNavigate } = useInputContainerHistory({
     currentSessionId: sessionId,
     currentChat,
@@ -349,50 +497,147 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     navigate,
   });
 
-  // Agent status indicator config
-  const agentStatusConfig = useMemo(() => {
-    if (!activeModel) {
-      return {
-        color: "warning",
-        icon: <RobotOutlined />,
-        text: "No Model Selected",
-        actionable: true,
-      };
-    }
-    if (agentAvailable === null) {
-      return {
-        color: "default",
-        icon: <RobotOutlined />,
-        text: "Checking...",
-        actionable: false,
-      };
-    }
-    if (agentAvailable) {
-      return {
-        color: "default",
-        icon: <RobotOutlined />,
-        text: "Agent Mode",
-        actionable: false,
-      };
-    }
-    return {
-      color: "red",
-      icon: <RobotOutlined />,
-      text: "Agent Unavailable",
-      actionable: false,
-    };
-  }, [activeModel, agentAvailable]);
-
-  // Handle clicking on model status to open settings
-  const handleModelStatusClick = useCallback(() => {
-    if (!activeModel) {
-      openSettings("chat");
-    }
-  }, [activeModel, openSettings]);
-
   const handleCloseReferencePreview = () => setReferenceTextPersisted(null);
 
-  const placeholder = useMemo(() => {
+  const currentProviderSettings = useMemo(() => {
+    return (providerConfig.providers as Partial<Record<ProviderType, any>>)?.[
+      currentProvider
+    ];
+  }, [providerConfig, currentProvider]);
+
+  const isProviderConfigured = useMemo(() => {
+    if (!currentProviderSettings || typeof currentProviderSettings !== "object") {
+      return false;
+    }
+
+    if (currentProvider === "copilot") {
+      return Object.keys(currentProviderSettings).length > 0;
+    }
+
+    return (
+      typeof currentProviderSettings.api_key === "string" &&
+      currentProviderSettings.api_key.trim().length > 0
+    );
+  }, [currentProvider, currentProviderSettings]);
+
+  const redirectToProviderSettingsIfNeeded = useCallback(() => {
+    if (isProviderConfigured) return false;
+    openSettings("chat");
+    messageApi.warning("Please configure provider first");
+    return true;
+  }, [isProviderConfigured, messageApi, openSettings]);
+
+  useEffect(() => {
+    const cached = readModelOptionsCache(currentProvider);
+    setModelOptions(cached ?? []);
+    setModelOptionsError(null);
+  }, [currentProvider]);
+
+  const getErrorMessage = useCallback((error: unknown) => {
+    if (error instanceof Error && error.message.trim()) return error.message;
+    return "Unknown error";
+  }, []);
+
+  const fallbackModelOptions = useMemo(() => {
+    const byProvider: Record<ProviderType, ModelOption[]> = {
+      openai: [...OPENAI_MODELS],
+      anthropic: [...ANTHROPIC_MODELS],
+      gemini: [...GEMINI_MODELS],
+      copilot: [...COPILOT_MODELS],
+    };
+    return byProvider[currentProvider] || [];
+  }, [currentProvider]);
+
+  const resolvedModelOptions = useMemo(() => {
+    const base = modelOptions.length > 0 ? modelOptions : fallbackModelOptions;
+    const normalized = [...base];
+    if (activeModel && !normalized.some((item) => item.value === activeModel)) {
+      normalized.unshift({ value: activeModel, label: activeModel });
+    }
+    return normalized;
+  }, [modelOptions, fallbackModelOptions, activeModel]);
+
+  const fetchProviderModels = useCallback(
+    async (provider: ProviderType, options?: { force?: boolean }) => {
+      if (!options?.force && modelOptions.length > 0) return;
+      try {
+        setIsModelOptionsLoading(true);
+        setModelOptionsError(null);
+
+        const models =
+          provider === "copilot"
+            ? await modelService.getModels()
+            : await settingsService.fetchProviderModels(provider);
+        const options = models.map((model) => ({
+          value: model,
+          label: model,
+        }));
+        setModelOptions(options);
+        writeModelOptionsCache(provider, options);
+      } catch (error) {
+        setModelOptionsError(getErrorMessage(error));
+      } finally {
+        setIsModelOptionsLoading(false);
+      }
+    },
+    [getErrorMessage, modelOptions.length],
+  );
+
+  const handleModelDropdownVisibleChange = useCallback(
+    (open: boolean) => {
+      if (!open) return;
+      if (redirectToProviderSettingsIfNeeded()) return;
+      if (isModelOptionsLoading) return;
+      if (modelOptions.length > 0) return;
+      void fetchProviderModels(currentProvider);
+    },
+    [
+      currentProvider,
+      fetchProviderModels,
+      isModelOptionsLoading,
+      modelOptions.length,
+      redirectToProviderSettingsIfNeeded,
+    ],
+  );
+
+  const handleModelSelect = useCallback(
+    async (value: string) => {
+      if (!value || value === activeModel) return;
+      if (isSavingModel) return;
+
+      try {
+        if (redirectToProviderSettingsIfNeeded()) return;
+        setIsSavingModel(true);
+        const providerStore = useProviderStore.getState();
+        const nextProviders = { ...(providerStore.providerConfig.providers || {}) } as any;
+        nextProviders[currentProvider] = {
+          ...(nextProviders[currentProvider] || {}),
+          model: value,
+        };
+
+        await settingsService.saveProviderConfig({
+          provider: currentProvider,
+          providers: nextProviders,
+        });
+        await providerStore.loadProviderConfig();
+        messageApi.success("Model updated");
+      } catch (error) {
+        messageApi.error(`Failed to update model: ${getErrorMessage(error)}`);
+      } finally {
+        setIsSavingModel(false);
+      }
+    },
+    [
+      activeModel,
+      currentProvider,
+      getErrorMessage,
+      isSavingModel,
+      messageApi,
+      redirectToProviderSettingsIfNeeded,
+    ],
+  );
+
+  const basePlaceholder = useMemo(() => {
     return getInputContainerPlaceholder({
       referenceText,
       isToolSpecificMode,
@@ -407,6 +652,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     allowedTools,
     autoToolPrefix,
   ]);
+
+  // In respond mode, override placeholder to guide the user
+  const placeholder = isRespondMode
+    ? "Type your custom answer here, press Enter to submit..."
+    : basePlaceholder;
 
   const currentReasoningLabel = useMemo(
     () =>
@@ -434,30 +684,115 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     >
       <Button
         type="text"
-        icon={<ExperimentOutlined />}
         size="small"
         disabled={!activeModel || isStreaming}
         style={{
-          minWidth: "auto",
-          padding: "4px",
-          height: 32,
-          width: 32,
+          minWidth: 88,
+          padding: "0 12px",
+          height: 36,
+          borderRadius: 18,
           color:
             reasoningEffort === "medium"
               ? token.colorTextSecondary
               : token.colorPrimary,
         }}
         title={`Reasoning: ${currentReasoningLabel}`}
-      />
+      >
+        <Space size={6}>
+          <ExperimentOutlined />
+          <span>{currentReasoningLabel}</span>
+          <DownOutlined style={{ fontSize: 10 }} />
+        </Space>
+      </Button>
     </Dropdown>
+  );
+
+  const modelLabel = activeModel || (isProviderConfigured ? "Select Model" : "Configure Provider");
+  const modelMenuItems = useMemo(
+    () =>
+      resolvedModelOptions.length > 0
+        ? resolvedModelOptions.map((option) => ({
+            key: option.value,
+            label: option.label,
+          }))
+        : [
+            {
+              key: "__no_models__",
+              label: modelOptionsError || "No models available",
+              disabled: true,
+            },
+          ],
+    [resolvedModelOptions, modelOptionsError],
+  );
+
+  const modelButton = (
+    <Button
+      type="text"
+      size="small"
+      disabled={isStreaming || isSavingModel}
+      onClick={() => {
+        if (!isProviderConfigured) {
+          redirectToProviderSettingsIfNeeded();
+        }
+      }}
+      style={{
+        minWidth: 146,
+        padding: "0 12px",
+        height: 36,
+        borderRadius: 18,
+        color: modelOptionsError ? token.colorError : token.colorTextSecondary,
+      }}
+      title={modelLabel}
+    >
+      <Space size={6}>
+        {isModelOptionsLoading ? <LoadingOutlined /> : <RobotOutlined />}
+        <span
+          style={{
+            maxWidth: 128,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {modelLabel}
+        </span>
+        <DownOutlined style={{ fontSize: 10 }} />
+      </Space>
+    </Button>
+  );
+
+  const modelControl = isProviderConfigured ? (
+    <Dropdown
+      trigger={["click"]}
+      placement="topLeft"
+      menu={{
+        selectable: true,
+        selectedKeys: activeModel ? [activeModel] : [],
+        items: modelMenuItems,
+        style: {
+          maxHeight: "50vh",
+          overflowY: "auto",
+        },
+        onClick: ({ key }) => {
+          if (key === "__no_models__") return;
+          void handleModelSelect(String(key));
+        },
+      }}
+      onOpenChange={handleModelDropdownVisibleChange}
+      disabled={isStreaming || isSavingModel}
+    >
+      {modelButton}
+    </Dropdown>
+  ) : (
+    modelButton
   );
 
   return (
     <div
       style={{
         // Keep the input area compact; the inner MessageInput already enforces a sensible min-height.
-        padding: `${token.paddingXXS}px ${token.paddingSM}px`,
-        background: token.colorBgContainer,
+        padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+        background: "transparent",
         borderTop: "none",
         boxShadow: "none",
         width: "100%",
@@ -471,12 +806,18 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           type="warning"
           showIcon
           icon={<SettingOutlined />}
-          message="No model configured"
-          description="Please configure a model in Settings to start chatting."
+          message={isProviderConfigured ? "No model selected" : "Provider not configured"}
+          description={
+            isProviderConfigured
+              ? "Select a model from the dropdown in the input toolbar."
+              : "Open settings and configure a provider before selecting a model."
+          }
           action={
-            <Space>
-              <a onClick={() => openSettings("chat")}>Open Settings</a>
-            </Space>
+            !isProviderConfigured ? (
+              <Space>
+                <a onClick={() => openSettings("chat")}>Open Settings</a>
+              </Space>
+            ) : undefined
           }
           style={{ marginBottom: token.marginSM }}
         />
@@ -534,28 +875,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <MessageInput
         value={content}
         onChange={commandState.handleInputChange}
-        onSubmit={handleSubmit}
+        onSubmit={effectiveHandleSubmit}
         placeholder={placeholder}
         allowImages={true}
         disabled={!activeModel}
-        statusIndicator={
-          <Tag
-            color={agentStatusConfig.color}
-            icon={agentStatusConfig.icon}
-            style={{
-              fontSize: "11px",
-              cursor: agentStatusConfig.actionable ? "pointer" : "default",
-              maxWidth: 160,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-            title={agentStatusConfig.text}
-            onClick={handleModelStatusClick}
-          >
-            {agentStatusConfig.text}
-          </Tag>
-        }
+        statusIndicator={statusIndicator ?? null}
         isWorkflowSelectorVisible={commandState.showCommandSelector}
         textAreaRef={textAreaRef}
         validateMessage={(message) => {
@@ -576,7 +900,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         onFileReferenceButtonClick={
           fileReferenceState.handleFileReferenceButtonClick
         }
-        leftControlsExtra={reasoningControl}
+        leftControlsExtra={
+          <Space size={0} wrap>
+            {modelControl}
+            {reasoningControl}
+          </Space>
+        }
         interaction={{
           isStreaming,
           hasMessages: currentMessages.some((m) => m.role === "user"),

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import type { ImageFile } from "../../utils/imageUtils";
+import type { MessageRetryMode } from "./types";
 
 interface UseMessageInputHandlersProps {
   value: string;
@@ -10,7 +11,7 @@ interface UseMessageInputHandlersProps {
   isWorkflowSelectorVisible: boolean;
   onChange: (value: string) => void;
   onSubmit: (content: string, images?: ImageFile[]) => void;
-  onRetry?: () => void;
+  onRetry?: (mode: MessageRetryMode) => void;
   onHistoryNavigate?: (
     direction: "previous" | "next",
     currentValue: string,
@@ -137,10 +138,13 @@ export const useMessageInputHandlers = ({
     ],
   );
 
-  const handleRetry = useCallback(() => {
-    if (isStreaming || disabled || !onRetry) return;
-    onRetry();
-  }, [disabled, isStreaming, onRetry]);
+  const handleRetry = useCallback(
+    (mode: MessageRetryMode = "regenerate") => {
+      if (isStreaming || disabled || !onRetry) return;
+      onRetry(mode);
+    },
+    [disabled, isStreaming, onRetry],
+  );
 
   return {
     handleKeyDown,

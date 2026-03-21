@@ -49,6 +49,14 @@ const frTranslation = {
         hooks: "Hooks",
         masking: "Masquage",
       },
+      groups: {
+        ...enTranslation.settings.page.groups,
+        ai: "IA",
+        toolsAndExtensions: "Outils & Extensions",
+        securityAndPrivacy: "Sécurité",
+        monitoring: "Surveillance",
+        system: "Système",
+      },
     },
     notifications: {
       ...enTranslation.settings.notifications,
@@ -212,7 +220,7 @@ const frTranslation = {
       ...enTranslation.settings.promptsTab,
       title: "Amélioration du prompt système",
       mermaidEnhancement: "Amélioration Mermaid",
-      todoListGeneration: "Génération de liste TODO",
+      taskListRules: "Règles de tâches partagées",
       copilotAskUserBeforeFinish: "Copilot ask_user avant de terminer",
       switchOn: "ACTIVÉ",
       switchOff: "DÉSACTIVÉ",
@@ -1075,6 +1083,14 @@ const zhTwTranslation = {
         app: "應用",
         provider: "供應商",
         masking: "脫敏",
+      },
+      groups: {
+        ...zhCnTranslation.settings.page.groups,
+        ai: "AI",
+        toolsAndExtensions: "工具與擴展",
+        securityAndPrivacy: "安全",
+        monitoring: "監控",
+        system: "系統",
       },
     },
     configTab: {

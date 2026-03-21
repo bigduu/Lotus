@@ -14,11 +14,11 @@ export type AgentEventType =
   | "tool_start"
   | "tool_complete"
   | "tool_error"
-  | "todo_list_updated"
-  | "todo_list_item_progress"
-  | "todo_list_completed"
-  | "todo_evaluation_started"
-  | "todo_evaluation_completed"
+  | "task_list_updated"
+  | "task_list_item_progress"
+  | "task_list_completed"
+  | "task_evaluation_started"
+  | "task_evaluation_completed"
   | "token_budget_updated"
   | "context_summarized"
   | "sub_session_started"
@@ -46,33 +46,33 @@ export interface ContextSummaryInfo {
   tokens_saved: number;
 }
 
-// TodoList Types
-export type TodoItemStatus =
+// TaskList Types
+export type TaskItemStatus =
   | "pending"
   | "in_progress"
   | "completed"
   | "blocked";
 
-export interface TodoItem {
+export interface TaskItem {
   id: string;
   description: string;
-  status: TodoItemStatus;
+  status: TaskItemStatus;
   depends_on: string[];
   notes: string;
 }
 
-export interface TodoList {
+export interface TaskList {
   session_id: string;
   title: string;
-  items: TodoItem[];
+  items: TaskItem[];
   created_at: string;
   updated_at: string;
 }
 
-export interface TodoListDelta {
+export interface TaskListDelta {
   session_id: string;
   item_id: string;
-  status: TodoItemStatus;
+  status: TaskItemStatus;
   tool_calls_count: number;
   version: number;
 }
@@ -99,18 +99,18 @@ export interface AgentEvent {
       }
     | TokenBudgetUsage;
   summary_info?: ContextSummaryInfo;
-  // TodoList events
-  todo_list?: TodoList;
-  // TodoList delta
+  // TaskList events
+  task_list?: TaskList;
+  // TaskList delta
   session_id?: string;
   item_id?: string;
-  status?: TodoItemStatus | string;
+  status?: TaskItemStatus | string;
   tool_calls_count?: number;
   version?: number;
   completed_at?: string;
   total_rounds?: number;
   total_tool_calls?: number;
-  // TodoList evaluation (NEW)
+  // TaskList evaluation
   items_count?: number;
   updates_count?: number;
   reasoning?: string;
@@ -181,6 +181,7 @@ export interface HistoryResponse {
       };
     }>;
     tool_call_id?: string;
+    tool_success?: boolean;
     reasoning?: string;
     created_at: string;
   }>;
@@ -230,7 +231,7 @@ export interface SessionSystemPromptResponse {
   skill_context?: string;
   tool_guide_context?: string;
   external_memory?: string;
-  todo_list?: string;
+  task_list?: string;
   effective_system_prompt: string;
 }
 
@@ -240,7 +241,7 @@ export interface PatchSessionRequest {
 }
 
 export type TruncateSessionMessagesRequest = {
-  mode: "after_last_user";
+  mode: "after_last_user" | "error_retry";
 };
 
 export interface TruncateSessionMessagesResponse {
@@ -332,15 +333,15 @@ export interface AgentEventHandlers {
   ) => void;
   onToolComplete?: (toolCallId: string, result: AgentEvent["result"]) => void;
   onToolError?: (toolCallId: string, error: string) => void;
-  onTodoListUpdated?: (todoList: TodoList) => void;
-  onTodoListItemProgress?: (delta: TodoListDelta) => void;
-  onTodoListCompleted?: (
+  onTaskListUpdated?: (taskList: TaskList) => void;
+  onTaskListItemProgress?: (delta: TaskListDelta) => void;
+  onTaskListCompleted?: (
     sessionId: string,
     totalRounds: number,
     totalToolCalls: number,
   ) => void;
-  onTodoEvaluationStarted?: (sessionId: string, itemsCount: number) => void;
-  onTodoEvaluationCompleted?: (
+  onTaskEvaluationStarted?: (sessionId: string, itemsCount: number) => void;
+  onTaskEvaluationCompleted?: (
     sessionId: string,
     updatesCount: number,
     reasoning: string,
@@ -461,7 +462,8 @@ export class AgentClient {
   /**
    * Truncate session message history (server-side).
    *
-   * Used for "retry/regenerate": keep the last user message, drop any assistant/tool tail.
+   * - `after_last_user`: keep the last user message, drop assistant/tool tail.
+   * - `error_retry`: preserve history and mark session for retry execution.
    */
   async truncateSessionMessages(
     sessionId: string,
@@ -578,7 +580,7 @@ export class AgentClient {
 
   /**
    * Subscribe to events only (no execution trigger)
-   * Use this for passive observation like TodoList updates
+   * Use this for passive observation like TaskList updates
    */
   async subscribeToEvents(
     sessionId: string,
@@ -711,12 +713,12 @@ export class AgentClient {
       case "tool_error":
         handlers.onToolError?.(event.tool_call_id || "", event.error || "");
         break;
-      case "todo_list_updated":
-        if (event.todo_list) {
-          handlers.onTodoListUpdated?.(event.todo_list);
+      case "task_list_updated":
+        if (event.task_list) {
+          handlers.onTaskListUpdated?.(event.task_list);
         }
         break;
-      case "todo_list_item_progress":
+      case "task_list_item_progress":
         if (
           event.session_id &&
           event.item_id &&
@@ -725,15 +727,15 @@ export class AgentClient {
           event.version !== undefined
         ) {
           const status = event.status;
-          const isTodoStatus =
+          const isTaskStatus =
             status === "pending" ||
             status === "in_progress" ||
             status === "completed" ||
             status === "blocked";
-          if (!isTodoStatus) {
+          if (!isTaskStatus) {
             break;
           }
-          handlers.onTodoListItemProgress?.({
+          handlers.onTaskListItemProgress?.({
             session_id: event.session_id,
             item_id: event.item_id,
             status,
@@ -742,34 +744,34 @@ export class AgentClient {
           });
         }
         break;
-      case "todo_list_completed":
+      case "task_list_completed":
         if (
           event.session_id &&
           event.total_rounds !== undefined &&
           event.total_tool_calls !== undefined
         ) {
-          handlers.onTodoListCompleted?.(
+          handlers.onTaskListCompleted?.(
             event.session_id,
             event.total_rounds,
             event.total_tool_calls,
           );
         }
         break;
-      case "todo_evaluation_started":
+      case "task_evaluation_started":
         if (event.session_id && event.items_count !== undefined) {
-          handlers.onTodoEvaluationStarted?.(
+          handlers.onTaskEvaluationStarted?.(
             event.session_id,
             event.items_count,
           );
         }
         break;
-      case "todo_evaluation_completed":
+      case "task_evaluation_completed":
         if (
           event.session_id &&
           event.updates_count !== undefined &&
           event.reasoning
         ) {
-          handlers.onTodoEvaluationCompleted?.(
+          handlers.onTaskEvaluationCompleted?.(
             event.session_id,
             event.updates_count,
             event.reasoning,

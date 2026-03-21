@@ -1,7 +1,7 @@
 import type {
   AssistantToolCallMessage,
   AssistantToolResultMessage,
-  AssistantTodoListMessage,
+  AssistantTaskListMessage,
   Message,
   ToolExecutionResult,
   UserFileReferenceMessage,
@@ -56,12 +56,12 @@ export const isUserFileReferenceMessage = (
   );
 };
 
-export const isTodoListMessage = (
+export const isTaskListMessage = (
   message: Message,
-): message is AssistantTodoListMessage => {
+): message is AssistantTaskListMessage => {
   return (
     message.role === "assistant" &&
     "type" in message &&
-    message.type === "todo_list"
+    message.type === "task_list"
   );
 };

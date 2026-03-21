@@ -1,11 +1,10 @@
 import React, { useEffect } from "react";
 import { Flex, theme } from "antd";
-import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
+import { MenuFoldOutlined } from "@ant-design/icons";
 import { Button } from "antd";
 import { Grid } from "antd";
 
 import SystemPromptSelector from "../SystemPromptSelector";
-import { ChatSidebarCollapsedMenu } from "./ChatSidebarCollapsedMenu";
 import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
 import { ChatSidebarFooter } from "./ChatSidebarFooter";
 import { useChatSidebarState } from "./useChatSidebarState";
@@ -18,7 +17,6 @@ export const ChatSidebar: React.FC = () => {
   const screens = useBreakpoint();
 
   const {
-    chats,
     childrenByRoot,
     expandedRootIds,
     toggleRootExpanded,
@@ -55,6 +53,10 @@ export const ChatSidebar: React.FC = () => {
     }
   }, [screens.xs, screens.sm, setCollapsed]);
 
+  if (collapsed) {
+    return null;
+  }
+
   return (
     <div
       style={{
@@ -70,17 +72,17 @@ export const ChatSidebar: React.FC = () => {
       }}
     >
       <Flex
-        justify={collapsed ? "center" : "flex-end"}
+        justify="flex-end"
         style={{
           flexShrink: 0,
-          padding: collapsed ? "8px 0 0 0" : "8px 12px 0 12px",
+          padding: "8px 12px 0 12px",
           minHeight: 34,
         }}
       >
         <Button
           type="text"
-          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-          onClick={() => setCollapsed(!collapsed)}
+          icon={<MenuFoldOutlined />}
+          onClick={() => setCollapsed(true)}
           size={screens.xs ? "small" : "middle"}
         />
       </Flex>
@@ -91,42 +93,32 @@ export const ChatSidebar: React.FC = () => {
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          padding: collapsed ? "8px 10px 0 10px" : "8px 12px 0 12px",
+          padding: "8px 12px 0 12px",
         }}
       >
-        {!collapsed ? (
-          <ChatSidebarDateGroups
-            groupedChatsByDate={groupedChatsByDate}
-            childrenByRoot={childrenByRoot}
-            expandedRootIds={expandedRootIds}
-            onToggleRootExpanded={toggleRootExpanded}
-            sortedDateKeys={sortedDateKeys}
-            expandedKeys={expandedKeys}
-            onCollapseChange={handleCollapseChange}
-            currentSessionId={currentSessionId}
-            onSelectChat={selectSession}
-            onDeleteChat={handleDelete}
-            onDeleteByDate={handleDeleteByDate}
-            onPinChat={pinSession}
-            onUnpinChat={unpinSession}
-            onEditTitle={handleEditTitle}
-            onGenerateTitle={handleGenerateTitle}
-            titleGenerationState={titleGenerationState}
-            token={token}
-          />
-        ) : (
-          <ChatSidebarCollapsedMenu
-            chats={chats}
-            currentSessionId={currentSessionId}
-            onSelectChat={selectSession}
-            screens={screens}
-            token={token}
-          />
-        )}
+        <ChatSidebarDateGroups
+          groupedChatsByDate={groupedChatsByDate}
+          childrenByRoot={childrenByRoot}
+          expandedRootIds={expandedRootIds}
+          onToggleRootExpanded={toggleRootExpanded}
+          sortedDateKeys={sortedDateKeys}
+          expandedKeys={expandedKeys}
+          onCollapseChange={handleCollapseChange}
+          currentSessionId={currentSessionId}
+          onSelectChat={selectSession}
+          onDeleteChat={handleDelete}
+          onDeleteByDate={handleDeleteByDate}
+          onPinChat={pinSession}
+          onUnpinChat={unpinSession}
+          onEditTitle={handleEditTitle}
+          onGenerateTitle={handleGenerateTitle}
+          titleGenerationState={titleGenerationState}
+          token={token}
+        />
       </Flex>
 
       <ChatSidebarFooter
-        collapsed={collapsed}
+        collapsed={false}
         onNewChat={handleNewChat}
         onOpenSettings={handleOpenSettings}
         screens={screens}

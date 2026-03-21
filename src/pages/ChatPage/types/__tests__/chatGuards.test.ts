@@ -5,7 +5,7 @@ import {
   isAssistantToolCallMessage,
   isWorkflowResultMessage,
   isUserFileReferenceMessage,
-  isTodoListMessage,
+  isTaskListMessage,
 } from "../chatGuards";
 import type {
   Message,
@@ -13,7 +13,7 @@ import type {
   AssistantToolCallMessage,
   WorkflowResultMessage,
   UserFileReferenceMessage,
-  AssistantTodoListMessage,
+  AssistantTaskListMessage,
   ToolExecutionResult,
 } from "../chatMessages";
 
@@ -374,14 +374,14 @@ describe("chatGuards", () => {
     });
   });
 
-  describe("isTodoListMessage", () => {
-    it("should return true for valid AssistantTodoListMessage", () => {
-      const message: AssistantTodoListMessage = {
+  describe("isTaskListMessage", () => {
+    it("should return true for valid AssistantTaskListMessage", () => {
+      const message: AssistantTaskListMessage = {
         id: "1",
         createdAt: "2024-01-01",
         role: "assistant",
-        type: "todo_list",
-        todoList: {
+        type: "task_list",
+        taskList: {
           items: [
             {
               id: "1",
@@ -391,20 +391,20 @@ describe("chatGuards", () => {
           ],
         },
       };
-      expect(isTodoListMessage(message)).toBe(true);
+      expect(isTaskListMessage(message)).toBe(true);
     });
 
     it("should return true for message with empty items", () => {
-      const message: AssistantTodoListMessage = {
+      const message: AssistantTaskListMessage = {
         id: "1",
         createdAt: "2024-01-01",
         role: "assistant",
-        type: "todo_list",
-        todoList: {
+        type: "task_list",
+        taskList: {
           items: [],
         },
       };
-      expect(isTodoListMessage(message)).toBe(true);
+      expect(isTaskListMessage(message)).toBe(true);
     });
 
     it("should return false for assistant text message", () => {
@@ -415,7 +415,7 @@ describe("chatGuards", () => {
         type: "text",
         content: "text",
       };
-      expect(isTodoListMessage(message)).toBe(false);
+      expect(isTaskListMessage(message)).toBe(false);
     });
 
     it("should return false for tool_call type", () => {
@@ -426,7 +426,7 @@ describe("chatGuards", () => {
         type: "tool_call",
         toolCalls: [],
       };
-      expect(isTodoListMessage(message)).toBe(false);
+      expect(isTaskListMessage(message)).toBe(false);
     });
 
     it("should return false for workflow_result type", () => {
@@ -438,7 +438,7 @@ describe("chatGuards", () => {
         workflowName: "test",
         content: "done",
       };
-      expect(isTodoListMessage(message)).toBe(false);
+      expect(isTaskListMessage(message)).toBe(false);
     });
   });
 });

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Flex, Layout, Tabs, Typography, message, theme } from "antd";
+import type { TabsProps } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useChatManager } from "../../../ChatPage/hooks/useChatManager";
@@ -13,9 +14,9 @@ import {
   setMermaidEnhancementEnabled,
 } from "../../../../shared/utils/mermaidUtils";
 import {
-  isTodoEnhancementEnabled,
-  setTodoEnhancementEnabled,
-} from "../../../../shared/utils/todoEnhancementUtils";
+  isTaskEnhancementEnabled,
+  setTaskEnhancementEnabled,
+} from "../../../../shared/utils/taskEnhancementUtils";
 import {
   isCopilotAskUserEnhancementEnabled,
   setCopilotAskUserEnhancementEnabled,
@@ -28,7 +29,6 @@ import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
 import SystemSettingsHooksTab from "./SystemSettingsHooksTab";
-import MermaidSettingsTab from "./MermaidSettingsTab";
 import SystemSettingsSchedulesTab from "./SystemSettingsSchedulesTab";
 import SystemSettingsSessionsTab from "./SystemSettingsSessionsTab";
 import { ProviderSettings } from "../ProviderSettings";
@@ -68,8 +68,8 @@ const SystemSettingsPage = ({
   const [promptEnhancement, setPromptEnhancement] = useState("");
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
     useState(isMermaidEnhancementEnabled());
-  const [todoEnhancementEnabled, setTodoEnhancementEnabledState] = useState(
-    isTodoEnhancementEnabled(),
+  const [taskEnhancementEnabled, setTaskEnhancementEnabledState] = useState(
+    isTaskEnhancementEnabled(),
   );
   const [
     copilotAskUserEnhancementEnabled,
@@ -78,6 +78,28 @@ const SystemSettingsPage = ({
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const showCopilotAskUserEnhancement = currentProvider === "copilot";
   const settingsHeaderTopOffsetPx = token.paddingSM;
+
+  // Build grouped tab items
+  const groupLabel = (key: string, label: string): NonNullable<TabsProps["items"]>[number] => ({
+    key,
+    label: (
+      <Text
+        type="secondary"
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          cursor: "default",
+          userSelect: "none",
+        }}
+      >
+        {label}
+      </Text>
+    ),
+    disabled: true,
+    children: null,
+  });
 
   const handleClearLocalStorage = () => {
     localStorage.clear();
@@ -139,9 +161,9 @@ const SystemSettingsPage = ({
     setMermaidEnhancementEnabled(checked);
   };
 
-  const handleTodoToggle = (checked: boolean) => {
-    setTodoEnhancementEnabledState(checked);
-    setTodoEnhancementEnabled(checked);
+  const handleTaskToggle = (checked: boolean) => {
+    setTaskEnhancementEnabledState(checked);
+    setTaskEnhancementEnabled(checked);
   };
 
   const handleCopilotAskUserToggle = (checked: boolean) => {
@@ -152,7 +174,7 @@ const SystemSettingsPage = ({
   useEffect(() => {
     setPromptEnhancement(getSystemPromptEnhancement());
     setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
-    setTodoEnhancementEnabledState(isTodoEnhancementEnabled());
+    setTaskEnhancementEnabledState(isTaskEnhancementEnabled());
     setCopilotAskUserEnhancementEnabledState(
       isCopilotAskUserEnhancementEnabled(),
     );
@@ -194,7 +216,83 @@ const SystemSettingsPage = ({
       >
         <Tabs
           tabPosition="left"
+          defaultActiveKey="provider"
           items={[
+            // ── AI ──
+            groupLabel("group-ai", t("settings.page.groups.ai")),
+            {
+              key: "provider",
+              label: t("settings.page.tabs.provider"),
+              children: <ProviderSettings />,
+            },
+            {
+              key: "model-limits",
+              label: t("settings.page.tabs.modelLimits"),
+              children: <ModelLimitsSettings />,
+            },
+            {
+              key: "prompts",
+              label: t("settings.page.tabs.prompts"),
+              children: (
+                <SystemSettingsPromptsTab
+                  promptEnhancement={promptEnhancement}
+                  onPromptEnhancementChange={setPromptEnhancement}
+                  mermaidEnhancementEnabled={mermaidEnhancementEnabled}
+                  taskEnhancementEnabled={taskEnhancementEnabled}
+                  showCopilotAskUserEnhancement={showCopilotAskUserEnhancement}
+                  copilotAskUserEnhancementEnabled={
+                    copilotAskUserEnhancementEnabled
+                  }
+                  onMermaidToggle={handleMermaidToggle}
+                  onTaskToggle={handleTaskToggle}
+                  onCopilotAskUserToggle={handleCopilotAskUserToggle}
+                  onSaveEnhancement={handleSaveEnhancement}
+                />
+              ),
+            },
+            // ── Tools & Extensions ──
+            groupLabel("group-tools", t("settings.page.groups.toolsAndExtensions")),
+            {
+              key: "skills",
+              label: t("settings.page.tabs.skills"),
+              children: <SkillManager />,
+            },
+            {
+              key: "mcp",
+              label: t("settings.page.tabs.mcp"),
+              children: <SystemSettingsMcpTab />,
+            },
+            {
+              key: "workflows",
+              label: t("settings.page.tabs.workflows"),
+              children: <SystemSettingsWorkflowsTab />,
+            },
+            {
+              key: "hooks",
+              label: t("settings.page.tabs.hooks"),
+              children: <SystemSettingsHooksTab />,
+            },
+            // ── Security ──
+            groupLabel("group-security", t("settings.page.groups.securityAndPrivacy")),
+            {
+              key: "masking",
+              label: t("settings.page.tabs.masking"),
+              children: <SystemSettingsKeywordMaskingTab />,
+            },
+            // ── Monitoring ──
+            groupLabel("group-monitoring", t("settings.page.groups.monitoring")),
+            {
+              key: "metrics",
+              label: t("settings.page.tabs.metrics"),
+              children: <SystemSettingsMetricsTab />,
+            },
+            {
+              key: "sessions",
+              label: t("settings.page.tabs.sessions"),
+              children: <SystemSettingsSessionsTab />,
+            },
+            // ── System ──
+            groupLabel("group-system", t("settings.page.groups.system")),
             {
               key: "config",
               label: t("settings.page.tabs.config"),
@@ -207,64 +305,9 @@ const SystemSettingsPage = ({
               ),
             },
             {
-              key: "prompts",
-              label: t("settings.page.tabs.prompts"),
-              children: (
-                <SystemSettingsPromptsTab
-                  promptEnhancement={promptEnhancement}
-                  onPromptEnhancementChange={setPromptEnhancement}
-                  mermaidEnhancementEnabled={mermaidEnhancementEnabled}
-                  todoEnhancementEnabled={todoEnhancementEnabled}
-                  showCopilotAskUserEnhancement={showCopilotAskUserEnhancement}
-                  copilotAskUserEnhancementEnabled={
-                    copilotAskUserEnhancementEnabled
-                  }
-                  onMermaidToggle={handleMermaidToggle}
-                  onTodoToggle={handleTodoToggle}
-                  onCopilotAskUserToggle={handleCopilotAskUserToggle}
-                  onSaveEnhancement={handleSaveEnhancement}
-                />
-              ),
-            },
-            {
-              key: "mermaid",
-              label: t("settings.page.tabs.mermaid"),
-              children: <MermaidSettingsTab />,
-            },
-            {
-              key: "skills",
-              label: t("settings.page.tabs.skills"),
-              children: <SkillManager />,
-            },
-            {
-              key: "workflows",
-              label: t("settings.page.tabs.workflows"),
-              children: <SystemSettingsWorkflowsTab />,
-            },
-            {
-              key: "mcp",
-              label: t("settings.page.tabs.mcp"),
-              children: <SystemSettingsMcpTab />,
-            },
-            {
-              key: "model-limits",
-              label: t("settings.page.tabs.modelLimits"),
-              children: <ModelLimitsSettings />,
-            },
-            {
-              key: "metrics",
-              label: t("settings.page.tabs.metrics"),
-              children: <SystemSettingsMetricsTab />,
-            },
-            {
               key: "schedules",
               label: t("settings.page.tabs.schedules"),
               children: <SystemSettingsSchedulesTab />,
-            },
-            {
-              key: "sessions",
-              label: t("settings.page.tabs.sessions"),
-              children: <SystemSettingsSessionsTab />,
             },
             {
               key: "app",
@@ -282,21 +325,6 @@ const SystemSettingsPage = ({
                   darkModeKey={DARK_MODE_KEY}
                 />
               ),
-            },
-            {
-              key: "provider",
-              label: t("settings.page.tabs.provider"),
-              children: <ProviderSettings />,
-            },
-            {
-              key: "hooks",
-              label: t("settings.page.tabs.hooks"),
-              children: <SystemSettingsHooksTab />,
-            },
-            {
-              key: "masking",
-              label: t("settings.page.tabs.masking"),
-              children: <SystemSettingsKeywordMaskingTab />,
             },
           ]}
         />

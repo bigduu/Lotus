@@ -50,6 +50,7 @@ import { MessageExportService } from "../../services/MessageExportService";
 import {
   CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT,
 } from "./events";
+import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -115,8 +116,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
     () => currentChat?.messages || [],
     [currentChat],
   );
-  const hasTodoList = useAppStore((state) =>
-    sessionId ? Boolean(state.todoLists[sessionId]) : false,
+  const sharedTaskSessionId = useMemo(() => {
+    if (!sessionId || !currentChat) return sessionId;
+    if (currentChat.kind === "child") {
+      return currentChat.parentSessionId || currentChat.rootSessionId || sessionId;
+    }
+    return sessionId;
+  }, [currentChat, sessionId]);
+  const hasTaskList = useAppStore((state) =>
+    sharedTaskSessionId ? Boolean(state.taskLists[sharedTaskSessionId]) : false,
   );
   const hasSubSessions = useAppStore((state) => {
     if (!sessionId) return false;
@@ -243,6 +251,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(
     new Set(),
   );
+  const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
 
   const getContainerMaxWidth = () => {
     if (embedded) return "100%";
@@ -254,10 +263,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const getContainerPadding = () => {
-    if (embedded) return token.paddingSM;
-    if (screens.xs) return token.paddingXS;
-    if (screens.sm) return token.paddingSM;
-    return token.padding;
+    let basePadding: number;
+    if (embedded) {
+      basePadding = token.paddingSM;
+    } else if (screens.xs) {
+      basePadding = token.paddingXS;
+    } else if (screens.sm) {
+      basePadding = token.paddingSM;
+    } else {
+      basePadding = token.padding;
+    }
+
+    if (!embedded && sidebarCollapsed) {
+      return basePadding + 18;
+    }
+    return basePadding;
   };
 
   useEffect(() => {
@@ -478,6 +498,11 @@ export const ChatView: React.FC<ChatViewProps> = ({
     renderableMessages: renderableMessagesWithDraft,
   });
 
+  const handleQuestionAppeared = useCallback(() => {
+    resetUserScroll();
+    scrollToBottom();
+  }, [resetUserScroll, scrollToBottom]);
+
   const getScrollButtonPosition = () => {
     return screens.xs ? 16 : 32;
   };
@@ -486,6 +511,33 @@ export const ChatView: React.FC<ChatViewProps> = ({
     Boolean(showMessagesView) &&
     hasSelectableMessages &&
     (!embedded || selectionMode);
+  const tokenUsageIndicator =
+    currentTokenUsage && currentTokenUsage.budgetLimit > 0 ? (
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: token.marginXS,
+        }}
+      >
+        <TokenUsageDisplay
+          usage={currentTokenUsage}
+          showDetails={true}
+          size="small"
+        />
+        {currentTruncationOccurred && (
+          <span
+            style={{
+              fontSize: 11,
+              color: token.colorTextSecondary,
+              whiteSpace: "nowrap",
+            }}
+          >
+            ({currentSegmentsRemoved} truncated)
+          </span>
+        )}
+      </div>
+    ) : null;
 
   return (
     <Layout
@@ -506,8 +558,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           height: "100%",
         }}
       >
-        {/* TodoList - show when there is an active agent session */}
-        {agentSessionId && hasTodoList && (
+        {/* TaskList - show when there is an active agent session */}
+        {agentSessionId && hasTaskList && (
           <div
             style={{
               paddingTop: getContainerPadding(),
@@ -520,47 +572,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
             }}
           >
             <TodoList sessionId={agentSessionId} initialCollapsed={true} />
-          </div>
-        )}
-
-        {/* Token Usage Display - show when there's token usage data */}
-        {currentTokenUsage && currentTokenUsage.budgetLimit > 0 && (
-          <div
-            style={{
-              paddingTop: 0,
-              paddingRight:
-                getContainerPadding() + paneActionOverlayRightPadding,
-              paddingBottom: 0,
-              paddingLeft: 6,
-              maxWidth: getContainerMaxWidth(),
-              margin: "0 auto",
-              width: "100%",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "flex-start",
-                gap: token.marginXS,
-              }}
-            >
-              <TokenUsageDisplay
-                usage={currentTokenUsage}
-                showDetails={true}
-                size="small"
-              />
-              {currentTruncationOccurred && (
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: token.colorTextSecondary,
-                  }}
-                >
-                  ({currentSegmentsRemoved} truncated)
-                </span>
-              )}
-            </div>
           </div>
         )}
 
@@ -677,13 +688,16 @@ export const ChatView: React.FC<ChatViewProps> = ({
           onToggleMessageSelection={handleToggleMessageSelection}
         />
 
-        {/* 滚动按钮组 - 都在右下角 */}
-        {!embedded && (showScrollToTop || showScrollToBottom) && (
-          <FloatButton.Group
+        {/* 滚动按钮组 - 输入框上方右侧，使用 absolute 相对于父容器定位 */}
+        {(showScrollToTop || showScrollToBottom) && (
+          <div
             style={{
+              position: "absolute",
               right: getScrollButtonPosition(),
               bottom: screens.xs ? 160 : 180,
-              gap: token.marginSM,
+              display: "flex",
+              flexDirection: "column",
+              gap: token.marginXS,
               zIndex: 1000,
             }}
           >
@@ -691,6 +705,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <FloatButton
                 type="default"
                 icon={<UpOutlined />}
+                style={{ position: "relative", inset: "unset" }}
                 onClick={() => {
                   scrollToTop();
                 }}
@@ -700,13 +715,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
               <FloatButton
                 type="primary"
                 icon={<DownOutlined />}
+                style={{ position: "relative", inset: "unset" }}
                 onClick={() => {
                   resetUserScroll();
                   scrollToBottom();
                 }}
               />
             )}
-          </FloatButton.Group>
+          </div>
         )}
 
         {/* QuestionDialog - show above input area when there's an active agent session */}
@@ -719,7 +735,10 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <QuestionDialog sessionId={agentSessionId} />
+            <QuestionDialog
+              sessionId={agentSessionId}
+              onQuestionAppeared={handleQuestionAppeared}
+            />
           </div>
         )}
 
@@ -730,6 +749,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           onWorkflowDraftChange={setWorkflowDraft}
           showMessagesView={Boolean(showMessagesView)}
           sessionDiffSummary={sessionDiffSummary}
+          contextUsageIndicator={tokenUsageIndicator}
         />
       </Flex>
     </Layout>

@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import {
   Button,
   Card,
+  Collapse,
   Flex,
   Input,
   Space,
@@ -11,6 +12,7 @@ import {
   theme,
 } from "antd";
 import { useTranslation } from "react-i18next";
+import MermaidSettingsTab from "./MermaidSettingsTab";
 
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
 const { Text } = Typography;
@@ -20,11 +22,11 @@ interface SystemSettingsPromptsTabProps {
   promptEnhancement: string;
   onPromptEnhancementChange: (value: string) => void;
   mermaidEnhancementEnabled: boolean;
-  todoEnhancementEnabled: boolean;
+  taskEnhancementEnabled: boolean;
   showCopilotAskUserEnhancement: boolean;
   copilotAskUserEnhancementEnabled: boolean;
   onMermaidToggle: (checked: boolean) => void;
-  onTodoToggle: (checked: boolean) => void;
+  onTaskToggle: (checked: boolean) => void;
   onCopilotAskUserToggle: (checked: boolean) => void;
   onSaveEnhancement: () => void;
 }
@@ -33,11 +35,11 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
   promptEnhancement,
   onPromptEnhancementChange,
   mermaidEnhancementEnabled,
-  todoEnhancementEnabled,
+  taskEnhancementEnabled,
   showCopilotAskUserEnhancement,
   copilotAskUserEnhancementEnabled,
   onMermaidToggle,
-  onTodoToggle,
+  onTaskToggle,
   onCopilotAskUserToggle,
   onSaveEnhancement,
 }) => {
@@ -67,10 +69,10 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
             />
           </Flex>
           <Flex align="center" gap={token.marginSM}>
-            <Text strong>{t("settings.promptsTab.todoListGeneration")}</Text>
+            <Text strong>{t("settings.promptsTab.taskListRules")}</Text>
             <Switch
-              checked={todoEnhancementEnabled}
-              onChange={onTodoToggle}
+              checked={taskEnhancementEnabled}
+              onChange={onTaskToggle}
             />
           </Flex>
           {showCopilotAskUserEnhancement && (
@@ -98,6 +100,22 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
           </Text>
         </Space>
       </Card>
+      {mermaidEnhancementEnabled && (
+        <Collapse
+          size="small"
+          items={[
+            {
+              key: "mermaid",
+              label: (
+                <Text strong>
+                  {t("settings.mermaidTab.title")}
+                </Text>
+              ),
+              children: <MermaidSettingsTab />,
+            },
+          ]}
+        />
+      )}
     </Flex>
   );
 };

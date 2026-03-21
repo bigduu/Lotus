@@ -1,14 +1,21 @@
 import React from "react";
-import { Button, Flex } from "antd";
-import { SendOutlined, StopOutlined, SyncOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Flex } from "antd";
+import {
+  ArrowUpOutlined,
+  ExclamationCircleOutlined,
+  ReloadOutlined,
+  StopOutlined,
+  SyncOutlined,
+} from "@ant-design/icons";
 import type { ImageFile } from "../../utils/imageUtils";
+import type { MessageRetryMode } from "./types";
 
 interface MessageInputControlsRightProps {
   allowRetry: boolean;
   hasMessages: boolean;
   isStreaming: boolean;
   disabled: boolean;
-  onRetry?: () => void;
+  onRetry?: (mode: MessageRetryMode) => void;
   onCancel?: () => void;
   onSubmit: () => void;
   value: string;
@@ -33,12 +40,13 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
   statusIndicator,
 }) => {
   const canSend = !value.trim() && images.length === 0;
+  const retryDisabled = isStreaming || disabled || !onRetry;
 
   return (
     <Flex
       align="center"
       style={{
-        alignSelf: "center",
+        flex: "0 0 auto",
         gap: token.marginXS,
       }}
     >
@@ -47,28 +55,48 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
       ) : null}
 
       {allowRetry && hasMessages && (
-        <Button
-          data-testid="regenerate-button"
-          type="text"
-          icon={<SyncOutlined spin={isStreaming} />}
-          onClick={onRetry}
-          disabled={isStreaming || disabled || !onRetry}
-          title="Regenerate last AI response"
-          size="small"
-          style={{
-            minWidth: "auto",
-            padding: "4px",
-            height: 32,
-            width: 32,
-            color: token.colorTextSecondary,
+        <Dropdown
+          trigger={["click"]}
+          menu={{
+            items: [
+              {
+                key: "regenerate",
+                label: "Regenerate response",
+                icon: <ReloadOutlined />,
+              },
+              {
+                key: "error_retry",
+                label: "Retry failed request",
+                icon: <ExclamationCircleOutlined />,
+              },
+            ],
+            onClick: ({ key }) => onRetry?.(key as MessageRetryMode),
           }}
-        />
+          disabled={retryDisabled}
+        >
+          <Button
+            data-testid="regenerate-button"
+            type="text"
+            icon={<SyncOutlined spin={isStreaming} />}
+            disabled={retryDisabled}
+            title="Retry options"
+            size="small"
+            style={{
+              minWidth: 36,
+              padding: "0 8px",
+              height: 36,
+              width: 36,
+              borderRadius: 18,
+              color: token.colorTextSecondary,
+            }}
+          />
+        </Dropdown>
       )}
 
       <Button
         data-testid={isStreaming ? "cancel-button" : "send-button"}
         type="primary"
-        icon={isStreaming ? <StopOutlined /> : <SendOutlined />}
+        icon={isStreaming ? <StopOutlined /> : <ArrowUpOutlined />}
         onClick={isStreaming ? onCancel : onSubmit}
         loading={isStreaming && !onCancel}
         disabled={
@@ -79,10 +107,14 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         size="small"
         danger={isStreaming}
         style={{
-          minWidth: "auto",
-          padding: "4px 6px",
-          height: 32,
-          width: 40,
+          minWidth: 48,
+          padding: 0,
+          height: 48,
+          width: 48,
+          borderRadius: 24,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
         title={isStreaming ? "Cancel request" : "Send message"}
       />

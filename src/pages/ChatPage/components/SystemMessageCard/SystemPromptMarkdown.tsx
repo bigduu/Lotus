@@ -1,4 +1,4 @@
-import React from "react";
+import React, { memo } from "react";
 import { Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 
@@ -10,7 +10,7 @@ type SystemPromptMarkdownProps = {
   headingColor?: string;
 };
 
-export const SystemPromptMarkdown: React.FC<SystemPromptMarkdownProps> = ({
+const SystemPromptMarkdownComponent: React.FC<SystemPromptMarkdownProps> = ({
   content,
   token,
   headingColor,
@@ -78,3 +78,5 @@ export const SystemPromptMarkdown: React.FC<SystemPromptMarkdownProps> = ({
     </ReactMarkdown>
   );
 };
+
+export const SystemPromptMarkdown = memo(SystemPromptMarkdownComponent);

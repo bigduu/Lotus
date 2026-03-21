@@ -8,6 +8,7 @@ import { useAppStore } from "../../store";
 import { getSystemPromptEnhancementText } from "@shared/utils/systemPromptEnhancement";
 import { useActiveModel } from "../useActiveModel";
 import { useProviderStore } from "../../store/slices/providerSlice";
+import type { MessageRetryMode } from "../../components/MessageInput/types";
 
 export interface UseMessageStreaming {
   sendMessage: (
@@ -16,7 +17,10 @@ export interface UseMessageStreaming {
     reasoningEffort?: ReasoningEffort,
     selectedSkillIds?: string[],
   ) => Promise<void>;
-  retryLastTurn: (reasoningEffort?: ReasoningEffort) => Promise<void>;
+  retryLastTurn: (
+    reasoningEffort?: ReasoningEffort,
+    mode?: MessageRetryMode,
+  ) => Promise<void>;
   cancel: () => void;
   agentAvailable: boolean | null;
 }
@@ -295,7 +299,10 @@ export function useMessageStreaming(
   );
 
   const retryLastTurn = useCallback(
-    async (reasoningEffort?: ReasoningEffort) => {
+    async (
+      reasoningEffort?: ReasoningEffort,
+      mode: MessageRetryMode = "regenerate",
+    ) => {
       if (!currentChat) {
         modal.info({
           title: "No Active Chat",
@@ -340,16 +347,18 @@ export function useMessageStreaming(
       streamingContentRef.current = "";
 
       try {
-        // Server-side truncate: keep last user message, drop assistant/tool tail.
+        const truncateMode =
+          mode === "error_retry" ? "error_retry" : "after_last_user";
         await agentClientRef.current.truncateSessionMessages(sessionId, {
-          mode: "after_last_user",
+          mode: truncateMode,
         });
 
-        // Immediately reconcile UI with persisted history so old assistant/tool tail disappears.
-        // (Avoid relying on per-message deletes; backend is the source of truth.)
-        await useAppStore
-          .getState()
-          .loadChatHistory(sessionId, { mode: "replace" });
+        if (mode === "regenerate") {
+          // Reconcile UI with persisted history so old assistant/tool tail disappears.
+          await useAppStore
+            .getState()
+            .loadChatHistory(sessionId, { mode: "replace" });
+        }
 
         // Activate event subscription (handled by useAgentEventSubscription).
         deps.setSessionProcessing(sessionId, true);

@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
-import { Layout, theme } from "antd";
+import React, { useEffect, useMemo } from "react";
+import { Button, Layout, theme } from "antd";
+import { MenuUnfoldOutlined } from "@ant-design/icons";
 import { ChatSidebar } from "../pages/ChatPage/components/ChatSidebar";
 import { SystemSettingsPage } from "../pages/SettingsPage/components/SystemSettingsPage";
 import { ChatAutoTitleEffect } from "../pages/ChatPage/components/ChatAutoTitleEffect";
@@ -14,6 +15,7 @@ import { MultiPaneChatView } from "../pages/ChatPage/components/MultiPaneChatVie
 import { useUILayoutStore } from "../shared/store/uiLayoutStore";
 import { ResizableSplit } from "../shared/components/ResizableSplit";
 import type { AppLocale } from "../shared/i18n/types";
+import { detectOS } from "../shared/utils/osInfoUtils";
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
@@ -25,6 +27,7 @@ export const MainLayout: React.FC<{
   const closeSettings = useSettingsViewStore((s) => s.close);
   const { token } = theme.useToken();
   const mermaidSettings = useMermaidSettings();
+  const isMacOS = useMemo(() => detectOS() === "macos", []);
 
   // Load provider configuration once for the whole app.
   const loadProviderConfig = useProviderStore(
@@ -55,14 +58,20 @@ export const MainLayout: React.FC<{
   // Sidebar sizing (persisted)
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
   const sidebarWidthPx = useUILayoutStore((s) => s.sidebar.widthPx);
-  const sidebarCollapsedWidthPx = useUILayoutStore(
-    (s) => s.sidebar.collapsedWidthPx,
-  );
   const sidebarMinWidthPx = useUILayoutStore((s) => s.sidebar.minWidthPx);
   const sidebarMaxWidthPx = useUILayoutStore((s) => s.sidebar.maxWidthPx);
+  const setSidebarCollapsed = useUILayoutStore((s) => s.setSidebarCollapsed);
   const setSidebarWidthPx = useUILayoutStore((s) => s.setSidebarWidthPx);
   const shellRadiusPx = 18;
   const workspaceInsetPx = 0;
+  const collapsedMacWindowInsetTopPx = 44;
+  const workspaceInsetTopPx =
+    !settingsOpen && sidebarCollapsed && isMacOS
+      ? collapsedMacWindowInsetTopPx
+      : workspaceInsetPx;
+  const sidebarHiddenWidthPx = 0;
+  const collapsedToggleInsetLeftPx = 88;
+  const collapsedToggleInsetTopPx = 10;
   const surfaceBorder = "none";
 
   return (
@@ -85,7 +94,7 @@ export const MainLayout: React.FC<{
           height: "100%",
           width: "100%",
           boxSizing: "border-box",
-          paddingTop: workspaceInsetPx,
+          paddingTop: workspaceInsetTopPx,
           paddingLeft: workspaceInsetPx,
           paddingRight: workspaceInsetPx,
           paddingBottom: workspaceInsetPx,
@@ -127,11 +136,11 @@ export const MainLayout: React.FC<{
                 background: "transparent",
               }}
               sizesPx={[
-                sidebarCollapsed ? sidebarCollapsedWidthPx : sidebarWidthPx,
+                sidebarCollapsed ? sidebarHiddenWidthPx : sidebarWidthPx,
                 0,
               ]}
               minFirstPx={
-                sidebarCollapsed ? sidebarCollapsedWidthPx : sidebarMinWidthPx
+                sidebarCollapsed ? sidebarHiddenWidthPx : sidebarMinWidthPx
               }
               // Keep the same max behavior by clamping in the store setter.
               // We still want the drag interaction to feel bounded though.
@@ -188,6 +197,29 @@ export const MainLayout: React.FC<{
             />
           </>
         )}
+
+        {!settingsOpen && sidebarCollapsed ? (
+          <Button
+            type="text"
+            size="small"
+            icon={<MenuUnfoldOutlined />}
+            onClick={() => setSidebarCollapsed(false)}
+            title="Show sidebar"
+            aria-label="Show sidebar"
+            style={{
+              position: "absolute",
+              top: collapsedToggleInsetTopPx,
+              left: collapsedToggleInsetLeftPx,
+              zIndex: 40,
+              width: 28,
+              height: 28,
+              borderRadius: 8,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              background: token.colorBgElevated,
+              boxShadow: token.boxShadowTertiary,
+            }}
+          />
+        ) : null}
       </div>
     </Layout>
   );

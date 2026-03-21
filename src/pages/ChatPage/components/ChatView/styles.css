@@ -63,9 +63,11 @@
   bottom: 0;
   opacity: 1;
   margin-top: auto;
-  background: var(--ant-color-bg-container);
-  backdrop-filter: blur(10px);
+  background: transparent;
+  backdrop-filter: none;
   z-index: 10;
+  padding-top: 8px;
+  padding-bottom: 12px;
 }
 
 .chat-view-input-container-wrapper .active-tool-card-wrapper {
