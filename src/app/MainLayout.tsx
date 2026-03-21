@@ -200,6 +200,7 @@ export const MainLayout: React.FC<{
 
         {!settingsOpen && sidebarCollapsed ? (
           <Button
+            data-testid="show-sidebar"
             type="text"
             size="small"
             icon={<MenuUnfoldOutlined />}

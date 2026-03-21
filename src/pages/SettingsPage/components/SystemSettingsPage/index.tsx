@@ -101,6 +101,10 @@ const SystemSettingsPage = ({
     children: null,
   });
 
+  const tabLabel = (key: string, label: string) => (
+    <span data-testid={`settings-tab-${key}`}>{label}</span>
+  );
+
   const handleClearLocalStorage = () => {
     localStorage.clear();
     msgApi.success(t("settings.notifications.localStorageCleared"));
@@ -203,7 +207,9 @@ const SystemSettingsPage = ({
           <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
             {t("settings.page.back")}
           </Button>
-          <Text strong>{t("settings.page.title")}</Text>
+          <Text strong data-testid="settings-page-title">
+            {t("settings.page.title")}
+          </Text>
         </Flex>
       </Flex>
       <Layout.Content
@@ -222,17 +228,17 @@ const SystemSettingsPage = ({
             groupLabel("group-ai", t("settings.page.groups.ai")),
             {
               key: "provider",
-              label: t("settings.page.tabs.provider"),
+              label: tabLabel("provider", t("settings.page.tabs.provider")),
               children: <ProviderSettings />,
             },
             {
               key: "model-limits",
-              label: t("settings.page.tabs.modelLimits"),
+              label: tabLabel("model-limits", t("settings.page.tabs.modelLimits")),
               children: <ModelLimitsSettings />,
             },
             {
               key: "prompts",
-              label: t("settings.page.tabs.prompts"),
+              label: tabLabel("prompts", t("settings.page.tabs.prompts")),
               children: (
                 <SystemSettingsPromptsTab
                   promptEnhancement={promptEnhancement}
@@ -254,48 +260,48 @@ const SystemSettingsPage = ({
             groupLabel("group-tools", t("settings.page.groups.toolsAndExtensions")),
             {
               key: "skills",
-              label: t("settings.page.tabs.skills"),
+              label: tabLabel("skills", t("settings.page.tabs.skills")),
               children: <SkillManager />,
             },
             {
               key: "mcp",
-              label: t("settings.page.tabs.mcp"),
+              label: tabLabel("mcp", t("settings.page.tabs.mcp")),
               children: <SystemSettingsMcpTab />,
             },
             {
               key: "workflows",
-              label: t("settings.page.tabs.workflows"),
+              label: tabLabel("workflows", t("settings.page.tabs.workflows")),
               children: <SystemSettingsWorkflowsTab />,
             },
             {
               key: "hooks",
-              label: t("settings.page.tabs.hooks"),
+              label: tabLabel("hooks", t("settings.page.tabs.hooks")),
               children: <SystemSettingsHooksTab />,
             },
             // ── Security ──
             groupLabel("group-security", t("settings.page.groups.securityAndPrivacy")),
             {
               key: "masking",
-              label: t("settings.page.tabs.masking"),
+              label: tabLabel("masking", t("settings.page.tabs.masking")),
               children: <SystemSettingsKeywordMaskingTab />,
             },
             // ── Monitoring ──
             groupLabel("group-monitoring", t("settings.page.groups.monitoring")),
             {
               key: "metrics",
-              label: t("settings.page.tabs.metrics"),
+              label: tabLabel("metrics", t("settings.page.tabs.metrics")),
               children: <SystemSettingsMetricsTab />,
             },
             {
               key: "sessions",
-              label: t("settings.page.tabs.sessions"),
+              label: tabLabel("sessions", t("settings.page.tabs.sessions")),
               children: <SystemSettingsSessionsTab />,
             },
             // ── System ──
             groupLabel("group-system", t("settings.page.groups.system")),
             {
               key: "config",
-              label: t("settings.page.tabs.config"),
+              label: tabLabel("config", t("settings.page.tabs.config")),
               children: (
                 <SystemSettingsConfigTab
                   msgApi={msgApi}
@@ -306,12 +312,12 @@ const SystemSettingsPage = ({
             },
             {
               key: "schedules",
-              label: t("settings.page.tabs.schedules"),
+              label: tabLabel("schedules", t("settings.page.tabs.schedules")),
               children: <SystemSettingsSchedulesTab />,
             },
             {
               key: "app",
-              label: t("settings.page.tabs.app"),
+              label: tabLabel("app", t("settings.page.tabs.app")),
               children: (
                 <SystemSettingsAppTab
                   autoGenerateTitles={autoGenerateTitles}

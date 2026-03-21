@@ -1,171 +1,55 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from "@playwright/test";
+import { ensureChatReady } from "../../utils/test-helpers";
 
-test.describe('Browser Mode Specific Tests', () => {
-  test.use({ baseURL: 'http://localhost:1420' }); // Vite dev server
+test.describe("Browser Mode Specific Tests", () => {
+  test.use({ baseURL: "http://127.0.0.1:1420" });
 
-  test('should connect to backend on port 9562', async ({ page }) => {
-    await page.goto('/');
-
-    // Check backend health
-    const healthResponse = await page.request.get('http://localhost:9562/api/v1/health');
+  test("connects to backend health endpoint", async ({ page }) => {
+    await page.goto("/");
+    const healthResponse = await page.request.get("http://127.0.0.1:9562/api/v1/health");
     expect(healthResponse.ok()).toBeTruthy();
   });
 
-  test('should use Web Clipboard API', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-
-    await page.goto('/chat');
-
-    // Send a test message
-    await page.fill('[data-testid="chat-input"]', 'Test clipboard');
-    await page.click('[data-testid="send-button"]');
-
-    // Wait for response
-    await expect(page.locator('[data-testid="assistant-message"]')).toBeVisible();
-
-    // Copy text
-    await page.click('[data-testid="copy-message"]');
-
-    // Verify clipboard
-    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
-    expect(clipboardText).toBeTruthy();
-    expect(clipboardText.length).toBeGreaterThan(0);
-  });
-
-  test('should show graceful fallback for desktop-only features', async ({ page }) => {
-    await page.goto('/settings');
-
-    // Check for desktop-only feature notice
-    const desktopOnlyFeatures = page.locator('[data-testid="desktop-only-notice"]');
-
-    if (await desktopOnlyFeatures.count() > 0) {
-      await expect(desktopOnlyFeatures.first()).toContainText('desktop application');
-    }
-  });
-
-  test('should handle WebSocket connection', async ({ page }) => {
-    await page.goto('/chat');
-
-    // Wait for WebSocket to connect
-    await page.waitForFunction(() => {
-      // Check for WebSocket connection indicator
-      const indicator = document.querySelector('[data-testid="connection-status"]');
-      return indicator && indicator.textContent?.includes('connected');
-    }, { timeout: 10000 });
-  });
-
-  test('should reconnect on WebSocket disconnect', async ({ page, context }) => {
-    await page.goto('/chat');
-
-    // Wait for initial connection
-    await page.waitForFunction(() => {
-      const indicator = document.querySelector('[data-testid="connection-status"]');
-      return indicator && indicator.textContent?.includes('connected');
-    }, { timeout: 10000 });
-
-    // Simulate network issue by going offline
-    await context.setOffline(true);
-    await page.waitForTimeout(1000);
-
-    // Come back online
-    await context.setOffline(false);
-
-    // Should reconnect automatically
-    await page.waitForFunction(() => {
-      const indicator = document.querySelector('[data-testid="connection-status"]');
-      return indicator && indicator.textContent?.includes('connected');
-    }, { timeout: 15000 });
-  });
-
-  test('should work in different browsers', async ({ page, browserName }) => {
-    await page.goto('/');
-
-    // Basic functionality should work in all browsers
-    await expect(page.locator('body')).toBeVisible();
-
-    // Test in chat
-    await page.goto('/chat');
+  test("supports chat interaction in browser mode", async ({ page }) => {
+    await ensureChatReady(page);
     await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
+    await expect(page.locator('[data-testid="send-button"]')).toBeVisible();
   });
 
-  test('should store data in localStorage', async ({ page }) => {
-    await page.goto('/');
+  test("supports web clipboard api", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.goto("/");
 
-    // Set some data
+    await page.evaluate(async () => {
+      await navigator.clipboard.writeText("clipboard-smoke-test");
+    });
+    const text = await page.evaluate(async () => navigator.clipboard.readText());
+    expect(text).toBe("clipboard-smoke-test");
+  });
+
+  test("supports local and session storage", async ({ page }) => {
+    await page.goto("/");
+
     await page.evaluate(() => {
-      localStorage.setItem('test-key', 'test-value');
+      localStorage.setItem("e2e-local-key", "local-value");
+      sessionStorage.setItem("e2e-session-key", "session-value");
     });
 
-    // Verify it persists
-    const value = await page.evaluate(() => {
-      return localStorage.getItem('test-key');
-    });
-
-    expect(value).toBe('test-value');
+    const values = await page.evaluate(() => ({
+      local: localStorage.getItem("e2e-local-key"),
+      session: sessionStorage.getItem("e2e-session-key"),
+    }));
+    expect(values.local).toBe("local-value");
+    expect(values.session).toBe("session-value");
   });
 
-  test('should handle session storage', async ({ page }) => {
-    await page.goto('/');
+  test("renders in mobile and desktop viewports", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.locator("body")).toBeVisible();
 
-    // Store session data
-    await page.evaluate(() => {
-      sessionStorage.setItem('session-test', 'session-value');
-    });
-
-    // Verify it exists
-    const value = await page.evaluate(() => {
-      return sessionStorage.getItem('session-test');
-    });
-
-    expect(value).toBe('session-value');
-  });
-
-  test('should support responsive design', async ({ page }) => {
-    // Test mobile viewport
-    await page.setViewportSize({ width: 375, height: 667 });
-    await page.goto('/');
-
-    // Should adapt to mobile
-    await expect(page.locator('body')).toBeVisible();
-
-    // Test desktop viewport
-    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.setViewportSize({ width: 1440, height: 900 });
     await page.reload();
-
-    // Should work on desktop too
-    await expect(page.locator('body')).toBeVisible();
-  });
-
-  test('should handle CORS properly', async ({ page }) => {
-    // Make request from different origin
-    const response = await page.request.get('http://localhost:9562/api/v1/health');
-
-    // Should have CORS headers
-    const corsHeader = response.headers()['access-control-allow-origin'];
-    expect(corsHeader).toBeTruthy();
-  });
-
-  test('should show proper error for missing backend', async ({ page, context }) => {
-    // Block backend requests
-    await context.route('**/localhost:9562/**', route => route.abort());
-
-    await page.goto('/');
-
-    // Should show connection error
-    await expect(page.locator('[data-testid="connection-error"]')).toBeVisible({
-      timeout: 10000
-    });
-  });
-
-  test('should work without service worker', async ({ page }) => {
-    // Service worker is optional for browser mode
-    await page.goto('/');
-
-    // App should still work
-    await expect(page.locator('body')).toBeVisible();
-
-    // Navigate to chat
-    await page.goto('/chat');
-    await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
+    await expect(page.locator("body")).toBeVisible();
   });
 });

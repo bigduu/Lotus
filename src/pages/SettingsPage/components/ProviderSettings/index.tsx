@@ -1129,7 +1129,11 @@ export const ProviderSettings: React.FC = () => {
             },
           ]}
         >
-          <Select onChange={handleProviderChange} size="large">
+          <Select
+            data-testid="provider-select"
+            onChange={handleProviderChange}
+            size="large"
+          >
             {(Object.keys(PROVIDER_LABELS) as ProviderType[]).map((key) => (
               <Option key={key} value={key}>
                 {PROVIDER_LABELS[key]}

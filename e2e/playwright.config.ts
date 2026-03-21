@@ -15,16 +15,45 @@ if (suite === 'browser') {
   testIgnore.push('tests/modes/desktop-mode.spec.ts');
 }
 
+const uiBaseURL = process.env.E2E_BASE_URL || 'http://127.0.0.1:1420';
+const webServers: Array<{
+  command: string;
+  cwd: string;
+  url: string;
+  reuseExistingServer: boolean;
+  timeout: number;
+}> = [
+  {
+    command:
+      process.env.E2E_UI_START_SERVER ||
+      'npm run dev -- --host 127.0.0.1 --port 1420',
+    cwd: '..',
+    url: uiBaseURL,
+    reuseExistingServer: true,
+    timeout: 120000,
+  },
+];
+
+if (process.env.E2E_START_SERVER) {
+  webServers.push({
+    command: process.env.E2E_START_SERVER,
+    cwd: '.',
+    url: 'http://127.0.0.1:9562/api/v1/health',
+    reuseExistingServer: true,
+    timeout: 120000,
+  });
+}
+
 export default defineConfig({
   testDir: './tests',
   testIgnore,
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: 'html',
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:9562',
+    baseURL: uiBaseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     // Increase timeouts for CI/slower environments
@@ -46,16 +75,7 @@ export default defineConfig({
     //   use: { ...devices['Desktop Safari'] },
     // },
   ],
-  // Only use webServer if E2E_START_SERVER is set
-  ...(process.env.E2E_START_SERVER ? {
-    webServer: {
-      command: process.env.E2E_START_SERVER,
-      cwd: '.', // Run from lotus/e2e so ../../bamboo/Cargo.toml resolves correctly
-      url: 'http://localhost:9562/api/v1/health',
-      reuseExistingServer: false,
-      timeout: 120000,
-    },
-  } : {}),
+  webServer: webServers,
   globalSetup: require.resolve('./global-setup'),
   globalTeardown: require.resolve('./global-teardown'),
 });

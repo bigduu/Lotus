@@ -33,6 +33,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
       }}
     >
       <Button
+        data-testid="new-chat"
         type="primary"
         icon={<PlusOutlined />}
         onClick={onNewChat}

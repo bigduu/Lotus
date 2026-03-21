@@ -1,14 +1,32 @@
 import { Page, expect } from '@playwright/test';
 
+const APP_READY_SELECTORS = [
+  '[data-testid="chat-input"]',
+  '[data-testid="open-settings"]',
+  '[data-testid="new-chat"]',
+  '[data-testid="setup-wizard"]',
+  '[data-testid="settings-page-title"]',
+  '[data-testid="show-sidebar"]',
+];
+
 export async function waitForAppReady(page: Page) {
   // Wait for app to be fully loaded
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
 
-  // Wait for React to hydrate
-  await page.waitForFunction(() => {
+  // Wait for React to hydrate and render at least one stable app shell element.
+  await page.waitForFunction((selectors: string[]) => {
     const root = document.querySelector('#root');
-    return root && root.children.length > 0;
-  });
+    if (!root || root.children.length === 0) {
+      return false;
+    }
+
+    const text = (root.textContent || '').trim();
+    if (text === 'Loading...' || text.length === 0) {
+      return false;
+    }
+
+    return selectors.some((selector) => Boolean(document.querySelector(selector)));
+  }, APP_READY_SELECTORS, { timeout: 30000 });
 }
 
 export async function completeSetupIfNeeded(page: Page) {
@@ -26,6 +44,181 @@ export async function completeSetupIfNeeded(page: Page) {
     // Wait for redirect to chat
     await page.waitForURL(/.*\/chat/, { timeout: 10000 });
   }
+}
+
+export async function ensureSidebarVisible(page: Page) {
+  const showSidebarButton = page.locator('[data-testid="show-sidebar"]');
+  if (await showSidebarButton.isVisible().catch(() => false)) {
+    await showSidebarButton.click();
+  }
+}
+
+async function dismissBlockingModal(page: Page): Promise<void> {
+  const modalWrap = page.locator('.ant-modal-wrap').first();
+  if (!(await modalWrap.isVisible().catch(() => false))) {
+    return;
+  }
+
+  const createSessionButton = page.getByRole('button', {
+    name: 'Create New Session',
+    exact: true,
+  });
+  if (await createSessionButton.isVisible().catch(() => false)) {
+    if (await createSessionButton.isDisabled().catch(() => false)) {
+      const firstPrompt = page.locator('.ant-modal [role="listitem"]').first();
+      if (await firstPrompt.isVisible().catch(() => false)) {
+        await firstPrompt.click();
+      }
+    }
+
+    if (!(await createSessionButton.isDisabled().catch(() => true))) {
+      await createSessionButton.click();
+      await page.waitForTimeout(250);
+      return;
+    }
+  }
+
+  const closeButton = page.locator('.ant-modal-close').first();
+  if (await closeButton.isVisible().catch(() => false)) {
+    await closeButton.click();
+  } else {
+    await page.keyboard.press('Escape');
+  }
+
+  await page.waitForTimeout(250);
+}
+
+export async function clickWithModalGuard(
+  page: Page,
+  selector: string,
+  attempts = 3
+): Promise<void> {
+  let lastError: unknown;
+
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      await page.click(selector, { timeout: 15000 });
+      return;
+    } catch (error) {
+      lastError = error;
+      const message = String(error);
+      const isModalInterception =
+        message.includes('intercepts pointer events') ||
+        message.includes('ant-modal-wrap');
+
+      if (!isModalInterception) {
+        throw error;
+      }
+
+      await dismissBlockingModal(page);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Failed to click ${selector} after modal guard retries`);
+}
+
+export async function ensureChatReady(page: Page) {
+  await page.goto('/');
+  await waitForAppReady(page);
+  await ensureSidebarVisible(page);
+  await dismissBlockingModal(page);
+
+  const resolveSystemPromptModal = async () => {
+    const modal = page.getByRole('dialog', {
+      name: /Create New Session - Select System Prompt/i,
+    });
+
+    if (!(await modal.isVisible().catch(() => false))) {
+      return;
+    }
+
+    const createButton = modal.getByRole('button', {
+      name: 'Create New Session',
+      exact: true,
+    });
+
+    if (!(await createButton.isVisible().catch(() => false))) {
+      await page.keyboard.press('Escape');
+      await expect(modal).toBeHidden({ timeout: 10000 });
+      return;
+    }
+
+    if (await createButton.isDisabled()) {
+      const firstPrompt = modal.locator('[role="listitem"]').first();
+      if (await firstPrompt.isVisible().catch(() => false)) {
+        await firstPrompt.click();
+      }
+    }
+
+    await createButton.click();
+    await expect(modal).toBeHidden({ timeout: 10000 });
+  };
+
+  await resolveSystemPromptModal();
+  await dismissBlockingModal(page);
+
+  const chatInput = page.locator('[data-testid="chat-input"]');
+  if (!(await chatInput.isVisible().catch(() => false))) {
+    const firstChatItem = page.locator('[data-testid="chat-item"]').first();
+    if (await firstChatItem.isVisible().catch(() => false)) {
+      await firstChatItem.click();
+      await resolveSystemPromptModal();
+      await dismissBlockingModal(page);
+    }
+  }
+
+  if (!(await chatInput.isVisible().catch(() => false))) {
+    const newChatButton = page.locator('[data-testid="new-chat"]');
+    await expect(newChatButton).toBeVisible({ timeout: 10000 });
+    await newChatButton.click();
+    await resolveSystemPromptModal();
+    await dismissBlockingModal(page);
+  }
+
+  await dismissBlockingModal(page);
+  await expect(chatInput).toBeVisible({ timeout: 15000 });
+}
+
+export async function openSettingsPage(page: Page) {
+  const settingsTitle = page.locator('[data-testid="settings-page-title"]');
+  if (!(await settingsTitle.isVisible().catch(() => false))) {
+    await page.goto('/');
+    await waitForAppReady(page);
+    await ensureSidebarVisible(page);
+    await dismissBlockingModal(page);
+
+    const modal = page.getByRole('dialog', {
+      name: /Create New Session - Select System Prompt/i,
+    });
+    if (await modal.isVisible().catch(() => false)) {
+      const closeButton = modal.getByRole('button', { name: /close/i });
+      if (await closeButton.isVisible().catch(() => false)) {
+        await closeButton.click();
+      } else {
+        await page.keyboard.press('Escape');
+      }
+      await expect(modal).toBeHidden({ timeout: 10000 });
+    }
+
+    const openSettingsButton = page.locator('[data-testid="open-settings"]');
+    await expect(openSettingsButton).toBeVisible({ timeout: 20000 });
+    await openSettingsButton.click();
+  }
+
+  await expect(settingsTitle).toBeVisible({ timeout: 15000 });
+}
+
+export async function openSettingsTab(page: Page, key: string) {
+  const settingsTitle = page.locator('[data-testid="settings-page-title"]');
+  if (!(await settingsTitle.isVisible().catch(() => false))) {
+    await openSettingsPage(page);
+  }
+
+  const tab = page.locator(`[data-testid="settings-tab-${key}"]`);
+  await expect(tab).toBeVisible({ timeout: 10000 });
+  await tab.click();
 }
 
 export async function clearChatHistory(page: Page) {
@@ -209,55 +402,12 @@ export async function fillReactInput(
   selector: string,
   value: string
 ): Promise<void> {
-  // Use evaluate to bypass React's value interception
-  await page.evaluate((args) => {
-    const textarea = document.querySelector(args.selector) as HTMLTextAreaElement;
-    if (!textarea) {
-      throw new Error(`Element not found: ${args.selector}`);
-    }
-
-    // Get React's fiber node
-    const fiberKey = Object.keys(textarea).find(key => key.startsWith('__reactFiber'));
-    if (!fiberKey) {
-      throw new Error('React fiber not found on element');
-    }
-
-    // Get the native input value setter
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLTextAreaElement.prototype,
-      'value'
-    )?.set;
-
-    if (!nativeInputValueSetter) {
-      throw new Error('Native input value setter not found');
-    }
-
-    // Set the value using the native setter (bypasses React's interception)
-    nativeInputValueSetter.call(textarea, args.value);
-
-    // Create and dispatch React-compatible events
-    const inputEvent = new Event('input', { bubbles: true });
-    Object.defineProperty(inputEvent, 'target', {
-      value: textarea,
-      writable: false
-    });
-    textarea.dispatchEvent(inputEvent);
-
-    // Also dispatch change event
-    textarea.dispatchEvent(new Event('change', { bubbles: true }));
-
-    // Trigger React's onChange handler by simulating character input
-    textarea.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-    textarea.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true }));
-    textarea.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-  }, { selector, value });
-
-  // Wait for React to process
-  await page.waitForTimeout(300);
-
-  // Verify the value was set
   const input = page.locator(selector);
-  const actualValue = await input.inputValue();
+  await expect(input).toBeVisible({ timeout: 10000 });
+  await input.fill('');
+  await input.fill(value);
+
+  const actualValue = await input.inputValue({ timeout: 5000 });
   console.log(`fillReactInput: Expected "${value}", got "${actualValue}"`);
 
   if (actualValue !== value) {
@@ -308,4 +458,3 @@ export async function waitForButtonEnabled(
     { timeout }
   );
 }
-
