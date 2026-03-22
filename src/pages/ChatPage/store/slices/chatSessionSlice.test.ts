@@ -229,6 +229,59 @@ describe("chatSessionSlice history mapping", () => {
     });
   });
 
+  it("keeps assistant reasoning when tool-call message has empty text", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          reasoning: "I should inspect project files before editing.",
+          tool_calls: [
+            {
+              id: "tool-call-1",
+              type: "function",
+              function: {
+                name: "read_file",
+                arguments: '{"path":"README.md"}',
+              },
+            },
+          ],
+          created_at: "2026-03-15T00:00:00Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "replace" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated?.messages).toHaveLength(2);
+    expect(updated?.messages[0]).toMatchObject({
+      role: "assistant",
+      type: "text",
+      content: "",
+      metadata: {
+        reasoning: "I should inspect project files before editing.",
+      },
+    });
+    expect(updated?.messages[1]).toMatchObject({
+      role: "assistant",
+      type: "tool_call",
+    });
+  });
+
   it("preserves failed tool status from history", async () => {
     const store = createTestStore();
     const chat = createChat("session-1");

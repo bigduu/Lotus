@@ -209,9 +209,11 @@ const mapHistoryMessagesToUi = (
       const toolCalls = msg.tool_calls || [];
       if (toolCalls.length > 0) {
         const assistantText = (msg.content || "").trim();
-        if (assistantText) {
+        const hasReasoning =
+          typeof msg.reasoning === "string" && msg.reasoning.trim().length > 0;
+        if (assistantText || hasReasoning) {
           const metadata =
-            typeof msg.reasoning === "string" && msg.reasoning.trim().length > 0
+            hasReasoning
               ? { reasoning: msg.reasoning }
               : {};
           const asst: AssistantTextMessage = {
