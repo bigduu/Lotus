@@ -6,11 +6,13 @@ const {
   mockCompletionsCreate,
   mockStoreState,
   mockGetState,
+  mockLoadChatHistory,
 } = vi.hoisted(() => {
   const state: any = {
     currentSessionId: null as string | null,
     chats: [] as any[],
     updateSession: vi.fn(),
+    loadChatHistory: vi.fn(async () => undefined),
   };
 
   return {
@@ -18,11 +20,12 @@ const {
     mockCompletionsCreate: vi.fn(),
     mockStoreState: state,
     mockGetState: vi.fn(() => state),
+    mockLoadChatHistory: state.loadChatHistory,
   };
 });
 
 vi.mock("../../hooks/useActiveModel", () => ({
-  useActiveModel: () => "gpt-5",
+  useFastModel: () => "gpt-5",
 }));
 
 vi.mock("../../services/openaiClient", () => ({
@@ -83,6 +86,8 @@ describe("useMessageCardMermaidFix", () => {
     mockStoreState.currentSessionId = null;
     mockStoreState.chats = [];
     mockStoreState.updateSession = vi.fn();
+    mockStoreState.loadChatHistory = mockLoadChatHistory;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
     mockGetState.mockImplementation(() => mockStoreState);
   });
 
@@ -182,5 +187,141 @@ describe("useMessageCardMermaidFix", () => {
     );
     expect(mockPatchSessionMessage).not.toHaveBeenCalled();
     expect(mockStoreState.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("uses explicit session id when provided", async () => {
+    mockStoreState.currentSessionId = "session-2";
+    mockStoreState.chats = [
+      createChatWithAssistantMessage("```mermaid\ngraph TD\nA -->\n```"),
+      {
+        ...createChatWithAssistantMessage("other"),
+        id: "session-2",
+      },
+    ];
+    mockCompletionsCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: "graph TD\nA --> B" } }],
+    });
+    mockPatchSessionMessage.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() =>
+      useMessageCardMermaidFix("assistant-1", "session-1"),
+    );
+
+    await result.current("graph TD\nA -->", "Parse error");
+
+    expect(mockPatchSessionMessage).toHaveBeenCalledWith(
+      "session-1",
+      "assistant-1",
+      expect.objectContaining({
+        content: expect.stringContaining("A --> B"),
+      }),
+    );
+  });
+
+  it("maps derived text id to backend message id", async () => {
+    mockStoreState.currentSessionId = "session-1";
+    mockStoreState.chats = [
+      {
+        ...createChatWithAssistantMessage("irrelevant"),
+        messages: [
+          {
+            id: "assistant-1_text",
+            role: "assistant",
+            type: "text",
+            content: "```mermaid\ngraph TD\nA -->\n```",
+            createdAt: new Date().toISOString(),
+            metadata: {
+              backendMessageId: "assistant-1",
+            },
+          },
+          {
+            id: "assistant-1",
+            role: "assistant",
+            type: "tool_call",
+            toolCalls: [],
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ];
+    mockCompletionsCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: "graph TD\nA --> B" } }],
+    });
+    mockPatchSessionMessage.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() =>
+      useMessageCardMermaidFix("assistant-1_text"),
+    );
+
+    await result.current("graph TD\nA -->", "Parse error");
+
+    expect(mockPatchSessionMessage).toHaveBeenCalledWith(
+      "session-1",
+      "assistant-1",
+      expect.objectContaining({
+        content: expect.stringContaining("A --> B"),
+      }),
+    );
+  });
+
+  it("reloads history and retries patch when backend message id changes", async () => {
+    mockStoreState.currentSessionId = "session-1";
+    mockStoreState.chats = [
+      {
+        ...createChatWithAssistantMessage("```mermaid\ngraph TD\nA -->\n```"),
+        messages: [
+          {
+            id: "assistant-local",
+            role: "assistant",
+            type: "text",
+            content: "```mermaid\ngraph TD\nA -->\n```",
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      },
+    ];
+    mockCompletionsCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: "graph TD\nA --> B" } }],
+    });
+    mockPatchSessionMessage
+      .mockRejectedValueOnce(new Error("Message not found"))
+      .mockResolvedValueOnce(undefined);
+    mockStoreState.loadChatHistory.mockImplementationOnce(async () => {
+      mockStoreState.chats = [
+        {
+          ...createChatWithAssistantMessage("irrelevant"),
+          messages: [
+            {
+              id: "assistant-persisted",
+              role: "assistant",
+              type: "text",
+              content: "```mermaid\ngraph TD\nA -->\n```",
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ];
+    });
+
+    const { result } = renderHook(() =>
+      useMessageCardMermaidFix("assistant-local"),
+    );
+
+    await result.current("graph TD\nA -->", "Parse error");
+
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("session-1", {
+      mode: "replace",
+      retries: 2,
+      retryDelayMs: 150,
+      waitForAssistant: true,
+    });
+    expect(mockPatchSessionMessage).toHaveBeenNthCalledWith(
+      2,
+      "session-1",
+      "assistant-persisted",
+      expect.objectContaining({
+        content: expect.stringContaining("A --> B"),
+      }),
+    );
   });
 });

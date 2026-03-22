@@ -184,6 +184,13 @@ describe("useAgentEventSubscription", () => {
 
     await waitFor(() => {
       expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockState.loadChatHistory).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          mode: "monotonic",
+          waitForAssistant: true,
+        }),
+      );
     });
   });
 

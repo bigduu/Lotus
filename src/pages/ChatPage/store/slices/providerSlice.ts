@@ -28,6 +28,10 @@ interface ProviderState {
 
   // Getters
   getActiveModel: () => string | undefined;
+  /** Get fast/cheap model for current provider. Falls back to active model. */
+  getFastModel: () => string | undefined;
+  /** Get vision-capable model for current provider. Falls back to active model. */
+  getVisionModel: () => string | undefined;
 }
 
 export const useProviderStore = create<ProviderState>((set, get) => ({
@@ -97,5 +101,41 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     }
 
     return undefined;
+  },
+
+  // Get fast/cheap model for current provider (falls back to active model)
+  getFastModel: () => {
+    const state = get();
+    const providerConfig =
+      state.providerConfig.providers[state.currentProvider];
+
+    if (
+      providerConfig &&
+      "fast_model" in providerConfig &&
+      providerConfig.fast_model
+    ) {
+      return providerConfig.fast_model;
+    }
+
+    // Fallback to active model
+    return state.getActiveModel();
+  },
+
+  // Get vision-capable model for current provider (falls back to active model)
+  getVisionModel: () => {
+    const state = get();
+    const providerConfig =
+      state.providerConfig.providers[state.currentProvider];
+
+    if (
+      providerConfig &&
+      "vision_model" in providerConfig &&
+      providerConfig.vision_model
+    ) {
+      return providerConfig.vision_model;
+    }
+
+    // Fallback to active model
+    return state.getActiveModel();
   },
 }));

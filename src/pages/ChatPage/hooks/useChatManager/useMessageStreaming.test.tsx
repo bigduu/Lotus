@@ -12,12 +12,14 @@ const mockAgentSendMessage = vi.fn();
 const mockAgentExecute = vi.fn();
 const mockAgentSubscribeToEvents = vi.fn();
 const mockAgentHealthCheck = vi.fn();
+const mockAgentTruncateSessionMessages = vi.fn();
 
 const mockStoreState = {
   agentAvailability: null as boolean | null,
   startAgentHealthCheck: vi.fn(),
   checkAgentAvailability: vi.fn<() => Promise<boolean>>(),
   setAgentAvailability: vi.fn(),
+  loadChatHistory: vi.fn(),
   chats: [] as any[],
 };
 
@@ -42,6 +44,7 @@ vi.mock("../../services/AgentService", () => ({
     execute = mockAgentExecute;
     subscribeToEvents = mockAgentSubscribeToEvents;
     healthCheck = mockAgentHealthCheck;
+    truncateSessionMessages = mockAgentTruncateSessionMessages;
   },
 }));
 
@@ -52,10 +55,19 @@ vi.mock("../../utils/streamingMessageBus", () => ({
   },
 }));
 
-vi.mock("../../store", () => ({
-  useAppStore: (selector: (state: typeof mockStoreState) => unknown) =>
-    selector(mockStoreState),
-}));
+vi.mock("../../store", () => {
+  const useAppStore = (selector: (state: typeof mockStoreState) => unknown) =>
+    selector(mockStoreState);
+  (
+    useAppStore as typeof useAppStore & {
+      getState: () => { loadChatHistory: typeof mockStoreState.loadChatHistory };
+    }
+  ).getState = () => ({
+    loadChatHistory: mockStoreState.loadChatHistory,
+  });
+
+  return { useAppStore };
+});
 
 import { useMessageStreaming } from "./useMessageStreaming";
 
@@ -70,11 +82,14 @@ describe("useMessageStreaming", () => {
     mockAgentExecute.mockReset();
     mockAgentSubscribeToEvents.mockReset();
     mockAgentHealthCheck.mockReset();
+    mockAgentTruncateSessionMessages.mockReset();
 
     mockStoreState.agentAvailability = null;
     mockStoreState.startAgentHealthCheck.mockReset();
     mockStoreState.checkAgentAvailability.mockReset();
     mockStoreState.setAgentAvailability.mockReset();
+    mockStoreState.loadChatHistory.mockReset();
+    mockStoreState.chats = [];
   });
 
   it("starts global health-check polling once on mount", async () => {
@@ -282,5 +297,109 @@ describe("useMessageStreaming", () => {
 
     // The key safety property: subscribe early so first execution events are not missed.
     expect(order).toEqual(["chat", "processing:chat-1:true", "execute"]);
+  });
+
+  it("does not reload history on error retry when server preserves full history", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.chats = [
+      {
+        id: "chat-1",
+        title: "Test Chat",
+        createdAt: Date.now(),
+        messages: [],
+        config: {
+          systemPromptId: "general_assistant",
+          baseSystemPrompt: "",
+          lastUsedEnhancedPrompt: null,
+        },
+        currentInteraction: {
+          machineState: "idle",
+          streamingMessageId: null,
+          streamingContent: null,
+        },
+      },
+    ];
+    mockAgentTruncateSessionMessages.mockResolvedValueOnce({
+      success: true,
+      session_id: "chat-1",
+      messages_removed: 0,
+      message_count: 6,
+    });
+    mockAgentExecute.mockResolvedValueOnce({
+      session_id: "chat-1",
+      status: "started",
+      events_url: "/api/v1/events/chat-1",
+    });
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.retryLastTurn(undefined, "error_retry");
+    });
+
+    expect(mockAgentTruncateSessionMessages).toHaveBeenCalledWith("chat-1", {
+      mode: "error_retry",
+    });
+    expect(mockStoreState.loadChatHistory).not.toHaveBeenCalled();
+  });
+
+  it("reloads history on error retry when server truncated dangling tool tail", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.chats = [
+      {
+        id: "chat-1",
+        title: "Test Chat",
+        createdAt: Date.now(),
+        messages: [],
+        config: {
+          systemPromptId: "general_assistant",
+          baseSystemPrompt: "",
+          lastUsedEnhancedPrompt: null,
+        },
+        currentInteraction: {
+          machineState: "idle",
+          streamingMessageId: null,
+          streamingContent: null,
+        },
+      },
+    ];
+    mockAgentTruncateSessionMessages.mockResolvedValueOnce({
+      success: true,
+      session_id: "chat-1",
+      messages_removed: 2,
+      message_count: 4,
+    });
+    mockAgentExecute.mockResolvedValueOnce({
+      session_id: "chat-1",
+      status: "started",
+      events_url: "/api/v1/events/chat-1",
+    });
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.retryLastTurn(undefined, "error_retry");
+    });
+
+    expect(mockAgentTruncateSessionMessages).toHaveBeenCalledWith("chat-1", {
+      mode: "error_retry",
+    });
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("chat-1", {
+      mode: "replace",
+    });
   });
 });

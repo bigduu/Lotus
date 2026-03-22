@@ -241,10 +241,16 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
       try {
         const truncateMode =
           retryMode === "error_retry" ? "error_retry" : "after_last_user";
-        await agentClient.truncateSessionMessages(childSessionId, {
-          mode: truncateMode,
-        });
-        if (retryMode === "regenerate") {
+        const truncateResult = await agentClient.truncateSessionMessages(
+          childSessionId,
+          {
+            mode: truncateMode,
+          },
+        );
+        if (
+          retryMode === "regenerate" ||
+          (truncateResult.messages_removed ?? 0) > 0
+        ) {
           await loadChatHistory(childSessionId, { mode: "replace" });
         }
 

@@ -214,8 +214,8 @@ const mapHistoryMessagesToUi = (
         if (assistantText || hasReasoning) {
           const metadata =
             hasReasoning
-              ? { reasoning: msg.reasoning }
-              : {};
+              ? { reasoning: msg.reasoning, backendMessageId: msg.id }
+              : { backendMessageId: msg.id };
           const asst: AssistantTextMessage = {
             role: "assistant",
             type: "text",
@@ -660,14 +660,30 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           const nextLen = nextMessages.length;
           const nextLastRole = nextMessages[nextMessages.length - 1]?.role;
           const prevLastRole = prevMessages[prevMessages.length - 1]?.role;
+          const prevLastMessage = prevMessages[prevMessages.length - 1] as
+            | Message
+            | undefined;
+          const nextLastMessage = nextMessages[nextMessages.length - 1] as
+            | Message
+            | undefined;
+          const prevLastId = prevLastMessage?.id;
+          const nextLastId = nextLastMessage?.id;
 
-          // Avoid wiping newer UI state with a stale backend snapshot.
-          const shouldReplace =
-            nextLen >= prevLen ||
-            // If backend has a terminal-ish last role (assistant/tool/system), it's safe to replace.
-            (typeof nextLastRole === "string" && nextLastRole !== "user") ||
-            // If backend progressed past a "user-only tail", prefer backend.
-            (prevLastRole === "user" && nextLastRole !== "user");
+          // Avoid wiping newer in-memory UI state with shorter backend snapshots.
+          // Only replace when backend is strictly longer, or when lengths are equal
+          // but backend clearly progressed from a user tail / changed terminal item.
+          let shouldReplace = false;
+          if (nextLen > prevLen) {
+            shouldReplace = true;
+          } else if (nextLen === prevLen) {
+            const resolvedUserTail =
+              prevLastRole === "user" && nextLastRole !== "user";
+            const terminalChanged =
+              typeof prevLastId === "string" &&
+              typeof nextLastId === "string" &&
+              prevLastId !== nextLastId;
+            shouldReplace = resolvedUserTail || terminalChanged;
+          }
 
           if (!shouldReplace) {
             get().updateSession(sessionId, {

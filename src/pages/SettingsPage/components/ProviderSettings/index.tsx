@@ -41,6 +41,7 @@ import {
   OPENAI_MODELS,
   ANTHROPIC_MODELS,
   GEMINI_MODELS,
+  COPILOT_MODELS,
 } from "../../../ChatPage/types/providerConfig";
 import { modelService } from "@services/chat/ModelService";
 import {
@@ -664,6 +665,116 @@ export const ProviderSettings: React.FC = () => {
     }
   };
 
+  const handleRoleModelChange = async (
+    provider: ModelProvider,
+    field: "fast_model" | "vision_model",
+    value: string | undefined,
+  ) => {
+    // Auto-save role model changes (same as default model)
+    if (modelAutoSaveStatus === "saving") return;
+
+    setModelAutoSaveStatus("saving");
+    setModelAutoSaveError(null);
+
+    try {
+      const currentValues = form.getFieldsValue(true) as ProviderConfig;
+      currentValues.providers = currentValues.providers || {};
+      (currentValues.providers as any)[provider] = {
+        ...(currentValues.providers as any)[provider],
+        [field]: value || undefined, // clear → undefined (falls back to default)
+      };
+
+      await handleSave(currentValues, {
+        showMessage: false,
+        throwOnError: true,
+      });
+      await handleApply({ showMessage: false, throwOnError: true });
+
+      setModelAutoSaveStatus("success");
+      message.success(t("settings.providerTab.modelUpdated"));
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      setModelAutoSaveStatus("error");
+      setModelAutoSaveError(errorMessage);
+      message.error(
+        errorMessage
+          ? `${t("settings.providerTab.updateModelErrorPrefix")}: ${errorMessage}`
+          : t("settings.providerTab.updateModelFailed"),
+      );
+    }
+  };
+
+  const renderRoleModelFields = (
+    provider: ModelProvider,
+    fallbackModels: ReadonlyArray<{ value: string; label: string }>,
+  ) => {
+    const models = availableModels.length > 0 ? availableModels : fallbackModels;
+    return (
+      <>
+        <Form.Item
+          name={["providers", provider, "fast_model"]}
+          label={t("settings.providerTab.fastModel")}
+          extra={
+            <Text type="secondary">
+              {t("settings.providerTab.fastModelHelp")}
+            </Text>
+          }
+        >
+          <Select
+            placeholder={t("settings.providerTab.sameAsDefault")}
+            allowClear
+            showSearch
+            loading={fetchingModels}
+            disabled={modelAutoSaveStatus === "saving"}
+            notFoundContent={fetchingModels ? <Spin size="small" /> : null}
+            onDropdownVisibleChange={(open) =>
+              handleModelDropdownOpen(provider, open)
+            }
+            onChange={(value) =>
+              handleRoleModelChange(provider, "fast_model", value)
+            }
+          >
+            {models.map((model) => (
+              <Option key={model.value} value={model.value}>
+                {model.label}
+              </Option>
+            ))}
+          </Select>
+        </Form.Item>
+        <Form.Item
+          name={["providers", provider, "vision_model"]}
+          label={t("settings.providerTab.visionModel")}
+          extra={
+            <Text type="secondary">
+              {t("settings.providerTab.visionModelHelp")}
+            </Text>
+          }
+        >
+          <Select
+            placeholder={t("settings.providerTab.sameAsDefault")}
+            allowClear
+            showSearch
+            loading={fetchingModels}
+            disabled={modelAutoSaveStatus === "saving"}
+            notFoundContent={fetchingModels ? <Spin size="small" /> : null}
+            onDropdownVisibleChange={(open) =>
+              handleModelDropdownOpen(provider, open)
+            }
+            onChange={(value) =>
+              handleRoleModelChange(provider, "vision_model", value)
+            }
+          >
+            {models.map((model) => (
+              <Option key={model.value} value={model.value}>
+                {model.label}
+              </Option>
+            ))}
+          </Select>
+        </Form.Item>
+      </>
+    );
+  };
+
   const renderModelFetchExtra = (
     provider: ModelProvider,
     sourceLabel: "API" | "backend",
@@ -794,6 +905,9 @@ export const ProviderSettings: React.FC = () => {
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
+
+            <Divider dashed />
+            {renderRoleModelFields("openai", OPENAI_MODELS)}
           </>
         );
 
@@ -866,6 +980,9 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input type="number" placeholder="4096" min={1} max={100000} />
             </Form.Item>
+
+            <Divider dashed />
+            {renderRoleModelFields("anthropic", ANTHROPIC_MODELS)}
           </>
         );
 
@@ -931,6 +1048,9 @@ export const ProviderSettings: React.FC = () => {
                 ))}
               </Select>
             </Form.Item>
+
+            <Divider dashed />
+            {renderRoleModelFields("gemini", GEMINI_MODELS)}
           </>
         );
 
@@ -1078,6 +1198,9 @@ export const ProviderSettings: React.FC = () => {
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
+
+            <Divider dashed />
+            {renderRoleModelFields("copilot", COPILOT_MODELS)}
 
             <Paragraph type="secondary">
               {t("settings.providerTab.copilotUsageTitle")}

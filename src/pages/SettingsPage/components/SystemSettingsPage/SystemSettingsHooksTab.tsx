@@ -6,13 +6,13 @@ import { useTranslation } from "react-i18next";
 const { Text } = Typography;
 const { useToken } = theme;
 
-type ImageFallbackMode = "placeholder" | "error" | "ocr";
+type ImageFallbackMode = "placeholder" | "error" | "ocr" | "vision";
 
 const getImageFallbackMode = (config: any): ImageFallbackMode => {
   const mode = String(config?.hooks?.image_fallback?.mode || "placeholder")
     .trim()
     .toLowerCase();
-  if (mode === "error" || mode === "ocr") return mode;
+  if (mode === "error" || mode === "ocr" || mode === "vision") return mode;
   return "placeholder";
 };
 
@@ -37,6 +37,7 @@ const SystemSettingsHooksTab: React.FC = () => {
       },
       { label: t("settings.hooksTab.mode.error"), value: "error" as const },
       { label: t("settings.hooksTab.mode.ocr"), value: "ocr" as const },
+      { label: t("settings.hooksTab.mode.vision"), value: "vision" as const },
     ],
     [t],
   );

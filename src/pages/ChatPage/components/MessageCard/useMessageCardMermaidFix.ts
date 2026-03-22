@@ -1,8 +1,9 @@
 import { useCallback } from "react";
 import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
-import { useActiveModel } from "../../hooks/useActiveModel";
+import { useFastModel } from "../../hooks/useActiveModel";
 import { agentClient } from "../../services/AgentService";
+import type { AssistantTextMessage, Message } from "../../types/chat";
 
 const extractMermaidCode = (content: string) => {
   const match = content.match(/```mermaid\s*([\s\S]*?)```/i);
@@ -28,6 +29,80 @@ const replaceMermaidBlock = (
     },
   );
   return replaced ? updated : null;
+};
+
+const DERIVED_TEXT_MESSAGE_SUFFIX = "_text";
+
+const isAssistantTextMessage = (
+  message: Message | undefined,
+): message is AssistantTextMessage =>
+  Boolean(
+    message &&
+      message.role === "assistant" &&
+      "type" in message &&
+      message.type === "text",
+  );
+
+const getBackendMessageId = (
+  messageId: string,
+  message: AssistantTextMessage,
+  messages: Message[],
+): string => {
+  const metadataBackendId =
+    typeof message.metadata?.backendMessageId === "string"
+      ? message.metadata.backendMessageId.trim()
+      : "";
+  if (metadataBackendId) {
+    return metadataBackendId;
+  }
+
+  if (messageId.endsWith(DERIVED_TEXT_MESSAGE_SUFFIX)) {
+    const candidate = messageId.slice(0, -DERIVED_TEXT_MESSAGE_SUFFIX.length);
+    if (candidate && messages.some((item) => item.id === candidate)) {
+      return candidate;
+    }
+  }
+
+  return messageId;
+};
+
+const hasMatchingMermaidBlock = (content: string, originalChart: string) => {
+  const normalizedOriginal = originalChart.trim();
+  if (!normalizedOriginal) {
+    return false;
+  }
+
+  const matches = content.matchAll(/```mermaid\s*([\s\S]*?)```/gi);
+  for (const match of matches) {
+    if ((match[1] || "").trim() === normalizedOriginal) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const isMessageNotFoundError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.toLowerCase().includes("message not found");
+};
+
+const findRetryMessage = (
+  messages: Message[],
+  originalMessageId: string,
+  originalContent: string,
+  originalChart: string,
+): AssistantTextMessage | undefined => {
+  const byExactId = messages.find((item) => item.id === originalMessageId);
+  if (isAssistantTextMessage(byExactId)) {
+    return byExactId;
+  }
+
+  return messages.find(
+    (item) =>
+      isAssistantTextMessage(item) &&
+      (item.content === originalContent ||
+        hasMatchingMermaidBlock(item.content, originalChart)),
+  ) as AssistantTextMessage | undefined;
 };
 
 const buildMermaidFixPrompt = (chart: string, renderError?: string) => {
@@ -82,21 +157,25 @@ const fixMermaidWithAI = async (
   return extractMermaidCode(content);
 };
 
-export const useMessageCardMermaidFix = (messageId: string) => {
-  const activeModel = useActiveModel();
+export const useMessageCardMermaidFix = (
+  messageId: string,
+  sessionId?: string | null,
+) => {
+  // Use fast/cheap model for mermaid fix (lightweight syntax repair task)
+  const fastModel = useFastModel();
 
   return useCallback(
     async (chart: string, renderError?: string) => {
       const state = useAppStore.getState();
-      const currentSessionId = state.currentSessionId;
-      const currentChat = state.chats.find((c) => c.id === currentSessionId);
+      const targetSessionId = sessionId ?? state.currentSessionId;
+      const currentChat = state.chats.find((c) => c.id === targetSessionId);
 
-      if (!currentSessionId || !currentChat) {
+      if (!targetSessionId || !currentChat) {
         throw new Error("No active chat available");
       }
 
       const msg = currentChat.messages.find((m) => m.id === messageId);
-      if (!msg || msg.role !== "assistant" || msg.type !== "text") {
+      if (!isAssistantTextMessage(msg)) {
         throw new Error(
           "Mermaid fix is only available for assistant text messages",
         );
@@ -104,7 +183,7 @@ export const useMessageCardMermaidFix = (messageId: string) => {
 
       const fixedChart = await fixMermaidWithAI(
         chart,
-        activeModel,
+        fastModel,
         renderError,
       );
       if (!fixedChart) throw new Error("AI did not return a Mermaid fix");
@@ -118,22 +197,72 @@ export const useMessageCardMermaidFix = (messageId: string) => {
         throw new Error("Unable to locate Mermaid block to update");
       }
 
-      await agentClient.patchSessionMessage(currentSessionId, messageId, {
-        content: updatedContent,
-      });
+      let patchMessageId = getBackendMessageId(
+        messageId,
+        msg,
+        currentChat.messages,
+      );
+      try {
+        await agentClient.patchSessionMessage(targetSessionId, patchMessageId, {
+          content: updatedContent,
+        });
+      } catch (error) {
+        if (!isMessageNotFoundError(error)) {
+          throw error;
+        }
+
+        await state.loadChatHistory(targetSessionId, {
+          mode: "replace",
+          retries: 2,
+          retryDelayMs: 150,
+          waitForAssistant: true,
+        });
+
+        const refreshedState = useAppStore.getState();
+        const refreshedChat = refreshedState.chats.find(
+          (c) => c.id === targetSessionId,
+        );
+        if (!refreshedChat) {
+          throw error;
+        }
+
+        const retryMessage = findRetryMessage(
+          refreshedChat.messages,
+          messageId,
+          msg.content,
+          chart,
+        );
+        if (!retryMessage) {
+          throw error;
+        }
+
+        patchMessageId = getBackendMessageId(
+          retryMessage.id,
+          retryMessage,
+          refreshedChat.messages,
+        );
+
+        await agentClient.patchSessionMessage(targetSessionId, patchMessageId, {
+          content: updatedContent,
+        });
+      }
 
       const latestState = useAppStore.getState();
-      const latestChat = latestState.chats.find((c) => c.id === currentSessionId);
+      const latestChat = latestState.chats.find((c) => c.id === targetSessionId);
       if (!latestChat) {
         throw new Error("No active chat available");
       }
 
-      const updatedMessages = latestChat.messages.map((m) =>
-        m.id === messageId ? { ...m, content: updatedContent } : m,
-      );
+      const idsToUpdate = new Set([messageId, patchMessageId]);
+      const updatedMessages = latestChat.messages.map((m) => {
+        if (!idsToUpdate.has(m.id) || !isAssistantTextMessage(m)) {
+          return m;
+        }
+        return { ...m, content: updatedContent };
+      });
 
-      latestState.updateSession(currentSessionId, { messages: updatedMessages });
+      latestState.updateSession(targetSessionId, { messages: updatedMessages });
     },
-    [messageId, activeModel],
+    [messageId, sessionId, fastModel],
   );
 };

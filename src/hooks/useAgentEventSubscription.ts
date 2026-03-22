@@ -486,6 +486,10 @@ export function useAgentEventSubscription() {
                   return cur != null && cur.controller !== ownerController;
                 };
 
+                // If a newer run already owns this session, skip all completion
+                // side effects to avoid overwriting in-flight UI state.
+                if (isSuperseded()) return;
+
                 const state = streamingStateBySessionRef.current.get(sessionId);
                 const streamedRaw = state?.content || "";
                 const streamedReasoningRaw = state?.reasoningContent || "";
@@ -531,14 +535,18 @@ export function useAgentEventSubscription() {
                   }
                 }
 
+                if (isSuperseded()) return;
+
                 // Sync with persisted history. Use retries because the backend can emit "complete"
                 // before it finishes persisting the final assistant message.
                 await useAppStore.getState().loadChatHistory(sessionId, {
-                  mode: hasStreamedContent ? "monotonic" : "replace",
+                  mode: "monotonic",
                   retries: 4,
                   retryDelayMs: 200,
                   waitForAssistant: true,
                 });
+
+                if (isSuperseded()) return;
 
                 // Fallback for older backends/races: if persisted history still has no
                 // reasoning, re-attach the streamed reasoning locally.

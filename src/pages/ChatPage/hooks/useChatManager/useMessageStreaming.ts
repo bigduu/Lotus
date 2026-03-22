@@ -349,11 +349,15 @@ export function useMessageStreaming(
       try {
         const truncateMode =
           mode === "error_retry" ? "error_retry" : "after_last_user";
-        await agentClientRef.current.truncateSessionMessages(sessionId, {
-          mode: truncateMode,
-        });
+        const truncateResult =
+          await agentClientRef.current.truncateSessionMessages(sessionId, {
+            mode: truncateMode,
+          });
 
-        if (mode === "regenerate") {
+        if (
+          mode === "regenerate" ||
+          (truncateResult.messages_removed ?? 0) > 0
+        ) {
           // Reconcile UI with persisted history so old assistant/tool tail disappears.
           await useAppStore
             .getState()

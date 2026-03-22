@@ -132,7 +132,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const messageText = useMemo(() => getMessageText(message), [message]);
 
-  const onFixMermaid = useMessageCardMermaidFix(messageId);
+  const onFixMermaid = useMessageCardMermaidFix(messageId, sessionId);
 
   const restoreSessionState = useCallback(
     async (restoreFiles: boolean) => {

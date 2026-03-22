@@ -62,3 +62,53 @@ export function useActiveModelInfo() {
     [activeModel, currentProvider, providerConfig],
   );
 }
+
+/**
+ * Hook to get the fast/cheap model for the current provider.
+ *
+ * Used for lightweight tasks like title generation, mermaid syntax fix, etc.
+ * Falls back to the active model when no fast_model is configured.
+ *
+ * @returns The fast model for the current provider, or activeModel as fallback
+ */
+export function useFastModel(): string | undefined {
+  const activeModel = useActiveModel();
+  const currentProvider = useProviderStore((state) => state.currentProvider);
+  const providerConfig = useProviderStore((state) => state.providerConfig);
+
+  return useMemo(() => {
+    const config = providerConfig.providers[currentProvider];
+
+    if (config && "fast_model" in config && config.fast_model) {
+      return config.fast_model;
+    }
+
+    // Fallback to active model
+    return activeModel;
+  }, [currentProvider, providerConfig, activeModel]);
+}
+
+/**
+ * Hook to get the vision-capable model for the current provider.
+ *
+ * Used for image understanding tasks.
+ * Falls back to the active model when no vision_model is configured.
+ *
+ * @returns The vision model for the current provider, or activeModel as fallback
+ */
+export function useVisionModel(): string | undefined {
+  const activeModel = useActiveModel();
+  const currentProvider = useProviderStore((state) => state.currentProvider);
+  const providerConfig = useProviderStore((state) => state.providerConfig);
+
+  return useMemo(() => {
+    const config = providerConfig.providers[currentProvider];
+
+    if (config && "vision_model" in config && config.vision_model) {
+      return config.vision_model;
+    }
+
+    // Fallback to active model
+    return activeModel;
+  }, [currentProvider, providerConfig, activeModel]);
+}

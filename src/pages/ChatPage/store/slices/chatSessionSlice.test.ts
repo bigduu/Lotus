@@ -396,6 +396,107 @@ describe("chatSessionSlice history mapping", () => {
       },
     ]);
   });
+
+  it("monotonic mode does not replace local messages with a shorter backend snapshot", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+    chat.messages = [
+      {
+        id: "local-user-1",
+        role: "user",
+        content: "continue",
+        createdAt: "2026-03-15T10:00:00Z",
+      } as any,
+      {
+        id: "local-assistant-1",
+        role: "assistant",
+        type: "text",
+        content: "streaming draft",
+        createdAt: "2026-03-15T10:00:01Z",
+      } as any,
+    ];
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    // Backend lags and returns fewer messages ending with assistant (previously could overwrite).
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [
+        {
+          id: "backend-assistant-1",
+          role: "assistant",
+          content: "older snapshot",
+          created_at: "2026-03-15T10:00:01Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "monotonic" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated?.messages).toHaveLength(2);
+    expect(updated?.messages[0]).toMatchObject({ id: "local-user-1" });
+    expect(updated?.messages[1]).toMatchObject({ id: "local-assistant-1" });
+  });
+
+  it("monotonic mode replaces equal-length local placeholders when backend terminal id changes", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+    chat.messages = [
+      {
+        id: "local-user-1",
+        role: "user",
+        content: "continue",
+        createdAt: "2026-03-15T10:00:00Z",
+      } as any,
+      {
+        id: "local-assistant-temp",
+        role: "assistant",
+        type: "text",
+        content: "draft",
+        createdAt: "2026-03-15T10:00:01Z",
+      } as any,
+    ];
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [
+        {
+          id: "backend-user-1",
+          role: "user",
+          content: "continue",
+          created_at: "2026-03-15T10:00:00Z",
+        },
+        {
+          id: "backend-assistant-1",
+          role: "assistant",
+          content: "finalized",
+          created_at: "2026-03-15T10:00:01Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "monotonic" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated?.messages).toHaveLength(2);
+    expect(updated?.messages[0]).toMatchObject({ id: "backend-user-1" });
+    expect(updated?.messages[1]).toMatchObject({ id: "backend-assistant-1" });
+  });
 });
 
 describe("chatSessionSlice session model propagation", () => {

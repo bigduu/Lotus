@@ -357,6 +357,7 @@ export const resources = {
             placeholder: "Placeholder",
             error: "Error",
             ocr: "OCR (Windows)",
+            vision: "Vision (LLM)",
           },
         },
         keywordMaskingTab: {
@@ -564,6 +565,13 @@ export const resources = {
           openaiBaseUrlHelp:
             "Leave empty to use the default OpenAI API endpoint. Include full path (e.g., /v1) if needed.",
           defaultModel: "Default Model",
+          fastModel: "Fast Model (Optional)",
+          fastModelHelp:
+            "Cheaper/faster model for lightweight tasks like title generation, mermaid fix, and summarization. Uses default model when not set.",
+          visionModel: "Vision Model (Optional)",
+          visionModelHelp:
+            "Vision-capable model for image understanding. When hooks.image_fallback.mode is set to 'vision', this model describes images as text so text-only models can understand them. Uses default model when not set.",
+          sameAsDefault: "Same as default model",
           selectModelRequired: "Please select a model",
           selectModel: "Select a model",
           responsesOnlyModelsOptional: "Responses-Only Models (Optional)",
@@ -1257,6 +1265,7 @@ export const resources = {
             placeholder: "占位符",
             error: "报错",
             ocr: "OCR（Windows）",
+            vision: "视觉描述（LLM）",
           },
         },
         keywordMaskingTab: {
@@ -1456,6 +1465,13 @@ export const resources = {
           openaiBaseUrlHelp:
             "留空将使用默认 OpenAI 接口地址；如有需要请包含完整路径（例如 /v1）。",
           defaultModel: "默认模型",
+          fastModel: "快速模型（可选）",
+          fastModelHelp:
+            "用于标题生成、Mermaid 修复、摘要等轻量任务的低成本/快速模型。未设置时使用默认模型。",
+          visionModel: "视觉模型（可选）",
+          visionModelHelp:
+            "用于图片理解的视觉模型。当 hooks.image_fallback.mode 设为 'vision' 时，此模型会将图片描述为文本，让纯文本模型也能理解图片内容。未设置时使用默认模型。",
+          sameAsDefault: "与默认模型相同",
           selectModelRequired: "请选择模型",
           selectModel: "选择模型",
           responsesOnlyModelsOptional: "仅 Responses 模型（可选）",

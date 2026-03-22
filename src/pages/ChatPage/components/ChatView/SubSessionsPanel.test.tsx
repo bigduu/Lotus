@@ -341,6 +341,12 @@ describe("SubSessionsPanel", () => {
   });
 
   it("retries failed request while preserving history", async () => {
+    mockAgentClient.truncateSessionMessages.mockResolvedValueOnce({
+      success: true,
+      session_id: "child-session-1",
+      messages_removed: 0,
+      message_count: 6,
+    });
     mockStoreState.subSessionsByParent = {
       [PARENT_SESSION_ID]: {
         "child-session-1": {
@@ -364,6 +370,45 @@ describe("SubSessionsPanel", () => {
       );
     });
     expect(mockStoreState.loadChatHistory).not.toHaveBeenCalled();
+    expect(mockAgentClient.execute).toHaveBeenCalledWith(
+      "child-session-1",
+      "test-model",
+    );
+  });
+
+  it("reloads history when error retry falls back to truncation", async () => {
+    mockAgentClient.truncateSessionMessages.mockResolvedValueOnce({
+      success: true,
+      session_id: "child-session-1",
+      messages_removed: 2,
+      message_count: 4,
+    });
+    mockStoreState.subSessionsByParent = {
+      [PARENT_SESSION_ID]: {
+        "child-session-1": {
+          title: "Child Session 1",
+          status: "error",
+        },
+      },
+    };
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+    await waitFor(() => {
+      expect(screen.getByText("Retry failed request")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("Retry failed request"));
+
+    await waitFor(() => {
+      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith(
+        "child-session-1",
+        { mode: "error_retry" },
+      );
+    });
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith(
+      "child-session-1",
+      { mode: "replace" },
+    );
     expect(mockAgentClient.execute).toHaveBeenCalledWith(
       "child-session-1",
       "test-model",

@@ -18,6 +18,10 @@ export interface OpenAIConfig {
   api_key: string;
   base_url?: string;
   model?: string;
+  /** Fast/cheap model for lightweight tasks (title generation, mermaid fix, summarization). Falls back to `model` when not set. */
+  fast_model?: string;
+  /** Vision-capable model for image understanding tasks. Falls back to `model` when not set. */
+  vision_model?: string;
   reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
   // Models that must use the OpenAI Responses API upstream (instead of chat/completions).
   // Supports exact match (e.g. "gpt-5.3-codex") and a single trailing wildcard for prefix match
@@ -29,6 +33,10 @@ export interface AnthropicConfig {
   api_key: string;
   base_url?: string;
   model?: string;
+  /** Fast/cheap model for lightweight tasks (title generation, mermaid fix, summarization). Falls back to `model` when not set. */
+  fast_model?: string;
+  /** Vision-capable model for image understanding tasks. Falls back to `model` when not set. */
+  vision_model?: string;
   reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
   max_tokens?: number;
 }
@@ -37,6 +45,10 @@ export interface GeminiConfig {
   api_key: string;
   base_url?: string;
   model?: string;
+  /** Fast/cheap model for lightweight tasks (title generation, mermaid fix, summarization). Falls back to `model` when not set. */
+  fast_model?: string;
+  /** Vision-capable model for image understanding tasks. Falls back to `model` when not set. */
+  vision_model?: string;
   reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
 }
 
@@ -44,6 +56,10 @@ export interface CopilotConfig {
   // Copilot uses OAuth - no API key required
   headless_auth?: boolean; // Print login URL in console instead of opening browser
   model?: string; // Selected model id (fetched from backend /models)
+  /** Fast/cheap model for lightweight tasks (title generation, mermaid fix, summarization). Falls back to `model` when not set. */
+  fast_model?: string;
+  /** Vision-capable model for image understanding tasks. Falls back to `model` when not set. */
+  vision_model?: string;
   reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
   // Models that must use the OpenAI Responses API upstream (instead of chat/completions).
   // Supports exact match (e.g. "gpt-5.3-codex") and a single trailing wildcard for prefix match

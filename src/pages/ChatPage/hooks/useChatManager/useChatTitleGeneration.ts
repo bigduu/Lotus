@@ -4,7 +4,7 @@ import { useAppStore } from "../../store";
 import { getOpenAIClient } from "../../services/openaiClient";
 import type { AssistantTextMessage, Message } from "../../types/chat";
 import type { UseChatState } from "./types";
-import { useActiveModel } from "../useActiveModel";
+import { useFastModel } from "../useActiveModel";
 
 /**
  * Hook for chat title generation and validation
@@ -33,7 +33,8 @@ export function useChatTitleGeneration(
   const { message: appMessage } = AntApp.useApp();
 
   const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
-  const activeModel = useActiveModel();
+  // Use fast/cheap model for title generation (lightweight task, max 20 tokens)
+  const fastModel = useFastModel();
   const setAutoGenerateTitlesPreference = useAppStore(
     (state) => state.setAutoGenerateTitlesPreference,
   );
@@ -105,7 +106,7 @@ export function useChatTitleGeneration(
       try {
         const candidate = await generateTitleWithAI(
           userAssistantMessages,
-          activeModel,
+          fastModel,
         );
         if (!candidate) {
           throw new Error("Generated title is empty");
@@ -140,7 +141,7 @@ export function useChatTitleGeneration(
         titleGenerationInFlightRef.current.delete(sessionId);
       }
     },
-    [appMessage, autoGenerateTitles, isDefaultTitle, activeModel, state],
+    [appMessage, autoGenerateTitles, isDefaultTitle, fastModel, state],
   );
 
   return {
