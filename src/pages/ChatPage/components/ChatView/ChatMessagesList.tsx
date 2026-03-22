@@ -10,6 +10,7 @@ import type { RenderableEntry, ConvertedEntry } from "./useChatViewMessages";
 import type { ChatItem } from "../../types/chat";
 
 const { Content } = Layout;
+const VIRTUALIZATION_THRESHOLD = 24;
 
 type InteractionState = {
   matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
@@ -209,6 +210,8 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   const hasMessages =
     (showMessagesView || hasSystemPrompt) && renderableMessages.length > 0;
   const virtualItems = virtualizer.getVirtualItems();
+  const shouldUseVirtualization =
+    renderableMessages.length > VIRTUALIZATION_THRESHOLD;
 
   return (
     <Content
@@ -228,38 +231,58 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
       onScroll={handleMessagesScroll}
     >
       {hasMessages && (
-        <div
-          style={{
-            position: "relative",
-            width: "100%",
-            height: virtualizer.getTotalSize(),
-          }}
-        >
-          {virtualItems.map((virtualItem) => {
-            const entry = renderableMessages[virtualItem.index];
-            if (!entry) return null;
+        shouldUseVirtualization ? (
+          <div
+            style={{
+              position: "relative",
+              width: "100%",
+              height: virtualizer.getTotalSize(),
+            }}
+          >
+            {virtualItems.map((virtualItem) => {
+              const entry = renderableMessages[virtualItem.index];
+              if (!entry) return null;
 
-            const key = entryKey(entry);
+              const key = entryKey(entry);
 
-            return (
-              <div
-                key={key}
-                data-chat-entry-id={key}
-                data-index={virtualItem.index}
-                ref={virtualizer.measureElement}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                {renderEntry(entry)}
-              </div>
-            );
-          })}
-        </div>
+              return (
+                <div
+                  key={key}
+                  data-chat-entry-id={key}
+                  data-index={virtualItem.index}
+                  ref={virtualizer.measureElement}
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${virtualItem.start}px)`,
+                  }}
+                >
+                  {renderEntry(entry)}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: rowGap,
+              width: "100%",
+            }}
+          >
+            {renderableMessages.map((entry) => {
+              const key = entryKey(entry);
+              return (
+                <div key={key} data-chat-entry-id={key}>
+                  {renderEntry(entry)}
+                </div>
+              );
+            })}
+          </div>
+        )
       )}
       {interactionState.matches("THINKING") && currentSessionId && (
         <div style={{ paddingTop: rowGap }}>
