@@ -6,7 +6,7 @@ import {
   act,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { QuestionDialog } from "../QuestionDialog";
+import { QuestionDialog, formatPendingQuestionText } from "../QuestionDialog";
 import { useAppStore } from "../../../pages/ChatPage/store";
 import { useProviderStore } from "../../../pages/ChatPage/store/slices/providerSlice";
 
@@ -91,6 +91,15 @@ describe("QuestionDialog", () => {
         "respond/test-session-1/pending",
       );
     });
+  });
+
+  it("formats inline numbered question text into multiline", () => {
+    const formatted = formatPendingQuestionText(
+      "To proceed, tell me: 1) Cloud or Server? 2) Read or write? 3) Use REST or browser?",
+    );
+    expect(formatted).toContain("\n1) Cloud or Server?");
+    expect(formatted).toContain("\n2) Read or write?");
+    expect(formatted).toContain("\n3) Use REST or browser?");
   });
 
   it("should display question when pending question exists", async () => {

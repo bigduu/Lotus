@@ -27,6 +27,18 @@ export interface PendingQuestion {
   tool_call_id?: string;
 }
 
+export const formatPendingQuestionText = (raw?: string): string => {
+  const normalized = (raw || "").replace(/\r\n?/g, "\n").trim();
+  if (!normalized) return "";
+  if (normalized.includes("\n")) return normalized;
+
+  // Auto-break common inline list patterns so long ask_user prompts stay readable.
+  return normalized
+    .replace(/\s+(?=\d+[).]\s)/g, "\n")
+    .replace(/\s+(?=[一二三四五六七八九十]+[、.]\s)/g, "\n")
+    .replace(/\s+(?=[-*•]\s)/g, "\n");
+};
+
 interface QuestionDialogProps {
   sessionId: string;
   onResponseSubmitted?: () => void;
@@ -228,6 +240,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   }
 
   const { question, options, allow_custom } = pendingQuestion;
+  const formattedQuestion = formatPendingQuestionText(question);
 
   return (
     <div
@@ -254,10 +267,10 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
           <Text
             strong
             className={styles.questionText}
-            style={{ color: token.colorPrimary }}
-            title={collapsed ? question : undefined}
+            style={{ color: token.colorPrimary, whiteSpace: "pre-wrap" }}
+            title={collapsed ? formattedQuestion : undefined}
           >
-            {question}
+            {formattedQuestion}
           </Text>
         </span>
         <Button
