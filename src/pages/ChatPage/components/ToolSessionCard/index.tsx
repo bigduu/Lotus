@@ -7,6 +7,8 @@ import {
   Badge,
   CollapseProps,
   Tag,
+  Button,
+  Tooltip,
 } from "antd";
 import type { GlobalToken } from "antd/es/theme/interface";
 import {
@@ -16,6 +18,7 @@ import {
   CheckCircleOutlined,
   LoadingOutlined,
   ExclamationCircleOutlined,
+  DeleteOutlined,
 } from "@ant-design/icons";
 import ToolCallCard from "../ToolCallCard";
 import ToolResultCard from "../ToolResultCard";
@@ -34,6 +37,8 @@ const { Text } = Typography;
 export interface ToolSessionItem {
   call: AssistantToolCallMessage;
   result?: AssistantToolResultMessage;
+  callMessageId?: string;
+  resultMessageId?: string;
 }
 
 export interface ToolSessionCardProps {
@@ -41,6 +46,7 @@ export interface ToolSessionCardProps {
   sessionId: string;
   createdAt: string;
   defaultExpanded?: boolean;
+  onDeleteMessageIds?: (messageIds: string[]) => void;
 }
 
 interface PersistedToolSessionState {
@@ -114,6 +120,30 @@ interface ToolItemStatus {
 const getToolItemKey = (item: ToolSessionItem): string =>
   item.call.toolCalls?.[0]?.toolCallId || item.call.id;
 
+const SYNTHETIC_TOOL_CALL_PREFIX = "synthetic-tool-call:";
+
+const getDeletableMessageIds = (item: ToolSessionItem): string[] => {
+  const ids = new Set<string>();
+
+  if (item.callMessageId?.trim()) {
+    ids.add(item.callMessageId.trim());
+  } else if (
+    item.call.id &&
+    !item.call.id.includes(":") &&
+    !item.call.id.startsWith(SYNTHETIC_TOOL_CALL_PREFIX)
+  ) {
+    ids.add(item.call.id);
+  }
+
+  if (item.resultMessageId?.trim()) {
+    ids.add(item.resultMessageId.trim());
+  } else if (item.result?.id?.trim()) {
+    ids.add(item.result.id.trim());
+  }
+
+  return Array.from(ids);
+};
+
 function getToolStatus(
   item: ToolSessionItem,
   token: GlobalToken,
@@ -181,6 +211,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
   tools,
   sessionId,
   defaultExpanded = false,
+  onDeleteMessageIds,
 }) => {
   const { token } = theme.useToken();
   const isSingleToolSession = tools.length === 1;
@@ -366,6 +397,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         const fileChangePayload = item.result
           ? parseFileChangeResultPayload(item.result.result.result)
           : null;
+        const deletableMessageIds = getDeletableMessageIds(item);
 
         return {
           key: getToolItemKey(item),
@@ -450,6 +482,31 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                     -{toolDiffStats.removed}
                   </Text>
                 </Space>
+              )}
+              {onDeleteMessageIds && (
+                <Tooltip
+                  title={
+                    deletableMessageIds.length > 0
+                      ? "Delete tool message"
+                      : "No persisted message to delete"
+                  }
+                >
+                  <Button
+                    type="text"
+                    size="small"
+                    danger
+                    icon={<DeleteOutlined />}
+                    aria-label="Delete tool message"
+                    data-testid={`delete-tool-message-${getToolItemKey(item)}`}
+                    disabled={deletableMessageIds.length === 0}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (deletableMessageIds.length === 0) return;
+                      onDeleteMessageIds(deletableMessageIds);
+                    }}
+                  />
+                </Tooltip>
               )}
             </div>
           ),

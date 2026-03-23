@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import {
   serviceFactory,
   type BambooConfig,
+  type ModelLimitDefault,
 } from "../../services/common/ServiceFactory";
 
 const { Title, Text, Paragraph } = Typography;
@@ -34,7 +35,7 @@ interface ModelLimitConfig {
   note: string;
 }
 
-function createDefaultConfigs(
+function createFallbackDefaultConfigs(
   t: (key: string, options?: Record<string, unknown>) => string,
 ): ModelLimitConfig[] {
   return [
@@ -49,7 +50,7 @@ function createDefaultConfigs(
     {
       vendor: "OpenAI (GPT-5)",
       model_pattern: "gpt-5.3-codex",
-      max_context_tokens: 1_000_000,
+      max_context_tokens: 400_000,
       max_output_tokens: 128_000,
       safety_margin: DEFAULT_SAFETY_MARGIN,
       note: t("settings.modelLimits.defaults.gpt53Codex"),
@@ -73,8 +74,8 @@ function createDefaultConfigs(
     {
       vendor: "OpenAI (Legacy)",
       model_pattern: "gpt-4.1",
-      max_context_tokens: 1_000_000,
-      max_output_tokens: 32_000,
+      max_context_tokens: 128_000,
+      max_output_tokens: 16_384,
       safety_margin: DEFAULT_SAFETY_MARGIN,
       note: t("settings.modelLimits.defaults.gpt41"),
     },
@@ -89,8 +90,8 @@ function createDefaultConfigs(
     {
       vendor: "Google",
       model_pattern: "gemini-2.5-pro",
-      max_context_tokens: 1_000_000,
-      max_output_tokens: 64_000,
+      max_context_tokens: 128_000,
+      max_output_tokens: 16_000,
       safety_margin: DEFAULT_SAFETY_MARGIN,
       note: t("settings.modelLimits.defaults.gemini25Pro"),
     },
@@ -119,6 +120,13 @@ function createDefaultConfigs(
       note: t("settings.modelLimits.defaults.glm5"),
     },
   ];
+}
+
+function parseModelLimitDefaults(defaults: ModelLimitDefault[] | unknown): ModelLimitConfig[] {
+  if (!Array.isArray(defaults)) {
+    return [];
+  }
+  return parseModelLimits(defaults);
 }
 
 function toSafePositiveInteger(value: unknown, fallback: number): number {
@@ -281,7 +289,7 @@ function validateModelLimits(
 export const ModelLimitsSettings: React.FC = () => {
   const { t } = useTranslation();
   const [configs, setConfigs] = useState<ModelLimitConfig[]>(() =>
-    createDefaultConfigs(t),
+    createFallbackDefaultConfigs(t),
   );
   const [loading, setLoading] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
@@ -315,6 +323,13 @@ export const ModelLimitsSettings: React.FC = () => {
     setConfigs((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
   }, []);
 
+  const loadDefaultConfigs = useCallback(async (): Promise<ModelLimitConfig[]> => {
+    const fallbackDefaults = createFallbackDefaultConfigs(t);
+    const response = await serviceFactory.getModelLimitDefaults();
+    const backendDefaults = parseModelLimitDefaults(response.model_limits);
+    return backendDefaults.length > 0 ? backendDefaults : fallbackDefaults;
+  }, [t]);
+
   const loadSettings = useCallback(async () => {
     setLoading(true);
     try {
@@ -328,7 +343,7 @@ export const ModelLimitsSettings: React.FC = () => {
       }
 
       if (hasModelLimitsKey) {
-        setConfigs(createDefaultConfigs(t));
+        setConfigs(await loadDefaultConfigs());
         return;
       }
 
@@ -342,15 +357,15 @@ export const ModelLimitsSettings: React.FC = () => {
         return;
       }
 
-      setConfigs(createDefaultConfigs(t));
+      setConfigs(await loadDefaultConfigs());
     } catch (error) {
       console.error("Failed to load model limits settings:", error);
       msgApi.error(t("settings.modelLimits.loadFailed"));
-      setConfigs(createDefaultConfigs(t));
+      setConfigs(await loadDefaultConfigs());
     } finally {
       setLoading(false);
     }
-  }, [msgApi, t]);
+  }, [loadDefaultConfigs, msgApi, t]);
 
   useEffect(() => {
     void loadSettings();
@@ -376,10 +391,9 @@ export const ModelLimitsSettings: React.FC = () => {
   };
 
   const resetToDefaults = async () => {
-    const defaults = createDefaultConfigs(t);
-
     setLoading(true);
     try {
+      const defaults = await loadDefaultConfigs();
       await serviceFactory.setBambooConfig({ model_limits: defaults });
       setConfigs(defaults);
       localStorage.removeItem(LEGACY_MODEL_LIMITS_KEY);

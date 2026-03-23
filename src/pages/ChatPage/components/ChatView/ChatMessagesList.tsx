@@ -78,6 +78,16 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     [], // messagesRef is stable
   );
 
+  const handleDeleteToolMessages = useCallback(
+    (messageIds: string[]) => {
+      const uniqueMessageIds = Array.from(
+        new Set(messageIds.map((id) => id.trim()).filter(Boolean)),
+      );
+      uniqueMessageIds.forEach((id) => handleDeleteMessage(id));
+    },
+    [handleDeleteMessage],
+  );
+
   const virtualizer = useVirtualizer({
     count: renderableMessages.length,
     getScrollElement: () => messagesListRef.current,
@@ -141,6 +151,9 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
               sessionId={convertedEntry.sessionId}
               createdAt={convertedEntry.createdAt}
               defaultExpanded={false}
+              onDeleteMessageIds={
+                currentSessionId ? handleDeleteToolMessages : undefined
+              }
             />
           </div>
         </Flex>

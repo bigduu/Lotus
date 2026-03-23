@@ -19,6 +19,15 @@ export interface BambooConfig {
   [key: string]: unknown;
 }
 
+export interface ModelLimitDefault {
+  vendor?: string;
+  model_pattern: string;
+  max_context_tokens: number;
+  max_output_tokens: number;
+  safety_margin: number;
+  note?: string;
+}
+
 /**
  * Anthropic model mapping configuration
  */
@@ -58,6 +67,11 @@ export interface UtilityService {
    * Get all available Bamboo tool names.
    */
   getBambooTools(): Promise<{ tools: string[] }>;
+
+  /**
+   * Get backend built-in model limit defaults.
+   */
+  getModelLimitDefaults(): Promise<{ model_limits: ModelLimitDefault[] }>;
 
   /**
    * Set Bamboo config
@@ -173,6 +187,17 @@ class HttpUtilityService implements Partial<UtilityService> {
     } catch (error) {
       console.error("Failed to fetch Bamboo tools:", error);
       return { tools: [] };
+    }
+  }
+
+  async getModelLimitDefaults(): Promise<{ model_limits: ModelLimitDefault[] }> {
+    try {
+      return await apiClient.get<{ model_limits: ModelLimitDefault[] }>(
+        "bamboo/model-limits/defaults",
+      );
+    } catch (error) {
+      console.error("Failed to fetch model limit defaults:", error);
+      return { model_limits: [] };
     }
   }
 
@@ -350,6 +375,8 @@ export class ServiceFactory {
         this.httpUtilityService.copyToClipboard(text),
       getBambooConfig: () => this.httpUtilityService.getBambooConfig(),
       getBambooTools: () => this.httpUtilityService.getBambooTools(),
+      getModelLimitDefaults: () =>
+        this.httpUtilityService.getModelLimitDefaults(),
       setBambooConfig: (config: BambooConfig) =>
         this.httpUtilityService.setBambooConfig(config),
       validateBambooConfigPatch: (patch: BambooConfig) =>
@@ -393,6 +420,10 @@ export class ServiceFactory {
 
   async getBambooTools(): Promise<{ tools: string[] }> {
     return this.getUtilityService().getBambooTools();
+  }
+
+  async getModelLimitDefaults(): Promise<{ model_limits: ModelLimitDefault[] }> {
+    return this.getUtilityService().getModelLimitDefaults();
   }
 
   async setBambooConfig(config: BambooConfig): Promise<BambooConfig> {

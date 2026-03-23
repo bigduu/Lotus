@@ -132,7 +132,10 @@ function groupToolMessages(
           id: `${message.id}:${callId}`,
           toolCalls: [{ ...toolCall, toolCallId: callId }],
         };
-        const item: ToolSessionItem = { call: singleCallMessage };
+        const item: ToolSessionItem = {
+          call: singleCallMessage,
+          callMessageId: message.id,
+        };
         itemsByToolCallId.set(callId, item);
         result.push([item]);
       });
@@ -146,6 +149,7 @@ function groupToolMessages(
         : undefined;
       if (existing) {
         existing.result = message;
+        existing.resultMessageId = message.id;
       } else {
         const fallbackCallId = toolCallId || `unknown-${message.id}`;
         const syntheticCall: AssistantToolCallMessage = {
@@ -167,6 +171,7 @@ function groupToolMessages(
         const orphanItem: ToolSessionItem = {
           call: syntheticCall,
           result: message,
+          resultMessageId: message.id,
         };
         result.push([orphanItem]);
       }

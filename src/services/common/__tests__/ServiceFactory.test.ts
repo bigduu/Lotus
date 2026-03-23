@@ -127,6 +127,41 @@ describe("ServiceFactory", () => {
       });
     });
 
+    describe("getModelLimitDefaults", () => {
+      it("should fetch backend model limit defaults", async () => {
+        const mockDefaults = {
+          model_limits: [
+            {
+              model_pattern: "gpt-5.4",
+              max_context_tokens: 1050000,
+              max_output_tokens: 32768,
+              safety_margin: 1000,
+            },
+          ],
+        };
+        vi.mocked(apiClient.get).mockResolvedValueOnce(mockDefaults);
+
+        const result = await serviceFactory.getModelLimitDefaults();
+
+        expect(result).toEqual(mockDefaults);
+        expect(apiClient.get).toHaveBeenCalledWith("bamboo/model-limits/defaults");
+      });
+
+      it("should return empty defaults on error", async () => {
+        vi.mocked(apiClient.get).mockRejectedValueOnce(
+          new Error("Network error"),
+        );
+
+        const result = await serviceFactory.getModelLimitDefaults();
+
+        expect(result).toEqual({ model_limits: [] });
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          "Failed to fetch model limit defaults:",
+          expect.any(Error),
+        );
+      });
+    });
+
     describe("setBambooConfig", () => {
       it("should post config successfully", async () => {
         const inputConfig = { model: "new-model" };
@@ -463,6 +498,7 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("copyToClipboard");
       expect(utility).toHaveProperty("getBambooConfig");
       expect(utility).toHaveProperty("getBambooTools");
+      expect(utility).toHaveProperty("getModelLimitDefaults");
       expect(utility).toHaveProperty("setBambooConfig");
       expect(utility).toHaveProperty("validateBambooConfigPatch");
       expect(utility).toHaveProperty("setProxyAuth");
@@ -506,6 +542,9 @@ describe("ServiceFactory", () => {
 
       await serviceFactory.getBambooConfig();
       expect(apiClient.get).toHaveBeenCalledWith("bamboo/config");
+
+      await serviceFactory.getModelLimitDefaults();
+      expect(apiClient.get).toHaveBeenCalledWith("bamboo/model-limits/defaults");
 
       await serviceFactory.setBambooConfig({});
       expect(apiClient.post).toHaveBeenCalled();
