@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 import { Descriptions, Table, Typography, theme } from "antd";
+import { useTranslation } from "react-i18next";
 
 import { safeStringify } from "../../../pages/ChatPage/utils/resultFormatters";
 import { summarizeJsonSchema, type JsonSchemaField } from "../../utils/jsonSchema";
@@ -19,6 +20,7 @@ const renderValue = (value: unknown): string => {
 
 export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) => {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
 
   const summary = useMemo(() => summarizeJsonSchema(schema), [schema]);
 
@@ -32,35 +34,35 @@ export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) =>
 
   const columns = [
     {
-      title: "Field",
+      title: t("components.jsonSchema.field"),
       dataIndex: "name",
       key: "name",
       width: 180,
       render: (name: string) => <Text code>{name}</Text>,
     },
     {
-      title: "Type",
+      title: t("components.jsonSchema.type"),
       dataIndex: "type",
       key: "type",
       width: 140,
       render: (t: string) => <Text>{t}</Text>,
     },
     {
-      title: "Required",
+      title: t("components.jsonSchema.required"),
       dataIndex: "required",
       key: "required",
       width: 110,
       render: (req: boolean) =>
         req ? (
           <Text strong style={{ color: token.colorError }}>
-            Yes
+            {t("components.jsonSchema.yes")}
           </Text>
         ) : (
-          <Text type="secondary">No</Text>
+          <Text type="secondary">{t("components.jsonSchema.no")}</Text>
         ),
     },
     {
-      title: "Default",
+      title: t("components.jsonSchema.default"),
       dataIndex: "defaultValue",
       key: "default",
       width: 160,
@@ -68,7 +70,7 @@ export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) =>
         v === undefined ? <Text type="secondary">-</Text> : <Text>{renderValue(v)}</Text>,
     },
     {
-      title: "Description",
+      title: t("components.jsonSchema.description"),
       dataIndex: "description",
       key: "description",
       render: (d?: string) =>
@@ -117,7 +119,7 @@ export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) =>
         pagination={false}
         columns={columns as any}
         dataSource={dataSource}
-        locale={{ emptyText: "No properties in schema" }}
+        locale={{ emptyText: t("components.jsonSchema.noProperties") }}
         style={{ marginTop: token.marginSM }}
       />
     </div>

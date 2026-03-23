@@ -252,6 +252,10 @@ export const SystemSettingsConfigTab: React.FC<
                         label: t("settings.configTab.languageJapanese"),
                         value: "ja-JP",
                       },
+                      {
+                        label: t("settings.configTab.languageHindi"),
+                        value: "hi-IN",
+                      },
                     ]}
                     onChange={(value) => onLocaleChange(value as AppLocale)}
                   />

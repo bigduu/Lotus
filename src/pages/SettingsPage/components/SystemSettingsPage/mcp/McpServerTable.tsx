@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Button, Popconfirm, Space, Table, Tag, theme } from "antd";
+import { Button, Popconfirm, Space, Table, Tag, Tooltip, theme } from "antd";
 import type { TableProps } from "antd";
 import { ServerStatus, type McpServer } from "@services/mcp";
 import type { McpServerAction } from "../hooks/useMcpSettings";
@@ -34,6 +34,13 @@ const isConnectedStatus = (status: ServerStatus): boolean =>
   status === ServerStatus.Ready ||
   status === ServerStatus.Degraded;
 
+const summarizeStatusError = (value: string | undefined): string | undefined => {
+  if (!value) return undefined;
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (!compact) return undefined;
+  return compact.length > 180 ? `${compact.slice(0, 180)}...` : compact;
+};
+
 export const McpServerTable: React.FC<McpServerTableProps> = ({
   servers,
   loading = false,
@@ -48,6 +55,16 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
+  const statusHelpMap: Record<ServerStatus, string> = useMemo(
+    () => ({
+      [ServerStatus.Connecting]: t("settings.mcpTab.statusHelp.connecting"),
+      [ServerStatus.Ready]: t("settings.mcpTab.statusHelp.ready"),
+      [ServerStatus.Degraded]: t("settings.mcpTab.statusHelp.degraded"),
+      [ServerStatus.Stopped]: t("settings.mcpTab.statusHelp.stopped"),
+      [ServerStatus.Error]: t("settings.mcpTab.statusHelp.error"),
+    }),
+    [t],
+  );
 
   const columns = useMemo<TableProps<McpServer>["columns"]>(
     () => [
@@ -70,6 +87,8 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
         title: t("settings.mcpServerTable.columns.status"),
         render: (_, record) => {
           const status = record.runtime?.status ?? ServerStatus.Stopped;
+          const statusError = summarizeStatusError(record.runtime?.last_error);
+          const statusHelp = statusHelpMap[status];
           const statusLabelMap: Record<ServerStatus, string> = {
             [ServerStatus.Connecting]: t("settings.mcpTab.status.connecting"),
             [ServerStatus.Ready]: t("settings.mcpTab.status.ready"),
@@ -78,9 +97,22 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
             [ServerStatus.Error]: t("settings.mcpTab.status.error"),
           };
           return (
-            <Tag color={statusColorMap[status]} style={{ marginInlineEnd: 0 }}>
-              {statusLabelMap[status]}
-            </Tag>
+            <Tooltip
+              title={
+                statusError
+                  ? `${statusHelp} ${t("settings.mcpTab.statusLastError", {
+                      error: statusError,
+                    })}`
+                  : statusHelp
+              }
+            >
+              <Tag
+                color={statusColorMap[status]}
+                style={{ marginInlineEnd: 0, cursor: "help" }}
+              >
+                {statusLabelMap[status]}
+              </Tag>
+            </Tooltip>
           );
         },
         width: 120,
@@ -179,6 +211,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
       onDisconnectServer,
       onEditServer,
       onRefreshTools,
+      statusHelpMap,
       t,
       token.marginXS,
     ],

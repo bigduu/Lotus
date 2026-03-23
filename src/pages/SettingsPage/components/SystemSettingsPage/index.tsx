@@ -25,6 +25,7 @@ import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
+import SystemSettingsEnvVarsTab from "./SystemSettingsEnvVarsTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
@@ -284,6 +285,11 @@ const SystemSettingsPage = ({
               key: "masking",
               label: tabLabel("masking", t("settings.page.tabs.masking")),
               children: <SystemSettingsKeywordMaskingTab />,
+            },
+            {
+              key: "env-vars",
+              label: tabLabel("env-vars", t("settings.page.tabs.envVars")),
+              children: <SystemSettingsEnvVarsTab />,
             },
             // ── Monitoring ──
             groupLabel("group-monitoring", t("settings.page.groups.monitoring")),

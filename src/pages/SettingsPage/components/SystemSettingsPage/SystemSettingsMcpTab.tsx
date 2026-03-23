@@ -8,6 +8,7 @@ import {
   Space,
   Tag,
   Input,
+  Tooltip,
   Typography,
   message,
   theme,
@@ -133,6 +134,16 @@ const SystemSettingsMcpTab: React.FC = () => {
       [ServerStatus.Degraded]: t("settings.mcpTab.status.degraded"),
       [ServerStatus.Stopped]: t("settings.mcpTab.status.stopped"),
       [ServerStatus.Error]: t("settings.mcpTab.status.error"),
+    }),
+    [t],
+  );
+  const statusHelpMap: Record<ServerStatus, string> = useMemo(
+    () => ({
+      [ServerStatus.Connecting]: t("settings.mcpTab.statusHelp.connecting"),
+      [ServerStatus.Ready]: t("settings.mcpTab.statusHelp.ready"),
+      [ServerStatus.Degraded]: t("settings.mcpTab.statusHelp.degraded"),
+      [ServerStatus.Stopped]: t("settings.mcpTab.statusHelp.stopped"),
+      [ServerStatus.Error]: t("settings.mcpTab.statusHelp.error"),
     }),
     [t],
   );
@@ -378,9 +389,22 @@ const SystemSettingsMcpTab: React.FC = () => {
             <Tag>{t("settings.mcpTab.totalServers", { count: statusSummary.totalServers })}</Tag>
             <Tag>{t("settings.mcpTab.totalTools", { count: statusSummary.totalTools })}</Tag>
             {Object.values(ServerStatus).map((status) => (
-              <Tag key={status} color={statusColorMap[status]}>
-                {statusLabelMap[status]}: {statusSummary.byStatus[status]}
-              </Tag>
+              <Tooltip key={status} title={statusHelpMap[status]}>
+                <Tag color={statusColorMap[status]} style={{ cursor: "help" }}>
+                  {statusLabelMap[status]}: {statusSummary.byStatus[status]}
+                </Tag>
+              </Tooltip>
+            ))}
+          </Space>
+          <Text type="secondary">{t("settings.mcpTab.statusGuideTitle")}</Text>
+          <Space direction="vertical" size={2} style={{ width: "100%" }}>
+            {Object.values(ServerStatus).map((status) => (
+              <Text key={`guide-${status}`} type="secondary">
+                <Tag color={statusColorMap[status]} style={{ marginInlineEnd: 8 }}>
+                  {statusLabelMap[status]}
+                </Tag>
+                {statusHelpMap[status]}
+              </Text>
             ))}
           </Space>
         </Space>

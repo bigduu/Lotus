@@ -6,6 +6,33 @@
 
 import { apiClient } from "../api";
 
+// ── Env Vars types ──────────────────────────────────────────────
+
+export interface EnvVarResponse {
+  name: string;
+  /** Masked for secrets; plaintext for non-secrets. */
+  value: string;
+  secret: boolean;
+  /** Whether a real value is configured (useful for secrets where value is masked). */
+  has_value: boolean;
+  description?: string;
+}
+
+export interface EnvVarsListResponse {
+  entries: EnvVarResponse[];
+}
+
+export interface UpsertEnvVarRequest {
+  name: string;
+  value: string;
+  secret: boolean;
+  description?: string;
+}
+
+export interface ReplaceEnvVarsRequest {
+  entries: UpsertEnvVarRequest[];
+}
+
 /**
  * Copilot authentication status
  */
@@ -107,6 +134,42 @@ export class SettingsService {
       },
     );
     return response.models;
+  }
+
+  // ── Env Vars ────────────────────────────────────────────────────
+
+  /**
+   * List all environment variables (secrets are masked).
+   */
+  async getEnvVars(): Promise<EnvVarsListResponse> {
+    return apiClient.get<EnvVarsListResponse>("/bamboo/env-vars");
+  }
+
+  /**
+   * Create or update a single environment variable.
+   */
+  async upsertEnvVar(entry: UpsertEnvVarRequest): Promise<EnvVarsListResponse> {
+    return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars", entry);
+  }
+
+  /**
+   * Delete an environment variable by name.
+   */
+  async deleteEnvVar(name: string): Promise<EnvVarsListResponse> {
+    return apiClient.delete<EnvVarsListResponse>(
+      `/bamboo/env-vars/${encodeURIComponent(name)}`,
+    );
+  }
+
+  /**
+   * Replace the entire env vars list (bulk save).
+   */
+  async replaceEnvVars(
+    entries: UpsertEnvVarRequest[],
+  ): Promise<EnvVarsListResponse> {
+    return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars/replace", {
+      entries,
+    });
   }
 }
 
