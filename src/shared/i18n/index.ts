@@ -24,6 +24,22 @@ const frTranslation = {
     sidebar: {
       ...enTranslation.chat.sidebar,
       newSession: "Nouvelle session",
+      empty: {
+        noSessions: "Pas encore de sessions",
+        hint: "Cliquez sur \"Nouvelle session\" pour commencer",
+      },
+      dateGroups: {
+        today: "Aujourd'hui",
+        yesterday: "Hier",
+        thisWeek: "Cette semaine",
+        thisMonth: "Ce mois-ci",
+        pinned: "Épinglé",
+        scheduled: "Planifié",
+      },
+      actions: {
+        collapseChildren: "Réduire les sessions enfants",
+        expandChildren: "Développer les sessions enfants",
+      },
     },
   },
   settings: {
@@ -93,6 +109,7 @@ const frTranslation = {
       languageTraditionalChinese: "Chinois traditionnel",
       languageFrench: "Français",
       languageJapanese: "Japonais",
+      languageHindi: "Hindi",
     },
     appTab: {
       ...enTranslation.settings.appTab,
@@ -110,6 +127,7 @@ const frTranslation = {
       languageTraditionalChinese: "Chinois traditionnel",
       languageFrench: "Français",
       languageJapanese: "Japonais",
+      languageHindi: "Hindi",
       deleteAllTitle: "Supprimer toutes les sessions",
       deleteAllDescription:
         "Voulez-vous continuer ? Cette action supprimera toutes les sessions, sauf celles épinglées.",
@@ -699,6 +717,8 @@ const frTranslation = {
         stopped: "Arrêté",
         error: "Erreur",
       },
+      statusGuideTitle: "Guide des statuts :",
+      statusLastError: "Dernière erreur : {{error}}",
       serverDeleted: "Serveur MCP supprimé",
       deleteServerFailed: "Échec de la suppression du serveur MCP",
       connectedTo: "Connecté à {{name}}",
@@ -1012,6 +1032,22 @@ const jaTranslation = {
     sidebar: {
       ...enTranslation.chat.sidebar,
       newSession: "新しいセッション",
+      empty: {
+        noSessions: "セッションはまだありません",
+        hint: "「新しいセッション」をクリックして開始",
+      },
+      dateGroups: {
+        today: "今日",
+        yesterday: "昨日",
+        thisWeek: "今週",
+        thisMonth: "今月",
+        pinned: "ピン留め",
+        scheduled: "スケジュール済み",
+      },
+      actions: {
+        collapseChildren: "子セッションを折りたたむ",
+        expandChildren: "子セッションを展開",
+      },
     },
   },
   settings: {
@@ -1043,6 +1079,7 @@ const jaTranslation = {
       languageTraditionalChinese: "繁体字中国語",
       languageFrench: "フランス語",
       languageJapanese: "日本語",
+      languageHindi: "ヒンディー語",
     },
     appTab: {
       ...enTranslation.settings.appTab,
@@ -1052,6 +1089,101 @@ const jaTranslation = {
       languageTraditionalChinese: "繁体字中国語",
       languageFrench: "フランス語",
       languageJapanese: "日本語",
+      languageHindi: "ヒンディー語",
+    },
+  },
+};
+
+const hiTranslation = {
+  ...enTranslation,
+  app: {
+    ...enTranslation.app,
+    loading: "लोड हो रहा है...",
+    retry: "पुनः प्रयास करें",
+    backendNotReachable:
+      "बैकएंड {{baseUrl}} पर उपलब्ध नहीं है (अंतिम त्रुटि: {{message}})",
+  },
+  chat: {
+    ...enTranslation.chat,
+    sidebar: {
+      ...enTranslation.chat.sidebar,
+      newSession: "नया सत्र",
+      empty: {
+        noSessions: "अभी तक कोई सत्र नहीं",
+        hint: "शुरू करने के लिए \"नया सत्र\" पर क्लिक करें",
+      },
+      dateGroups: {
+        today: "आज",
+        yesterday: "कल",
+        thisWeek: "इस सप्ताह",
+        thisMonth: "इस महीने",
+        pinned: "पिन किया गया",
+        scheduled: "अनुसूचित",
+      },
+      actions: {
+        collapseChildren: "चाइल्ड सत्र संक्षिप्त करें",
+        expandChildren: "चाइल्ड सत्र विस्तृत करें",
+      },
+    },
+  },
+  settings: {
+    ...enTranslation.settings,
+    page: {
+      ...enTranslation.settings.page,
+      back: "वापस",
+      title: "सिस्टम सेटिंग्स",
+      tabs: {
+        ...enTranslation.settings.page.tabs,
+        config: "कॉन्फ़िग",
+        prompts: "प्रॉम्प्ट्स",
+        skills: "स्किल्स",
+        workflows: "वर्कफ़्लोज़",
+        modelLimits: "मॉडल सीमाएँ",
+        metrics: "मेट्रिक्स",
+        schedules: "शेड्यूल",
+        sessions: "सेशंस",
+        app: "ऐप",
+        provider: "प्रोवाइडर",
+        masking: "मास्किंग",
+      },
+      groups: {
+        ...enTranslation.settings.page.groups,
+        ai: "AI",
+        toolsAndExtensions: "टूल्स और एक्सटेंशन्स",
+        securityAndPrivacy: "सुरक्षा",
+        monitoring: "मॉनिटरिंग",
+        system: "सिस्टम",
+      },
+    },
+    configTab: {
+      ...enTranslation.settings.configTab,
+      language: "भाषा",
+      languageEnglish: "अंग्रेज़ी",
+      languageChinese: "सरलीकृत चीनी",
+      languageTraditionalChinese: "पारंपरिक चीनी",
+      languageFrench: "फ़्रेंच",
+      languageJapanese: "जापानी",
+      languageHindi: "हिन्दी",
+    },
+    appTab: {
+      ...enTranslation.settings.appTab,
+      autoGenerateTitle: "सेशन शीर्षक स्वतः बनाएं",
+      autoGenerateTitleDesc:
+        "सक्षम होने पर, ऐप सहायक के पहले उत्तर के बाद वर्णनात्मक शीर्षक बनाता है।",
+      switchOn: "चालू",
+      switchOff: "बंद",
+      darkMode: "डार्क मोड",
+      darkModeDark: "डार्क",
+      darkModeLight: "लाइट",
+      language: "भाषा",
+      languageEnglish: "अंग्रेज़ी",
+      languageChinese: "सरलीकृत चीनी",
+      languageTraditionalChinese: "पारंपरिक चीनी",
+      languageFrench: "फ़्रेंच",
+      languageJapanese: "जापानी",
+      languageHindi: "हिन्दी",
+      cancel: "रद्द करें",
+      dangerZone: "जोखिम क्षेत्र",
     },
   },
 };
@@ -1067,6 +1199,22 @@ const zhTwTranslation = {
     sidebar: {
       ...zhCnTranslation.chat.sidebar,
       newSession: "新建會話",
+      empty: {
+        noSessions: "暫無會話",
+        hint: "點擊「新建會話」開始",
+      },
+      dateGroups: {
+        today: "今天",
+        yesterday: "昨天",
+        thisWeek: "本週",
+        thisMonth: "本月",
+        pinned: "置頂",
+        scheduled: "計劃任務",
+      },
+      actions: {
+        collapseChildren: "摺疊子會話",
+        expandChildren: "展開子會話",
+      },
     },
   },
   settings: {
@@ -1114,6 +1262,7 @@ const zhTwTranslation = {
       languageTraditionalChinese: "繁體中文",
       languageFrench: "Français",
       languageJapanese: "日本語",
+      languageHindi: "印地語",
     },
     appTab: {
       ...zhCnTranslation.settings.appTab,
@@ -1123,6 +1272,7 @@ const zhTwTranslation = {
       languageTraditionalChinese: "繁體中文",
       languageFrench: "Français",
       languageJapanese: "日本語",
+      languageHindi: "印地語",
     },
   },
 };
@@ -1131,6 +1281,9 @@ const resources = {
   ...baseResources,
   "fr-FR": {
     translation: frTranslation,
+  },
+  "hi-IN": {
+    translation: hiTranslation,
   },
   "ja-JP": {
     translation: jaTranslation,

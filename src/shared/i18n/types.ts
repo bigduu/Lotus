@@ -1,4 +1,10 @@
-export type AppLocale = "en-US" | "zh-CN" | "zh-TW" | "fr-FR" | "ja-JP";
+export type AppLocale =
+  | "en-US"
+  | "zh-CN"
+  | "zh-TW"
+  | "fr-FR"
+  | "ja-JP"
+  | "hi-IN";
 
 export const APP_LOCALE_STORAGE_KEY = "lotus_ui_locale_v1";
 export const DEFAULT_APP_LOCALE: AppLocale = "en-US";
@@ -8,6 +14,7 @@ export const SUPPORTED_APP_LOCALES: AppLocale[] = [
   "zh-TW",
   "fr-FR",
   "ja-JP",
+  "hi-IN",
 ];
 
 export const isSupportedAppLocale = (
@@ -56,6 +63,9 @@ export const resolveInitialLocale = (): AppLocale => {
   }
   if (browserLocale.startsWith("ja")) {
     return "ja-JP";
+  }
+  if (browserLocale.startsWith("hi")) {
+    return "hi-IN";
   }
 
   return DEFAULT_APP_LOCALE;
