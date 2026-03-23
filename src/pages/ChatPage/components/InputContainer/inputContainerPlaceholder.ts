@@ -1,29 +1,33 @@
+import { TFunction } from "i18next";
+
 export const getInputContainerPlaceholder = ({
   referenceText,
   isToolSpecificMode,
   isRestrictConversation,
   allowedTools,
   autoToolPrefix,
+  t,
 }: {
   referenceText: string | null;
   isToolSpecificMode: boolean;
   isRestrictConversation: boolean;
   allowedTools: string[];
   autoToolPrefix?: string;
+  t: TFunction;
 }) => {
   if (referenceText) {
-    return "Send a message (includes reference)";
+    return t("chat.input.placeholderWithReference");
   }
 
   if (isToolSpecificMode) {
     if (isRestrictConversation) {
-      return `Tool calls only (allowed tools: ${allowedTools.join(", ")})`;
+      return t("chat.input.toolCallsOnly", { tools: allowedTools.join(", ") });
     }
     if (autoToolPrefix) {
-      return `Auto-prefix mode: ${autoToolPrefix} (type '/' to select tools)`;
+      return t("chat.input.autoPrefixMode", { prefix: autoToolPrefix });
     }
-    return `Tool-specific mode (allowed tools: ${allowedTools.join(", ")})`;
+    return t("chat.input.toolSpecificMode", { tools: allowedTools.join(", ") });
   }
 
-  return "Send a message... (type '/' for workflows)";
+  return t("chat.input.placeholderWithWorkflows");
 };

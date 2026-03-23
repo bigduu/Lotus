@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { getInputContainerPlaceholder } from "../inputContainerPlaceholder";
 
+// Mock translation function that returns the key with interpolation
+const mockT = (key: string, options?: Record<string, unknown>) => {
+  const translations: Record<string, string> = {
+    "chat.input.placeholderWithReference": "Send a message (includes reference)",
+    "chat.input.toolCallsOnly": `Tool calls only (allowed tools: ${options?.tools ?? ""})`,
+    "chat.input.autoPrefixMode": `Auto-prefix mode: ${options?.prefix ?? ""} (type '/' to select tools)`,
+    "chat.input.toolSpecificMode": `Tool-specific mode (allowed tools: ${options?.tools ?? ""})`,
+    "chat.input.placeholderWithWorkflows": "Send a message... (type '/' for workflows)",
+  };
+  return translations[key] || key;
+};
+
 describe("inputContainerPlaceholder", () => {
   describe("getInputContainerPlaceholder", () => {
     describe("reference text cases", () => {
@@ -10,6 +22,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: false,
           isRestrictConversation: false,
           allowedTools: [],
+          t: mockT,
         });
         expect(result).toBe("Send a message (includes reference)");
       });
@@ -20,6 +33,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: false,
           allowedTools: ["tool1"],
+          t: mockT,
         });
         expect(result).toBe("Send a message (includes reference)");
       });
@@ -30,6 +44,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: true,
           allowedTools: [],
+          t: mockT,
         });
         expect(result).toBe("Send a message (includes reference)");
       });
@@ -42,6 +57,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: true,
           allowedTools: ["tool1", "tool2"],
+          t: mockT,
         });
         expect(result).toBe("Tool calls only (allowed tools: tool1, tool2)");
       });
@@ -52,6 +68,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: true,
           allowedTools: ["read_file"],
+          t: mockT,
         });
         expect(result).toBe("Tool calls only (allowed tools: read_file)");
       });
@@ -62,6 +79,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: true,
           allowedTools: [],
+          t: mockT,
         });
         expect(result).toBe("Tool calls only (allowed tools: )");
       });
@@ -73,6 +91,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: true,
           allowedTools: ["tool1"],
           autoToolPrefix: "/read_file",
+          t: mockT,
         });
         expect(result).toBe("Tool calls only (allowed tools: tool1)");
       });
@@ -86,6 +105,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: ["tool1"],
           autoToolPrefix: "/read_file",
+          t: mockT,
         });
         expect(result).toBe("Auto-prefix mode: /read_file (type '/' to select tools)");
       });
@@ -97,6 +117,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: [],
           autoToolPrefix: "/search",
+          t: mockT,
         });
         expect(result).toBe("Auto-prefix mode: /search (type '/' to select tools)");
       });
@@ -108,6 +129,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: ["tool1", "tool2", "tool3"],
           autoToolPrefix: "/mcp__filesystem__read_file",
+          t: mockT,
         });
         expect(result).toBe(
           "Auto-prefix mode: /mcp__filesystem__read_file (type '/' to select tools)",
@@ -122,6 +144,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: false,
           allowedTools: ["tool1", "tool2"],
+          t: mockT,
         });
         expect(result).toBe("Tool-specific mode (allowed tools: tool1, tool2)");
       });
@@ -132,6 +155,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: false,
           allowedTools: ["read_file"],
+          t: mockT,
         });
         expect(result).toBe("Tool-specific mode (allowed tools: read_file)");
       });
@@ -142,6 +166,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: false,
           allowedTools: [],
+          t: mockT,
         });
         expect(result).toBe("Tool-specific mode (allowed tools: )");
       });
@@ -153,6 +178,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: ["tool1"],
           autoToolPrefix: undefined,
+          t: mockT,
         });
         expect(result).toBe("Tool-specific mode (allowed tools: tool1)");
       });
@@ -164,6 +190,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: ["tool1"],
           autoToolPrefix: "",
+          t: mockT,
         });
         expect(result).toBe("Tool-specific mode (allowed tools: tool1)");
       });
@@ -176,6 +203,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: false,
           isRestrictConversation: false,
           allowedTools: [],
+          t: mockT,
         });
         expect(result).toBe("Send a message... (type '/' for workflows)");
       });
@@ -186,6 +214,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: false,
           isRestrictConversation: false,
           allowedTools: ["tool1", "tool2"],
+          t: mockT,
         });
         expect(result).toBe("Send a message... (type '/' for workflows)");
       });
@@ -196,6 +225,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: false,
           isRestrictConversation: true,
           allowedTools: ["tool1"],
+          t: mockT,
         });
         expect(result).toBe("Send a message... (type '/' for workflows)");
       });
@@ -207,6 +237,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: [],
           autoToolPrefix: "/tool",
+          t: mockT,
         });
         expect(result).toBe("Send a message... (type '/' for workflows)");
       });
@@ -220,6 +251,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: true,
           allowedTools: ["tool1"],
           autoToolPrefix: "/tool",
+          t: mockT,
         });
         expect(result).toBe("Send a message (includes reference)");
       });
@@ -231,6 +263,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: true,
           allowedTools: ["tool1"],
           autoToolPrefix: "/tool",
+          t: mockT,
         });
         expect(result).toBe("Tool calls only (allowed tools: tool1)");
       });
@@ -242,6 +275,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: ["tool1", "tool2"],
           autoToolPrefix: "/read_file",
+          t: mockT,
         });
         expect(result).toBe("Auto-prefix mode: /read_file (type '/' to select tools)");
       });
@@ -255,6 +289,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: false,
           allowedTools: tools,
+          t: mockT,
         });
         expect(result).toContain("Tool-specific mode");
         expect(result).toContain("tool0, tool1, tool2");
@@ -266,6 +301,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: false,
           allowedTools: ["工具1", "outil2"],
+          t: mockT,
         });
         expect(result).toBe("Tool-specific mode (allowed tools: 工具1, outil2)");
       });
@@ -276,6 +312,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: true,
           isRestrictConversation: false,
           allowedTools: ["read-file", "write_file", "search.files"],
+          t: mockT,
         });
         expect(result).toBe(
           "Tool-specific mode (allowed tools: read-file, write_file, search.files)",
@@ -289,6 +326,7 @@ describe("inputContainerPlaceholder", () => {
           isRestrictConversation: false,
           allowedTools: [],
           autoToolPrefix: "/mcp__my-server__complex_tool-name",
+          t: mockT,
         });
         expect(result).toBe(
           "Auto-prefix mode: /mcp__my-server__complex_tool-name (type '/' to select tools)",
@@ -303,6 +341,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: false,
           isRestrictConversation: false,
           allowedTools: [],
+          t: mockT,
         });
         // Empty string is falsy, so should return default message
         expect(result).toBe("Send a message... (type '/' for workflows)");
@@ -314,6 +353,7 @@ describe("inputContainerPlaceholder", () => {
           isToolSpecificMode: false,
           isRestrictConversation: false,
           allowedTools: [],
+          t: mockT,
         });
         // Whitespace is truthy, so should return reference message
         expect(result).toBe("Send a message (includes reference)");

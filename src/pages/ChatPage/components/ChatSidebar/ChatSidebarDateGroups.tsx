@@ -6,10 +6,12 @@ import {
   DownOutlined,
   RightOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 import { ChatItem as ChatItemComponent } from "../ChatItem";
 import type { ChatItem } from "../../types/chat";
 import { getChatCountByDate } from "../../utils/chatUtils";
+import { translateDateKey } from "../../utils/dateGroupTranslation";
 
 type ChatSidebarDateGroupsProps = {
   groupedChatsByDate: Record<string, ChatItem[]>;
@@ -53,6 +55,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   titleGenerationState,
   token,
 }) => {
+  const { t } = useTranslation();
+
   const groups = useMemo(() => {
     if (!sortedDateKeys.length) {
       return [];
@@ -87,10 +91,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
         description={
           <Space direction="vertical" size={4}>
             <span style={{ color: token.colorTextSecondary }}>
-              No sessions yet
+              {t("chat.sidebar.empty.noSessions")}
             </span>
             <span style={{ color: token.colorTextSecondary, fontSize: 12 }}>
-              Click "New Session" to get started
+              {t("chat.sidebar.empty.hint")}
             </span>
           </Space>
         }
@@ -110,7 +114,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             key={dateKey}
             style={{
               borderRadius: token.borderRadiusSM,
-              background: isExpanded ? token.colorFillQuaternary : "transparent",
+              background: isExpanded ? token.colorFillTertiary : "transparent",
               padding: 4,
             }}
           >
@@ -145,7 +149,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {dateKey} ({totalChatsInDate})
+                  {translateDateKey(dateKey, t)} ({totalChatsInDate})
                 </span>
               </Flex>
 
@@ -177,8 +181,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                             style={{ padding: 0, width: 22 }}
                             aria-label={
                               expandedRootIds.has(chat.id)
-                                ? "Collapse child sessions"
-                                : "Expand child sessions"
+                                ? t("chat.sidebar.actions.collapseChildren")
+                                : t("chat.sidebar.actions.expandChildren")
                             }
                             onClick={(e) => {
                               e.preventDefault();

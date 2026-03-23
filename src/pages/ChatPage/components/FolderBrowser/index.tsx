@@ -18,6 +18,7 @@ import {
   ArrowLeftOutlined,
   CheckOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import {
   workspaceApiService,
   BrowseFolderResponse,
@@ -39,6 +40,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
   onClose,
   onSelect,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const { Text } = Typography;
   const [loading, setLoading] = useState(false);
@@ -115,7 +117,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
 
   return (
     <Modal
-      title="Select Workspace Folder"
+      title={t("chat.folderBrowser.title")}
       open={visible}
       onCancel={onClose}
       width={700}
@@ -124,7 +126,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
       <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         <Space>
           <Button icon={<HomeOutlined />} onClick={handleGoHome} size="small">
-            Home
+            {t("common.home")}
           </Button>
           <Button
             icon={<ArrowLeftOutlined />}
@@ -132,7 +134,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
             disabled={!parentPath}
             size="small"
           >
-            Parent Directory
+            {t("common.parentDirectory")}
           </Button>
           <Button
             type="primary"
@@ -140,7 +142,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
             onClick={handleSelectCurrent}
             size="small"
           >
-            Select Current Folder
+            {t("chat.folderBrowser.selectCurrent")}
           </Button>
         </Space>
 
@@ -161,7 +163,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
 
         <Card size="small" styles={{ body: { padding: token.paddingXS } }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Current Path:
+            {t("common.currentPath")}
           </Text>{" "}
           <Text code>{currentPath}</Text>
         </Card>
@@ -170,7 +172,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
           {folders.length === 0 && !loading ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description={<Text type="secondary">This folder is empty</Text>}
+              description={<Text type="secondary">{t("chat.folderBrowser.emptyFolder")}</Text>}
             />
           ) : (
             <List
@@ -197,8 +199,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
         </Spin>
 
         <Text type="secondary" style={{ fontSize: 12 }}>
-          💡 Tip: Click a folder to enter, click "Select Current Folder" to
-          confirm
+          {t("chat.folderBrowser.tip")}
         </Text>
       </Space>
     </Modal>

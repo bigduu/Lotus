@@ -10,10 +10,12 @@ import {
   Tag,
 } from "antd";
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../ChatPage/store";
 import { UserSystemPrompt } from "../../../ChatPage/types/chat";
 
 const SystemPromptManager = () => {
+  const { t } = useTranslation();
   const systemPrompts = useAppStore((state) => state.systemPrompts);
   const addSystemPrompt = useAppStore((state) => state.addSystemPrompt);
   const updateSystemPrompt = useAppStore((state) => state.updateSystemPrompt);
@@ -27,7 +29,7 @@ const SystemPromptManager = () => {
 
   const showModal = (prompt: UserSystemPrompt | null = null) => {
     if (prompt?.isDefault) {
-      message.warning("Default system prompts are locked and cannot be edited.");
+      message.warning(t("settings.systemPromptManager.defaultPromptLocked"));
       return;
     }
 
@@ -44,7 +46,7 @@ const SystemPromptManager = () => {
 
   const handleOk = async () => {
     if (editingPrompt?.isDefault) {
-      message.warning("Default system prompts are locked and cannot be edited.");
+      message.warning(t("settings.systemPromptManager.defaultPromptLocked"));
       return;
     }
 
@@ -52,10 +54,10 @@ const SystemPromptManager = () => {
       const values = await form.validateFields();
       if (editingPrompt) {
         await updateSystemPrompt({ ...editingPrompt, ...values });
-        message.success("Prompt updated successfully");
+        message.success(t("settings.systemPromptManager.updateSuccess"));
       } else {
         await addSystemPrompt(values);
-        message.success("Prompt added successfully");
+        message.success(t("settings.systemPromptManager.addSuccess"));
       }
       handleCancel();
     } catch (error) {
@@ -63,7 +65,7 @@ const SystemPromptManager = () => {
       message.error(
         error instanceof Error
           ? error.message
-          : "Failed to save prompt. Please try again.",
+          : t("settings.systemPromptManager.saveError"),
       );
     }
   };
@@ -71,13 +73,13 @@ const SystemPromptManager = () => {
   const handleDelete = async (id: string) => {
     try {
       await deleteSystemPrompt(id);
-      message.success("Prompt deleted successfully");
+      message.success(t("settings.systemPromptManager.deleteSuccess"));
     } catch (error) {
       console.error("Failed to delete prompt:", error);
       message.error(
         error instanceof Error
           ? error.message
-          : "Failed to delete prompt. Please try again.",
+          : t("settings.systemPromptManager.deleteError"),
       );
     }
   };
@@ -92,13 +94,13 @@ const SystemPromptManager = () => {
           marginBottom: 16,
         }}
       >
-        <h2>System Prompt Management</h2>
+        <h2>{t("settings.systemPromptManager.title")}</h2>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           onClick={() => showModal()}
         >
-          Add Prompt
+          {t("settings.systemPromptManager.addButton")}
         </Button>
       </div>
       <List
@@ -116,10 +118,10 @@ const SystemPromptManager = () => {
               ),
               item.isDefault ? null : (
                 <Popconfirm
-                  title="Are you sure to delete this prompt?"
+                  title={t("settings.systemPromptManager.deleteConfirm")}
                   onConfirm={() => handleDelete(item.id)}
-                  okText="Yes"
-                  cancelText="No"
+                  okText={t("common.yes")}
+                  cancelText={t("common.no")}
                 >
                   <Button type="text" danger icon={<DeleteOutlined />} />
                 </Popconfirm>
@@ -134,12 +136,18 @@ const SystemPromptManager = () => {
                   (item.content.length > 200 ? "..." : "")
               }
             />
-            {item.isDefault && <Tag>Default (Locked)</Tag>}
+            {item.isDefault && (
+              <Tag>{t("settings.systemPromptManager.defaultTag")}</Tag>
+            )}
           </List.Item>
         )}
       />
       <Modal
-        title={editingPrompt ? "Edit System Prompt" : "Add New System Prompt"}
+        title={
+          editingPrompt
+            ? t("settings.systemPromptManager.editTitle")
+            : t("settings.systemPromptManager.addTitle")
+        }
         open={isModalVisible}
         onOk={handleOk}
         onCancel={handleCancel}
@@ -148,11 +156,11 @@ const SystemPromptManager = () => {
         <Form form={form} layout="vertical" name="system_prompt_form">
           <Form.Item
             name="name"
-            label="Prompt Name"
+            label={t("settings.systemPromptManager.nameLabel")}
             rules={[
               {
                 required: true,
-                message: "Please input the name of the prompt!",
+                message: t("settings.systemPromptManager.nameRequired"),
               },
             ]}
           >
@@ -160,11 +168,11 @@ const SystemPromptManager = () => {
           </Form.Item>
           <Form.Item
             name="description"
-            label="Prompt Description"
+            label={t("settings.systemPromptManager.descriptionLabel")}
             rules={[
               {
                 required: false,
-                message: "Please input the description of the prompt!",
+                message: t("settings.systemPromptManager.descriptionRequired"),
               },
             ]}
           >
@@ -172,11 +180,11 @@ const SystemPromptManager = () => {
           </Form.Item>
           <Form.Item
             name="content"
-            label="Prompt Content"
+            label={t("settings.systemPromptManager.contentLabel")}
             rules={[
               {
                 required: true,
-                message: "Please input the content of the prompt!",
+                message: t("settings.systemPromptManager.contentRequired"),
               },
             ]}
           >

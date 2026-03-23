@@ -64,12 +64,15 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
 // Predefined common button configurations
 export const createCancelButton = (
   onCancel: () => void,
-): ModalFooterButton => ({
-  key: "cancel",
-  text: "Cancel",
-  type: "default",
-  onClick: onCancel,
-});
+  text?: string,
+): ModalFooterButton => {
+  return {
+    key: "cancel",
+    text: text || "Cancel",
+    type: "default",
+    onClick: onCancel,
+  };
+};
 
 export const createOkButton = (
   onOk: () => void,
@@ -78,14 +81,16 @@ export const createOkButton = (
     disabled?: boolean;
     loading?: boolean;
   },
-): ModalFooterButton => ({
-  key: "ok",
-  text: options?.text || "OK",
-  type: "primary",
-  disabled: options?.disabled,
-  loading: options?.loading,
-  onClick: onOk,
-});
+): ModalFooterButton => {
+  return {
+    key: "ok",
+    text: options?.text || "OK",
+    type: "primary",
+    disabled: options?.disabled,
+    loading: options?.loading,
+    onClick: onOk,
+  };
+};
 
 export const createApplyButton = (
   onApply: () => void,
@@ -94,29 +99,34 @@ export const createApplyButton = (
     disabled?: boolean;
     loading?: boolean;
   },
-): ModalFooterButton => ({
-  key: "apply",
-  text: options?.text || "Apply",
-  type: "primary",
-  disabled: options?.disabled,
-  loading: options?.loading,
-  onClick: onApply,
-});
+): ModalFooterButton => {
+  return {
+    key: "apply",
+    text: options?.text || "Apply",
+    type: "primary",
+    disabled: options?.disabled,
+    loading: options?.loading,
+    onClick: onApply,
+  };
+};
 
 export const createSaveButton = (
   onSave: () => void,
   options?: {
+    text?: string;
     disabled?: boolean;
     loading?: boolean;
   },
-): ModalFooterButton => ({
-  key: "save",
-  text: "Save",
-  type: "primary",
-  disabled: options?.disabled,
-  loading: options?.loading,
-  onClick: onSave,
-});
+): ModalFooterButton => {
+  return {
+    key: "save",
+    text: options?.text || "Save",
+    type: "primary",
+    disabled: options?.disabled,
+    loading: options?.loading,
+    onClick: onSave,
+  };
+};
 
 export const createDeleteButton = (
   onDelete: () => void,
@@ -125,14 +135,16 @@ export const createDeleteButton = (
     disabled?: boolean;
     loading?: boolean;
   },
-): ModalFooterButton => ({
-  key: "delete",
-  text: options?.text || "Delete",
-  type: "primary",
-  danger: true,
-  disabled: options?.disabled,
-  loading: options?.loading,
-  onClick: onDelete,
-});
+): ModalFooterButton => {
+  return {
+    key: "delete",
+    text: options?.text || "Delete",
+    type: "primary",
+    danger: true,
+    disabled: options?.disabled,
+    loading: options?.loading,
+    onClick: onDelete,
+  };
+};
 
 export default ModalFooter;

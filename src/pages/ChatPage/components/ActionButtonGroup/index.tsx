@@ -82,21 +82,29 @@ export const ActionButtonGroup: React.FC<ActionButtonGroupProps> = ({
 };
 
 // Predefined common action button configurations
-export const createCopyButton = (onCopy: () => void): ActionButton => ({
-  key: "copy",
-  "data-testid": "copy-message",
-  icon: <CopyOutlined />,
-  title: "Copy message",
-  onClick: onCopy,
-});
+export const createCopyButton = (
+  onCopy: () => void,
+  title?: string,
+): ActionButton => {
+  return {
+    key: "copy",
+    "data-testid": "copy-message",
+    icon: <CopyOutlined />,
+    title: title || "Copy message",
+    onClick: onCopy,
+  };
+};
 
 export const createReferenceButton = (
   onReference: () => void,
-): ActionButton => ({
-  key: "reference",
-  icon: <BookOutlined />,
-  title: "Reference message",
-  onClick: onReference,
-});
+  title?: string,
+): ActionButton => {
+  return {
+    key: "reference",
+    icon: <BookOutlined />,
+    title: title || "Reference message",
+    onClick: onReference,
+  };
+};
 
 export default ActionButtonGroup;

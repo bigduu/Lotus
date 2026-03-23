@@ -26,6 +26,7 @@ import {
   LoadingOutlined,
   DownOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
@@ -164,6 +165,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   onWorkflowDraftChange,
   statusIndicator,
 }) => {
+  const { t } = useTranslation();
   const textAreaRef = useRef<TextAreaRef>(null); // Add ref for cursor position
   const { token } = useToken();
   const openSettings = useSettingsViewStore((state) => state.open);
@@ -644,6 +646,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       isRestrictConversation,
       allowedTools,
       autoToolPrefix,
+      t,
     });
   }, [
     referenceText,
@@ -651,6 +654,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     isRestrictConversation,
     allowedTools,
     autoToolPrefix,
+    t,
   ]);
 
   // In respond mode, override placeholder to guide the user

@@ -102,6 +102,13 @@ describe("QuestionDialog", () => {
     expect(formatted).toContain("\n3) Use REST or browser?");
   });
 
+  it("converts escaped newline sequences into real newlines", () => {
+    const formatted = formatPendingQuestionText(
+      "Line 1\\nLine 2\\r\\nLine 3",
+    );
+    expect(formatted).toBe("Line 1\nLine 2\nLine 3");
+  });
+
   it("should display question when pending question exists", async () => {
     const { agentApiClient } = await import("../../../services/api");
     (agentApiClient.get as any).mockResolvedValue({

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Alert, Button, Card, Checkbox, Input, Spin, Steps } from "antd";
 import type { CheckboxChangeEvent } from "antd/es/checkbox";
 import { ServiceFactory } from "../../services/common/ServiceFactory";
@@ -30,6 +31,7 @@ const parseString = (value: unknown): string =>
   typeof value === "string" ? value : "";
 
 export const SetupPage = () => {
+  const { t } = useTranslation();
   const [currentStep, setCurrentStep] = useState(0);
   const [config, setConfig] = useState<SetupConfig>(DEFAULT_CONFIG);
   const [needsProxy, setNeedsProxy] = useState(false);
@@ -84,8 +86,7 @@ export const SetupPage = () => {
         console.error("Failed to check setup status:", error);
         setDetectionResult({
           needsProxy: true,
-          message:
-            "Unable to load setup status. You can continue with manual proxy configuration.",
+          message: t("setup.error.loadStatusFailed"),
         });
       } finally {
         setIsDetecting(false);
@@ -130,14 +131,12 @@ export const SetupPage = () => {
             Object.values(validation.errors || {})
               .flat()
               .filter(Boolean)[0];
-          setErrorMessage(issue?.message || "Proxy settings are invalid.");
+          setErrorMessage(issue?.message || t("setup.error.invalidProxy"));
           return;
         }
 
         if (config.rememberProxyAuth && !hasAuth && config.proxyPassword.trim()) {
-          setErrorMessage(
-            "To store proxy credentials, please enter a username or uncheck 'Remember credentials'.",
-          );
+          setErrorMessage(t("setup.error.credentialsUsername"));
           return;
         }
 
@@ -166,8 +165,8 @@ export const SetupPage = () => {
         error instanceof Error && error.message.trim()
           ? error.message
           : hasProxy
-            ? "Failed to save proxy configuration. Please try again."
-            : "Failed to complete setup. Please try again.";
+            ? t("setup.error.saveProxyFailed")
+            : t("setup.error.completeFailed");
       setErrorMessage(message);
     } finally {
       setIsSaving(false);
@@ -183,7 +182,7 @@ export const SetupPage = () => {
       setIsComplete(true);
     } catch (error) {
       console.error("Failed to mark setup complete:", error);
-      setErrorMessage("Failed to complete setup. Please try again.");
+      setErrorMessage(t("setup.error.completeFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -192,42 +191,42 @@ export const SetupPage = () => {
   const steps = useMemo(
     () => [
       {
-        title: "Welcome",
+        title: t("setup.steps.welcome"),
         content: (
           <div>
-            <h1>Welcome to Bodhi</h1>
+            <h1>{t("setup.welcome.heading")}</h1>
             <p>
-              Let&apos;s set up your environment before entering the main app.
+              {t("setup.welcome.description")}
             </p>
             <Alert
-              message="You can skip setup now and configure proxy settings later in System Settings."
+              message={t("setup.welcome.skipInfo")}
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
             />
             <div className="setup-page__actions">
               <Button data-testid="setup-next" type="primary" onClick={() => setCurrentStep(1)}>
-                Next
+                {t("setup.button.next")}
               </Button>
               <Button data-testid="setup-skip" onClick={() => void handleSkipSetup()} loading={isSaving}>
-                Skip for now
+                {t("setup.button.skipForNow")}
               </Button>
             </div>
           </div>
         ),
       },
       {
-        title: "Proxy Configuration",
+        title: t("setup.steps.proxy"),
         content: (
           <div>
-            <h2>Proxy Configuration</h2>
+            <h2>{t("setup.proxy.title")}</h2>
             <Alert
-              message="If you're behind a corporate proxy, configure it below."
+              message={t("setup.proxy.info")}
               type="info"
               showIcon
             />
             <Alert
-              message="Provider configuration is done later in Provider Settings. This setup step only stores network/proxy settings."
+              message={t("setup.proxy.providerInfo")}
               type="info"
               showIcon
               style={{ marginTop: 16 }}
@@ -235,7 +234,7 @@ export const SetupPage = () => {
 
             {isDetecting ? (
               <div style={{ marginTop: 16 }}>
-                <Spin tip="Detecting network environment..." />
+                <Spin tip={t("setup.proxy.detecting")} />
               </div>
             ) : null}
 
@@ -250,7 +249,7 @@ export const SetupPage = () => {
 
             {!isDetecting && !detectionResult && !needsProxy ? (
               <Alert
-                message="No existing proxy was detected. You can leave these fields empty if your network does not require a proxy."
+                message={t("setup.proxy.noProxyDetected")}
                 type="success"
                 showIcon
                 style={{ marginTop: 16 }}
@@ -267,33 +266,33 @@ export const SetupPage = () => {
             ) : null}
 
             <div style={{ marginTop: 16 }}>
-              <label htmlFor="setup-http-proxy">HTTP Proxy URL:</label>
+              <label htmlFor="setup-http-proxy">{t("setup.proxy.httpProxyLabel")}</label>
               <Input
                 id="setup-http-proxy"
                 value={config.httpProxy}
                 onChange={(event) =>
                   updateConfig({ httpProxy: event.target.value })
                 }
-                placeholder="http://proxy.company.com:8080"
+                placeholder={t("setup.proxy.httpProxyPlaceholder")}
               />
             </div>
 
             <div style={{ marginTop: 16 }}>
-              <label htmlFor="setup-https-proxy">HTTPS Proxy URL:</label>
+              <label htmlFor="setup-https-proxy">{t("setup.proxy.httpsProxyLabel")}</label>
               <Input
                 id="setup-https-proxy"
                 value={config.httpsProxy}
                 onChange={(event) =>
                   updateConfig({ httpsProxy: event.target.value })
                 }
-                placeholder="http://proxy.company.com:8080"
+                placeholder={t("setup.proxy.httpsProxyPlaceholder")}
               />
             </div>
 
             {shouldShowAuthFields ? (
               <>
                 <div style={{ marginTop: 16 }}>
-                  <label htmlFor="setup-proxy-username">Username</label>
+                  <label htmlFor="setup-proxy-username">{t("setup.proxy.usernameLabel")}</label>
                   <Input
                     id="setup-proxy-username"
                     value={config.proxyUsername}
@@ -304,7 +303,7 @@ export const SetupPage = () => {
                 </div>
 
                 <div style={{ marginTop: 16 }}>
-                  <label htmlFor="setup-proxy-password">Password</label>
+                  <label htmlFor="setup-proxy-password">{t("setup.proxy.passwordLabel")}</label>
                   <Input.Password
                     id="setup-proxy-password"
                     value={config.proxyPassword}
@@ -321,16 +320,16 @@ export const SetupPage = () => {
                       updateConfig({ rememberProxyAuth: event.target.checked })
                     }
                   >
-                    Remember credentials (encrypted)
+                    {t("setup.proxy.rememberCredentials")}
                   </Checkbox>
                 </div>
               </>
             ) : null}
 
             <div className="setup-page__actions" style={{ marginTop: 24 }}>
-              <Button data-testid="setup-back" onClick={() => setCurrentStep(0)}>Back</Button>
+              <Button data-testid="setup-back" onClick={() => setCurrentStep(0)}>{t("setup.button.back")}</Button>
               <Button data-testid="setup-skip" onClick={() => void handleSkipSetup()} loading={isSaving}>
-                Skip for now
+                {t("setup.button.skipForNow")}
               </Button>
               <Button
                 data-testid="setup-complete"
@@ -338,7 +337,7 @@ export const SetupPage = () => {
                 type="primary"
                 loading={isSaving}
               >
-                Complete Setup
+                {t("setup.button.completeSetup")}
               </Button>
             </div>
           </div>
@@ -353,15 +352,16 @@ export const SetupPage = () => {
       isSaving,
       needsProxy,
       shouldShowAuthFields,
+      t,
     ],
   );
 
   if (isComplete) {
     return (
       <div data-testid="setup-complete" className="setup-complete">
-        <h1>Setup Complete!</h1>
-        <p>Please restart the application to apply all settings.</p>
-        <Button data-testid="setup-restart" onClick={() => window.location.reload()}>Restart</Button>
+        <h1>{t("setup.complete.title")}</h1>
+        <p>{t("setup.complete.restartMessage")}</p>
+        <Button data-testid="setup-restart" onClick={() => window.location.reload()}>{t("setup.button.restart")}</Button>
       </div>
     );
   }

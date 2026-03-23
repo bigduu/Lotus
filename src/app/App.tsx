@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { App as AntApp, Button, ConfigProvider, theme } from "antd";
+import {
+  App as AntdApp,
+  Button,
+  ConfigProvider as AntdConfigProvider,
+  theme,
+} from "antd";
 import { useTranslation } from "react-i18next";
 import "./App.css";
 import "@shared/i18n";
@@ -18,14 +23,26 @@ import {
 
 const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
 const LIGHT_THEME_TOKEN = {
-  colorPrimary: "#d9dada",
-  colorPrimaryHover: "#e4e5e5",
-  colorPrimaryActive: "#c8caca",
-  colorInfo: "#d9dada",
-  colorLink: "#8a8a8a",
-  colorLinkHover: "#9c9c9c",
-  colorLinkActive: "#767676",
-  colorTextLightSolid: "#1f1f1f",
+  // Light mode neutral palette tuned for stronger contrast.
+  colorPrimary: "#7a828a",
+  colorPrimaryHover: "#8a9198",
+  colorPrimaryActive: "#676f77",
+  colorInfo: "#7a828a",
+  colorLink: "#565d65",
+  colorLinkHover: "#68707a",
+  colorLinkActive: "#474d55",
+  colorText: "#1f2429",
+  colorTextSecondary: "#4b525a",
+  colorTextTertiary: "#646c75",
+  colorTextDisabled: "#818a95",
+  colorTextLightSolid: "#ffffff",
+  colorBorder: "#bcc3cb",
+  colorBorderSecondary: "#c9cfd6",
+  colorFill: "#d9dee3",
+  colorFillSecondary: "#e6eaee",
+  colorFillTertiary: "#edf0f3",
+  colorFillQuaternary: "#f2f4f7",
+  colorBgLayout: "#eff2f5",
   borderRadius: 6,
 };
 const DARK_THEME_TOKEN = {
@@ -166,7 +183,7 @@ function App() {
   );
 
   return (
-    <ConfigProvider
+    <AntdConfigProvider
       locale={getAntdLocale(appLocale)}
       theme={{
         token: themeMode === "dark" ? DARK_THEME_TOKEN : LIGHT_THEME_TOKEN,
@@ -174,10 +191,10 @@ function App() {
           themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
       }}
     >
-      <AntApp>
+      <AntdApp>
         <div style={{ position: "relative" }}>{appContent}</div>
-      </AntApp>
-    </ConfigProvider>
+      </AntdApp>
+    </AntdConfigProvider>
   );
 }
 

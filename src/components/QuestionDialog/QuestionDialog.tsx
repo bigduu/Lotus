@@ -28,7 +28,11 @@ export interface PendingQuestion {
 }
 
 export const formatPendingQuestionText = (raw?: string): string => {
-  const normalized = (raw || "").replace(/\r\n?/g, "\n").trim();
+  const normalized = (raw || "")
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n?/g, "\n")
+    .trim();
   if (!normalized) return "";
   if (normalized.includes("\n")) return normalized;
 

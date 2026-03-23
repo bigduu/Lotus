@@ -62,7 +62,7 @@ export const ChatSidebar: React.FC = () => {
       style={{
         width: "100%",
         height: "100%",
-        background: token.colorFillQuaternary,
+        background: token.colorFillTertiary,
         borderRight: "none",
         position: "relative",
         overflow: "hidden",

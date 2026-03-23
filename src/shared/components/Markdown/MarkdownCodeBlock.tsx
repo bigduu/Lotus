@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Button, Card, message } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import LazyMermaidChart from "../MermaidChart/LazyMermaidChart";
 import MermaidChart from "../MermaidChart";
 import { copyText } from "@shared/utils/clipboard";
@@ -23,15 +24,16 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({
   codeString,
   token,
 }) => {
+  const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
 
   const handleCopy = async () => {
     try {
       await copyText(codeString);
-      message.success("Code copied to clipboard");
+      message.success(t("components.markdown.codeCopiedSuccess"));
     } catch (error) {
       console.error("Copy failed:", error);
-      message.error("Copy failed");
+      message.error(t("components.markdown.copyFailed"));
     }
   };
 
@@ -96,6 +98,78 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({
           }}
         />
       )}
+    </Card>
+  );
+};
+
+// Fallback component for syntax highlighting errors
+const FallbackCodeBlock: React.FC<{
+  codeString: string;
+  token: any;
+}> = ({ codeString, token }) => {
+  const { t } = useTranslation();
+
+  return (
+    <Card
+      size="small"
+      styles={{ body: { padding: 0 } }}
+      style={{
+        position: "relative",
+        margin: `${token.marginXS}px 0`,
+      }}
+      onMouseEnter={(e) => {
+        const copyBtn = e.currentTarget.querySelector(
+          ".fallback-copy-btn",
+        ) as HTMLElement;
+        if (copyBtn) copyBtn.style.display = "block";
+      }}
+      onMouseLeave={(e) => {
+        const copyBtn = e.currentTarget.querySelector(
+          ".fallback-copy-btn",
+        ) as HTMLElement;
+        if (copyBtn) copyBtn.style.display = "none";
+      }}
+    >
+      <pre
+        style={{
+          backgroundColor: token.colorBgContainer,
+          border: `1px solid ${token.colorBorder}`,
+          padding: token.padding,
+          borderRadius: token.borderRadiusSM,
+          overflow: "auto",
+          fontSize: token.fontSizeSM,
+          paddingRight: "50px",
+          margin: 0,
+        }}
+      >
+        <code style={{ color: token.colorText }}>{codeString}</code>
+      </pre>
+      <Button
+        type="text"
+        size="small"
+        icon={<CopyOutlined />}
+        className="fallback-copy-btn"
+        onClick={async () => {
+          try {
+            await copyText(codeString);
+            message.success(t("components.markdown.codeCopiedSuccess"));
+          } catch (error) {
+            console.error("Copy failed:", error);
+            message.error(t("components.markdown.copyFailed"));
+          }
+        }}
+        style={{
+          position: "absolute",
+          top: token.paddingSM,
+          right: token.paddingSM,
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          color: "white",
+          border: "none",
+          borderRadius: token.borderRadiusSM,
+          display: "none",
+          zIndex: 10,
+        }}
+      />
     </Card>
   );
 };
@@ -218,68 +292,6 @@ export const renderCodeBlock = (
     );
   } catch (error) {
     console.warn("Syntax highlighting failed:", error);
-    return (
-      <Card
-        size="small"
-        styles={{ body: { padding: 0 } }}
-        style={{
-          position: "relative",
-          margin: `${token.marginXS}px 0`,
-        }}
-        onMouseEnter={(e) => {
-          const copyBtn = e.currentTarget.querySelector(
-            ".fallback-copy-btn",
-          ) as HTMLElement;
-          if (copyBtn) copyBtn.style.display = "block";
-        }}
-        onMouseLeave={(e) => {
-          const copyBtn = e.currentTarget.querySelector(
-            ".fallback-copy-btn",
-          ) as HTMLElement;
-          if (copyBtn) copyBtn.style.display = "none";
-        }}
-      >
-        <pre
-          style={{
-            backgroundColor: token.colorBgContainer,
-            border: `1px solid ${token.colorBorder}`,
-            padding: token.padding,
-            borderRadius: token.borderRadiusSM,
-            overflow: "auto",
-            fontSize: token.fontSizeSM,
-            paddingRight: "50px",
-            margin: 0,
-          }}
-        >
-          <code style={{ color: token.colorText }}>{codeString}</code>
-        </pre>
-        <Button
-          type="text"
-          size="small"
-          icon={<CopyOutlined />}
-          className="fallback-copy-btn"
-          onClick={async () => {
-            try {
-              await copyText(codeString);
-              message.success("Code copied to clipboard");
-            } catch (error) {
-              console.error("Copy failed:", error);
-              message.error("Copy failed");
-            }
-          }}
-          style={{
-            position: "absolute",
-            top: token.paddingSM,
-            right: token.paddingSM,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
-            color: "white",
-            border: "none",
-            borderRadius: token.borderRadiusSM,
-            display: "none",
-            zIndex: 10,
-          }}
-        />
-      </Card>
-    );
+    return <FallbackCodeBlock codeString={codeString} token={token} />;
   }
 };

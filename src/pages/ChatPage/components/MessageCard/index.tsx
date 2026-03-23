@@ -4,6 +4,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
 import { format } from "date-fns";
+import { useTranslation } from "react-i18next";
 import { ImageGrid } from "../ImageGrid";
 import {
   ActionButtonGroup,
@@ -63,6 +64,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 }) => {
   const { role, id: messageId } = message;
   const { token } = useToken();
+  const { t } = useTranslation();
   const { message: appMessage } = AntApp.useApp();
   const screens = useBreakpoint();
   const updateSession = useAppStore((state) => state.updateSession);
@@ -217,10 +219,16 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const actionButtons = useMemo(
     () => [
-      createCopyButton(() => copyToClipboard(messageText)),
-      createReferenceButton(referenceMessage),
+      createCopyButton(
+        () => copyToClipboard(messageText),
+        t("chat.actions.copyMessage"),
+      ),
+      createReferenceButton(
+        referenceMessage,
+        t("chat.actions.referenceMessage"),
+      ),
     ],
-    [messageText, copyToClipboard, referenceMessage],
+    [messageText, copyToClipboard, referenceMessage, t],
   );
 
   const { handleExecutePlan, handleRefinePlan, handleQuestionAnswer } =

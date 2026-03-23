@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Modal, Typography, Space, Alert, message } from "antd";
+import { useTranslation } from "react-i18next";
 import WorkspacePicker from "../WorkspacePicker";
 import { recentWorkspacesManager } from "../../services/RecentWorkspacesManager";
 import { WorkspaceValidationResult } from "../../services/WorkspaceApiService";
@@ -21,6 +22,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const [path, setPath] = useState(initialPath);
   const [validationResult, setValidationResult] =
     useState<WorkspaceValidationResult | null>(null);
@@ -43,23 +45,23 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
 
   const handleSubmit = async () => {
     if (!path.trim()) {
-      message.error("Please enter a workspace path");
+      message.error(t("chat.workspace.errorEnterPath"));
       return;
     }
 
     // If path is not valid, show warning but still allow submission
     if (validationResult && !validationResult.is_valid) {
       Modal.confirm({
-        title: "Invalid Workspace Path",
+        title: t("chat.workspace.invalidTitle"),
         content: (
           <div>
-            <p>Potential issues detected with the workspace path:</p>
-            <p>{validationResult.error_message || "Invalid path"}</p>
-            <p>Do you still want to save this path?</p>
+            <p>{t("chat.workspace.issuesDetected")}</p>
+            <p>{validationResult.error_message || t("chat.workspace.invalidTitle")}</p>
+            <p>{t("chat.workspace.confirmSaveInvalid")}</p>
           </div>
         ),
-        okText: "Save Anyway",
-        cancelText: "Cancel",
+        okText: t("common.saveAnyway"),
+        cancelText: t("common.cancel"),
         onOk: () => performSubmit(),
       });
     } else {
@@ -80,7 +82,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
       onSubmit(path.trim());
     } catch (error) {
       console.error("Failed to save workspace path:", error);
-      message.error("Failed to save workspace path");
+      message.error(t("chat.workspace.errorSaveFailed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -94,12 +96,12 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
       title={
         <Space>
           <Title level={4} style={{ margin: 0 }}>
-            Set Workspace Path
+            {t("chat.workspace.modalTitle")}
           </Title>
         </Space>
       }
-      okText="Save"
-      cancelText="Cancel"
+      okText={t("common.save")}
+      cancelText={t("common.cancel")}
       onOk={handleSubmit}
       onCancel={onCancel}
       okButtonProps={{
@@ -111,17 +113,14 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
     >
       <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         <Alert
-          message="Workspace Path Description"
+          message={t("chat.workspace.descriptionTitle")}
           description={
             <div>
               <p>
-                Specify the project root directory associated with the current
-                Chat. The backend will provide file listings based on this
-                directory for @ file references.
+                {t("chat.workspace.descriptionP1")}
               </p>
               <p>
-                It is recommended to select the root directory containing
-                project source code, such as a Git repository root.
+                {t("chat.workspace.descriptionP2")}
               </p>
             </div>
           }
@@ -133,7 +132,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
           value={path}
           onChange={handlePathChange}
           onValidationChange={handleValidationChange}
-          placeholder="e.g. /Users/alice/Workspace/MyProject"
+          placeholder={t("chat.workspace.placeholder")}
           disabled={isSubmitting}
           allowBrowse={true}
           showRecentWorkspaces={true}
@@ -142,10 +141,10 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
 
         {validationResult && !validationResult.is_valid && (
           <Alert
-            message="Workspace Path Check"
+            message={t("chat.workspace.checkTitle")}
             description={
               validationResult.error_message ||
-              "Path may be invalid, please check if the directory exists and is accessible"
+              t("chat.workspace.checkDescription")
             }
             type="warning"
             showIcon

@@ -183,9 +183,9 @@ html, body, #root {
 
 body[data-theme="light"] .ant-tag-blue,
 body[data-theme="light"] .ant-tag-geekblue {
-  color: #8a8a8a;
-  background: #fafafa;
-  border-color: #d9dada;
+  color: #58616a;
+  background: #f3f5f7;
+  border-color: #bcc3cb;
 }
 
 body[data-theme="dark"] .ant-tag-blue,
