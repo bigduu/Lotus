@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
+import i18n from "@shared/i18n";
 import MermaidChartError from "../MermaidChartError";
 
 // Mock antd Button
@@ -13,6 +14,9 @@ vi.mock("antd", () => ({
 }));
 
 describe("MermaidChartError", () => {
+  const consoleHint = i18n.t("components.mermaid.checkConsoleHint");
+  const errorTitlePrefix = i18n.t("components.mermaid.errorTitlePrefix");
+
   const mockToken = {
     colorError: "#ff4d4f",
     colorErrorBg: "#fff2f0",
@@ -275,9 +279,7 @@ describe("MermaidChartError", () => {
         />,
       );
 
-      expect(
-        screen.getByText("💡 Check browser console (F12) for detailed error information"),
-      ).toBeInTheDocument();
+      expect(screen.getByText(`💡 ${consoleHint}`)).toBeInTheDocument();
     });
 
     it("should always show console hint regardless of error content", () => {
@@ -290,9 +292,7 @@ describe("MermaidChartError", () => {
         />,
       );
 
-      expect(
-        screen.getByText("💡 Check browser console (F12) for detailed error information"),
-      ).toBeInTheDocument();
+      expect(screen.getByText(`💡 ${consoleHint}`)).toBeInTheDocument();
     });
   });
 
@@ -309,7 +309,8 @@ describe("MermaidChartError", () => {
 
       const errorDiv = container.firstChild as HTMLElement;
       expect(errorDiv.title).toContain("Test error message");
-      expect(errorDiv.title).toContain("Check browser console for detailed error information");
+      expect(errorDiv.title).toContain(`${errorTitlePrefix}: Test error message`);
+      expect(errorDiv.title).toContain(consoleHint);
     });
 
     it("should include full error in title", () => {

@@ -2,6 +2,7 @@ import React, { useCallback, useState } from "react";
 import { DownloadOutlined } from "@ant-design/icons";
 import { App as AntApp, Button, Tooltip } from "antd";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
+import { useTranslation } from "react-i18next";
 import { FileOperationsService } from "@shared/services/FileOperationsService";
 
 interface MermaidChartViewerProps {
@@ -46,6 +47,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
   token,
   containerRef,
 }) => {
+  const { t } = useTranslation();
   const { message: appMessage } = AntApp.useApp();
   const [isExporting, setIsExporting] = useState(false);
 
@@ -71,7 +73,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
       );
 
       if (result.success) {
-        appMessage.success(`Saved: ${result.filename}`);
+        appMessage.success(t("chat.messageActions.savedFile", { filename: result.filename }));
         return;
       }
 
@@ -79,15 +81,17 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
         return;
       }
 
-      appMessage.error(result.error || "Export failed");
+      appMessage.error(result.error || t("chat.messageActions.exportFailed"));
     } catch (error) {
       const exportError =
-        error instanceof Error ? error.message : "Failed to export Mermaid graph";
+        error instanceof Error
+          ? error.message
+          : t("components.mermaid.exportFailed");
       appMessage.error(exportError);
     } finally {
       setIsExporting(false);
     }
-  }, [appMessage, chartKey, isExporting, svg]);
+  }, [appMessage, chartKey, isExporting, svg, t]);
 
   const exportDisabled = isLoading || !svg || isExporting;
 
@@ -128,7 +132,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
             zIndex: 2,
           }}
         >
-          Rendering diagram...
+          {t("components.mermaid.renderingDiagram")}
         </div>
       )}
       <div
@@ -193,7 +197,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                 >
                   ⌂
                 </Button>
-                <Tooltip title="Export SVG">
+                <Tooltip title={t("components.mermaid.exportSvg")}>
                   <Button
                     size="small"
                     type="text"

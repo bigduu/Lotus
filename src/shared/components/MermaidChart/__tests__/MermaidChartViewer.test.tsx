@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
+import i18n from "@shared/i18n";
 import MermaidChartViewer from "../MermaidChartViewer";
 
 // Mock FileOperationsService
@@ -348,7 +349,9 @@ describe("MermaidChartViewer", () => {
       fireEvent.click(exportButton);
 
       await waitFor(() => {
-        expect(mockMessage.success).toHaveBeenCalledWith("Saved: diagram.svg");
+        expect(mockMessage.success).toHaveBeenCalledWith(
+          i18n.t("chat.messageActions.savedFile", { filename: "diagram.svg" }),
+        );
       });
     });
 
@@ -419,7 +422,9 @@ describe("MermaidChartViewer", () => {
       fireEvent.click(exportButton);
 
       await waitFor(() => {
-        expect(mockMessage.error).toHaveBeenCalledWith("Failed to export Mermaid graph");
+        expect(mockMessage.error).toHaveBeenCalledWith(
+          i18n.t("components.mermaid.exportFailed"),
+        );
       });
     });
 

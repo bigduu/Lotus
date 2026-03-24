@@ -10,6 +10,7 @@ import {
   Button,
 } from "antd";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../pages/ChatPage/store";
 import { SkillCard } from "./SkillCard";
 
@@ -17,6 +18,7 @@ import { SkillCard } from "./SkillCard";
 const REFRESH_INTERVAL = 30000;
 
 export const SkillManager = () => {
+  const { t } = useTranslation();
   // State from store
   const skills = useAppStore((state) => state.skills);
   const isLoadingSkills = useAppStore((state) => state.isLoadingSkills);
@@ -58,8 +60,8 @@ export const SkillManager = () => {
   const handleRefresh = useCallback(async () => {
     await loadSkills(undefined, true);
     setLastRefresh(new Date());
-    message.success("Skills refreshed");
-  }, [loadSkills]);
+    message.success(t("components.skillManager.skillsRefreshed"));
+  }, [loadSkills, t]);
 
   // Show error message
   useEffect(() => {
@@ -97,10 +99,10 @@ export const SkillManager = () => {
     const diff = now.getTime() - lastRefresh.getTime();
     const seconds = Math.floor(diff / 1000);
 
-    if (seconds < 5) return "just now";
-    if (seconds < 60) return `${seconds}s ago`;
+    if (seconds < 5) return t("components.skillManager.justNow");
+    if (seconds < 60) return t("components.skillManager.secondsAgo", { count: seconds });
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 60) return t("components.skillManager.minutesAgo", { count: minutes });
     return lastRefresh.toLocaleTimeString();
   };
 
@@ -109,32 +111,32 @@ export const SkillManager = () => {
       <Card
         title={
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span>Skill Manager</span>
+            <span>{t("components.skillManager.title")}</span>
             <Button
               icon={<ReloadOutlined spin={isLoadingSkills} />}
               onClick={handleRefresh}
               loading={isLoadingSkills}
               size="small"
             >
-              Refresh
+              {t("components.skillManager.refresh")}
             </Button>
             <span
               style={{ fontSize: "12px", color: "#8c8c8c", marginLeft: "auto" }}
             >
-              Last updated: {formatLastRefresh()}
+              {t("components.skillManager.lastUpdated", {
+                value: formatLastRefresh(),
+              })}
             </span>
           </div>
         }
       >
         <div style={{ marginBottom: "16px", color: "#8c8c8c" }}>
-          Skills are read-only. Edit
-          `~/.bamboo/skills/&lt;skill-name&gt;/SKILL.md` and refresh to apply
-          changes. Auto-refresh every 30s.
+          {t("components.skillManager.readOnlyHint")}
         </div>
         {/* Filters */}
         <Row style={{ marginBottom: "24px" }}>
           <Input
-            placeholder="Search skills..."
+            placeholder={t("components.skillManager.searchPlaceholder")}
             prefix={<SearchOutlined />}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -148,8 +150,8 @@ export const SkillManager = () => {
             <Empty
               description={
                 searchQuery
-                  ? "No skills match your filters"
-                  : "No skills found. Add skill folders in ~/.bamboo/skills"
+                  ? t("components.skillManager.noMatch")
+                  : t("components.skillManager.noSkillsFound")
               }
             />
           ) : (

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   serviceFactory,
   type BambooConfig,
@@ -22,6 +23,7 @@ interface UseSystemSettingsBambooConfigProps {
 export const useSystemSettingsConfig = ({
   msgApi,
 }: UseSystemSettingsBambooConfigProps) => {
+  const { t } = useTranslation();
   const [bambooConfigJson, setBambooConfigJson] = useState("");
   const [bambooConfigError, setBambooConfigError] = useState<string | null>(
     null,
@@ -56,7 +58,9 @@ export const useSystemSettingsConfig = ({
       await applyBambooConfig(config, true);
     } catch (error) {
       setBambooConfigError(
-        error instanceof Error ? error.message : "Failed to load Bamboo config",
+        error instanceof Error
+          ? error.message
+          : t("settings.configTab.loadBambooConfigFailed"),
       );
     } finally {
       setIsLoadingBambooConfig(false);
@@ -88,13 +92,15 @@ export const useSystemSettingsConfig = ({
       const parsed = JSON.parse(bambooConfigJson || "{}");
       const resolved = cloneJson(parsed);
       await serviceFactory.setBambooConfig(resolved);
-      msgApi.success("Bamboo config saved");
+      msgApi.success(t("settings.configTab.bambooConfigSaved"));
       bambooConfigDirtyRef.current = false;
       bambooConfigLastRef.current = JSON.stringify(resolved, null, 2);
       await loadBambooConfig();
     } catch (error) {
       msgApi.error(
-        error instanceof Error ? error.message : "Failed to save Bamboo config",
+        error instanceof Error
+          ? error.message
+          : t("settings.configTab.saveBambooConfigFailed"),
       );
     }
   };
@@ -112,7 +118,7 @@ export const useSystemSettingsConfig = ({
         bambooConfigPollingRef.current = null;
       }
     };
-  }, []);
+  }, [t]);
 
   return {
     bambooConfigJson,

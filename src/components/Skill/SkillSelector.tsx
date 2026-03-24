@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from "react";
 import { Select, Space } from "antd";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../pages/ChatPage/store";
 
 interface SkillSelectorProps {
@@ -12,6 +13,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
   selectedSkillIds,
   onChange,
 }) => {
+  const { t } = useTranslation();
   const skills = useAppStore((state) => state.skills);
   const isLoadingSkills = useAppStore((state) => state.isLoadingSkills);
   const loadSkills = useAppStore((state) => state.loadSkills);
@@ -49,7 +51,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
   return (
     <Select
       mode="multiple"
-      placeholder="Select skills"
+      placeholder={t("components.skillSelector.placeholder")}
       value={selectedSkillIds}
       onChange={onChange}
       options={options}

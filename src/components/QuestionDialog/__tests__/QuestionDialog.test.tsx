@@ -26,6 +26,7 @@ describe("QuestionDialog", () => {
   const mockSetSessionProcessing = vi.fn();
   const mockIsSessionProcessing = vi.fn();
   const mockSetPendingQuestionRespond = vi.fn();
+  const mockClearPendingQuestionRespondForSession = vi.fn();
   const defaultProps = {
     sessionId: "test-session-1",
   };
@@ -52,6 +53,8 @@ describe("QuestionDialog", () => {
           setSessionProcessing: mockSetSessionProcessing,
           isSessionProcessing: mockIsSessionProcessing,
           setPendingQuestionRespond: mockSetPendingQuestionRespond,
+          clearPendingQuestionRespondForSession:
+            mockClearPendingQuestionRespondForSession,
           chats: [],
           inputStates: {},
           // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
@@ -63,6 +66,8 @@ describe("QuestionDialog", () => {
         setSessionProcessing: mockSetSessionProcessing,
         isSessionProcessing: mockIsSessionProcessing,
         setPendingQuestionRespond: mockSetPendingQuestionRespond,
+        clearPendingQuestionRespondForSession:
+          mockClearPendingQuestionRespondForSession,
         chats: [],
         inputStates: {},
         selectedModel: "gpt-5-ultra-expensive",
@@ -453,14 +458,15 @@ describe("QuestionDialog", () => {
     // A hint should appear guiding the user to the input box below
     expect(
       screen.getByText(
-        /Type your answer in the input box below/,
+        /Custom answer/,
       ),
     ).toBeInTheDocument();
 
-    // Switching back to a predefined option should clear respond mode
+    // Switching back to a predefined option keeps respond mode active
+    // for the current pending question lifecycle.
     const optionA = screen.getByText("A");
     fireEvent.click(optionA);
 
-    expect(mockSetPendingQuestionRespond).toHaveBeenCalledWith(null);
+    expect(mockSetPendingQuestionRespond).not.toHaveBeenCalledWith(null);
   });
 });

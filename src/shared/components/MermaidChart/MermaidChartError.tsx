@@ -1,5 +1,6 @@
 import React from "react";
 import { Button } from "antd";
+import { useTranslation } from "react-i18next";
 
 interface MermaidChartErrorProps {
   error: string;
@@ -20,6 +21,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
   isFixing,
   fixError,
 }) => {
+  const { t } = useTranslation();
   const errorParts = error.split("\n\n");
 
   return (
@@ -45,7 +47,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
         boxSizing: "border-box",
         ...style,
       }}
-      title={`Mermaid Error: ${error}\n\nCheck browser console for detailed error information.`}
+      title={`${t("components.mermaid.errorTitlePrefix")}: ${error}\n\n${t("components.mermaid.checkConsoleHint")}`}
     >
       <div
         style={{
@@ -70,7 +72,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
             color: token.colorError,
           }}
         >
-          Mermaid Diagram Error
+          {t("components.mermaid.diagramError")}
         </span>
       </div>
       <div
@@ -120,7 +122,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
             onClick={onFix}
             loading={isFixing}
           >
-            Fix Mermaid
+            {t("components.mermaid.fixMermaid")}
           </Button>
           {fixError && (
             <span
@@ -144,7 +146,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
           fontStyle: "italic",
         }}
       >
-        💡 Check browser console (F12) for detailed error information
+        💡 {t("components.mermaid.checkConsoleHint")}
       </div>
     </div>
   );

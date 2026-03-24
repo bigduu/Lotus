@@ -26,6 +26,7 @@ import {
   LinkOutlined,
   UnorderedListOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 
@@ -58,30 +59,35 @@ interface TaskListPanelProps {
 // Status configuration
 const statusConfig: Record<
   TaskItem["status"],
-  { icon: React.ReactNode; color: string; text: string; tagColor: string }
+  {
+    icon: React.ReactNode;
+    color: string;
+    textKey: string;
+    tagColor: string;
+  }
 > = {
   pending: {
     icon: <ClockCircleOutlined />,
     color: "#8c8c8c",
-    text: "Pending",
+    textKey: "components.todoList.status.pending",
     tagColor: "default",
   },
   in_progress: {
     icon: <SyncOutlined spin />,
     color: "#1890ff",
-    text: "In Progress",
+    textKey: "components.todoList.status.inProgress",
     tagColor: "processing",
   },
   completed: {
     icon: <CheckCircleOutlined />,
     color: "#52c41a",
-    text: "Completed",
+    textKey: "components.todoList.status.completed",
     tagColor: "success",
   },
   blocked: {
     icon: <ExclamationCircleOutlined />,
     color: "#ff4d4f",
-    text: "Blocked",
+    textKey: "components.todoList.status.blocked",
     tagColor: "error",
   },
 };
@@ -90,6 +96,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
   sessionId,
   initialCollapsed = true,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const sessionSummary = useAppStore((state) =>
     state.chats.find((chat) => chat.id === sessionId),
@@ -185,11 +192,11 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
         >
           <UnorderedListOutlined style={{ color: token.colorPrimary }} />
           <Text strong style={{ fontSize: 15 }}>
-            {title || "Task List"}
+            {title || t("components.todoList.title")}
           </Text>
           {isEvaluating && (
             <Tag icon={<SyncOutlined spin />} color="processing">
-              Evaluating
+              {t("components.todoList.evaluating")}
             </Tag>
           )}
           {!isCollapsed && progress.total > 0 && (
@@ -214,7 +221,13 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
               )}
             </Text>
           )}
-          <Tooltip title={isPinned ? "Unpin" : "Pin"}>
+          <Tooltip
+            title={
+              isPinned
+                ? t("components.todoList.unpin")
+                : t("components.todoList.pin")
+            }
+          >
             <span
               onClick={togglePin}
               style={{
@@ -249,7 +262,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
           {evaluationReasoning && (
             <Alert
               icon={<RobotOutlined />}
-              message="LLM Evaluation"
+              message={t("components.todoList.llmEvaluation")}
               description={evaluationReasoning}
               type="info"
               showIcon
@@ -276,6 +289,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
             renderItem={(item) => {
               const status = statusConfig[item.status];
               const isActive = activeItemId === item.id;
+              const statusText = t(status.textKey);
 
               return (
                 <List.Item
@@ -294,7 +308,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
                 >
                   <div style={{ width: "100%" }}>
                     <Space align="start" style={{ width: "100%" }}>
-                      <Tooltip title={status.text}>
+                      <Tooltip title={statusText}>
                         <span style={{ color: status.color, fontSize: 16 }}>
                           {status.icon}
                         </span>
@@ -320,23 +334,27 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
                         {/* Meta info */}
                         <div style={{ marginTop: 4 }}>
                           <Space size={8} wrap>
-                            <Tag color={status.tagColor}>{status.text}</Tag>
+                            <Tag color={status.tagColor}>{statusText}</Tag>
 
                             {/* Tool calls count */}
                             {item.tool_calls_count !== undefined &&
                               item.tool_calls_count > 0 && (
                                 <Tag icon={<ToolOutlined />} color="blue">
-                                  {item.tool_calls_count} tools
+                                  {item.tool_calls_count}{" "}
+                                  {t("components.todoList.tools")}
                                 </Tag>
                               )}
 
                             {/* Dependencies */}
                             {item.depends_on.length > 0 && (
                               <Tooltip
-                                title={`Depends on: ${item.depends_on.join(", ")}`}
+                                title={t("components.todoList.dependsOn", {
+                                  deps: item.depends_on.join(", "),
+                                })}
                               >
                                 <Tag icon={<LinkOutlined />}>
-                                  {item.depends_on.length} deps
+                                  {item.depends_on.length}{" "}
+                                  {t("components.todoList.dependencies")}
                                 </Tag>
                               </Tooltip>
                             )}

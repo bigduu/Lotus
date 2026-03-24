@@ -8,12 +8,14 @@ import {
   theme,
 } from "antd";
 import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { agentApiClient } from "../../services/api";
 import { useAppStore } from "../../pages/ChatPage/store";
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useActiveModel } from "../../pages/ChatPage/hooks/useActiveModel";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
 import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
+import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
 import styles from "./QuestionDialog.module.css";
 
 const { Text } = Typography;
@@ -58,6 +60,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   onResponseSubmitted,
   onQuestionAppeared,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [pendingQuestion, setPendingQuestion] =
     useState<PendingQuestion | null>(null);
@@ -77,6 +80,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   );
   const setPendingQuestionRespond = useAppStore(
     (state) => state.setPendingQuestionRespond,
+  );
+  const clearPendingQuestionRespondForSession = useAppStore(
+    (state) => state.clearPendingQuestionRespondForSession,
   );
   const activeModel = useActiveModel();
 
@@ -149,9 +155,15 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       setCollapsed(false);
       onQuestionAppearedRef.current?.();
     } else {
-      setPendingQuestionRespond(null);
+      clearPendingQuestionRespondForSession(sessionId);
     }
-  }, [pendingQuestion?.tool_call_id, sessionId, pendingQuestion?.question, setPendingQuestionRespond]);
+  }, [
+    pendingQuestion?.tool_call_id,
+    sessionId,
+    pendingQuestion?.question,
+    setPendingQuestionRespond,
+    clearPendingQuestionRespondForSession,
+  ]);
 
   // Poll for pending question periodically
   // When the agent is actively running, poll faster so the dialog shows quickly.
@@ -171,6 +183,38 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     return () => clearInterval(interval);
   }, [fetchPendingQuestion, isSubmitting, pollInterval]);
 
+  // Let sibling panes hide the same session's question immediately after a successful respond
+  // (without waiting for next polling cycle).
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const onResolved = (event: Event) => {
+      const customEvent = event as CustomEvent<{ sessionId?: string | null }>;
+      const targetSessionId = customEvent.detail?.sessionId ?? null;
+      if (!targetSessionId || targetSessionId !== sessionId) {
+        return;
+      }
+
+      setPendingQuestion(null);
+      setSelectedOption(null);
+      emptyCountRef.current = 0;
+      clearPendingQuestionRespondForSession(sessionId);
+    };
+
+    window.addEventListener(
+      CHAT_PENDING_QUESTION_RESOLVED_EVENT,
+      onResolved as EventListener,
+    );
+    return () => {
+      window.removeEventListener(
+        CHAT_PENDING_QUESTION_RESOLVED_EVENT,
+        onResolved as EventListener,
+      );
+    };
+  }, [sessionId, clearPendingQuestionRespondForSession]);
+
   // Update selected option. Respond mode stays active for the entire
   // duration of the pending question (set in the effect above), so we
   // no longer toggle it per-option.
@@ -184,14 +228,14 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // Clean up respond mode when question disappears or component unmounts
   useEffect(() => {
     return () => {
-      setPendingQuestionRespond(null);
+      clearPendingQuestionRespondForSession(sessionId);
     };
-  }, [setPendingQuestionRespond]);
+  }, [clearPendingQuestionRespondForSession, sessionId]);
 
   // Submit response (for predefined options only; custom is handled by InputContainer)
   const handleSubmit = async () => {
     if (!selectedOption || selectedOption === "custom") {
-      message.warning("Please select an option");
+      message.warning(t("components.questionDialog.selectOptionWarning"));
       return;
     }
 
@@ -208,10 +252,17 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         },
       );
 
-      message.success("Response submitted, AI will continue processing");
+      message.success(t("components.questionDialog.responseSubmitted"));
       setPendingQuestion(null);
       setSelectedOption(null);
       emptyCountRef.current = 0;
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent(CHAT_PENDING_QUESTION_RESOLVED_EVENT, {
+            detail: { sessionId },
+          }),
+        );
+      }
 
       const resumeStatus = submitResult?.auto_resume_status;
       if (["started", "already_running"].includes(resumeStatus || "")) {
@@ -223,7 +274,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         resumeStatus === "not_requested"
       ) {
         message.error(
-          "No model configured. Please select a default model in Provider Settings, then resume the agent.",
+          t("components.questionDialog.noModelConfigured"),
         );
       } else if (resumeStatus === "error") {
         console.error("[QuestionDialog] Failed to auto-resume agent execution");
@@ -233,7 +284,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       onResponseSubmitted?.();
     } catch (err) {
       console.error("Failed to submit response:", err);
-      message.error(err instanceof Error ? err.message : "Submission failed");
+      message.error(
+        err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -310,7 +363,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
                   <Space size={4}>
                     <EditOutlined />
                     <Text style={{ color: token.colorText }}>
-                      Other (type below)
+                      {t("components.questionDialog.otherTypeBelow")}
                     </Text>
                   </Space>
                 </Radio>
@@ -321,7 +374,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
           {selectedOption === "custom" && (
             <div className={styles.customHint}>
               <Text type="secondary" style={{ fontSize: 12 }}>
-                ↓ Type your answer in the input box below and press Enter
+                {t("components.questionDialog.customAnswerTip")}
               </Text>
             </div>
           )}
@@ -335,7 +388,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
                 onClick={handleSubmit}
                 loading={isSubmitting}
               >
-                Confirm
+                {t("components.questionDialog.confirm")}
               </Button>
             </div>
           )}

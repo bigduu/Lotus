@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Spin } from "antd";
+import { useTranslation } from "react-i18next";
 import type { MermaidChartProps } from "./index";
 
 // 全局"见过"集合，避免组件 remount 后再建 observer
@@ -29,6 +30,7 @@ function hashChart(chart: string) {
 }
 
 const LazyMermaidChart: React.FC<MermaidChartProps> = (props) => {
+  const { t } = useTranslation();
   const chartKey = hashChart(props.chart);
   const [shouldRender, setShouldRender] = useState(() => seen.has(chartKey));
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +63,9 @@ const LazyMermaidChart: React.FC<MermaidChartProps> = (props) => {
   return (
     <div ref={containerRef} style={{ minHeight: shouldRender ? "auto" : "200px" }}>
       {shouldRender ? (
-        <React.Suspense fallback={<Spin size="small" tip="Loading diagram..." />}>
+        <React.Suspense
+          fallback={<Spin size="small" tip={t("components.mermaid.loadingDiagram")} />}
+        >
           <LazyMermaidChartRenderer {...props} />
         </React.Suspense>
       ) : (
@@ -73,6 +77,7 @@ const LazyMermaidChart: React.FC<MermaidChartProps> = (props) => {
 
 // 动态导入 MermaidChart
 const LazyMermaidChartRenderer: React.FC<MermaidChartProps> = (props) => {
+  const { t } = useTranslation();
   const [MermaidChartComponent, setMermaidChartComponent] = useState<
     React.FC<MermaidChartProps> | null
   >(null);
@@ -92,7 +97,7 @@ const LazyMermaidChartRenderer: React.FC<MermaidChartProps> = (props) => {
   }, []);
 
   if (!MermaidChartComponent) {
-    return <Spin size="small" tip="Loading diagram..." />;
+    return <Spin size="small" tip={t("components.mermaid.loadingDiagram")} />;
   }
 
   return <MermaidChartComponent {...props} />;
