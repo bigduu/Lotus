@@ -10,6 +10,7 @@ import {
   Flex,
 } from "antd";
 import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 const { Text, Title } = Typography;
 
@@ -34,6 +35,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
   onReject,
   disabled = false,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
 
   const items = data.parameters.map((param, index) => ({
@@ -58,11 +60,11 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
       <Space direction="vertical" style={{ width: "100%" }} size="middle">
         <Flex vertical>
           <Title level={5} style={{ margin: 0, color: token.colorInfo }}>
-            🔧 Workflow Execution Request
+            🔧 {t("components.approval.executionRequest")}
           </Title>
           <Space align="center" size="small">
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-              The AI wants to execute the following workflow
+              {t("components.approval.aiWantsExecute")}
             </Text>
             {data.approval_status && (
               <Tag
@@ -81,7 +83,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
         </Flex>
 
         <Flex align="center" gap={token.marginXS} wrap="wrap">
-          <Text strong>Workflow: </Text>
+          <Text strong>{t("components.approval.workflow")}:</Text>
           <Text code style={{ fontSize: token.fontSize }}>
             {data.tool_call}
           </Text>
@@ -93,7 +95,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
               strong
               style={{ marginBottom: token.marginXS, display: "block" }}
             >
-              Parameters:
+              {t("common.parameters")}:
             </Text>
             <Descriptions
               size="small"
@@ -122,7 +124,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
               borderColor: token.colorSuccess,
             }}
           >
-            Approve
+            {t("common.approve")}
           </Button>
           <Button
             danger
@@ -134,7 +136,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
               data.approval_status === "rejected"
             }
           >
-            Reject
+            {t("common.reject")}
           </Button>
         </Space>
       </Space>

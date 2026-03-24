@@ -18,6 +18,7 @@ import {
   WarningOutlined,
   InfoCircleOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { QuestionMessage } from "../../types/chat";
 
 const { Title, Text, Paragraph } = Typography;
@@ -38,6 +39,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
   disabled = false,
   timestamp,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [selectedAnswer, setSelectedAnswer] = useState<string | undefined>(
     question.default,
@@ -110,7 +112,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
         <Space>
           {getSeverityIcon()}
           <Text strong style={{ color: getSeverityBorder() }}>
-            Agent Question
+            {t("components.question.agentQuestion")}
           </Text>
           <Text type="secondary" style={{ fontSize: 12 }}>
             ({question.severity})
@@ -135,7 +137,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
       {/* Context */}
       {question.context && (
         <Alert
-          message="Context"
+          message={t("components.question.context")}
           description={question.context}
           type="info"
           showIcon
@@ -146,7 +148,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
       {/* Options */}
       <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Text strong style={{ display: "block", marginBottom: token.marginSM }}>
-          Please choose an option:
+          {t("components.question.chooseOption")}
         </Text>
         <Radio.Group
           value={selectedAnswer}
@@ -184,7 +186,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
                           color="blue"
                           style={{ marginLeft: token.marginXS }}
                         >
-                          Recommended
+                          {t("components.question.recommended")}
                         </Tag>
                       )}
                     </Flex>
@@ -206,7 +208,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
       {question.allow_custom && (
         <Flex vertical style={{ marginBottom: token.marginMD }}>
           <Text type="secondary" style={{ fontSize: 12 }}>
-            Or provide a custom answer:
+            {t("components.question.customAnswerHint")}
           </Text>
           <Input.TextArea
             value={
@@ -216,7 +218,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
                 : ""
             }
             onChange={(e) => setSelectedAnswer(e.target.value)}
-            placeholder="Enter custom answer..."
+            placeholder={t("components.question.customAnswerPlaceholder")}
             disabled={disabled || loading}
             autoSize={{ minRows: 3, maxRows: 8 }}
             style={{ marginTop: token.marginXS }}
@@ -233,7 +235,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           loading={loading}
           disabled={disabled || !selectedAnswer}
         >
-          Submit Answer
+          {t("components.question.submitAnswer")}
         </Button>
       </Flex>
     </Card>

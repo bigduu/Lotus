@@ -1,5 +1,6 @@
 import React from "react";
 import { Alert, Space, Typography } from "antd";
+import { useTranslation } from "react-i18next";
 import type { WorkspaceValidationResult } from "../../utils/workspaceValidator";
 
 const { Text } = Typography;
@@ -12,6 +13,7 @@ interface WorkspacePickerValidationStatusProps {
 const WorkspacePickerValidationStatus: React.FC<
   WorkspacePickerValidationStatusProps
 > = ({ result, token }) => {
+  const { t } = useTranslation();
   if (!result) return null;
 
   return (
@@ -21,12 +23,14 @@ const WorkspacePickerValidationStatus: React.FC<
           type="success"
           message={
             <Space>
-              <span>Valid Workspace</span>
+              <span>{t("chat.workspace.validWorkspace")}</span>
               {result.workspace_name && (
                 <Text type="secondary">({result.workspace_name})</Text>
               )}
               {result.file_count !== undefined && (
-                <Text type="secondary">- {result.file_count} files</Text>
+                <Text type="secondary">
+                  {t("chat.workspace.fileCount", { count: result.file_count })}
+                </Text>
               )}
             </Space>
           }
@@ -35,7 +39,7 @@ const WorkspacePickerValidationStatus: React.FC<
       ) : (
         <Alert
           type="error"
-          message={result.error_message || "Invalid workspace path"}
+          message={result.error_message || t("validation.invalidPath")}
           showIcon
         />
       )}

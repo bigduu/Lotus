@@ -10,6 +10,7 @@ import {
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { App as AntApp } from "antd";
+import { useTranslation } from "react-i18next";
 import { MessageExportService } from "../../services/MessageExportService";
 import { copyText } from "@shared/utils/clipboard";
 
@@ -33,6 +34,7 @@ export const useMessageCardActions = ({
   cardRef,
 }: UseMessageCardActionsProps) => {
   const { message: appMessage } = AntApp.useApp();
+  const { t } = useTranslation();
   const [selectedText, setSelectedText] = useState<string>("");
 
   const copyToClipboard = useCallback(async (text: string) => {
@@ -62,7 +64,7 @@ export const useMessageCardActions = ({
     async (format: "markdown" | "pdf") => {
       const text = selectedText || messageText;
       if (!text) {
-        appMessage.warning("Nothing to export");
+        appMessage.warning(t("chat.messageActions.nothingToExport"));
         return;
       }
 
@@ -74,16 +76,16 @@ export const useMessageCardActions = ({
       });
 
       if (result.success) {
-        appMessage.success(`Saved: ${result.filename}`);
+        appMessage.success(t("chat.messageActions.savedFile", { filename: result.filename }));
       } else {
         // "User cancelled" is not actionable; keep it quiet.
         if (result.error?.toLowerCase().includes("cancel")) {
           return;
         }
-        appMessage.error(result.error || "Export failed");
+        appMessage.error(result.error || t("chat.messageActions.exportFailed"));
       }
     },
-    [appMessage, currentSessionId, messageId, messageText, selectedText],
+    [appMessage, currentSessionId, messageId, messageText, selectedText, t],
   );
 
   const handleMouseUp = useCallback(
@@ -112,7 +114,7 @@ export const useMessageCardActions = ({
         ? [
             {
               key: "restore-chat",
-              label: "Restore chat to this message",
+              label: t("chat.messageActions.restoreChat"),
               icon: <HistoryOutlined />,
               onClick: () => {
                 void onRestoreChat();
@@ -120,7 +122,7 @@ export const useMessageCardActions = ({
             },
             {
               key: "restore-chat-files",
-              label: "Restore files + chat to this message",
+              label: t("chat.messageActions.restoreFilesAndChat"),
               icon: <RedoOutlined />,
               onClick: () => {
                 void onRestoreFilesAndChat();
@@ -131,7 +133,7 @@ export const useMessageCardActions = ({
         : []),
       {
         key: "copy",
-        label: "Copy",
+        label: t("chat.messageActions.copy"),
         icon: <CopyOutlined />,
         onClick: () => {
           if (selectedText) {
@@ -143,20 +145,20 @@ export const useMessageCardActions = ({
       },
       {
         key: "reference",
-        label: "Reference message",
+        label: t("chat.actions.referenceMessage"),
         icon: <BookOutlined />,
         onClick: referenceMessage,
       },
       { type: "divider" },
       {
         key: "export-md",
-        label: "Export as Markdown",
+        label: t("chat.messageActions.exportMarkdown"),
         icon: <DownloadOutlined />,
         onClick: () => exportContent("markdown"),
       },
       {
         key: "export-pdf",
-        label: "Export as PDF",
+        label: t("chat.messageActions.exportPdf"),
         icon: <DownloadOutlined />,
         onClick: () => exportContent("pdf"),
       },
@@ -165,7 +167,7 @@ export const useMessageCardActions = ({
     if (onDelete && messageId) {
       baseItems.push({
         key: "delete",
-        label: "Delete message",
+        label: t("chat.messageActions.deleteMessage"),
         icon: <DeleteOutlined />,
         onClick: () => onDelete(messageId),
         danger: true,
@@ -184,6 +186,7 @@ export const useMessageCardActions = ({
     referenceMessage,
     selectedText,
     currentSessionId,
+    t,
   ]);
 
   return {

@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Flex } from "antd";
 import { FileTextOutlined, PlusOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 interface MessageInputControlsLeftProps {
   allowImages: boolean;
@@ -23,6 +24,8 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
   onFileReferenceButtonClick,
   extraControl,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <Flex
       align="center"
@@ -54,7 +57,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
               borderRadius: 18,
               color: token.colorTextSecondary,
             }}
-            title="Add attachments"
+            title={t("chat.input.addAttachments")}
           />
         </>
       )}
@@ -73,7 +76,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
             borderRadius: 18,
             color: token.colorTextSecondary,
           }}
-          title="Reference workspace files (@)"
+          title={t("chat.input.referenceWorkspaceFiles")}
         />
       )}
 

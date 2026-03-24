@@ -19,6 +19,7 @@ import {
   CompressOutlined,
   ReloadOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
@@ -54,6 +55,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
   isLoading,
   errorMessage,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const [expanded, setExpanded] = useState(false);
 
@@ -148,13 +150,19 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
         <Flex align="center" justify="space-between">
           <Space size={token.marginXS} align="center">
             <ApiOutlined style={{ color: token.colorWarning }} />
-            <Text strong>User Workflow</Text>
+            <Text strong>{t("components.workflowResult.userWorkflow")}</Text>
             <Tag color={token.colorWarning}>{workflowName}</Tag>
             <Tag color={getStatusColor(status)}>{status}</Tag>
           </Space>
 
           <Space size="small">
-            <Tooltip title={expanded ? "Collapse result" : "Expand result"}>
+            <Tooltip
+              title={
+                expanded
+                  ? t("components.workflowResult.collapseResult")
+                  : t("components.workflowResult.expandResult")
+              }
+            >
               {isCollapsible && (
                 <Button
                   type="text"
@@ -164,7 +172,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                 />
               )}
             </Tooltip>
-            <Tooltip title="Copy result">
+            <Tooltip title={t("components.workflowResult.copyResult")}>
               <Button
                 type="text"
                 size="small"
@@ -173,7 +181,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
               />
             </Tooltip>
             {onRetry && (
-              <Tooltip title="Retry workflow">
+              <Tooltip title={t("components.workflowResult.retryWorkflow")}>
                 <Button
                   type="text"
                   size="small"
@@ -196,7 +204,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
         {errorMessage && (
           <Alert
             type="error"
-            message="Workflow execution failed"
+            message={t("components.workflowResult.executionFailed")}
             description={errorMessage}
             showIcon
             style={{ marginBottom: token.marginXS }}
@@ -205,7 +213,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
 
         <Flex vertical style={{ width: "100%" }}>
           {derivedIsLoading ? (
-            <Spin tip="Waiting for workflow result..." />
+            <Spin tip={t("components.workflowResult.waitingForResult")} />
           ) : formattedResult.isJson ? (
             <SyntaxHighlighter
               language="json"
@@ -243,8 +251,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
           <Flex vertical style={{ width: "100%" }}>
             <Divider style={{ margin: `${token.marginXS}px 0` }}>
               <Space size="small">
-                <Text strong>Parameters</Text>
-                <Tooltip title="Copy parameters">
+                <Text strong>{t("common.parameters")}</Text>
+                <Tooltip title={t("components.workflowResult.copyParameters")}>
                   <Button
                     type="text"
                     size="small"

@@ -10,6 +10,7 @@ import {
   theme,
 } from "antd";
 import { RobotOutlined, CopyOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import {
@@ -44,6 +45,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   isLoading,
   errorMessage,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
 
   const formatted = useMemo(() => formatResultContent(content), [content]);
@@ -124,7 +126,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 ellipsis
                 style={{ flex: 1, minWidth: 0, fontSize: token.fontSizeSM }}
               >
-                {derivedIsLoading ? "Waiting…" : preview}
+                {derivedIsLoading ? t("components.toolResult.waiting") : preview}
               </Text>
               <Tag
                 color={getStatusColor(status)}
@@ -151,7 +153,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               {errorMessage && (
                 <Alert
                   type="error"
-                  message="Tool execution failed"
+                  message={t("components.toolResult.executionFailed")}
                   description={errorMessage}
                   showIcon
                 />
@@ -159,12 +161,12 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
               {/* Content */}
               <div style={{ position: "relative" }}>
-                <Tooltip title="Copy result">
+                <Tooltip title={t("components.toolResult.copyResult")}>
                   <Button
                     type="text"
                     size="small"
                     icon={<CopyOutlined />}
-                    aria-label="Copy result"
+                    aria-label={t("components.toolResult.copyResult")}
                     onClick={(e) => {
                       e.stopPropagation();
                       handleCopy();
@@ -179,7 +181,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 </Tooltip>
 
                 {derivedIsLoading ? (
-                  <Text type="secondary">Waiting for tool result...</Text>
+                  <Text type="secondary">
+                    {t("components.toolResult.waitingForResult")}
+                  </Text>
                 ) : fileChangePayload ? (
                   <Space direction="vertical" style={{ width: "100%" }} size={8}>
                     {fileChangePayload.message && (
@@ -188,23 +192,23 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                       </Text>
                     )}
                     <Text style={{ fontSize: token.fontSizeSM }}>
-                      <Text strong>File:</Text>{" "}
+                      <Text strong>{t("common.file")}:</Text>{" "}
                       <Text code>{fileChangePayload.file_path}</Text>
                     </Text>
                     {fileChangePayload.workspace && (
                       <Text style={{ fontSize: token.fontSizeSM }}>
-                        <Text strong>Workspace:</Text>{" "}
+                        <Text strong>{t("common.workspace")}:</Text>{" "}
                         <Text code>{fileChangePayload.workspace}</Text>
                       </Text>
                     )}
                     {fileChangePayload.checkpoint?.created ? (
                       <Text style={{ fontSize: token.fontSizeSM }}>
-                        <Text strong>Checkpoint:</Text>{" "}
+                        <Text strong>{t("components.toolResult.checkpoint")}:</Text>{" "}
                         <Text code>{fileChangePayload.checkpoint.path}</Text>
                       </Text>
                     ) : (
                       <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                        Checkpoint: none (new file)
+                        {t("components.toolResult.checkpointNone")}
                       </Text>
                     )}
                     <div
@@ -255,7 +259,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                     </div>
                     {fileChangePayload.diff.truncated && (
                       <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                        Diff truncated for display.
+                        {t("components.toolResult.diffTruncated")}
                       </Text>
                     )}
                   </Space>

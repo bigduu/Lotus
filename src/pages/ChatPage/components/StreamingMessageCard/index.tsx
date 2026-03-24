@@ -2,6 +2,7 @@ import React, { useEffect, useState, memo, useMemo } from "react";
 import { Card, Collapse, Flex, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
+import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
@@ -238,6 +239,7 @@ interface StreamingMessageCardProps {
 const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
   ({ sessionId }) => {
     const { token } = useToken();
+    const { t } = useTranslation();
     const messageId = `streaming-${sessionId}`;
     const reasoningMessageId = `streaming-reasoning-${sessionId}`;
     const [content, setContent] = useState<string>(
@@ -295,7 +297,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
               strong
               style={{ fontSize: token.fontSizeSM }}
             >
-              Assistant
+              {t("chat.streaming.assistant")}
             </Text>
           </Flex>
           <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
@@ -311,7 +313,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
                 items={[
                   {
                     key: "reasoning",
-                    label: <Text strong>Reasoning</Text>,
+                    label: <Text strong>{t("chat.messageCard.reasoning")}</Text>,
                     children: (
                       <ReactMarkdown
                         remarkPlugins={markdownPlugins}
@@ -327,7 +329,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
             ) : null}
 
             {!content ? (
-              <Text italic>Assistant is thinking...</Text>
+              <Text italic>{t("chat.messageCard.assistantThinking")}</Text>
             ) : (
               <ReactMarkdown
                 remarkPlugins={markdownPlugins}

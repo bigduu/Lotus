@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Flex, Typography } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import type { ImageFile } from "../../utils/imageUtils";
 
 const { Text } = Typography;
@@ -20,6 +21,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
   onPreview,
   onClear,
 }) => {
+  const { t } = useTranslation();
   if (!allowImages || images.length === 0) return null;
 
   return (
@@ -37,7 +39,9 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
           type="secondary"
           style={{ fontSize: token.fontSizeSM, minWidth: "fit-content" }}
         >
-          {images.length} image{images.length > 1 ? "s" : ""}:
+          {images.length > 1
+            ? t("chat.input.imageCountPlural", { count: images.length })
+            : t("chat.input.imageCountSingular", { count: images.length })}
         </Text>
         {images.slice(0, 3).map((image) => (
           <div
@@ -66,7 +70,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
         ))}
         {images.length > 3 && (
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            +{images.length - 3} more
+            {t("chat.input.moreImages", { count: images.length - 3 })}
           </Text>
         )}
         <Button
@@ -80,7 +84,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
             padding: "0 4px",
             height: 24,
           }}
-          title="Clear all images"
+          title={t("chat.input.clearAllImages")}
         />
       </Flex>
     </div>

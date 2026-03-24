@@ -1,6 +1,7 @@
 import React from "react";
 import { Card, Collapse, Flex, Image, theme, Typography } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { MessageImage } from "../../types/chat";
 
 const { useToken } = theme;
@@ -23,6 +24,7 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
   maxHeight = { single: 400, multiple: 200 },
 }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
 
   if (!images || images.length === 0) {
     return null;
@@ -72,7 +74,7 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
                     >
                       <EyeOutlined />
                       <Text style={{ color: token.colorTextLightSolid }}>
-                        Preview
+                        {t("components.imageGrid.preview")}
                       </Text>
                     </Flex>
                   ),
@@ -121,7 +123,7 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
                   items={[
                     {
                       key: "ocr",
-                      label: "OCR",
+                      label: t("components.imageGrid.ocr"),
                       children: (
                         <>
                           {image.ocrError && (

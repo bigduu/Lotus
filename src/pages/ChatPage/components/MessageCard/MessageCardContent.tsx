@@ -2,6 +2,7 @@ import React, { memo } from "react";
 import { Space, Typography, Button, Alert, Tag, Collapse } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
+import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 import type { PluggableList } from "unified";
 import {
@@ -92,10 +93,11 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
   markdownPlugins,
   rehypePlugins,
 }) => {
+  const { t } = useTranslation();
   if (isAssistantToolResultMessage(message)) {
     const toolResultContent = message.result.result ?? "";
     const toolResultErrorMessage = message.isError
-      ? toolResultContent || "Tool execution failed."
+      ? toolResultContent || t("components.toolResult.executionFailed")
       : undefined;
     const toolResultIsLoading =
       !toolResultErrorMessage && toolResultContent.trim().length === 0;
@@ -127,7 +129,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     const workflowContent = message.content ?? "";
     const workflowErrorMessage =
       message.status === "error"
-        ? workflowContent || "Workflow execution failed."
+        ? workflowContent || t("components.workflowResult.executionFailed")
         : undefined;
     const workflowIsLoading =
       !workflowErrorMessage && workflowContent.trim().length === 0;
@@ -167,7 +169,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     return (
       <Space direction="vertical" style={{ width: "100%" }} size="middle">
         <Alert
-          message="Authentication Required"
+          message={t("chat.messageCard.authRequired")}
           description={
             <ReactMarkdown
               remarkPlugins={markdownPlugins}
@@ -189,7 +191,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
             window.location.hash = "/settings";
           }}
         >
-          Go to Settings
+          {t("chat.messageCard.goToSettings")}
         </Button>
       </Space>
     );
@@ -208,7 +210,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
   const hasAssistantReasoning = assistantReasoning.trim().length > 0;
 
   if (message.role === "assistant" && !messageText && !hasAssistantReasoning) {
-    return <Text italic>Assistant is thinking...</Text>;
+    return <Text italic>{t("chat.messageCard.assistantThinking")}</Text>;
   }
 
   return (
@@ -220,7 +222,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
           items={[
             {
               key: "reasoning",
-              label: <Text strong>Reasoning</Text>,
+              label: <Text strong>{t("chat.messageCard.reasoning")}</Text>,
               children: (
                 <ReactMarkdown
                   remarkPlugins={markdownPlugins}
@@ -245,7 +247,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
               message={
                 <Space wrap size="small">
                   <Tag color="purple">MCP</Tag>
-                  <Text strong>Selected tool</Text>
+                  <Text strong>{t("chat.messageCard.selectedTool")}</Text>
                   {hint.serverId && (
                     <Text type="secondary">
                       <Text code>{hint.serverId}</Text>
@@ -271,7 +273,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
             message={
               <Space wrap size="small">
                 <Tag color="green">Skill</Tag>
-                <Text strong>Selected</Text>
+                <Text strong>{t("chat.messageCard.selected")}</Text>
                 {hint.label && <Text>{hint.label}</Text>}
                 {hint.skillId && (
                   <Text type="secondary">

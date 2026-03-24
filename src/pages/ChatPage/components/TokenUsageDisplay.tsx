@@ -1,5 +1,6 @@
 import React from "react";
 import { Progress, Tooltip, Space } from "antd";
+import { useTranslation } from "react-i18next";
 import {
   TokenUsage,
   getUsagePercentage,
@@ -32,6 +33,7 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   size = "small",
   className = "",
 }) => {
+  const { t } = useTranslation();
   const percentage = getUsagePercentage(usage);
   const color = getUsageColor(usage);
 
@@ -43,13 +45,15 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
 
   const tooltipContent = (
     <div style={{ minWidth: 180 }}>
-      <div style={{ marginBottom: 4, fontWeight: "bold" }}>Token Usage</div>
+      <div style={{ marginBottom: 4, fontWeight: "bold" }}>
+        {t("components.tokenUsage.title")}
+      </div>
       <div style={{ fontSize: 12 }}>
         {formatTokenCount(usage.totalTokens)} /{" "}
-        {formatTokenCount(usage.budgetLimit)} tokens
+        {formatTokenCount(usage.budgetLimit)} {t("components.tokenUsage.tokens")}
       </div>
       <div style={{ fontSize: 12, color: "#888" }}>
-        {percentage.toFixed(1)}% used
+        {t("components.tokenUsage.usedPercent", { value: percentage.toFixed(1) })}
       </div>
       {showDetails && (
         <div
@@ -60,11 +64,17 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
             fontSize: 11,
           }}
         >
-          <div>System: {formatTokenCount(usage.systemTokens)}</div>
+          <div>
+            {t("components.tokenUsage.system")}: {formatTokenCount(usage.systemTokens)}
+          </div>
           {usage.summaryTokens > 0 && (
-            <div>Summary: {formatTokenCount(usage.summaryTokens)}</div>
+            <div>
+              {t("components.tokenUsage.summary")}: {formatTokenCount(usage.summaryTokens)}
+            </div>
           )}
-          <div>Messages: {formatTokenCount(usage.windowTokens)}</div>
+          <div>
+            {t("components.tokenUsage.messages")}: {formatTokenCount(usage.windowTokens)}
+          </div>
         </div>
       )}
     </div>
@@ -113,6 +123,7 @@ export const TokenUsageBadge: React.FC<{
   usage: TokenUsage;
   className?: string;
 }> = ({ usage, className = "" }) => {
+  const { t } = useTranslation();
   const percentage = getUsagePercentage(usage);
   const color = getUsageColor(usage);
 
@@ -131,7 +142,9 @@ export const TokenUsageBadge: React.FC<{
 
   return (
     <Tooltip
-      title={`${formatTokenCount(usage.totalTokens)} / ${formatTokenCount(usage.budgetLimit)} tokens (${percentage.toFixed(1)}%)`}
+      title={`${formatTokenCount(usage.totalTokens)} / ${formatTokenCount(
+        usage.budgetLimit,
+      )} ${t("components.tokenUsage.tokens")} (${percentage.toFixed(1)}%)`}
     >
       <span
         className={`token-usage-badge ${className}`}

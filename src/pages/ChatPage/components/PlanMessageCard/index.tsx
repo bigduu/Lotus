@@ -19,6 +19,7 @@ import {
   ThunderboltOutlined,
   ToolOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { PlanMessage } from "../../types/chat";
 
 const { Title, Text, Paragraph } = Typography;
@@ -39,6 +40,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
   onRefine,
   timestamp,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [refineMode, setRefineMode] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -63,7 +65,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
         <Space>
           <CheckCircleOutlined style={{ color: token.colorPrimary }} />
           <Text strong style={{ color: token.colorPrimary }}>
-            Execution Plan
+            {t("components.plan.executionPlan")}
           </Text>
         </Space>
       }
@@ -78,7 +80,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
       {/* Goal Section */}
       <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Title level={5} style={{ marginBottom: token.marginXS }}>
-          Goal
+          {t("components.plan.goal")}
         </Title>
         <Paragraph style={{ fontSize: 15, marginBottom: 0 }}>
           {plan.goal}
@@ -88,7 +90,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
       {/* Steps Section */}
       <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Title level={5} style={{ marginBottom: token.marginMD }}>
-          Steps
+          {t("components.plan.steps")}
         </Title>
         <Steps
           direction="vertical"
@@ -96,17 +98,19 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
           items={plan.steps.map((step) => ({
             title: (
               <Text strong>
-                Step {step.step_number}: {step.action}
+                {t("components.plan.stepTitle", { number: step.step_number })}:{" "}
+                {step.action}
               </Text>
             ),
             description: (
               <Flex vertical>
                 <Paragraph style={{ marginBottom: token.marginXS }}>
-                  <Text type="secondary">Reason:</Text> {step.reason}
+                  <Text type="secondary">{t("components.plan.reason")}:</Text>{" "}
+                  {step.reason}
                 </Paragraph>
                 <Space wrap>
                   <Text type="secondary">
-                    <ToolOutlined /> Tools:
+                    <ToolOutlined /> {t("components.plan.tools")}:
                   </Text>
                   {step.tools_needed.map((tool, idx) => (
                     <Tag key={idx} color="blue">
@@ -116,7 +120,8 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
                 </Space>
                 <Flex style={{ marginTop: token.marginXS }}>
                   <Text type="secondary">
-                    <ClockCircleOutlined /> Estimated: {step.estimated_time}
+                    <ClockCircleOutlined /> {t("components.plan.estimated")}:{" "}
+                    {step.estimated_time}
                   </Text>
                 </Flex>
               </Flex>
@@ -133,14 +138,14 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
       >
         <Flex align="center" gap={token.marginXS} wrap="wrap">
           <Text type="secondary">
-            <ClockCircleOutlined /> Total Estimated Time:{" "}
+            <ClockCircleOutlined /> {t("components.plan.totalEstimatedTime")}{" "}
           </Text>
           <Tag color="blue">{plan.estimated_total_time}</Tag>
         </Flex>
 
         {plan.prerequisites && plan.prerequisites.length > 0 && (
           <Flex vertical>
-            <Text type="secondary">Prerequisites:</Text>
+            <Text type="secondary">{t("components.plan.prerequisites")}:</Text>
             <List
               size="small"
               dataSource={plan.prerequisites}
@@ -165,7 +170,11 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
               label: (
                 <Space>
                   <WarningOutlined style={{ color: token.colorWarning }} />
-                  <Text strong>Potential Risks ({plan.risks.length})</Text>
+                  <Text strong>
+                    {t("components.plan.potentialRisks", {
+                      count: plan.risks.length,
+                    })}
+                  </Text>
                 </Space>
               ),
               children: (
@@ -188,24 +197,22 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
       <Space style={{ width: "100%", justifyContent: "flex-end" }}>
         {!refineMode ? (
           <>
-            <Button onClick={() => setRefineMode(true)}>Refine Plan</Button>
-            <Button
-              type="primary"
-              icon={<ThunderboltOutlined />}
-              onClick={onExecute}
-            >
-              Execute Plan
+            <Button onClick={() => setRefineMode(true)}>
+              {t("components.plan.refinePlan")}
+            </Button>
+            <Button type="primary" icon={<ThunderboltOutlined />} onClick={onExecute}>
+              {t("components.plan.executePlan")}
             </Button>
           </>
         ) : (
           <>
-            <Button onClick={() => setRefineMode(false)}>Cancel</Button>
+            <Button onClick={() => setRefineMode(false)}>{t("common.cancel")}</Button>
             <Button
               type="primary"
               onClick={handleRefine}
               disabled={!feedback.trim()}
             >
-              Send Feedback
+              {t("components.plan.sendFeedback")}
             </Button>
           </>
         )}
@@ -217,7 +224,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
           <Input.TextArea
             value={feedback}
             onChange={(e) => setFeedback(e.target.value)}
-            placeholder="Provide feedback to refine the plan..."
+            placeholder={t("components.plan.feedbackPlaceholder")}
             autoSize={{ minRows: 4, maxRows: 10 }}
           />
         </Flex>

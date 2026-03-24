@@ -1,6 +1,7 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import i18n from "@shared/i18n";
 import {
   TokenUsageBadge,
   TokenUsageDisplay,
@@ -64,7 +65,11 @@ describe("TokenUsageDisplay", () => {
       "#faad14",
     );
     expect(screen.getByText("70%")).toBeInTheDocument();
-    expect(screen.getByText("70.0% used")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        i18n.t("components.tokenUsage.usedPercent", { value: "70.0" }),
+      ),
+    ).toBeInTheDocument();
   });
 
   it("renders error color for usage >= 90%", () => {

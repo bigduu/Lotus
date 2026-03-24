@@ -1,6 +1,7 @@
 import React, { useRef, useMemo } from "react";
 import { Flex, message, theme } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
+import { useTranslation } from "react-i18next";
 import { ImageFile } from "../../utils/imageUtils";
 import ImagePreviewModal from "../ImagePreviewModal";
 import {
@@ -64,7 +65,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onChange,
   onSubmit,
   interaction,
-  placeholder = "Send a message...",
+  placeholder,
   disabled = false,
   images: propImages,
   onImagesChange,
@@ -80,6 +81,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   maxCharCount,
   leftControlsExtra,
 }) => {
+  const { t } = useTranslation();
   const {
     isStreaming,
     hasMessages,
@@ -175,6 +177,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     textAreaRef,
   });
 
+  const resolvedPlaceholder = placeholder ?? t("chat.input.placeholder");
+
   return (
     <>
       {/* Ant Design message context holder */}
@@ -222,7 +226,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           {/* Text input */}
           <MessageInputField
             value={value}
-            placeholder={placeholder}
+            placeholder={resolvedPlaceholder}
             disabled={disabled}
             token={token}
             highlightSegments={highlightSegments}

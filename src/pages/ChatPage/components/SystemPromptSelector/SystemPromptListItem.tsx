@@ -5,6 +5,7 @@ import {
   EyeInvisibleOutlined,
   EyeOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 import type { UserSystemPrompt } from "../../types/chat";
 import { SystemPromptPreview } from "./SystemPromptPreview";
@@ -30,6 +31,7 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
   onToggleExpand,
   onCopy,
 }) => {
+  const { t } = useTranslation();
   const content = prompt.content || "";
   const { nonEmptyLineCount, wordCount, characterCount, showGradient } =
     useMemo(() => {
@@ -99,7 +101,9 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
                 </Text>
               </div>
             </div>
-            {prompt.isDefault ? <Tag color="gold">Default</Tag> : null}
+            {prompt.isDefault ? (
+              <Tag color="gold">{t("chat.systemPromptSelector.defaultTag")}</Tag>
+            ) : null}
           </Space>
 
           <Space size="small">
@@ -112,7 +116,9 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
                 onToggleExpand(prompt.id);
               }}
             >
-              {isExpanded ? "Hide" : "Preview"}
+              {isExpanded
+                ? t("chat.systemPromptSelector.hide")
+                : t("chat.systemPromptSelector.preview")}
             </Button>
             <Button
               type="text"
@@ -120,7 +126,7 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
               icon={<CopyOutlined />}
               onClick={(event) => onCopy(event, prompt)}
             >
-              Copy
+              {t("chat.systemPromptSelector.copy")}
             </Button>
           </Space>
         </div>
@@ -138,9 +144,15 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
         ) : null}
 
         <Space size="small" wrap style={{ marginLeft: token.marginLG }}>
-          <Tag color="geekblue">Lines: {nonEmptyLineCount}</Tag>
-          <Tag color="purple">Words: {wordCount}</Tag>
-          <Tag color="green">Chars: {characterCount}</Tag>
+          <Tag color="geekblue">
+            {t("chat.systemPromptSelector.lines", { count: nonEmptyLineCount })}
+          </Tag>
+          <Tag color="purple">
+            {t("chat.systemPromptSelector.words", { count: wordCount })}
+          </Tag>
+          <Tag color="green">
+            {t("chat.systemPromptSelector.chars", { count: characterCount })}
+          </Tag>
         </Space>
 
         {!isExpanded ? (
@@ -153,7 +165,7 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
               color: token.colorTextSecondary,
             }}
           >
-            {content || "No content available."}
+            {content || t("chat.systemPromptSelector.noContent")}
           </Paragraph>
         ) : (
           <SystemPromptPreview

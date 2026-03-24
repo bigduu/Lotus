@@ -10,6 +10,7 @@ import {
   BulbOutlined,
   LoadingOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { ChatItem as ChatItemType } from "../../types/chat";
 
 interface ChatItemProps {
@@ -37,6 +38,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   isGeneratingTitle,
   titleGenerationError,
 }) => {
+  const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(chat.title);
   const [isHovered, setIsHovered] = useState(false);
@@ -103,7 +105,10 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     isHovered || isEditing
       ? [
           // Pin/Unpin button
-          <Tooltip key="pin" title={chat.pinned ? "Unpin" : "Pin"}>
+          <Tooltip
+            key="pin"
+            title={chat.pinned ? t("chat.actions.unpin") : t("chat.actions.pin")}
+          >
             <Button
               type="text"
               size="small"
@@ -127,7 +132,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
           // Edit related buttons
           ...(isEditing
             ? [
-                <Tooltip key="save" title="Save">
+                <Tooltip key="save" title={t("common.save")}>
                   <Button
                     type="text"
                     size="small"
@@ -137,7 +142,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                     onClick={handleSave}
                   />
                 </Tooltip>,
-                <Tooltip key="cancel" title="Cancel">
+                <Tooltip key="cancel" title={t("common.cancel")}>
                   <Button
                     type="text"
                     size="small"
@@ -147,7 +152,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                 </Tooltip>,
               ]
             : [
-                <Tooltip key="edit" title="Edit">
+                <Tooltip key="edit" title={t("chat.chatItem.edit")}>
                   <Button
                     type="text"
                     size="small"
@@ -159,7 +164,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                   ? [
                       <Tooltip
                         key="generate-title"
-                        title={titleGenerationError || "Generate AI Title"}
+                        title={titleGenerationError || t("chat.actions.generateTitle")}
                         color={
                           titleGenerationError ? token.colorError : undefined
                         }
@@ -193,7 +198,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               ]),
 
           // Delete button
-          <Tooltip key="delete" title="Delete">
+          <Tooltip key="delete" title={t("common.delete")}>
             <Button
               type="text"
               size="small"
@@ -255,7 +260,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                   color="geekblue"
                   style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
                 >
-                  Child
+                  {t("chat.chatItem.childTag")}
                 </Tag>
               ) : null}
             </div>

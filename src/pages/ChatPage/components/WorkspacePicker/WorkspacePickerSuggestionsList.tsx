@@ -5,6 +5,7 @@ import {
   HistoryOutlined,
   HomeOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import type { PathSuggestion } from "../../services/WorkspaceApiService";
 
 const { Text } = Typography;
@@ -35,13 +36,14 @@ const getSuggestionIcon = (suggestion: PathSuggestion, token: any) => {
 const WorkspacePickerSuggestionsList: React.FC<
   WorkspacePickerSuggestionsListProps
 > = ({ show, isLoading, suggestions, onSelect, token }) => {
+  const { t } = useTranslation();
   if (!show) return null;
 
   return (
     <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
       <Space style={{ paddingInline: token.paddingSM }}>
         <FolderOutlined />
-        <Text strong>Suggested Workspaces</Text>
+        <Text strong>{t("chat.workspace.suggestedTitle")}</Text>
       </Space>
 
       {isLoading ? (
@@ -50,7 +52,7 @@ const WorkspacePickerSuggestionsList: React.FC<
         </Flex>
       ) : suggestions.length === 0 ? (
         <Empty
-          description="No suggestions available"
+          description={t("chat.workspace.noSuggestions")}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           style={{ padding: token.paddingSM }}
         />

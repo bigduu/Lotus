@@ -1,5 +1,6 @@
 import React from "react";
 import { Spin, Tag, theme } from "antd";
+import { useTranslation } from "react-i18next";
 import { useCommandSelectorState } from "./useCommandSelectorState";
 import type { CommandItem } from "../../types/command";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
@@ -19,17 +20,17 @@ const TYPE_CONFIG = {
   workflow: {
     color: "blue",
     icon: "📁",
-    label: "Workflow",
+    labelKey: "chat.commandSelector.types.workflow",
   },
   skill: {
     color: "green",
     icon: "⚡",
-    label: "Skill",
+    labelKey: "chat.commandSelector.types.skill",
   },
   mcp: {
     color: "purple",
     icon: "🔌",
-    label: "MCP",
+    labelKey: "chat.commandSelector.types.mcp",
   },
 } as const;
 
@@ -41,6 +42,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
   onAutoComplete,
 }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
   const {
     containerRef,
     selectedItemRef,
@@ -79,7 +81,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
           textAlign: "center",
         }}
       >
-        <Spin size="small" /> Loading commands...
+        <Spin size="small" /> {t("chat.commandSelector.loading")}
       </div>
     );
   }
@@ -104,8 +106,8 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
         }}
       >
         {searchText
-          ? `No commands found matching "${searchText}"`
-          : "No commands available."}
+          ? t("chat.commandSelector.emptyWithSearch", { search: searchText })
+          : t("chat.commandSelector.empty")}
       </div>
     );
   }
@@ -153,7 +155,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
               <Tag color="geekblue">{mcpServerLabel}</Tag>
             )}
             <Tag color={typeConfig.color}>
-              {typeConfig.icon} {typeConfig.label}
+              {typeConfig.icon} {t(typeConfig.labelKey)}
             </Tag>
           </div>
         </div>
@@ -174,7 +176,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
               color: token.colorTextTertiary,
             }}
           >
-            Server: {mcpServerLabel}
+            {t("common.server")} {mcpServerLabel}
           </div>
         )}
 
@@ -185,7 +187,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
               color: token.colorTextTertiary,
             }}
           >
-            Category: {command.category}
+            {t("common.category")} {command.category}
           </div>
         )}
 
@@ -220,8 +222,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
           color: token.colorTextTertiary,
         }}
       >
-        Navigation: Up/Down or Ctrl+P/N | Select: Enter | Complete: Space/Tab |
-        Cancel: Esc
+        {t("chat.commandSelector.navigationHint")}
       </div>
       {filteredCommands.map((command, index) =>
         renderCommandItem(command, index),

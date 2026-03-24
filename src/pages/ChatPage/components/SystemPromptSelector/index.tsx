@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Empty, Modal, Space, Typography, message, theme } from "antd";
 import { ToolOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 import {
   ModalFooter,
@@ -29,9 +30,10 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   onClose,
   onSelect,
   prompts,
-  title = "Select System Prompt",
+  title,
   showCancelButton = true,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const [messageApi, contextHolder] = message.useMessage();
   const lastSelectedPromptId = useAppStore(
@@ -62,12 +64,14 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
 
     try {
       await copyText(content);
-      messageApi.success(`Copied "${prompt.name}" prompt`);
+      messageApi.success(t("success.promptCopied", { name: prompt.name }));
     } catch (error) {
       console.error("[SystemPromptSelector] Failed to copy prompt:", error);
-      messageApi.error("Failed to copy prompt content");
+      messageApi.error(t("error.copyPromptFailed"));
     }
   };
+
+  const resolvedTitle = title ?? t("chat.prompt.selectorTitle");
 
   useEffect(() => {
     if (open) {
@@ -99,7 +103,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
         title={
           <Space>
             <ToolOutlined />
-            {title}
+            {resolvedTitle}
           </Space>
         }
         open={open}
@@ -117,7 +121,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
                   }
                 },
                 {
-                  text: "Create New Session",
+                  text: t("chat.prompt.createButton"),
                   disabled: !selectedId,
                 },
               ),
@@ -134,14 +138,13 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
       >
         <div style={{ marginBottom: token.marginMD }}>
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            Select a base system prompt for the AI. You can add or edit prompts
-            in the System Settings.
+            {t("chat.prompt.helperText")}
           </Text>
         </div>
 
         {validPrompts.length === 0 ? (
           <Empty
-            description="No system prompts found. Add one in System Settings."
+            description={t("chat.prompt.emptyDescription")}
             style={{ margin: token.marginLG }}
           />
         ) : (

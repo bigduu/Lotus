@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Collapse, Space, Button, Typography, theme, Tooltip, Tag } from "antd";
 import { ToolOutlined, CopyOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { safeStringify } from "../../utils/resultFormatters";
@@ -63,6 +64,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
   streamingOutput,
   defaultExpanded = false,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const mcpParts = useMemo(() => parseMcpToolAlias(toolName), [toolName]);
 
@@ -204,7 +206,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
               {streamingOutput && streamingOutput.trim().length > 0 && (
                 <div>
                   <Text strong style={{ fontSize: token.fontSizeSM }}>
-                    Live output:
+                    {t("components.toolCall.liveOutput")}
                   </Text>
                   <div
                     ref={liveOutputScrollRef}
@@ -249,7 +251,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                       display: "block",
                     }}
                   >
-                    Key parameters:
+                    {t("components.toolCall.keyParameters")}
                   </Text>
                   <ul
                     style={{
@@ -286,14 +288,14 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                   }}
                 >
                   <Text strong style={{ fontSize: token.fontSizeSM }}>
-                    Full parameters:
+                    {t("components.toolCall.fullParameters")}
                   </Text>
-                  <Tooltip title="Copy parameters">
+                  <Tooltip title={t("components.toolCall.copyParameters")}>
                     <Button
                       type="text"
                       size="small"
                       icon={<CopyOutlined />}
-                      aria-label="Copy parameters"
+                      aria-label={t("components.toolCall.copyParameters")}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleCopy();

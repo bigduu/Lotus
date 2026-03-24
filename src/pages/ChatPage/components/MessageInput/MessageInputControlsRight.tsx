@@ -7,6 +7,7 @@ import {
   StopOutlined,
   SyncOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import type { ImageFile } from "../../utils/imageUtils";
 import type { MessageRetryMode } from "./types";
 
@@ -39,6 +40,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
   token,
   statusIndicator,
 }) => {
+  const { t } = useTranslation();
   const canSend = !value.trim() && images.length === 0;
   const retryDisabled = isStreaming || disabled || !onRetry;
 
@@ -61,12 +63,12 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
             items: [
               {
                 key: "regenerate",
-                label: "Regenerate response",
+                label: t("chat.actions.regenerate"),
                 icon: <ReloadOutlined />,
               },
               {
                 key: "error_retry",
-                label: "Retry failed request",
+                label: t("chat.actions.retryFailed"),
                 icon: <ExclamationCircleOutlined />,
               },
             ],
@@ -79,7 +81,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
             type="text"
             icon={<SyncOutlined spin={isStreaming} />}
             disabled={retryDisabled}
-            title="Retry options"
+            title={t("chat.actions.retryOptions")}
             size="small"
             style={{
               minWidth: 36,
@@ -116,7 +118,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
           alignItems: "center",
           justifyContent: "center",
         }}
-        title={isStreaming ? "Cancel request" : "Send message"}
+        title={isStreaming ? t("chat.actions.cancelRequest") : t("chat.actions.sendMessage")}
       />
     </Flex>
   );

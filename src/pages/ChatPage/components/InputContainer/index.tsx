@@ -54,6 +54,7 @@ import { settingsService } from "@services/config/SettingsService";
 import { modelService } from "@services/chat/ModelService";
 import { agentApiClient } from "../../../../services/api";
 import type { ImageFile } from "../../utils/imageUtils";
+import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const CommandSelector = lazy(() => import("../CommandSelector"));
@@ -65,15 +66,12 @@ const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
 const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
 const MODEL_OPTIONS_CACHE_PREFIX = "chat-model-options-cache-v1";
 const MODEL_OPTIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const REASONING_EFFORT_OPTIONS: Array<{
-  value: ReasoningEffort;
-  label: string;
-}> = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "xhigh", label: "XHigh" },
-  { value: "max", label: "Max" },
+const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+  "max",
 ];
 
 type ModelOption = { value: string; label: string };
@@ -180,8 +178,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const pendingQuestionRespond = useAppStore(
     (state) => state.pendingQuestionRespond,
   );
-  const setPendingQuestionRespond = useAppStore(
-    (state) => state.setPendingQuestionRespond,
+  const clearPendingQuestionRespondForSession = useAppStore(
+    (state) => state.clearPendingQuestionRespondForSession,
   );
   const activeModel = useActiveModel();
 
@@ -256,65 +254,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setSessionProcessing,
     updateSession,
   });
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const handleExternalSend = (event: Event) => {
-      const customEvent = event as CustomEvent<ChatSendMessageEventDetail>;
-      if (!customEvent.detail) {
-        return;
-      }
-
-      // If a target sessionId is provided, only the matching pane should handle it.
-      // Otherwise, default to the globally active chat to avoid sending from all panes.
-      const targetSessionId =
-        typeof customEvent.detail.sessionId === "string"
-          ? customEvent.detail.sessionId
-          : null;
-      const shouldHandle = targetSessionId
-        ? sessionId === targetSessionId
-        : sessionId !== null && sessionId === activeSessionId;
-      if (!shouldHandle) {
-        return;
-      }
-
-      customEvent.detail.handled = true;
-      const contentValue = customEvent.detail?.content;
-
-      if (
-        typeof contentValue !== "string" ||
-        contentValue.trim().length === 0
-      ) {
-        customEvent.detail?.reject?.(
-          new Error("External send message content is empty"),
-        );
-        return;
-      }
-
-      sendMessage(contentValue, undefined, reasoningEffort)
-        .then(() => {
-          customEvent.detail?.resolve?.();
-        })
-        .catch((error: unknown) => {
-          customEvent.detail?.reject?.(error);
-        });
-    };
-
-    window.addEventListener(
-      CHAT_SEND_MESSAGE_EVENT,
-      handleExternalSend as EventListener,
-    );
-
-    return () => {
-      window.removeEventListener(
-        CHAT_SEND_MESSAGE_EVENT,
-        handleExternalSend as EventListener,
-      );
-    };
-  }, [activeSessionId, sessionId, sendMessage, reasoningEffort]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -433,6 +372,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     pendingQuestionRespond && pendingQuestionRespond.sessionId === sessionId,
   );
 
+  const shouldUseRespondModeForSession = useCallback(
+    (targetSessionId?: string | null): boolean => {
+      if (!targetSessionId) {
+        return false;
+      }
+      const latestPendingRespond = useAppStore.getState().pendingQuestionRespond;
+      return latestPendingRespond?.sessionId === targetSessionId;
+    },
+    [],
+  );
+
   const handleRespondSubmit = useCallback(
     async (responseText: string) => {
       const trimmed = responseText.trim();
@@ -449,9 +399,16 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           },
         );
 
-        messageApi.success("Response submitted, AI will continue processing");
+        messageApi.success(t("components.questionDialog.responseSubmittedContinue"));
         setContent("");
-        setPendingQuestionRespond(null);
+        clearPendingQuestionRespondForSession(sessionId);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent(CHAT_PENDING_QUESTION_RESOLVED_EVENT, {
+              detail: { sessionId },
+            }),
+          );
+        }
 
         const resumeStatus = result?.auto_resume_status;
         if (
@@ -463,7 +420,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       } catch (err) {
         console.error("[InputContainer] Failed to submit respond:", err);
         messageApi.error(
-          err instanceof Error ? err.message : "Submission failed",
+          err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
         );
       }
     },
@@ -473,22 +430,91 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       reasoningEffort,
       messageApi,
       setContent,
-      setPendingQuestionRespond,
+      clearPendingQuestionRespondForSession,
       setSessionProcessing,
+      t,
     ],
   );
 
-  // Wrap handleSubmit: in respond mode, redirect to respond API
+  const submitMessageWithLiveMode = useCallback(
+    async (message: string, images?: ImageFile[]) => {
+      const targetSessionId = sessionId;
+      if (shouldUseRespondModeForSession(targetSessionId)) {
+        await handleRespondSubmit(message);
+        return;
+      }
+
+      await handleSubmit(message, images);
+    },
+    [sessionId, shouldUseRespondModeForSession, handleRespondSubmit, handleSubmit],
+  );
+
+  // Wrap handleSubmit: check latest store state at submit time to avoid stale-mode races
   const effectiveHandleSubmit = useCallback(
     async (message: string, images?: ImageFile[]) => {
-      if (isRespondMode) {
-        await handleRespondSubmit(message);
-      } else {
-        await handleSubmit(message, images);
-      }
+      await submitMessageWithLiveMode(message, images);
     },
-    [isRespondMode, handleRespondSubmit, handleSubmit],
+    [submitMessageWithLiveMode],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const handleExternalSend = (event: Event) => {
+      const customEvent = event as CustomEvent<ChatSendMessageEventDetail>;
+      if (!customEvent.detail) {
+        return;
+      }
+
+      // If a target sessionId is provided, only the matching pane should handle it.
+      // Otherwise, default to the globally active chat to avoid sending from all panes.
+      const targetSessionId =
+        typeof customEvent.detail.sessionId === "string"
+          ? customEvent.detail.sessionId
+          : null;
+      const shouldHandle = targetSessionId
+        ? sessionId === targetSessionId
+        : sessionId !== null && sessionId === activeSessionId;
+      if (!shouldHandle) {
+        return;
+      }
+
+      customEvent.detail.handled = true;
+      const contentValue = customEvent.detail?.content;
+
+      if (
+        typeof contentValue !== "string" ||
+        contentValue.trim().length === 0
+      ) {
+        customEvent.detail?.reject?.(
+          new Error("External send message content is empty"),
+        );
+        return;
+      }
+
+      submitMessageWithLiveMode(contentValue, undefined)
+        .then(() => {
+          customEvent.detail?.resolve?.();
+        })
+        .catch((error: unknown) => {
+          customEvent.detail?.reject?.(error);
+        });
+    };
+
+    window.addEventListener(
+      CHAT_SEND_MESSAGE_EVENT,
+      handleExternalSend as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        CHAT_SEND_MESSAGE_EVENT,
+        handleExternalSend as EventListener,
+      );
+    };
+  }, [activeSessionId, sessionId, submitMessageWithLiveMode]);
 
   const { retryLastMessage, handleHistoryNavigate } = useInputContainerHistory({
     currentSessionId: sessionId,
@@ -622,9 +648,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           providers: nextProviders,
         });
         await providerStore.loadProviderConfig();
-        messageApi.success("Model updated");
+        messageApi.success(t("settings.providerTab.modelUpdated"));
       } catch (error) {
-        messageApi.error(`Failed to update model: ${getErrorMessage(error)}`);
+        messageApi.error(
+          `${t("settings.providerTab.updateModelErrorPrefix")}: ${getErrorMessage(error)}`,
+        );
       } finally {
         setIsSavingModel(false);
       }
@@ -636,6 +664,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       isSavingModel,
       messageApi,
       redirectToProviderSettingsIfNeeded,
+      t,
     ],
   );
 
@@ -659,14 +688,23 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   // In respond mode, override placeholder to guide the user
   const placeholder = isRespondMode
-    ? "Type your custom answer here, press Enter to submit..."
+    ? t("chat.respond.customAnswerPlaceholder")
     : basePlaceholder;
 
+  const reasoningEffortLabelMap = useMemo<Record<ReasoningEffort, string>>(
+    () => ({
+      low: t("chat.input.reasoning.low"),
+      medium: t("chat.input.reasoning.medium"),
+      high: t("chat.input.reasoning.high"),
+      xhigh: t("chat.input.reasoning.xhigh"),
+      max: t("chat.input.reasoning.max"),
+    }),
+    [t],
+  );
+
   const currentReasoningLabel = useMemo(
-    () =>
-      REASONING_EFFORT_OPTIONS.find((option) => option.value === reasoningEffort)
-        ?.label ?? reasoningEffort,
-    [reasoningEffort],
+    () => reasoningEffortLabelMap[reasoningEffort] ?? reasoningEffort,
+    [reasoningEffort, reasoningEffortLabelMap],
   );
 
   const reasoningControl = (
@@ -678,8 +716,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         selectable: true,
         selectedKeys: [reasoningEffort],
         items: REASONING_EFFORT_OPTIONS.map((option) => ({
-          key: option.value,
-          label: option.label,
+          key: option,
+          label: reasoningEffortLabelMap[option],
         })),
         onClick: ({ key }) => {
           setReasoningEffortPersisted(key as ReasoningEffort);
@@ -700,7 +738,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
               ? token.colorTextSecondary
               : token.colorPrimary,
         }}
-        title={`Reasoning: ${currentReasoningLabel}`}
+        title={t("chat.input.reasoningTitle", { label: currentReasoningLabel })}
       >
         <Space size={6}>
           <ExperimentOutlined />
@@ -711,7 +749,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     </Dropdown>
   );
 
-  const modelLabel = activeModel || (isProviderConfigured ? "Select Model" : "Configure Provider");
+  const modelLabel =
+    activeModel ||
+    (isProviderConfigured
+      ? t("chat.model.selectModel")
+      : t("chat.model.configureProvider"));
   const modelMenuItems = useMemo(
     () =>
       resolvedModelOptions.length > 0
@@ -722,11 +764,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         : [
             {
               key: "__no_models__",
-              label: modelOptionsError || "No models available",
+              label: modelOptionsError || t("chat.model.noModelsAvailable"),
               disabled: true,
             },
           ],
-    [resolvedModelOptions, modelOptionsError],
+    [resolvedModelOptions, modelOptionsError, t],
   );
 
   const modelButton = (
@@ -810,16 +852,22 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           type="warning"
           showIcon
           icon={<SettingOutlined />}
-          message={isProviderConfigured ? "No model selected" : "Provider not configured"}
+          message={
+            isProviderConfigured
+              ? t("chat.model.noModelSelected")
+              : t("chat.model.providerNotConfigured")
+          }
           description={
             isProviderConfigured
-              ? "Select a model from the dropdown in the input toolbar."
-              : "Open settings and configure a provider before selecting a model."
+              ? t("chat.model.selectModelHint")
+              : t("chat.model.configureProviderHint")
           }
           action={
             !isProviderConfigured ? (
               <Space>
-                <a onClick={() => openSettings("chat")}>Open Settings</a>
+                <a onClick={() => openSettings("chat")}>
+                  {t("chat.model.openSettings")}
+                </a>
               </Space>
             ) : undefined
           }
@@ -836,12 +884,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             <Space wrap>
               <span>
                 {isRestrictConversation
-                  ? "Strict Mode: Tool calls only"
-                  : "Tool-specific Mode"}
+                  ? t("chat.input.strictToolOnlyMode")
+                  : t("chat.input.toolSpecificModeLabel")}
               </span>
               {autoToolPrefix && (
                 <Tag color="blue">
-                  <ToolOutlined /> Auto-prefix: {autoToolPrefix}
+                  <ToolOutlined />{" "}
+                  {t("chat.input.autoPrefixLabel", { prefix: autoToolPrefix })}
                 </Tag>
               )}
             </Space>
@@ -849,7 +898,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           description={
             allowedTools.length > 0 && (
               <Space wrap>
-                <span>Allowed tools:</span>
+                <span>{t("chat.input.allowedTools")}</span>
                 {allowedTools.map((tool: string) => (
                   <Tag key={tool} color="green">
                     /{tool}
@@ -892,7 +941,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             if (!trimmed.startsWith(autoToolPrefix)) {
               return {
                 isValid: false,
-                errorMessage: `Messages must start with '${autoToolPrefix}'.`,
+                errorMessage: t("chat.input.mustStartWithPrefix", {
+                  prefix: autoToolPrefix,
+                }),
               };
             }
           }

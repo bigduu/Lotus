@@ -20,6 +20,7 @@ import {
   ExclamationCircleOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import ToolCallCard from "../ToolCallCard";
 import ToolResultCard from "../ToolResultCard";
 import type {
@@ -117,7 +118,18 @@ interface ToolItemStatus {
   text: string;
 }
 
-const getToolItemKey = (item: ToolSessionItem): string =>
+const getToolItemKey = (item: ToolSessionItem): string => {
+  const toolCallId = item.call.toolCalls?.[0]?.toolCallId || "unknown-call";
+  const messageScopeId =
+    item.callMessageId ||
+    item.call.id ||
+    item.resultMessageId ||
+    item.result?.id ||
+    "unknown-message";
+  return `${messageScopeId}:${toolCallId}`;
+};
+
+const getToolItemTestId = (item: ToolSessionItem): string =>
   item.call.toolCalls?.[0]?.toolCallId || item.call.id;
 
 const SYNTHETIC_TOOL_CALL_PREFIX = "synthetic-tool-call:";
@@ -147,12 +159,13 @@ const getDeletableMessageIds = (item: ToolSessionItem): string[] => {
 function getToolStatus(
   item: ToolSessionItem,
   token: GlobalToken,
+  t: (key: string, options?: Record<string, unknown>) => string,
 ): ToolItemStatus {
   if (!item.result) {
     return {
       icon: <LoadingOutlined spin style={{ color: token.colorPrimary }} />,
       color: token.colorPrimary,
-      text: "Running",
+      text: t("components.toolSession.running"),
     };
   }
 
@@ -160,14 +173,14 @@ function getToolStatus(
     return {
       icon: <ExclamationCircleOutlined style={{ color: token.colorError }} />,
       color: token.colorError,
-      text: "Error",
+      text: t("components.toolSession.error"),
     };
   }
 
   return {
     icon: <CheckCircleOutlined style={{ color: token.colorSuccess }} />,
     color: token.colorSuccess,
-    text: "Done",
+    text: t("components.toolSession.done"),
   };
 }
 
@@ -213,12 +226,19 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
   defaultExpanded = false,
   onDeleteMessageIds,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const isSingleToolSession = tools.length === 1;
   const toolSessionStorageId = useMemo(() => {
     const firstTool = tools[0];
     const firstCall = firstTool?.call?.toolCalls?.[0];
-    return firstCall?.toolCallId || firstTool?.call?.id || "unknown";
+    const messageScopeId =
+      firstTool?.callMessageId ||
+      firstTool?.call?.id ||
+      firstTool?.resultMessageId ||
+      firstTool?.result?.id ||
+      "unknown-message";
+    return `${messageScopeId}:${firstCall?.toolCallId || "unknown-call"}`;
   }, [tools]);
   const defaultExpandedToolKey = useMemo(() => {
     const first = tools[0];
@@ -328,20 +348,27 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
     if (pendingCount > 0) {
       return {
         color: "processing" as const,
-        text: `${completedCount}/${tools.length} completed`,
+        text: t("components.toolSession.completedProgress", {
+          completed: completedCount,
+          total: tools.length,
+        }),
       };
     }
     if (hasErrors) {
       return {
         color: "warning" as const,
-        text: `${completedCount} completed with errors`,
+        text: t("components.toolSession.completedWithErrors", {
+          completed: completedCount,
+        }),
       };
     }
     return {
       color: "success" as const,
-      text: `${completedCount} completed`,
+      text: t("components.toolSession.completedOnly", {
+        completed: completedCount,
+      }),
     };
-  }, [completedCount, pendingCount, hasErrors, tools.length]);
+  }, [completedCount, pendingCount, hasErrors, tools.length, t]);
 
   const sessionDiffStats = useMemo(() => {
     let added = 0;
@@ -363,12 +390,12 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
 
   const headerTitle = useMemo(() => {
     if (tools.length !== 1) {
-      return "Tool Session";
+      return t("components.toolSession.title");
     }
 
     const call = tools[0]?.call?.toolCalls?.[0];
     if (!call) {
-      return "Tool Session";
+      return t("components.toolSession.title");
     }
 
     const mcpParts = parseMcpToolAlias(call.toolName);
@@ -376,8 +403,8 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
       return `MCP ${mcpParts.serverId}: ${mcpParts.toolName}`;
     }
 
-    return call.toolName || "Tool Session";
-  }, [tools]);
+    return call.toolName || t("components.toolSession.title");
+  }, [tools, t]);
 
   const collapseItems: CollapseProps["items"] = useMemo(() => {
     return tools
@@ -385,7 +412,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         const toolCall = item.call.toolCalls[0];
         if (!toolCall) return null;
 
-        const status = getToolStatus(item, token);
+        const status = getToolStatus(item, token, t);
         const intent = generateToolIntent(
           toolCall.toolName,
           toolCall.parameters,
@@ -487,8 +514,8 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                 <Tooltip
                   title={
                     deletableMessageIds.length > 0
-                      ? "Delete tool message"
-                      : "No persisted message to delete"
+                      ? t("components.toolSession.deleteMessage")
+                      : t("components.toolSession.noPersistedMessage")
                   }
                 >
                   <Button
@@ -496,8 +523,8 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                     size="small"
                     danger
                     icon={<DeleteOutlined />}
-                    aria-label="Delete tool message"
-                    data-testid={`delete-tool-message-${getToolItemKey(item)}`}
+                    aria-label={t("components.toolSession.deleteMessage")}
+                    data-testid={`delete-tool-message-${getToolItemTestId(item)}`}
                     disabled={deletableMessageIds.length === 0}
                     onClick={(event) => {
                       event.preventDefault();
@@ -544,7 +571,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
-  }, [tools, token]);
+  }, [tools, token, t]);
 
   const toolsList = (
     <div style={{ padding: token.paddingSM }}>

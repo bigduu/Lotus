@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Divider, Input, Space, Typography, theme } from "antd";
 import { FolderOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import type { WorkspaceValidationResult } from "../../utils/workspaceValidator";
 import { FolderBrowser } from "../FolderBrowser";
 import { useWorkspacePickerState } from "./useWorkspacePickerState";
@@ -27,7 +28,7 @@ export interface WorkspacePickerProps {
 const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   value = "",
   onChange,
-  placeholder = "e.g. /Users/alice/Workspace/MyProject",
+  placeholder,
   disabled = false,
   allowBrowse = true,
   showRecentWorkspaces = true,
@@ -36,7 +37,9 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
   className,
   style,
 }) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
+  const resolvedPlaceholder = placeholder ?? t("chat.workspace.placeholder");
   const {
     path,
     validationStatus,
@@ -63,7 +66,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
       <Input
         value={path}
         onChange={(e) => handlePathChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         disabled={disabled}
         size="middle"
         style={{ width: "100%" }}
@@ -77,14 +80,14 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
         addonBefore={
           <Space>
             <FolderOutlined />
-            <Text>Workspace</Text>
+            <Text>{t("chat.workspace.label")}</Text>
           </Space>
         }
         addonAfter={
           allowBrowse ? (
             <Button
-              aria-label="Browse folder"
-              title="Browse folder"
+              aria-label={t("chat.workspace.browseFolder")}
+              title={t("chat.workspace.browseFolder")}
               icon={<FolderOutlined />}
               onClick={handleBrowseClick}
               disabled={disabled}

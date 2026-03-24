@@ -139,7 +139,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   const restoreSessionState = useCallback(
     async (restoreFiles: boolean) => {
       if (!sessionId || !messageId) {
-        appMessage.warning("Cannot restore this message");
+        appMessage.warning(t("chat.messageActions.cannotRestore"));
         return;
       }
 
@@ -155,27 +155,33 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
         const fileErrorCount = result.file_errors?.length ?? 0;
         if (fileErrorCount > 0) {
           appMessage.warning(
-            `Chat restored. ${fileErrorCount} file(s) could not be restored.`,
+            t("chat.messageActions.restorePartial", { count: fileErrorCount }),
           );
           return;
         }
 
         if (restoreFiles) {
           appMessage.success(
-            `Files and chat restored (${result.messages_removed} message(s) removed).`,
+            t("chat.messageActions.restoreFilesSuccess", {
+              count: result.messages_removed,
+            }),
           );
         } else {
           appMessage.success(
-            `Chat restored (${result.messages_removed} message(s) removed).`,
+            t("chat.messageActions.restoreSuccess", {
+              count: result.messages_removed,
+            }),
           );
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Failed to restore session";
+          error instanceof Error
+            ? error.message
+            : t("chat.messageActions.restoreFailed");
         appMessage.error(message);
       }
     },
-    [appMessage, sessionId, loadChatHistory, messageId, refreshChats],
+    [appMessage, sessionId, loadChatHistory, messageId, refreshChats, t],
   );
 
   const onRestoreChat = useCallback(() => {

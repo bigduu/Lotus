@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Empty, Flex, List, Space, Spin, Typography } from "antd";
 import { FolderOutlined, HistoryOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import type { WorkspaceInfo } from "../../services/RecentWorkspacesManager";
 
 const { Text } = Typography;
@@ -20,13 +21,14 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
   onSelect,
   token,
 }) => {
+  const { t } = useTranslation();
   if (!show) return null;
 
   return (
     <Flex vertical gap={token.marginXS} style={{ marginTop: token.marginMD }}>
       <Space style={{ paddingInline: token.paddingSM }}>
         <HistoryOutlined />
-        <Text strong>Recent Workspaces</Text>
+        <Text strong>{t("chat.workspace.recentTitle")}</Text>
       </Space>
 
       {isLoading ? (
@@ -35,7 +37,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
         </Flex>
       ) : recentWorkspaces.length === 0 ? (
         <Empty
-          description="No recent workspaces"
+          description={t("chat.workspace.noRecentWorkspaces")}
           image={Empty.PRESENTED_IMAGE_SIMPLE}
           style={{ padding: token.paddingSM }}
         />
@@ -66,7 +68,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
                     <Text strong>
                       {workspace.workspace_name ||
                         workspace.path.split("/").pop() ||
-                        "Workspace"}
+                        t("chat.workspace.defaultWorkspaceName")}
                     </Text>
                   </Space>
                   <Text
