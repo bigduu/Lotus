@@ -3,6 +3,7 @@ import { Flex, theme } from "antd";
 import { MenuFoldOutlined } from "@ant-design/icons";
 import { Button } from "antd";
 import { Grid } from "antd";
+import { useTranslation } from "react-i18next";
 
 import SystemPromptSelector from "../SystemPromptSelector";
 import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
@@ -14,6 +15,7 @@ const { useToken } = theme;
 
 export const ChatSidebar: React.FC = () => {
   const { token } = useToken();
+  const { t } = useTranslation();
   const screens = useBreakpoint();
 
   const {
@@ -130,7 +132,7 @@ export const ChatSidebar: React.FC = () => {
         onClose={handleNewChatSelectorClose}
         onSelect={handleSystemPromptSelect}
         prompts={systemPrompts}
-        title="Create New Session - Select System Prompt"
+        title={t("chat.prompt.newSessionSelectorTitle")}
         showCancelButton={true}
       />
     </div>

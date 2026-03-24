@@ -260,7 +260,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
 
               return (
                 <div
-                  key={key}
+                  key={virtualItem.key}
                   data-chat-entry-id={key}
                   data-index={virtualItem.index}
                   ref={virtualizer.measureElement}

@@ -107,6 +107,27 @@ export const findLeafIdBySessionId = (
   return null;
 };
 
+const normalizeLeafSessionIds = (
+  leafIds: string[],
+  leafSessionIds: Record<string, string | null>,
+): Record<string, string | null> => {
+  const next: Record<string, string | null> = {};
+  const usedSessionIds = new Set<string>();
+
+  leafIds.forEach((leafId) => {
+    const mappedSessionId = leafSessionIds[leafId] ?? null;
+    if (!mappedSessionId || usedSessionIds.has(mappedSessionId)) {
+      next[leafId] = null;
+      return;
+    }
+
+    usedSessionIds.add(mappedSessionId);
+    next[leafId] = mappedSessionId;
+  });
+
+  return next;
+};
+
 const splitLeafInTree = (
   node: LayoutNode,
   leafId: string,
@@ -380,13 +401,17 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
         leafIds.includes(parsed.activeLeafId)
           ? parsed.activeLeafId
           : leafIds[0];
+      const normalizedLeafSessionIds = normalizeLeafSessionIds(
+        leafIds,
+        leafSessionIds,
+      );
 
       return {
         v: 2,
         sidebar,
         tree,
         activeLeafId,
-        leafSessionIds,
+        leafSessionIds: normalizedLeafSessionIds,
         splitSizesPx,
       };
     }
@@ -489,16 +514,38 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
         return state;
       }
 
+      const duplicatedLeafIds: string[] = [];
       uiLayoutDebug("setLeafSessionId", {
         leafId,
         fromSessionId: state.leafSessionIds[leafId] ?? null,
         toSessionId: sessionId,
+        mode: "unique_session_per_leaf",
       });
 
       const nextLeafSessionIds: Record<string, string | null> = {
         ...state.leafSessionIds,
         [leafId]: sessionId,
       };
+
+      // Enforce one-to-one mapping: one session can only be visible in one pane.
+      // Reassigning a session to a new leaf clears it from all other leaves.
+      if (sessionId) {
+        for (const id of leafIds) {
+          if (id === leafId) continue;
+          if (nextLeafSessionIds[id] === sessionId) {
+            nextLeafSessionIds[id] = null;
+            duplicatedLeafIds.push(id);
+          }
+        }
+      }
+
+      if (duplicatedLeafIds.length > 0) {
+        uiLayoutDebug("setLeafSessionId dedupe", {
+          sessionId,
+          clearedLeafIds: duplicatedLeafIds,
+          assignedLeafId: leafId,
+        });
+      }
 
       // Keep mapping limited to current leaves.
       leafIds.forEach((id) => {

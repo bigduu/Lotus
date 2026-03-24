@@ -18,6 +18,7 @@ import {
 import { ResizableSplit } from "@shared/components/ResizableSplit";
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
 import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "../ChatView/events";
+import { useTranslation } from "react-i18next";
 
 import "./styles.css";
 
@@ -27,6 +28,7 @@ const MAX_PANES = 4;
 
 const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
 
   const tree = useUILayoutStore((s) => s.tree);
   const leafSessionIds = useUILayoutStore((s) => s.leafSessionIds);
@@ -98,8 +100,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             type="text"
             icon={<BorderHorizontalOutlined />}
             disabled={!canSplit}
-            title="Split Horizontal"
-            aria-label="Split Horizontal"
+            title={t("chat.multiPane.splitHorizontal")}
+            aria-label={t("chat.multiPane.splitHorizontal")}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -117,8 +119,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             type="text"
             icon={<BorderVerticleOutlined />}
             disabled={!canSplit}
-            title="Split Vertical"
-            aria-label="Split Vertical"
+            title={t("chat.multiPane.splitVertical")}
+            aria-label={t("chat.multiPane.splitVertical")}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -135,8 +137,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             type="text"
             icon={<CheckSquareOutlined />}
             disabled={!sessionId}
-            title="Select Messages to Export"
-            aria-label="Select Messages to Export"
+            title={t("chat.multiPane.selectMessagesToExport")}
+            aria-label={t("chat.multiPane.selectMessagesToExport")}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -155,8 +157,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             danger
             icon={<CloseOutlined />}
             disabled={!canClose}
-            title="Close"
-            aria-label="Close"
+            title={t("chat.multiPane.closePane")}
+            aria-label={t("chat.multiPane.closePane")}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -185,10 +187,10 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
           style={{ height: "100%", minHeight: 0, padding: token.paddingLG }}
         >
           <div style={{ color: token.colorTextSecondary }}>
-            Select a session to start chatting
+            {t("chat.multiPane.selectSessionHint")}
           </div>
           <div style={{ color: token.colorTextTertiary, fontSize: 12 }}>
-            Hover over top-right corner to split/close
+            {t("chat.multiPane.hoverToSplitHint")}
           </div>
         </Flex>
       )}

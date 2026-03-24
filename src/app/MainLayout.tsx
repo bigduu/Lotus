@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { Button, Layout, theme } from "antd";
 import { MenuUnfoldOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { ChatSidebar } from "../pages/ChatPage/components/ChatSidebar";
 import { SystemSettingsPage } from "../pages/SettingsPage/components/SystemSettingsPage";
 import { ChatAutoTitleEffect } from "../pages/ChatPage/components/ChatAutoTitleEffect";
@@ -25,6 +26,7 @@ export const MainLayout: React.FC<{
 }> = ({ themeMode, onThemeModeChange, locale, onLocaleChange }) => {
   const settingsOpen = useSettingsViewStore((s) => s.isOpen);
   const closeSettings = useSettingsViewStore((s) => s.close);
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const mermaidSettings = useMermaidSettings();
   const isMacOS = useMemo(() => detectOS() === "macos", []);
@@ -205,8 +207,8 @@ export const MainLayout: React.FC<{
             size="small"
             icon={<MenuUnfoldOutlined />}
             onClick={() => setSidebarCollapsed(false)}
-            title="Show sidebar"
-            aria-label="Show sidebar"
+            title={t("layout.showSidebar")}
+            aria-label={t("layout.showSidebar")}
             style={{
               position: "absolute",
               top: collapsedToggleInsetTopPx,

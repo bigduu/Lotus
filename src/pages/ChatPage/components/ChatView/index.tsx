@@ -51,6 +51,7 @@ import {
   CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT,
 } from "./events";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
+import { useTranslation } from "react-i18next";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -102,6 +103,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   embedded = false,
 }) => {
   const { message: appMessage } = AntApp.useApp();
+  const { t } = useTranslation();
   const sessionId = useAppStore(
     (state) => sessionIdProp ?? state.currentSessionId,
   );
@@ -606,9 +608,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
           >
             {!selectionMode ? (
               <Flex justify="flex-end">
-                <Tooltip title="Select messages to export">
+                <Tooltip title={t("chat.selectionToolbar.selectMessages")}>
                   <Button
-                    aria-label="Select messages to export"
+                    aria-label={t("chat.selectionToolbar.selectMessages")}
                     icon={<CheckSquareOutlined />}
                     size="small"
                     onClick={handleToggleSelectionMode}
@@ -623,15 +625,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 gap={token.marginXS}
               >
                 <Text type="secondary">
-                  Selected {selectedMessages.length} /{" "}
-                  {selectableMessages.length}
+                  {t("chat.selectionToolbar.selectedCount", {
+                    selected: selectedMessages.length,
+                    total: selectableMessages.length,
+                  })}
                 </Text>
                 <Space size={token.marginXS} wrap>
                   <Button size="small" onClick={handleSelectAllMessages}>
-                    Select all
+                    {t("chat.selectionToolbar.selectAll")}
                   </Button>
                   <Button size="small" onClick={handleClearSelectedMessages}>
-                    Clear
+                    {t("chat.selectionToolbar.clear")}
                   </Button>
                   <Button
                     size="small"
@@ -641,7 +645,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     }}
                     disabled={selectedMessages.length === 0}
                   >
-                    Export MD
+                    {t("chat.selectionToolbar.exportMarkdown")}
                   </Button>
                   <Button
                     size="small"
@@ -652,14 +656,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     }}
                     disabled={selectedMessages.length === 0}
                   >
-                    Export PDF
+                    {t("chat.selectionToolbar.exportPdf")}
                   </Button>
                   <Button
                     size="small"
                     icon={<CloseOutlined />}
                     onClick={handleToggleSelectionMode}
                   >
-                    Done
+                    {t("chat.selectionToolbar.done")}
                   </Button>
                 </Space>
               </Flex>

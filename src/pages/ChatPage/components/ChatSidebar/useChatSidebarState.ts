@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Modal } from "antd";
+import { useTranslation } from "react-i18next";
 
 import {
   getChatCountByDate,
@@ -16,6 +17,7 @@ import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { openSession } from "../../utils/openSession";
 
 export const useChatSidebarState = () => {
+  const { t } = useTranslation();
   const chats = useAppStore((state) => state.chats);
   const currentSessionId = useAppStore((state) => state.currentSessionId);
   const deleteSession = useAppStore((state) => state.deleteSession);
@@ -54,7 +56,7 @@ export const useChatSidebarState = () => {
           : "");
 
       const newChatData: Omit<ChatItem, "id"> = {
-        title: title || "New Session",
+        title: title || t("chat.sidebar.newSession"),
         createdAt: Date.now(),
         messages: [],
         config: {
@@ -82,6 +84,7 @@ export const useChatSidebarState = () => {
       addChat,
       lastSelectedPromptId,
       systemPrompts,
+      t,
     ],
   );
 
@@ -186,12 +189,11 @@ export const useChatSidebarState = () => {
 
   const handleDelete = (sessionId: string) => {
     Modal.confirm({
-      title: "Delete Session",
-      content:
-        "Are you sure you want to delete this session? This action cannot be undone.",
-      okText: "Delete",
+      title: t("chat.sidebar.delete.title"),
+      content: t("chat.sidebar.delete.confirm"),
+      okText: t("common.delete"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: t("common.cancel"),
       onOk: () => {
         clearSessionFromAllLeaves(sessionId);
         deleteSession(sessionId);
@@ -222,11 +224,14 @@ export const useChatSidebarState = () => {
     const chatCount = getChatCountByDate(groupedChatsByDate, dateKey);
 
     Modal.confirm({
-      title: `Delete all sessions from ${dateKey}`,
-      content: `Are you sure you want to delete all ${chatCount} sessions from ${dateKey}? This action cannot be undone.`,
-      okText: "Delete",
+      title: t("chat.sidebar.deleteByDate.title", { date: dateKey }),
+      content: t("chat.sidebar.deleteByDate.confirm", {
+        count: chatCount,
+        date: dateKey,
+      }),
+      okText: t("common.delete"),
       okType: "danger",
-      cancelText: "Cancel",
+      cancelText: t("common.cancel"),
       onOk: () => {
         sessionIds.forEach((id) => clearSessionFromAllLeaves(id));
         deleteSessions(sessionIds);
@@ -244,22 +249,25 @@ export const useChatSidebarState = () => {
 
   const handleSystemPromptSelect = async (preset: UserSystemPrompt) => {
     try {
-      await createNewChat(`New Session - ${preset.name}`, {
-        config: {
-          systemPromptId: preset.id,
-          baseSystemPrompt: preset.content,
-          lastUsedEnhancedPrompt: null,
+      await createNewChat(
+        t("chat.sidebar.newSessionWithPrompt", { prompt: preset.name }),
+        {
+          config: {
+            systemPromptId: preset.id,
+            baseSystemPrompt: preset.content,
+            lastUsedEnhancedPrompt: null,
+          },
         },
-      });
+      );
       setIsNewChatSelectorOpen(false);
     } catch (error) {
       console.error("Failed to create chat:", error);
       Modal.error({
-        title: "Failed to Create Chat",
+        title: t("chat.sidebar.createFailedTitle"),
         content:
           error instanceof Error
             ? error.message
-            : "Unknown error, please try again",
+            : t("chat.sidebar.createFailedUnknown"),
       });
     }
   };

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
 import { Button, Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
+import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "../../store";
 import { useActiveModel } from "../../hooks/useActiveModel";
@@ -87,6 +88,7 @@ type SubSessionRetryMode = "regenerate" | "error_retry";
 export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   parentSessionId,
 }) => {
+  const { t } = useTranslation();
   const { token } = useToken();
   const activeModel = useActiveModel();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(
@@ -407,7 +409,8 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
       data-testid="sub-sessions-panel"
       title={
         <Text strong>
-          Child Sessions <Text type="secondary">({mergedItems.length})</Text>
+          {t("chat.subSessions.title")}{" "}
+          <Text type="secondary">({mergedItems.length})</Text>
         </Text>
       }
       extra={
@@ -418,7 +421,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
           onClick={toggleCollapsed}
           data-testid="sub-sessions-toggle"
         >
-          {isCollapsed ? "Expand" : "Collapse"}
+          {isCollapsed ? t("chat.subSessions.expand") : t("chat.subSessions.collapse")}
         </Button>
       }
     >
@@ -509,7 +512,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                       void loadChatHistory(it.childSessionId);
                     }}
                   >
-                    Open
+                    {t("chat.subSessions.open")}
                   </Button>
                   <Button
                     size="small"
@@ -520,7 +523,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                       void continueChildSession(it.childSessionId);
                     }}
                   >
-                    Continue
+                    {t("chat.subSessions.continue")}
                   </Button>
                   <Dropdown
                     trigger={["click"]}
@@ -528,11 +531,11 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                       items: [
                         {
                           key: "regenerate",
-                          label: "Regenerate response",
+                          label: t("chat.actions.regenerate"),
                         },
                         {
                           key: "error_retry",
-                          label: "Retry failed request",
+                          label: t("chat.actions.retryFailed"),
                         },
                       ],
                       onClick: ({ key }) => {
@@ -550,7 +553,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                       disabled={isDeleting || isRunning || isContinuing}
                       data-testid={`sub-session-retry-${it.childSessionId}`}
                     >
-                      Retry
+                      {t("chat.subSessions.retry")}
                     </Button>
                   </Dropdown>
                   {typeof it.pinned === "boolean" ? (
@@ -562,7 +565,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                         else pinSession(it.childSessionId);
                       }}
                     >
-                      {it.pinned ? "Unpin" : "Pin"}
+                      {it.pinned ? t("chat.actions.unpin") : t("chat.actions.pin")}
                     </Button>
                   ) : null}
                   <Button
@@ -575,7 +578,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                       void removeChildSession(it.childSessionId);
                     }}
                   >
-                    Delete
+                    {t("common.delete")}
                   </Button>
                 </Flex>
               </Flex>
@@ -584,7 +587,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
         </Flex>
       ) : (
         <Text type="secondary" data-testid="sub-sessions-collapsed-hint">
-          Hidden {mergedItems.length} child sessions. Click Expand to view.
+          {t("chat.subSessions.hiddenHint", { count: mergedItems.length })}
         </Text>
       )}
     </Card>

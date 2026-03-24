@@ -105,6 +105,24 @@ function isToolResultMessage(
   );
 }
 
+const getToolCallId = (item: ToolSessionItem): string =>
+  item.call.toolCalls?.[0]?.toolCallId || item.result?.toolCallId || "unknown-call";
+
+const getToolMessageScopeId = (
+  item: ToolSessionItem,
+  fallbackIndex: number,
+): string =>
+  item.call.id ||
+  item.callMessageId ||
+  item.resultMessageId ||
+  item.result?.id ||
+  `unknown-message-${fallbackIndex}`;
+
+const getToolSessionEntryId = (
+  item: ToolSessionItem,
+  fallbackIndex: number,
+): string => `tool-session-${getToolMessageScopeId(item, fallbackIndex)}:${getToolCallId(item)}`;
+
 /**
  * Split and pair tool call/result messages into per-call entries.
  *
@@ -115,7 +133,36 @@ function groupToolMessages(
   messages: Message[],
 ): Array<Message | ToolSessionItem[]> {
   const result: Array<Message | ToolSessionItem[]> = [];
-  const itemsByToolCallId = new Map<string, ToolSessionItem>();
+  const pendingItemsByToolCallId = new Map<string, ToolSessionItem[]>();
+
+  const enqueuePendingItem = (toolCallId: string, item: ToolSessionItem) => {
+    const queue = pendingItemsByToolCallId.get(toolCallId) || [];
+    queue.push(item);
+    pendingItemsByToolCallId.set(toolCallId, queue);
+  };
+
+  const consumePendingItem = (toolCallId: string): ToolSessionItem | undefined => {
+    const queue = pendingItemsByToolCallId.get(toolCallId);
+    if (!queue || queue.length === 0) {
+      return undefined;
+    }
+
+    let next: ToolSessionItem | undefined;
+    while (queue.length > 0 && !next) {
+      const candidate = queue.shift();
+      if (candidate && !candidate.result) {
+        next = candidate;
+      }
+    }
+
+    if (queue.length === 0) {
+      pendingItemsByToolCallId.delete(toolCallId);
+    } else {
+      pendingItemsByToolCallId.set(toolCallId, queue);
+    }
+
+    return next;
+  };
 
   for (const message of messages) {
     if (isToolCallMessage(message)) {
@@ -129,14 +176,14 @@ function groupToolMessages(
         const callId = toolCall.toolCallId || `${message.id}-${index}`;
         const singleCallMessage: AssistantToolCallMessage = {
           ...message,
-          id: `${message.id}:${callId}`,
+          id: `${message.id}:tool-call:${index}:${callId}`,
           toolCalls: [{ ...toolCall, toolCallId: callId }],
         };
         const item: ToolSessionItem = {
           call: singleCallMessage,
           callMessageId: message.id,
         };
-        itemsByToolCallId.set(callId, item);
+        enqueuePendingItem(callId, item);
         result.push([item]);
       });
       continue;
@@ -144,9 +191,7 @@ function groupToolMessages(
 
     if (isToolResultMessage(message)) {
       const toolCallId = message.toolCallId;
-      const existing = toolCallId
-        ? itemsByToolCallId.get(toolCallId)
-        : undefined;
+      const existing = toolCallId ? consumePendingItem(toolCallId) : undefined;
       if (existing) {
         existing.result = message;
         existing.resultMessageId = message.id;
@@ -294,14 +339,17 @@ export const useChatViewMessages = (
     grouped.forEach((group, index) => {
       if (Array.isArray(group)) {
         const firstTool = group[0];
-        const firstCall = firstTool?.call?.toolCalls?.[0];
-        const toolCallId = firstCall?.toolCallId || firstTool?.call?.id;
         entries.push({
           type: "tool_session",
-          id: `tool-session-${toolCallId || index}`,
+          id: firstTool
+            ? getToolSessionEntryId(firstTool, index)
+            : `tool-session-unknown-${index}`,
           sessionId: currentChat?.id || "default",
           tools: group,
-          createdAt: firstTool?.call?.createdAt || new Date().toISOString(),
+          createdAt:
+            firstTool?.call?.createdAt ||
+            firstTool?.result?.createdAt ||
+            new Date().toISOString(),
         });
         return;
       }
