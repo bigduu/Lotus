@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "@shared/i18n";
 
 const {
   mockGenerateTimestampedFilename,
@@ -227,7 +228,10 @@ describe("MessageExportService", () => {
       content: "render me",
     });
 
-    expect(result).toEqual({ success: false, error: "Failed to export PDF" });
+    expect(result).toEqual({
+      success: false,
+      error: i18n.t("chat.messageActions.exportFailed"),
+    });
   });
 
   it("returns saveBinaryFile errors for pdf export", async () => {

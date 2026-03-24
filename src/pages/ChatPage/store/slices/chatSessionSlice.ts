@@ -14,6 +14,7 @@ import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
 import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
 import type { AppState } from "../";
 import { useProviderStore } from "./providerSlice";
+import i18n from "../../../../shared/i18n";
 
 const AUTO_TITLE_KEY = "copilot_auto_generate_titles";
 const agentClient = AgentClient.getInstance();
@@ -87,7 +88,7 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     hasAttachments: s.has_attachments,
     lastRunStatus: s.last_run_status,
     lastRunError: s.last_run_error,
-    title: s.title || "Session",
+    title: s.title || i18n.t("chat.session.defaultTitle"),
     createdAt: createdAtMs,
     pinned: s.pinned,
     messages: [],
@@ -400,7 +401,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   subSessionsByParent: {},
 
   addChat: async (chatData) => {
-    const title = (chatData.title || "New Session").trim();
+    const title = (chatData.title || i18n.t("chat.sidebar.newSession")).trim();
     const basePrompt = chatData.config?.baseSystemPrompt?.trim() || "";
     const activeModel = useProviderStore.getState().getActiveModel()?.trim();
     const model = activeModel || undefined;
@@ -598,7 +599,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     let list = await agentClient.listSessions();
     if (!list.sessions || list.sessions.length === 0) {
       const created = await agentClient.createSession({
-        title: "New Session",
+        title: i18n.t("chat.sidebar.newSession"),
       });
       list = { sessions: [created.session] };
     }

@@ -84,4 +84,30 @@ describe("inputStateSlice", () => {
     harness.getState().clearInputState("session-1");
     expect(harness.getState().inputStates["session-1"]).toBeUndefined();
   });
+
+  it("clears pendingQuestionRespond only for the matching session", () => {
+    const harness = createSliceHarness<InputStateSlice>(createInputStateSlice as any);
+
+    harness.getState().setPendingQuestionRespond({
+      sessionId: "session-1",
+      question: "q1",
+    });
+    expect(harness.getState().pendingQuestionRespond).toMatchObject({
+      sessionId: "session-1",
+      question: "q1",
+    });
+
+    harness
+      .getState()
+      .clearPendingQuestionRespondForSession("session-2");
+    expect(harness.getState().pendingQuestionRespond).toMatchObject({
+      sessionId: "session-1",
+      question: "q1",
+    });
+
+    harness
+      .getState()
+      .clearPendingQuestionRespondForSession("session-1");
+    expect(harness.getState().pendingQuestionRespond).toBeNull();
+  });
 });

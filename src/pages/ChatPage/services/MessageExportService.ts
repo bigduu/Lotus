@@ -4,6 +4,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
+import i18n from "../../../shared/i18n";
 import { createMarkdownComponents } from "../../../shared/components/Markdown/markdownComponents";
 
 export type MessageExportFormat = "markdown" | "pdf";
@@ -96,7 +97,10 @@ export class MessageExportService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to export PDF",
+        error:
+          error instanceof Error
+            ? error.message
+            : i18n.t("chat.messageActions.exportFailed"),
       };
     }
   }
@@ -107,7 +111,7 @@ export class MessageExportService {
     // PDF export should match the markdown renderer used in MessageCard,
     // including custom code/mermaid rendering.
     if (typeof document === "undefined") {
-      throw new Error("PDF export is unavailable in this environment");
+      throw new Error(i18n.t("chat.messageActions.pdfUnavailable"));
     }
 
     const html2canvas = (await import("html2canvas")).default;
@@ -141,7 +145,7 @@ export class MessageExportService {
     overlayCard.style.borderRadius = "10px";
     overlayCard.style.padding = "12px 14px";
     overlayCard.style.boxShadow = "0 8px 24px rgba(0,0,0,0.12)";
-    overlayCard.textContent = "Exporting PDF...";
+    overlayCard.textContent = i18n.t("chat.messageActions.exportingPdf");
     overlay.appendChild(overlayCard);
 
     const container = document.createElement("div");

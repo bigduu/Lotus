@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { SystemPromptService } from "../services/SystemPromptService";
 import { UserSystemPrompt } from "../types/chat";
 
@@ -26,6 +27,7 @@ interface UseSystemPromptReturn {
 export const useSystemPrompt = (
   currentSystemPromptId?: string | null,
 ): UseSystemPromptReturn => {
+  const { t } = useTranslation();
   const [systemPromptPresets, setSystemPromptPresets] = useState<
     UserSystemPrompt[]
   >([]);
@@ -53,7 +55,9 @@ export const useSystemPrompt = (
     } catch (error) {
       console.error("Failed to load system prompt presets:", error);
       setPresetsError(
-        error instanceof Error ? error.message : "Failed to load presets",
+        error instanceof Error
+          ? error.message
+          : t("chat.prompt.loadPresetsFailed"),
       );
       setSystemPromptPresets([]);
     } finally {
@@ -78,7 +82,9 @@ export const useSystemPrompt = (
     } catch (error) {
       console.error("Failed to load current system prompt info:", error);
       setCurrentInfoError(
-        error instanceof Error ? error.message : "Failed to load current info",
+        error instanceof Error
+          ? error.message
+          : t("chat.prompt.loadCurrentInfoFailed"),
       );
       setCurrentSystemPromptInfo(null);
     } finally {
@@ -89,12 +95,12 @@ export const useSystemPrompt = (
   // Load presets on mount
   useEffect(() => {
     loadPresets();
-  }, []);
+  }, [t]);
 
   // Load current system prompt info when ID changes
   useEffect(() => {
     loadCurrentSystemPromptInfo();
-  }, [currentSystemPromptId]);
+  }, [currentSystemPromptId, t]);
 
   // Methods to expose
   const findPresetById = async (

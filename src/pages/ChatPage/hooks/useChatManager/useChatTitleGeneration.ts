@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { App as AntApp } from "antd";
+import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../store";
 import { getOpenAIClient } from "../../services/openaiClient";
 import type { AssistantTextMessage, Message } from "../../types/chat";
@@ -31,6 +32,7 @@ export function useChatTitleGeneration(
   state: ChatTitleState,
 ): UseChatTitleGeneration {
   const { message: appMessage } = AntApp.useApp();
+  const { t } = useTranslation();
 
   const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
   // Use fast/cheap model for title generation (lightweight task, max 20 tokens)
@@ -123,11 +125,11 @@ export function useChatTitleGeneration(
         }));
 
         if (options?.force) {
-          appMessage?.success?.("Chat title updated");
+          appMessage?.success?.(t("chat.title.updated"));
         }
       } catch (error) {
         const errorMessage =
-          error instanceof Error ? error.message : "Failed to generate title";
+          error instanceof Error ? error.message : t("chat.title.generateFailed");
         setTitleGenerationState((prev) => ({
           ...prev,
           [sessionId]: { status: "error", error: errorMessage },
@@ -141,7 +143,7 @@ export function useChatTitleGeneration(
         titleGenerationInFlightRef.current.delete(sessionId);
       }
     },
-    [appMessage, autoGenerateTitles, isDefaultTitle, fastModel, state],
+    [appMessage, autoGenerateTitles, isDefaultTitle, fastModel, state, t],
   );
 
   return {

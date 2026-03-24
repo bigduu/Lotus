@@ -52,6 +52,8 @@ export interface InputStateSliceActions {
   getInputState: (sessionId: string) => InputState;
   // Activate respond mode (InputContainer will submit to respond API)
   setPendingQuestionRespond: (respond: PendingQuestionRespond | null) => void;
+  // Clear respond mode only when it belongs to the given session
+  clearPendingQuestionRespondForSession: (sessionId: string) => void;
 }
 
 export type InputStateSlice = InputStateSliceState & InputStateSliceActions;
@@ -228,4 +230,14 @@ export const createInputStateSlice: StateCreator<
 
   // Set or clear pending question respond mode
   setPendingQuestionRespond: (respond) => set({ pendingQuestionRespond: respond }),
+
+  // Session-scoped clear for multi-pane safety:
+  // avoid one pane clearing another pane's pending ask_user response state.
+  clearPendingQuestionRespondForSession: (sessionId) =>
+    set((state) => {
+      if (state.pendingQuestionRespond?.sessionId !== sessionId) {
+        return {};
+      }
+      return { pendingQuestionRespond: null };
+    }),
 });

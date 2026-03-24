@@ -1,5 +1,6 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import i18n from "@shared/i18n";
 
 const mockModalInfo = vi.fn();
 const mockMessageApi = {
@@ -145,7 +146,7 @@ describe("useMessageStreaming", () => {
     expect(mockStoreState.checkAgentAvailability).toHaveBeenCalledTimes(1);
     expect(deps.addMessage).not.toHaveBeenCalled();
     expect(mockMessageApi.error).toHaveBeenCalledWith(
-      "Agent unavailable. Please try again later.",
+      i18n.t("chat.streaming.agentUnavailable"),
     );
   });
 
@@ -187,7 +188,7 @@ describe("useMessageStreaming", () => {
 
     expect(mockStoreState.setAgentAvailability).toHaveBeenCalledWith(false);
     expect(mockMessageApi.error).toHaveBeenCalledWith(
-      "Failed to send message. Please try again.",
+      i18n.t("chat.streaming.sendFailed"),
     );
   });
 

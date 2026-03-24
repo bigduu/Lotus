@@ -99,18 +99,9 @@ export const openSession = (sessionId: string, options?: OpenSessionOptions) => 
         leafId: activeLeafId,
         sessionId,
       });
-    } else if (!activeLeafSessionId) {
-      // Prefer filling empty active pane even if session is open elsewhere.
-      setLeafSessionId(activeLeafId, sessionId);
-      setActiveLeafId(activeLeafId);
-      uiLayoutDebug("openSession (decision)", {
-        action: "assign_to_empty_active_leaf",
-        fromLeafId: existingLeafId,
-        toLeafId: activeLeafId,
-        sessionId,
-      });
     } else {
-      // Focus the pane where the session already exists.
+      // Focus the pane where the session already exists to preserve
+      // one-session-per-pane mapping.
       setActiveLeafId(existingLeafId);
       uiLayoutDebug("openSession (decision)", {
         action: "focus_existing_leaf",

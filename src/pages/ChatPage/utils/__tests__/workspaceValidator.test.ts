@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
+import i18n from "@shared/i18n";
 import {
   workspaceValidator,
   useWorkspaceValidator,
@@ -30,7 +31,7 @@ describe("WorkspaceValidator", () => {
       expect(result).toEqual({
         path: "",
         is_valid: false,
-        error_message: "Path cannot be empty",
+        error_message: i18n.t("chat.workspace.errorEnterPath"),
       });
     });
 
@@ -40,7 +41,7 @@ describe("WorkspaceValidator", () => {
       expect(result).toEqual({
         path: "",
         is_valid: false,
-        error_message: "Path cannot be empty",
+        error_message: i18n.t("chat.workspace.errorEnterPath"),
       });
     });
 

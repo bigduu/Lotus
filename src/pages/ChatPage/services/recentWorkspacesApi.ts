@@ -1,4 +1,5 @@
 import type { WorkspaceInfo, WorkspaceMetadata } from "./recentWorkspacesTypes";
+import i18n from "../../../shared/i18n";
 
 export const fetchRecentWorkspaces = async (
   baseUrl: string,
@@ -90,7 +91,9 @@ export const validateWorkspacePath = async (
       path,
       is_valid: false,
       error_message:
-        error instanceof Error ? error.message : "Validation failed",
+        error instanceof Error
+          ? error.message
+          : i18n.t("chat.workspace.checkDescription"),
     };
   }
 };

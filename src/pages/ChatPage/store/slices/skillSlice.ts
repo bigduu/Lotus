@@ -1,4 +1,5 @@
 import { StateCreator } from "zustand";
+import i18n from "../../../../shared/i18n";
 import { skillService } from "../../services/SkillService";
 import type { SkillDefinition, SkillFilter } from "../../types/skill";
 import type { AppState } from "../";
@@ -36,7 +37,9 @@ export const createSkillSlice: StateCreator<AppState, [], [], SkillSlice> = (
     } catch (error) {
       set({
         skillsError:
-          error instanceof Error ? error.message : "Failed to load skills",
+          error instanceof Error
+            ? error.message
+            : i18n.t("components.skillManager.loadFailed"),
         isLoadingSkills: false,
       });
     }
@@ -59,7 +62,9 @@ export const createSkillSlice: StateCreator<AppState, [], [], SkillSlice> = (
     } catch (error) {
       set({
         skillsError:
-          error instanceof Error ? error.message : "Failed to get skill",
+          error instanceof Error
+            ? error.message
+            : i18n.t("components.skillManager.getFailed"),
         isLoadingSkills: false,
       });
     }

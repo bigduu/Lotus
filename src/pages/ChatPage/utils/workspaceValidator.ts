@@ -4,6 +4,7 @@
  */
 
 import { apiClient } from "../../../services/api";
+import i18n from "../../../shared/i18n";
 
 export interface WorkspaceValidationResult {
   path: string;
@@ -54,7 +55,7 @@ class WorkspaceValidator {
       return {
         path: "",
         is_valid: false,
-        error_message: "Path cannot be empty",
+        error_message: i18n.t("chat.workspace.errorEnterPath"),
       };
     }
 
@@ -103,7 +104,9 @@ class WorkspaceValidator {
           path,
           is_valid: false,
           error_message:
-            error instanceof Error ? error.message : "Validation failed",
+            error instanceof Error
+              ? error.message
+              : i18n.t("chat.workspace.checkDescription"),
         };
         callback(errorResult);
       }
