@@ -14,6 +14,51 @@ export interface ProviderConfig {
   };
 }
 
+export interface RequestOverridesConfig {
+  common?: RequestScopeOverride;
+  endpoints?: Record<string, RequestScopeOverride>;
+  rules?: ModelRequestRule[];
+}
+
+export interface ModelRequestRule {
+  model_pattern: string;
+  endpoint?: string;
+  scope?: RequestScopeOverride;
+}
+
+export interface RequestScopeOverride {
+  headers?: Record<string, TemplateExpr>;
+  body_patch?: BodyPatch[];
+}
+
+export interface BodyPatch {
+  path: string;
+  op?: "set" | "remove";
+  value?: PatchValue;
+}
+
+export type PatchValue = TemplateExpr | unknown;
+
+export type TemplateExpr =
+  | string
+  | {
+      type: "literal";
+      value: string;
+    }
+  | {
+      type: "env_ref";
+      name: string;
+      fallback?: string;
+    }
+  | {
+      type: "generated";
+      generator: "uuid" | "unix_ms";
+    }
+  | {
+      type: "format";
+      template: string;
+    };
+
 export interface OpenAIConfig {
   api_key: string;
   base_url?: string;
@@ -27,6 +72,7 @@ export interface OpenAIConfig {
   // Supports exact match (e.g. "gpt-5.3-codex") and a single trailing wildcard for prefix match
   // (e.g. "gpt-5*").
   responses_only_models?: string[];
+  request_overrides?: RequestOverridesConfig;
 }
 
 export interface AnthropicConfig {
@@ -39,6 +85,7 @@ export interface AnthropicConfig {
   vision_model?: string;
   reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
   max_tokens?: number;
+  request_overrides?: RequestOverridesConfig;
 }
 
 export interface GeminiConfig {
@@ -50,6 +97,7 @@ export interface GeminiConfig {
   /** Vision-capable model for image understanding tasks. Falls back to `model` when not set. */
   vision_model?: string;
   reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  request_overrides?: RequestOverridesConfig;
 }
 
 export interface CopilotConfig {
@@ -65,6 +113,7 @@ export interface CopilotConfig {
   // Supports exact match (e.g. "gpt-5.3-codex") and a single trailing wildcard for prefix match
   // (e.g. "gpt-5*").
   responses_only_models?: string[];
+  request_overrides?: RequestOverridesConfig;
 }
 
 export type ProviderType = "copilot" | "openai" | "anthropic" | "gemini";

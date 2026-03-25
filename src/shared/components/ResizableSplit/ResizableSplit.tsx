@@ -27,6 +27,39 @@ const clamp = (value: number, min: number, max: number): number =>
 const getAxisSize = (el: HTMLElement, layout: Layout): number =>
   layout === "horizontal" ? el.clientWidth : el.clientHeight;
 
+const getSplitBounds = (
+  containerSize: number,
+  minFirstPx: number,
+  minSecondPx: number,
+): {
+  minFirst: number;
+  maxFirst: number;
+  appliedMinFirst: number;
+  appliedMinSecond: number;
+} => {
+  const safeContainerSize = Math.max(0, Math.round(containerSize));
+  const safeMinFirstPx = Math.max(0, Math.round(minFirstPx));
+  const safeMinSecondPx = Math.max(0, Math.round(minSecondPx));
+
+  // If both min constraints cannot be satisfied, relax them so both panes
+  // remain visible instead of clipping one pane out of view.
+  if (safeMinFirstPx + safeMinSecondPx > safeContainerSize) {
+    return {
+      minFirst: 0,
+      maxFirst: safeContainerSize,
+      appliedMinFirst: 0,
+      appliedMinSecond: 0,
+    };
+  }
+
+  return {
+    minFirst: safeMinFirstPx,
+    maxFirst: safeContainerSize - safeMinSecondPx,
+    appliedMinFirst: safeMinFirstPx,
+    appliedMinSecond: safeMinSecondPx,
+  };
+};
+
 export const ResizableSplit: React.FC<ResizableSplitProps> = ({
   layout,
   first,
@@ -51,7 +84,8 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
 
   // During dragging we update only local state to keep it responsive.
   const [liveFirstPx, setLiveFirstPx] = useState<number | null>(null);
-  const [computedFirstPx, setComputedFirstPx] = useState<number | null>(null);
+  const [containerSize, setContainerSize] = useState(0);
+  const [computedSplitRatio, setComputedSplitRatio] = useState<number | null>(null);
 
   const persistedFirstPx = useMemo(() => {
     if (!sizesPx) return null;
@@ -59,45 +93,77 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
     return Number.isFinite(v) ? v : null;
   }, [sizesPx]);
 
-  // Compute an initial pixel split once when we don't have persisted sizes.
+  const persistedSplitRatio = useMemo(() => {
+    if (!sizesPx) return null;
+    const first = Number(sizesPx[0]);
+    const second = Number(sizesPx[1]);
+    if (!Number.isFinite(first) || !Number.isFinite(second)) return null;
+    const total = first + second;
+    // When second is 0 the caller only cares about an absolute first-pane
+    // pixel size (e.g. sidebar width).  Computing a ratio here would yield
+    // 1.0, causing the first pane to fill the entire container on the next
+    // render.  Return null so we fall back to persistedFirstPx instead.
+    if (total <= 0 || second <= 0) return null;
+    return clamp(first / total, 0, 1);
+  }, [sizesPx]);
+
+  // Measure the container so split sizes can adapt when the window changes.
   useLayoutEffect(() => {
-    if (persistedFirstPx !== null) return;
-    if (computedFirstPx !== null) {
-      return;
-    }
     const el = containerRef.current;
     if (!el) return;
-    const size = getAxisSize(el, layout);
-    if (!size) return;
+    setContainerSize(getAxisSize(el, layout));
+  }, [layout]);
 
-    const ratio = clamp(defaultSplitRatio, 0.1, 0.9);
-    const next = Math.round(size * ratio);
-    setComputedFirstPx(next);
-  }, [computedFirstPx, defaultSplitRatio, layout, persistedFirstPx]);
-
-  // Keep computed value within bounds if the container resizes a lot.
-  // This avoids negative/overflow sizes after window resize without using ResizeObserver.
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    if (persistedFirstPx !== null) return;
-    if (computedFirstPx === null) return;
 
-    const onResize = () => {
-      const size = getAxisSize(el, layout);
-      if (!size) return;
-      const maxFirst = Math.max(minFirstPx, size - minSecondPx);
-      const next = clamp(computedFirstPx, minFirstPx, maxFirst);
-      if (next !== computedFirstPx) {
-        setComputedFirstPx(next);
-      }
+    const syncContainerSize = () => {
+      const nextSize = getAxisSize(el, layout);
+      setContainerSize((prev) => (prev === nextSize ? prev : nextSize));
     };
+    syncContainerSize();
 
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [computedFirstPx, layout, minFirstPx, minSecondPx, persistedFirstPx]);
+    if (typeof ResizeObserver !== "undefined") {
+      const observer = new ResizeObserver(syncContainerSize);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
 
-  const effectiveFirstPx = liveFirstPx ?? persistedFirstPx ?? computedFirstPx ?? 0;
+    window.addEventListener("resize", syncContainerSize);
+    return () => window.removeEventListener("resize", syncContainerSize);
+  }, [layout]);
+
+  // Keep one local ratio source and sync it from persisted props when provided.
+  useEffect(() => {
+    if (persistedSplitRatio !== null) {
+      setComputedSplitRatio(persistedSplitRatio);
+      return;
+    }
+    setComputedSplitRatio((prev) => prev ?? clamp(defaultSplitRatio, 0.1, 0.9));
+  }, [defaultSplitRatio, persistedSplitRatio]);
+
+  const bounds = useMemo(
+    () => getSplitBounds(containerSize, minFirstPx, minSecondPx),
+    [containerSize, minFirstPx, minSecondPx],
+  );
+
+  const fallbackRatio = clamp(defaultSplitRatio, 0.1, 0.9);
+  const sourceRatio = computedSplitRatio ?? fallbackRatio;
+  const ratioFirstPx = containerSize > 0 ? Math.round(containerSize * sourceRatio) : null;
+  // When a valid ratio was derived from props (both sizesPx values > 0),
+  // prefer the ratio so the split adapts to container resizes.
+  // Otherwise prefer the absolute persistedFirstPx (e.g. sidebar width).
+  const rawFirstPx =
+    liveFirstPx
+    ?? (persistedSplitRatio !== null ? ratioFirstPx : null)
+    ?? persistedFirstPx
+    ?? ratioFirstPx
+    ?? 0;
+  const effectiveFirstPx =
+    containerSize > 0
+      ? clamp(rawFirstPx, bounds.minFirst, bounds.maxFirst)
+      : Math.max(0, Math.round(rawFirstPx));
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -110,7 +176,12 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
 
       const axisPos = layout === "horizontal" ? e.clientX : e.clientY;
       const containerSize = getAxisSize(el, layout);
-      const startFirst = effectiveFirstPx || Math.round(containerSize * clamp(defaultSplitRatio, 0.1, 0.9));
+      const nextBounds = getSplitBounds(containerSize, minFirstPx, minSecondPx);
+      const startFirst = clamp(
+        effectiveFirstPx || Math.round(containerSize * fallbackRatio),
+        nextBounds.minFirst,
+        nextBounds.maxFirst,
+      );
 
       dragStartRef.current = {
         pointerId: e.pointerId,
@@ -125,7 +196,7 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
         // Ignore capture errors.
       }
     },
-    [defaultSplitRatio, disabled, effectiveFirstPx, layout],
+    [disabled, effectiveFirstPx, fallbackRatio, layout, minFirstPx, minSecondPx],
   );
 
   const handlePointerMove = useCallback(
@@ -141,8 +212,12 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
       const delta = axisPos - drag.startPos;
 
       const size = drag.containerSize;
-      const maxFirst = Math.max(minFirstPx, size - minSecondPx);
-      const nextFirst = clamp(Math.round(drag.startFirstPx + delta), minFirstPx, maxFirst);
+      const nextBounds = getSplitBounds(size, minFirstPx, minSecondPx);
+      const nextFirst = clamp(
+        Math.round(drag.startFirstPx + delta),
+        nextBounds.minFirst,
+        nextBounds.maxFirst,
+      );
       setLiveFirstPx(nextFirst);
     },
     [layout, minFirstPx, minSecondPx],
@@ -156,12 +231,14 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
       const el = containerRef.current;
       const size = el ? getAxisSize(el, layout) : drag.containerSize;
       const firstPx = liveFirstPx ?? drag.startFirstPx;
-      const maxFirst = Math.max(minFirstPx, size - minSecondPx);
-      const clampedFirst = clamp(firstPx, minFirstPx, maxFirst);
-      const secondPx = Math.max(minSecondPx, size - clampedFirst);
+      const nextBounds = getSplitBounds(size, minFirstPx, minSecondPx);
+      const clampedFirst = clamp(firstPx, nextBounds.minFirst, nextBounds.maxFirst);
+      const secondPx = Math.max(0, size - clampedFirst);
 
       setLiveFirstPx(null);
-      setComputedFirstPx(clampedFirst);
+      if (size > 0) {
+        setComputedSplitRatio(clamp(clampedFirst / size, 0, 1));
+      }
       dragStartRef.current = null;
 
       onResizeEnd?.([clampedFirst, secondPx]);
@@ -209,8 +286,8 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
       <div
         style={{
           flex: `0 0 ${effectiveFirstPx}px`,
-          minWidth: isRow ? minFirstPx : 0,
-          minHeight: isRow ? 0 : minFirstPx,
+          minWidth: isRow ? bounds.appliedMinFirst : 0,
+          minHeight: isRow ? 0 : bounds.appliedMinFirst,
           overflow: "hidden",
           display: "flex",
         }}
@@ -221,8 +298,8 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
       <div
         style={{
           flex: "1 1 auto",
-          minWidth: isRow ? minSecondPx : 0,
-          minHeight: isRow ? 0 : minSecondPx,
+          minWidth: isRow ? bounds.appliedMinSecond : 0,
+          minHeight: isRow ? 0 : bounds.appliedMinSecond,
           overflow: "hidden",
           display: "flex",
         }}

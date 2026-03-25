@@ -31,6 +31,7 @@ import {
   settingsService,
   type CopilotAuthStatus,
   type DeviceCodeInfo,
+  type EnvVarResponse,
 } from "@services/config/SettingsService";
 import type {
   ProviderConfig,
@@ -105,6 +106,7 @@ export const ProviderSettings: React.FC = () => {
   >([]);
   const [modelsFetchError, setModelsFetchError] = useState<string | null>(null);
   const [hasTriedFetchModels, setHasTriedFetchModels] = useState(false);
+  const [envVarEntries, setEnvVarEntries] = useState<EnvVarResponse[]>([]);
 
   const [modelAutoSaveStatus, setModelAutoSaveStatus] = useState<
     "idle" | "saving" | "success" | "error"
@@ -190,6 +192,7 @@ export const ProviderSettings: React.FC = () => {
 
   useEffect(() => {
     loadConfig();
+    loadEnvVars();
   }, []);
 
   useEffect(() => {
@@ -221,14 +224,46 @@ export const ProviderSettings: React.FC = () => {
       }
 
       console.log("Loaded provider config:", config);
+      const providersWithEditorFields = {
+        ...(config.providers || {}),
+      } as Record<string, any>;
+      (["openai", "anthropic", "gemini", "copilot"] as ModelProvider[]).forEach(
+        (provider) => {
+          const providerCfg = providersWithEditorFields[provider];
+          if (!providerCfg) return;
+          if (
+            providerCfg.request_overrides &&
+            typeof providerCfg.request_overrides === "object"
+          ) {
+            providerCfg.request_overrides_json = JSON.stringify(
+              providerCfg.request_overrides,
+              null,
+              2,
+            );
+          }
+        },
+      );
+
       setCurrentProvider(config.provider as ProviderType);
-      form.setFieldsValue(config);
+      form.setFieldsValue({
+        ...config,
+        providers: providersWithEditorFields,
+      });
       setConfigLoaded(true);
     } catch (error) {
       message.error(t("settings.providerTab.loadConfigFailed"));
       console.error("Failed to load provider config:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEnvVars = async () => {
+    try {
+      const response = await settingsService.getEnvVars();
+      setEnvVarEntries(response.entries || []);
+    } catch (error) {
+      console.warn("Failed to load env vars for provider overrides:", error);
     }
   };
 
@@ -496,15 +531,50 @@ export const ProviderSettings: React.FC = () => {
     try {
       setLoading(true);
 
+      const normalizedValues: ProviderConfig = {
+        provider: values.provider,
+        providers: { ...(values.providers || {}) } as any,
+      };
+      for (const p of ["openai", "anthropic", "gemini", "copilot"] as const) {
+        const providerCfg = (normalizedValues.providers as any)?.[p];
+        if (!providerCfg) continue;
+
+        const rawJson = providerCfg.request_overrides_json;
+        if (typeof rawJson !== "string") continue;
+
+        const trimmed = rawJson.trim();
+        if (!trimmed) {
+          delete providerCfg.request_overrides;
+        } else {
+          try {
+            providerCfg.request_overrides = JSON.parse(trimmed);
+          } catch (error) {
+            const messageText = `Invalid request_overrides JSON for ${p}: ${(error as Error).message}`;
+            form.setFields([
+              {
+                name: ["providers", p, "request_overrides_json"],
+                errors: [messageText],
+              },
+            ]);
+            if (options?.showMessage !== false) {
+              message.error(messageText);
+            }
+            if (options?.throwOnError) throw error;
+            return;
+          }
+        }
+        delete providerCfg.request_overrides_json;
+      }
+
       // Transform frontend format to backend format
       // Frontend has: { provider, providers: { openai: {...} } }
       // Backend expects: { provider, providers: { openai: {...} } }
       const payload = {
-        provider: values.provider,
-        providers: values.providers || {},
+        provider: normalizedValues.provider,
+        providers: normalizedValues.providers || {},
       };
 
-      const validation = await validateProviderPatch(values);
+      const validation = await validateProviderPatch(normalizedValues);
       if (!validation.valid) {
         const errorMessage =
           validation.message || t("settings.providerTab.invalidConfig");
@@ -554,9 +624,7 @@ export const ProviderSettings: React.FC = () => {
       await useProviderStore.getState().loadProviderConfig();
 
       if (options?.showMessage !== false) {
-        message.success(
-          t("settings.providerTab.applyConfigSuccess"),
-        );
+        message.success(t("settings.providerTab.applyConfigSuccess"));
       }
     } catch (error) {
       const errorMessage = getErrorMessage(error);
@@ -708,7 +776,8 @@ export const ProviderSettings: React.FC = () => {
     provider: ModelProvider,
     fallbackModels: ReadonlyArray<{ value: string; label: string }>,
   ) => {
-    const models = availableModels.length > 0 ? availableModels : fallbackModels;
+    const models =
+      availableModels.length > 0 ? availableModels : fallbackModels;
     return (
       <>
         <Form.Item
@@ -791,8 +860,12 @@ export const ProviderSettings: React.FC = () => {
           {fetchingModels
             ? t("settings.providerTab.fetchingModels")
             : availableModels.length > 0
-              ? t("settings.providerTab.refreshModelsFrom", { source: sourceLabel })
-              : t("settings.providerTab.fetchModelsFrom", { source: sourceLabel })}
+              ? t("settings.providerTab.refreshModelsFrom", {
+                  source: sourceLabel,
+                })
+              : t("settings.providerTab.fetchModelsFrom", {
+                  source: sourceLabel,
+                })}
         </Button>
         {modelAutoSaveStatus === "saving" && <Spin size="small" />}
         {modelAutoSaveStatus === "success" && (
@@ -801,7 +874,8 @@ export const ProviderSettings: React.FC = () => {
         {modelAutoSaveStatus === "error" && (
           <Tooltip
             title={
-              modelAutoSaveError || t("settings.providerTab.saveModelChangeFailed")
+              modelAutoSaveError ||
+              t("settings.providerTab.saveModelChangeFailed")
             }
           >
             <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
@@ -811,7 +885,9 @@ export const ProviderSettings: React.FC = () => {
       {modelsFetchError && (
         <Space size="small">
           <Tooltip title={modelsFetchError}>
-            <Text type="danger">{t("settings.providerTab.fetchModelsFailedShort")}</Text>
+            <Text type="danger">
+              {t("settings.providerTab.fetchModelsFailedShort")}
+            </Text>
           </Tooltip>
           <Button
             size="small"
@@ -824,6 +900,64 @@ export const ProviderSettings: React.FC = () => {
       )}
     </Space>
   );
+
+  const renderRequestOverridesEditor = (provider: ModelProvider) => {
+    const envNames = envVarEntries.map((entry) => entry.name);
+    const placeholder = `{
+  "common": {
+    "headers": {
+      "x-request-id": { "type": "generated", "generator": "uuid" },
+      "x-tenant": { "type": "env_ref", "name": "TENANT_ID" }
+    }
+  },
+  "rules": [
+    {
+      "model_pattern": "gpt-5*",
+      "scope": {
+        "body_patch": [
+          { "path": "metadata.trace_id", "op": "set", "value": { "type": "generated", "generator": "uuid" } }
+        ]
+      }
+    }
+  ]
+}`;
+
+    return (
+      <Form.Item
+        name={["providers", provider, "request_overrides_json"]}
+        label="Advanced Request Overrides (JSON)"
+        extra={
+          <Space direction="vertical" size={4}>
+            <Text type="secondary">
+              Customize provider request headers/body patch rules. Supports
+              endpoint scoping and model-based rules.
+            </Text>
+            <Text type="secondary">
+              Env var injection:{" "}
+              <Text
+                code
+              >{`{ "type": "env_ref", "name": "YOUR_ENV_NAME" }`}</Text>
+            </Text>
+            {envNames.length > 0 && (
+              <Space wrap size={[6, 6]}>
+                {envNames.map((name) => (
+                  <Tag key={name}>{name}</Tag>
+                ))}
+              </Space>
+            )}
+          </Space>
+        }
+      >
+        <Input.TextArea
+          autoSize={{ minRows: 8, maxRows: 20 }}
+          placeholder={placeholder}
+          style={{
+            fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+          }}
+        />
+      </Form.Item>
+    );
+  };
 
   const renderProviderFields = () => {
     switch (currentProvider) {
@@ -908,6 +1042,7 @@ export const ProviderSettings: React.FC = () => {
 
             <Divider dashed />
             {renderRoleModelFields("openai", OPENAI_MODELS)}
+            {renderRequestOverridesEditor("openai")}
           </>
         );
 
@@ -983,6 +1118,7 @@ export const ProviderSettings: React.FC = () => {
 
             <Divider dashed />
             {renderRoleModelFields("anthropic", ANTHROPIC_MODELS)}
+            {renderRequestOverridesEditor("anthropic")}
           </>
         );
 
@@ -1051,6 +1187,7 @@ export const ProviderSettings: React.FC = () => {
 
             <Divider dashed />
             {renderRoleModelFields("gemini", GEMINI_MODELS)}
+            {renderRequestOverridesEditor("gemini")}
           </>
         );
 
@@ -1201,6 +1338,7 @@ export const ProviderSettings: React.FC = () => {
 
             <Divider dashed />
             {renderRoleModelFields("copilot", COPILOT_MODELS)}
+            {renderRequestOverridesEditor("copilot")}
 
             <Paragraph type="secondary">
               {t("settings.providerTab.copilotUsageTitle")}
@@ -1324,7 +1462,9 @@ export const ProviderSettings: React.FC = () => {
             {/* Verification URL */}
             <Card size="small">
               <Space direction="vertical" style={{ width: "100%" }}>
-                <Text type="secondary">{t("settings.providerTab.visitUrl")}</Text>
+                <Text type="secondary">
+                  {t("settings.providerTab.visitUrl")}
+                </Text>
                 <Space>
                   <Text copyable={{ text: deviceCodeInfo.verification_uri }}>
                     {deviceCodeInfo.verification_uri}
@@ -1342,7 +1482,9 @@ export const ProviderSettings: React.FC = () => {
               }}
             >
               <Space direction="vertical" style={{ width: "100%" }}>
-                <Text type="secondary">{t("settings.providerTab.enterCode")}</Text>
+                <Text type="secondary">
+                  {t("settings.providerTab.enterCode")}
+                </Text>
                 <Space>
                   <Text
                     style={{
