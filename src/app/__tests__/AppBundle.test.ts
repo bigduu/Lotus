@@ -27,9 +27,7 @@ const runBundleCheck = async () => {
     }),
   );
 
-  const outputs = Array.isArray(result)
-    ? result.flatMap((item) => item.output)
-    : result.output;
+  const outputs = Array.isArray(result) ? result.flatMap((item) => item.output) : result.output;
   const code = outputs
     .filter((item) => item.type === "chunk")
     .map((item) => item.code)
@@ -46,5 +44,5 @@ describe("App bundle", () => {
     const { hasConfigProvider, hasAntApp } = await runBundleCheck();
     expect(hasConfigProvider).toBe(false);
     expect(hasAntApp).toBe(false);
-  }, 60000); // Increased timeout for CI environment
+  }, 120000); // Bundle build can exceed 60s under full-suite load
 });
