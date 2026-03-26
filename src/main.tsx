@@ -6,7 +6,7 @@ import "@shared/i18n";
 const rootElement = document.getElementById("root");
 
 if (!rootElement) {
-  throw new Error("Missing #root element for Lotus app bootstrap");
+  throw new Error("Missing #root element for Bodhi app bootstrap");
 }
 
 const root = ReactDOM.createRoot(rootElement as HTMLElement);
@@ -17,7 +17,7 @@ const renderBootstrapError = (error: unknown) => {
       ? `${error.name}: ${error.message}`
       : String(error || "Unknown startup error");
 
-  console.error("[Lotus] Failed to bootstrap app:", error);
+  console.error("[Bodhi] Failed to bootstrap app:", error);
 
   root.render(
     <React.StrictMode>
@@ -28,8 +28,8 @@ const renderBootstrapError = (error: unknown) => {
           alignItems: "center",
           justifyContent: "center",
           padding: 24,
-          background: "#f6f6f6",
-          color: "#0f0f0f",
+          background: "var(--lotus-main-surface, #f6f6f6)",
+          color: "var(--color-gray-800, #0f0f0f)",
           fontFamily:
             "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
         }}

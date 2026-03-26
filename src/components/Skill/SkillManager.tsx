@@ -109,6 +109,7 @@ export const SkillManager = () => {
   return (
     <div style={{ padding: "24px" }}>
       <Card
+        className="lotus-settings-card"
         title={
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span>{t("components.skillManager.title")}</span>
@@ -121,7 +122,8 @@ export const SkillManager = () => {
               {t("components.skillManager.refresh")}
             </Button>
             <span
-              style={{ fontSize: "12px", color: "#8c8c8c", marginLeft: "auto" }}
+              className="lotus-settings-note"
+              style={{ fontSize: "12px", marginLeft: "auto" }}
             >
               {t("components.skillManager.lastUpdated", {
                 value: formatLastRefresh(),
@@ -130,7 +132,7 @@ export const SkillManager = () => {
           </div>
         }
       >
-        <div style={{ marginBottom: "16px", color: "#8c8c8c" }}>
+        <div className="lotus-settings-note" style={{ marginBottom: "16px" }}>
           {t("components.skillManager.readOnlyHint")}
         </div>
         {/* Filters */}

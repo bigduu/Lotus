@@ -102,7 +102,7 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
               </div>
             </div>
             {prompt.isDefault ? (
-              <Tag color="gold">{t("chat.systemPromptSelector.defaultTag")}</Tag>
+              <Tag color="warning">{t("chat.systemPromptSelector.defaultTag")}</Tag>
             ) : null}
           </Space>
 
@@ -144,13 +144,13 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
         ) : null}
 
         <Space size="small" wrap style={{ marginLeft: token.marginLG }}>
-          <Tag color="geekblue">
+          <Tag color="processing">
             {t("chat.systemPromptSelector.lines", { count: nonEmptyLineCount })}
           </Tag>
           <Tag color="purple">
             {t("chat.systemPromptSelector.words", { count: wordCount })}
           </Tag>
-          <Tag color="green">
+          <Tag color="success">
             {t("chat.systemPromptSelector.chars", { count: characterCount })}
           </Tag>
         </Space>

@@ -83,12 +83,13 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
             disabled={retryDisabled}
             title={t("chat.actions.retryOptions")}
             size="small"
+            className="lotus-secondary-button"
             style={{
-              minWidth: 36,
+              minWidth: 38,
               padding: "0 8px",
-              height: 36,
-              width: 36,
-              borderRadius: 18,
+              height: 38,
+              width: 38,
+              borderRadius: 19,
               color: token.colorTextSecondary,
             }}
           />
@@ -108,15 +109,25 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         }
         size="small"
         danger={isStreaming}
+        className={isStreaming ? "message-input-send-button" : "message-input-send-button lotus-primary-cta"}
         style={{
-          minWidth: 48,
+          minWidth: 50,
           padding: 0,
-          height: 48,
-          width: 48,
-          borderRadius: 24,
+          height: 50,
+          width: 50,
+          borderRadius: 25,
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
+          background: isStreaming
+            ? undefined
+            : "linear-gradient(135deg, var(--lotus-primary) 0%, var(--lotus-accent-secondary) 100%)",
+          border: isStreaming ? undefined : "none",
+          boxShadow: isStreaming
+            ? undefined
+            : "0 10px 24px rgba(13, 148, 136, 0.28)",
+          transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
+          transform: "scale(1)",
         }}
         title={isStreaming ? t("chat.actions.cancelRequest") : t("chat.actions.sendMessage")}
       />

@@ -47,7 +47,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
   const { token } = useToken();
 
   return (
-    <Card size="small">
+    <Card size="small" className="lotus-settings-card">
       <Space
         direction="vertical"
         size={token.marginSM}

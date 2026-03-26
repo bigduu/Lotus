@@ -405,6 +405,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   return (
     <Card
       size="small"
+      className="lotus-settings-card"
       style={{ marginBottom: token.marginMD }}
       data-testid="sub-sessions-panel"
       title={
@@ -450,10 +451,10 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                 align="flex-start"
                 justify="space-between"
                 gap={token.marginSM}
+                className="lotus-settings-list-item"
                 style={{
                   padding: token.paddingSM,
-                  border: `1px solid ${token.colorBorderSecondary}`,
-                  borderRadius: token.borderRadius,
+                  borderRadius: token.borderRadiusSM,
                 }}
               >
                 <Flex vertical style={{ flex: 1, minWidth: 0 }}>
@@ -463,18 +464,27 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                     style={{ minWidth: 0 }}
                   >
                     <Text strong ellipsis style={{ minWidth: 0 }}>
-                      {it.title || "Child Session"}{" "}
-                      <Text type="secondary">({it.childSessionId})</Text>
+                      {it.title || "Child Session"}
                     </Text>
                     <Tag
-                      color="geekblue"
+                      color={
+                        status === "running"
+                          ? "processing"
+                          : status === "completed"
+                            ? "success"
+                            : status === "error" || status === "failed"
+                              ? "error"
+                              : status === "cancelled"
+                                ? "warning"
+                                : "default"
+                      }
                       style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
                     >
-                      Child
+                      {status}
                     </Tag>
                     {it.pinned ? (
                       <Tag
-                        color="gold"
+                        color="warning"
                         style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
                       >
                         Pinned
@@ -482,16 +492,23 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                     ) : null}
                   </Flex>
 
-                  <Text type="secondary">
-                    Status: {status}
-                    {it.updatedAt ? ` • updated: ${it.updatedAt}` : ""}
+                  <Text
+                    type="secondary"
+                    style={{ fontSize: 12, marginTop: 2 }}
+                  >
+                    {it.childSessionId.slice(0, 8)}
+                    {it.updatedAt ? ` • ${it.updatedAt}` : ""}
                     {it.lastHeartbeatAt
                       ? ` • heartbeat: ${it.lastHeartbeatAt}`
                       : ""}
                   </Text>
 
                   {it.outputPreview ? (
-                    <Text style={{ marginTop: token.marginXS }} ellipsis>
+                    <Text
+                      type="secondary"
+                      style={{ marginTop: token.marginXS, fontSize: 13 }}
+                      ellipsis
+                    >
                       {it.outputPreview}
                     </Text>
                   ) : null}

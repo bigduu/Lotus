@@ -55,7 +55,7 @@ const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({
                   />
                 )}
                 <Tag
-                  color={isFolder ? "orange" : "blue"}
+                  color={isFolder ? "warning" : "processing"}
                   style={{
                     margin: 0,
                     fontFamily: token.fontFamilyCode,

@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { useThemeStore } from "@shared/store/themeStore";
 import { Collapse, Space, Button, Typography, theme, Tooltip, Tag } from "antd";
 import { ToolOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -66,6 +67,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
+  const isDark = useThemeStore((s) => s.themeMode) === "dark";
   const mcpParts = useMemo(() => parseMcpToolAlias(toolName), [toolName]);
 
   const [activeKeys, setActiveKeys] = useState<string[]>(
@@ -147,12 +149,18 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
         }
       }}
       style={{
-        backgroundColor: token.colorInfoBg,
-        borderColor: token.colorInfoBorder,
+        background: isDark
+          ? "linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(5, 150, 105, 0.06) 100%)"
+          : "linear-gradient(135deg, rgba(239, 246, 255, 0.96) 0%, rgba(250, 245, 255, 0.96) 100%)",
+        borderColor: isDark ? "rgba(13, 148, 136, 0.22)" : "rgba(13, 148, 136, 0.16)",
         borderWidth: 1,
         borderStyle: "solid",
         borderRadius: token.borderRadiusLG,
+        boxShadow: isDark ? "0 10px 24px rgba(2, 6, 23, 0.18)" : "0 10px 24px rgba(13, 148, 136, 0.08)",
+        transition: "all 0.3s ease",
+        overflow: "hidden",
       }}
+      className="tool-call-card-collapse"
       items={[
         {
           key: toolCallId,
@@ -165,12 +173,44 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                 width: "100%",
               }}
             >
-              <ToolOutlined
-                style={{ color: token.colorPrimary, flexShrink: 0 }}
-              />
+              <div
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: 12,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  background: isDark
+                    ? "linear-gradient(135deg, rgba(13, 148, 136, 0.22) 0%, rgba(5, 150, 105, 0.2) 100%)"
+                    : "linear-gradient(135deg, rgba(13, 148, 136, 0.14) 0%, rgba(5, 150, 105, 0.12) 100%)",
+                  border: isDark
+                    ? "1px solid rgba(255,255,255,0.08)"
+                    : "1px solid rgba(13,148,136,0.12)",
+                  boxShadow: isDark
+                    ? "none"
+                    : "0 8px 18px rgba(13, 148, 136, 0.12)",
+                }}
+              >
+                <ToolOutlined
+                  style={{ color: token.colorPrimary, flexShrink: 0 }}
+                />
+              </div>
               {mcpParts ? (
                 <Space size="small" wrap={false}>
-                  <Tag color="purple" style={{ marginInlineEnd: 0 }}>
+                  <Tag
+                    color="purple"
+                    style={{
+                      marginInlineEnd: 0,
+                      borderRadius: 999,
+                      paddingInline: 8,
+                      fontWeight: 700,
+                      boxShadow: isDark
+                        ? "none"
+                        : "0 4px 12px rgba(139, 92, 246, 0.14)",
+                    }}
+                  >
                     MCP
                   </Tag>
                   <Text strong style={{ color: token.colorText }}>
@@ -210,6 +250,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                   </Text>
                   <div
                     ref={liveOutputScrollRef}
+                    className="lotus-code-surface"
                     style={{
                       marginTop: token.marginXS,
                       borderRadius: token.borderRadiusSM,
@@ -315,6 +356,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                     maxHeight: 400,
                     overflow: "auto",
                   }}
+                  className="lotus-code-surface"
                   codeTagProps={{
                     style: {
                       whiteSpace: "pre-wrap",

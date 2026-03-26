@@ -38,13 +38,13 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   const color = getUsageColor(usage);
 
   const getProgressStrokeColor = () => {
-    if (percentage >= 90) return "#ff4d4f";
-    if (percentage >= 70) return "#faad14";
-    return "#52c41a";
+    if (percentage >= 90) return "var(--lotus-chart-danger)";
+    if (percentage >= 70) return "var(--lotus-chart-accent)";
+    return "var(--lotus-chart-secondary)";
   };
 
   const tooltipContent = (
-    <div style={{ minWidth: 180 }}>
+    <div style={{ minWidth: 180, color: "var(--lotus-metric-text-strong)" }}>
       <div style={{ marginBottom: 4, fontWeight: "bold" }}>
         {t("components.tokenUsage.title")}
       </div>
@@ -52,14 +52,14 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
         {formatTokenCount(usage.totalTokens)} /{" "}
         {formatTokenCount(usage.budgetLimit)} {t("components.tokenUsage.tokens")}
       </div>
-      <div style={{ fontSize: 12, color: "#888" }}>
+      <div style={{ fontSize: 12, color: "var(--lotus-metric-text-muted)" }}>
         {t("components.tokenUsage.usedPercent", { value: percentage.toFixed(1) })}
       </div>
       {showDetails && (
         <div
           style={{
             marginTop: 6,
-            borderTop: "1px solid #ddd",
+            borderTop: "1px solid var(--lotus-metric-tooltip-border)",
             paddingTop: 6,
             fontSize: 11,
           }}
@@ -101,12 +101,12 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
             fontSize: size === "small" ? 11 : 12,
             color:
               color === "error"
-                ? "#ff4d4f"
+                ? "var(--lotus-chart-danger)"
                 : color === "warning"
-                  ? "#faad14"
-                  : "#52c41a",
+                  ? "var(--lotus-chart-accent)"
+                  : "var(--lotus-chart-secondary)",
             whiteSpace: "nowrap",
-            fontWeight: 500,
+            fontWeight: 600,
           }}
         >
           {percentage.toFixed(0)}%
@@ -130,13 +130,13 @@ export const TokenUsageBadge: React.FC<{
   const getBadgeColor = () => {
     switch (color) {
       case "error":
-        return "#ff4d4f";
+        return "var(--lotus-chart-danger)";
       case "warning":
-        return "#faad14";
+        return "var(--lotus-chart-accent)";
       case "success":
-        return "#52c41a";
+        return "var(--lotus-chart-secondary)";
       default:
-        return "#bfbfbf";
+        return "var(--lotus-metric-text-muted)";
     }
   };
 

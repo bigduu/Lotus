@@ -1,4 +1,5 @@
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useThemeStore } from "@shared/store/themeStore";
 import { App as AntApp, Card, Dropdown, Flex, Grid, Space, theme } from "antd";
 import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
@@ -72,6 +73,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   const refreshChats = useAppStore((state) => state.refreshChats);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState<boolean>(false);
+  const isDark = useThemeStore((s) => s.themeMode) === "dark";
 
   // Select only the boolean we need, not the whole Set
   const isProcessing = useAppStore((state) => {
@@ -312,15 +314,37 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
             margin: "0 auto",
             background:
               role === "user"
-                ? token.colorPrimaryBg
+                ? isDark
+                  ? "linear-gradient(135deg, rgba(13, 148, 136, 0.14) 0%, rgba(5, 150, 105, 0.12) 100%)"
+                  : "linear-gradient(135deg, rgba(240, 253, 250, 0.98) 0%, rgba(204, 251, 241, 0.88) 100%)"
                 : role === "assistant"
-                  ? token.colorBgLayout
+                  ? isDark
+                    ? "linear-gradient(180deg, rgba(15, 23, 42, 0.8) 0%, rgba(11, 16, 28, 0.72) 100%)"
+                    : "linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 255, 0.82) 100%)"
                   : token.colorBgContainer,
+            backdropFilter: "blur(14px)",
+            WebkitBackdropFilter: "blur(14px)",
+            border:
+              role === "user"
+                ? isDark
+                  ? "1px solid rgba(45, 212, 191, 0.24)"
+                  : "1px solid rgba(13, 148, 136, 0.18)"
+                : `1px solid ${isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.72)"}`,
             borderRadius: token.borderRadiusLG,
-            boxShadow: "none",
+            boxShadow: isHovering
+              ? "0 20px 40px rgba(15, 23, 42, 0.12), 0 8px 18px rgba(13, 148, 136, 0.10)"
+              : role === "user"
+                ? "0 12px 28px rgba(13, 148, 136, 0.10), 0 4px 12px rgba(15, 23, 42, 0.05)"
+                : "0 10px 26px rgba(15, 23, 42, 0.08), 0 3px 10px rgba(15, 23, 42, 0.04)",
             position: "relative",
             wordWrap: "break-word",
             overflowWrap: "break-word",
+            transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
+            transform: isHovering ? "translateY(-2px) scale(1.002)" : "none",
+            overflow: "hidden",
+          }}
+          bodyStyle={{
+            padding: token.paddingMD,
           }}
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}

@@ -49,12 +49,12 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
 
   return (
     <Flex vertical gap={tabGap}>
-      <Card size="small">
+      <Card size="small" className="lotus-settings-card">
         <Suspense fallback={<Spin size="small" />}>
           <SystemPromptManager />
         </Suspense>
       </Card>
-      <Card size="small">
+      <Card size="small" className="lotus-settings-card">
         <Space
           direction="vertical"
           size={token.marginXS}

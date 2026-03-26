@@ -1,5 +1,6 @@
 import React from "react";
 import { Button } from "antd";
+import { WarningOutlined, BulbOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 interface MermaidChartErrorProps {
@@ -64,7 +65,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
             lineHeight: 1,
           }}
         >
-          ⚠️
+          <WarningOutlined />
         </span>
         <span
           style={{
@@ -146,7 +147,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
           fontStyle: "italic",
         }}
       >
-        💡 {t("components.mermaid.checkConsoleHint")}
+        <BulbOutlined style={{ marginRight: 4 }} /> {t("components.mermaid.checkConsoleHint")}
       </div>
     </div>
   );

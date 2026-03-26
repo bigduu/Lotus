@@ -1,6 +1,6 @@
 .setup-page {
   min-height: 100vh;
-  background: #f0f2f5;
+  background: var(--lotus-main-surface);
   padding: 20px;
 }
 

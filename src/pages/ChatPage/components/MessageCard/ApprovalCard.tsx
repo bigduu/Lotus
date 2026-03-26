@@ -9,7 +9,7 @@ import {
   Tag,
   Flex,
 } from "antd";
-import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, ToolOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 const { Text, Title } = Typography;
@@ -60,7 +60,8 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
       <Space direction="vertical" style={{ width: "100%" }} size="middle">
         <Flex vertical>
           <Title level={5} style={{ margin: 0, color: token.colorInfo }}>
-            🔧 {t("components.approval.executionRequest")}
+            <ToolOutlined style={{ marginRight: 6 }} />
+            {t("components.approval.executionRequest")}
           </Title>
           <Space align="center" size="small">
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
@@ -70,10 +71,10 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
               <Tag
                 color={
                   data.approval_status === "approved"
-                    ? "green"
+                    ? "success"
                     : data.approval_status === "rejected"
-                      ? "red"
-                      : "gold"
+                      ? "error"
+                      : "warning"
                 }
               >
                 {data.approval_status.toUpperCase()}

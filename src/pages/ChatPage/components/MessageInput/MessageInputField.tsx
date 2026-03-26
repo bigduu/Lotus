@@ -109,12 +109,13 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
         autoSize={{ minRows: 3, maxRows: 8 }}
         variant="borderless"
         onScroll={onScrollSync}
+        className="lotus-message-input-field"
         style={{
           resize: "none",
           flex: 1,
           fontSize: token.fontSize,
-          padding: "4px 2px",
-          lineHeight: "1.5",
+          padding: "6px 4px",
+          lineHeight: "1.65",
           border: "none",
           outline: "none",
           background: "transparent",

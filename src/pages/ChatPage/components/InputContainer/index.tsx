@@ -888,7 +888,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
                   : t("chat.input.toolSpecificModeLabel")}
               </span>
               {autoToolPrefix && (
-                <Tag color="blue">
+                <Tag color="processing">
                   <ToolOutlined />{" "}
                   {t("chat.input.autoPrefixLabel", { prefix: autoToolPrefix })}
                 </Tag>
@@ -900,7 +900,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
               <Space wrap>
                 <span>{t("chat.input.allowedTools")}</span>
                 {allowedTools.map((tool: string) => (
-                  <Tag key={tool} color="green">
+                  <Tag key={tool} color="success">
                     /{tool}
                   </Tag>
                 ))}

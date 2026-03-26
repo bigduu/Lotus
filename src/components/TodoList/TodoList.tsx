@@ -57,7 +57,8 @@ interface TaskListPanelProps {
 }
 
 // Status configuration
-const statusConfig: Record<
+// Status configuration factory – uses Ant Design theme tokens for dark/light safety
+const getStatusConfig = (token: any): Record<
   TaskItem["status"],
   {
     icon: React.ReactNode;
@@ -65,32 +66,32 @@ const statusConfig: Record<
     textKey: string;
     tagColor: string;
   }
-> = {
+> => ({
   pending: {
     icon: <ClockCircleOutlined />,
-    color: "#8c8c8c",
+    color: token.colorTextTertiary,
     textKey: "components.todoList.status.pending",
     tagColor: "default",
   },
   in_progress: {
     icon: <SyncOutlined spin />,
-    color: "#1890ff",
+    color: token.colorPrimary,
     textKey: "components.todoList.status.inProgress",
     tagColor: "processing",
   },
   completed: {
     icon: <CheckCircleOutlined />,
-    color: "#52c41a",
+    color: token.colorSuccess,
     textKey: "components.todoList.status.completed",
     tagColor: "success",
   },
   blocked: {
     icon: <ExclamationCircleOutlined />,
-    color: "#ff4d4f",
+    color: token.colorError,
     textKey: "components.todoList.status.blocked",
     tagColor: "error",
   },
-};
+});
 
 export const TodoList: React.FC<TaskListPanelProps> = ({
   sessionId,
@@ -98,6 +99,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
+  const statusConfig = React.useMemo(() => getStatusConfig(token), [token]);
   const sessionSummary = useAppStore((state) =>
     state.chats.find((chat) => chat.id === sessionId),
   );
@@ -203,7 +205,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
             <Badge
               count={`${progress.completed}/${progress.total}`}
               style={{
-                backgroundColor: isCompleted ? "#52c41a" : token.colorPrimary,
+                backgroundColor: isCompleted ? token.colorSuccess : token.colorPrimary,
               }}
             />
           )}
@@ -216,7 +218,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
               {progress.completed}/{progress.total}
               {isCompleted && (
                 <CheckCircleOutlined
-                  style={{ color: "#52c41a", marginLeft: 4 }}
+                  style={{ color: token.colorSuccess, marginLeft: 4 }}
                 />
               )}
             </Text>
@@ -339,7 +341,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
                             {/* Tool calls count */}
                             {item.tool_calls_count !== undefined &&
                               item.tool_calls_count > 0 && (
-                                <Tag icon={<ToolOutlined />} color="blue">
+                                <Tag icon={<ToolOutlined />} color="processing">
                                   {item.tool_calls_count}{" "}
                                   {t("components.todoList.tools")}
                                 </Tag>

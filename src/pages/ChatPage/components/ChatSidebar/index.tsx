@@ -64,8 +64,8 @@ export const ChatSidebar: React.FC = () => {
       style={{
         width: "100%",
         height: "100%",
-        background: token.colorFillTertiary,
-        borderRight: "none",
+        background: "transparent",
+        borderRight: `1px solid ${token.colorBorderSecondary}`,
         position: "relative",
         overflow: "hidden",
         display: "flex",
@@ -77,8 +77,8 @@ export const ChatSidebar: React.FC = () => {
         justify="flex-end"
         style={{
           flexShrink: 0,
-          padding: "8px 12px 0 12px",
-          minHeight: 34,
+          padding: "10px 12px 2px 12px",
+          minHeight: 40,
         }}
       >
         <Button
@@ -86,6 +86,7 @@ export const ChatSidebar: React.FC = () => {
           icon={<MenuFoldOutlined />}
           onClick={() => setCollapsed(true)}
           size={screens.xs ? "small" : "middle"}
+          className="lotus-toolbar-icon"
         />
       </Flex>
 
@@ -95,7 +96,7 @@ export const ChatSidebar: React.FC = () => {
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          padding: "8px 12px 0 12px",
+          padding: "10px 12px 0 12px",
         }}
       >
         <ChatSidebarDateGroups

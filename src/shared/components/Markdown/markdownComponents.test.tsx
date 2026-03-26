@@ -12,10 +12,10 @@ const token = {
   paddingXS: 4,
   paddingSM: 8,
   padding: 8,
-  colorPrimary: "#1677ff",
+  colorPrimary: "#0d9488",
   colorPrimaryBg: "#e6f4ff",
   colorTextSecondary: "#999999",
-  colorLink: "#1677ff",
+  colorLink: "#0d9488",
   colorBgContainer: "#ffffff",
   colorBorder: "#d9d9d9",
 };

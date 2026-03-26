@@ -118,3 +118,185 @@
     margin: 0;
   }
 }
+
+/* Sidebar Date Group Hover Effect */
+.chat-sidebar-date-group-header:hover {
+  background: rgba(204, 251, 241, 0.92) !important;
+}
+.chat-sidebar-date-group-header:hover .chat-sidebar-date-group-delete {
+  opacity: 1 !important;
+}
+[data-theme="dark"] .chat-sidebar-date-group-header:hover {
+  background: rgba(30, 41, 59, 0.88) !important;
+}
+
+.tool-call-card-collapse:hover {
+  box-shadow: 0 12px 28px rgba(13, 148, 136, 0.14) !important;
+  border-color: rgba(13, 148, 136, 0.32) !important;
+  transform: translateY(-1px);
+}
+
+.tool-call-card-collapse .ant-collapse-header {
+  align-items: center !important;
+}
+
+.tool-call-card-collapse .ant-tag {
+  border: none;
+}
+
+[data-theme="dark"] .tool-call-card-collapse:hover {
+  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.26) !important;
+  background: linear-gradient(135deg, rgba(13, 148, 136, 0.1) 0%, rgba(5, 150, 105, 0.08) 100%) !important;
+}
+
+/* ── Animations ─────────────────────────────────────────────────── */
+
+/* Message entrance — fade-in with subtle vertical motion */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.messageEnter {
+  animation: messageSlideIn 0.3s ease-out;
+}
+
+/* Streaming card entrance — softer rise */
+@keyframes streamingEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.streaming-card-enter {
+  animation: streamingEnter 0.25s ease-out both;
+}
+
+/* Send button micro-interactions */
+.message-input-send-button:hover:not(:disabled) {
+  transform: scale(1.05) !important;
+  box-shadow: 0 6px 20px rgba(13, 148, 136, 0.35) !important;
+}
+
+.message-input-send-button:active:not(:disabled) {
+  transform: scale(0.95) !important;
+}
+
+/* ── Sidebar chat item animations ───────────────────────────────── */
+
+/* Subtle fade for new chat items in sidebar */
+@keyframes sidebarItemEnter {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.sidebar-item-enter {
+  animation: sidebarItemEnter 0.22s ease-out both;
+}
+
+/* ── Settings card entrance ─────────────────────────────────────── */
+@keyframes settingsCardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.settings-card-enter {
+  animation: settingsCardEnter 0.3s ease-out both;
+}
+
+/* ── Tool call collapse expand/collapse ─────────────────────────── */
+.tool-call-card-collapse {
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.22s ease;
+}
+
+/* ── Thinking shimmer — continuous left-to-right highlight sweep ── */
+@keyframes thinkingShimmer {
+  0% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: 0% center;
+  }
+}
+
+.thinking-shimmer {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    currentColor 0%,
+    currentColor 30%,
+    rgba(45, 212, 191, 0.85) 50%,
+    currentColor 70%,
+    currentColor 100%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinkingShimmer 4s linear infinite;
+}
+
+/* Dark mode: brighter highlight */
+body[data-theme="dark"] .thinking-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(226, 232, 240, 0.7) 0%,
+    rgba(226, 232, 240, 0.7) 30%,
+    rgba(94, 234, 212, 1) 50%,
+    rgba(226, 232, 240, 0.7) 70%,
+    rgba(226, 232, 240, 0.7) 100%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: thinkingShimmer 4s linear infinite;
+}
+
+/* ── Reduced motion — disable all custom animations ─────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .messageEnter,
+  .streaming-card-enter,
+  .sidebar-item-enter,
+  .settings-card-enter,
+  .thinking-shimmer {
+    animation: none !important;
+  }
+
+  .thinking-shimmer {
+    background: none !important;
+    -webkit-text-fill-color: unset !important;
+  }
+
+  .tool-call-card-collapse,
+  .message-input-send-button {
+    transition: none !important;
+    transform: none !important;
+  }
+}

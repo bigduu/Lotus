@@ -85,6 +85,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
     <Card
       size="small"
       title={<Text strong>{t("settings.networkCard.title")}</Text>}
+      className="lotus-settings-card"
     >
       <Space
         direction="vertical"
@@ -128,6 +129,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
         <Card
           size="small"
           title={t("settings.networkCard.proxyAuthTitle")}
+          className="lotus-settings-card"
           style={{ marginTop: token.marginSM }}
         >
           {proxyAuthStatus?.configured ? (

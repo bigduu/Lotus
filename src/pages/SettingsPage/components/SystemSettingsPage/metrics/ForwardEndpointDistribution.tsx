@@ -28,7 +28,11 @@ const ForwardEndpointDistribution: React.FC<
 
   if (loading) {
     return (
-      <Card size="small" title={t("settings.charts.endpointDistribution")}>
+      <Card
+        size="small"
+        className="lotus-metric-card"
+        title={t("settings.charts.endpointDistribution")}
+      >
         <div style={{ width: "100%", height: 240 }}>
           <div
             style={{
@@ -48,7 +52,11 @@ const ForwardEndpointDistribution: React.FC<
 
   if (data.length === 0) {
     return (
-      <Card size="small" title={t("settings.charts.endpointDistribution")}>
+      <Card
+        size="small"
+        className="lotus-metric-card"
+        title={t("settings.charts.endpointDistribution")}
+      >
         <div
           style={{
             display: "flex",
@@ -65,14 +73,18 @@ const ForwardEndpointDistribution: React.FC<
   }
 
   const chartData = data.map((item) => ({
-    endpoint: item.endpoint.split(".").pop() || item.endpoint, // Get last part of endpoint name
+    endpoint: item.endpoint.split(".").pop() || item.endpoint,
     requests: item.requests,
     successful: item.successful,
     failed: item.failed,
   }));
 
   return (
-    <Card size="small" title={t("settings.charts.endpointDistribution")}>
+    <Card
+      size="small"
+      className="lotus-metric-card"
+      title={t("settings.charts.endpointDistribution")}
+    >
       <div style={{ width: "100%", height: 240 }}>
         <ResponsiveContainer>
           <BarChart data={chartData}>
@@ -88,16 +100,16 @@ const ForwardEndpointDistribution: React.FC<
             <Legend />
             <Bar
               dataKey="successful"
-              fill="#52c41a"
+              fill="var(--lotus-chart-secondary)"
               name={t("settings.common.successful")}
-              fillOpacity={0.8}
+              fillOpacity={0.9}
               radius={[4, 4, 0, 0]}
             />
             <Bar
               dataKey="failed"
-              fill="#ff7875"
+              fill="var(--lotus-chart-danger)"
               name={t("settings.common.failed")}
-              fillOpacity={0.8}
+              fillOpacity={0.9}
               radius={[4, 4, 0, 0]}
             />
           </BarChart>

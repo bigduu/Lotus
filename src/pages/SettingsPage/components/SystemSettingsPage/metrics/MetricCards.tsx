@@ -56,39 +56,43 @@ const MetricCards: React.FC<MetricCardsProps> = ({
   return (
     <Row gutter={[token.marginSM, token.marginSM]}>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.totalSessions")}
             value={summary?.total_sessions ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-chart-primary)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.chatTokens")}
             value={summary?.total_tokens.total_tokens ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-metric-text-strong)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.totalToolCalls")}
             value={summary?.total_tool_calls ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-chart-purple)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.avgSessionDuration")}
             value={
               averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"
             }
+            valueStyle={{ color: "var(--lotus-chart-accent)" }}
           />
         </Card>
       </Col>

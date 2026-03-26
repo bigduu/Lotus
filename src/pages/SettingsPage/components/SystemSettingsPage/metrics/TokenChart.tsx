@@ -29,14 +29,22 @@ const TokenChart: React.FC<TokenChartProps> = ({ data, loading }) => {
   const { t } = useTranslation();
   if (loading) {
     return (
-      <Card size="small" title={t("settings.charts.tokenUsageOverTime")}>
+      <Card
+        size="small"
+        className="lotus-metric-card"
+        title={t("settings.charts.tokenUsageOverTime")}
+      >
         <Skeleton active paragraph={{ rows: 5 }} />
       </Card>
     );
   }
 
   return (
-    <Card size="small" title={t("settings.charts.tokenUsageOverTime")}>
+    <Card
+      size="small"
+      className="lotus-metric-card"
+      title={t("settings.charts.tokenUsageOverTime")}
+    >
       {data.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -59,22 +67,24 @@ const TokenChart: React.FC<TokenChartProps> = ({ data, loading }) => {
                   type="monotone"
                   dataKey="totalTokens"
                   name={t("settings.charts.total")}
-                  stroke="#1677ff"
-                  strokeWidth={2}
+                  stroke="var(--lotus-chart-primary)"
+                  strokeWidth={2.5}
                   dot={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="promptTokens"
                   name={t("settings.charts.prompt")}
-                  stroke="#52c41a"
+                  stroke="var(--lotus-chart-secondary)"
+                  strokeWidth={2}
                   dot={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="completionTokens"
                   name={t("settings.charts.completion")}
-                  stroke="#fa8c16"
+                  stroke="var(--lotus-chart-accent)"
+                  strokeWidth={2}
                   dot={false}
                 />
               </LineChart>

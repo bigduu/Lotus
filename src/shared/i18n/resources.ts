@@ -233,7 +233,7 @@ export const resources = {
           selectModelBeforeRetry: "Please select a model before retrying.",
         },
         streaming: {
-          assistant: "Assistant",
+          assistant: "Bodhi",
           requestCancelled: "Request cancelled",
           sendFailed: "Failed to send message",
           retryFailed: "Failed to retry request",
@@ -1699,7 +1699,7 @@ export const resources = {
           selectModelBeforeRetry: "重试前请先选择模型。",
         },
         streaming: {
-          assistant: "助手",
+          assistant: "Bodhi",
           requestCancelled: "请求已取消",
           sendFailed: "发送消息失败",
           retryFailed: "重试请求失败",

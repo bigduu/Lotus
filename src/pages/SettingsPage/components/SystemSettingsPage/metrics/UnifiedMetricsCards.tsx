@@ -80,26 +80,27 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
     <Row gutter={[token.marginSM, token.marginSM]}>
       {/* Combined Overview */}
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.totalRequests")}
             value={combinedSummary?.total_requests ?? 0}
             precision={0}
-            valueStyle={{ color: token.colorPrimary }}
+            valueStyle={{ color: "var(--lotus-chart-primary)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.totalTokens")}
             value={combinedSummary?.total_tokens ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-metric-text-strong)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.successRate")}
             value={successRate}
@@ -107,99 +108,108 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
             valueStyle={{
               color:
                 Number(successRate) >= 95
-                  ? "#52c41a"
+                  ? "var(--lotus-chart-secondary)"
                   : Number(successRate) >= 80
-                    ? "#faad14"
-                    : "#ff4d4f",
+                    ? "var(--lotus-chart-accent)"
+                    : "var(--lotus-chart-danger)",
             }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.avgResponseTime")}
             value={formatDuration(avgForwardDuration)}
+            valueStyle={{ color: "var(--lotus-chart-cyan)" }}
           />
         </Card>
       </Col>
 
       {/* Chat Metrics */}
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.chatSessions")}
             value={chatSummary?.total_sessions ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-chart-primary)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.chatTokens")}
             value={chatSummary?.total_tokens.total_tokens ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-metric-text-strong)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.toolCalls")}
             value={chatSummary?.total_tool_calls ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-chart-purple)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.avgSessionDuration")}
             value={
               averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"
             }
+            valueStyle={{ color: "var(--lotus-chart-accent)" }}
           />
         </Card>
       </Col>
 
       {/* Forward Metrics */}
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.forwardRequests")}
             value={forwardSummary?.total_requests ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-chart-primary)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.forwardTokens")}
             value={forwardSummary?.total_tokens.total_tokens ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-metric-text-strong)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.successful")}
             value={forwardSummary?.successful_requests ?? 0}
             precision={0}
-            valueStyle={{ color: "#52c41a" }}
+            valueStyle={{ color: "var(--lotus-chart-secondary)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.failed")}
             value={forwardSummary?.failed_requests ?? 0}
             precision={0}
             valueStyle={{
-              color: forwardSummary?.failed_requests ? "#ff4d4f" : undefined,
+              color: forwardSummary?.failed_requests
+                ? "var(--lotus-chart-danger)"
+                : undefined,
             }}
           />
         </Card>

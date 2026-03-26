@@ -53,16 +53,17 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
   return (
     <Row gutter={[token.marginSM, token.marginSM]}>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.forwardMetricsCards.totalForwardRequests")}
             value={summary?.total_requests ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-chart-primary)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.forwardMetricsCards.successRate")}
             value={successRate}
@@ -70,28 +71,30 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
             valueStyle={{
               color:
                 Number(successRate) >= 95
-                  ? "#52c41a"
+                  ? "var(--lotus-chart-secondary)"
                   : Number(successRate) >= 80
-                    ? "#faad14"
-                    : "#ff4d4f",
+                    ? "var(--lotus-chart-accent)"
+                    : "var(--lotus-chart-danger)",
             }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.forwardMetricsCards.forwardTokens")}
             value={summary?.total_tokens.total_tokens ?? 0}
             precision={0}
+            valueStyle={{ color: "var(--lotus-metric-text-strong)" }}
           />
         </Card>
       </Col>
       <Col xs={24} sm={12} xl={6}>
-        <Card size="small">
+        <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.forwardMetricsCards.avgResponseTime")}
             value={formatDuration(summary?.avg_duration_ms)}
+            valueStyle={{ color: "var(--lotus-chart-cyan)" }}
           />
         </Card>
       </Col>

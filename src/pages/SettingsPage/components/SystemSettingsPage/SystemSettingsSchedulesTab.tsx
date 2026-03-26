@@ -237,7 +237,7 @@ export default function SystemSettingsSchedulesTab() {
     <Flex vertical gap={16}>
       {contextHolder}
 
-      <Card title={t("settings.schedulesTab.createTitle")}>
+      <Card title={t("settings.schedulesTab.createTitle")} className="lotus-settings-card">
         <Form
           form={form}
           layout="vertical"
@@ -352,6 +352,7 @@ export default function SystemSettingsSchedulesTab() {
 
       <Card
         title={t("settings.schedulesTab.listTitle")}
+        className="lotus-settings-card"
         extra={
           <Button onClick={() => refresh()} loading={loading}>
             {t("settings.schedulesTab.actions.refresh")}

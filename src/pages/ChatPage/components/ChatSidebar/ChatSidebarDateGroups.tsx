@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
+import { useThemeStore } from "@shared/store/themeStore";
 import { Button, Empty, Flex, List, Space } from "antd";
 import {
-  CalendarOutlined,
   DeleteOutlined,
   DownOutlined,
   RightOutlined,
@@ -56,6 +56,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   token,
 }) => {
   const { t } = useTranslation();
+  const isDark = useThemeStore((s) => s.themeMode) === "dark";
 
   const groups = useMemo(() => {
     if (!sortedDateKeys.length) {
@@ -121,7 +122,27 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             <Flex
               align="center"
               justify="space-between"
-              style={{ cursor: "pointer" }}
+              style={{ 
+                cursor: "pointer",
+                padding: "8px 12px",
+                borderRadius: token.borderRadiusSM,
+                transition: "all 0.2s ease",
+                border: "1px solid transparent"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = isDark 
+                  ? "rgba(30, 41, 59, 0.88)" 
+                  : "rgba(204, 251, 241, 0.92)";
+                e.currentTarget.style.borderColor = "rgba(13, 148, 136, 0.28)";
+                const btn = e.currentTarget.querySelector('.chat-sidebar-date-group-delete') as HTMLElement;
+                if (btn) btn.style.opacity = '1';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.borderColor = "transparent";
+                const btn = e.currentTarget.querySelector('.chat-sidebar-date-group-delete') as HTMLElement;
+                if (btn) btn.style.opacity = '0';
+              }}
               onClick={() => {
                 const next = new Set(expanded);
                 if (next.has(dateKey)) {
@@ -131,18 +152,20 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 }
                 onCollapseChange(Array.from(next));
               }}
+              className="chat-sidebar-date-group-header"
             >
               <Flex align="center" gap="small" style={{ minWidth: 0 }}>
-                {isExpanded ? <DownOutlined /> : <RightOutlined />}
-                <CalendarOutlined />
+                {isExpanded ? <DownOutlined style={{ fontSize: 12, opacity: 0.6 }} /> : <RightOutlined style={{ fontSize: 12, opacity: 0.6 }} />}
                 <span
                   style={{
-                    fontSize: 14,
-                    fontWeight: 600,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
                     color:
                       dateKey === "Today"
-                        ? token.colorPrimary
-                        : token.colorText,
+                        ? "var(--lotus-primary)"
+                        : token.colorTextSecondary,
                     minWidth: 0,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -157,7 +180,12 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 type="text"
                 size="small"
                 icon={<DeleteOutlined />}
-                style={{ color: token.colorTextTertiary }}
+                className="chat-sidebar-date-group-delete"
+                style={{ 
+                  color: token.colorTextTertiary, 
+                  opacity: 0,
+                  transition: "opacity 0.2s ease"
+                }}
                 onClick={(event) => {
                   event.stopPropagation();
                   onDeleteByDate(dateKey);

@@ -165,11 +165,11 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       width: 100,
       render: (_: unknown, record: EnvVarResponse) =>
         record.secret ? (
-          <Tag color="orange" icon={<LockOutlined />}>
+          <Tag color="warning" icon={<LockOutlined />}>
             {t("settings.envVars.secret", "Secret")}
           </Tag>
         ) : (
-          <Tag color="blue">{t("settings.envVars.plain", "Plain")}</Tag>
+          <Tag color="processing">{t("settings.envVars.plain", "Plain")}</Tag>
         ),
     },
     {
@@ -224,6 +224,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
   return (
     <div style={{ maxWidth: 900 }}>
       <Card
+        className="lotus-settings-card"
         title={t("settings.envVars.title", "Environment Variables")}
         extra={
           <Button

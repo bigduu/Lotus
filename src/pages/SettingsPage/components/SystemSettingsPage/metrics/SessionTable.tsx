@@ -46,13 +46,13 @@ const formatDuration = (durationMs?: number | null): string => {
 const statusColor = (status: SessionMetrics["status"]): string => {
   switch (status) {
     case "completed":
-      return "green";
+      return "success";
     case "running":
-      return "blue";
+      return "processing";
     case "error":
-      return "red";
+      return "error";
     case "cancelled":
-      return "orange";
+      return "warning";
     default:
       return "default";
   }
@@ -155,6 +155,7 @@ const SessionTable: React.FC<SessionTableProps> = ({
     <Table
       rowKey="session_id"
       size="small"
+      className="lotus-metric-table"
       columns={columns}
       loading={loading}
       dataSource={sessions}

@@ -1,5 +1,6 @@
 import React from "react";
 import { Spin, Tag, theme } from "antd";
+import { FolderOutlined, ThunderboltOutlined, ApiOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useCommandSelectorState } from "./useCommandSelectorState";
 import type { CommandItem } from "../../types/command";
@@ -18,21 +19,21 @@ interface CommandSelectorProps {
 
 const TYPE_CONFIG = {
   workflow: {
-    color: "blue",
-    icon: "📁",
+    color: "blue" as const,
+    icon: <FolderOutlined />,
     labelKey: "chat.commandSelector.types.workflow",
   },
   skill: {
-    color: "green",
-    icon: "⚡",
+    color: "green" as const,
+    icon: <ThunderboltOutlined />,
     labelKey: "chat.commandSelector.types.skill",
   },
   mcp: {
-    color: "purple",
-    icon: "🔌",
+    color: "purple" as const,
+    icon: <ApiOutlined />,
     labelKey: "chat.commandSelector.types.mcp",
   },
-} as const;
+};
 
 const CommandSelector: React.FC<CommandSelectorProps> = ({
   visible,
@@ -152,7 +153,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
           </div>
           <div style={{ display: "flex", gap: token.marginXS }}>
             {command.type === "mcp" && mcpServerLabel && (
-              <Tag color="geekblue">{mcpServerLabel}</Tag>
+              <Tag color="processing">{mcpServerLabel}</Tag>
             )}
             <Tag color={typeConfig.color}>
               {typeConfig.icon} {t(typeConfig.labelKey)}

@@ -1,5 +1,6 @@
 import React from "react";
 import { Spin, theme } from "antd";
+import { FolderOutlined, GlobalOutlined } from "@ant-design/icons";
 import { useWorkflowSelectorState } from "./useWorkflowSelectorState";
 
 const { useToken } = theme;
@@ -163,7 +164,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
                 borderRadius: token.borderRadiusXS,
               }}
             >
-              {workflow.source === "workspace" ? "📁 Workspace" : "🌐 Global"}
+              {workflow.source === "workspace" ? <><FolderOutlined /> Workspace</> : <><GlobalOutlined /> Global</>}
             </div>
           </div>
           <div

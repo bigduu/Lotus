@@ -152,7 +152,7 @@ export const createMarkdownComponents = (
   ),
 
   thead: ({ children }) => (
-    <thead style={{ backgroundColor: token.colorBgContainer }}>
+    <thead style={{ backgroundColor: token.colorFillTertiary, color: token.colorText }}>
       {children}
     </thead>
   ),

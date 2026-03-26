@@ -27,14 +27,22 @@ const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({
   const { t } = useTranslation();
   if (loading) {
     return (
-      <Card size="small" title={t("settings.charts.unifiedTokenUsageOverTime")}>
+      <Card
+        size="small"
+        className="lotus-metric-card"
+        title={t("settings.charts.unifiedTokenUsageOverTime")}
+      >
         <Skeleton active paragraph={{ rows: 5 }} />
       </Card>
     );
   }
 
   return (
-    <Card size="small" title={t("settings.charts.unifiedTokenUsageOverTime")}>
+    <Card
+      size="small"
+      className="lotus-metric-card"
+      title={t("settings.charts.unifiedTokenUsageOverTime")}
+    >
       {data.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -57,22 +65,24 @@ const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({
                   type="monotone"
                   dataKey="total_tokens"
                   name={t("settings.charts.total")}
-                  stroke="#1677ff"
-                  strokeWidth={2}
+                  stroke="var(--lotus-chart-primary)"
+                  strokeWidth={2.5}
                   dot={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="chat_tokens"
                   name={t("settings.charts.chat")}
-                  stroke="#52c41a"
+                  stroke="var(--lotus-chart-secondary)"
+                  strokeWidth={2}
                   dot={false}
                 />
                 <Line
                   type="monotone"
                   dataKey="forward_tokens"
                   name={t("settings.charts.forward")}
-                  stroke="#fa8c16"
+                  stroke="var(--lotus-chart-accent)"
+                  strokeWidth={2}
                   dot={false}
                 />
               </LineChart>

@@ -1,5 +1,7 @@
-import React, { memo, useState } from "react";
-import { List, Button, Input, Tag, Tooltip, theme } from "antd";
+import React, { memo, useState, useCallback } from "react";
+import { useThemeStore } from "@shared/store/themeStore";
+import { List, Button, Input, Tag, Dropdown, theme } from "antd";
+import type { MenuProps } from "antd";
 import {
   DeleteOutlined,
   PushpinFilled,
@@ -9,6 +11,7 @@ import {
   CloseOutlined,
   BulbOutlined,
   LoadingOutlined,
+  MoreOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { ChatItem as ChatItemType } from "../../types/chat";
@@ -42,46 +45,121 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(chat.title);
   const [isHovered, setIsHovered] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const { token } = theme.useToken();
-  const selectedBackgroundColor = token.colorFillSecondary;
-  const selectedBorderColor = token.colorBorder;
-  const selectedTitleColor = token.colorText;
+  const isDark = useThemeStore((s) => s.themeMode) === "dark";
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onDelete(chat.id);
-  };
+  const handleSave = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (onEdit && editValue.trim()) {
+        onEdit(chat.id, editValue.trim());
+      }
+      setIsEditing(false);
+    },
+    [chat.id, editValue, onEdit],
+  );
 
-  const handleEdit = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setIsEditing(true);
-  };
+  const handleCancel = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setEditValue(chat.title);
+      setIsEditing(false);
+    },
+    [chat.title],
+  );
 
-  const handleSave = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (onEdit && editValue.trim()) {
-      onEdit(chat.id, editValue.trim());
-    }
-    setIsEditing(false);
-  };
-
-  const handleCancel = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditValue(chat.title);
-    setIsEditing(false);
-  };
+  // Build dropdown menu items
+  const menuItems: MenuProps["items"] = [
+    {
+      key: "pin",
+      icon: chat.pinned ? (
+        <PushpinFilled style={{ color: token.colorWarning }} />
+      ) : (
+        <PushpinOutlined />
+      ),
+      label: chat.pinned ? t("chat.actions.unpin") : t("chat.actions.pin"),
+      onClick: ({ domEvent }) => {
+        domEvent.stopPropagation();
+        chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
+      },
+    },
+    {
+      key: "edit",
+      icon: <EditOutlined />,
+      label: t("chat.chatItem.edit"),
+      onClick: ({ domEvent }) => {
+        domEvent.stopPropagation();
+        setIsEditing(true);
+      },
+    },
+    ...(onGenerateTitle
+      ? [
+          {
+            key: "generate-title",
+            icon: isGeneratingTitle ? (
+              <LoadingOutlined />
+            ) : (
+              <BulbOutlined
+                style={
+                  titleGenerationError ? { color: token.colorError } : undefined
+                }
+              />
+            ),
+            label: titleGenerationError || t("chat.actions.generateTitle"),
+            disabled: isGeneratingTitle,
+            onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
+              domEvent.stopPropagation();
+              onGenerateTitle(chat.id);
+            },
+          },
+        ]
+      : []),
+    { type: "divider" as const },
+    {
+      key: "delete",
+      icon: <DeleteOutlined />,
+      label: t("common.delete"),
+      danger: true,
+      onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
+        domEvent.stopPropagation();
+        onDelete(chat.id);
+      },
+    },
+  ];
 
   // Dynamic style calculation
   const itemStyle: React.CSSProperties = {
-    padding: token.paddingXS,
+    padding: "8px 12px",
     borderRadius: token.borderRadiusSM,
     marginBottom: token.marginXXS,
     cursor: "pointer",
-    transition: "background-color 0.2s ease",
-    backgroundColor: isSelected ? selectedBackgroundColor : "transparent",
-    borderLeft: isSelected
-      ? `3px solid ${selectedBorderColor}`
-      : "3px solid transparent",
+    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    backgroundColor: isSelected
+      ? isDark
+        ? "rgba(13, 148, 136, 0.24)"
+        : "rgba(13, 148, 136, 0.16)"
+      : isHovered || dropdownOpen
+        ? isDark
+          ? "rgba(30, 41, 59, 0.82)"
+          : "rgba(226, 232, 240, 0.86)"
+        : "transparent",
+    border: "1px solid transparent",
+    borderColor: isSelected
+      ? "rgba(13, 148, 136, 0.36)"
+      : isHovered || dropdownOpen
+        ? isDark
+          ? "rgba(148, 163, 184, 0.22)"
+          : "rgba(148, 163, 184, 0.28)"
+        : "transparent",
+    position: "relative",
+    overflow: "visible",
+    boxShadow: isSelected
+      ? isDark
+        ? "none"
+        : "0 2px 6px rgba(13, 148, 136, 0.08)"
+      : "none",
+    transform: isHovered && !isSelected ? "translateX(2px)" : "none",
   };
 
   const titleStyle: React.CSSProperties = {
@@ -89,9 +167,9 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    fontSize: token.fontSizeSM,
-    fontWeight: isSelected ? token.fontWeightStrong : "normal",
-    color: isSelected ? selectedTitleColor : token.colorText,
+    fontSize: 13,
+    fontWeight: isSelected ? 600 : 500,
+    color: isSelected ? "var(--lotus-primary)" : token.colorText,
   };
 
   const editInputStyle: React.CSSProperties = {
@@ -100,122 +178,65 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     marginRight: token.marginSM,
   };
 
-  // Build List.Item actions - only show when hovered or editing
+  // Show save/cancel when editing, or "⋯" dropdown when hovered
   const actions =
-    isHovered || isEditing
+    isEditing
       ? [
-          // Pin/Unpin button
-          <Tooltip
-            key="pin"
-            title={chat.pinned ? t("chat.actions.unpin") : t("chat.actions.pin")}
-          >
-            <Button
-              type="text"
-              size="small"
-              icon={
-                chat.pinned ? (
-                  <PushpinFilled style={{ color: token.colorWarning }} />
-                ) : (
-                  <PushpinOutlined />
-                )
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                chat.pinned ? onUnpin(chat.id) : onPin(chat.id);
-              }}
-              style={{
-                opacity: chat.pinned ? 1 : undefined, // Always show when pinned
-              }}
-            />
-          </Tooltip>,
-
-          // Edit related buttons
-          ...(isEditing
-            ? [
-                <Tooltip key="save" title={t("common.save")}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={
-                      <CheckOutlined style={{ color: token.colorSuccess }} />
-                    }
-                    onClick={handleSave}
-                  />
-                </Tooltip>,
-                <Tooltip key="cancel" title={t("common.cancel")}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<CloseOutlined style={{ color: token.colorError }} />}
-                    onClick={handleCancel}
-                  />
-                </Tooltip>,
-              ]
-            : [
-                <Tooltip key="edit" title={t("chat.chatItem.edit")}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<EditOutlined />}
-                    onClick={handleEdit}
-                  />
-                </Tooltip>,
-                ...(onGenerateTitle
-                  ? [
-                      <Tooltip
-                        key="generate-title"
-                        title={titleGenerationError || t("chat.actions.generateTitle")}
-                        color={
-                          titleGenerationError ? token.colorError : undefined
-                        }
-                      >
-                        <Button
-                          type="text"
-                          size="small"
-                          data-testid="generate-title-button"
-                          icon={
-                            isGeneratingTitle ? (
-                              <LoadingOutlined />
-                            ) : (
-                              <BulbOutlined
-                                style={
-                                  titleGenerationError
-                                    ? { color: token.colorError }
-                                    : undefined
-                                }
-                              />
-                            )
-                          }
-                          disabled={isGeneratingTitle}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onGenerateTitle(chat.id);
-                          }}
-                        />
-                      </Tooltip>,
-                    ]
-                  : []),
-              ]),
-
-          // Delete button
-          <Tooltip key="delete" title={t("common.delete")}>
-            <Button
-              type="text"
-              size="small"
-              icon={<DeleteOutlined />}
-              onClick={handleDelete}
-              style={{ color: token.colorTextTertiary }}
-            />
-          </Tooltip>,
+          <Button
+            key="save"
+            type="text"
+            size="small"
+            icon={<CheckOutlined style={{ color: token.colorSuccess }} />}
+            onClick={handleSave}
+          />,
+          <Button
+            key="cancel"
+            type="text"
+            size="small"
+            icon={<CloseOutlined style={{ color: token.colorError }} />}
+            onClick={handleCancel}
+          />,
         ]
-      : [];
+      : isHovered || dropdownOpen
+        ? [
+            <Dropdown
+              key="more"
+              menu={{ items: menuItems }}
+              trigger={["click"]}
+              placement="bottomRight"
+              open={dropdownOpen}
+              onOpenChange={(open) => setDropdownOpen(open)}
+            >
+              <Button
+                type="text"
+                size="small"
+                icon={<MoreOutlined />}
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  color: token.colorTextSecondary,
+                  borderRadius: token.borderRadiusSM,
+                  background: isDark
+                    ? "rgba(255, 255, 255, 0.08)"
+                    : "rgba(0, 0, 0, 0.06)",
+                  width: 24,
+                  height: 24,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              />
+            </Dropdown>,
+          ]
+        : [];
 
   return (
     <List.Item
       style={itemStyle}
       onClick={() => !isEditing && onSelect(chat.id)}
       onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      onMouseLeave={() => {
+        if (!dropdownOpen) setIsHovered(false);
+      }}
       actions={actions}
       data-testid="chat-item"
     >
@@ -245,6 +266,15 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                 minWidth: 0,
               }}
             >
+              {chat.pinned && (
+                <PushpinFilled
+                  style={{
+                    color: token.colorWarning,
+                    fontSize: 11,
+                    flexShrink: 0,
+                  }}
+                />
+              )}
               <span
                 style={{
                   minWidth: 0,
@@ -257,7 +287,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               </span>
               {chat.kind === "child" ? (
                 <Tag
-                  color="geekblue"
+                  color="processing"
                   style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
                 >
                   {t("chat.chatItem.childTag")}
@@ -276,8 +306,6 @@ const arePropsEqual = (
   prevProps: ChatItemProps,
   nextProps: ChatItemProps,
 ): boolean => {
-  // Return true if props are equal (skip re-render)
-  // Return false if props are different (re-render)
   return (
     prevProps.chat.id === nextProps.chat.id &&
     prevProps.chat.title === nextProps.chat.title &&

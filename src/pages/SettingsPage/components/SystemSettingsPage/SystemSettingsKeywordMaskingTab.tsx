@@ -219,6 +219,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
 
   return (
     <Card
+      className="lotus-settings-card"
       title={t("settings.keywordMaskingTab.title")}
       extra={
         <Button

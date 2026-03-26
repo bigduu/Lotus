@@ -183,7 +183,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
                       <Text strong>{option.label}</Text>
                       {option.value === question.default && (
                         <Tag
-                          color="blue"
+                          color="processing"
                           style={{ marginLeft: token.marginXS }}
                         >
                           {t("components.question.recommended")}

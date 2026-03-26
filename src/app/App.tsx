@@ -9,6 +9,7 @@ import { useTranslation } from "react-i18next";
 import "./App.css";
 import "@shared/i18n";
 import { MainLayout } from "./MainLayout";
+import { useThemeStore } from "@shared/store/themeStore";
 import { SetupPage } from "../pages/SetupPage";
 import { initializeStore } from "../pages/ChatPage/store";
 import { ServiceFactory } from "../services/common/ServiceFactory";
@@ -23,43 +24,102 @@ import {
 
 const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
 const LIGHT_THEME_TOKEN = {
-  // Light mode neutral palette tuned for stronger contrast.
-  colorPrimary: "#7a828a",
-  colorPrimaryHover: "#8a9198",
-  colorPrimaryActive: "#676f77",
-  colorInfo: "#7a828a",
-  colorLink: "#565d65",
-  colorLinkHover: "#68707a",
-  colorLinkActive: "#474d55",
-  colorText: "#1f2429",
-  colorTextSecondary: "#4b525a",
-  colorTextTertiary: "#646c75",
-  colorTextDisabled: "#818a95",
+  // Brand primary — Bodhi teal (zen / nature)
+  colorPrimary: "#0d9488",
+  colorPrimaryHover: "#14b8a6",
+  colorPrimaryActive: "#0f766e",
+  colorInfo: "#0d9488",
+  colorLink: "#0d9488",
+  colorLinkHover: "#14b8a6",
+  colorLinkActive: "#0f766e",
+  colorSuccess: "#10b981",
+  colorWarning: "#f59e0b",
+  colorError: "#ef4444",
+
+  // Text colors — calmer premium contrast
+  colorText: "#0f172a",
+  colorTextSecondary: "#475569",
+  colorTextTertiary: "#64748b",
+  colorTextDisabled: "#94a3b8",
   colorTextLightSolid: "#ffffff",
-  colorBorder: "#bcc3cb",
-  colorBorderSecondary: "#c9cfd6",
-  colorFill: "#d9dee3",
-  colorFillSecondary: "#e6eaee",
-  colorFillTertiary: "#edf0f3",
-  colorFillQuaternary: "#f2f4f7",
-  colorBgLayout: "#eff2f5",
-  borderRadius: 6,
+
+  // Borders
+  colorBorder: "#d1e3e0",
+  colorBorderSecondary: "#e2f0ee",
+
+  // Fills & Backgrounds
+  colorFill: "#f0fdfa",
+  colorFillSecondary: "#f7fdfb",
+  colorFillTertiary: "rgba(255, 255, 255, 0.82)",
+  colorFillQuaternary: "transparent",
+  colorBgLayout: "#f0fdfa",
+  colorBgContainer: "rgba(255, 255, 255, 0.82)",
+  colorBgElevated: "rgba(255, 255, 255, 0.9)",
+  colorBgSpotlight: "rgba(13, 148, 136, 0.16)",
+  colorPrimaryBg: "#f0fdfa",
+  colorPrimaryBgHover: "#ccfbf1",
+  colorPrimaryBorder: "#99f6e4",
+
+  // Shape
+  borderRadius: 10,
+  borderRadiusLG: 18,
+  borderRadiusSM: 10,
+
+  // Shadows
+  boxShadow: "0 12px 36px rgba(15, 118, 110, 0.10), 0 6px 18px rgba(15, 23, 42, 0.06)",
+  boxShadowSecondary: "0 20px 48px rgba(15, 118, 110, 0.12), 0 8px 24px rgba(15, 23, 42, 0.08)",
 };
+
 const DARK_THEME_TOKEN = {
-  colorPrimary: "#8f8f8f",
-  colorInfo: "#8f8f8f",
-  colorLink: "#c5c5c5",
-  colorLinkHover: "#d7d7d7",
-  colorLinkActive: "#a6a6a6",
-  borderRadius: 6,
+  // Brand primary — Bodhi teal for dark mode
+  colorPrimary: "#2dd4bf",
+  colorPrimaryHover: "#5eead4",
+  colorPrimaryActive: "#0d9488",
+  colorInfo: "#2dd4bf",
+  colorLink: "#2dd4bf",
+  colorLinkHover: "#5eead4",
+  colorLinkActive: "#0d9488",
+  colorSuccess: "#34d399",
+  colorWarning: "#fbbf24",
+  colorError: "#f87171",
+
+  // Text colors for dark mode
+  colorText: "#e5edf8",
+  colorTextSecondary: "#b7c4d6",
+  colorTextTertiary: "#8d9bb0",
+  colorTextDisabled: "#627085",
+
+  // Borders
+  colorBorder: "rgba(255, 255, 255, 0.10)",
+  colorBorderSecondary: "rgba(255, 255, 255, 0.06)",
+
+  // Fills & Backgrounds
+  colorFill: "#0c1a17",
+  colorFillSecondary: "#091412",
+  colorFillTertiary: "rgba(15, 23, 42, 0.74)",
+  colorFillQuaternary: "transparent",
+  colorBgLayout: "#070e0c",
+  colorBgContainer: "rgba(11, 22, 18, 0.76)",
+  colorBgElevated: "rgba(15, 30, 25, 0.9)",
+  colorBgSpotlight: "rgba(13, 148, 136, 0.20)",
+  colorPrimaryBg: "rgba(13, 148, 136, 0.14)",
+  colorPrimaryBgHover: "rgba(13, 148, 136, 0.18)",
+  colorPrimaryBorder: "rgba(45, 212, 191, 0.28)",
+
+  // Shape
+  borderRadius: 10,
+  borderRadiusLG: 18,
+  borderRadiusSM: 10,
+
+  // Shadows
+  boxShadow: "0 16px 40px rgba(2, 6, 23, 0.42), 0 8px 20px rgba(15, 23, 42, 0.24)",
+  boxShadowSecondary: "0 24px 56px rgba(2, 6, 23, 0.5), 0 10px 28px rgba(15, 23, 42, 0.28)",
 };
 
 function App() {
   const { t } = useTranslation();
-  const [themeMode, setThemeMode] = useState<"light" | "dark">(() => {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY);
-    return (saved as "light" | "dark") || "light";
-  });
+  const themeMode = useThemeStore((s) => s.themeMode);
+  const setThemeMode = useThemeStore((s) => s.setThemeMode);
   const [appLocale, setAppLocale] = useState<AppLocale>(() =>
     resolveInitialLocale(),
   );

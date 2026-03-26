@@ -1,4 +1,5 @@
 import React, { useRef, useMemo } from "react";
+import { useThemeStore } from "@shared/store/themeStore";
 import { Flex, message, theme } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { useTranslation } from "react-i18next";
@@ -95,6 +96,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textAreaRef = externalTextAreaRef || internalTextAreaRef; // Use external ref if provided
   const highlightOverlayRef = useRef<HTMLDivElement>(null);
   const { token } = theme.useToken();
+  const isDark = useThemeStore((s) => s.themeMode) === "dark";
   const [messageApi, contextHolder] = message.useMessage();
   const charCount = value.length;
   const hasCharLimit =
@@ -186,17 +188,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
       {/* Input Container with Drag & Drop */}
       <div
+        className={`message-input-container lotus-message-input-shell ${isDragOver ? "is-drag-over" : ""}`}
         style={{
           position: "relative",
           border: `1px solid ${
-            isDragOver ? token.colorPrimary : token.colorBorderSecondary
+            isDragOver
+              ? "rgba(13, 148, 136, 0.42)"
+              : isDark
+                ? "rgba(255, 255, 255, 0.14)"
+                : "rgba(255, 255, 255, 0.88)"
           }`,
-          borderRadius: 28,
-          backgroundColor: isDragOver
-            ? token.colorPrimaryBgHover
-            : token.colorBgElevated,
-          boxShadow: token.boxShadowSecondary,
-          transition: "all 0.2s ease",
+          borderRadius: 26,
+          background: isDragOver
+            ? isDark
+              ? "linear-gradient(180deg, rgba(30, 41, 59, 0.92) 0%, rgba(15, 23, 42, 0.84) 100%)"
+              : "linear-gradient(180deg, rgba(220, 252, 246, 0.96) 0%, rgba(204, 251, 241, 0.92) 100%)"
+            : isDark
+              ? "linear-gradient(180deg, rgba(15, 23, 42, 0.84) 0%, rgba(11, 16, 28, 0.76) 100%)"
+              : "linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 255, 0.88) 100%)",
+          backdropFilter: "blur(18px)",
+          WebkitBackdropFilter: "blur(18px)",
+          boxShadow: isDark
+            ? "0 22px 44px rgba(2, 6, 23, 0.32), 0 8px 20px rgba(15, 23, 42, 0.22)"
+            : "0 20px 40px rgba(13, 148, 136, 0.12), 0 8px 18px rgba(15, 23, 42, 0.06)",
+          transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
           width: "100%",
           padding: `${token.paddingSM}px`,
           overflow: "hidden",

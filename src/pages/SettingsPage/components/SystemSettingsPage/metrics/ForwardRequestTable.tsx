@@ -55,7 +55,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       key: "endpoint",
       width: 150,
       render: (value: string) => (
-        <Tag color="blue">{value.split(".").pop() || value}</Tag>
+        <Tag color="processing">{value.split(".").pop() || value}</Tag>
       ),
     },
     {
@@ -70,7 +70,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       key: "is_stream",
       width: 80,
       render: (value: boolean) => (
-        <Tag color={value ? "purple" : "cyan"}>
+        <Tag color={value ? "purple" : "processing"}>
           {value
             ? t("settings.metricsTable.forward.typeStream")
             : t("settings.metricsTable.forward.typeSync")}
@@ -132,7 +132,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       key: "started_at",
       width: 160,
       render: (value: string) => (
-        <Text style={{ fontSize: 12 }}>{formatTimestamp(value)}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>{formatTimestamp(value)}</Text>
       ),
     },
     {
@@ -154,6 +154,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
   return (
     <Table
       rowKey="forward_id"
+      className="lotus-metric-table"
       columns={columns}
       dataSource={requests}
       loading={loading}

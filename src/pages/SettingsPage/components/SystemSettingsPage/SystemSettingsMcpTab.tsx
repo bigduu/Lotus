@@ -34,11 +34,11 @@ const { TextArea } = Input;
 type ImportMode = "merge" | "replace";
 
 const statusColorMap: Record<ServerStatus, string> = {
-  [ServerStatus.Connecting]: "blue",
-  [ServerStatus.Ready]: "green",
-  [ServerStatus.Degraded]: "orange",
+  [ServerStatus.Connecting]: "processing",
+  [ServerStatus.Ready]: "success",
+  [ServerStatus.Degraded]: "warning",
   [ServerStatus.Stopped]: "default",
-  [ServerStatus.Error]: "red",
+  [ServerStatus.Error]: "error",
 };
 
 const makeStatusCounters = (): Record<ServerStatus, number> => ({

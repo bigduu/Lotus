@@ -7,29 +7,33 @@
   overflow-y: auto;
   z-index: 1000;
   margin-bottom: 4px;
+  border-radius: var(--lotus-radius-sm, 12px);
+  backdrop-filter: blur(var(--lotus-blur-sm, 12px));
+  -webkit-backdrop-filter: blur(var(--lotus-blur-sm, 12px));
 }
 
 .command-selector-item {
-  padding: 8px 16px;
+  padding: 10px 16px;
   cursor: pointer;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
-  transition: background-color 0.2s;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  transition: background-color 0.18s ease-out, box-shadow 0.18s ease-out;
 }
 
 .command-selector-item:last-child {
   border-bottom: none;
 }
 
+/* Light mode — teal-tinted hover */
 .command-selector-item.selected {
-  background-color: rgba(22, 119, 255, 0.08);
+  background-color: rgba(204, 251, 241, 0.72);
 }
 
 .command-selector-item:hover {
-  background-color: rgba(0, 0, 0, 0.02);
+  background-color: rgba(240, 253, 250, 0.88);
 }
 
 .command-selector-item.selected:hover {
-  background-color: rgba(22, 119, 255, 0.12);
+  background-color: rgba(153, 246, 228, 0.56);
 }
 
 .command-selector-item-header {
@@ -44,12 +48,13 @@
   font-family: monospace;
   font-size: 13px;
   flex-shrink: 0;
+  color: var(--lotus-primary, #0d9488);
 }
 
 .command-selector-item-description {
   font-size: 13px;
   margin-top: 4px;
-  line-height: 1.4;
+  line-height: 1.5;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -60,6 +65,7 @@
 .command-selector-item-category {
   font-size: 12px;
   margin-top: 4px;
+  opacity: 0.7;
 }
 
 .command-selector-item-tags {
@@ -72,25 +78,24 @@
 .command-selector-item-tags .ant-tag {
   margin: 0;
   font-size: 11px;
-  padding: 0 4px;
+  padding: 0 6px;
   line-height: 18px;
+  border-radius: 4px;
 }
 
-/* Dark mode adjustments */
-@media (prefers-color-scheme: dark) {
-  .command-selector-item {
-    border-bottom-color: rgba(255, 255, 255, 0.06);
-  }
+/* Dark mode — teal-tinted accents for consistency */
+[data-theme="dark"] .command-selector-item {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
 
-  .command-selector-item:hover {
-    background-color: rgba(255, 255, 255, 0.02);
-  }
+[data-theme="dark"] .command-selector-item:hover {
+  background-color: rgba(13, 148, 136, 0.12);
+}
 
-  .command-selector-item.selected {
-    background-color: rgba(22, 119, 255, 0.15);
-  }
+[data-theme="dark"] .command-selector-item.selected {
+  background-color: rgba(13, 148, 136, 0.18);
+}
 
-  .command-selector-item.selected:hover {
-    background-color: rgba(22, 119, 255, 0.2);
-  }
+[data-theme="dark"] .command-selector-item.selected:hover {
+  background-color: rgba(13, 148, 136, 0.24);
 }

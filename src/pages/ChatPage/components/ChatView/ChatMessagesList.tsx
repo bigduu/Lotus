@@ -272,7 +272,9 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  {renderEntry(entry)}
+                  <div className="messageEnter">
+                    {renderEntry(entry)}
+                  </div>
                 </div>
               );
             })}
@@ -289,7 +291,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
             {renderableMessages.map((entry) => {
               const key = entryKey(entry);
               return (
-                <div key={key} data-chat-entry-id={key}>
+                <div key={key} data-chat-entry-id={key} className="messageEnter">
                   {renderEntry(entry)}
                 </div>
               );
@@ -298,7 +300,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
         )
       )}
       {interactionState.matches("THINKING") && currentSessionId && (
-        <div style={{ paddingTop: rowGap }}>
+        <div className="streaming-card-enter" style={{ paddingTop: rowGap }}>
           <Flex
             justify="flex-start"
             style={{ width: "100%", maxWidth: "100%" }}

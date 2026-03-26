@@ -76,6 +76,7 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({
           size="small"
           icon={<CopyOutlined />}
           onClick={handleCopy}
+          aria-label="Copy code"
           style={{
             position: "absolute",
             top: token.paddingSM,
@@ -148,6 +149,7 @@ const FallbackCodeBlock: React.FC<{
         type="text"
         size="small"
         icon={<CopyOutlined />}
+        aria-label="Copy code"
         className="fallback-copy-btn"
         onClick={async () => {
           try {

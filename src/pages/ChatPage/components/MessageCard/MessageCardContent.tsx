@@ -272,7 +272,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
             showIcon={false}
             message={
               <Space wrap size="small">
-                <Tag color="green">Skill</Tag>
+                <Tag color="success">Skill</Tag>
                 <Text strong>{t("chat.messageCard.selected")}</Text>
                 {hint.label && <Text>{hint.label}</Text>}
                 {hint.skillId && (

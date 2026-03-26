@@ -1,4 +1,5 @@
 import React, { useEffect, useState, memo, useMemo } from "react";
+import { useThemeStore } from "@shared/store/themeStore";
 import { Card, Collapse, Flex, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -240,6 +241,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
   ({ sessionId }) => {
     const { token } = useToken();
     const { t } = useTranslation();
+    const isDark = useThemeStore((s) => s.themeMode) === "dark";
     const messageId = `streaming-${sessionId}`;
     const reasoningMessageId = `streaming-reasoning-${sessionId}`;
     const [content, setContent] = useState<string>(
@@ -278,7 +280,11 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
           minWidth: "100%",
           maxWidth: "800px",
           margin: "0 auto",
-          background: token.colorBgLayout,
+          background: isDark
+            ? "linear-gradient(180deg, rgba(15, 23, 42, 0.8) 0%, rgba(11, 16, 28, 0.72) 100%)"
+            : "linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 255, 0.82) 100%)",
+          backdropFilter: "blur(14px)",
+          WebkitBackdropFilter: "blur(14px)",
           borderRadius: token.borderRadiusLG,
           boxShadow: "none",
           position: "relative",
@@ -329,7 +335,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
             ) : null}
 
             {!content ? (
-              <Text italic>{t("chat.messageCard.assistantThinking")}</Text>
+              <Text italic className="thinking-shimmer">{t("chat.messageCard.assistantThinking")}</Text>
             ) : (
               <ReactMarkdown
                 remarkPlugins={markdownPlugins}

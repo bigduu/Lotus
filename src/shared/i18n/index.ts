@@ -1388,7 +1388,7 @@ const frFullTranslation = {
     },
     streaming: {
       ...enTranslation.chat.streaming,
-      assistant: "Assistant",
+      assistant: "Bodhi",
       requestCancelled: "Requête annulée",
       sendFailed: "Échec de l'envoi du message",
       retryFailed: "Échec de la nouvelle tentative",
@@ -1813,7 +1813,7 @@ const hiFullTranslation = {
     },
     streaming: {
       ...enTranslation.chat.streaming,
-      assistant: "सहायक",
+      assistant: "Bodhi",
       requestCancelled: "अनुरोध रद्द किया गया",
       sendFailed: "संदेश भेजने में विफल",
       retryFailed: "पुनः प्रयास विफल",

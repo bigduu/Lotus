@@ -113,7 +113,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
                     <ToolOutlined /> {t("components.plan.tools")}:
                   </Text>
                   {step.tools_needed.map((tool, idx) => (
-                    <Tag key={idx} color="blue">
+                    <Tag key={idx} color="processing">
                       {tool}
                     </Tag>
                   ))}
@@ -140,7 +140,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
           <Text type="secondary">
             <ClockCircleOutlined /> {t("components.plan.totalEstimatedTime")}{" "}
           </Text>
-          <Tag color="blue">{plan.estimated_total_time}</Tag>
+          <Tag color="processing">{plan.estimated_total_time}</Tag>
         </Flex>
 
         {plan.prerequisites && plan.prerequisites.length > 0 && (

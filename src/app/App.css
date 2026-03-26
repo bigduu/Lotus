@@ -159,13 +159,69 @@ html, body, #root {
 }
 
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
 
-  color: #0f0f0f;
-  background-color: #f6f6f6;
+  --color-gray-50: #fafafc;
+  --color-gray-100: #f5faf9;
+  --color-gray-200: #e2efe9;
+  --color-gray-300: #d1e3dd;
+  --color-gray-400: #a6b0c3;
+  --color-gray-500: #6b7280;
+  --color-gray-700: #344054;
+  --color-gray-800: #0f172a;
+  --color-gray-900: #060814;
+
+  --lotus-primary: #0d9488;
+  --lotus-primary-strong: #0f766e;
+  --lotus-primary-soft: rgba(13, 148, 136, 0.22);
+  --lotus-accent: #059669;
+  --lotus-accent-secondary: #0891b2;
+  --lotus-success: #10b981;
+  --lotus-warning: #d97706;
+  --lotus-danger: #dc2626;
+  --lotus-focus-ring: rgba(13, 148, 136, 0.22);
+
+  --lotus-metric-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(245, 253, 250, 0.92) 100%);
+  --lotus-metric-card-border: rgba(153, 246, 228, 0.95);
+  --lotus-metric-text-strong: #134e4a;
+  --lotus-metric-text-muted: #64748b;
+  --lotus-metric-grid: rgba(148, 163, 184, 0.26);
+  --lotus-metric-tooltip-bg: rgba(255, 255, 255, 0.96);
+  --lotus-metric-tooltip-border: rgba(148, 163, 184, 0.28);
+  --lotus-chart-primary: #0d9488;
+  --lotus-chart-secondary: #10b981;
+  --lotus-chart-accent: #d97706;
+  --lotus-chart-danger: #dc2626;
+  --lotus-chart-purple: #7c3aed;
+  --lotus-chart-cyan: #0891b2;
+  --lotus-heat-0: #f0fdfa;
+  --lotus-heat-1: #ccfbf1;
+  --lotus-heat-2: #5eead4;
+  --lotus-heat-3: #2dd4bf;
+  --lotus-heat-4: #0d9488;
+
+  --lotus-blur-sm: 12px;
+  --lotus-blur-md: 18px;
+  --lotus-blur-lg: 24px;
+  --lotus-radius-sm: 12px;
+  --lotus-radius-md: 18px;
+  --lotus-radius-lg: 24px;
+
+  --lotus-surface-border: rgba(255, 255, 255, 0.72);
+  --lotus-surface-bg: rgba(255, 255, 255, 0.72);
+  --lotus-main-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.76) 100%);
+  --lotus-sidebar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.84) 0%, rgba(240, 253, 250, 0.76) 100%);
+  --lotus-overlay-bg: rgba(255, 255, 255, 0.82);
+  --lotus-code-surface: rgba(245, 253, 250, 0.92);
+  --lotus-shadow-shell: 0 24px 60px rgba(15, 118, 110, 0.12), 0 8px 24px rgba(15, 23, 42, 0.08);
+  --lotus-shadow-floating: 0 18px 45px rgba(15, 118, 110, 0.14), 0 8px 20px rgba(15, 23, 42, 0.08);
+  --lotus-shadow-soft: 0 10px 30px rgba(13, 148, 136, 0.12), 0 4px 12px rgba(15, 23, 42, 0.06);
+
+  color: #0f172a;
+  background-color: #f0fdfa;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -174,11 +230,86 @@ html, body, #root {
   -webkit-text-size-adjust: 100%;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
-  }
+body {
+  position: relative;
+  color: #0f172a;
+  background-color: #f0fdfa;
+  background-image:
+    radial-gradient(circle at top left, rgba(13, 148, 136, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(5, 150, 105, 0.12), transparent 28%),
+    linear-gradient(180deg, #f7fdfb 0%, #f0fdfa 45%, #f0fdf8 100%);
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  border-radius: 999px;
+  filter: blur(90px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::before {
+  width: 420px;
+  height: 420px;
+  top: -160px;
+  right: -80px;
+  background: rgba(13, 148, 136, 0.18);
+}
+
+body::after {
+  width: 360px;
+  height: 360px;
+  left: -110px;
+  bottom: -120px;
+  background: rgba(5, 150, 105, 0.14);
+}
+
+body[data-theme="dark"] {
+  color: #e2e8f0;
+  background-color: #070e0c;
+  background-image:
+    radial-gradient(circle at top left, rgba(13, 148, 136, 0.2), transparent 28%),
+    radial-gradient(circle at top right, rgba(5, 150, 105, 0.14), transparent 24%),
+    linear-gradient(180deg, #091410 0%, #081210 42%, #070b14 100%);
+
+  --lotus-surface-border: rgba(255, 255, 255, 0.12);
+  --lotus-surface-bg: rgba(10, 20, 16, 0.84);
+  --lotus-main-surface: linear-gradient(180deg, rgba(12, 24, 20, 0.96) 0%, rgba(9, 18, 15, 0.92) 100%);
+  --lotus-sidebar-bg: linear-gradient(180deg, rgba(10, 20, 17, 0.96) 0%, rgba(8, 16, 13, 0.92) 100%);
+  --lotus-overlay-bg: rgba(14, 24, 20, 0.96);
+  --lotus-code-surface: rgba(2, 6, 23, 0.88);
+  --lotus-shadow-shell: 0 28px 72px rgba(2, 6, 23, 0.5), 0 10px 24px rgba(15, 23, 42, 0.34);
+  --lotus-shadow-floating: 0 24px 60px rgba(2, 6, 23, 0.52), 0 8px 22px rgba(15, 23, 42, 0.34);
+  --lotus-shadow-soft: 0 14px 36px rgba(30, 41, 59, 0.36), 0 4px 14px rgba(2, 6, 23, 0.22);
+
+  --lotus-metric-card-bg: linear-gradient(180deg, rgba(12, 24, 20, 0.94) 0%, rgba(9, 18, 15, 0.92) 100%);
+  --lotus-metric-card-border: rgba(71, 85, 105, 0.72);
+  --lotus-metric-text-strong: #f8fafc;
+  --lotus-metric-text-muted: #94a3b8;
+  --lotus-metric-grid: rgba(148, 163, 184, 0.18);
+  --lotus-metric-tooltip-bg: rgba(15, 23, 42, 0.96);
+  --lotus-metric-tooltip-border: rgba(148, 163, 184, 0.18);
+  --lotus-chart-primary: #2dd4bf;
+  --lotus-chart-secondary: #34d399;
+  --lotus-chart-accent: #f59e0b;
+  --lotus-chart-danger: #f87171;
+  --lotus-chart-purple: #a78bfa;
+  --lotus-chart-cyan: #22d3ee;
+  --lotus-heat-0: #0f2422;
+  --lotus-heat-1: #0f766e;
+  --lotus-heat-2: #0d9488;
+  --lotus-heat-3: #059669;
+  --lotus-heat-4: #2dd4bf;
+}
+
+body[data-theme="dark"]::before {
+  background: rgba(13, 148, 136, 0.2);
+}
+
+body[data-theme="dark"]::after {
+  background: rgba(52, 211, 153, 0.08);
 }
 
 body[data-theme="light"] .ant-tag-blue,
@@ -195,11 +326,454 @@ body[data-theme="dark"] .ant-tag-geekblue {
   border-color: rgba(255, 255, 255, 0.24);
 }
 
+/* ── Global Ant Design table header overrides ─────────────────────── */
+body[data-theme="light"] .ant-table-thead > tr > th,
+body[data-theme="light"] .ant-table-thead > tr > td {
+  background: rgba(240, 253, 250, 0.85) !important;
+  color: #334155 !important;
+  border-bottom-color: rgba(13, 148, 136, 0.15) !important;
+}
+
+body[data-theme="light"] .ant-table-tbody > tr > td {
+  color: #1e293b !important;
+  border-bottom-color: rgba(13, 148, 136, 0.08) !important;
+}
+
+body[data-theme="light"] .ant-table-tbody > tr:hover > td {
+  background: rgba(240, 253, 250, 0.6) !important;
+}
+
+body[data-theme="dark"] .ant-table-thead > tr > th,
+body[data-theme="dark"] .ant-table-thead > tr > td {
+  background: rgba(13, 148, 136, 0.10) !important;
+  color: #e2e8f0 !important;
+  border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+body[data-theme="dark"] .ant-table-tbody > tr > td {
+  border-bottom-color: rgba(148, 163, 184, 0.12) !important;
+}
+
+body[data-theme="dark"] .ant-table-tbody > tr:hover > td {
+  background: rgba(13, 148, 136, 0.08) !important;
+}
+
 /* Keep switch active state blue while the rest of the theme stays neutral gray. */
 .ant-switch.ant-switch-checked {
-  background-color: #1677ff !important;
+  background-color: #0d9488 !important;
 }
 
 .ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) {
-  background-color: #4096ff !important;
+  background-color: #14b8a6 !important;
 }
+
+#root {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  z-index: 1;
+  isolation: isolate;
+}
+
+::selection {
+  background: rgba(13, 148, 136, 0.18);
+  color: inherit;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 148, 136, 0.28) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(13, 148, 136, 0.2);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(13, 148, 136, 0.34);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.lotus-shell-panel {
+  position: relative;
+  backdrop-filter: blur(var(--lotus-blur-md));
+  -webkit-backdrop-filter: blur(var(--lotus-blur-md));
+  box-shadow: var(--lotus-shadow-shell);
+}
+
+.lotus-shell-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.42) 0%, rgba(255, 255, 255, 0) 24%);
+  opacity: 0.7;
+}
+
+body[data-theme="dark"] .lotus-shell-panel::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 28%);
+  opacity: 1;
+}
+
+.lotus-shell-sidebar {
+  background: var(--lotus-sidebar-bg);
+}
+
+.lotus-shell-main,
+.lotus-settings-panel {
+  background: var(--lotus-main-surface);
+}
+
+.lotus-toolbar-icon.ant-btn {
+  border-radius: 12px !important;
+  width: 34px;
+  height: 34px;
+  color: var(--ant-color-text-secondary);
+  background: rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+body[data-theme="dark"] .lotus-toolbar-icon.ant-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.lotus-toolbar-icon.ant-btn:hover,
+.lotus-toolbar-icon.ant-btn:focus {
+  color: var(--lotus-primary) !important;
+  background: rgba(13, 148, 136, 0.1) !important;
+  border-color: rgba(13, 148, 136, 0.18) !important;
+}
+
+body[data-theme="dark"] .lotus-toolbar-icon.ant-btn:hover,
+body[data-theme="dark"] .lotus-toolbar-icon.ant-btn:focus {
+  background: rgba(13, 148, 136, 0.14) !important;
+  border-color: rgba(13, 148, 136, 0.2) !important;
+}
+
+.lotus-primary-cta.ant-btn {
+  background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%) !important;
+  border: none !important;
+  box-shadow: 0 10px 24px rgba(13, 148, 136, 0.28);
+}
+
+.lotus-primary-cta.ant-btn:hover,
+.lotus-primary-cta.ant-btn:focus {
+  box-shadow: 0 14px 30px rgba(13, 148, 136, 0.36) !important;
+}
+
+.lotus-secondary-button.ant-btn {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(13, 148, 136, 0.12);
+  box-shadow: 0 8px 18px rgba(13, 148, 136, 0.08);
+  color: var(--ant-color-text);
+  font-weight: 500;
+}
+
+body[data-theme="dark"] .lotus-secondary-button.ant-btn {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.lotus-secondary-button.ant-btn:hover,
+.lotus-secondary-button.ant-btn:focus {
+  border-color: rgba(13, 148, 136, 0.22) !important;
+  color: var(--lotus-primary) !important;
+  background: rgba(13, 148, 136, 0.08) !important;
+}
+
+body[data-theme="dark"] .lotus-secondary-button.ant-btn:hover,
+body[data-theme="dark"] .lotus-secondary-button.ant-btn:focus {
+  background: rgba(13, 148, 136, 0.12) !important;
+}
+
+.lotus-floating-sidebar-toggle.ant-btn {
+  border-radius: 12px !important;
+  backdrop-filter: blur(var(--lotus-blur-sm));
+  -webkit-backdrop-filter: blur(var(--lotus-blur-sm));
+}
+
+.lotus-message-input-shell {
+  transition: all 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.lotus-message-input-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 26%);
+  opacity: 0.85;
+}
+
+body[data-theme="dark"] .lotus-message-input-shell::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 28%);
+  opacity: 1;
+}
+
+.lotus-message-input-shell:focus-within {
+  border-color: rgba(13, 148, 136, 0.35) !important;
+  box-shadow: 0 18px 40px rgba(13, 148, 136, 0.18) !important;
+  transform: translateY(-1px);
+}
+
+.lotus-message-input-shell.is-drag-over {
+  border-color: rgba(13, 148, 136, 0.42) !important;
+  box-shadow: 0 20px 40px rgba(13, 148, 136, 0.22) !important;
+}
+
+.lotus-message-input-field.ant-input {
+  font-size: 15px !important;
+  line-height: 1.65 !important;
+}
+
+.lotus-message-input-field.ant-input::placeholder {
+  color: var(--ant-color-text-tertiary);
+}
+
+.lotus-code-surface {
+  background: var(--lotus-code-surface) !important;
+  border: 1px solid rgba(13, 148, 136, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+body[data-theme="dark"] .lotus-code-surface {
+  background: rgba(2, 6, 23, 0.88) !important;
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.lotus-metric-card.ant-card {
+  background: var(--lotus-metric-card-bg) !important;
+  border: 1px solid var(--lotus-metric-card-border) !important;
+  box-shadow: var(--lotus-shadow-soft);
+  overflow: hidden;
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.18s ease;
+}
+
+.lotus-metric-card.ant-card:hover {
+  box-shadow: 0 6px 20px rgba(13, 148, 136, 0.12);
+  transform: translateY(-1px);
+}
+
+body[data-theme="dark"] .lotus-metric-card.ant-card:hover {
+  box-shadow: 0 6px 20px rgba(2, 6, 23, 0.28);
+}
+
+.lotus-metric-card .ant-card-head {
+  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 80%, transparent) !important;
+}
+
+.lotus-metric-card .ant-card-head-title,
+.lotus-metric-card .ant-statistic-content,
+.lotus-metric-card .ant-statistic-content-value,
+.lotus-metric-card .ant-typography {
+  color: var(--lotus-metric-text-strong);
+}
+
+.lotus-metric-card .ant-statistic-title,
+.lotus-metric-card .ant-typography.ant-typography-secondary,
+.lotus-metric-card .ant-card-extra,
+.lotus-metric-card .ant-descriptions-item-label {
+  color: var(--lotus-metric-text-muted) !important;
+}
+
+.lotus-metric-card .ant-table {
+  background: transparent;
+  color: var(--lotus-metric-text-strong);
+}
+
+.lotus-metric-card .ant-table-thead > tr > th {
+  background: transparent !important;
+  color: var(--lotus-metric-text-muted) !important;
+  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 70%, transparent) !important;
+}
+
+.lotus-metric-card .ant-table-tbody > tr > td {
+  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 60%, transparent) !important;
+  background: transparent !important;
+}
+
+.lotus-metric-card .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--lotus-chart-primary) 12%, transparent) !important;
+}
+
+.lotus-metric-card .recharts-cartesian-grid line,
+.lotus-metric-card .recharts-cartesian-grid path,
+.lotus-metric-card .recharts-polar-grid line,
+.lotus-metric-card .recharts-reference-line line {
+  stroke: var(--lotus-metric-grid) !important;
+}
+
+.lotus-metric-card .recharts-text,
+.lotus-metric-card .recharts-legend-item-text {
+  fill: var(--lotus-metric-text-muted) !important;
+}
+
+.recharts-default-tooltip {
+  background: var(--lotus-metric-tooltip-bg) !important;
+  border: 1px solid var(--lotus-metric-tooltip-border) !important;
+  border-radius: 12px !important;
+  box-shadow: var(--lotus-shadow-soft) !important;
+}
+
+.recharts-tooltip-label,
+.recharts-tooltip-item {
+  color: var(--lotus-metric-text-strong) !important;
+}
+
+.token-usage-display .ant-progress-inner {
+  background: color-mix(in srgb, var(--lotus-chart-primary) 14%, transparent) !important;
+}
+
+.token-usage-display,
+.token-usage-badge {
+  color: var(--lotus-metric-text-strong);
+}
+
+.lotus-settings-card.ant-card {
+  background: var(--lotus-main-surface) !important;
+  border: 1px solid var(--lotus-surface-border) !important;
+  box-shadow: var(--lotus-shadow-soft);
+  overflow: hidden;
+  transition:
+    box-shadow 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.18s ease;
+}
+
+.lotus-settings-card.ant-card:hover {
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.10);
+  border-color: rgba(13, 148, 136, 0.25) !important;
+}
+
+body[data-theme="dark"] .lotus-settings-card.ant-card:hover {
+  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.22);
+  border-color: rgba(45, 212, 191, 0.20) !important;
+}
+
+.lotus-settings-card .ant-card-head {
+  border-bottom-color: color-mix(in srgb, var(--lotus-surface-border) 75%, transparent) !important;
+}
+
+.lotus-settings-card .ant-card-head-title,
+.lotus-settings-card .ant-typography,
+.lotus-settings-card .ant-form-item-label > label,
+.lotus-settings-card .ant-input,
+.lotus-settings-card .ant-input-affix-wrapper,
+.lotus-settings-card .ant-select,
+.lotus-settings-card .ant-select-selector,
+.lotus-settings-card .ant-list-item-meta-title,
+.lotus-settings-card .ant-list-item-meta-description {
+  color: var(--ant-color-text);
+}
+
+.lotus-settings-card .ant-typography.ant-typography-secondary,
+.lotus-settings-card .ant-card-extra,
+.lotus-settings-card .ant-form-item-explain,
+.lotus-settings-card .ant-list-item-meta-description {
+  color: var(--ant-color-text-secondary) !important;
+}
+
+.lotus-settings-surface {
+  background: color-mix(in srgb, var(--lotus-overlay-bg) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lotus-surface-border) 85%, transparent);
+  border-radius: 14px;
+  box-shadow: var(--lotus-shadow-soft);
+}
+
+.lotus-settings-note {
+  color: var(--ant-color-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.lotus-settings-list-item {
+  background: color-mix(in srgb, var(--lotus-overlay-bg) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--lotus-surface-border) 78%, transparent);
+  border-radius: 14px;
+}
+
+.ant-dropdown .ant-dropdown-menu,
+.ant-select-dropdown,
+.ant-popover .ant-popover-inner,
+.ant-modal .ant-modal-content {
+  background: var(--lotus-overlay-bg) !important;
+  border: 1px solid var(--lotus-surface-border) !important;
+  backdrop-filter: blur(var(--lotus-blur-lg));
+  -webkit-backdrop-filter: blur(var(--lotus-blur-lg));
+  box-shadow: var(--lotus-shadow-floating);
+}
+
+.ant-btn:not(.ant-btn-text):not(.ant-btn-link) {
+  transition:
+    transform 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.ant-btn:not(.ant-btn-text):not(.ant-btn-link):hover {
+  transform: translateY(-1px);
+}
+
+.ant-btn:focus-visible,
+.ant-input:focus-visible,
+.ant-input-affix-wrapper:focus-within,
+.ant-select-focused .ant-select-selector,
+.ant-picker-focused {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--lotus-focus-ring) !important;
+}
+
+/* Suppress inner focus ring when the input lives inside the shell —
+   the shell already shows its own elevated shadow on :focus-within. */
+.lotus-message-input-shell .ant-input:focus-visible,
+.lotus-message-input-shell .ant-input:focus,
+.lotus-message-input-shell .ant-input-focused,
+.lotus-message-input-shell .ant-input-affix-wrapper:focus-within,
+.lotus-message-input-shell textarea:focus,
+.lotus-message-input-shell textarea:focus-visible {
+  box-shadow: none !important;
+  outline: none !important;
+  border-color: transparent !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    display: none;
+  }
+
+  .lotus-message-input-shell,
+  .lotus-primary-cta.ant-btn,
+  .lotus-secondary-button.ant-btn,
+  .lotus-toolbar-icon.ant-btn,
+  .lotus-settings-card.ant-card,
+  .lotus-metric-card.ant-card,
+  .ant-btn:not(.ant-btn-text):not(.ant-btn-link) {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+

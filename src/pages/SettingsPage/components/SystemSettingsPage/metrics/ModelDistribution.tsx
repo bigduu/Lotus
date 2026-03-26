@@ -11,7 +11,13 @@ interface ModelDistributionProps {
   loading: boolean;
 }
 
-const PIE_COLORS = ["#1677ff", "#52c41a", "#fa8c16", "#722ed1", "#13c2c2"];
+const PIE_COLORS = [
+  "var(--lotus-chart-primary)",
+  "var(--lotus-chart-secondary)",
+  "var(--lotus-chart-accent)",
+  "var(--lotus-chart-purple)",
+  "var(--lotus-chart-cyan)",
+];
 
 const ModelDistribution: React.FC<ModelDistributionProps> = ({
   data,
@@ -20,7 +26,11 @@ const ModelDistribution: React.FC<ModelDistributionProps> = ({
   const { t } = useTranslation();
   if (loading) {
     return (
-      <Card size="small" title={t("settings.charts.modelDistribution")}>
+      <Card
+        size="small"
+        className="lotus-metric-card"
+        title={t("settings.charts.modelDistribution")}
+      >
         <Skeleton active paragraph={{ rows: 5 }} />
       </Card>
     );
@@ -32,7 +42,11 @@ const ModelDistribution: React.FC<ModelDistributionProps> = ({
   }));
 
   return (
-    <Card size="small" title={t("settings.charts.modelDistribution")}>
+    <Card
+      size="small"
+      className="lotus-metric-card"
+      title={t("settings.charts.modelDistribution")}
+    >
       {chartData.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -49,7 +63,7 @@ const ModelDistribution: React.FC<ModelDistributionProps> = ({
                   cx="50%"
                   cy="50%"
                   outerRadius={90}
-                  fill="#1677ff"
+                  fill="var(--lotus-chart-primary)"
                   dataKey="value"
                   nameKey="name"
                   label

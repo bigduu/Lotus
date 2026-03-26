@@ -14,7 +14,7 @@ import {
   Modal,
 } from "antd";
 import { useTranslation } from "react-i18next";
-import { ReloadOutlined } from "@ant-design/icons";
+import { EditOutlined, ReloadOutlined } from "@ant-design/icons";
 import { serviceFactory } from "@services/common/ServiceFactory";
 import { settingsService } from "@services/config/SettingsService";
 
@@ -332,7 +332,12 @@ export const ModelMappingCard: React.FC = () => {
                     options={[
                       ...availableModels.map((m) => ({ label: m, value: m })),
                       {
-                        label: `✏️ ${t("settings.modelMappingCard.customModelOption")}`,
+                        label: (
+                          <span>
+                            <EditOutlined style={{ marginRight: 6 }} />
+                            {t("settings.modelMappingCard.customModelOption")}
+                          </span>
+                        ),
                         value: "__custom__",
                       },
                     ]}
@@ -409,6 +414,7 @@ export const ModelMappingCard: React.FC = () => {
       <Collapse
         size="small"
         items={collapseItems}
+        className="lotus-settings-card"
         style={{ marginBottom: token.marginSM }}
       />
 

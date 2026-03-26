@@ -21,6 +21,7 @@ import {
   SaveOutlined,
   KeyOutlined,
   CheckCircleOutlined,
+  ClockCircleOutlined,
   CloseCircleOutlined,
   LoginOutlined,
   LogoutOutlined,
@@ -869,7 +870,7 @@ export const ProviderSettings: React.FC = () => {
         </Button>
         {modelAutoSaveStatus === "saving" && <Spin size="small" />}
         {modelAutoSaveStatus === "success" && (
-          <CheckCircleOutlined style={{ color: "#52c41a" }} />
+          <CheckCircleOutlined style={{ color: "var(--lotus-chart-secondary)" }} />
         )}
         {modelAutoSaveStatus === "error" && (
           <Tooltip
@@ -878,7 +879,7 @@ export const ProviderSettings: React.FC = () => {
               t("settings.providerTab.saveModelChangeFailed")
             }
           >
-            <CloseCircleOutlined style={{ color: "#ff4d4f" }} />
+            <CloseCircleOutlined style={{ color: "var(--lotus-chart-danger)" }} />
           </Tooltip>
         )}
       </Space>
@@ -1361,6 +1362,7 @@ export const ProviderSettings: React.FC = () => {
     <Card
       title={t("settings.providerTab.title")}
       loading={loading && !configLoaded}
+      className="lotus-settings-card"
       extra={
         <Text type="secondary">
           {t("settings.providerTab.currentProvider")}:{" "}
@@ -1460,7 +1462,7 @@ export const ProviderSettings: React.FC = () => {
             />
 
             {/* Verification URL */}
-            <Card size="small">
+            <Card size="small" className="lotus-settings-card">
               <Space direction="vertical" style={{ width: "100%" }}>
                 <Text type="secondary">
                   {t("settings.providerTab.visitUrl")}
@@ -1517,13 +1519,14 @@ export const ProviderSettings: React.FC = () => {
                   <Tag
                     color={
                       timeRemaining < 60
-                        ? "red"
+                        ? "error"
                         : timeRemaining < 180
-                          ? "orange"
-                          : "green"
+                          ? "warning"
+                          : "success"
                     }
                   >
-                    ⏱️ Expires in {Math.floor(timeRemaining / 60)}:
+                    <ClockCircleOutlined style={{ marginRight: 4 }} />
+                    Expires in {Math.floor(timeRemaining / 60)}:
                     {(timeRemaining % 60).toString().padStart(2, "0")}
                   </Tag>
                 </div>

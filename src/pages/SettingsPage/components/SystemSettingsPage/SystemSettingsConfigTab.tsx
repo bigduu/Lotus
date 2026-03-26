@@ -226,6 +226,7 @@ export const SystemSettingsConfigTab: React.FC<
 
                 <Card
                   size="small"
+                  className="lotus-settings-card"
                   title={<Text strong>{t("settings.configTab.language")}</Text>}
                 >
                   <Select

@@ -82,7 +82,7 @@ export const MainLayout: React.FC<{
         minHeight: "100vh",
         height: "100vh",
         overflow: "hidden",
-        background: token.colorBgLayout,
+        background: "transparent",
         display: "flex",
         flexDirection: "row",
         position: "relative",
@@ -100,21 +100,21 @@ export const MainLayout: React.FC<{
           paddingLeft: workspaceInsetPx,
           paddingRight: workspaceInsetPx,
           paddingBottom: workspaceInsetPx,
-          background: token.colorFillQuaternary,
+          background: "transparent",
         }}
       >
         {settingsOpen ? (
           <Layout
+            className="lotus-shell-panel lotus-settings-panel"
             style={{
               flex: 1,
               display: "flex",
               flexDirection: "column",
-              background: token.colorBgContainer,
+              background: "var(--lotus-main-surface)",
               minHeight: 0,
               borderRadius: `${shellRadiusPx}px 0 0 ${shellRadiusPx}px`,
               border: surfaceBorder,
               overflow: "hidden",
-              boxShadow: "-8px 0 20px rgba(0, 0, 0, 0.04)",
             }}
           >
             <SystemSettingsPage
@@ -159,13 +159,14 @@ export const MainLayout: React.FC<{
               }}
               first={
                 <div
+                  className="lotus-shell-panel lotus-shell-sidebar"
                   style={{
                     height: "100%",
                     minHeight: 0,
                     borderRadius: `${shellRadiusPx}px 0 0 ${shellRadiusPx}px`,
                     border: surfaceBorder,
                     overflow: "hidden",
-                    background: token.colorFillQuaternary,
+                    background: "var(--lotus-sidebar-bg)",
                   }}
                 >
                   <ChatSidebar />
@@ -173,21 +174,22 @@ export const MainLayout: React.FC<{
               }
               second={
                 <div
+                  className="lotus-shell-panel lotus-shell-main"
                   style={{
                     height: "100%",
                     minHeight: 0,
                     borderRadius: `0 ${shellRadiusPx}px ${shellRadiusPx}px 0`,
                     border: surfaceBorder,
                     overflow: "hidden",
-                    background: token.colorBgContainer,
-                    boxShadow: "none",
+                    background: "var(--lotus-main-surface)",
+                    boxShadow: "var(--lotus-shadow-shell)",
                   }}
                 >
                   <Layout
                     style={{
                       display: "flex",
                       flexDirection: "column",
-                      background: token.colorBgContainer,
+                      background: "transparent",
                       minHeight: 0,
                       height: "100%",
                     }}
@@ -209,17 +211,18 @@ export const MainLayout: React.FC<{
             onClick={() => setSidebarCollapsed(false)}
             title={t("layout.showSidebar")}
             aria-label={t("layout.showSidebar")}
+            className="lotus-toolbar-icon lotus-floating-sidebar-toggle"
             style={{
               position: "absolute",
               top: collapsedToggleInsetTopPx,
               left: collapsedToggleInsetLeftPx,
               zIndex: 40,
-              width: 28,
-              height: 28,
-              borderRadius: 8,
+              width: 36,
+              height: 36,
+              borderRadius: 12,
               border: `1px solid ${token.colorBorderSecondary}`,
               background: token.colorBgElevated,
-              boxShadow: token.boxShadowTertiary,
+              boxShadow: token.boxShadowSecondary,
             }}
           />
         ) : null}

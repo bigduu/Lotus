@@ -55,7 +55,7 @@ export const ChatPageIntegration: React.FC = () => {
       </div>
 
       {/* Bottom: Input Box */}
-      <div style={{ padding: 16, borderTop: "1px solid #e0e0e0" }}>
+      <div style={{ padding: 16, borderTop: "1px solid var(--color-gray-200, #e0e0e0)" }}>
         <input type="text" placeholder="Enter message..." />
       </div>
     </div>
@@ -70,7 +70,7 @@ export const SidebarModeExample: React.FC = () => {
     <div style={{ display: "flex", height: "100vh" }}>
       {/* Left: TodoList */}
       <div
-        style={{ width: 320, padding: 16, borderRight: "1px solid #e0e0e0" }}
+        style={{ width: 320, padding: 16, borderRight: "1px solid var(--color-gray-200, #e0e0e0)" }}
       >
         <h3>Task Progress</h3>
         <TodoList sessionId={sessionId} initialCollapsed={false} />
@@ -96,7 +96,7 @@ export const CustomStyledExample: React.FC = () => {
     >
       <div
         style={{
-          background: "#f0f7ff",
+          background: "var(--lotus-main-surface, #f0f7ff)",
           borderRadius: 12,
           padding: 16,
           marginBottom: 20,

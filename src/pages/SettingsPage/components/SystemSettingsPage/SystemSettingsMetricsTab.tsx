@@ -1,3 +1,4 @@
+import { useThemeStore } from "@shared/store/themeStore";
 import { ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
@@ -67,24 +68,24 @@ const asTimelineLabel = (item: DailyMetrics | PeriodMetrics): string => {
 
 const heatColorForValue = (value: number, maxValue: number): string => {
   if (maxValue <= 0 || value <= 0) {
-    return "#f5f5f5";
+    return "var(--lotus-heat-0)";
   }
 
   const ratio = value / maxValue;
 
   if (ratio >= 0.8) {
-    return "#1677ff";
+    return "var(--lotus-heat-4)";
   }
   if (ratio >= 0.6) {
-    return "#4096ff";
+    return "var(--lotus-heat-3)";
   }
   if (ratio >= 0.4) {
-    return "#69b1ff";
+    return "var(--lotus-heat-2)";
   }
   if (ratio >= 0.2) {
-    return "#91caff";
+    return "var(--lotus-heat-1)";
   }
-  return "#d6e4ff";
+  return "var(--lotus-heat-0)";
 };
 
 const formatDuration = (durationMs?: number | null): string => {
@@ -112,6 +113,7 @@ const formatDuration = (durationMs?: number | null): string => {
 const SystemSettingsMetricsTab: React.FC = () => {
   const { t } = useTranslation();
   const { token } = useToken();
+  const isDark = useThemeStore((s) => s.themeMode) === "dark";
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
   const [selectedModel, setSelectedModel] = useState<string | undefined>(
@@ -546,6 +548,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
                   />
                   <Card
                     size="small"
+                    className="lotus-metric-card"
                     title={t("settings.metricsDashboard.derivedMetricsTitle")}
                     extra={
                       <Text type="secondary">
@@ -560,7 +563,12 @@ const SystemSettingsMetricsTab: React.FC = () => {
                             style={{
                               borderRadius: token.borderRadiusSM,
                               padding: token.paddingXS,
-                              background: token.colorFillTertiary,
+                              background: isDark
+                                ? "rgba(255, 255, 255, 0.05)"
+                                : "rgba(255, 255, 255, 0.82)",
+                              border: isDark
+                                ? "1px solid rgba(255,255,255,0.08)"
+                                : "1px solid rgba(148,163,184,0.18)",
                             }}
                           >
                             <Statistic
@@ -649,8 +657,9 @@ const SystemSettingsMetricsTab: React.FC = () => {
                               <RechartsTooltip />
                               <Bar
                                 dataKey="count"
-                                fill="#1677ff"
+                                fill="var(--lotus-chart-primary)"
                                 name={t("settings.metricsDashboard.calls")}
+                                radius={[6, 6, 0, 0]}
                               />
                             </BarChart>
                           </ResponsiveContainer>
@@ -690,7 +699,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
                                 minHeight: 64,
                                 color:
                                   point.sessions > 0
-                                    ? "#fff"
+                                    ? "var(--lotus-metric-text-strong)"
                                     : token.colorTextSecondary,
                               }}
                             >

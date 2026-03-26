@@ -1,7 +1,7 @@
 .questionCard {
   margin: 4px 0;
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
   overflow: hidden;
 }
 
@@ -16,7 +16,12 @@
 }
 
 .questionHeader:hover {
-  opacity: 0.85;
+  opacity: 1;
+  background: rgba(204, 251, 241, 0.88);
+}
+
+:global(body[data-theme="dark"]) .questionHeader:hover {
+  background: rgba(13, 148, 136, 0.18);
 }
 
 .headerLeft {
@@ -66,15 +71,23 @@
 }
 
 .optionItem:hover {
-  background: rgba(24, 144, 255, 0.04);
+  background: rgba(204, 251, 241, 0.88);
+}
+
+:global(body[data-theme="dark"]) .optionItem:hover {
+  background: rgba(13, 148, 136, 0.18);
 }
 
 .customHint {
   margin-top: 4px;
   padding: 4px 8px;
   border-radius: 4px;
-  background: rgba(24, 144, 255, 0.04);
+  background: rgba(204, 251, 241, 0.88);
   text-align: center;
+}
+
+:global(body[data-theme="dark"]) .customHint {
+  background: rgba(13, 148, 136, 0.14);
 }
 
 .questionFooter {
