@@ -21,19 +21,22 @@ export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
       }
       styles={{ body: { padding: token.paddingMD } }}
     >
-      <Space
-        direction="vertical"
-        size={token.marginXS}
-        style={{ width: "100%" }}
-      >
+      <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
         <Text type="secondary">{skill.description}</Text>
-        {skill.compatibility && (
-          <Text type="secondary">Compatibility: {skill.compatibility}</Text>
-        )}
+        {skill.compatibility && <Text type="secondary">Compatibility: {skill.compatibility}</Text>}
         {skill.tool_refs.length > 0 && (
           <Space size={token.marginXXS} wrap>
             {skill.tool_refs.map((toolRef) => (
-              <Tag key={toolRef}>{toolRef}</Tag>
+              <Tag
+                key={toolRef}
+                style={{
+                  background: token.colorFillSecondary,
+                  borderColor: token.colorBorderSecondary,
+                  color: token.colorText,
+                }}
+              >
+                {toolRef}
+              </Tag>
             ))}
           </Space>
         )}

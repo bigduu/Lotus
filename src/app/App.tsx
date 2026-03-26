@@ -108,6 +108,26 @@ const DARK_THEME_TOKEN = {
   boxShadowSecondary: "0 24px 56px rgba(2, 6, 23, 0.5), 0 10px 28px rgba(15, 23, 42, 0.28)",
 };
 
+const LIGHT_THEME_COMPONENT_TOKEN = {
+  Tag: {
+    defaultBg: "rgba(13, 148, 136, 0.1)",
+    defaultColor: "#0f766e",
+  },
+  Table: {
+    bodySortBg: "rgba(13, 148, 136, 0.08)",
+  },
+} as const;
+
+const DARK_THEME_COMPONENT_TOKEN = {
+  Tag: {
+    defaultBg: "rgba(45, 212, 191, 0.18)",
+    defaultColor: "#ccfbf1",
+  },
+  Table: {
+    bodySortBg: "rgba(45, 212, 191, 0.14)",
+  },
+} as const;
+
 function App() {
   const { t } = useTranslation();
   const themeMode = useThemeStore((s) => s.themeMode);
@@ -230,6 +250,7 @@ function App() {
       theme={{
         token: themeMode === "dark" ? DARK_THEME_TOKEN : LIGHT_THEME_TOKEN,
         algorithm: themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        components: themeMode === "dark" ? DARK_THEME_COMPONENT_TOKEN : LIGHT_THEME_COMPONENT_TOKEN,
       }}
     >
       <AntdApp>

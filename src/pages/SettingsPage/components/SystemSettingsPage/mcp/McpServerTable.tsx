@@ -15,10 +15,7 @@ interface McpServerTableProps {
   onConnectServer?: (server: McpServer) => Promise<void> | void;
   onDisconnectServer?: (server: McpServer) => Promise<void> | void;
   onRefreshTools?: (server: McpServer) => Promise<void> | void;
-  isServerActionLoading?: (
-    serverId: string,
-    action: McpServerAction,
-  ) => boolean;
+  isServerActionLoading?: (serverId: string, action: McpServerAction) => boolean;
 }
 
 const statusColorMap: Record<ServerStatus, string> = {
@@ -107,8 +104,18 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
               }
             >
               <Tag
-                color={statusColorMap[status]}
-                style={{ marginInlineEnd: 0, cursor: "help" }}
+                color={status === ServerStatus.Stopped ? undefined : statusColorMap[status]}
+                style={{
+                  marginInlineEnd: 0,
+                  cursor: "help",
+                  ...(status === ServerStatus.Stopped
+                    ? {
+                        background: token.colorFillSecondary,
+                        borderColor: token.colorBorderSecondary,
+                        color: token.colorTextSecondary,
+                      }
+                    : undefined),
+                }}
               >
                 {statusLabelMap[status]}
               </Tag>
@@ -213,6 +220,9 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
       onRefreshTools,
       statusHelpMap,
       t,
+      token.colorBorderSecondary,
+      token.colorFillSecondary,
+      token.colorTextSecondary,
       token.marginXS,
     ],
   );
@@ -229,10 +239,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
         onClick: () => onSelectServer?.(record.id),
         style: {
           cursor: onSelectServer ? "pointer" : "default",
-          backgroundColor:
-            selectedServerId === record.id
-              ? token.colorFillSecondary
-              : undefined,
+          backgroundColor: selectedServerId === record.id ? token.colorFillSecondary : undefined,
         },
       })}
     />

@@ -60,9 +60,7 @@ type MainstreamMcpServersChunk = {
   mcpServers: Record<string, unknown>;
 };
 
-const toMainstreamMcpServersChunk = (
-  servers: McpServer[],
-): MainstreamMcpServersChunk => {
+const toMainstreamMcpServersChunk = (servers: McpServer[]): MainstreamMcpServersChunk => {
   const mcpServers: Record<string, unknown> = {};
 
   for (const server of servers) {
@@ -149,9 +147,7 @@ const SystemSettingsMcpTab: React.FC = () => {
   );
 
   const [isServerModalOpen, setIsServerModalOpen] = useState(false);
-  const [serverModalMode, setServerModalMode] = useState<"create" | "edit">(
-    "create",
-  );
+  const [serverModalMode, setServerModalMode] = useState<"create" | "edit">("create");
   const [editingServer, setEditingServer] = useState<McpServer | null>(null);
 
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -184,43 +180,36 @@ const SystemSettingsMcpTab: React.FC = () => {
     };
   }, [servers]);
 
+  const neutralTagStyle = {
+    background: token.colorFillSecondary,
+    borderColor: token.colorBorderSecondary,
+    color: token.colorTextSecondary,
+  } as const;
+
   const handleDeleteServer = async (server: McpServer) => {
     try {
       await deleteServer(server.id);
       msgApi.success(t("settings.mcpTab.serverDeleted"));
     } catch (deleteError) {
-      msgApi.error(
-        getErrorMessage(deleteError, t("settings.mcpTab.deleteServerFailed")),
-      );
+      msgApi.error(getErrorMessage(deleteError, t("settings.mcpTab.deleteServerFailed")));
     }
   };
 
   const handleConnectServer = async (server: McpServer) => {
     try {
       await connectServer(server.id);
-      msgApi.success(
-        t("settings.mcpTab.connectedTo", { name: server.name || server.id }),
-      );
+      msgApi.success(t("settings.mcpTab.connectedTo", { name: server.name || server.id }));
     } catch (connectError) {
-      msgApi.error(
-        getErrorMessage(connectError, t("settings.mcpTab.connectServerFailed")),
-      );
+      msgApi.error(getErrorMessage(connectError, t("settings.mcpTab.connectServerFailed")));
     }
   };
 
   const handleDisconnectServer = async (server: McpServer) => {
     try {
       await disconnectServer(server.id);
-      msgApi.success(
-        t("settings.mcpTab.disconnected", { name: server.name || server.id }),
-      );
+      msgApi.success(t("settings.mcpTab.disconnected", { name: server.name || server.id }));
     } catch (disconnectError) {
-      msgApi.error(
-        getErrorMessage(
-          disconnectError,
-          t("settings.mcpTab.disconnectServerFailed"),
-        ),
-      );
+      msgApi.error(getErrorMessage(disconnectError, t("settings.mcpTab.disconnectServerFailed")));
     }
   };
 
@@ -233,9 +222,7 @@ const SystemSettingsMcpTab: React.FC = () => {
         }),
       );
     } catch (refreshError) {
-      msgApi.error(
-        getErrorMessage(refreshError, t("settings.mcpTab.refreshToolsFailed")),
-      );
+      msgApi.error(getErrorMessage(refreshError, t("settings.mcpTab.refreshToolsFailed")));
     }
   };
 
@@ -244,9 +231,7 @@ const SystemSettingsMcpTab: React.FC = () => {
       await refreshAll();
       msgApi.success(t("settings.mcpTab.statusRefreshed"));
     } catch (refreshError) {
-      msgApi.error(
-        getErrorMessage(refreshError, t("settings.mcpTab.refreshStatusFailed")),
-      );
+      msgApi.error(getErrorMessage(refreshError, t("settings.mcpTab.refreshStatusFailed")));
     }
   };
 
@@ -277,9 +262,7 @@ const SystemSettingsMcpTab: React.FC = () => {
         );
       } else {
         await addServer(config);
-        msgApi.success(
-          t("settings.mcpTab.addedServer", { name: config.name || config.id }),
-        );
+        msgApi.success(t("settings.mcpTab.addedServer", { name: config.name || config.id }));
       }
       setIsServerModalOpen(false);
       setEditingServer(null);
@@ -379,18 +362,24 @@ const SystemSettingsMcpTab: React.FC = () => {
       {error ? <Alert type="error" showIcon message={error} /> : null}
 
       <Card size="small" title={t("settings.mcpTab.overviewTitle")}>
-        <Space
-          direction="vertical"
-          size={token.marginXS}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.mcpTab.overviewDescription")}</Text>
           <Space wrap>
-            <Tag>{t("settings.mcpTab.totalServers", { count: statusSummary.totalServers })}</Tag>
-            <Tag>{t("settings.mcpTab.totalTools", { count: statusSummary.totalTools })}</Tag>
+            <Tag style={neutralTagStyle}>
+              {t("settings.mcpTab.totalServers", { count: statusSummary.totalServers })}
+            </Tag>
+            <Tag style={neutralTagStyle}>
+              {t("settings.mcpTab.totalTools", { count: statusSummary.totalTools })}
+            </Tag>
             {Object.values(ServerStatus).map((status) => (
               <Tooltip key={status} title={statusHelpMap[status]}>
-                <Tag color={statusColorMap[status]} style={{ cursor: "help" }}>
+                <Tag
+                  color={status === ServerStatus.Stopped ? undefined : statusColorMap[status]}
+                  style={{
+                    cursor: "help",
+                    ...(status === ServerStatus.Stopped ? neutralTagStyle : undefined),
+                  }}
+                >
                   {statusLabelMap[status]}: {statusSummary.byStatus[status]}
                 </Tag>
               </Tooltip>
@@ -400,7 +389,13 @@ const SystemSettingsMcpTab: React.FC = () => {
           <Space direction="vertical" size={2} style={{ width: "100%" }}>
             {Object.values(ServerStatus).map((status) => (
               <Text key={`guide-${status}`} type="secondary">
-                <Tag color={statusColorMap[status]} style={{ marginInlineEnd: 8 }}>
+                <Tag
+                  color={status === ServerStatus.Stopped ? undefined : statusColorMap[status]}
+                  style={{
+                    marginInlineEnd: 8,
+                    ...(status === ServerStatus.Stopped ? neutralTagStyle : undefined),
+                  }}
+                >
                   {statusLabelMap[status]}
                 </Tag>
                 {statusHelpMap[status]}
@@ -487,7 +482,9 @@ const SystemSettingsMcpTab: React.FC = () => {
           <Text type="secondary">
             {t("settings.mcpTab.importHint")}
             <br />
-            <Text code>{`{ "mcpServers": { "filesystem": { "command": "npx", "args": ["-y", "..."] } } }`}</Text>
+            <Text
+              code
+            >{`{ "mcpServers": { "filesystem": { "command": "npx", "args": ["-y", "..."] } } }`}</Text>
           </Text>
 
           <Radio.Group
@@ -496,20 +493,12 @@ const SystemSettingsMcpTab: React.FC = () => {
             optionType="button"
             buttonStyle="solid"
           >
-            <Radio.Button value="merge">
-              {t("settings.mcpTab.importModeMerge")}
-            </Radio.Button>
-            <Radio.Button value="replace">
-              {t("settings.mcpTab.importModeReplace")}
-            </Radio.Button>
+            <Radio.Button value="merge">{t("settings.mcpTab.importModeMerge")}</Radio.Button>
+            <Radio.Button value="replace">{t("settings.mcpTab.importModeReplace")}</Radio.Button>
           </Radio.Group>
 
           {importMode === "replace" ? (
-            <Alert
-              type="warning"
-              showIcon
-              message={t("settings.mcpTab.replaceWarning")}
-            />
+            <Alert type="warning" showIcon message={t("settings.mcpTab.replaceWarning")} />
           ) : null}
 
           {importError ? <Alert type="error" showIcon message={importError} /> : null}

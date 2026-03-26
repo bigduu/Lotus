@@ -539,6 +539,23 @@ body[data-theme="dark"] .ant-table-tbody > tr:hover > td.ant-table-cell {
   background: rgba(13, 148, 136, 0.08);
 }
 
+/* Metrics tables: override sorted-column background explicitly to avoid black fill */
+body[data-theme="light"] .lotus-metric-table .ant-table-thead > tr > th.ant-table-column-sort {
+  background: rgba(204, 251, 241, 0.72);
+}
+
+body[data-theme="light"] .lotus-metric-table .ant-table-tbody > tr > td.ant-table-column-sort {
+  background: rgba(13, 148, 136, 0.08);
+}
+
+body[data-theme="dark"] .lotus-metric-table .ant-table-thead > tr > th.ant-table-column-sort {
+  background: rgba(45, 212, 191, 0.16);
+}
+
+body[data-theme="dark"] .lotus-metric-table .ant-table-tbody > tr > td.ant-table-column-sort {
+  background: rgba(45, 212, 191, 0.14);
+}
+
 /* Keep switch active state — doubled for specificity */
 .ant-switch.ant-switch.ant-switch-checked {
   background-color: var(--lotus-primary);
