@@ -37,13 +37,6 @@ export interface DiffStats {
   removed: number;
 }
 
-export interface MermaidToolResultPayload {
-  type: "mermaid";
-  chart: string;
-  title?: string;
-  summary?: string;
-}
-
 export interface ConclusionToolResultPayload {
   type: "conclusion";
   title: string;
@@ -122,29 +115,6 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   return trimmed.length > 0 ? trimmed : undefined;
 };
 
-export const parseMermaidToolResultPayload = (content: string): MermaidToolResultPayload | null => {
-  const parsed = parseJsonRecord(content);
-  if (!parsed) {
-    return null;
-  }
-
-  const chart = normalizeOptionalText(parsed.chart);
-  if (!chart) {
-    return null;
-  }
-
-  if (parsed.type != null && parsed.type !== "mermaid") {
-    return null;
-  }
-
-  return {
-    type: "mermaid",
-    chart,
-    title: normalizeOptionalText(parsed.title),
-    summary: normalizeOptionalText(parsed.summary),
-  };
-};
-
 export const parseConclusionToolResultPayload = (
   content: string,
 ): ConclusionToolResultPayload | null => {
@@ -170,6 +140,35 @@ export const parseConclusionToolResultPayload = (
     next_steps: normalizeTextArray(parsed.next_steps),
     confidence: normalizeOptionalText(parsed.confidence),
   };
+};
+
+export const formatConclusionToolResultAsMarkdown = (content: string): string | null => {
+  const payload = parseConclusionToolResultPayload(content);
+  if (!payload) {
+    return null;
+  }
+
+  const sections: string[] = [`## ${payload.title}`, payload.conclusion];
+
+  if (payload.confidence) {
+    sections.push(`**Confidence:** ${payload.confidence}`);
+  }
+
+  if (payload.key_points.length > 0) {
+    sections.push(
+      ["**Key points**", ...payload.key_points.map((point) => `- ${point}`)].join("\n"),
+    );
+  }
+
+  if (payload.next_steps.length > 0) {
+    sections.push(
+      ["**Next steps**", ...payload.next_steps.map((step, index) => `${index + 1}. ${step}`)].join(
+        "\n",
+      ),
+    );
+  }
+
+  return sections.join("\n\n");
 };
 
 export const parseFileChangeResultPayload = (content: string): FileChangeResultPayload | null => {

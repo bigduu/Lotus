@@ -15,6 +15,7 @@ import ToolResultCard from "../ToolResultCard";
 import ToolCallCard from "../ToolCallCard";
 import WorkflowResultCard from "../WorkflowResultCard";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
+import { formatConclusionToolResultAsMarkdown } from "../../utils/resultFormatters";
 
 const { Text } = Typography;
 
@@ -88,7 +89,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
   const { t } = useTranslation();
   const isStructuredSummaryTool = (toolName: string | undefined): boolean => {
     const normalized = (toolName ?? "").trim().toLowerCase();
-    return normalized === "conclusion" || normalized === "mermaid";
+    return normalized === "conclusion";
   };
 
   if (isAssistantToolResultMessage(message)) {
@@ -103,8 +104,25 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     }
 
     const normalizedToolName = (message.toolName ?? "").trim().toLowerCase();
-    const expandStructuredSummaryCardByDefault =
-      normalizedToolName === "conclusion" || normalizedToolName === "mermaid";
+    const expandStructuredSummaryCardByDefault = normalizedToolName === "conclusion";
+    const formattedConclusion =
+      normalizedToolName === "conclusion"
+        ? formatConclusionToolResultAsMarkdown(toolResultContent)
+        : null;
+
+    if (formattedConclusion) {
+      return (
+        <Space direction="vertical" style={{ width: "100%" }} size="small">
+          <ReactMarkdown
+            remarkPlugins={markdownPlugins}
+            rehypePlugins={rehypePlugins}
+            components={markdownComponents}
+          >
+            {formattedConclusion}
+          </ReactMarkdown>
+        </Space>
+      );
+    }
 
     return (
       <ToolResultCard

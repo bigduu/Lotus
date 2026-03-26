@@ -82,7 +82,7 @@ describe("copilotAskUserEnhancementUtils", () => {
       expect(prompt).toContain("ask_user");
       expect(prompt).toContain("OK");
       expect(prompt).toContain("conclusion");
-      expect(prompt).toContain("mermaid");
+      expect(prompt).not.toContain("mermaid");
     });
 
     it("includes the core completion-confirmation behavior", () => {
@@ -91,7 +91,7 @@ describe("copilotAskUserEnhancementUtils", () => {
       expect(normalized).toContain("before ending");
       expect(normalized).toContain("ask_user");
       expect(normalized).toContain("before the final `ask_user` call");
-      expect(normalized).toContain("call either `conclusion` or `mermaid`");
+      expect(normalized).toContain("call `conclusion`");
       expect(normalized).toContain("same assistant response");
       expect(normalized).toContain("without `ask_user` is invalid");
       expect(normalized).toContain("ok");

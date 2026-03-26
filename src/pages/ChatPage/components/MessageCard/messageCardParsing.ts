@@ -1,4 +1,5 @@
 import type { Message, MessageType, PlanMessage, QuestionMessage } from "../../types/chat";
+import { formatConclusionToolResultAsMarkdown } from "../../utils/resultFormatters";
 
 const extractJsonFromText = (text: string): string | null => {
   if (text.includes("```json")) {
@@ -143,6 +144,9 @@ export const getMessageText = (message: Message): string => {
       return typeof message.content === "string" ? message.content : "";
     }
     if (message.type === "tool_result") {
+      if ((message.toolName ?? "").trim().toLowerCase() === "conclusion") {
+        return formatConclusionToolResultAsMarkdown(message.result.result) ?? message.result.result;
+      }
       return `Tool ${message.toolName} Result: ${message.result.result}`;
     }
     if (message.type === "tool_call") {

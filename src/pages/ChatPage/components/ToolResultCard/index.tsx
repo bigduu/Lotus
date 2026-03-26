@@ -10,13 +10,10 @@ import {
   getStatusColor,
   parseUnifiedDiffLines,
   parseFileChangeResultPayload,
-  parseConclusionToolResultPayload,
-  parseMermaidToolResultPayload,
   safeStringify,
 } from "../../utils/resultFormatters";
 import { ExecutionStatus } from "../../types/chat";
 import { copyText } from "@shared/utils/clipboard";
-import MermaidChart from "@shared/components/MermaidChart";
 
 const { Text } = Typography;
 
@@ -43,23 +40,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   const { token } = theme.useToken();
 
   const formatted = useMemo(() => formatResultContent(content), [content]);
-  const normalizedToolName = useMemo(() => toolName.trim().toLowerCase(), [toolName]);
-  const mermaidPayload = useMemo(
-    () => (normalizedToolName === "mermaid" ? parseMermaidToolResultPayload(content) : null),
-    [content, normalizedToolName],
-  );
-  const conclusionPayload = useMemo(
-    () => (normalizedToolName === "conclusion" ? parseConclusionToolResultPayload(content) : null),
-    [content, normalizedToolName],
-  );
-  const subtleToolResultLabel = useMemo(() => {
-    if (!mermaidPayload && !conclusionPayload) {
-      return null;
-    }
-    return t("components.toolResult.structuredToolResultHint", {
-      tool: normalizedToolName,
-    });
-  }, [conclusionPayload, mermaidPayload, normalizedToolName, t]);
 
   const derivedIsLoading = useMemo(() => {
     if (typeof isLoading === "boolean") {
@@ -254,93 +234,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                         {t("components.toolResult.diffTruncated")}
                       </Text>
                     )}
-                  </Space>
-                ) : mermaidPayload ? (
-                  <Space direction="vertical" style={{ width: "100%" }} size={8}>
-                    {subtleToolResultLabel && (
-                      <Text type="secondary" style={{ fontSize: token.fontSizeSM, opacity: 0.85 }}>
-                        {subtleToolResultLabel}
-                      </Text>
-                    )}
-                    {mermaidPayload.title && (
-                      <Text strong style={{ fontSize: token.fontSize }}>
-                        {mermaidPayload.title}
-                      </Text>
-                    )}
-                    {mermaidPayload.summary && (
-                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                        {mermaidPayload.summary}
-                      </Text>
-                    )}
-                    <MermaidChart chart={mermaidPayload.chart} />
-                  </Space>
-                ) : conclusionPayload ? (
-                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
-                    {subtleToolResultLabel && (
-                      <Text type="secondary" style={{ fontSize: token.fontSizeSM, opacity: 0.85 }}>
-                        {subtleToolResultLabel}
-                      </Text>
-                    )}
-                    <div
-                      style={{
-                        border: `1px solid ${token.colorBorderSecondary}`,
-                        backgroundColor: token.colorFillAlter,
-                        borderRadius: token.borderRadiusSM,
-                        padding: token.padding,
-                      }}
-                    >
-                      <Space direction="vertical" style={{ width: "100%" }} size={8}>
-                        <Text strong style={{ fontSize: token.fontSizeLG }}>
-                          {conclusionPayload.title}
-                        </Text>
-                        <Text style={{ fontSize: token.fontSize }}>
-                          {conclusionPayload.conclusion}
-                        </Text>
-                        {conclusionPayload.confidence && (
-                          <Tag color="blue" style={{ width: "fit-content", margin: 0 }}>
-                            Confidence: {conclusionPayload.confidence}
-                          </Tag>
-                        )}
-                        {conclusionPayload.key_points.length > 0 && (
-                          <div>
-                            <Text strong style={{ fontSize: token.fontSizeSM }}>
-                              Key points
-                            </Text>
-                            <ul
-                              style={{
-                                margin: `${token.marginXS}px 0 0 0`,
-                                paddingInlineStart: token.paddingLG,
-                              }}
-                            >
-                              {conclusionPayload.key_points.map((point, index) => (
-                                <li key={`${index}-${point}`}>
-                                  <Text style={{ fontSize: token.fontSizeSM }}>{point}</Text>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {conclusionPayload.next_steps.length > 0 && (
-                          <div>
-                            <Text strong style={{ fontSize: token.fontSizeSM }}>
-                              Next steps
-                            </Text>
-                            <ol
-                              style={{
-                                margin: `${token.marginXS}px 0 0 0`,
-                                paddingInlineStart: token.paddingLG,
-                              }}
-                            >
-                              {conclusionPayload.next_steps.map((step, index) => (
-                                <li key={`${index}-${step}`}>
-                                  <Text style={{ fontSize: token.fontSizeSM }}>{step}</Text>
-                                </li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-                      </Space>
-                    </div>
                   </Space>
                 ) : formatted.isJson ? (
                   <SyntaxHighlighter

@@ -3,12 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   createContentPreview,
   createCompactPreview,
+  formatConclusionToolResultAsMarkdown,
   formatResultContent,
   getFileChangeDiffStats,
   getStatusColor,
   parseConclusionToolResultPayload,
   parseFileChangeResultPayload,
-  parseMermaidToolResultPayload,
   parseUnifiedDiffLines,
   safeStringify,
   shouldCollapseContent,
@@ -227,27 +227,6 @@ describe("createContentPreview", () => {
 });
 
 describe("structured tool payload parsing", () => {
-  it("parses mermaid payload", () => {
-    const payload = JSON.stringify({
-      type: "mermaid",
-      title: "Flow",
-      summary: "Main flow",
-      chart: "flowchart TD\nA-->B",
-    });
-
-    expect(parseMermaidToolResultPayload(payload)).toEqual({
-      type: "mermaid",
-      title: "Flow",
-      summary: "Main flow",
-      chart: "flowchart TD\nA-->B",
-    });
-  });
-
-  it("returns null for invalid mermaid payload", () => {
-    const payload = JSON.stringify({ type: "mermaid", chart: "   " });
-    expect(parseMermaidToolResultPayload(payload)).toBeNull();
-  });
-
   it("parses conclusion payload", () => {
     const payload = JSON.stringify({
       type: "conclusion",
@@ -271,6 +250,27 @@ describe("structured tool payload parsing", () => {
   it("returns null for invalid conclusion payload", () => {
     const payload = JSON.stringify({ type: "conclusion", conclusion: "" });
     expect(parseConclusionToolResultPayload(payload)).toBeNull();
+  });
+
+  it("formats conclusion payload as markdown for normal assistant rendering", () => {
+    const payload = JSON.stringify({
+      type: "conclusion",
+      title: "Conclusion",
+      conclusion: "Ready to ship",
+      key_points: ["Tests passed", "No blockers"],
+      next_steps: ["Release"],
+      confidence: "high",
+    });
+
+    expect(formatConclusionToolResultAsMarkdown(payload)).toBe(
+      [
+        "## Conclusion",
+        "Ready to ship",
+        "**Confidence:** high",
+        "**Key points**\n- Tests passed\n- No blockers",
+        "**Next steps**\n1. Release",
+      ].join("\n\n"),
+    );
   });
 });
 

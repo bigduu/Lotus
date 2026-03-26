@@ -96,7 +96,7 @@ function isToolResultMessage(message: Message): message is AssistantToolResultMe
 
 const isStructuredSummaryTool = (toolName: string | undefined): boolean => {
   const normalized = (toolName ?? "").trim().toLowerCase();
-  return normalized === "conclusion" || normalized === "mermaid";
+  return normalized === "conclusion";
 };
 
 const getToolCallId = (item: ToolSessionItem): string =>

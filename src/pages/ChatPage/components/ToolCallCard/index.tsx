@@ -40,7 +40,6 @@ function generateIntentDescription(toolName: string, params: Record<string, unkn
     bash: (p) => `Executing: ${truncate(p.command, 40)}`,
     grep: (p) => `Searching: "${truncate(p.pattern, 30)}"`,
     glob: (p) => `Finding files: "${p.pattern}"`,
-    mermaid: (p) => `Rendering diagram: ${truncate(p.title || "Mermaid", 35)}`,
     conclusion: (p) => `Presenting conclusion: "${truncate(p.conclusion || p.title || "", 30)}"`,
     read: (p) => `Reading: ${p.file_path || "file"}`,
     write: (p) => `Writing: ${p.file_path || "file"}`,

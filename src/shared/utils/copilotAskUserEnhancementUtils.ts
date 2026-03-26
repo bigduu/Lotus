@@ -21,9 +21,8 @@ Before ending the task, always call the \`ask_user\` tool to confirm whether the
 Requirements:
 - This rule applies at the end of every task turn.
 - Do not ask final confirmation in plain assistant text; use \`ask_user\` for the final confirmation step.
-- Before the final \`ask_user\` call, first call either \`conclusion\` or \`mermaid\` to present progress/conclusions.
-- For final wrap-up, include \`conclusion\`/ \`mermaid\` and \`ask_user\` in the same assistant response.
-- If using \`mermaid\`, include a short textual takeaway in the tool payload summary/title.
+- Before the final \`ask_user\` call, first call \`conclusion\` to present progress/conclusions.
+- For final wrap-up, include \`conclusion\` and \`ask_user\` in the same assistant response.
 - After the tool call, add a brief assistant text recap so the user understands the conclusion in plain language.
 - Ask a clear confirmation question and include \`OK\` as one of the selectable options.
 - Only treat the task as finished when the user explicitly selects or replies \`OK\`.

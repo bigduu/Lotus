@@ -58,8 +58,7 @@ describe("messageCardParsing", () => {
       const message: Message = {
         role: "assistant",
         type: "text",
-        content:
-          'Here is a plan:\n```json\n{"goal": "Test", "steps": [{"action": "step1"}]}\n```',
+        content: 'Here is a plan:\n```json\n{"goal": "Test", "steps": [{"action": "step1"}]}\n```',
         timestamp: "2024-01-01T00:00:00Z",
       };
 
@@ -70,8 +69,7 @@ describe("messageCardParsing", () => {
       const message: Message = {
         role: "assistant",
         type: "text",
-        content:
-          'Here is a plan: {"goal": "Test", "steps": [{"action": "step1"}]}',
+        content: 'Here is a plan: {"goal": "Test", "steps": [{"action": "step1"}]}',
         timestamp: "2024-01-01T00:00:00Z",
       };
 
@@ -82,8 +80,7 @@ describe("messageCardParsing", () => {
       const message: Message = {
         role: "assistant",
         type: "text",
-        content:
-          'Here is a question:\n```json\n{"type": "question", "question": "Test?"}\n```',
+        content: 'Here is a question:\n```json\n{"type": "question", "question": "Test?"}\n```',
         timestamp: "2024-01-01T00:00:00Z",
       };
 
@@ -94,8 +91,7 @@ describe("messageCardParsing", () => {
       const message: Message = {
         role: "assistant",
         type: "text",
-        content:
-          'Question: {"type": "question", "question": "Test?"}',
+        content: 'Question: {"type": "question", "question": "Test?"}',
         timestamp: "2024-01-01T00:00:00Z",
       };
 
@@ -129,7 +125,7 @@ describe("messageCardParsing", () => {
       const message: Message = {
         role: "assistant",
         type: "text",
-        content: '```json\n{invalid json}\n```',
+        content: "```json\n{invalid json}\n```",
         timestamp: "2024-01-01T00:00:00Z",
       };
 
@@ -622,9 +618,34 @@ describe("messageCardParsing", () => {
         timestamp: "2024-01-01T00:00:00Z",
       };
 
-      expect(getMessageText(message)).toBe(
-        "Tool testTool Result: Tool executed successfully",
-      );
+      expect(getMessageText(message)).toBe("Tool testTool Result: Tool executed successfully");
+    });
+
+    it("formats conclusion tool results as regular assistant markdown text", () => {
+      const message: Message = {
+        role: "assistant",
+        type: "tool_result",
+        content: "",
+        toolName: "conclusion",
+        result: {
+          toolCallId: "123",
+          result: JSON.stringify({
+            type: "conclusion",
+            title: "Conclusion",
+            conclusion: "Ready to ship",
+            key_points: ["Tests passed"],
+            next_steps: ["Release"],
+            confidence: "high",
+          }),
+        },
+        timestamp: "2024-01-01T00:00:00Z",
+      };
+
+      const text = getMessageText(message);
+      expect(text).toContain("## Conclusion");
+      expect(text).toContain("Ready to ship");
+      expect(text).toContain("**Key points**");
+      expect(text).toContain("**Next steps**");
     });
 
     it("formats tool_call message with single tool", () => {

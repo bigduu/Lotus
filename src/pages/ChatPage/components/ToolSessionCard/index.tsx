@@ -190,7 +190,6 @@ function generateToolIntent(toolName: string, params: Record<string, unknown>): 
     bash: (p) => `Executing: ${truncate(p.command, 35)}`,
     grep: (p) => `Searching: "${truncate(p.pattern, 25)}"`,
     glob: (p) => `Finding: "${p.pattern}"`,
-    mermaid: (p) => `Diagram: ${truncate(p.title || "Mermaid", 30)}`,
     conclusion: (p) => `Conclusion: ${truncate(p.conclusion || p.title || "", 28)}`,
     read: (p) => `Reading: ${p.file_path || "file"}`,
     write: (p) => `Writing: ${p.file_path || "file"}`,
