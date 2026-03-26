@@ -22,6 +22,7 @@ const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
 const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
 const DEFAULT_BASE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT?.content?.trim() || "";
+const FALLBACK_TOOL_NAME = "tool";
 
 export type DeleteMessageFailureReason =
   | "session_not_found"
@@ -82,6 +83,37 @@ const resolveImageUrlForRender = (rawUrl: string): string => {
   return `${base}/sessions/${encodeURIComponent(ref.sessionId)}/attachments/${encodeURIComponent(ref.attachmentId)}`;
 };
 
+const normalizeToolName = (name: string | undefined | null): string | undefined => {
+  if (typeof name !== "string") return undefined;
+  const trimmed = name.trim();
+  if (!trimmed) return undefined;
+  if (trimmed.toLowerCase() === "unknown") return undefined;
+  return trimmed;
+};
+
+const inferToolNameFromToolContent = (content: string | undefined): string | undefined => {
+  const text = (content || "").trim();
+  if (!text) return undefined;
+
+  // Example: Tool policy blocked 'conclusion': ...
+  const blockedMatch = text.match(/tool policy blocked ['"`]([^'"`]+)['"`]/i);
+  if (blockedMatch?.[1]) {
+    return normalizeToolName(blockedMatch[1]);
+  }
+
+  // JSON payloads may include "tool_name": "xxx"
+  try {
+    const parsed = JSON.parse(text) as { tool_name?: unknown };
+    if (typeof parsed?.tool_name === "string") {
+      return normalizeToolName(parsed.tool_name);
+    }
+  } catch {
+    // best effort only
+  }
+
+  return undefined;
+};
+
 const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
   const createdAtMs = Number.isFinite(Date.parse(s.created_at))
     ? Date.parse(s.created_at)
@@ -133,6 +165,8 @@ const mapHistoryMessagesToUi = (
     id: string;
     role: "user" | "assistant" | "tool" | "system";
     content: string;
+    name?: string;
+    tool_name?: string;
     compressed?: boolean;
     compressed_by_event_id?: string;
     content_parts?: Array<
@@ -248,7 +282,12 @@ const mapHistoryMessagesToUi = (
         }
 
         for (const call of toolCalls) {
-          toolNameByCallId.set(call.id, call.function?.name || "unknown");
+          if (call.id) {
+            toolNameByCallId.set(
+              call.id,
+              normalizeToolName(call.function?.name) || FALLBACK_TOOL_NAME,
+            );
+          }
         }
         const toolCallMsg: AssistantToolCallMessage = {
           role: "assistant",
@@ -257,7 +296,7 @@ const mapHistoryMessagesToUi = (
           createdAt,
           toolCalls: toolCalls.map((c) => ({
             toolCallId: c.id,
-            toolName: c.function?.name || "unknown",
+            toolName: normalizeToolName(c.function?.name) || FALLBACK_TOOL_NAME,
             parameters: (() => {
               try {
                 return JSON.parse(c.function?.arguments || "{}") as Record<string, unknown>;
@@ -293,8 +332,13 @@ const mapHistoryMessagesToUi = (
     }
 
     if (msg.role === "tool") {
-      const toolCallId = msg.tool_call_id || "unknown";
-      const toolName = toolNameByCallId.get(toolCallId) || "unknown";
+      const toolCallId = msg.tool_call_id?.trim() || `orphan-tool-call:${msg.id}`;
+      const toolName =
+        normalizeToolName(toolNameByCallId.get(toolCallId)) ||
+        normalizeToolName(msg.tool_name) ||
+        normalizeToolName(msg.name) ||
+        inferToolNameFromToolContent(msg.content) ||
+        FALLBACK_TOOL_NAME;
       const inferredError =
         msg.tool_success === false ||
         (msg.tool_success == null &&

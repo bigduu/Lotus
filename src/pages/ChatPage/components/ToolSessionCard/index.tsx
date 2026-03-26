@@ -106,13 +106,13 @@ interface ToolItemStatus {
 }
 
 const getToolItemKey = (item: ToolSessionItem): string => {
-  const toolCallId = item.call.toolCalls?.[0]?.toolCallId || "unknown-call";
+  const toolCallId = item.call.toolCalls?.[0]?.toolCallId || "tool-call-missing";
   const messageScopeId =
     item.callMessageId ||
     item.call.id ||
     item.resultMessageId ||
     item.result?.id ||
-    "unknown-message";
+    "tool-message-missing";
   return `${messageScopeId}:${toolCallId}`;
 };
 
@@ -184,9 +184,9 @@ function generateToolIntent(toolName: string, params: Record<string, unknown>): 
   };
 
   const nameMap: Record<string, (p: typeof params) => string> = {
-    file_read: (p) => `Reading: ${truncate(p.path || p.file_path || "unknown", 35)}`,
-    file_write: (p) => `Writing: ${truncate(p.path || p.file_path || "unknown", 35)}`,
-    file_edit: (p) => `Editing: ${truncate(p.path || p.file_path || "unknown", 35)}`,
+    file_read: (p) => `Reading: ${truncate(p.path || p.file_path || "file", 35)}`,
+    file_write: (p) => `Writing: ${truncate(p.path || p.file_path || "file", 35)}`,
+    file_edit: (p) => `Editing: ${truncate(p.path || p.file_path || "file", 35)}`,
     bash: (p) => `Executing: ${truncate(p.command, 35)}`,
     grep: (p) => `Searching: "${truncate(p.pattern, 25)}"`,
     glob: (p) => `Finding: "${p.pattern}"`,
@@ -220,8 +220,8 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
       firstTool?.call?.id ||
       firstTool?.resultMessageId ||
       firstTool?.result?.id ||
-      "unknown-message";
-    return `${messageScopeId}:${firstCall?.toolCallId || "unknown-call"}`;
+      "tool-message-missing";
+    return `${messageScopeId}:${firstCall?.toolCallId || "tool-call-missing"}`;
   }, [tools]);
   const defaultExpandedToolKey = useMemo(() => {
     const first = tools[0];

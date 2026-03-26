@@ -388,6 +388,79 @@ describe("chatSessionSlice history mapping", () => {
     });
   });
 
+  it("infers tool name from policy-blocked tool content when call mapping is missing", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [
+        {
+          id: "tool-policy",
+          role: "tool",
+          content:
+            "Tool policy blocked 'conclusion': when copilot ask-user enhancement is enabled, pair conclusion with an `ask_user` tool call in the same assistant response.",
+          tool_success: false,
+          created_at: "2026-03-15T00:00:01Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "replace" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated?.messages[0]).toMatchObject({
+      role: "assistant",
+      type: "tool_result",
+      toolName: "conclusion",
+      isError: true,
+    });
+  });
+
+  it("uses 'tool' fallback instead of 'unknown' for orphan tool history records", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    getHistoryMock.mockResolvedValueOnce({
+      session_id: "session-1",
+      compression_events: [],
+      messages: [
+        {
+          id: "tool-orphan",
+          role: "tool",
+          content: "Execution failed",
+          tool_success: false,
+          created_at: "2026-03-15T00:00:01Z",
+        },
+      ],
+    } as any);
+
+    await store.getState().loadChatHistory("session-1", { mode: "replace" });
+
+    const updated = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updated?.messages[0]).toMatchObject({
+      role: "assistant",
+      type: "tool_result",
+      toolName: "tool",
+      isError: true,
+    });
+  });
+
   it("maps compressed flags and compression events from history", async () => {
     const store = createTestStore();
     const chat = createChat("session-1");

@@ -34,9 +34,9 @@ function generateIntentDescription(toolName: string, params: Record<string, unkn
   };
 
   const nameMap: Record<string, (p: typeof params) => string> = {
-    file_read: (p) => `Reading: ${truncate(p.path || p.file_path || "unknown", 40)}`,
-    file_write: (p) => `Writing to: ${truncate(p.path || p.file_path || "unknown", 35)}`,
-    file_edit: (p) => `Editing: ${truncate(p.path || p.file_path || "unknown", 40)}`,
+    file_read: (p) => `Reading: ${truncate(p.path || p.file_path || "file", 40)}`,
+    file_write: (p) => `Writing to: ${truncate(p.path || p.file_path || "file", 35)}`,
+    file_edit: (p) => `Editing: ${truncate(p.path || p.file_path || "file", 40)}`,
     bash: (p) => `Executing: ${truncate(p.command, 40)}`,
     grep: (p) => `Searching: "${truncate(p.pattern, 30)}"`,
     glob: (p) => `Finding files: "${p.pattern}"`,

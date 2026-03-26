@@ -117,7 +117,7 @@ describe("useChatViewMessages tool session keys", () => {
     expect(toolEntries[1].tools[0].resultMessageId).toBe("result-2");
   });
 
-  it("renders conclusion tool call/result as regular message entries (not tool session)", () => {
+  it("renders conclusion as result message only (no empty tool_call card)", () => {
     const chat = buildChat();
     const messages: Message[] = [
       buildNamedToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", [
@@ -142,6 +142,6 @@ describe("useChatViewMessages tool session keys", () => {
     expect(toolEntries).toHaveLength(0);
     expect(
       renderable.filter((entry) => !("type" in entry)).map((entry) => entry.message.id),
-    ).toEqual(["assistant-call:tool-call:0:c-1", "result-1"]);
+    ).toEqual(["result-1"]);
   });
 });

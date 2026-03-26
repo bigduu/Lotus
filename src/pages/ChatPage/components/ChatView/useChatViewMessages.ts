@@ -100,14 +100,14 @@ const isStructuredSummaryTool = (toolName: string | undefined): boolean => {
 };
 
 const getToolCallId = (item: ToolSessionItem): string =>
-  item.call.toolCalls?.[0]?.toolCallId || item.result?.toolCallId || "unknown-call";
+  item.call.toolCalls?.[0]?.toolCallId || item.result?.toolCallId || "tool-call-missing";
 
 const getToolMessageScopeId = (item: ToolSessionItem, fallbackIndex: number): string =>
   item.call.id ||
   item.callMessageId ||
   item.resultMessageId ||
   item.result?.id ||
-  `unknown-message-${fallbackIndex}`;
+  `tool-message-missing-${fallbackIndex}`;
 
 const getToolSessionEntryId = (item: ToolSessionItem, fallbackIndex: number): string =>
   `tool-session-${getToolMessageScopeId(item, fallbackIndex)}:${getToolCallId(item)}`;
@@ -162,16 +162,15 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
 
       toolCalls.forEach((toolCall, index) => {
         const callId = toolCall.toolCallId || `${message.id}-${index}`;
+        if (isStructuredSummaryTool(toolCall.toolName)) {
+          passthroughToolCallIds.add(callId);
+          return;
+        }
         const singleCallMessage: AssistantToolCallMessage = {
           ...message,
           id: `${message.id}:tool-call:${index}:${callId}`,
           toolCalls: [{ ...toolCall, toolCallId: callId }],
         };
-        if (isStructuredSummaryTool(toolCall.toolName)) {
-          passthroughToolCallIds.add(callId);
-          result.push(singleCallMessage);
-          return;
-        }
         const item: ToolSessionItem = {
           call: singleCallMessage,
           callMessageId: message.id,
@@ -198,7 +197,7 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
         existing.result = message;
         existing.resultMessageId = message.id;
       } else {
-        const fallbackCallId = toolCallId || `unknown-${message.id}`;
+        const fallbackCallId = toolCallId || `orphan-tool-call:${message.id}`;
         const syntheticCall: AssistantToolCallMessage = {
           role: "assistant",
           type: "tool_call",
@@ -207,7 +206,7 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
           toolCalls: [
             {
               toolCallId: fallbackCallId,
-              toolName: message.toolName || "unknown",
+              toolName: (message.toolName || "").trim() || "tool",
               parameters: {},
               streamingOutput: "",
             },
