@@ -1,5 +1,5 @@
 import { debugLog } from "@shared/utils/debugFlags";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CommandService } from "../../services/CommandService";
 import type { CommandItem } from "../../types/command";
 

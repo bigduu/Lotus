@@ -92,6 +92,8 @@ describe("copilotAskUserEnhancementUtils", () => {
       expect(normalized).toContain("ask_user");
       expect(normalized).toContain("before the final `ask_user` call");
       expect(normalized).toContain("call either `conclusion` or `mermaid`");
+      expect(normalized).toContain("same assistant response");
+      expect(normalized).toContain("without `ask_user` is invalid");
       expect(normalized).toContain("ok");
       expect(normalized).toContain("continue assisting");
     });

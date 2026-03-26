@@ -39,21 +39,39 @@ const buildToolCallMessage = (
   })),
 });
 
+const buildNamedToolCallMessage = (
+  id: string,
+  createdAt: string,
+  toolCalls: Array<{ toolCallId: string; toolName: string }>,
+): AssistantToolCallMessage => ({
+  id,
+  createdAt,
+  role: "assistant",
+  type: "tool_call",
+  toolCalls: toolCalls.map((toolCall) => ({
+    toolCallId: toolCall.toolCallId,
+    toolName: toolCall.toolName,
+    parameters: {},
+    streamingOutput: "",
+  })),
+});
+
 const buildToolResultMessage = (
   id: string,
   createdAt: string,
   toolCallId: string,
   result: string,
+  toolName = "tool",
 ): AssistantToolResultMessage => ({
   id,
   createdAt,
   role: "assistant",
   type: "tool_result",
-  toolName: "tool",
+  toolName,
   toolCallId,
   isError: false,
   result: {
-    tool_name: "tool",
+    tool_name: toolName,
     result,
     display_preference: "Default",
   },
@@ -71,10 +89,7 @@ describe("useChatViewMessages tool session keys", () => {
   it("generates unique tool_session ids for multiple calls in one tool_call message", () => {
     const chat = buildChat();
     const messages: Message[] = [
-      buildToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", [
-        "call-1",
-        "call-2",
-      ]),
+      buildToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", ["call-1", "call-2"]),
     ];
 
     const { result } = renderHook(() => useChatViewMessages(chat, messages));
@@ -90,18 +105,8 @@ describe("useChatViewMessages tool session keys", () => {
     const messages: Message[] = [
       buildToolCallMessage("assistant-call-1", "2026-03-24T00:00:00.000Z", ["dup"]),
       buildToolCallMessage("assistant-call-2", "2026-03-24T00:00:01.000Z", ["dup"]),
-      buildToolResultMessage(
-        "result-1",
-        "2026-03-24T00:00:02.000Z",
-        "dup",
-        "first",
-      ),
-      buildToolResultMessage(
-        "result-2",
-        "2026-03-24T00:00:03.000Z",
-        "dup",
-        "second",
-      ),
+      buildToolResultMessage("result-1", "2026-03-24T00:00:02.000Z", "dup", "first"),
+      buildToolResultMessage("result-2", "2026-03-24T00:00:03.000Z", "dup", "second"),
     ];
 
     const { result } = renderHook(() => useChatViewMessages(chat, messages));
@@ -111,5 +116,32 @@ describe("useChatViewMessages tool session keys", () => {
     expect(toolEntries[0].tools[0].resultMessageId).toBe("result-1");
     expect(toolEntries[1].tools[0].resultMessageId).toBe("result-2");
   });
-});
 
+  it("renders conclusion tool call/result as regular message entries (not tool session)", () => {
+    const chat = buildChat();
+    const messages: Message[] = [
+      buildNamedToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", [
+        { toolCallId: "c-1", toolName: "conclusion" },
+      ]),
+      buildToolResultMessage(
+        "result-1",
+        "2026-03-24T00:00:01.000Z",
+        "c-1",
+        JSON.stringify({
+          type: "conclusion",
+          conclusion: "Done",
+        }),
+        "conclusion",
+      ),
+    ];
+
+    const { result } = renderHook(() => useChatViewMessages(chat, messages));
+    const renderable = result.current.renderableMessages;
+    const toolEntries = getToolSessionEntries(renderable);
+
+    expect(toolEntries).toHaveLength(0);
+    expect(
+      renderable.filter((entry) => !("type" in entry)).map((entry) => entry.message.id),
+    ).toEqual(["assistant-call:tool-call:0:c-1", "result-1"]);
+  });
+});

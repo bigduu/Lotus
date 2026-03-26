@@ -86,6 +86,11 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
   rehypePlugins,
 }) => {
   const { t } = useTranslation();
+  const isStructuredSummaryTool = (toolName: string | undefined): boolean => {
+    const normalized = (toolName ?? "").trim().toLowerCase();
+    return normalized === "conclusion" || normalized === "mermaid";
+  };
+
   if (isAssistantToolResultMessage(message)) {
     const toolResultContent = message.result.result ?? "";
     const toolResultErrorMessage = message.isError
@@ -97,13 +102,17 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
       return null;
     }
 
+    const normalizedToolName = (message.toolName ?? "").trim().toLowerCase();
+    const expandStructuredSummaryCardByDefault =
+      normalizedToolName === "conclusion" || normalizedToolName === "mermaid";
+
     return (
       <ToolResultCard
         content={toolResultContent}
         toolName={message.toolName}
         status={message.isError ? "error" : toolResultIsLoading ? "warning" : "success"}
         timestamp={message.createdAt}
-        defaultCollapsed={true}
+        defaultCollapsed={!expandStructuredSummaryCardByDefault}
         isLoading={toolResultIsLoading}
         errorMessage={toolResultErrorMessage}
       />
@@ -132,9 +141,16 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
   }
 
   if (isAssistantToolCallMessage(message)) {
+    const visibleToolCalls = message.toolCalls.filter(
+      (call) => !isStructuredSummaryTool(call.toolName),
+    );
+    if (visibleToolCalls.length === 0) {
+      return null;
+    }
+
     return (
       <Space direction="vertical" style={{ width: "100%" }}>
-        {message.toolCalls.map((call) => (
+        {visibleToolCalls.map((call) => (
           <ToolCallCard
             key={call.toolCallId}
             toolName={call.toolName}

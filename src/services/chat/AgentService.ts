@@ -6,7 +6,6 @@ import { debugLog } from "@shared/utils/debugFlags";
  * Handles SSE streaming and AgentEvent processing
  */
 import { agentApiClient } from "../api";
-import { debugLog } from "../../shared/utils/debugFlags";
 
 // Agent Event Types (matching Rust backend)
 export type AgentEventType =

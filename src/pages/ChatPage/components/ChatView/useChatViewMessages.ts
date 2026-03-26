@@ -94,6 +94,11 @@ function isToolResultMessage(message: Message): message is AssistantToolResultMe
   return message.role === "assistant" && "type" in message && message.type === "tool_result";
 }
 
+const isStructuredSummaryTool = (toolName: string | undefined): boolean => {
+  const normalized = (toolName ?? "").trim().toLowerCase();
+  return normalized === "conclusion" || normalized === "mermaid";
+};
+
 const getToolCallId = (item: ToolSessionItem): string =>
   item.call.toolCalls?.[0]?.toolCallId || item.result?.toolCallId || "unknown-call";
 
@@ -116,6 +121,7 @@ const getToolSessionEntryId = (item: ToolSessionItem, fallbackIndex: number): st
 function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem[]> {
   const result: Array<Message | ToolSessionItem[]> = [];
   const pendingItemsByToolCallId = new Map<string, ToolSessionItem[]>();
+  const passthroughToolCallIds = new Set<string>();
 
   const enqueuePendingItem = (toolCallId: string, item: ToolSessionItem) => {
     const queue = pendingItemsByToolCallId.get(toolCallId) || [];
@@ -161,6 +167,11 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
           id: `${message.id}:tool-call:${index}:${callId}`,
           toolCalls: [{ ...toolCall, toolCallId: callId }],
         };
+        if (isStructuredSummaryTool(toolCall.toolName)) {
+          passthroughToolCallIds.add(callId);
+          result.push(singleCallMessage);
+          return;
+        }
         const item: ToolSessionItem = {
           call: singleCallMessage,
           callMessageId: message.id,
@@ -173,6 +184,15 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
 
     if (isToolResultMessage(message)) {
       const toolCallId = message.toolCallId;
+      if (toolCallId && passthroughToolCallIds.has(toolCallId)) {
+        passthroughToolCallIds.delete(toolCallId);
+        result.push(message);
+        continue;
+      }
+      if (isStructuredSummaryTool(message.toolName)) {
+        result.push(message);
+        continue;
+      }
       const existing = toolCallId ? consumePendingItem(toolCallId) : undefined;
       if (existing) {
         existing.result = message;
