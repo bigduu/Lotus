@@ -2,14 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { FileReferenceInfo } from "../../utils/inputHighlight";
 import type { WorkspaceFileEntry } from "../../types/workspace";
+import type { ChatItem } from "../../types/chat";
 import { workspaceApiService } from "../../services/WorkspaceApiService";
 
 interface UseInputContainerFileReferencesProps {
   content: string;
   setContent: (value: string) => void;
   currentSessionId: string | null;
-  currentChat: any | null;
-  updateSession: (sessionId: string, update: any) => void;
+  currentChat: ChatItem | null;
+  updateSession: (sessionId: string, update: Partial<ChatItem>) => void;
   messageApi: MessageInstance;
 }
 
@@ -21,12 +22,8 @@ export const useInputContainerFileReferences = ({
   updateSession,
   messageApi,
 }: UseInputContainerFileReferencesProps) => {
-  const [fileReferences, setFileReferences] = useState<
-    Map<string, WorkspaceFileEntry>
-  >(new Map());
-  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>(
-    [],
-  );
+  const [fileReferences, setFileReferences] = useState<Map<string, WorkspaceFileEntry>>(new Map());
+  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>([]);
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [fileSearchText, setFileSearchText] = useState("");
   const [isWorkspaceModalVisible, setIsWorkspaceModalVisible] = useState(false);
@@ -50,29 +47,23 @@ export const useInputContainerFileReferences = ({
     lastWorkspacePathRef.current = currentChat?.config.workspacePath ?? null;
   }, [currentSessionId, currentChat?.config.workspacePath]);
 
-  const fetchWorkspaceFiles = useCallback(
-    async (_sessionId: string, workspacePath: string) => {
-      setIsWorkspaceLoading(true);
-      setWorkspaceFiles([]);
-      setWorkspaceError(null);
-      try {
-        const files =
-          await workspaceApiService.listWorkspaceFiles(workspacePath);
-        setWorkspaceFiles(files);
-        lastWorkspacePathRef.current = workspacePath;
-      } catch (error) {
-        console.error("Failed to load workspace files:", error);
-        setWorkspaceError(
-          error instanceof Error
-            ? error.message
-            : "Workspace file browsing is unavailable.",
-        );
-      } finally {
-        setIsWorkspaceLoading(false);
-      }
-    },
-    [],
-  );
+  const fetchWorkspaceFiles = useCallback(async (_sessionId: string, workspacePath: string) => {
+    setIsWorkspaceLoading(true);
+    setWorkspaceFiles([]);
+    setWorkspaceError(null);
+    try {
+      const files = await workspaceApiService.listWorkspaceFiles(workspacePath);
+      setWorkspaceFiles(files);
+      lastWorkspacePathRef.current = workspacePath;
+    } catch (error) {
+      console.error("Failed to load workspace files:", error);
+      setWorkspaceError(
+        error instanceof Error ? error.message : "Workspace file browsing is unavailable.",
+      );
+    } finally {
+      setIsWorkspaceLoading(false);
+    }
+  }, []);
 
   const handleFileReferenceChange = useCallback(
     (info: FileReferenceInfo) => {
@@ -99,10 +90,7 @@ export const useInputContainerFileReferences = ({
 
       setShowFileSelector(true);
 
-      if (
-        lastWorkspacePathRef.current !== workspacePath ||
-        workspaceFiles.length === 0
-      ) {
+      if (lastWorkspacePathRef.current !== workspacePath || workspaceFiles.length === 0) {
         fetchWorkspaceFiles(currentSessionId, workspacePath);
       }
     },
@@ -114,16 +102,11 @@ export const useInputContainerFileReferences = ({
       const atIndex = content.lastIndexOf("@");
       let newContent: string;
 
-      if (
-        atIndex >= 0 &&
-        content.substring(atIndex).match(/^@[a-zA-Z0-9._\\-\\/\\\\]*$/)
-      ) {
+      if (atIndex >= 0 && content.substring(atIndex).match(/^@[a-zA-Z0-9._\\-\\/\\\\]*$/)) {
         const before = content.slice(0, atIndex);
         newContent = `${before}@${file.name} `;
       } else {
-        newContent = content.trim()
-          ? `${content.trim()} @${file.name} `
-          : `@${file.name} `;
+        newContent = content.trim() ? `${content.trim()} @${file.name} ` : `@${file.name} `;
       }
 
       setContent(newContent);
@@ -161,10 +144,7 @@ export const useInputContainerFileReferences = ({
     setFileSearchText("");
     setShowFileSelector(true);
 
-    if (
-      lastWorkspacePathRef.current !== workspacePath ||
-      workspaceFiles.length === 0
-    ) {
+    if (lastWorkspacePathRef.current !== workspacePath || workspaceFiles.length === 0) {
       fetchWorkspaceFiles(currentSessionId, workspacePath);
     }
   }, [currentChat, currentSessionId, fetchWorkspaceFiles, workspaceFiles.length]);
@@ -198,9 +178,7 @@ export const useInputContainerFileReferences = ({
         setWorkspaceError(null);
       } catch (error) {
         const errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Unable to save workspace path";
+          error instanceof Error ? error.message : "Unable to save workspace path";
         messageApi.error(errorMessage);
       } finally {
         setIsSavingWorkspace(false);

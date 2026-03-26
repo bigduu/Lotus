@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Button } from "antd";
 import { WarningOutlined, BulbOutlined } from "@ant-design/icons";
@@ -7,7 +8,7 @@ interface MermaidChartErrorProps {
   error: string;
   className?: string;
   style?: React.CSSProperties;
-  token: any;
+  token: GlobalToken;
   onFix?: () => void;
   isFixing: boolean;
   fixError: string;
@@ -117,12 +118,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
             width: "100%",
           }}
         >
-          <Button
-            size="small"
-            type="primary"
-            onClick={onFix}
-            loading={isFixing}
-          >
+          <Button size="small" type="primary" onClick={onFix} loading={isFixing}>
             {t("components.mermaid.fixMermaid")}
           </Button>
           {fixError && (

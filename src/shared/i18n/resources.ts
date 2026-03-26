@@ -4,8 +4,7 @@ export const resources = {
       app: {
         loading: "Loading...",
         retry: "Retry",
-        backendNotReachable:
-          "Backend not reachable at {{baseUrl}} (last error: {{message}})",
+        backendNotReachable: "Backend not reachable at {{baseUrl}} (last error: {{message}})",
       },
       layout: {
         showSidebar: "Show sidebar",
@@ -36,10 +35,8 @@ export const resources = {
         welcome: {
           title: "Welcome",
           heading: "Welcome to Bodhi",
-          description:
-            "Let's set up your environment before entering the main app.",
-          skipInfo:
-            "You can skip setup now and configure proxy settings later in System Settings.",
+          description: "Let's set up your environment before entering the main app.",
+          skipInfo: "You can skip setup now and configure proxy settings later in System Settings.",
         },
         steps: {
           welcome: "Welcome",
@@ -63,8 +60,7 @@ export const resources = {
         },
         complete: {
           title: "Setup Complete!",
-          restartMessage:
-            "Please restart the application to apply all settings.",
+          restartMessage: "Please restart the application to apply all settings.",
         },
         button: {
           next: "Next",
@@ -79,8 +75,7 @@ export const resources = {
           invalidProxy: "Proxy settings are invalid.",
           credentialsUsername:
             "To store proxy credentials, please enter a username or uncheck 'Remember credentials'.",
-          saveProxyFailed:
-            "Failed to save proxy configuration. Please try again.",
+          saveProxyFailed: "Failed to save proxy configuration. Please try again.",
           completeFailed: "Failed to complete setup. Please try again.",
         },
       },
@@ -111,8 +106,7 @@ export const resources = {
           },
           deleteByDate: {
             title: "Delete sessions from {{date}}",
-            confirm:
-              "Are you sure you want to delete {{count}} sessions from {{date}}?",
+            confirm: "Are you sure you want to delete {{count}} sessions from {{date}}?",
           },
           newSessionWithPrompt: "New session with {{prompt}}",
         },
@@ -150,11 +144,9 @@ export const resources = {
         input: {
           placeholder: "Send a message...",
           placeholderWithReference: "Send a message (includes reference)",
-          placeholderWithWorkflows:
-            "Send a message... (type '/' for workflows)",
+          placeholderWithWorkflows: "Send a message... (type '/' for workflows)",
           toolCallsOnly: "Tool calls only (allowed tools: {{tools}})",
-          autoPrefixMode:
-            "Auto-prefix mode: {{prefix}} (type '/' to select tools)",
+          autoPrefixMode: "Auto-prefix mode: {{prefix}} (type '/' to select tools)",
           toolSpecificMode: "Tool-specific mode (allowed tools: {{tools}})",
           processingFiles: "Processing files…",
           addAttachments: "Add attachments",
@@ -194,8 +186,7 @@ export const resources = {
           createButton: "Create New Session",
           helperText:
             "Select a base system prompt for the AI. You can add or edit prompts in the System Settings.",
-          emptyDescription:
-            "No system prompts found. Add one in System Settings.",
+          emptyDescription: "No system prompts found. Add one in System Settings.",
           newSessionSelectorTitle: "Select System Prompt for New Session",
           defaultDescription: "Default system prompt.",
           loadPresetsFailed: "Failed to load presets",
@@ -224,8 +215,7 @@ export const resources = {
           noModelSelected: "No model selected",
           selectModelHint: "Choose a model to start chatting.",
           providerNotConfigured: "Provider not configured",
-          configureProviderHint:
-            "Set up your provider in settings before selecting a model.",
+          configureProviderHint: "Set up your provider in settings before selecting a model.",
           configureProvider: "Configure provider",
           openSettings: "Open Settings",
           noModelsAvailable: "No models available",
@@ -240,10 +230,8 @@ export const resources = {
           modelConfigNotLoaded: "Model configuration not loaded",
           agentUnavailable: "Agent unavailable",
           noActiveChatTitle: "No Active Chat",
-          noActiveChatSendContent:
-            "Please create or select a chat before sending a message.",
-          noActiveChatRetryContent:
-            "Please create or select a chat before retrying.",
+          noActiveChatSendContent: "Please create or select a chat before sending a message.",
+          noActiveChatRetryContent: "Please create or select a chat before retrying.",
           noChatIdTitle: "Missing Chat ID",
           noChatIdSendContent:
             "Current chat is missing an ID. Please create a new chat and try again.",
@@ -312,13 +300,16 @@ export const resources = {
           restoreChat: "Restore chat only",
           restoreFilesAndChat: "Restore files and chat",
           deleteMessage: "Delete message",
+          deleteFailed: "Failed to delete message",
+          deleteNotFound: "Message no longer exists on backend. Reload and retry.",
+          deleteConflict: "Session is running. Stop it and try deleting again.",
+          deleteBatchFailed: "{{failed}} of {{total}} messages failed to delete.",
           savedFile: "Saved to {{filename}}",
           nothingToExport: "Nothing to export",
           exportFailed: "Export failed",
           cannotRestore: "Cannot restore this message",
           restorePartial: "Chat restored. {{count}} file(s) could not be restored.",
-          restoreFilesSuccess:
-            "Files and chat restored ({{count}} message(s) removed).",
+          restoreFilesSuccess: "Files and chat restored ({{count}} message(s) removed).",
           restoreSuccess: "Chat restored ({{count}} message(s) removed).",
           restoreFailed: "Failed to restore session",
           pdfUnavailable: "PDF export is unavailable in this environment",
@@ -385,8 +376,7 @@ export const resources = {
           languageJapanese: "Japanese",
           languageHindi: "Hindi",
           deleteAllTitle: "Delete all sessions",
-          deleteAllDescription:
-            "Are you sure? This will delete all sessions except pinned.",
+          deleteAllDescription: "Are you sure? This will delete all sessions except pinned.",
           deleteAllButton: "Delete All Sessions",
           deleteEmptyTitle: "Delete empty sessions",
           deleteEmptyDescription:
@@ -463,8 +453,7 @@ export const resources = {
           username: "Username",
           password: "Password",
           apply: "Apply",
-          credentialsStorageNote:
-            "Proxy credentials are stored encrypted in ~/.bamboo/config.json",
+          credentialsStorageNote: "Proxy credentials are stored encrypted in ~/.bamboo/config.json",
           reload: "Reload",
           save: "Save",
         },
@@ -472,8 +461,7 @@ export const resources = {
           loadProviderFailed: "Failed to load provider configuration",
           loadMappingsFailed: "Failed to load existing mappings",
           loadModelsFailed: "Failed to load models",
-          loadModelsHint:
-            "Failed to load models. Please check your provider configuration.",
+          loadModelsHint: "Failed to load models. Please check your provider configuration.",
           mappingSaved: "Model mapping saved",
           mappingSaveFailed: "Failed to save model mapping",
           enterModelName: "Please enter a model name",
@@ -504,8 +492,7 @@ export const resources = {
           customModalTitle: "Enter Custom Model Name",
           customModalDescription: "Enter a custom model name for {{modelType}}",
           customModalPlaceholder: "e.g., gpt-4-turbo-preview",
-          customModalNote:
-            "Note: Make sure the model name is valid for the current provider.",
+          customModalNote: "Note: Make sure the model name is valid for the current provider.",
           save: "Save",
           cancel: "Cancel",
         },
@@ -516,13 +503,11 @@ export const resources = {
           backendApiBaseUrlTitle: "Backend API Base URL",
           resetToDefault: "Reset to Default",
           save: "Save",
-          backendApiHint:
-            "Must be a full base URL including /v1 (e.g. {{example}}).",
+          backendApiHint: "Must be a full base URL including /v1 (e.g. {{example}}).",
         },
         mermaidTab: {
           title: "Mermaid Diagram Settings",
-          description:
-            "Customize how Mermaid diagrams are rendered in your chats",
+          description: "Customize how Mermaid diagrams are rendered in your chats",
           themeCardTitle: "Theme",
           themeLabel: "Mermaid Theme",
           themeTooltip:
@@ -591,8 +576,7 @@ export const resources = {
           defaultsTitle: "Model Defaults",
           defaultsDescription:
             "Preloaded with GPT-5 / GPT-4 / Gemini / Kimi / GLM defaults. You can keep editing as needed.",
-          migratedFromLocalStorage:
-            "Migrated model limits from local storage to global config.",
+          migratedFromLocalStorage: "Migrated model limits from local storage to global config.",
           loadFailed: "Failed to load model limits settings",
           saveSuccess: "Model limits saved to global config",
           saveFailed: "Failed to save model limits settings",
@@ -634,13 +618,11 @@ export const resources = {
             atLeastOneRow: "Please keep at least one model limit row.",
             modelPatternEmpty: "Model pattern cannot be empty.",
             duplicateModelPattern: "Duplicate model pattern: {{pattern}}",
-            contextWindowMin:
-              "Context window for {{pattern}} must be at least 1000.",
+            contextWindowMin: "Context window for {{pattern}} must be at least 1000.",
             maxOutputMin: "Max output for {{pattern}} must be at least 1.",
             maxOutputExceedsContext:
               "Max output for {{pattern}} must be less than or equal to context window.",
-            safetyMarginNegative:
-              "Safety margin for {{pattern}} cannot be negative.",
+            safetyMarginNegative: "Safety margin for {{pattern}} cannot be negative.",
             safetyMarginTooLarge:
               "Safety margin for {{pattern}} must be smaller than context window.",
           },
@@ -653,8 +635,7 @@ export const resources = {
         systemPromptManager: {
           title: "System Prompt Management",
           addButton: "Add Prompt",
-          defaultPromptLocked:
-            "Default system prompts are locked and cannot be edited.",
+          defaultPromptLocked: "Default system prompts are locked and cannot be edited.",
           updateSuccess: "Prompt updated successfully",
           addSuccess: "Prompt added successfully",
           saveError: "Failed to save prompt. Please try again.",
@@ -697,8 +678,7 @@ export const resources = {
           valuePlaceholder: "Enter value",
           valuePlaceholderEdit: "Enter new value or leave empty",
           secret: "Secret",
-          secretHint:
-            "Secret variables are encrypted on disk and masked in the UI",
+          secretHint: "Secret variables are encrypted on disk and masked in the UI",
           descriptionField: "Description",
           descriptionPlaceholder: "Optional description",
           type: "Type",
@@ -718,8 +698,7 @@ export const resources = {
           copilotAskUserBeforeFinish: "Copilot ask_user Before Finish",
           switchOn: "ON",
           switchOff: "OFF",
-          enhancementPlaceholder:
-            "Add global enhancement text to append to every system prompt.",
+          enhancementPlaceholder: "Add global enhancement text to append to every system prompt.",
           saveEnhancement: "Save Enhancement",
           description:
             "This text is appended first, followed by enabled system enhancements before each request is sent.",
@@ -780,8 +759,7 @@ export const resources = {
           updateFailed: "Failed to update schedule",
           deleteFailed: "Failed to delete schedule",
           runNowFailed: "Failed to run schedule",
-          taskMessageRequired:
-            "Task message is required when Auto Execute is enabled",
+          taskMessageRequired: "Task message is required when Auto Execute is enabled",
           created: "Schedule created",
           updated: "Schedule updated",
           deleted: "Deleted schedule",
@@ -860,8 +838,7 @@ export const resources = {
           deleteChildren: "Delete Children",
           deleteChildrenTitle: "Delete Child Sessions",
           deleteChildrenKeepPinned: "Deletes all child sessions except pinned.",
-          deleteChildrenIncludePinned:
-            "Deletes all child sessions including pinned.",
+          deleteChildrenIncludePinned: "Deletes all child sessions including pinned.",
           delete: "Delete",
           cleanupComplete: "Cleanup complete",
           devResetTitle: "Development Reset",
@@ -891,8 +868,7 @@ export const resources = {
           save: "Save",
           empty: "No workflows found",
           namePlaceholder: "Workflow name",
-          contentPlaceholder:
-            "# Workflow Title\n\nDescribe the workflow steps here.",
+          contentPlaceholder: "# Workflow Title\n\nDescribe the workflow steps here.",
         },
         providerTab: {
           title: "LLM Provider Configuration",
@@ -907,8 +883,7 @@ export const resources = {
           startCopilotAuthFailed: "Failed to start Copilot authentication",
           copilotAuthSuccess: "Copilot authentication successful!",
           providerReloaded: "Provider reloaded with new authentication.",
-          completeAuthFailed:
-            "Authentication completion failed. Please try again.",
+          completeAuthFailed: "Authentication completion failed. Please try again.",
           userCodeCopied: "User code copied to clipboard!",
           copyCodeFailedPrefix: "Failed to copy code. Please manually copy:",
           logoutSuccess: "Logged out from Copilot",
@@ -918,10 +893,8 @@ export const resources = {
           invalidConfigPrefix: "Invalid configuration",
           fetchModelsCopilotFailed:
             "Failed to fetch models. Please authenticate Copilot and try again.",
-          fetchModelsFailed:
-            "Failed to fetch models. Please check your API key and base URL.",
-          noModelsReturned:
-            "No models returned. Authenticate Copilot first, then fetch models.",
+          fetchModelsFailed: "Failed to fetch models. Please check your API key and base URL.",
+          noModelsReturned: "No models returned. Authenticate Copilot first, then fetch models.",
           foundModels: "Found {{count}} available models",
           fetchModelsErrorPrefix: "Failed to fetch models",
           saveConfigSuccess: "Configuration saved successfully",
@@ -964,8 +937,7 @@ export const resources = {
           responsesOnlyHelp2:
             "Supports exact match (e.g. gpt-5.3-codex) and prefix match with a trailing * (e.g. gpt-5*).",
           anthropicConfigTitle: "Anthropic Configuration",
-          anthropicConfigDescription:
-            "Enter your Anthropic API key to use Claude models.",
+          anthropicConfigDescription: "Enter your Anthropic API key to use Claude models.",
           anthropicApiKey: "Anthropic API Key",
           anthropicApiKeyRequired: "Please enter your Anthropic API key",
           anthropicBaseUrlHelp:
@@ -973,8 +945,7 @@ export const resources = {
           maxTokensOptional: "Max Tokens (Optional)",
           maxTokensHelp: "Maximum number of tokens to generate",
           geminiConfigTitle: "Google Gemini Configuration",
-          geminiConfigDescription:
-            "Enter your Google AI API key to use Gemini models.",
+          geminiConfigDescription: "Enter your Google AI API key to use Gemini models.",
           geminiApiKey: "Gemini API Key",
           geminiApiKeyRequired: "Please enter your Gemini API key",
           geminiBaseUrlHelp:
@@ -989,18 +960,13 @@ export const resources = {
           authenticateCopilot: "Authenticate Copilot",
           refreshStatus: "Refresh Status",
           headlessAuth: "Headless Authentication",
-          headlessAuthHelp:
-            "Print login URL in console instead of opening browser automatically",
-          noModelsLoaded:
-            'No models loaded yet. Click "Fetch available models from backend".',
+          headlessAuthHelp: "Print login URL in console instead of opening browser automatically",
+          noModelsLoaded: 'No models loaded yet. Click "Fetch available models from backend".',
           authFirstThenFetch: "Authenticate Copilot first, then fetch models.",
           copilotUsageTitle: "To use GitHub Copilot:",
-          copilotUsageStep1:
-            "Ensure you have an active GitHub Copilot subscription",
-          copilotUsageStep2:
-            'Click "Authenticate Copilot" to start the device code flow',
-          copilotUsageStep3:
-            "Follow the instructions in your terminal to complete authentication",
+          copilotUsageStep1: "Ensure you have an active GitHub Copilot subscription",
+          copilotUsageStep2: 'Click "Authenticate Copilot" to start the device code flow',
+          copilotUsageStep3: "Follow the instructions in your terminal to complete authentication",
           copilotAuthModalTitle: "Copilot Authentication",
           cancel: "Cancel",
           completedAuthorization: "I've Completed Authorization",
@@ -1053,8 +1019,7 @@ export const resources = {
           addedServer: "Added {{name}}",
           saveServerFailed: "Failed to save MCP server",
           copiedConfig: "Copied MCP config to clipboard",
-          clipboardUnavailable:
-            "Clipboard not available. Export is shown in the modal.",
+          clipboardUnavailable: "Clipboard not available. Export is shown in the modal.",
           invalidJsonPrefix: "Invalid JSON",
           unknownError: "Unknown error",
           jsonMustBeObject: "JSON must be an object",
@@ -1131,12 +1096,10 @@ export const resources = {
           jsonError: "JSON Error",
           serverId: "Server ID",
           serverIdRequired: "Server ID is required",
-          serverIdPatternError:
-            "Use only letters, numbers, underscore, and hyphen",
+          serverIdPatternError: "Use only letters, numbers, underscore, and hyphen",
           displayName: "Display Name",
           enabled: "Enabled",
-          enabledHelp:
-            "Disabled servers stay in config but will not be started.",
+          enabledHelp: "Disabled servers stay in config but will not be started.",
           transportType: "Transport Type",
           transportTypeRequired: "Transport type is required",
           transportOptions: {
@@ -1294,10 +1257,8 @@ export const resources = {
           tokenUsageOverTime: "Token Usage Over Time",
           unifiedTokenUsageOverTime: "Token Usage Over Time (Chat + Forward)",
           noTokenUsage: "No token usage available",
-          tokenUsageDescription:
-            "Prompt, completion, and total tokens by day/period.",
-          unifiedTokenUsageDescription:
-            "Combined chat and forward token usage over time.",
+          tokenUsageDescription: "Prompt, completion, and total tokens by day/period.",
+          unifiedTokenUsageDescription: "Combined chat and forward token usage over time.",
           total: "Total",
           prompt: "Prompt",
           completion: "Completion",
@@ -1305,8 +1266,7 @@ export const resources = {
           forward: "Forward",
           modelDistribution: "Model Distribution",
           noModelMetrics: "No model metrics available",
-          modelDistributionDescription:
-            "Share of total tokens consumed by model.",
+          modelDistributionDescription: "Share of total tokens consumed by model.",
           endpointDistribution: "Endpoint Distribution",
           noForwardMetrics: "No forward metrics available for this range.",
         },
@@ -1344,6 +1304,7 @@ export const resources = {
           checkpoint: "Checkpoint",
           checkpointNone: "None",
           diffTruncated: "Diff is too long and has been truncated",
+          structuredToolResultHint: "Tool result · {{tool}}",
         },
         toolCall: {
           liveOutput: "Live output",
@@ -1379,8 +1340,7 @@ export const resources = {
         questionDialog: {
           selectOptionWarning: "Please select an option before submitting.",
           responseSubmitted: "Response submitted",
-          responseSubmittedContinue:
-            "Response submitted, AI will continue processing",
+          responseSubmittedContinue: "Response submitted, AI will continue processing",
           submitFailed: "Failed to submit response",
           noModelConfigured: "No model configured",
           customAnswerTip: "Custom answer",
@@ -1453,8 +1413,7 @@ export const resources = {
           loadingDiagram: "Loading diagram...",
           diagramError: "Mermaid Diagram Error",
           errorTitlePrefix: "Error",
-          checkConsoleHint:
-            "Check Mermaid syntax or open the console for details.",
+          checkConsoleHint: "Check Mermaid syntax or open the console for details.",
           fixMermaid: "Fix Mermaid",
           renderingDiagram: "Rendering diagram...",
           exportSvg: "Export SVG",
@@ -1480,8 +1439,7 @@ export const resources = {
       app: {
         loading: "加载中...",
         retry: "重试",
-        backendNotReachable:
-          "无法连接后端 {{baseUrl}}（最近错误：{{message}}）",
+        backendNotReachable: "无法连接后端 {{baseUrl}}（最近错误：{{message}}）",
       },
       layout: {
         showSidebar: "显示侧边栏",
@@ -1522,11 +1480,9 @@ export const resources = {
         proxy: {
           title: "代理配置",
           info: "如果您在公司代理后面，请在下面配置。",
-          providerInfo:
-            "提供商配置稍后在提供商设置中完成。此设置步骤仅存储网络/代理设置。",
+          providerInfo: "提供商配置稍后在提供商设置中完成。此设置步骤仅存储网络/代理设置。",
           detecting: "正在检测网络环境...",
-          noProxyDetected:
-            "未检测到现有代理。如果您的网络不需要代理，可以将这些字段留空。",
+          noProxyDetected: "未检测到现有代理。如果您的网络不需要代理，可以将这些字段留空。",
           httpProxyLabel: "HTTP 代理 URL：",
           httpsProxyLabel: "HTTPS 代理 URL：",
           httpProxyPlaceholder: "http://proxy.company.com:8080",
@@ -1549,8 +1505,7 @@ export const resources = {
         error: {
           loadStatusFailed: "无法加载设置状态。您可以继续进行手动代理配置。",
           invalidProxy: "代理设置无效。",
-          credentialsUsername:
-            "要存储代理凭据，请输入用户名或取消选中「记住凭据」。",
+          credentialsUsername: "要存储代理凭据，请输入用户名或取消选中「记住凭据」。",
           saveProxyFailed: "保存代理配置失败。请重试。",
           completeFailed: "完成设置失败。请重试。",
         },
@@ -1597,8 +1552,7 @@ export const resources = {
           label: "工作区",
           browseFolder: "浏览文件夹",
           descriptionTitle: "工作区路径描述",
-          descriptionP1:
-            "设置工作区路径后，文件引用和工作区相关工具才能稳定地定位文件。",
+          descriptionP1: "设置工作区路径后，文件引用和工作区相关工具才能稳定地定位文件。",
           descriptionP2:
             "建议选择真实存在的项目目录。即使路径无效也可继续保存，但相关功能可能不可用。",
           checkTitle: "工作区路径检查",
@@ -1660,8 +1614,7 @@ export const resources = {
         prompt: {
           selectorTitle: "选择系统提示词",
           createButton: "创建新会话",
-          helperText:
-            "为 AI 选择一个基础系统提示词。您可以在系统设置中添加或编辑提示词。",
+          helperText: "为 AI 选择一个基础系统提示词。您可以在系统设置中添加或编辑提示词。",
           emptyDescription: "未找到系统提示词。在系统设置中添加一个。",
           newSessionSelectorTitle: "为新会话选择系统提示词",
           defaultDescription: "默认系统提示词。",
@@ -1678,8 +1631,7 @@ export const resources = {
           loading: "正在加载命令...",
           emptyWithSearch: "没有匹配“{{search}}”的命令",
           empty: "暂无可用命令。",
-          navigationHint:
-            "导航：上下键 或 Ctrl+P/N | 选择：Enter | 补全：Space/Tab | 取消：Esc",
+          navigationHint: "导航：上下键 或 Ctrl+P/N | 选择：Enter | 补全：Space/Tab | 取消：Esc",
           types: {
             workflow: "工作流",
             skill: "技能",
@@ -1774,6 +1726,10 @@ export const resources = {
           restoreChat: "仅恢复会话",
           restoreFilesAndChat: "恢复文件和会话",
           deleteMessage: "删除消息",
+          deleteFailed: "删除消息失败",
+          deleteNotFound: "后端中找不到该消息，请刷新后重试",
+          deleteConflict: "会话正在运行，请先停止后再删除",
+          deleteBatchFailed: "共 {{total}} 条中有 {{failed}} 条删除失败",
           savedFile: "已保存到 {{filename}}",
           nothingToExport: "没有可导出的内容",
           exportFailed: "导出失败",
@@ -1831,8 +1787,7 @@ export const resources = {
         },
         appTab: {
           autoGenerateTitle: "自动生成会话标题",
-          autoGenerateTitleDesc:
-            "开启后，应用会在助手首条回复后自动生成描述性标题。",
+          autoGenerateTitleDesc: "开启后，应用会在助手首条回复后自动生成描述性标题。",
           switchOn: "开",
           switchOff: "关",
           darkMode: "深色模式",
@@ -1849,12 +1804,10 @@ export const resources = {
           deleteAllDescription: "确认删除？将删除所有会话（置顶除外）。",
           deleteAllButton: "删除所有会话",
           deleteEmptyTitle: "删除空会话",
-          deleteEmptyDescription:
-            "确认删除？将删除没有消息内容的会话（置顶除外）。",
+          deleteEmptyDescription: "确认删除？将删除没有消息内容的会话（置顶除外）。",
           deleteEmptyButton: "删除空会话",
           clearLocalStorageTitle: "清空本地存储",
-          clearLocalStorageDescription:
-            "确认清空？将删除所有本地存储数据并重置应用。",
+          clearLocalStorageDescription: "确认清空？将删除所有本地存储数据并重置应用。",
           clearLocalStorageButton: "清空本地存储",
           confirmDeleteAll: "确认，全部删除",
           confirmDeleteEmpty: "确认，删除空会话",
@@ -1937,8 +1890,7 @@ export const resources = {
           customMappingSaved: "自定义模型映射已保存",
           customMappingSaveFailed: "保存自定义模型映射失败",
           collapseTitle: "Anthropic 模型映射",
-          description:
-            "配置当 Claude CLI 请求特定模型时，应该使用的 {{provider}} 模型。",
+          description: "配置当 Claude CLI 请求特定模型时，应该使用的 {{provider}} 模型。",
           loadModelsErrorTitle: "加载模型失败",
           retry: "重试",
           loadingModels: "模型加载中...",
@@ -1950,8 +1902,7 @@ export const resources = {
           modelTypeHaikuDescription: '匹配包含 "haiku" 的模型',
           selectModelPlaceholder: "选择 {{label}} 模型",
           customModelOption: "自定义模型...",
-          mappedModelNotFound:
-            '映射模型 "{{model}}" 不在当前 Provider 的可用模型列表中',
+          mappedModelNotFound: '映射模型 "{{model}}" 不在当前 Provider 的可用模型列表中',
           refreshModels: "刷新模型",
           currentProvider: "当前 Provider",
           loadingProvider: "加载中...",
@@ -1979,8 +1930,7 @@ export const resources = {
           description: "自定义 Mermaid 图在聊天中的渲染方式",
           themeCardTitle: "主题",
           themeLabel: "Mermaid 主题",
-          themeTooltip:
-            "选择内置 Mermaid 主题。Default 和 Neutral 会根据应用主题自动切换明暗。",
+          themeTooltip: "选择内置 Mermaid 主题。Default 和 Neutral 会根据应用主题自动切换明暗。",
           themeOptions: {
             default: "Default（自动明/暗）",
             neutral: "Neutral（自动明/暗）",
@@ -2002,8 +1952,7 @@ export const resources = {
           defaultZoomLabel: "默认缩放",
           defaultZoomTooltip: "图表初始缩放比例（1.0 = 100%）",
           responsiveWidthLabel: "自适应宽度",
-          responsiveWidthTooltip:
-            "开启后图表会自适应容器宽度；关闭后使用固定宽度。",
+          responsiveWidthTooltip: "开启后图表会自适应容器宽度；关闭后使用固定宽度。",
           switchAuto: "自动",
           switchFixed: "固定",
           flowchartCardTitle: "流程图设置",
@@ -2038,8 +1987,7 @@ export const resources = {
         },
         modelLimits: {
           title: "Token 预算模型限制",
-          descriptionPrefix:
-            "配置按模型划分的 token 上限。这些设置会全局保存到 Bamboo 的",
+          descriptionPrefix: "配置按模型划分的 token 上限。这些设置会全局保存到 Bamboo 的",
           descriptionSuffix: "并由后端解析器使用。",
           defaultsTitle: "模型默认值",
           defaultsDescription:
@@ -2088,8 +2036,7 @@ export const resources = {
             duplicateModelPattern: "模型模式重复：{{pattern}}",
             contextWindowMin: "{{pattern}} 的上下文窗口最小为 1000。",
             maxOutputMin: "{{pattern}} 的最大输出最小为 1。",
-            maxOutputExceedsContext:
-              "{{pattern}} 的最大输出必须小于或等于上下文窗口。",
+            maxOutputExceedsContext: "{{pattern}} 的最大输出必须小于或等于上下文窗口。",
             safetyMarginNegative: "{{pattern}} 的安全边距不能为负数。",
             safetyMarginTooLarge: "{{pattern}} 的安全边距必须小于上下文窗口。",
           },
@@ -2121,8 +2068,7 @@ export const resources = {
         },
         envVars: {
           title: "环境变量",
-          description:
-            "这些变量会注入到 Bash 工具进程。密钥变量会在存储时加密。",
+          description: "这些变量会注入到 Bash 工具进程。密钥变量会在存储时加密。",
           fetchError: "加载环境变量失败",
           created: "变量已创建",
           updated: "变量已更新",
@@ -2166,8 +2112,7 @@ export const resources = {
           switchOff: "关",
           enhancementPlaceholder: "为每次系统提示追加全局增强文本。",
           saveEnhancement: "保存增强",
-          description:
-            "该文本会先追加，然后再拼接已启用的系统增强，最后再发送请求。",
+          description: "该文本会先追加，然后再拼接已启用的系统增强，最后再发送请求。",
         },
         hooksTab: {
           title: "图像 Hooks",
@@ -2307,8 +2252,7 @@ export const resources = {
           delete: "删除",
           cleanupComplete: "清理完成",
           devResetTitle: "开发重置",
-          devResetDescription:
-            "会话存储绿地重置（删除 sessions/ 并重置 sessions.json）。",
+          devResetDescription: "会话存储绿地重置（删除 sessions/ 并重置 sessions.json）。",
           devResetAction: "开发重置会话",
           devResetConfirmTitle: "重置会话存储（开发）",
           devResetConfirmContent:
@@ -2337,8 +2281,7 @@ export const resources = {
         },
         providerTab: {
           title: "LLM 提供商配置",
-          description:
-            "配置你偏好的 LLM 提供商。点击“保存并应用配置”后会保存并生效。",
+          description: "配置你偏好的 LLM 提供商。点击“保存并应用配置”后会保存并生效。",
           currentProvider: "当前提供商",
           activeProvider: "当前激活的 LLM 提供商",
           selectProviderRequired: "请选择提供商",
@@ -2356,8 +2299,7 @@ export const resources = {
           unknownError: "未知错误",
           invalidConfig: "配置无效",
           invalidConfigPrefix: "配置无效",
-          fetchModelsCopilotFailed:
-            "获取模型失败，请先完成 Copilot 认证后重试。",
+          fetchModelsCopilotFailed: "获取模型失败，请先完成 Copilot 认证后重试。",
           fetchModelsFailed: "获取模型失败，请检查 API Key 与 Base URL。",
           noModelsReturned: "未返回模型，请先完成 Copilot 认证后再获取。",
           foundModels: "已找到 {{count}} 个可用模型",
@@ -2383,8 +2325,7 @@ export const resources = {
           openaiApiKey: "OpenAI API Key",
           openaiApiKeyRequired: "请输入 OpenAI API Key",
           baseUrlOptional: "Base URL（可选）",
-          openaiBaseUrlHelp:
-            "留空将使用默认 OpenAI 接口地址；如有需要请包含完整路径（例如 /v1）。",
+          openaiBaseUrlHelp: "留空将使用默认 OpenAI 接口地址；如有需要请包含完整路径（例如 /v1）。",
           defaultModel: "默认模型",
           fastModel: "快速模型（可选）",
           fastModelHelp:
@@ -2398,11 +2339,9 @@ export const resources = {
           responsesOnlyModelsOptional: "仅 Responses 模型（可选）",
           responsesOnlyHelp1:
             "部分模型仅支持 OpenAI Responses API（不支持 chat/completions）。可在此添加模型 ID 强制 Bamboo 使用",
-          responsesOnlyHelp2:
-            "支持精确匹配（如 gpt-5.3-codex）和后缀 * 的前缀匹配（如 gpt-5*）。",
+          responsesOnlyHelp2: "支持精确匹配（如 gpt-5.3-codex）和后缀 * 的前缀匹配（如 gpt-5*）。",
           anthropicConfigTitle: "Anthropic 配置",
-          anthropicConfigDescription:
-            "输入 Anthropic API Key 以使用 Claude 模型。",
+          anthropicConfigDescription: "输入 Anthropic API Key 以使用 Claude 模型。",
           anthropicApiKey: "Anthropic API Key",
           anthropicApiKeyRequired: "请输入 Anthropic API Key",
           anthropicBaseUrlHelp:
@@ -2410,12 +2349,10 @@ export const resources = {
           maxTokensOptional: "最大 Tokens（可选）",
           maxTokensHelp: "生成时允许的最大 token 数",
           geminiConfigTitle: "Google Gemini 配置",
-          geminiConfigDescription:
-            "输入 Google AI API Key 以使用 Gemini 模型。",
+          geminiConfigDescription: "输入 Google AI API Key 以使用 Gemini 模型。",
           geminiApiKey: "Gemini API Key",
           geminiApiKeyRequired: "请输入 Gemini API Key",
-          geminiBaseUrlHelp:
-            "留空将使用默认 Google AI 接口地址；必要时可填写完整路径。",
+          geminiBaseUrlHelp: "留空将使用默认 Google AI 接口地址；必要时可填写完整路径。",
           copilotConfigTitle: "GitHub Copilot 配置",
           copilotConfigDescription:
             "GitHub Copilot 使用 OAuth 认证，无需 API Key。请确保账号有有效订阅。",
@@ -2444,8 +2381,7 @@ export const resources = {
           enterCode: "2. 输入此代码：",
           copied: "已复制！",
           copyCode: "复制代码",
-          afterContinueHint:
-            "在 GitHub 点击 Continue 后，请点击下方“我已完成授权”。",
+          afterContinueHint: "在 GitHub 点击 Continue 后，请点击下方“我已完成授权”。",
           providerNames: {
             openai: "OpenAI",
             anthropic: "Anthropic",
@@ -2493,8 +2429,7 @@ export const resources = {
             '缺少 mcpServers。请粘贴完整 Claude Desktop 风格配置：{ "mcpServers": { ... } }',
           importSummary:
             "已导入 {{count}} 个服务器（新增 {{added}}，更新 {{updated}}，删除 {{removed}}）。启动失败 {{failed}} 个。",
-          importStartFailures:
-            "部分服务器未成功启动，配置已保存，请在服务器列表查看错误。",
+          importStartFailures: "部分服务器未成功启动，配置已保存，请在服务器列表查看错误。",
           importFailed: "导入 MCP 服务器失败",
           overviewTitle: "MCP 概览",
           overviewDescription: "配置外部 MCP 服务器并查看已注册的工具别名。",
@@ -2509,8 +2444,7 @@ export const resources = {
           importHint: "粘贴 Claude Desktop 风格配置片段，例如：",
           importModeMerge: "合并（Upsert）",
           importModeReplace: "替换（删除其余）",
-          replaceWarning:
-            "替换模式会删除不在导入 mcpServers 中的现有 MCP 服务器。",
+          replaceWarning: "替换模式会删除不在导入 mcpServers 中的现有 MCP 服务器。",
         },
         mcpServerTable: {
           columns: {
@@ -2722,10 +2656,8 @@ export const resources = {
           tokenUsageOverTime: "Token 使用趋势",
           unifiedTokenUsageOverTime: "Token 使用趋势（Chat + Forward）",
           noTokenUsage: "暂无 token 使用数据",
-          tokenUsageDescription:
-            "按日期/周期展示 Prompt、Completion 与总 Tokens。",
-          unifiedTokenUsageDescription:
-            "按时间展示 Chat 与 Forward 的合并 token 使用。",
+          tokenUsageDescription: "按日期/周期展示 Prompt、Completion 与总 Tokens。",
+          unifiedTokenUsageDescription: "按时间展示 Chat 与 Forward 的合并 token 使用。",
           total: "总计",
           prompt: "Prompt",
           completion: "Completion",
@@ -2771,6 +2703,7 @@ export const resources = {
           checkpoint: "检查点",
           checkpointNone: "无",
           diffTruncated: "差异内容过长，已截断显示",
+          structuredToolResultHint: "工具结果 · {{tool}}",
         },
         toolCall: {
           liveOutput: "实时输出",

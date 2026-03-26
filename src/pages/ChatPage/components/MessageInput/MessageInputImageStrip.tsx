@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Button, Flex, Typography } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
@@ -8,7 +9,7 @@ const { Text } = Typography;
 
 interface MessageInputImageStripProps {
   images: ImageFile[];
-  token: any;
+  token: GlobalToken;
   allowImages: boolean;
   onPreview: (image: ImageFile) => void;
   onClear: () => void;
@@ -35,10 +36,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
       }}
     >
       <Flex align="center" wrap="wrap" gap={token.marginXS}>
-        <Text
-          type="secondary"
-          style={{ fontSize: token.fontSizeSM, minWidth: "fit-content" }}
-        >
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM, minWidth: "fit-content" }}>
           {images.length > 1
             ? t("chat.input.imageCountPlural", { count: images.length })
             : t("chat.input.imageCountSingular", { count: images.length })}

@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Space, Typography } from "antd";
 import { PictureOutlined } from "@ant-design/icons";
@@ -6,13 +7,10 @@ const { Text } = Typography;
 
 interface MessageInputDragOverlayProps {
   visible: boolean;
-  token: any;
+  token: GlobalToken;
 }
 
-const MessageInputDragOverlay: React.FC<MessageInputDragOverlayProps> = ({
-  visible,
-  token,
-}) => {
+const MessageInputDragOverlay: React.FC<MessageInputDragOverlayProps> = ({ visible, token }) => {
   if (!visible) return null;
 
   return (
@@ -34,9 +32,7 @@ const MessageInputDragOverlay: React.FC<MessageInputDragOverlayProps> = ({
     >
       <Space direction="vertical" align="center">
         <PictureOutlined style={{ fontSize: 32, color: token.colorPrimary }} />
-        <Text style={{ color: token.colorPrimary, fontWeight: 500 }}>
-          Drop images here
-        </Text>
+        <Text style={{ color: token.colorPrimary, fontWeight: 500 }}>Drop images here</Text>
       </Space>
     </div>
   );

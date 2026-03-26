@@ -1,20 +1,19 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import {
-  CheckCircleOutlined,
-  ExclamationCircleOutlined,
-  LoadingOutlined,
-} from "@ant-design/icons";
+import { CheckCircleOutlined, ExclamationCircleOutlined, LoadingOutlined } from "@ant-design/icons";
 import type { WorkspaceValidationResult } from "../../utils/workspaceValidator";
 
 interface WorkspacePickerValidationIconProps {
   isValidating: boolean;
   result: WorkspaceValidationResult | null;
-  token: any;
+  token: GlobalToken;
 }
 
-const WorkspacePickerValidationIcon: React.FC<
-  WorkspacePickerValidationIconProps
-> = ({ isValidating, result, token }) => {
+const WorkspacePickerValidationIcon: React.FC<WorkspacePickerValidationIconProps> = ({
+  isValidating,
+  result,
+  token,
+}) => {
   if (isValidating) {
     return <LoadingOutlined style={{ color: token.colorPrimary }} />;
   }

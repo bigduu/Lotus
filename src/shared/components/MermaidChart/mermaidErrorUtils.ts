@@ -1,10 +1,7 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { cleanupErrorCache, errorCache } from "./mermaidConfig";
 
-export const formatMermaidError = (
-  chart: string,
-  chartKey: string,
-  err: unknown,
-) => {
+export const formatMermaidError = (chart: string, chartKey: string, err: unknown) => {
   cleanupErrorCache();
 
   let errorMessage = "Failed to render Mermaid diagram";
@@ -13,19 +10,13 @@ export const formatMermaidError = (
 
   if (err instanceof Error) {
     const fullMessage = err.message || "";
-    console.log("🔍 Full error message:", fullMessage);
+    debugLog("[MermaidError]", "🔍 Full error message:", fullMessage);
 
-    if (
-      chart.includes("[") &&
-      chart.includes("(") &&
-      chart.includes(")") &&
-      chart.includes("]")
-    ) {
+    if (chart.includes("[") && chart.includes("(") && chart.includes(")") && chart.includes("]")) {
       const bracketParenPattern = /\[([^[\]]*\([^)]*\)[^[\]]*)\]/g;
       const matches = chart.match(bracketParenPattern);
       if (matches) {
-        errorMessage =
-          "Bracket syntax error: parentheses inside square brackets";
+        errorMessage = "Bracket syntax error: parentheses inside square brackets";
         specificSuggestion = `Found: ${matches[0]}. Use either [Text] or (Text), never [Text (with parentheses)]`;
         detailedError = fullMessage;
       }
@@ -61,9 +52,7 @@ export const formatMermaidError = (
         errorMessage = `Invalid character on line ${line}`;
         detailedError = fullMessage;
       } else if (fullMessage.includes("Unknown diagram type")) {
-        const typeMatch = fullMessage.match(
-          /Unknown diagram type[:\s]+(.+?)(?:\.|$)/,
-        );
+        const typeMatch = fullMessage.match(/Unknown diagram type[:\s]+(.+?)(?:\.|$)/);
         const type = typeMatch ? typeMatch[1] : "unknown";
         errorMessage = `Unknown diagram type: ${type}`;
         detailedError = fullMessage;
@@ -118,7 +107,5 @@ export const formatMermaidError = (
     finalErrorMessage = `${errorMessage} (${errorInfo.count}x)`;
   }
 
-  return finalSuggestion
-    ? `${finalErrorMessage}\n\n💡 ${finalSuggestion}`
-    : finalErrorMessage;
+  return finalSuggestion ? `${finalErrorMessage}\n\n💡 ${finalSuggestion}` : finalErrorMessage;
 };

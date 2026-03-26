@@ -23,15 +23,9 @@ import {
 import { useTranslation } from "react-i18next";
 import ToolCallCard from "../ToolCallCard";
 import ToolResultCard from "../ToolResultCard";
-import type {
-  AssistantToolCallMessage,
-  AssistantToolResultMessage,
-} from "../../types/chat";
+import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../../types/chat";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
-import {
-  getFileChangeDiffStats,
-  parseFileChangeResultPayload,
-} from "../../utils/resultFormatters";
+import { getFileChangeDiffStats, parseFileChangeResultPayload } from "../../utils/resultFormatters";
 
 const { Text } = Typography;
 
@@ -47,7 +41,7 @@ export interface ToolSessionCardProps {
   sessionId: string;
   createdAt: string;
   defaultExpanded?: boolean;
-  onDeleteMessageIds?: (messageIds: string[]) => void;
+  onDeleteMessageIds?: (messageIds: string[]) => void | Promise<void>;
 }
 
 interface PersistedToolSessionState {
@@ -57,10 +51,7 @@ interface PersistedToolSessionState {
 
 const TOOL_SESSION_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-tool-collapse:";
 
-const getToolSessionCollapseStorageKey = (
-  sessionId: string,
-  toolSessionId: string,
-): string =>
+const getToolSessionCollapseStorageKey = (sessionId: string, toolSessionId: string): string =>
   `${TOOL_SESSION_COLLAPSE_STORAGE_KEY_PREFIX}${sessionId}:${toolSessionId}`;
 
 const readPersistedToolSessionState = (
@@ -79,14 +70,10 @@ const readPersistedToolSessionState = (
     if (!parsed || typeof parsed !== "object") return null;
 
     const isExpanded =
-      "isExpanded" in parsed && typeof parsed.isExpanded === "boolean"
-        ? parsed.isExpanded
-        : true;
+      "isExpanded" in parsed && typeof parsed.isExpanded === "boolean" ? parsed.isExpanded : true;
     const expandedTools =
       "expandedTools" in parsed && Array.isArray(parsed.expandedTools)
-        ? parsed.expandedTools.filter(
-            (item): item is string => typeof item === "string",
-          )
+        ? parsed.expandedTools.filter((item): item is string => typeof item === "string")
         : [];
 
     return { isExpanded, expandedTools };
@@ -184,10 +171,7 @@ function getToolStatus(
   };
 }
 
-function generateToolIntent(
-  toolName: string,
-  params: Record<string, any>,
-): string {
+function generateToolIntent(toolName: string, params: Record<string, unknown>): string {
   const mcpParts = parseMcpToolAlias(toolName);
   if (mcpParts) {
     return `MCP ${mcpParts.serverId}: ${mcpParts.toolName}`;
@@ -200,15 +184,14 @@ function generateToolIntent(
   };
 
   const nameMap: Record<string, (p: typeof params) => string> = {
-    file_read: (p) =>
-      `Reading: ${truncate(p.path || p.file_path || "unknown", 35)}`,
-    file_write: (p) =>
-      `Writing: ${truncate(p.path || p.file_path || "unknown", 35)}`,
-    file_edit: (p) =>
-      `Editing: ${truncate(p.path || p.file_path || "unknown", 35)}`,
+    file_read: (p) => `Reading: ${truncate(p.path || p.file_path || "unknown", 35)}`,
+    file_write: (p) => `Writing: ${truncate(p.path || p.file_path || "unknown", 35)}`,
+    file_edit: (p) => `Editing: ${truncate(p.path || p.file_path || "unknown", 35)}`,
     bash: (p) => `Executing: ${truncate(p.command, 35)}`,
     grep: (p) => `Searching: "${truncate(p.pattern, 25)}"`,
     glob: (p) => `Finding: "${p.pattern}"`,
+    mermaid: (p) => `Diagram: ${truncate(p.title || "Mermaid", 30)}`,
+    conclusion: (p) => `Conclusion: ${truncate(p.conclusion || p.title || "", 28)}`,
     read: (p) => `Reading: ${p.file_path || "file"}`,
     write: (p) => `Writing: ${p.file_path || "file"}`,
     edit: (p) => `Editing: ${p.file_path || "file"}`,
@@ -246,32 +229,21 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
   }, [tools]);
 
   const [isExpanded, setIsExpanded] = useState<boolean>(() => {
-    const persisted = readPersistedToolSessionState(
-      sessionId,
-      toolSessionStorageId,
-    );
+    const persisted = readPersistedToolSessionState(sessionId, toolSessionStorageId);
     if (persisted) return persisted.isExpanded;
     return defaultExpanded;
   });
 
   const [expandedTools, setExpandedTools] = useState<Set<string>>(() => {
-    const persisted = readPersistedToolSessionState(
-      sessionId,
-      toolSessionStorageId,
-    );
+    const persisted = readPersistedToolSessionState(sessionId, toolSessionStorageId);
     if (persisted) {
       return new Set(persisted.expandedTools);
     }
-    return new Set(
-      defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : [],
-    );
+    return new Set(defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : []);
   });
 
   useEffect(() => {
-    const persisted = readPersistedToolSessionState(
-      sessionId,
-      toolSessionStorageId,
-    );
+    const persisted = readPersistedToolSessionState(sessionId, toolSessionStorageId);
     if (persisted) {
       setIsExpanded(persisted.isExpanded);
       setExpandedTools(new Set(persisted.expandedTools));
@@ -280,18 +252,9 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
 
     setIsExpanded(defaultExpanded);
     setExpandedTools(
-      new Set(
-        defaultExpanded && defaultExpandedToolKey
-          ? [defaultExpandedToolKey]
-          : [],
-      ),
+      new Set(defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : []),
     );
-  }, [
-    defaultExpanded,
-    defaultExpandedToolKey,
-    sessionId,
-    toolSessionStorageId,
-  ]);
+  }, [defaultExpanded, defaultExpandedToolKey, sessionId, toolSessionStorageId]);
 
   useEffect(() => {
     const validToolKeys = new Set(tools.map((item) => getToolItemKey(item)));
@@ -413,10 +376,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         if (!toolCall) return null;
 
         const status = getToolStatus(item, token, t);
-        const intent = generateToolIntent(
-          toolCall.toolName,
-          toolCall.parameters,
-        );
+        const intent = generateToolIntent(toolCall.toolName, toolCall.parameters);
         const mcpParts = parseMcpToolAlias(toolCall.toolName);
         const toolDiffStats = item.result
           ? getFileChangeDiffStats(item.result.result.result)
@@ -462,10 +422,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                   </Text>
                 </Space>
               ) : (
-                <Text
-                  strong
-                  style={{ fontSize: token.fontSizeSM, flexShrink: 0 }}
-                >
+                <Text strong style={{ fontSize: token.fontSizeSM, flexShrink: 0 }}>
                   {toolCall.toolName}
                 </Text>
               )}
@@ -482,8 +439,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                   ellipsis
                   style={{ maxWidth: 180, fontSize: token.fontSizeSM }}
                 >
-                  {fileChangePayload.file_path.split(/[\\/]/).pop() ||
-                    fileChangePayload.file_path}
+                  {fileChangePayload.file_path.split(/[\\/]/).pop() || fileChangePayload.file_path}
                 </Text>
               )}
               {toolDiffStats && (
@@ -492,8 +448,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                     style={{
                       color: token.colorSuccess,
                       fontSize: token.fontSizeSM,
-                      fontFamily:
-                        "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                     }}
                   >
                     +{toolDiffStats.added}
@@ -502,8 +457,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                     style={{
                       color: token.colorError,
                       fontSize: token.fontSizeSM,
-                      fontFamily:
-                        "ui-monospace, SFMono-Regular, Menlo, monospace",
+                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
                     }}
                   >
                     -{toolDiffStats.removed}
@@ -530,7 +484,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                       event.preventDefault();
                       event.stopPropagation();
                       if (deletableMessageIds.length === 0) return;
-                      onDeleteMessageIds(deletableMessageIds);
+                      void onDeleteMessageIds(deletableMessageIds);
                     }}
                   />
                 </Tooltip>
@@ -538,11 +492,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
             </div>
           ),
           children: (
-            <Space
-              direction="vertical"
-              style={{ width: "100%" }}
-              size={token.marginSM}
-            >
+            <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
               <ToolCallCard
                 toolName={toolCall.toolName}
                 parameters={toolCall.parameters}
@@ -550,28 +500,25 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                 streamingOutput={toolCall.streamingOutput}
                 defaultExpanded={false}
               />
-              {item.result &&
-                item.result.result.display_preference !== "Hidden" && (
-                  <ToolResultCard
-                    content={item.result.result.result}
-                    toolName={toolCall.toolName}
-                    status={item.result.isError ? "error" : "success"}
-                    timestamp={item.result.createdAt}
-                    defaultCollapsed={false}
-                  />
-                )}
+              {item.result && item.result.result.display_preference !== "Hidden" && (
+                <ToolResultCard
+                  content={item.result.result.result}
+                  toolName={toolCall.toolName}
+                  status={item.result.isError ? "error" : "success"}
+                  timestamp={item.result.createdAt}
+                  defaultCollapsed={false}
+                />
+              )}
             </Space>
           ),
           style: {
             borderBottom:
-              index < tools.length - 1
-                ? `1px solid ${token.colorBorderSecondary}`
-                : undefined,
+              index < tools.length - 1 ? `1px solid ${token.colorBorderSecondary}` : undefined,
           },
         };
       })
       .filter((item): item is NonNullable<typeof item> => item !== null);
-  }, [tools, token, t]);
+  }, [onDeleteMessageIds, t, token, tools]);
 
   const toolsList = (
     <div style={{ padding: token.paddingSM }}>
@@ -580,9 +527,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         activeKey={Array.from(expandedTools)}
         onChange={(keys) => {
           // keys 是 string | string[]
-          const newExpandedKeys = new Set<string>(
-            Array.isArray(keys) ? keys : keys ? [keys] : [],
-          );
+          const newExpandedKeys = new Set<string>(Array.isArray(keys) ? keys : keys ? [keys] : []);
           setExpandedTools(newExpandedKeys);
         }}
         items={collapseItems}
@@ -612,9 +557,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         style={{
           padding: `${token.paddingSM}px ${token.paddingMD}px`,
           backgroundColor: token.colorBgContainer,
-          borderBottom: isExpanded
-            ? `1px solid ${token.colorBorder}`
-            : undefined,
+          borderBottom: isExpanded ? `1px solid ${token.colorBorder}` : undefined,
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
@@ -626,10 +569,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         <Text strong style={{ flex: 1 }}>
           {headerTitle}
         </Text>
-        <Badge
-          count={tools.length}
-          style={{ backgroundColor: token.colorPrimary }}
-        />
+        <Badge count={tools.length} style={{ backgroundColor: token.colorPrimary }} />
         {sessionDiffStats.changedTools > 0 && (
           <Space size={4} style={{ marginInlineStart: token.marginXS }}>
             <Text

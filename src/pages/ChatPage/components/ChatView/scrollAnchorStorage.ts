@@ -13,7 +13,7 @@ type Store = Record<string, ScrollAnchorV1>;
 
 function isAnchorV1(x: unknown): x is ScrollAnchorV1 {
   if (!x || typeof x !== "object") return false;
-  const a = x as any;
+  const a = x as Record<string, unknown>;
   return (
     a.v === 1 &&
     typeof a.anchorId === "string" &&
@@ -29,9 +29,7 @@ function readAll(): Store {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
     const out: Store = {};
-    for (const [sessionId, value] of Object.entries(
-      parsed as Record<string, unknown>,
-    )) {
+    for (const [sessionId, value] of Object.entries(parsed as Record<string, unknown>)) {
       if (isAnchorV1(value)) out[sessionId] = value;
     }
     return out;

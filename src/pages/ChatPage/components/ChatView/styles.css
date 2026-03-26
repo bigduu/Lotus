@@ -119,34 +119,35 @@
   }
 }
 
-/* Sidebar Date Group Hover Effect */
-.chat-sidebar-date-group-header:hover {
-  background: rgba(204, 251, 241, 0.92) !important;
+/* Sidebar Date Group Hover Effect — doubled selector for specificity */
+.chat-sidebar-date-group-header.chat-sidebar-date-group-header:hover {
+  background: var(--lotus-item-hover-bg);
 }
-.chat-sidebar-date-group-header:hover .chat-sidebar-date-group-delete {
-  opacity: 1 !important;
+.chat-sidebar-date-group-header:hover
+  .chat-sidebar-date-group-delete.chat-sidebar-date-group-delete {
+  opacity: 1;
 }
-[data-theme="dark"] .chat-sidebar-date-group-header:hover {
-  background: rgba(30, 41, 59, 0.88) !important;
+[data-theme="dark"] .chat-sidebar-date-group-header.chat-sidebar-date-group-header:hover {
+  background: var(--lotus-item-hover-bg);
 }
 
-.tool-call-card-collapse:hover {
-  box-shadow: 0 12px 28px rgba(13, 148, 136, 0.14) !important;
-  border-color: rgba(13, 148, 136, 0.32) !important;
+.tool-call-card-collapse.tool-call-card-collapse:hover {
+  box-shadow: var(--lotus-card-hover-shadow);
+  border-color: var(--lotus-card-hover-border);
   transform: translateY(-1px);
 }
 
-.tool-call-card-collapse .ant-collapse-header {
-  align-items: center !important;
+.tool-call-card-collapse .ant-collapse-header.ant-collapse-header {
+  align-items: center;
 }
 
 .tool-call-card-collapse .ant-tag {
   border: none;
 }
 
-[data-theme="dark"] .tool-call-card-collapse:hover {
-  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.26) !important;
-  background: linear-gradient(135deg, rgba(13, 148, 136, 0.1) 0%, rgba(5, 150, 105, 0.08) 100%) !important;
+[data-theme="dark"] .tool-call-card-collapse.tool-call-card-collapse:hover {
+  box-shadow: var(--lotus-card-hover-shadow);
+  background: var(--lotus-tool-card-bg);
 }
 
 /* ── Animations ─────────────────────────────────────────────────── */
@@ -183,14 +184,14 @@
   animation: streamingEnter 0.25s ease-out both;
 }
 
-/* Send button micro-interactions */
-.message-input-send-button:hover:not(:disabled) {
-  transform: scale(1.05) !important;
-  box-shadow: 0 6px 20px rgba(13, 148, 136, 0.35) !important;
+/* Send button micro-interactions — doubled for specificity */
+.message-input-send-button.message-input-send-button:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: var(--lotus-send-btn-shadow);
 }
 
-.message-input-send-button:active:not(:disabled) {
-  transform: scale(0.95) !important;
+.message-input-send-button.message-input-send-button:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 /* ── Sidebar chat item animations ───────────────────────────────── */
@@ -259,7 +260,7 @@
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: thinkingShimmer 4s linear infinite;
+  animation: thinkingShimmer 2.5s linear infinite;
 }
 
 /* Dark mode: brighter highlight */
@@ -276,7 +277,7 @@ body[data-theme="dark"] .thinking-shimmer {
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: thinkingShimmer 4s linear infinite;
+  animation: thinkingShimmer 2.5s linear infinite;
 }
 
 /* ── Reduced motion — disable all custom animations ─────────────── */

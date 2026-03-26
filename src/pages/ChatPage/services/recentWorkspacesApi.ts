@@ -52,7 +52,7 @@ export const fetchPathSuggestions = async (
 
   const suggestions = await response.json();
 
-  return suggestions.map((suggestion: any) => ({
+  return suggestions.map((suggestion: Record<string, unknown>) => ({
     path: suggestion.path,
     is_valid: true,
     workspace_name: suggestion.name,
@@ -91,9 +91,7 @@ export const validateWorkspacePath = async (
       path,
       is_valid: false,
       error_message:
-        error instanceof Error
-          ? error.message
-          : i18n.t("chat.workspace.checkDescription"),
+        error instanceof Error ? error.message : i18n.t("chat.workspace.checkDescription"),
     };
   }
 };

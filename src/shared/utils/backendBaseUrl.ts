@@ -4,15 +4,12 @@ const FALLBACK_BACKEND_BASE_URL = "http://127.0.0.1:9562/v1";
 
 const DEFAULT_PORT = 9562;
 
-export const normalizeBackendBaseUrl = (value: string): string =>
-  value.trim().replace(/\/+$/, "");
+export const normalizeBackendBaseUrl = (value: string): string => value.trim().replace(/\/+$/, "");
 
 export const getDefaultBackendBaseUrl = (): string => {
-  const processEnvUrl = (globalThis as any).process?.env
-    ?.VITE_BACKEND_BASE_URL as string | undefined;
-  const envUrl =
-    (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined) ??
-    processEnvUrl;
+  const processEnvUrl = (globalThis as unknown as { process?: { env?: Record<string, string> } })
+    .process?.env?.VITE_BACKEND_BASE_URL;
+  const envUrl = (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined) ?? processEnvUrl;
   if (envUrl) {
     return normalizeBackendBaseUrl(envUrl);
   }
@@ -47,7 +44,7 @@ const checkBackendHealth = async (baseUrl: string): Promise<boolean> => {
     }
 
     return false;
-  } catch (e) {
+  } catch {
     // Backend not available at this URL
     return false;
   }
@@ -59,13 +56,15 @@ const checkBackendHealth = async (baseUrl: string): Promise<boolean> => {
  */
 export const getBackendBaseUrl = async (): Promise<string> => {
   // Check if port is provided via environment/config (for Tauri sidecar mode)
-  const configPort = (window as any).__BAMBOO_BACKEND_PORT__;
+  const configPort = (window as unknown as Record<string, unknown>).__BAMBOO_BACKEND_PORT__;
   if (configPort) {
     const configuredUrl = normalizeBackendBaseUrl(`http://127.0.0.1:${configPort}/v1`);
     if (await checkBackendHealth(configuredUrl)) {
       return configuredUrl;
     }
-    console.warn(`Backend not available at configured port ${configPort}, falling back to discovery`);
+    console.warn(
+      `Backend not available at configured port ${configPort}, falling back to discovery`,
+    );
   }
 
   // Check localStorage for user-configured URL
@@ -79,7 +78,7 @@ export const getBackendBaseUrl = async (): Promise<string> => {
         return normalized;
       }
       console.warn("Backend not available at stored URL, trying discovery:", normalized);
-    } catch (e) {
+    } catch {
       console.warn("Invalid stored backend URL, removing:", normalized);
       localStorage.removeItem(BACKEND_BASE_URL_KEY);
     }
@@ -106,7 +105,7 @@ export const getBackendBaseUrlSync = (): string => {
     try {
       new URL(normalized);
       return normalized;
-    } catch (e) {
+    } catch {
       console.warn("Invalid stored backend URL, using default:", normalized);
       localStorage.removeItem(BACKEND_BASE_URL_KEY);
     }

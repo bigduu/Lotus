@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { apiClient, isApiError } from "@services/api";
 
 export interface WorkflowMetadata {
@@ -31,32 +32,27 @@ export class WorkflowManagerService {
 
   async listWorkflows(): Promise<WorkflowMetadata[]> {
     try {
-      console.log("[WorkflowManagerService] Listing workflows");
+      debugLog("[WorkflowManager]", "[WorkflowManagerService] Listing workflows");
       const data = await apiClient.get<unknown[]>("bamboo/workflows");
-      const workflows = Array.isArray(data) ? data : [];
-      console.log("[WorkflowManagerService] Listed workflows:", workflows);
+      const workflows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+      debugLog("[WorkflowManager]", "[WorkflowManagerService] Listed workflows:", workflows);
 
-      return workflows.map((workflow: any) => ({
+      return workflows.map((workflow) => ({
         name: String(workflow.name || ""),
-        filename: String(
-          workflow.filename || (workflow.name || "workflow") + ".md",
-        ),
+        filename: String(workflow.filename || (workflow.name || "workflow") + ".md"),
         size: Number(workflow.size || 0),
-        modified_at: workflow.modified_at,
-        source: "global",
+        modified_at: typeof workflow.modified_at === "string" ? workflow.modified_at : undefined,
+        source: "global" as const,
       }));
     } catch (error) {
-      console.error(
-        "[WorkflowManagerService] Failed to list workflows:",
-        error,
-      );
+      console.error("[WorkflowManagerService] Failed to list workflows:", error);
       throw error;
     }
   }
 
   async getWorkflow(name: string): Promise<WorkflowContent> {
     try {
-      console.log("[WorkflowManagerService] Getting workflow: " + name);
+      debugLog("[WorkflowManager]", "[WorkflowManagerService] Getting workflow: " + name);
       const data = await apiClient.get<{
         name?: string;
         filename?: string;
@@ -73,17 +69,14 @@ export class WorkflowManagerService {
         modified_at: data?.modified_at,
         source: "global",
       };
-      console.log("[WorkflowManagerService] Got workflow:", data);
+      debugLog("[WorkflowManager]", "[WorkflowManagerService] Got workflow:", data);
       return {
         name: resolvedName,
         content: String(data?.content || ""),
         metadata,
       };
     } catch (error) {
-      console.error(
-        "[WorkflowManagerService] Failed to get workflow " + name + ":",
-        error,
-      );
+      console.error("[WorkflowManagerService] Failed to get workflow " + name + ":", error);
 
       // Preserve prior behavior for missing workflows after apiClient unification.
       if (isApiError(error) && error.status === 404) {

@@ -4,10 +4,7 @@ export const buildWorkspaceUrl = (baseUrl: string, endpoint: string) => {
   return cleanEndpoint ? `${cleanBaseUrl}/${cleanEndpoint}` : `${cleanBaseUrl}/`;
 };
 
-export const appendQueryParams = (
-  url: string,
-  queryParams?: Record<string, string>,
-) => {
+export const appendQueryParams = (url: string, queryParams?: Record<string, string>) => {
   const finalUrl = new URL(url);
   if (queryParams) {
     Object.entries(queryParams).forEach(([key, value]) => {
@@ -23,9 +20,7 @@ export const delay = (ms: number): Promise<void> => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-export const runBatchRequests = async <T>(
-  requests: Array<() => Promise<T>>,
-) => {
+export const runBatchRequests = async <T>(requests: Array<() => Promise<T>>) => {
   const BATCH_SIZE = 5;
   const results: T[] = [];
 
@@ -43,12 +38,12 @@ export const runBatchRequests = async <T>(
 };
 
 export const uploadWorkspaceFile = async (
-  request: (url: string, options: RequestInit) => Promise<any>,
+  request: (url: string, options: RequestInit) => Promise<unknown>,
   baseUrl: string,
   endpoint: string,
   headers: Record<string, string>,
   file: File,
-  additionalData?: Record<string, any>,
+  additionalData?: Record<string, unknown>,
 ) => {
   const formData = new FormData();
   formData.append("file", file);
@@ -65,9 +60,7 @@ export const uploadWorkspaceFile = async (
     method: "POST",
     body: formData,
     headers: Object.fromEntries(
-      Object.entries(headers).filter(
-        ([key]) => key.toLowerCase() !== "content-type",
-      ),
+      Object.entries(headers).filter(([key]) => key.toLowerCase() !== "content-type"),
     ),
   });
 };
@@ -76,8 +69,8 @@ export async function* streamWorkspaceResponse(
   baseUrl: string,
   endpoint: string,
   headers: Record<string, string>,
-  data?: any,
-): AsyncGenerator<any, void, unknown> {
+  data?: unknown,
+): AsyncGenerator<unknown, void, unknown> {
   const url = buildWorkspaceUrl(baseUrl, endpoint);
 
   const response = await fetch(url, {
@@ -112,7 +105,7 @@ export async function* streamWorkspaceResponse(
         try {
           const parsed = JSON.parse(line);
           yield parsed;
-        } catch (error) {
+        } catch {
           console.warn("Failed to parse streaming response line:", line);
         }
       }

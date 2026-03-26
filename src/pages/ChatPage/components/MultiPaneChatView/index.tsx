@@ -17,6 +17,7 @@ import {
 } from "@shared/store/uiLayoutStore";
 import { ResizableSplit } from "@shared/components/ResizableSplit";
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
+import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "../ChatView/events";
 import { useTranslation } from "react-i18next";
 
@@ -75,9 +76,7 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
         height: "100%",
         minHeight: 0,
         border: hasMultiplePanes
-          ? `1px solid ${
-              isActive ? token.colorPrimaryBorder : token.colorBorderSecondary
-            }`
+          ? `1px solid ${isActive ? token.colorPrimaryBorder : token.colorBorderSecondary}`
           : "none",
         borderRadius: hasMultiplePanes ? token.borderRadiusLG : 0,
         overflow: "hidden",
@@ -178,7 +177,9 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
       </div>
 
       {sessionId ? (
-        <ChatView sessionId={sessionId} embedded={true} />
+        <ErrorBoundary name="ChatView">
+          <ChatView sessionId={sessionId} embedded={true} />
+        </ErrorBoundary>
       ) : (
         <Flex
           vertical
@@ -282,9 +283,7 @@ export const MultiPaneChatView: React.FC = () => {
   useEffect(() => {
     // This is intentionally coarse: it keeps UI layout consistent if some other flow
     // deletes chats without going through ChatSidebar handlers.
-    const mappedSessionIds = new Set(
-      Object.values(leafSessionIds).filter(Boolean) as string[],
-    );
+    const mappedSessionIds = new Set(Object.values(leafSessionIds).filter(Boolean) as string[]);
     for (const mappedSessionId of mappedSessionIds) {
       if (!sessionIdSet.has(mappedSessionId)) {
         clearSessionFromAllLeaves(mappedSessionId);

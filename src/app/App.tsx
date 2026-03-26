@@ -1,14 +1,10 @@
 import { useEffect, useState } from "react";
-import {
-  App as AntdApp,
-  Button,
-  ConfigProvider as AntdConfigProvider,
-  theme,
-} from "antd";
+import { App as AntdApp, Button, ConfigProvider as AntdConfigProvider, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import "./App.css";
 import "@shared/i18n";
 import { MainLayout } from "./MainLayout";
+import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import { useThemeStore } from "@shared/store/themeStore";
 import { SetupPage } from "../pages/SetupPage";
 import { initializeStore } from "../pages/ChatPage/store";
@@ -16,11 +12,7 @@ import { ServiceFactory } from "../services/common/ServiceFactory";
 import { getBackendBaseUrlSync } from "../shared/utils/backendBaseUrl";
 import i18n from "@shared/i18n";
 import { getAntdLocale } from "@shared/i18n/antdLocale";
-import {
-  APP_LOCALE_STORAGE_KEY,
-  type AppLocale,
-  resolveInitialLocale,
-} from "@shared/i18n/types";
+import { APP_LOCALE_STORAGE_KEY, type AppLocale, resolveInitialLocale } from "@shared/i18n/types";
 
 const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
 const LIGHT_THEME_TOKEN = {
@@ -120,13 +112,9 @@ function App() {
   const { t } = useTranslation();
   const themeMode = useThemeStore((s) => s.themeMode);
   const setThemeMode = useThemeStore((s) => s.setThemeMode);
-  const [appLocale, setAppLocale] = useState<AppLocale>(() =>
-    resolveInitialLocale(),
-  );
+  const [appLocale, setAppLocale] = useState<AppLocale>(() => resolveInitialLocale());
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
-  const [backendStartupError, setBackendStartupError] = useState<string | null>(
-    null,
-  );
+  const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const [setupProbeNonce, setSetupProbeNonce] = useState(0);
 
   // Save theme to localStorage when it changes
@@ -161,12 +149,8 @@ function App() {
         if (elapsedMs >= maxWaitMs) {
           const baseUrl = getBackendBaseUrlSync();
           const message =
-            error instanceof Error && error.message.trim()
-              ? error.message
-              : "Unknown error";
-          setBackendStartupError(
-            t("app.backendNotReachable", { baseUrl, message }),
-          );
+            error instanceof Error && error.message.trim() ? error.message : "Unknown error";
+          setBackendStartupError(t("app.backendNotReachable", { baseUrl, message }));
           // Keep `isSetupComplete` as null so we don't incorrectly show SetupPage.
           return;
         }
@@ -191,8 +175,8 @@ function App() {
   }, [themeMode]);
 
   useEffect(() => {
-    const invoke = (window as { __TAURI_INTERNALS__?: { invoke?: unknown } })
-      .__TAURI_INTERNALS__?.invoke;
+    const invoke = (window as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__
+      ?.invoke;
     if (typeof invoke !== "function") {
       return;
     }
@@ -226,9 +210,7 @@ function App() {
         </div>
       );
     }
-    return (
-      <div style={{ padding: 40, textAlign: "center" }}>{t("app.loading")}</div>
-    );
+    return <div style={{ padding: 40, textAlign: "center" }}>{t("app.loading")}</div>;
   }
 
   const appContent = isSetupComplete ? (
@@ -247,12 +229,13 @@ function App() {
       locale={getAntdLocale(appLocale)}
       theme={{
         token: themeMode === "dark" ? DARK_THEME_TOKEN : LIGHT_THEME_TOKEN,
-        algorithm:
-          themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
+        algorithm: themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
       }}
     >
       <AntdApp>
-        <div style={{ position: "relative" }}>{appContent}</div>
+        <ErrorBoundary name="App">
+          <div style={{ position: "relative" }}>{appContent}</div>
+        </ErrorBoundary>
       </AntdApp>
     </AntdConfigProvider>
   );

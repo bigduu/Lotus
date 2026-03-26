@@ -1,11 +1,7 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Button, Flex, Tooltip } from "antd";
-import {
-  PlusOutlined,
-  SettingOutlined,
-  SunOutlined,
-  MoonOutlined,
-} from "@ant-design/icons";
+import { PlusOutlined, SettingOutlined, SunOutlined, MoonOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "@shared/store/themeStore";
 
@@ -14,7 +10,7 @@ type ChatSidebarFooterProps = {
   onNewChat: () => void;
   onOpenSettings: () => void;
   screens: { xs?: boolean };
-  token: any;
+  token: GlobalToken;
 };
 
 export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
@@ -30,7 +26,9 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   const newChatLabel = t("chat.sidebar.newSession");
   const settingsLabel = t("settings.page.title");
   const themeLabel =
-    themeMode === "dark" ? t("settings.app.lightMode", "Light mode") : t("settings.app.darkMode", "Dark mode");
+    themeMode === "dark"
+      ? t("settings.app.lightMode", "Light mode")
+      : t("settings.app.darkMode", "Dark mode");
 
   return (
     <Flex
@@ -89,13 +87,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
             <Button
               data-testid="toggle-theme"
               type="text"
-              icon={
-                themeMode === "dark" ? (
-                  <SunOutlined />
-                ) : (
-                  <MoonOutlined />
-                )
-              }
+              icon={themeMode === "dark" ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggleTheme}
               aria-label={themeLabel}
               className="lotus-toolbar-icon"

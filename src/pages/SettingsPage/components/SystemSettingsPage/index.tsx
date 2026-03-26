@@ -67,15 +67,15 @@ const SystemSettingsPage = ({
   const [isResetting, setIsResetting] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
   const [promptEnhancement, setPromptEnhancement] = useState("");
-  const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] =
-    useState(isMermaidEnhancementEnabled());
+  const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] = useState(
+    isMermaidEnhancementEnabled(),
+  );
   const [taskEnhancementEnabled, setTaskEnhancementEnabledState] = useState(
     isTaskEnhancementEnabled(),
   );
-  const [
-    copilotAskUserEnhancementEnabled,
-    setCopilotAskUserEnhancementEnabledState,
-  ] = useState(isCopilotAskUserEnhancementEnabled());
+  const [copilotAskUserEnhancementEnabled, setCopilotAskUserEnhancementEnabledState] = useState(
+    isCopilotAskUserEnhancementEnabled(),
+  );
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const showCopilotAskUserEnhancement = currentProvider === "copilot";
   const settingsHeaderTopOffsetPx = token.paddingSM;
@@ -135,9 +135,7 @@ const SystemSettingsPage = ({
     } catch (error) {
       console.error("Failed to reset application:", error);
       msgApi.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.notifications.resetFailed"),
+        error instanceof Error ? error.message : t("settings.notifications.resetFailed"),
       );
       setIsResetting(false);
     }
@@ -151,7 +149,7 @@ const SystemSettingsPage = ({
           ? t("settings.notifications.autoTitleEnabled")
           : t("settings.notifications.autoTitleDisabled"),
       );
-    } catch (error) {
+    } catch {
       msgApi.error(t("settings.notifications.autoTitleUpdateFailed"));
     }
   };
@@ -180,14 +178,14 @@ const SystemSettingsPage = ({
     setPromptEnhancement(getSystemPromptEnhancement());
     setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
     setTaskEnhancementEnabledState(isTaskEnhancementEnabled());
-    setCopilotAskUserEnhancementEnabledState(
-      isCopilotAskUserEnhancementEnabled(),
-    );
+    setCopilotAskUserEnhancementEnabledState(isCopilotAskUserEnhancementEnabled());
   }, []);
 
   return (
     <Flex
       vertical
+      role="region"
+      aria-label={t("settings.page.title")}
       style={{
         height: "100vh",
         overflow: "hidden",
@@ -205,7 +203,11 @@ const SystemSettingsPage = ({
         }}
       >
         <Flex align="center" gap={token.marginSM}>
-          <Button icon={<ArrowLeftOutlined />} onClick={onBack}>
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={onBack}
+            aria-label={t("settings.page.back")}
+          >
             {t("settings.page.back")}
           </Button>
           <Text strong data-testid="settings-page-title">
@@ -247,9 +249,7 @@ const SystemSettingsPage = ({
                   mermaidEnhancementEnabled={mermaidEnhancementEnabled}
                   taskEnhancementEnabled={taskEnhancementEnabled}
                   showCopilotAskUserEnhancement={showCopilotAskUserEnhancement}
-                  copilotAskUserEnhancementEnabled={
-                    copilotAskUserEnhancementEnabled
-                  }
+                  copilotAskUserEnhancementEnabled={copilotAskUserEnhancementEnabled}
                   onMermaidToggle={handleMermaidToggle}
                   onTaskToggle={handleTaskToggle}
                   onCopilotAskUserToggle={handleCopilotAskUserToggle}

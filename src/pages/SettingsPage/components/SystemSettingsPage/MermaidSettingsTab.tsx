@@ -38,7 +38,7 @@ export const MermaidSettingsTab: React.FC = () => {
     form.setFieldsValue(settings);
   }, [settings, form]);
 
-  const handleValuesChange = (changedValues: any) => {
+  const handleValuesChange = (changedValues: Partial<Record<string, unknown>>) => {
     updateSettings(changedValues);
   };
 
@@ -78,9 +78,7 @@ export const MermaidSettingsTab: React.FC = () => {
                   <Space>
                     {t("settings.mermaidTab.themeLabel")}
                     <Tooltip title={t("settings.mermaidTab.themeTooltip")}>
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
@@ -132,20 +130,12 @@ export const MermaidSettingsTab: React.FC = () => {
                   <Space>
                     {t("settings.mermaidTab.fontSizeLabel")}
                     <Tooltip title={t("settings.mermaidTab.fontSizeTooltip")}>
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={10}
-                  max={32}
-                  step={1}
-                  style={{ width: "100%" }}
-                  addonAfter="px"
-                />
+                <InputNumber min={10} max={32} step={1} style={{ width: "100%" }} addonAfter="px" />
               </Form.Item>
             </Col>
 
@@ -155,22 +145,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.defaultZoomLabel")}
-                    <Tooltip
-                      title={t("settings.mermaidTab.defaultZoomTooltip")}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.defaultZoomTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={0.1}
-                  max={3}
-                  step={0.1}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={0.1} max={3} step={0.1} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
           </Row>
@@ -180,12 +161,8 @@ export const MermaidSettingsTab: React.FC = () => {
             label={
               <Space>
                 {t("settings.mermaidTab.responsiveWidthLabel")}
-                <Tooltip
-                  title={t("settings.mermaidTab.responsiveWidthTooltip")}
-                >
-                  <InfoCircleOutlined
-                    style={{ color: token.colorTextSecondary }}
-                  />
+                <Tooltip title={t("settings.mermaidTab.responsiveWidthTooltip")}>
+                  <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                 </Tooltip>
               </Space>
             }
@@ -210,24 +187,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.flowchartNodeSpacingLabel")}
-                    <Tooltip
-                      title={t(
-                        "settings.mermaidTab.flowchartNodeSpacingTooltip",
-                      )}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.flowchartNodeSpacingTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={20}
-                  max={200}
-                  step={10}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={20} max={200} step={10} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
 
@@ -237,24 +203,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.flowchartRankSpacingLabel")}
-                    <Tooltip
-                      title={t(
-                        "settings.mermaidTab.flowchartRankSpacingTooltip",
-                      )}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.flowchartRankSpacingTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={20}
-                  max={200}
-                  step={10}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={20} max={200} step={10} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
 
@@ -264,12 +219,8 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.flowchartCurveTypeLabel")}
-                    <Tooltip
-                      title={t("settings.mermaidTab.flowchartCurveTypeTooltip")}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.flowchartCurveTypeTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
@@ -305,24 +256,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.sequenceActorMarginLabel")}
-                    <Tooltip
-                      title={t(
-                        "settings.mermaidTab.sequenceActorMarginTooltip",
-                      )}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.sequenceActorMarginTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={20}
-                  max={200}
-                  step={10}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={20} max={200} step={10} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
 
@@ -332,24 +272,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.sequenceMessageMarginLabel")}
-                    <Tooltip
-                      title={t(
-                        "settings.mermaidTab.sequenceMessageMarginTooltip",
-                      )}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.sequenceMessageMarginTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={10}
-                  max={100}
-                  step={5}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={10} max={100} step={5} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
 
@@ -359,22 +288,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.sequenceActorWidthLabel")}
-                    <Tooltip
-                      title={t("settings.mermaidTab.sequenceActorWidthTooltip")}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.sequenceActorWidthTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={100}
-                  max={300}
-                  step={10}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={100} max={300} step={10} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
 
@@ -384,24 +304,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.sequenceActorHeightLabel")}
-                    <Tooltip
-                      title={t(
-                        "settings.mermaidTab.sequenceActorHeightTooltip",
-                      )}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.sequenceActorHeightTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={40}
-                  max={150}
-                  step={5}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={40} max={150} step={5} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
           </Row>
@@ -422,23 +331,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.ganttBarHeightLabel")}
-                    <Tooltip
-                      title={t("settings.mermaidTab.ganttBarHeightTooltip")}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.ganttBarHeightTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={10}
-                  max={50}
-                  step={5}
-                  style={{ width: "100%" }}
-                  addonAfter="px"
-                />
+                <InputNumber min={10} max={50} step={5} style={{ width: "100%" }} addonAfter="px" />
               </Form.Item>
             </Col>
 
@@ -448,22 +347,13 @@ export const MermaidSettingsTab: React.FC = () => {
                 label={
                   <Space>
                     {t("settings.mermaidTab.ganttTopPaddingLabel")}
-                    <Tooltip
-                      title={t("settings.mermaidTab.ganttTopPaddingTooltip")}
-                    >
-                      <InfoCircleOutlined
-                        style={{ color: token.colorTextSecondary }}
-                      />
+                    <Tooltip title={t("settings.mermaidTab.ganttTopPaddingTooltip")}>
+                      <InfoCircleOutlined style={{ color: token.colorTextSecondary }} />
                     </Tooltip>
                   </Space>
                 }
               >
-                <InputNumber
-                  min={20}
-                  max={100}
-                  step={10}
-                  style={{ width: "100%" }}
-                />
+                <InputNumber min={20} max={100} step={10} style={{ width: "100%" }} />
               </Form.Item>
             </Col>
           </Row>
@@ -485,9 +375,7 @@ export const MermaidSettingsTab: React.FC = () => {
             header: { backgroundColor: token.colorBgElevated },
           }}
         >
-          <Text type="secondary">
-            {t("settings.mermaidTab.previewDescription")}
-          </Text>
+          <Text type="secondary">{t("settings.mermaidTab.previewDescription")}</Text>
         </Card>
       </Form>
     </div>

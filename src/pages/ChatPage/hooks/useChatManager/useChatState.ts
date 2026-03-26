@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { selectCurrentChat, useAppStore } from "../../store";
 import type { ChatItem, Message } from "../../types/chat";
+import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
 
 /**
  * Hook for chat state selection and derived state
@@ -22,7 +23,7 @@ export interface UseChatState {
 
   // Store actions (re-exported for convenience)
   addMessage: (sessionId: string, message: Message) => Promise<void>;
-  deleteMessage: (sessionId: string, messageId: string) => void;
+  deleteMessage: (sessionId: string, messageId: string) => Promise<DeleteMessageResult>;
   selectSession: (sessionId: string | null) => void;
   deleteSession: (sessionId: string) => Promise<void>;
   deleteSessions: (sessionIds: string[]) => Promise<void>;
@@ -69,25 +70,14 @@ export function useChatState(): UseChatState {
   );
 
   // Derived processing state for current chat
-  const isProcessing = currentSessionId
-    ? processingChats.has(currentSessionId)
-    : false;
+  const isProcessing = currentSessionId ? processingChats.has(currentSessionId) : false;
 
   // --- DERIVED STATE ---
-  const baseMessages = useMemo(
-    () => currentChat?.messages || [],
-    [currentChat],
-  );
+  const baseMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
 
-  const pinnedChats = useMemo(
-    () => chats.filter((chat) => chat.pinned),
-    [chats],
-  );
+  const pinnedChats = useMemo(() => chats.filter((chat) => chat.pinned), [chats]);
 
-  const unpinnedChats = useMemo(
-    () => chats.filter((chat) => !chat.pinned),
-    [chats],
-  );
+  const unpinnedChats = useMemo(() => chats.filter((chat) => !chat.pinned), [chats]);
 
   const chatCount = chats.length;
 

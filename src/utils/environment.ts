@@ -9,7 +9,10 @@
  * Check if running in Tauri desktop environment
  */
 export const isTauriEnvironment = (): boolean => {
-  return typeof window !== "undefined" && Boolean((window as any).__TAURI_INTERNALS__);
+  return (
+    typeof window !== "undefined" &&
+    Boolean((window as unknown as Record<string, unknown>).__TAURI_INTERNALS__)
+  );
 };
 
 /**
@@ -27,15 +30,17 @@ export const requireDesktopFeature = (featureName: string): void => {
  * These features are disabled when running in browser mode
  */
 export const BROWSER_MODE_DISABLED_FEATURES = [
-  'setup-wizard',       // Setup flow requires Tauri for some features
-  'native-file-picker', // Native file dialogs
-  'system-proxy-config' // System proxy configuration
+  "setup-wizard", // Setup flow requires Tauri for some features
+  "native-file-picker", // Native file dialogs
+  "system-proxy-config", // System proxy configuration
 ] as const;
 
 /**
  * Check if a feature is available in the current environment
  */
-export const isFeatureAvailable = (feature: typeof BROWSER_MODE_DISABLED_FEATURES[number]): boolean => {
+export const isFeatureAvailable = (
+  feature: (typeof BROWSER_MODE_DISABLED_FEATURES)[number],
+): boolean => {
   if (BROWSER_MODE_DISABLED_FEATURES.includes(feature)) {
     return isTauriEnvironment();
   }

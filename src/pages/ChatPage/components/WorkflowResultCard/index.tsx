@@ -59,10 +59,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
   const { token } = theme.useToken();
   const [expanded, setExpanded] = useState(false);
 
-  const formattedResult = useMemo(
-    () => formatResultContent(content),
-    [content],
-  );
+  const formattedResult = useMemo(() => formatResultContent(content), [content]);
   const derivedIsLoading = useMemo(() => {
     if (typeof isLoading === "boolean") {
       return isLoading;
@@ -97,10 +94,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
         parsedJson: parameters,
       };
     } catch (error) {
-      console.error(
-        "[WorkflowResultCard] Failed to stringify parameters:",
-        error,
-      );
+      console.error("[WorkflowResultCard] Failed to stringify parameters:", error);
       return {
         isJson: false,
         formattedText: String(parameters),
@@ -142,11 +136,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
       }}
       bodyStyle={{ padding: token.paddingMD }}
     >
-      <Space
-        direction="vertical"
-        style={{ width: "100%" }}
-        size={token.marginSM}
-      >
+      <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
         <Flex align="center" justify="space-between">
           <Space size={token.marginXS} align="center">
             <ApiOutlined style={{ color: token.colorWarning }} />
@@ -178,6 +168,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                 size="small"
                 icon={<CopyOutlined />}
                 onClick={handleCopyContent}
+                aria-label={t("components.workflowResult.copyContent")}
               />
             </Tooltip>
             {onRetry && (
@@ -187,6 +178,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                   size="small"
                   icon={<ReloadOutlined />}
                   onClick={onRetry}
+                  aria-label={t("components.workflowResult.retryWorkflow")}
                 />
               </Tooltip>
             )}
@@ -258,6 +250,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                     size="small"
                     icon={<CopyOutlined />}
                     onClick={handleCopyParameters}
+                    aria-label={t("components.workflowResult.copyParameters")}
                   />
                 </Tooltip>
               </Space>

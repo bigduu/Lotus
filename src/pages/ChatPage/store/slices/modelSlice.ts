@@ -1,8 +1,6 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { StateCreator } from "zustand";
-import {
-  modelService,
-  ProxyAuthRequiredError,
-} from "../../services/ModelService";
+import { modelService, ProxyAuthRequiredError } from "../../services/ModelService";
 import { serviceFactory } from "@services/common/ServiceFactory";
 import { useBambooConfigStore } from "../../../../shared/stores/bambooConfigStore";
 import type { AppState } from "../";
@@ -23,10 +21,7 @@ export interface ModelSlice {
   loadConfigModel: () => Promise<void>;
 }
 
-export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
-  set,
-  get,
-) => ({
+export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set, get) => ({
   // Initial state - Don't read from localStorage anymore (provider-specific models)
   models: [],
   selectedModel: undefined,
@@ -45,8 +40,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
   loadConfigModel: async () => {
     try {
       const config = await useBambooConfigStore.getState().loadConfig();
-      const configModel =
-        typeof config?.model === "string" ? config.model : undefined;
+      const configModel = typeof config?.model === "string" ? config.model : undefined;
       if (configModel) {
         set({ configModel });
         // Don't write to localStorage anymore - provider-specific models are used now
@@ -73,7 +67,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
         try {
           const setupStatus = await serviceFactory.getSetupStatus();
           if (!setupStatus.is_complete) {
-            console.log("Setup not complete, skipping model fetch");
+            debugLog("[ModelSlice]", "Setup not complete, skipping model fetch");
             set({
               models: [],
               selectedModel: undefined,
@@ -105,8 +99,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
             ...state,
             models: availableModels,
             selectedModel: newSelectedModel,
-            modelsError:
-              availableModels.length > 0 ? null : "No available model options",
+            modelsError: availableModels.length > 0 ? null : "No available model options",
           };
         });
 
@@ -124,8 +117,7 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (
               models: state.models,
               selectedModel: state.selectedModel,
               modelsError:
-                errorMessage ||
-                "Proxy authentication required. Please configure proxy auth.",
+                errorMessage || "Proxy authentication required. Please configure proxy auth.",
             };
           });
           return;

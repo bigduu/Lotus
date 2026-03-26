@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
 import { Avatar, Flex } from "antd";
 
@@ -8,12 +9,16 @@ type ChatSidebarCollapsedMenuProps = {
   currentSessionId: string | null;
   onSelectChat: (sessionId: string) => void;
   screens: { xs?: boolean };
-  token: any;
+  token: GlobalToken;
 };
 
-export const ChatSidebarCollapsedMenu: React.FC<
-  ChatSidebarCollapsedMenuProps
-> = ({ chats, currentSessionId, onSelectChat, screens, token }) => {
+export const ChatSidebarCollapsedMenu: React.FC<ChatSidebarCollapsedMenuProps> = ({
+  chats,
+  currentSessionId,
+  onSelectChat,
+  screens,
+  token,
+}) => {
   const items = useMemo(() => chats, [chats]);
 
   return (
@@ -45,12 +50,8 @@ export const ChatSidebarCollapsedMenu: React.FC<
             <Avatar
               size={screens.xs ? 30 : 34}
               style={{
-                backgroundColor: isSelected
-                  ? token.colorPrimary
-                  : token.colorFillTertiary,
-                color: isSelected
-                  ? token.colorTextLightSolid
-                  : token.colorTextSecondary,
+                backgroundColor: isSelected ? token.colorPrimary : token.colorFillTertiary,
+                color: isSelected ? token.colorTextLightSolid : token.colorTextSecondary,
               }}
             >
               {chat.title.charAt(0)}

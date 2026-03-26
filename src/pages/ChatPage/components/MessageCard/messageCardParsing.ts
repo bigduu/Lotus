@@ -1,9 +1,4 @@
-import type {
-  Message,
-  MessageType,
-  PlanMessage,
-  QuestionMessage,
-} from "../../types/chat";
+import type { Message, MessageType, PlanMessage, QuestionMessage } from "../../types/chat";
 
 const extractJsonFromText = (text: string): string | null => {
   if (text.includes("```json")) {
@@ -36,7 +31,7 @@ export const detectMessageType = (
   if (messageType) return messageType;
 
   if ("message_type" in message && message.message_type) {
-    const candidate = (message as any).message_type;
+    const candidate = (message as Record<string, unknown>).message_type;
     if (isMessageType(candidate)) {
       return candidate;
     }
@@ -67,11 +62,7 @@ export const parsePlanMessage = (
   message: Message,
   detectedMessageType: string,
 ): PlanMessage | null => {
-  if (
-    detectedMessageType !== "plan" ||
-    message.role !== "assistant" ||
-    message.type !== "text"
-  ) {
+  if (detectedMessageType !== "plan" || message.role !== "assistant" || message.type !== "text") {
     return null;
   }
 
@@ -83,15 +74,14 @@ export const parsePlanMessage = (
       if (parsed.goal && parsed.steps) {
         return {
           goal: parsed.goal,
-          steps: parsed.steps.map((step: any) => ({
+          steps: parsed.steps.map((step: Record<string, unknown>) => ({
             step_number: step.step_number || step.stepNumber || 0,
             action: step.action || "",
             reason: step.reason || step.rationale || "",
             tools_needed: step.tools_needed || step.tools || [],
             estimated_time: step.estimated_time || step.estimatedTime || "",
           })),
-          estimated_total_time:
-            parsed.estimated_total_time || parsed.estimatedTotalTime || "",
+          estimated_total_time: parsed.estimated_total_time || parsed.estimatedTotalTime || "",
           risks: parsed.risks || [],
           prerequisites: parsed.prerequisites || [],
         };
@@ -156,9 +146,7 @@ export const getMessageText = (message: Message): string => {
       return `Tool ${message.toolName} Result: ${message.result.result}`;
     }
     if (message.type === "tool_call") {
-      return `Requesting to call ${message.toolCalls
-        .map((tc) => tc.toolName)
-        .join(", ")}`;
+      return `Requesting to call ${message.toolCalls.map((tc) => tc.toolName).join(", ")}`;
     }
     if (message.type === "workflow_result") {
       return message.content;

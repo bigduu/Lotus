@@ -7,12 +7,14 @@ import { useProviderStore } from "./providerSlice";
 
 const {
   deleteSessionMock,
+  deleteSessionMessageMock,
   getHistoryMock,
   listSessionsMock,
   createSessionMock,
   patchSessionMock,
 } = vi.hoisted(() => ({
   deleteSessionMock: vi.fn(),
+  deleteSessionMessageMock: vi.fn(async () => undefined),
   getHistoryMock: vi.fn(async () => ({
     session_id: "session-1",
     compression_events: [],
@@ -46,6 +48,7 @@ vi.mock("../../services/AgentService", () => ({
       createSession: createSessionMock,
       patchSession: patchSessionMock,
       getHistory: getHistoryMock,
+      deleteSessionMessage: deleteSessionMessageMock,
     })),
   },
 }));
@@ -64,6 +67,15 @@ const createChat = (id: string): ChatItem => ({
   currentInteraction: null,
 });
 
+const createUserMessage = (id: string) =>
+  ({
+    id,
+    role: "user",
+    createdAt: new Date().toISOString(),
+    content: "hello",
+    images: [],
+  }) as any;
+
 const createTestStore = (): StoreApi<ChatSlice> => {
   const sliceCreator = createChatSlice as unknown as (
     set: StoreApi<ChatSlice>["setState"],
@@ -71,9 +83,7 @@ const createTestStore = (): StoreApi<ChatSlice> => {
     api: StoreApi<ChatSlice>,
   ) => ChatSlice;
 
-  return createStore<ChatSlice>()((set, get, api) =>
-    sliceCreator(set, get, api),
-  );
+  return createStore<ChatSlice>()((set, get, api) => sliceCreator(set, get, api));
 };
 
 const resetProviderStore = () => {
@@ -92,6 +102,8 @@ describe("chatSessionSlice deletion", () => {
   beforeEach(() => {
     deleteSessionMock.mockReset();
     deleteSessionMock.mockResolvedValue(undefined);
+    deleteSessionMessageMock.mockReset();
+    deleteSessionMessageMock.mockResolvedValue(undefined);
     getHistoryMock.mockReset();
     getHistoryMock.mockResolvedValue({
       session_id: "session-1",
@@ -129,9 +141,7 @@ describe("chatSessionSlice deletion", () => {
       latestActiveSessionId: chat.id,
     }));
 
-    await expect(
-      store.getState().deleteSession(chat.id),
-    ).resolves.toBeUndefined();
+    await expect(store.getState().deleteSession(chat.id)).resolves.toBeUndefined();
 
     expect(deleteSessionMock).toHaveBeenCalledWith("session-1");
     expect(store.getState().chats).toHaveLength(0);
@@ -139,11 +149,7 @@ describe("chatSessionSlice deletion", () => {
 
   it("deletes all linked backend sessions when removing multiple chats", async () => {
     const store = createTestStore();
-    const chats = [
-      createChat("session-1"),
-      createChat("session-2"),
-      createChat("session-3"),
-    ];
+    const chats = [createChat("session-1"), createChat("session-2"), createChat("session-3")];
 
     store.setState((state) => ({
       ...state,
@@ -159,6 +165,49 @@ describe("chatSessionSlice deletion", () => {
     expect(deleteSessionMock).toHaveBeenNthCalledWith(2, "session-2");
     expect(deleteSessionMock).toHaveBeenNthCalledWith(3, "session-3");
     expect(store.getState().chats).toHaveLength(0);
+  });
+
+  it("deletes a message only after backend deletion succeeds", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+    chat.messages = [createUserMessage("msg-1")];
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    const result = await store.getState().deleteMessage("session-1", "msg-1");
+
+    expect(deleteSessionMessageMock).toHaveBeenCalledWith("session-1", "msg-1");
+    expect(result).toMatchObject({ success: true, messageId: "msg-1" });
+    expect(store.getState().chats[0]?.messages).toHaveLength(0);
+  });
+
+  it("keeps local message when backend deletion fails", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+    chat.messages = [createUserMessage("msg-1")];
+    deleteSessionMessageMock.mockRejectedValueOnce(new Error("delete failed"));
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    const result = await store.getState().deleteMessage("session-1", "msg-1");
+
+    expect(deleteSessionMessageMock).toHaveBeenCalledWith("session-1", "msg-1");
+    expect(result).toMatchObject({
+      success: false,
+      reason: "backend_error",
+      messageId: "msg-1",
+    });
+    expect(store.getState().chats[0]?.messages).toHaveLength(1);
   });
 });
 

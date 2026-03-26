@@ -65,7 +65,7 @@ describe("MermaidChartError", () => {
     });
 
     it("should apply special styles to parts starting with 💡", () => {
-      const { container } = render(
+      render(
         <MermaidChartError
           error="Syntax error\n\n💡 Tip: Fix this"
           token={mockToken}
@@ -98,32 +98,28 @@ describe("MermaidChartError", () => {
 
     it("should render warning emoji icon", () => {
       render(
-        <MermaidChartError
-          error="Test error"
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
+        <MermaidChartError error="Test error" token={mockToken} isFixing={false} fixError="" />,
       );
 
-      expect(screen.getByText("⚠️")).toBeInTheDocument();
+      // WarningOutlined renders as an SVG with aria-label="warning"
+      expect(screen.getByLabelText("warning")).toBeInTheDocument();
     });
   });
 
   describe("className and style props", () => {
     it("should apply custom className", () => {
-        const { container } = render(
-          <MermaidChartError
-            error="Test error"
-            token={mockToken}
-            isFixing={false}
-            fixError=""
-            className="custom-class"
-          />,
-        );
+      const { container } = render(
+        <MermaidChartError
+          error="Test error"
+          token={mockToken}
+          isFixing={false}
+          fixError=""
+          className="custom-class"
+        />,
+      );
 
-        expect(container.querySelector(".custom-class")).toBeInTheDocument();
-      });
+      expect(container.querySelector(".custom-class")).toBeInTheDocument();
+    });
 
     it("should apply custom style", () => {
       const customStyle = { marginTop: "20px", backgroundColor: "red" };
@@ -161,12 +157,7 @@ describe("MermaidChartError", () => {
 
     it("should not render Fix button when onFix is not provided", () => {
       render(
-        <MermaidChartError
-          error="Test error"
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
+        <MermaidChartError error="Test error" token={mockToken} isFixing={false} fixError="" />,
       );
 
       expect(screen.queryByText("Fix Mermaid")).toBeNull();
@@ -271,28 +262,19 @@ describe("MermaidChartError", () => {
   describe("console hint", () => {
     it("should render console hint message", () => {
       render(
-        <MermaidChartError
-          error="Test error"
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
+        <MermaidChartError error="Test error" token={mockToken} isFixing={false} fixError="" />,
       );
 
-      expect(screen.getByText(`💡 ${consoleHint}`)).toBeInTheDocument();
+      // BulbOutlined icon replaces the 💡 emoji; text is rendered separately
+      expect(screen.getByText(consoleHint)).toBeInTheDocument();
+      expect(screen.getByLabelText("bulb")).toBeInTheDocument();
     });
 
     it("should always show console hint regardless of error content", () => {
-      render(
-        <MermaidChartError
-          error=""
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
-      );
+      render(<MermaidChartError error="" token={mockToken} isFixing={false} fixError="" />);
 
-      expect(screen.getByText(`💡 ${consoleHint}`)).toBeInTheDocument();
+      expect(screen.getByText(consoleHint)).toBeInTheDocument();
+      expect(screen.getByLabelText("bulb")).toBeInTheDocument();
     });
   });
 
@@ -316,12 +298,7 @@ describe("MermaidChartError", () => {
     it("should include full error in title", () => {
       const longError = "Line 1\nLine 2\nLine 3";
       const { container } = render(
-        <MermaidChartError
-          error={longError}
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
+        <MermaidChartError error={longError} token={mockToken} isFixing={false} fixError="" />,
       );
 
       const errorDiv = container.firstChild as HTMLElement;
@@ -331,14 +308,7 @@ describe("MermaidChartError", () => {
 
   describe("edge cases", () => {
     it("should handle empty error string", () => {
-      render(
-        <MermaidChartError
-          error=""
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
-      );
+      render(<MermaidChartError error="" token={mockToken} isFixing={false} fixError="" />);
 
       expect(screen.getByText("Mermaid Diagram Error")).toBeInTheDocument();
     });
@@ -346,12 +316,7 @@ describe("MermaidChartError", () => {
     it("should handle very long error message", () => {
       const longError = "Error: ".repeat(100);
       render(
-        <MermaidChartError
-          error={longError}
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
+        <MermaidChartError error={longError} token={mockToken} isFixing={false} fixError="" />,
       );
 
       expect(screen.getByText("Mermaid Diagram Error")).toBeInTheDocument();
@@ -371,14 +336,7 @@ describe("MermaidChartError", () => {
     });
 
     it("should handle error with only newlines", () => {
-      render(
-        <MermaidChartError
-          error="\n\n\n"
-          token={mockToken}
-          isFixing={false}
-          fixError=""
-        />,
-      );
+      render(<MermaidChartError error="\n\n\n" token={mockToken} isFixing={false} fixError="" />);
 
       expect(screen.getByText("Mermaid Diagram Error")).toBeInTheDocument();
     });
@@ -425,12 +383,7 @@ describe("MermaidChartError", () => {
       };
 
       const { container } = render(
-        <MermaidChartError
-          error="Test error"
-          token={customToken}
-          isFixing={false}
-          fixError=""
-        />,
+        <MermaidChartError error="Test error" token={customToken} isFixing={false} fixError="" />,
       );
 
       const errorDiv = container.firstChild as HTMLElement;

@@ -2,10 +2,7 @@ import React from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import i18n from "@shared/i18n";
-import {
-  TokenUsageBadge,
-  TokenUsageDisplay,
-} from "../TokenUsageDisplay";
+import { TokenUsageBadge, TokenUsageDisplay } from "../TokenUsageDisplay";
 import type { TokenUsage } from "../../types/tokenBudget";
 
 vi.mock("antd", () => ({
@@ -42,13 +39,11 @@ const makeUsage = (overrides?: Partial<TokenUsage>): TokenUsage => ({
 
 describe("TokenUsageDisplay", () => {
   it("renders success color for low usage and hides summary row when summaryTokens is 0", () => {
-    render(
-      <TokenUsageDisplay usage={makeUsage({ totalTokens: 200, budgetLimit: 1000 })} />,
-    );
+    render(<TokenUsageDisplay usage={makeUsage({ totalTokens: 200, budgetLimit: 1000 })} />);
 
     expect(screen.getByTestId("progress")).toHaveAttribute(
       "data-stroke-color",
-      "#52c41a",
+      "var(--lotus-chart-secondary)",
     );
     expect(screen.getByText("20%")).toBeInTheDocument();
     expect(screen.getByText("Token Usage")).toBeInTheDocument();
@@ -56,30 +51,24 @@ describe("TokenUsageDisplay", () => {
   });
 
   it("renders warning color for usage >= 70%", () => {
-    render(
-      <TokenUsageDisplay usage={makeUsage({ totalTokens: 700, budgetLimit: 1000 })} />,
-    );
+    render(<TokenUsageDisplay usage={makeUsage({ totalTokens: 700, budgetLimit: 1000 })} />);
 
     expect(screen.getByTestId("progress")).toHaveAttribute(
       "data-stroke-color",
-      "#faad14",
+      "var(--lotus-chart-accent)",
     );
     expect(screen.getByText("70%")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        i18n.t("components.tokenUsage.usedPercent", { value: "70.0" }),
-      ),
+      screen.getByText(i18n.t("components.tokenUsage.usedPercent", { value: "70.0" })),
     ).toBeInTheDocument();
   });
 
   it("renders error color for usage >= 90%", () => {
-    render(
-      <TokenUsageDisplay usage={makeUsage({ totalTokens: 950, budgetLimit: 1000 })} />,
-    );
+    render(<TokenUsageDisplay usage={makeUsage({ totalTokens: 950, budgetLimit: 1000 })} />);
 
     expect(screen.getByTestId("progress")).toHaveAttribute(
       "data-stroke-color",
-      "#ff4d4f",
+      "var(--lotus-chart-danger)",
     );
     expect(screen.getByText("95%")).toBeInTheDocument();
   });
@@ -136,7 +125,7 @@ describe("TokenUsageBadge", () => {
     const badge = container.querySelector(".token-usage-badge") as HTMLElement;
     expect(badge).toHaveClass("custom-badge");
     expect(badge.textContent).toBe("2%");
-    expect(badge.style.color).toBe("rgb(191, 191, 191)");
+    expect(badge.style.color).toBe("var(--lotus-metric-text-muted)");
     expect(screen.getByText(/20 \/ 1,000 tokens/)).toBeInTheDocument();
   });
 
@@ -145,14 +134,14 @@ describe("TokenUsageBadge", () => {
       <TokenUsageBadge usage={makeUsage({ totalTokens: 500, budgetLimit: 1000 })} />,
     );
     let badge = container.querySelector(".token-usage-badge") as HTMLElement;
-    expect(badge.style.color).toBe("rgb(82, 196, 26)");
+    expect(badge.style.color).toBe("var(--lotus-chart-secondary)");
 
     rerender(<TokenUsageBadge usage={makeUsage({ totalTokens: 750, budgetLimit: 1000 })} />);
     badge = container.querySelector(".token-usage-badge") as HTMLElement;
-    expect(badge.style.color).toBe("rgb(250, 173, 20)");
+    expect(badge.style.color).toBe("var(--lotus-chart-accent)");
 
     rerender(<TokenUsageBadge usage={makeUsage({ totalTokens: 950, budgetLimit: 1000 })} />);
     badge = container.querySelector(".token-usage-badge") as HTMLElement;
-    expect(badge.style.color).toBe("rgb(255, 77, 79)");
+    expect(badge.style.color).toBe("var(--lotus-chart-danger)");
   });
 });

@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Button, Dropdown, Flex } from "antd";
 import {
@@ -22,7 +23,7 @@ interface MessageInputControlsRightProps {
   value: string;
   images: ImageFile[];
   isOverCharLimit: boolean;
-  token: any;
+  token: GlobalToken;
   statusIndicator?: React.ReactNode;
 }
 
@@ -52,9 +53,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         gap: token.marginXS,
       }}
     >
-      {statusIndicator ? (
-        <span style={{ flex: "0 0 auto" }}>{statusIndicator}</span>
-      ) : null}
+      {statusIndicator ? <span style={{ flex: "0 0 auto" }}>{statusIndicator}</span> : null}
 
       {allowRetry && hasMessages && (
         <Dropdown
@@ -82,6 +81,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
             icon={<SyncOutlined spin={isStreaming} />}
             disabled={retryDisabled}
             title={t("chat.actions.retryOptions")}
+            aria-label={t("chat.actions.retryOptions")}
             size="small"
             className="lotus-secondary-button"
             style={{
@@ -102,14 +102,12 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         icon={isStreaming ? <StopOutlined /> : <ArrowUpOutlined />}
         onClick={isStreaming ? onCancel : onSubmit}
         loading={isStreaming && !onCancel}
-        disabled={
-          isStreaming
-            ? !onCancel || disabled
-            : canSend || disabled || isOverCharLimit
-        }
+        disabled={isStreaming ? !onCancel || disabled : canSend || disabled || isOverCharLimit}
         size="small"
         danger={isStreaming}
-        className={isStreaming ? "message-input-send-button" : "message-input-send-button lotus-primary-cta"}
+        className={
+          isStreaming ? "message-input-send-button" : "message-input-send-button lotus-primary-cta"
+        }
         style={{
           minWidth: 50,
           padding: 0,
@@ -123,13 +121,12 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
             ? undefined
             : "linear-gradient(135deg, var(--lotus-primary) 0%, var(--lotus-accent-secondary) 100%)",
           border: isStreaming ? undefined : "none",
-          boxShadow: isStreaming
-            ? undefined
-            : "0 10px 24px rgba(13, 148, 136, 0.28)",
+          boxShadow: isStreaming ? undefined : "var(--lotus-send-btn-shadow)",
           transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
           transform: "scale(1)",
         }}
         title={isStreaming ? t("chat.actions.cancelRequest") : t("chat.actions.sendMessage")}
+        aria-label={isStreaming ? t("chat.actions.cancelRequest") : t("chat.actions.sendMessage")}
       />
     </Flex>
   );

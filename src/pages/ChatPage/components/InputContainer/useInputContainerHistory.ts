@@ -1,17 +1,14 @@
 import { useCallback } from "react";
-import type { Message } from "../../types/chat";
+import type { Message, ChatItem } from "../../types/chat";
 import type { ReasoningEffort } from "../../services/AgentService";
 import type { MessageRetryMode } from "../MessageInput/types";
 
 interface UseInputContainerHistoryProps {
   currentSessionId: string | null;
-  currentChat: any | null;
+  currentChat: ChatItem | null;
   currentMessages: Message[];
   reasoningEffort: ReasoningEffort;
-  retryLastTurn: (
-    reasoningEffort?: ReasoningEffort,
-    mode?: MessageRetryMode,
-  ) => Promise<void>;
+  retryLastTurn: (reasoningEffort?: ReasoningEffort, mode?: MessageRetryMode) => Promise<void>;
   navigate: (
     direction: "previous" | "next",
     currentValue: string,
@@ -36,21 +33,13 @@ export const useInputContainerHistory = ({
       if (history.length === 0) return;
 
       // Find the last user message
-      const lastUserIndex = [...history]
-        .reverse()
-        .findIndex((msg) => msg.role === "user");
+      const lastUserIndex = [...history].reverse().findIndex((msg) => msg.role === "user");
 
       if (lastUserIndex === -1) return;
 
       await retryLastTurn(reasoningEffort, mode);
     },
-    [
-      currentChat,
-      currentSessionId,
-      currentMessages,
-      reasoningEffort,
-      retryLastTurn,
-    ],
+    [currentChat, currentSessionId, currentMessages, reasoningEffort, retryLastTurn],
   );
 
   const handleHistoryNavigate = useCallback(

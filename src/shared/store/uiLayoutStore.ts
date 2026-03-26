@@ -82,10 +82,7 @@ const generateId = (prefix: string): string => {
 
 export const getLeafIdsFromTree = (node: LayoutNode): string[] => {
   if (node.type === "leaf") return [node.id];
-  return [
-    ...getLeafIdsFromTree(node.children[0]),
-    ...getLeafIdsFromTree(node.children[1]),
-  ];
+  return [...getLeafIdsFromTree(node.children[0]), ...getLeafIdsFromTree(node.children[1])];
 };
 
 const getSplitIdsFromTree = (node: LayoutNode): string[] => {
@@ -217,9 +214,7 @@ const persistLayout = (snapshot: UILayoutSnapshotV2) => {
   }
 };
 
-const commitLayoutState = (
-  state: PersistableLayoutState,
-): UILayoutSnapshotV2 => {
+const commitLayoutState = (state: PersistableLayoutState): UILayoutSnapshotV2 => {
   const snapshot = toSnapshot(state);
   persistLayout(snapshot);
   return snapshot;
@@ -254,7 +249,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
 
   const leafSessionIds: Record<string, string | null> = {
     ...(v1.panes?.sessionIds || {}),
-  } as any;
+  } as Record<string, string | null>;
 
   const activeLeafId = v1.panes?.activePaneId ?? "lt";
 
@@ -310,9 +305,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
       sidebar,
       tree,
       activeLeafId: leafIds.includes(activeLeafId) ? activeLeafId : leafIds[0],
-      leafSessionIds: Object.fromEntries(
-        leafIds.map((id) => [id, leafSessionIds[id] ?? null]),
-      ),
+      leafSessionIds: Object.fromEntries(leafIds.map((id) => [id, leafSessionIds[id] ?? null])),
       splitSizesPx,
     };
   }
@@ -358,9 +351,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
     sidebar,
     tree,
     activeLeafId: leafIds.includes(activeLeafId) ? activeLeafId : leafIds[0],
-    leafSessionIds: Object.fromEntries(
-      leafIds.map((id) => [id, leafSessionIds[id] ?? null]),
-    ),
+    leafSessionIds: Object.fromEntries(leafIds.map((id) => [id, leafSessionIds[id] ?? null])),
     splitSizesPx,
   };
 };
@@ -368,6 +359,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
 const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
   if (!raw) return null;
   try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON.parse returns dynamic shape
     const parsed = JSON.parse(raw) as any;
     if (!parsed || typeof parsed !== "object") return null;
 
@@ -397,14 +389,10 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
       });
 
       const activeLeafId =
-        typeof parsed.activeLeafId === "string" &&
-        leafIds.includes(parsed.activeLeafId)
+        typeof parsed.activeLeafId === "string" && leafIds.includes(parsed.activeLeafId)
           ? parsed.activeLeafId
           : leafIds[0];
-      const normalizedLeafSessionIds = normalizeLeafSessionIds(
-        leafIds,
-        leafSessionIds,
-      );
+      const normalizedLeafSessionIds = normalizeLeafSessionIds(leafIds, leafSessionIds);
 
       return {
         v: 2,
@@ -601,13 +589,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       const newSplitId = generateId("split");
       const newLeafId = generateId("pane");
 
-      const nextTree = splitLeafInTree(
-        state.tree,
-        leafId,
-        layout,
-        newSplitId,
-        newLeafId,
-      );
+      const nextTree = splitLeafInTree(state.tree, leafId, layout, newSplitId, newLeafId);
 
       const nextLeafSessionIds: Record<string, string | null> = {
         ...state.leafSessionIds,
@@ -694,10 +676,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
 
       const prevKeys = Object.keys(state.splitSizesPx);
       const nextKeys = Object.keys(nextSplitSizesPx);
-      if (
-        prevKeys.length === nextKeys.length &&
-        prevKeys.every((k) => k in nextSplitSizesPx)
-      ) {
+      if (prevKeys.length === nextKeys.length && prevKeys.every((k) => k in nextSplitSizesPx)) {
         return state;
       }
 

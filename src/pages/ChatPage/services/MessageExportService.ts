@@ -49,13 +49,7 @@ export class MessageExportService {
     messageId?: string | null;
     filenamePrefix?: string;
   }): Promise<{ success: boolean; filename?: string; error?: string }> {
-    const {
-      format,
-      content,
-      sessionId = null,
-      messageId = null,
-      filenamePrefix,
-    } = args;
+    const { format, content, sessionId = null, messageId = null, filenamePrefix } = args;
 
     const prefix =
       filenamePrefix ||
@@ -97,17 +91,12 @@ export class MessageExportService {
     } catch (error) {
       return {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : i18n.t("chat.messageActions.exportFailed"),
+        error: error instanceof Error ? error.message : i18n.t("chat.messageActions.exportFailed"),
       };
     }
   }
 
-  private static async generatePdfFromText(
-    content: string,
-  ): Promise<Uint8Array> {
+  private static async generatePdfFromText(content: string): Promise<Uint8Array> {
     // PDF export should match the markdown renderer used in MessageCard,
     // including custom code/mermaid rendering.
     if (typeof document === "undefined") {
@@ -189,7 +178,7 @@ export class MessageExportService {
     flushSync(() => {
       root.render(
         React.createElement(
-          ReactMarkdown as unknown as React.ComponentType<any>,
+          ReactMarkdown as unknown as React.ComponentType<Record<string, unknown>>,
           {
             remarkPlugins: [remarkGfm, remarkBreaks],
             rehypePlugins: [rehypeSanitize],
@@ -202,10 +191,7 @@ export class MessageExportService {
 
     try {
       await this.waitForExportRenderReady(container);
-      const canvas = await this.renderCanvasWithFallback(
-        html2canvas,
-        container,
-      );
+      const canvas = await this.renderCanvasWithFallback(html2canvas, container);
 
       // Render canvas into A4 pages (pt units).
       const doc = new jsPDF({
@@ -225,15 +211,8 @@ export class MessageExportService {
       let offsetY = 0;
       let pageIndex = 0;
       while (offsetY < canvas.height) {
-        const computedSliceHeight = this.computeSmartSliceHeight(
-          canvas,
-          offsetY,
-          sliceHeightPx,
-        );
-        const sliceHeight = Math.max(
-          1,
-          Math.min(computedSliceHeight, canvas.height - offsetY),
-        );
+        const computedSliceHeight = this.computeSmartSliceHeight(canvas, offsetY, sliceHeightPx);
+        const sliceHeight = Math.max(1, Math.min(computedSliceHeight, canvas.height - offsetY));
 
         const sliceCanvas = document.createElement("canvas");
         sliceCanvas.width = canvas.width;
@@ -261,14 +240,7 @@ export class MessageExportService {
         const sliceHeightPt = sliceHeight / pxPerPt;
 
         if (pageIndex > 0) doc.addPage();
-        doc.addImage(
-          imgData,
-          "JPEG",
-          marginPt,
-          marginPt,
-          contentWidthPt,
-          sliceHeightPt,
-        );
+        doc.addImage(imgData, "JPEG", marginPt, marginPt, contentWidthPt, sliceHeightPt);
 
         offsetY += sliceHeight;
         pageIndex += 1;
@@ -283,14 +255,14 @@ export class MessageExportService {
     }
   }
 
-  private static async waitForExportRenderReady(
-    container: HTMLElement,
-  ): Promise<void> {
+  private static async waitForExportRenderReady(container: HTMLElement): Promise<void> {
     // Ensure layout + fonts settle before capture.
     await new Promise<void>((resolve) =>
       requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
     );
-    await (document as any).fonts?.ready?.catch?.(() => undefined);
+    await (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready?.catch?.(
+      () => undefined,
+    );
 
     const start = Date.now();
     const timeoutMs = 6000;
@@ -298,9 +270,7 @@ export class MessageExportService {
       const pendingMermaid = container.querySelector(MERMAID_LOADING_SELECTOR);
       if (!pendingMermaid) {
         // Give one more frame to flush post-render layout changes.
-        await new Promise<void>((resolve) =>
-          requestAnimationFrame(() => resolve()),
-        );
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         return;
       }
       await new Promise<void>((resolve) => setTimeout(resolve, 50));
@@ -330,10 +300,7 @@ export class MessageExportService {
         return canvas;
       }
     } catch (error) {
-      console.warn(
-        "PDF capture with foreignObjectRendering=true failed:",
-        error,
-      );
+      console.warn("PDF capture with foreignObjectRendering=true failed:", error);
     }
 
     const fallbackCanvas = await html2canvas(container, {
@@ -361,21 +328,10 @@ export class MessageExportService {
     const preferredBreakY = offsetY + targetSliceHeight;
     const minSliceHeight = Math.max(1, Math.floor(targetSliceHeight * 0.72));
     const searchRadius = Math.max(8, Math.floor(targetSliceHeight * 0.12));
-    const minBreakY = Math.max(
-      offsetY + minSliceHeight,
-      preferredBreakY - searchRadius,
-    );
-    const maxBreakY = Math.min(
-      canvas.height - 1,
-      preferredBreakY + searchRadius,
-    );
+    const minBreakY = Math.max(offsetY + minSliceHeight, preferredBreakY - searchRadius);
+    const maxBreakY = Math.min(canvas.height - 1, preferredBreakY + searchRadius);
 
-    const breakY = this.findWhitespaceBreakY(
-      canvas,
-      preferredBreakY,
-      minBreakY,
-      maxBreakY,
-    );
+    const breakY = this.findWhitespaceBreakY(canvas, preferredBreakY, minBreakY, maxBreakY);
     if (breakY === null || breakY <= offsetY) {
       return targetSliceHeight;
     }
@@ -400,12 +356,7 @@ export class MessageExportService {
       }
 
       const height = maxBreakY - minBreakY + 1;
-      const imageData = ctx.getImageData(
-        0,
-        minBreakY,
-        canvas.width,
-        height,
-      ).data;
+      const imageData = ctx.getImageData(0, minBreakY, canvas.width, height).data;
       const rowStride = canvas.width * 4;
       const sampleStep = Math.max(1, Math.floor(canvas.width / 320));
       const whiteThreshold = 245;
@@ -446,8 +397,7 @@ export class MessageExportService {
         const y = minBreakY + row;
         const distance = Math.abs(y - preferredBreakY);
         const isBetter =
-          inkRatio < bestInkRatio ||
-          (inkRatio === bestInkRatio && distance < bestDistance);
+          inkRatio < bestInkRatio || (inkRatio === bestInkRatio && distance < bestDistance);
 
         if (isBetter) {
           bestInkRatio = inkRatio;

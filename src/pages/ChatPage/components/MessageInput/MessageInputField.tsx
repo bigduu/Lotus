@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Input } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
@@ -13,7 +14,7 @@ interface MessageInputFieldProps {
   value: string;
   placeholder: string;
   disabled: boolean;
-  token: any;
+  token: GlobalToken;
   highlightSegments: HighlightSegment[];
   textAreaRef: React.RefObject<TextAreaRef>;
   highlightOverlayRef: React.RefObject<HTMLDivElement>;
@@ -37,8 +38,7 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
   onScrollSync,
 }) => {
   const showHighlightOverlay =
-    value.length > 0 &&
-    highlightSegments.some((segment) => segment.type !== "text");
+    value.length > 0 && highlightSegments.some((segment) => segment.type !== "text");
 
   return (
     <div

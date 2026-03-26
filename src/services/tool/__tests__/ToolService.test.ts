@@ -283,12 +283,10 @@ describe("ToolService", () => {
         parameters: [],
       };
 
-      await expect(toolService.executeTool(request)).rejects.toThrow(
-        "Generic error",
-      );
+      await expect(toolService.executeTool(request)).rejects.toThrow("Generic error");
     });
 
-    it("should log execution attempt", async () => {
+    it("should not leak console.log in production (uses debugLog)", async () => {
       vi.mocked(apiClient.post).mockResolvedValueOnce({
         result: JSON.stringify({
           tool_name: "logged_tool",
@@ -298,39 +296,13 @@ describe("ToolService", () => {
         }),
       });
 
-      const request = {
+      await toolService.executeTool({
         tool_name: "logged_tool",
         parameters: [{ name: "p1", value: "v1" }],
-      };
-
-      await toolService.executeTool(request);
-
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        "[ToolService] executeTool: Attempting to execute tool via HTTP with request:",
-        request,
-      );
-    });
-
-    it("should log parsed result", async () => {
-      const mockResult = {
-        tool_name: "test",
-        success: true,
-        result: "test",
-        display_preference: "Default",
-      };
-      vi.mocked(apiClient.post).mockResolvedValueOnce({
-        result: JSON.stringify(mockResult),
       });
 
-      await toolService.executeTool({
-        tool_name: "test",
-        parameters: [],
-      });
-
-      expect(consoleLogSpy).toHaveBeenCalledWith(
-        "[ToolService] executeTool: Parsed structured result:",
-        mockResult,
-      );
+      // debugLog is a no-op in test mode, so console.log should NOT be called
+      expect(consoleLogSpy).not.toHaveBeenCalled();
     });
 
     it("should log error on failure", async () => {
@@ -342,7 +314,7 @@ describe("ToolService", () => {
           tool_name: "test",
           parameters: [],
         });
-      } catch (e) {
+      } catch {
         // Expected
       }
 

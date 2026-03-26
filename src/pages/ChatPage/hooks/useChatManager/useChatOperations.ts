@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { useCallback } from "react";
 import { useAppStore } from "../../store";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
@@ -9,10 +10,7 @@ import { AgentClient } from "../../services/AgentService";
  * Handles creating, updating, and deleting chats
  */
 export interface UseChatOperations {
-  createNewChat: (
-    title?: string,
-    options?: Partial<Omit<ChatItem, "id">>,
-  ) => Promise<void>;
+  createNewChat: (title?: string, options?: Partial<Omit<ChatItem, "id">>) => Promise<void>;
   createChatWithSystemPrompt: (prompt: UserSystemPrompt) => Promise<void>;
   toggleChatPin: (sessionId: string) => void;
   updateChatTitle: (sessionId: string, newTitle: string) => void;
@@ -23,24 +21,19 @@ export interface UseChatOperations {
 
 export function useChatOperations(state: UseChatState): UseChatOperations {
   const addChat = useAppStore((state) => state.addChat);
-  const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId,
-  );
+  const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
   const agentClient = AgentClient.getInstance();
 
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
-      const selectedPrompt = systemPrompts.find(
-        (p) => p.id === lastSelectedPromptId,
-      );
+      const selectedPrompt = systemPrompts.find((p) => p.id === lastSelectedPromptId);
 
       // Use actual prompt ID or undefined (no hardcoded defaults)
       const systemPromptId =
         selectedPrompt?.id ||
         (systemPrompts.length > 0
-          ? systemPrompts.find((p) => p.id === "general_assistant")?.id ||
-            systemPrompts[0].id
+          ? systemPrompts.find((p) => p.id === "general_assistant")?.id || systemPrompts[0].id
           : "");
 
       const newChatData: Omit<ChatItem, "id"> = {
@@ -52,8 +45,8 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
           baseSystemPrompt:
             selectedPrompt?.content ||
             (systemPrompts.length > 0
-              ? systemPrompts.find((p) => p.id === "general_assistant")
-                  ?.content || systemPrompts[0].content
+              ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
+                systemPrompts[0].content
               : ""),
           lastUsedEnhancedPrompt: null,
         },
@@ -67,7 +60,8 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
 
   const createChatWithSystemPrompt = useCallback(
     async (prompt: UserSystemPrompt) => {
-      console.log(
+      debugLog(
+        "[ChatOps]",
         "[useChatOperations] createChatWithSystemPrompt started with prompt:",
         prompt,
       );
@@ -82,7 +76,8 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
         },
         currentInteraction: null,
       };
-      console.log(
+      debugLog(
+        "[ChatOps]",
         "[useChatOperations] Calling addChat with newChatData.config:",
         newChatData.config,
       );

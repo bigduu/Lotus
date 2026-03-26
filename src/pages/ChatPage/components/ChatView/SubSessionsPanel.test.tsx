@@ -19,22 +19,19 @@ const mockStoreState: any = {
   clearSubSessionProgress: vi.fn(),
 };
 
-const { mockAgentClient, mockUseActiveModel, mockToolService } = vi.hoisted(
-  () => ({
-    mockAgentClient: {
-      truncateSessionMessages: vi.fn(),
-      execute: vi.fn(),
-    },
-    mockToolService: {
-      executeTool: vi.fn(),
-    },
-    mockUseActiveModel: vi.fn<() => string | undefined>(() => "test-model"),
-  }),
-);
+const { mockAgentClient, mockUseActiveModel, mockToolService } = vi.hoisted(() => ({
+  mockAgentClient: {
+    truncateSessionMessages: vi.fn(),
+    execute: vi.fn(),
+  },
+  mockToolService: {
+    executeTool: vi.fn(),
+  },
+  mockUseActiveModel: vi.fn<() => string | undefined>(() => "test-model"),
+}));
 
 vi.mock("../../store", () => ({
-  useAppStore: (selector: (state: typeof mockStoreState) => unknown) =>
-    selector(mockStoreState),
+  useAppStore: (selector: (state: typeof mockStoreState) => unknown) => selector(mockStoreState),
 }));
 
 vi.mock("../../utils/openSession", () => ({
@@ -144,9 +141,7 @@ describe("SubSessionsPanel", () => {
 
     expect(screen.getByTestId("sub-sessions-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sub-sessions-list")).toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent(
-      "Collapse",
-    );
+    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Collapse");
   });
 
   it("applies max height and vertical scroll to expanded list", () => {
@@ -159,16 +154,12 @@ describe("SubSessionsPanel", () => {
   });
 
   it("can collapse and restore collapsed state from localStorage", () => {
-    const { unmount } = render(
-      <SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />,
-    );
+    const { unmount } = render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     fireEvent.click(screen.getByTestId("sub-sessions-toggle"));
 
     expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(
-      screen.getByTestId("sub-sessions-collapsed-hint"),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("sub-sessions-collapsed-hint")).toBeInTheDocument();
     expect(localStorage.getItem(COLLAPSE_STORAGE_KEY)).toBe("1");
 
     unmount();
@@ -176,9 +167,7 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent(
-      "Expand",
-    );
+    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Expand");
   });
 
   it("auto-collapses when child sessions exceed threshold and no preference is saved", () => {
@@ -187,9 +176,7 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent(
-      "Expand",
-    );
+    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Expand");
   });
 
   it("respects persisted expanded preference even when child sessions exceed threshold", () => {
@@ -199,9 +186,7 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByTestId("sub-sessions-list")).toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent(
-      "Collapse",
-    );
+    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Collapse");
   });
 
   it("renders nothing when no child sessions exist", () => {
@@ -230,7 +215,8 @@ describe("SubSessionsPanel", () => {
 
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.getByText(/Status:\s*running/i)).toBeInTheDocument();
+    // Status is shown as a Tag with just the status text
+    expect(screen.getByText("running")).toBeInTheDocument();
   });
 
   it("falls back to persisted terminal status when progress entry is missing", () => {
@@ -251,7 +237,7 @@ describe("SubSessionsPanel", () => {
 
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.getByText(/Status:\s*completed/i)).toBeInTheDocument();
+    expect(screen.getByText("completed")).toBeInTheDocument();
   });
 
   it("normalizes already_running into running", () => {
@@ -276,7 +262,7 @@ describe("SubSessionsPanel", () => {
 
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.getByText(/Status:\s*running/i)).toBeInTheDocument();
+    expect(screen.getByText("running")).toBeInTheDocument();
   });
 
   it("shows pending instead of unknown when no runtime hints are available", () => {
@@ -296,7 +282,7 @@ describe("SubSessionsPanel", () => {
 
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.getByText(/Status:\s*pending/i)).toBeInTheDocument();
+    expect(screen.getByText("pending")).toBeInTheDocument();
   });
 
   it("retries existing child session in place", async () => {
@@ -317,27 +303,16 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByText("Regenerate response"));
 
     await waitFor(() => {
-      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith(
-        "child-session-1",
-        { mode: "after_last_user" },
-      );
+      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
+        mode: "after_last_user",
+      });
     });
-    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith(
-      "child-session-1",
-      { mode: "replace" },
-    );
-    expect(mockAgentClient.execute).toHaveBeenCalledWith(
-      "child-session-1",
-      "test-model",
-    );
-    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith(
-      "child-session-1",
-      true,
-    );
-    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith(
-      "child-session-1",
-      false,
-    );
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("child-session-1", {
+      mode: "replace",
+    });
+    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1", "test-model");
+    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", true);
+    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", false);
   });
 
   it("retries failed request while preserving history", async () => {
@@ -364,16 +339,12 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByText("Retry failed request"));
 
     await waitFor(() => {
-      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith(
-        "child-session-1",
-        { mode: "error_retry" },
-      );
+      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
+        mode: "error_retry",
+      });
     });
     expect(mockStoreState.loadChatHistory).not.toHaveBeenCalled();
-    expect(mockAgentClient.execute).toHaveBeenCalledWith(
-      "child-session-1",
-      "test-model",
-    );
+    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1", "test-model");
   });
 
   it("reloads history when error retry falls back to truncation", async () => {
@@ -400,19 +371,14 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByText("Retry failed request"));
 
     await waitFor(() => {
-      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith(
-        "child-session-1",
-        { mode: "error_retry" },
-      );
+      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
+        mode: "error_retry",
+      });
     });
-    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith(
-      "child-session-1",
-      { mode: "replace" },
-    );
-    expect(mockAgentClient.execute).toHaveBeenCalledWith(
-      "child-session-1",
-      "test-model",
-    );
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("child-session-1", {
+      mode: "replace",
+    });
+    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1", "test-model");
   });
 
   it("sends a follow-up message to an existing child session", async () => {
@@ -448,10 +414,7 @@ describe("SubSessionsPanel", () => {
       });
     });
 
-    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith(
-      "child-session-1",
-      true,
-    );
+    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", true);
     expect(mockStoreState.refreshChats).toHaveBeenCalled();
 
     promptSpy.mockRestore();
@@ -463,9 +426,7 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByTestId("sub-session-delete-child-session-1"));
 
     await waitFor(() => {
-      expect(mockStoreState.deleteSession).toHaveBeenCalledWith(
-        "child-session-1",
-      );
+      expect(mockStoreState.deleteSession).toHaveBeenCalledWith("child-session-1");
     });
     expect(mockStoreState.clearSubSessionProgress).toHaveBeenCalledWith(
       PARENT_SESSION_ID,

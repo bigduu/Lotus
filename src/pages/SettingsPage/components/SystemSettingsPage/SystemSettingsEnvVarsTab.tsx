@@ -13,12 +13,7 @@ import {
   Typography,
   message,
 } from "antd";
-import {
-  DeleteOutlined,
-  EditOutlined,
-  LockOutlined,
-  PlusOutlined,
-} from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, LockOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import {
   settingsService,
@@ -52,10 +47,8 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     try {
       const res = await settingsService.getEnvVars();
       setEntries(res.entries);
-    } catch (err: any) {
-      message.error(
-        t("settings.envVars.fetchError", "Failed to load environment variables"),
-      );
+    } catch {
+      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
     } finally {
       setLoading(false);
     }
@@ -89,9 +82,9 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           : t("settings.envVars.created", "Variable created"),
       );
       closeModal();
-    } catch (err: any) {
+    } catch (err: unknown) {
       message.error(
-        err?.message ||
+        (err instanceof Error ? err.message : undefined) ||
           t("settings.envVars.saveError", "Failed to save variable"),
       );
     }
@@ -102,9 +95,9 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       const res = await settingsService.deleteEnvVar(name);
       setEntries(res.entries);
       message.success(t("settings.envVars.deleted", "Variable deleted"));
-    } catch (err: any) {
+    } catch (err: unknown) {
       message.error(
-        err?.message ||
+        (err instanceof Error ? err.message : undefined) ||
           t("settings.envVars.deleteError", "Failed to delete variable"),
       );
     }
@@ -156,7 +149,9 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             {record.has_value ? "••••••••" : t("settings.envVars.notSet", "(not set)")}
           </Text>
         ) : (
-          <Text>{value || <Text type="secondary">{t("settings.envVars.empty", "(empty)")}</Text>}</Text>
+          <Text>
+            {value || <Text type="secondary">{t("settings.envVars.empty", "(empty)")}</Text>}
+          </Text>
         ),
     },
     {
@@ -197,12 +192,10 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             size="small"
             icon={<EditOutlined />}
             onClick={() => openEditModal(record)}
+            aria-label={t("settings.envVars.edit", "Edit")}
           />
           <Popconfirm
-            title={t(
-              "settings.envVars.deleteConfirm",
-              "Delete this variable?",
-            )}
+            title={t("settings.envVars.deleteConfirm", "Delete this variable?")}
             onConfirm={() => handleDelete(record.name)}
             okText={t("settings.envVars.yes", "Yes")}
             cancelText={t("settings.envVars.no", "No")}
@@ -212,6 +205,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
               size="small"
               danger
               icon={<DeleteOutlined />}
+              aria-label={t("settings.envVars.delete", "Delete")}
             />
           </Popconfirm>
         </Space>
@@ -227,11 +221,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         className="lotus-settings-card"
         title={t("settings.envVars.title", "Environment Variables")}
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={openAddModal}
-          >
+          <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
             {t("settings.envVars.addButton", "Add Variable")}
           </Button>
         }
@@ -251,10 +241,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           pagination={false}
           loading={loading}
           locale={{
-            emptyText: t(
-              "settings.envVars.noVars",
-              "No environment variables configured",
-            ),
+            emptyText: t("settings.envVars.noVars", "No environment variables configured"),
           }}
         />
       </Card>
@@ -273,22 +260,14 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         cancelText={t("settings.envVars.cancel", "Cancel")}
         destroyOnClose
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleSave}
-          initialValues={{ secret: false }}
-        >
+        <Form form={form} layout="vertical" onFinish={handleSave} initialValues={{ secret: false }}>
           <Form.Item
             name="name"
             label={t("settings.envVars.name", "Name")}
             rules={[
               {
                 required: true,
-                message: t(
-                  "settings.envVars.nameRequired",
-                  "Variable name is required",
-                ),
+                message: t("settings.envVars.nameRequired", "Variable name is required"),
               },
               {
                 pattern: ENV_VAR_NAME_RE,
@@ -312,28 +291,19 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             rules={[
               {
                 required: editingName === null,
-                message: t(
-                  "settings.envVars.valueRequired",
-                  "Value is required for new variables",
-                ),
+                message: t("settings.envVars.valueRequired", "Value is required for new variables"),
               },
             ]}
             extra={
               editingName
-                ? t(
-                    "settings.envVars.valueEditHint",
-                    "Leave empty to keep the existing value",
-                  )
+                ? t("settings.envVars.valueEditHint", "Leave empty to keep the existing value")
                 : undefined
             }
           >
             <Input.Password
               placeholder={
                 editingName
-                  ? t(
-                      "settings.envVars.valuePlaceholderEdit",
-                      "Enter new value or leave empty",
-                    )
+                  ? t("settings.envVars.valuePlaceholderEdit", "Enter new value or leave empty")
                   : t("settings.envVars.valuePlaceholder", "Enter value")
               }
               visibilityToggle
@@ -357,10 +327,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             label={t("settings.envVars.descriptionField", "Description")}
           >
             <Input
-              placeholder={t(
-                "settings.envVars.descriptionPlaceholder",
-                "Optional description",
-              )}
+              placeholder={t("settings.envVars.descriptionPlaceholder", "Optional description")}
             />
           </Form.Item>
         </Form>

@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Button, Flex } from "antd";
 import { FileTextOutlined, PlusOutlined } from "@ant-design/icons";
@@ -7,7 +8,7 @@ interface MessageInputControlsLeftProps {
   allowImages: boolean;
   disabled: boolean;
   isStreaming: boolean;
-  token: any;
+  token: GlobalToken;
   fileInputRef: React.RefObject<HTMLInputElement>;
   onFileInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onFileReferenceButtonClick?: () => void;
@@ -58,6 +59,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
               color: token.colorTextSecondary,
             }}
             title={t("chat.input.addAttachments")}
+            aria-label={t("chat.input.addAttachments")}
           />
         </>
       )}
@@ -77,6 +79,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
             color: token.colorTextSecondary,
           }}
           title={t("chat.input.referenceWorkspaceFiles")}
+          aria-label={t("chat.input.referenceWorkspaceFiles")}
         />
       )}
 

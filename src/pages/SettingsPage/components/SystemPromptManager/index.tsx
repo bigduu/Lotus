@@ -1,14 +1,5 @@
 import { useState } from "react";
-import {
-  Button,
-  List,
-  Modal,
-  Form,
-  Input,
-  Popconfirm,
-  message,
-  Tag,
-} from "antd";
+import { Button, List, Modal, Form, Input, Popconfirm, message, Tag } from "antd";
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../ChatPage/store";
@@ -22,9 +13,7 @@ const SystemPromptManager = () => {
   const deleteSystemPrompt = useAppStore((state) => state.deleteSystemPrompt);
 
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [editingPrompt, setEditingPrompt] = useState<UserSystemPrompt | null>(
-    null,
-  );
+  const [editingPrompt, setEditingPrompt] = useState<UserSystemPrompt | null>(null);
   const [form] = Form.useForm();
 
   const showModal = (prompt: UserSystemPrompt | null = null) => {
@@ -63,9 +52,7 @@ const SystemPromptManager = () => {
     } catch (error) {
       console.error("Failed to save prompt:", error);
       message.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.systemPromptManager.saveError"),
+        error instanceof Error ? error.message : t("settings.systemPromptManager.saveError"),
       );
     }
   };
@@ -77,9 +64,7 @@ const SystemPromptManager = () => {
     } catch (error) {
       console.error("Failed to delete prompt:", error);
       message.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.systemPromptManager.deleteError"),
+        error instanceof Error ? error.message : t("settings.systemPromptManager.deleteError"),
       );
     }
   };
@@ -95,11 +80,7 @@ const SystemPromptManager = () => {
         }}
       >
         <h2>{t("settings.systemPromptManager.title")}</h2>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => showModal()}
-        >
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal()}>
           {t("settings.systemPromptManager.addButton")}
         </Button>
       </div>
@@ -110,11 +91,7 @@ const SystemPromptManager = () => {
           <List.Item
             actions={[
               item.isDefault ? null : (
-                <Button
-                  type="text"
-                  icon={<EditOutlined />}
-                  onClick={() => showModal(item)}
-                />
+                <Button type="text" icon={<EditOutlined />} onClick={() => showModal(item)} />
               ),
               item.isDefault ? null : (
                 <Popconfirm
@@ -123,7 +100,12 @@ const SystemPromptManager = () => {
                   okText={t("common.yes")}
                   cancelText={t("common.no")}
                 >
-                  <Button type="text" danger icon={<DeleteOutlined />} />
+                  <Button
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    aria-label={t("common.delete")}
+                  />
                 </Popconfirm>
               ),
             ]}
@@ -132,13 +114,10 @@ const SystemPromptManager = () => {
               title={item.name}
               description={
                 item.description ||
-                item.content.substring(0, 200) +
-                  (item.content.length > 200 ? "..." : "")
+                item.content.substring(0, 200) + (item.content.length > 200 ? "..." : "")
               }
             />
-            {item.isDefault && (
-              <Tag>{t("settings.systemPromptManager.defaultTag")}</Tag>
-            )}
+            {item.isDefault && <Tag>{t("settings.systemPromptManager.defaultTag")}</Tag>}
           </List.Item>
         )}
       />

@@ -12,12 +12,7 @@ import {
   message,
   theme,
 } from "antd";
-import {
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined,
-  SaveOutlined,
-} from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { ServiceFactory } from "../../../../services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
 import i18n from "../../../../shared/i18n";
@@ -90,19 +85,12 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editPattern, setEditPattern] = useState("");
-  const [editMatchType, setEditMatchType] = useState<"exact" | "regex">(
-    "exact",
-  );
+  const [editMatchType, setEditMatchType] = useState<"exact" | "regex">("exact");
   const [editEnabled, setEditEnabled] = useState(true);
   const [exampleValue, setExampleValue] = useState<string | undefined>();
   const [previewText, setPreviewText] = useState("My token is sk-123");
 
-  // Load keyword masking config on mount
-  useEffect(() => {
-    loadConfig();
-  }, []);
-
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
       const serviceFactory = ServiceFactory.getInstance();
@@ -115,7 +103,12 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [t]);
+
+  // Load keyword masking config on mount
+  useEffect(() => {
+    void loadConfig();
+  }, [loadConfig]);
 
   const saveConfig = async (newEntries: KeywordEntry[]) => {
     try {
@@ -141,9 +134,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       return true;
     } catch (error) {
       message.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.keywordMaskingTab.saveFailed"),
+        error instanceof Error ? error.message : t("settings.keywordMaskingTab.saveFailed"),
       );
       return false;
     }
@@ -234,9 +225,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       }
     >
       <Space direction="vertical" style={{ width: "100%" }} size="large">
-        <Text type="secondary">
-          {t("settings.keywordMaskingTab.description")}
-        </Text>
+        <Text type="secondary">{t("settings.keywordMaskingTab.description")}</Text>
 
         <List
           loading={loading}
@@ -259,6 +248,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         type="primary"
                         icon={<SaveOutlined />}
                         onClick={handleSaveEdit}
+                        aria-label={t("settings.keywordMaskingTab.save")}
                       />,
                       <Button key="cancel" onClick={handleCancelEdit}>
                         {t("settings.keywordMaskingTab.cancel")}
@@ -269,6 +259,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         key="edit"
                         icon={<EditOutlined />}
                         onClick={() => handleEditEntry(index)}
+                        aria-label={t("settings.keywordMaskingTab.edit")}
                       />,
                       <Button
                         data-testid={`delete-keyword-${index}`}
@@ -276,6 +267,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         danger
                         icon={<DeleteOutlined />}
                         onClick={() => handleDeleteEntry(index)}
+                        aria-label={t("settings.keywordMaskingTab.delete")}
                       />,
                     ]
               }
@@ -299,9 +291,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         value={exampleValue}
                         onChange={(value) => {
                           setExampleValue(value);
-                          const example = keywordExamples.find(
-                            (item) => item.value === value,
-                          );
+                          const example = keywordExamples.find((item) => item.value === value);
                           if (!example) return;
                           setEditPattern(example.pattern);
                           setEditMatchType(example.match_type);
@@ -327,10 +317,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         ]}
                         style={{ width: 150 }}
                       />
-                      <Switch
-                        checked={editEnabled}
-                        onChange={setEditEnabled}
-                      />
+                      <Switch checked={editEnabled} onChange={setEditEnabled} />
                     </Flex>
                     <Flex vertical gap={6}>
                       <Text type="secondary">{t("settings.keywordMaskingTab.sampleText")}</Text>
@@ -345,16 +332,16 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                         value={preview.masked}
                         status={preview.error ? "error" : undefined}
                       />
-                      {preview.error && (
-                        <Text type="danger">{preview.error}</Text>
-                      )}
+                      {preview.error && <Text type="danger">{preview.error}</Text>}
                     </Flex>
                   </>
                 ) : (
                   // View mode
                   <Flex justify="space-between" align="center">
                     <Flex vertical gap={4}>
-                      <Text strong>{item.pattern || t("settings.keywordMaskingTab.emptyPattern")}</Text>
+                      <Text strong>
+                        {item.pattern || t("settings.keywordMaskingTab.emptyPattern")}
+                      </Text>
                       <Flex gap={8}>
                         <Text type="secondary" style={{ fontSize: 12 }}>
                           {item.match_type === "regex"
@@ -370,9 +357,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                     </Flex>
                     <Switch
                       checked={item.enabled}
-                      onChange={(checked) =>
-                        handleToggleEnabled(index, checked)
-                      }
+                      onChange={(checked) => handleToggleEnabled(index, checked)}
                       size="small"
                     />
                   </Flex>

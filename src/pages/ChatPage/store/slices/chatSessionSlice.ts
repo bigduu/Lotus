@@ -12,6 +12,7 @@ import {
 import { AgentClient, SessionSummary } from "../../services/AgentService";
 import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
 import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
+import { ApiError } from "../../../../services/api";
 import type { AppState } from "../";
 import { useProviderStore } from "./providerSlice";
 import i18n from "../../../../shared/i18n";
@@ -19,13 +20,34 @@ import i18n from "../../../../shared/i18n";
 const AUTO_TITLE_KEY = "copilot_auto_generate_titles";
 const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
-const DEFAULT_SYSTEM_PROMPT_ID =
-  DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
+const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
 const DEFAULT_BASE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT?.content?.trim() || "";
+
+export type DeleteMessageFailureReason =
+  | "session_not_found"
+  | "message_not_found"
+  | "backend_not_found"
+  | "session_running"
+  | "backend_error";
+
+export type DeleteMessageResult =
+  | {
+      success: true;
+      sessionId: string;
+      messageId: string;
+    }
+  | {
+      success: false;
+      sessionId: string;
+      messageId: string;
+      reason: DeleteMessageFailureReason;
+      statusCode?: number;
+      errorMessage?: string;
+    };
 
 const safeRandomId = (): string => {
   try {
-    const c: any = (globalThis as any).crypto;
+    const c = globalThis.crypto;
     if (c?.randomUUID) return c.randomUUID();
   } catch {
     // ignore
@@ -159,10 +181,7 @@ const mapHistoryMessagesToUi = (
     }
 
     if (msg.role === "user") {
-      const ocrByUrl = new Map<
-        string,
-        { ocrText?: string; ocrError?: string }
-      >();
+      const ocrByUrl = new Map<string, { ocrText?: string; ocrError?: string }>();
       for (const item of msg.image_ocr || []) {
         const url = item.image_url?.trim();
         if (!url) continue;
@@ -210,13 +229,11 @@ const mapHistoryMessagesToUi = (
       const toolCalls = msg.tool_calls || [];
       if (toolCalls.length > 0) {
         const assistantText = (msg.content || "").trim();
-        const hasReasoning =
-          typeof msg.reasoning === "string" && msg.reasoning.trim().length > 0;
+        const hasReasoning = typeof msg.reasoning === "string" && msg.reasoning.trim().length > 0;
         if (assistantText || hasReasoning) {
-          const metadata =
-            hasReasoning
-              ? { reasoning: msg.reasoning, backendMessageId: msg.id }
-              : { backendMessageId: msg.id };
+          const metadata = hasReasoning
+            ? { reasoning: msg.reasoning, backendMessageId: msg.id }
+            : { backendMessageId: msg.id };
           const asst: AssistantTextMessage = {
             role: "assistant",
             type: "text",
@@ -243,7 +260,7 @@ const mapHistoryMessagesToUi = (
             toolName: c.function?.name || "unknown",
             parameters: (() => {
               try {
-                return JSON.parse(c.function?.arguments || "{}") as any;
+                return JSON.parse(c.function?.arguments || "{}") as Record<string, unknown>;
               } catch {
                 return { raw: c.function?.arguments || "" };
               }
@@ -346,12 +363,8 @@ export interface ChatSlice {
 
   addMessage: (sessionId: string, message: Message) => Promise<void>;
   setMessages: (sessionId: string, messages: Message[]) => void;
-  updateMessage: (
-    sessionId: string,
-    messageId: string,
-    updates: Partial<Message>,
-  ) => void;
-  deleteMessage: (sessionId: string, messageId: string) => void;
+  updateMessage: (sessionId: string, messageId: string, updates: Partial<Message>) => void;
+  deleteMessage: (sessionId: string, messageId: string) => Promise<DeleteMessageResult>;
 
   loadChats: () => Promise<void>;
   refreshChats: () => Promise<void>;
@@ -378,20 +391,14 @@ export interface ChatSlice {
       outputPreview?: string;
     }>,
   ) => void;
-  clearSubSessionProgress: (
-    parentSessionId: string,
-    childSessionId: string,
-  ) => void;
+  clearSubSessionProgress: (parentSessionId: string, childSessionId: string) => void;
 
   setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
   isSessionProcessing: (sessionId: string) => boolean;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
 }
 
-export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
-  set,
-  get,
-) => ({
+export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
   chats: [],
   currentSessionId: null,
   latestActiveSessionId: null,
@@ -425,10 +432,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     };
 
     set((state) => {
-      const chats = [
-        newChat,
-        ...state.chats.filter((c) => c.id !== newChat.id),
-      ];
+      const chats = [newChat, ...state.chats.filter((c) => c.id !== newChat.id)];
       return {
         ...state,
         chats,
@@ -442,10 +446,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
   selectSession: (sessionId) => {
     const prev = get();
-    if (
-      prev.currentSessionId === sessionId &&
-      prev.latestActiveSessionId === sessionId
-    ) {
+    if (prev.currentSessionId === sessionId && prev.latestActiveSessionId === sessionId) {
       return;
     }
     set({ currentSessionId: sessionId, latestActiveSessionId: sessionId });
@@ -455,10 +456,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     try {
       await agentClient.deleteSession(sessionId);
     } catch (error) {
-      console.error(
-        `[ChatSlice] Failed to delete backend session ${sessionId}:`,
-        error,
-      );
+      console.error(`[ChatSlice] Failed to delete backend session ${sessionId}:`, error);
     }
 
     set((state) => {
@@ -502,12 +500,12 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     });
 
     // Best-effort backend patch for title/pin updates.
-    const patch: any = {};
-    if (typeof (updates as any).title === "string") {
-      patch.title = (updates as any).title;
+    const patch: Record<string, string | boolean> = {};
+    if (typeof updates.title === "string") {
+      patch.title = updates.title;
     }
-    if (typeof (updates as any).pinned === "boolean") {
-      patch.pinned = (updates as any).pinned;
+    if (typeof updates.pinned === "boolean") {
+      patch.pinned = updates.pinned;
     }
     if (Object.keys(patch).length > 0) {
       agentClient.patchSession(sessionId, patch).catch((e) => {
@@ -544,33 +542,102 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
     const updatedMessages = chat.messages.map((msg) => {
       if (msg.id !== messageId) return msg;
-      const updatedMsg = { ...(msg as any) };
+      const updatedMsg = { ...msg } as Record<string, unknown>;
       Object.keys(updates).forEach((key) => {
         if (Object.prototype.hasOwnProperty.call(updatedMsg, key)) {
-          (updatedMsg as Record<string, unknown>)[key] = (
-            updates as Record<string, unknown>
-          )[key];
+          updatedMsg[key] = (updates as Record<string, unknown>)[key];
         }
       });
-      return updatedMsg as Message;
+      return updatedMsg as unknown as Message;
     });
 
     get().updateSession(sessionId, { messages: updatedMessages });
   },
 
-  deleteMessage: (sessionId, messageId) => {
+  deleteMessage: async (sessionId, messageId) => {
     const chat = get().chats.find((c) => c.id === sessionId);
-    if (!chat) return;
-    const updatedMessages = chat.messages.filter((msg) => msg.id !== messageId);
-    get().updateSession(sessionId, { messages: updatedMessages });
+    if (!chat) {
+      return {
+        success: false,
+        sessionId,
+        messageId,
+        reason: "session_not_found",
+      };
+    }
+    if (!chat.messages.some((msg) => msg.id === messageId)) {
+      return {
+        success: false,
+        sessionId,
+        messageId,
+        reason: "message_not_found",
+      };
+    }
 
-    // Best-effort persistence: some UI messages are local-only placeholders and may not exist on the backend.
-    agentClient.deleteSessionMessage(sessionId, messageId).catch((e) => {
+    try {
+      await agentClient.deleteSessionMessage(sessionId, messageId);
+    } catch (e) {
       console.warn(
         `[ChatSlice] Failed to delete message ${messageId} from session ${sessionId}:`,
         e,
       );
-    });
+
+      if (e instanceof ApiError) {
+        if (e.status === 404) {
+          return {
+            success: false,
+            sessionId,
+            messageId,
+            reason: "backend_not_found",
+            statusCode: e.status,
+            errorMessage: e.message,
+          };
+        }
+        if (e.status === 409) {
+          return {
+            success: false,
+            sessionId,
+            messageId,
+            reason: "session_running",
+            statusCode: e.status,
+            errorMessage: e.message,
+          };
+        }
+        return {
+          success: false,
+          sessionId,
+          messageId,
+          reason: "backend_error",
+          statusCode: e.status,
+          errorMessage: e.message,
+        };
+      }
+
+      return {
+        success: false,
+        sessionId,
+        messageId,
+        reason: "backend_error",
+        errorMessage: e instanceof Error ? e.message : undefined,
+      };
+    }
+
+    set((state) => ({
+      ...state,
+      chats: state.chats.map((existingChat) =>
+        existingChat.id === sessionId
+          ? {
+              ...existingChat,
+              messages: existingChat.messages.filter((msg) => msg.id !== messageId),
+            }
+          : existingChat,
+      ),
+    }));
+
+    return {
+      success: true,
+      sessionId,
+      messageId,
+    };
   },
 
   refreshChats: async () => {
@@ -581,9 +648,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
       const prevById = new Map(state.chats.map((c) => [c.id, c]));
       const merged = next.map((c) => {
         const prev = prevById.get(c.id);
-        return prev
-          ? { ...c, messages: prev.messages, config: prev.config }
-          : c;
+        return prev ? { ...c, messages: prev.messages, config: prev.config } : c;
       });
       return { ...state, chats: merged };
     });
@@ -592,9 +657,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
   loadChats: async () => {
     const storedAutoTitles = localStorage.getItem(AUTO_TITLE_KEY);
     const autoGenerateTitles =
-      storedAutoTitles === null
-        ? get().autoGenerateTitles
-        : storedAutoTitles === "true";
+      storedAutoTitles === null ? get().autoGenerateTitles : storedAutoTitles === "true";
 
     let list = await agentClient.listSessions();
     if (!list.sessions || list.sessions.length === 0) {
@@ -636,24 +699,14 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
         const history = await agentClient.getHistory(sessionId);
 
         const lastRole = history.messages[history.messages.length - 1]?.role;
-        if (
-          options?.waitForAssistant &&
-          lastRole === "user" &&
-          attempt < retries
-        ) {
+        if (options?.waitForAssistant && lastRole === "user" && attempt < retries) {
           // Backoff to give the backend time to persist the assistant reply.
-          const delay =
-            retryDelayMs > 0
-              ? retryDelayMs * (attempt + 1)
-              : 200 * (attempt + 1);
+          const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
 
-        const nextMessages = mapHistoryMessagesToUi(
-          sessionId,
-          history.messages,
-        );
+        const nextMessages = mapHistoryMessagesToUi(sessionId, history.messages);
 
         if (mode === "monotonic") {
           const prevMessages = chat.messages || [];
@@ -661,12 +714,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           const nextLen = nextMessages.length;
           const nextLastRole = nextMessages[nextMessages.length - 1]?.role;
           const prevLastRole = prevMessages[prevMessages.length - 1]?.role;
-          const prevLastMessage = prevMessages[prevMessages.length - 1] as
-            | Message
-            | undefined;
-          const nextLastMessage = nextMessages[nextMessages.length - 1] as
-            | Message
-            | undefined;
+          const prevLastMessage = prevMessages[prevMessages.length - 1] as Message | undefined;
+          const nextLastMessage = nextMessages[nextMessages.length - 1] as Message | undefined;
           const prevLastId = prevLastMessage?.id;
           const nextLastId = nextLastMessage?.id;
 
@@ -677,8 +726,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           if (nextLen > prevLen) {
             shouldReplace = true;
           } else if (nextLen === prevLen) {
-            const resolvedUserTail =
-              prevLastRole === "user" && nextLastRole !== "user";
+            const resolvedUserTail = prevLastRole === "user" && nextLastRole !== "user";
             const terminalChanged =
               typeof prevLastId === "string" &&
               typeof nextLastId === "string" &&
@@ -688,10 +736,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
 
           if (!shouldReplace) {
             get().updateSession(sessionId, {
-              messageCount: Math.max(
-                chat.messageCount ?? 0,
-                history.messages.length,
-              ),
+              messageCount: Math.max(chat.messageCount ?? 0, history.messages.length),
             });
             return;
           }
@@ -702,27 +747,21 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
           messageCount: history.messages.length,
           config: {
             ...(chat.config || {}),
-            compressionEvents: (history.compression_events || []).map(
-              (event) => ({
-                id: event.id,
-                createdAt: event.created_at,
-                messagesCompressed: event.messages_compressed,
-                segmentsRemoved: event.segments_removed,
-              }),
-            ),
+            compressionEvents: (history.compression_events || []).map((event) => ({
+              id: event.id,
+              createdAt: event.created_at,
+              messagesCompressed: event.messages_compressed,
+              segmentsRemoved: event.segments_removed,
+            })),
           },
         });
         return;
       } catch (error) {
         if (attempt >= retries) {
-          console.warn(
-            `[ChatSlice] Failed to load history for ${sessionId}:`,
-            error,
-          );
+          console.warn(`[ChatSlice] Failed to load history for ${sessionId}:`, error);
           return;
         }
-        const delay =
-          retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
+        const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
@@ -776,10 +815,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (
     try {
       localStorage.setItem(AUTO_TITLE_KEY, String(enabled));
     } catch (error) {
-      console.warn(
-        "[ChatSlice] Failed to update auto-title preference:",
-        error,
-      );
+      console.warn("[ChatSlice] Failed to update auto-title preference:", error);
       set({ autoGenerateTitles: previousValue });
       throw error;
     } finally {

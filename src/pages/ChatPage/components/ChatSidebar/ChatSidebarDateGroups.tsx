@@ -1,11 +1,7 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
-import { useThemeStore } from "@shared/store/themeStore";
 import { Button, Empty, Flex, List, Space } from "antd";
-import {
-  DeleteOutlined,
-  DownOutlined,
-  RightOutlined,
-} from "@ant-design/icons";
+import { DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { ChatItem as ChatItemComponent } from "../ChatItem";
@@ -29,11 +25,8 @@ type ChatSidebarDateGroupsProps = {
   onUnpinChat: (sessionId: string) => void;
   onEditTitle: (sessionId: string, title: string) => void;
   onGenerateTitle: (sessionId: string) => void;
-  titleGenerationState: Record<
-    string,
-    { status: "loading" | "error" | "idle"; error?: string }
-  >;
-  token: any;
+  titleGenerationState: Record<string, { status: "loading" | "error" | "idle"; error?: string }>;
+  token: GlobalToken;
 };
 
 export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
@@ -56,7 +49,6 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   token,
 }) => {
   const { t } = useTranslation();
-  const isDark = useThemeStore((s) => s.themeMode) === "dark";
 
   const groups = useMemo(() => {
     if (!sortedDateKeys.length) {
@@ -73,17 +65,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
         totalChatsInDate,
       };
     });
-  }, [
-    groupedChatsByDate,
-    sortedDateKeys,
-    onDeleteChat,
-    onEditTitle,
-    onGenerateTitle,
-    onPinChat,
-    onSelectChat,
-    onUnpinChat,
-    titleGenerationState,
-  ]);
+  }, [groupedChatsByDate, sortedDateKeys]);
 
   if (!sortedDateKeys.length) {
     return (
@@ -122,26 +104,46 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             <Flex
               align="center"
               justify="space-between"
-              style={{ 
+              style={{
                 cursor: "pointer",
                 padding: "8px 12px",
                 borderRadius: token.borderRadiusSM,
                 transition: "all 0.2s ease",
-                border: "1px solid transparent"
+                border: "1px solid transparent",
+              }}
+              role="button"
+              tabIndex={0}
+              aria-expanded={isExpanded}
+              aria-label={`${translateDateKey(dateKey, t)} (${totalChatsInDate})`}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  const next = new Set(expanded);
+                  if (next.has(dateKey)) {
+                    next.delete(dateKey);
+                  } else {
+                    next.add(dateKey);
+                  }
+                  onCollapseChange(Array.from(next));
+                }
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = isDark 
-                  ? "rgba(30, 41, 59, 0.88)" 
-                  : "rgba(204, 251, 241, 0.92)";
-                e.currentTarget.style.borderColor = "rgba(13, 148, 136, 0.28)";
-                const btn = e.currentTarget.querySelector('.chat-sidebar-date-group-delete') as HTMLElement;
-                if (btn) btn.style.opacity = '1';
+                e.currentTarget.style.background =
+                  "var(--lotus-sidebar-item-hover-bg, rgba(204, 251, 241, 0.92))";
+                e.currentTarget.style.borderColor =
+                  "var(--lotus-sidebar-item-hover-border, rgba(13, 148, 136, 0.28))";
+                const btn = e.currentTarget.querySelector(
+                  ".chat-sidebar-date-group-delete",
+                ) as HTMLElement;
+                if (btn) btn.style.opacity = "1";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "transparent";
                 e.currentTarget.style.borderColor = "transparent";
-                const btn = e.currentTarget.querySelector('.chat-sidebar-date-group-delete') as HTMLElement;
-                if (btn) btn.style.opacity = '0';
+                const btn = e.currentTarget.querySelector(
+                  ".chat-sidebar-date-group-delete",
+                ) as HTMLElement;
+                if (btn) btn.style.opacity = "0";
               }}
               onClick={() => {
                 const next = new Set(expanded);
@@ -155,17 +157,18 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               className="chat-sidebar-date-group-header"
             >
               <Flex align="center" gap="small" style={{ minWidth: 0 }}>
-                {isExpanded ? <DownOutlined style={{ fontSize: 12, opacity: 0.6 }} /> : <RightOutlined style={{ fontSize: 12, opacity: 0.6 }} />}
+                {isExpanded ? (
+                  <DownOutlined style={{ fontSize: 12, opacity: 0.6 }} />
+                ) : (
+                  <RightOutlined style={{ fontSize: 12, opacity: 0.6 }} />
+                )}
                 <span
                   style={{
                     fontSize: 12,
                     fontWeight: 700,
                     textTransform: "uppercase",
                     letterSpacing: "0.5px",
-                    color:
-                      dateKey === "Today"
-                        ? "var(--lotus-primary)"
-                        : token.colorTextSecondary,
+                    color: dateKey === "Today" ? "var(--lotus-primary)" : token.colorTextSecondary,
                     minWidth: 0,
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -181,10 +184,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 size="small"
                 icon={<DeleteOutlined />}
                 className="chat-sidebar-date-group-delete"
-                style={{ 
-                  color: token.colorTextTertiary, 
+                style={{
+                  color: token.colorTextTertiary,
                   opacity: 0,
-                  transition: "opacity 0.2s ease"
+                  transition: "opacity 0.2s ease",
                 }}
                 onClick={(event) => {
                   event.stopPropagation();
@@ -218,11 +221,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                               onToggleRootExpanded(chat.id);
                             }}
                           >
-                            {expandedRootIds.has(chat.id) ? (
-                              <DownOutlined />
-                            ) : (
-                              <RightOutlined />
-                            )}
+                            {expandedRootIds.has(chat.id) ? <DownOutlined /> : <RightOutlined />}
                           </Button>
                         ) : (
                           <div style={{ width: 22 }} />
@@ -238,9 +237,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                             onUnpin={onUnpinChat}
                             onEdit={onEditTitle}
                             onGenerateTitle={onGenerateTitle}
-                            isGeneratingTitle={
-                              titleGenerationState[chat.id]?.status === "loading"
-                            }
+                            isGeneratingTitle={titleGenerationState[chat.id]?.status === "loading"}
                             titleGenerationError={
                               titleGenerationState[chat.id]?.status === "error"
                                 ? titleGenerationState[chat.id]?.error
@@ -269,12 +266,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                                   onEdit={onEditTitle}
                                   onGenerateTitle={onGenerateTitle}
                                   isGeneratingTitle={
-                                    titleGenerationState[child.id]?.status ===
-                                    "loading"
+                                    titleGenerationState[child.id]?.status === "loading"
                                   }
                                   titleGenerationError={
-                                    titleGenerationState[child.id]?.status ===
-                                    "error"
+                                    titleGenerationState[child.id]?.status === "error"
                                       ? titleGenerationState[child.id]?.error
                                       : undefined
                                   }

@@ -20,8 +20,7 @@ import {
 } from "./types";
 
 const parseStatus = (value: unknown): ServerStatus => {
-  const normalized =
-    typeof value === "string" ? value.trim().toLowerCase() : "";
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
   switch (normalized) {
     case ServerStatus.Connecting:
       return ServerStatus.Connecting;
@@ -50,10 +49,7 @@ const toNumber = (value: unknown, fallback: number): number => {
   return fallback;
 };
 
-const normalizeTransport = (
-  value: unknown,
-  fallback: TransportConfig,
-): TransportConfig => {
+const normalizeTransport = (value: unknown, fallback: TransportConfig): TransportConfig => {
   if (!value || typeof value !== "object") {
     return fallback;
   }
@@ -65,10 +61,7 @@ const normalizeTransport = (
           .map((item) => {
             if (!item || typeof item !== "object") return null;
             const pair = item as Record<string, unknown>;
-            if (
-              typeof pair.name !== "string" ||
-              typeof pair.value !== "string"
-            ) {
+            if (typeof pair.name !== "string" || typeof pair.value !== "string") {
               return null;
             }
             return {
@@ -76,19 +69,14 @@ const normalizeTransport = (
               value: pair.value,
             };
           })
-          .filter((item): item is { name: string; value: string } =>
-            Boolean(item),
-          )
+          .filter((item): item is { name: string; value: string } => Boolean(item))
       : [];
 
     return {
       type: "sse",
       url: typeof transport.url === "string" ? transport.url : "",
       headers,
-      connect_timeout_ms: toNumber(
-        transport.connect_timeout_ms,
-        DEFAULT_SSE_CONNECT_TIMEOUT_MS,
-      ),
+      connect_timeout_ms: toNumber(transport.connect_timeout_ms, DEFAULT_SSE_CONNECT_TIMEOUT_MS),
     };
   }
 
@@ -112,10 +100,7 @@ const normalizeTransport = (
       }
       return acc;
     }, {}),
-    startup_timeout_ms: toNumber(
-      transport.startup_timeout_ms,
-      DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
-    ),
+    startup_timeout_ms: toNumber(transport.startup_timeout_ms, DEFAULT_STDIO_STARTUP_TIMEOUT_MS),
   };
 };
 
@@ -142,35 +127,23 @@ const normalizeServerConfig = (
         : typeof incoming.enabled === "boolean"
           ? incoming.enabled
           : true,
-    request_timeout_ms: toNumber(
-      incoming.request_timeout_ms,
-      DEFAULT_REQUEST_TIMEOUT_MS,
-    ),
+    request_timeout_ms: toNumber(incoming.request_timeout_ms, DEFAULT_REQUEST_TIMEOUT_MS),
     healthcheck_interval_ms: toNumber(
       incoming.healthcheck_interval_ms,
       DEFAULT_HEALTHCHECK_INTERVAL_MS,
     ),
     allowed_tools: Array.isArray(incoming.allowed_tools)
-      ? incoming.allowed_tools.filter(
-          (item): item is string => typeof item === "string",
-        )
+      ? incoming.allowed_tools.filter((item): item is string => typeof item === "string")
       : [],
     denied_tools: Array.isArray(incoming.denied_tools)
-      ? incoming.denied_tools.filter(
-          (item): item is string => typeof item === "string",
-        )
+      ? incoming.denied_tools.filter((item): item is string => typeof item === "string")
       : [],
     reconnect:
       incoming.reconnect && typeof incoming.reconnect === "object"
         ? {
             enabled:
-              typeof incoming.reconnect.enabled === "boolean"
-                ? incoming.reconnect.enabled
-                : true,
-            initial_backoff_ms: toNumber(
-              incoming.reconnect.initial_backoff_ms,
-              1000,
-            ),
+              typeof incoming.reconnect.enabled === "boolean" ? incoming.reconnect.enabled : true,
+            initial_backoff_ms: toNumber(incoming.reconnect.initial_backoff_ms, 1000),
             max_backoff_ms: toNumber(incoming.reconnect.max_backoff_ms, 30_000),
             max_attempts: toNumber(incoming.reconnect.max_attempts, 0),
           }
@@ -197,25 +170,16 @@ const normalizeRuntime = (record: McpServerApiRecord): RuntimeInfo => {
           ? record.last_error
           : undefined,
     connected_at:
-      typeof runtimeRecord.connected_at === "string"
-        ? runtimeRecord.connected_at
-        : undefined,
+      typeof runtimeRecord.connected_at === "string" ? runtimeRecord.connected_at : undefined,
     disconnected_at:
-      typeof runtimeRecord.disconnected_at === "string"
-        ? runtimeRecord.disconnected_at
-        : undefined,
-    tool_count: toNumber(
-      runtimeRecord.tool_count ?? record.tool_count,
-      base.tool_count,
-    ),
+      typeof runtimeRecord.disconnected_at === "string" ? runtimeRecord.disconnected_at : undefined,
+    tool_count: toNumber(runtimeRecord.tool_count ?? record.tool_count, base.tool_count),
     restart_count: toNumber(
       runtimeRecord.restart_count ?? record.restart_count,
       base.restart_count,
     ),
     last_ping_at:
-      typeof runtimeRecord.last_ping_at === "string"
-        ? runtimeRecord.last_ping_at
-        : undefined,
+      typeof runtimeRecord.last_ping_at === "string" ? runtimeRecord.last_ping_at : undefined,
   };
 };
 
@@ -229,19 +193,15 @@ const normalizeServer = (record: McpServerApiRecord): McpServer => {
         : typeof config.name === "string"
           ? config.name
           : record.id,
-    enabled:
-      typeof record.enabled === "boolean" ? record.enabled : config.enabled,
+    enabled: typeof record.enabled === "boolean" ? record.enabled : config.enabled,
     config,
     runtime: normalizeRuntime(record),
   };
 };
 
-const buildAlias = (serverId: string, toolName: string): string =>
-  `mcp__${serverId}__${toolName}`;
+const buildAlias = (serverId: string, toolName: string): string => `mcp__${serverId}__${toolName}`;
 
-const parseAlias = (
-  value: string,
-): { server_id: string; original_name: string } | null => {
+const parseAlias = (value: string): { server_id: string; original_name: string } | null => {
   if (!value.startsWith("mcp__")) return null;
   const rest = value.slice("mcp__".length);
   const sep = rest.indexOf("__");
@@ -268,9 +228,7 @@ const normalizeToolInfo = (
         : undefined;
 
   const parsedFromAlias =
-    aliasCandidate && typeof aliasCandidate === "string"
-      ? parseAlias(aliasCandidate)
-      : null;
+    aliasCandidate && typeof aliasCandidate === "string" ? parseAlias(aliasCandidate) : null;
 
   const server_id =
     (typeof record.server_id === "string" ? record.server_id : undefined) ??
@@ -280,30 +238,25 @@ const normalizeToolInfo = (
     "";
 
   const original_name =
-    (typeof record.original_name === "string"
-      ? record.original_name
-      : undefined) ??
-    (typeof record.originalName === "string"
-      ? record.originalName
-      : undefined) ??
+    (typeof record.original_name === "string" ? record.original_name : undefined) ??
+    (typeof record.originalName === "string" ? record.originalName : undefined) ??
     parsedFromAlias?.original_name ??
     (typeof record.name === "string" ? record.name : undefined) ??
     "";
 
   const alias =
-    aliasCandidate ??
-    (server_id && original_name ? buildAlias(server_id, original_name) : "");
+    aliasCandidate ?? (server_id && original_name ? buildAlias(server_id, original_name) : "");
 
-  const description =
-    typeof record.description === "string" ? record.description : "";
+  const description = typeof record.description === "string" ? record.description : "";
 
+  const rec = record as Record<string, unknown>;
   const parameters =
-    "parameters" in record
-      ? (record as any).parameters
-      : "inputSchema" in record
-        ? (record as any).inputSchema
-        : "input_schema" in record
-          ? (record as any).input_schema
+    "parameters" in rec
+      ? rec.parameters
+      : "inputSchema" in rec
+        ? rec.inputSchema
+        : "input_schema" in rec
+          ? rec.input_schema
           : undefined;
 
   const safeAlias = alias || original_name || `mcp_tool_${index}`;
@@ -319,29 +272,20 @@ const normalizeToolInfo = (
 
 export class McpService {
   async getServers(): Promise<McpServer[]> {
-    const response =
-      await agentApiClient.get<ServerListResponse>("mcp/servers");
-    return Array.isArray(response.servers)
-      ? response.servers.map(normalizeServer)
-      : [];
+    const response = await agentApiClient.get<ServerListResponse>("mcp/servers");
+    return Array.isArray(response.servers) ? response.servers.map(normalizeServer) : [];
   }
 
   async addServer(config: McpServerConfig): Promise<McpActionResponse> {
     return agentApiClient.post<McpActionResponse>("mcp/servers", config);
   }
 
-  async updateServer(
-    serverId: string,
-    config: McpServerConfig,
-  ): Promise<McpActionResponse> {
+  async updateServer(serverId: string, config: McpServerConfig): Promise<McpActionResponse> {
     const payload: McpServerConfig = {
       ...config,
       id: serverId,
     };
-    return agentApiClient.put<McpActionResponse>(
-      `mcp/servers/${serverId}`,
-      payload,
-    );
+    return agentApiClient.put<McpActionResponse>(`mcp/servers/${serverId}`, payload);
   }
 
   async deleteServer(serverId: string): Promise<McpActionResponse> {
@@ -349,21 +293,15 @@ export class McpService {
   }
 
   async connectServer(serverId: string): Promise<McpActionResponse> {
-    return agentApiClient.post<McpActionResponse>(
-      `mcp/servers/${serverId}/connect`,
-    );
+    return agentApiClient.post<McpActionResponse>(`mcp/servers/${serverId}/connect`);
   }
 
   async disconnectServer(serverId: string): Promise<McpActionResponse> {
-    return agentApiClient.post<McpActionResponse>(
-      `mcp/servers/${serverId}/disconnect`,
-    );
+    return agentApiClient.post<McpActionResponse>(`mcp/servers/${serverId}/disconnect`);
   }
 
   async refreshTools(serverId: string): Promise<McpActionResponse> {
-    return agentApiClient.post<McpActionResponse>(
-      `mcp/servers/${serverId}/refresh`,
-    );
+    return agentApiClient.post<McpActionResponse>(`mcp/servers/${serverId}/refresh`);
   }
 
   async getTools(serverId?: string): Promise<McpToolInfo[]> {

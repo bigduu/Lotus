@@ -22,9 +22,7 @@ type SelectionHint =
   | { type: "mcp"; label: string; serverId?: string; toolName?: string }
   | { type: "skill"; label: string; skillId?: string };
 
-const extractSelectionHints = (
-  input: string,
-): { cleanText: string; hints: SelectionHint[] } => {
+const extractSelectionHints = (input: string): { cleanText: string; hints: SelectionHint[] } => {
   if (!input) return { cleanText: input, hints: [] };
 
   const lines = input.split("\n");
@@ -34,9 +32,7 @@ const extractSelectionHints = (
   for (const rawLine of lines) {
     const line = rawLine.trim();
 
-    const mcpMatch = line.match(
-      /^\[User explicitly selected MCP tool:\s*(.+?)\s*\]$/,
-    );
+    const mcpMatch = line.match(/^\[User explicitly selected MCP tool:\s*(.+?)\s*\]$/);
     if (mcpMatch) {
       const label = mcpMatch[1] ?? "";
       const parsed = parseMcpToolAlias(label);
@@ -49,16 +45,12 @@ const extractSelectionHints = (
       continue;
     }
 
-    const skillMatch = line.match(
-      /^\[User explicitly selected skill:\s*(.+?)\s*\]$/,
-    );
+    const skillMatch = line.match(/^\[User explicitly selected skill:\s*(.+?)\s*\]$/);
     if (skillMatch) {
       const label = skillMatch[1] ?? "";
       const idMatch = label.match(/\(ID:\s*([^)]+)\)\s*$/i);
       const skillId = idMatch?.[1]?.trim();
-      const displayLabel = idMatch
-        ? label.replace(/\(ID:\s*([^)]+)\)\s*$/i, "").trim()
-        : label;
+      const displayLabel = idMatch ? label.replace(/\(ID:\s*([^)]+)\)\s*$/i, "").trim() : label;
       hints.push({
         type: "skill",
         label: displayLabel || label,
@@ -99,8 +91,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     const toolResultErrorMessage = message.isError
       ? toolResultContent || t("components.toolResult.executionFailed")
       : undefined;
-    const toolResultIsLoading =
-      !toolResultErrorMessage && toolResultContent.trim().length === 0;
+    const toolResultIsLoading = !toolResultErrorMessage && toolResultContent.trim().length === 0;
 
     if (message.result.display_preference === "Hidden") {
       return null;
@@ -110,13 +101,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
       <ToolResultCard
         content={toolResultContent}
         toolName={message.toolName}
-        status={
-          message.isError
-            ? "error"
-            : toolResultIsLoading
-              ? "warning"
-              : "success"
-        }
+        status={message.isError ? "error" : toolResultIsLoading ? "warning" : "success"}
         timestamp={message.createdAt}
         defaultCollapsed={true}
         isLoading={toolResultIsLoading}
@@ -131,8 +116,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
       message.status === "error"
         ? workflowContent || t("components.workflowResult.executionFailed")
         : undefined;
-    const workflowIsLoading =
-      !workflowErrorMessage && workflowContent.trim().length === 0;
+    const workflowIsLoading = !workflowErrorMessage && workflowContent.trim().length === 0;
 
     return (
       <WorkflowResultCard
@@ -203,9 +187,11 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
       : { cleanText: messageText, hints: [] };
   const assistantReasoning =
     message.role === "assistant" &&
-    (message as any).type === "text" &&
-    typeof (message as any).metadata?.reasoning === "string"
-      ? ((message as any).metadata.reasoning as string)
+    "type" in message &&
+    message.type === "text" &&
+    "metadata" in message &&
+    typeof (message.metadata as Record<string, unknown> | undefined)?.reasoning === "string"
+      ? ((message.metadata as Record<string, unknown>).reasoning as string)
       : "";
   const hasAssistantReasoning = assistantReasoning.trim().length > 0;
 

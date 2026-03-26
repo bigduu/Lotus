@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from "react";
+import { debugLog } from "@shared/utils/debugFlags";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Form,
   Select,
@@ -12,7 +13,6 @@ import {
   Alert,
   Tag,
   Spin,
-  Modal,
   Switch,
   Tooltip,
   theme,
@@ -21,12 +21,11 @@ import {
   SaveOutlined,
   KeyOutlined,
   CheckCircleOutlined,
-  ClockCircleOutlined,
   CloseCircleOutlined,
   LoginOutlined,
   LogoutOutlined,
-  CopyOutlined,
 } from "@ant-design/icons";
+import { DeviceCodeModal } from "./DeviceCodeModal";
 import { isApiError } from "@services/api/client";
 import {
   settingsService,
@@ -34,10 +33,7 @@ import {
   type DeviceCodeInfo,
   type EnvVarResponse,
 } from "@services/config/SettingsService";
-import type {
-  ProviderConfig,
-  ProviderType,
-} from "../../../ChatPage/types/providerConfig";
+import type { ProviderConfig, ProviderType } from "../../../ChatPage/types/providerConfig";
 import {
   PROVIDER_LABELS,
   OPENAI_MODELS,
@@ -60,14 +56,26 @@ const { Text, Paragraph } = Typography;
 const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
   <Space direction="vertical" size={4}>
     <Text type="secondary">
-      {t("settings.providerTab.responsesOnlyHelp1")}{" "}
-      <Text code>/responses</Text>.
+      {t("settings.providerTab.responsesOnlyHelp1")} <Text code>/responses</Text>.
     </Text>
     <Text type="secondary">{t("settings.providerTab.responsesOnlyHelp2")}</Text>
   </Space>
 );
 
 type ModelProvider = "openai" | "anthropic" | "gemini" | "copilot";
+
+type EditableProviderConfig = NonNullable<ProviderConfig["providers"][ModelProvider]> & {
+  request_overrides_json?: string;
+};
+
+type EditableProviders = Partial<Record<ModelProvider, EditableProviderConfig>>;
+
+const MODEL_PROVIDERS = [
+  "openai",
+  "anthropic",
+  "gemini",
+  "copilot",
+] as const satisfies readonly ModelProvider[];
 
 const formatModelsForSelect = (models: string[]) =>
   models.map((model) => ({
@@ -86,25 +94,20 @@ export const ProviderSettings: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [applyingConfig, setApplyingConfig] = useState(false);
-  const [currentProvider, setCurrentProvider] =
-    useState<ProviderType>("copilot");
+  const [currentProvider, setCurrentProvider] = useState<ProviderType>("copilot");
   const [configLoaded, setConfigLoaded] = useState(false);
-  const [copilotAuthStatus, setCopilotAuthStatus] =
-    useState<CopilotAuthStatus | null>(null);
+  const [copilotAuthStatus, setCopilotAuthStatus] = useState<CopilotAuthStatus | null>(null);
   const [checkingCopilotAuth, setCheckingCopilotAuth] = useState(false);
   const [authenticatingCopilot, setAuthenticatingCopilot] = useState(false);
-  const [deviceCodeInfo, setDeviceCodeInfo] = useState<DeviceCodeInfo | null>(
-    null,
-  );
-  const [isDeviceCodeModalVisible, setIsDeviceCodeModalVisible] =
-    useState(false);
+  const [deviceCodeInfo, setDeviceCodeInfo] = useState<DeviceCodeInfo | null>(null);
+  const [isDeviceCodeModalVisible, setIsDeviceCodeModalVisible] = useState(false);
   const [completingAuth, setCompletingAuth] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [copiedUserCode, setCopiedUserCode] = useState(false);
   const [fetchingModels, setFetchingModels] = useState(false);
-  const [availableModels, setAvailableModels] = useState<
-    Array<{ value: string; label: string }>
-  >([]);
+  const [availableModels, setAvailableModels] = useState<Array<{ value: string; label: string }>>(
+    [],
+  );
   const [modelsFetchError, setModelsFetchError] = useState<string | null>(null);
   const [hasTriedFetchModels, setHasTriedFetchModels] = useState(false);
   const [envVarEntries, setEnvVarEntries] = useState<EnvVarResponse[]>([]);
@@ -112,9 +115,7 @@ export const ProviderSettings: React.FC = () => {
   const [modelAutoSaveStatus, setModelAutoSaveStatus] = useState<
     "idle" | "saving" | "success" | "error"
   >("idle");
-  const [modelAutoSaveError, setModelAutoSaveError] = useState<string | null>(
-    null,
-  );
+  const [modelAutoSaveError, setModelAutoSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     if (modelAutoSaveStatus !== "success") return;
@@ -130,23 +131,11 @@ export const ProviderSettings: React.FC = () => {
   // If the user edits provider credentials, clear the model cache and allow
   // auto-fetch to run again the next time the dropdown opens.
   const openaiApiKey = Form.useWatch(["providers", "openai", "api_key"], form);
-  const openaiBaseUrl = Form.useWatch(
-    ["providers", "openai", "base_url"],
-    form,
-  );
-  const anthropicApiKey = Form.useWatch(
-    ["providers", "anthropic", "api_key"],
-    form,
-  );
-  const anthropicBaseUrl = Form.useWatch(
-    ["providers", "anthropic", "base_url"],
-    form,
-  );
+  const openaiBaseUrl = Form.useWatch(["providers", "openai", "base_url"], form);
+  const anthropicApiKey = Form.useWatch(["providers", "anthropic", "api_key"], form);
+  const anthropicBaseUrl = Form.useWatch(["providers", "anthropic", "base_url"], form);
   const geminiApiKey = Form.useWatch(["providers", "gemini", "api_key"], form);
-  const geminiBaseUrl = Form.useWatch(
-    ["providers", "gemini", "base_url"],
-    form,
-  );
+  const geminiBaseUrl = Form.useWatch(["providers", "gemini", "base_url"], form);
 
   useEffect(() => {
     if (currentProvider !== "openai") return;
@@ -191,18 +180,7 @@ export const ProviderSettings: React.FC = () => {
     return () => clearInterval(timer);
   }, [isDeviceCodeModalVisible, deviceCodeInfo]);
 
-  useEffect(() => {
-    loadConfig();
-    loadEnvVars();
-  }, []);
-
-  useEffect(() => {
-    if (currentProvider === "copilot") {
-      checkCopilotAuthStatus();
-    }
-  }, [currentProvider]);
-
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
       const response = await settingsService.getProviderConfig();
@@ -212,38 +190,33 @@ export const ProviderSettings: React.FC = () => {
       // Frontend expects: { provider, providers: { openai: {...} } }
       const config: ProviderConfig = {
         provider: response.provider,
-        providers: (response as any).providers || {},
+        providers: response.providers || {},
       };
 
       // Copilot needs a model selected for the UI to enable chat. If the backend
       // config doesn't include one yet, default to a sensible option.
       if (config.provider === "copilot") {
-        const copilot = (config.providers as any).copilot || {};
+        const copilot = (config.providers.copilot ?? {}) as EditableProviderConfig;
         if (!copilot.model) {
-          (config.providers as any).copilot = { ...copilot, model: "gpt-4o" };
+          config.providers.copilot = { ...copilot, model: "gpt-4o" };
         }
       }
 
-      console.log("Loaded provider config:", config);
-      const providersWithEditorFields = {
+      debugLog("[Provider]", "Loaded provider config:", config);
+      const providersWithEditorFields: EditableProviders = {
         ...(config.providers || {}),
-      } as Record<string, any>;
-      (["openai", "anthropic", "gemini", "copilot"] as ModelProvider[]).forEach(
-        (provider) => {
-          const providerCfg = providersWithEditorFields[provider];
-          if (!providerCfg) return;
-          if (
-            providerCfg.request_overrides &&
-            typeof providerCfg.request_overrides === "object"
-          ) {
-            providerCfg.request_overrides_json = JSON.stringify(
-              providerCfg.request_overrides,
-              null,
-              2,
-            );
-          }
-        },
-      );
+      };
+      MODEL_PROVIDERS.forEach((provider) => {
+        const providerCfg = providersWithEditorFields[provider];
+        if (!providerCfg) return;
+        if (providerCfg.request_overrides && typeof providerCfg.request_overrides === "object") {
+          providerCfg.request_overrides_json = JSON.stringify(
+            providerCfg.request_overrides,
+            null,
+            2,
+          );
+        }
+      });
 
       setCurrentProvider(config.provider as ProviderType);
       form.setFieldsValue({
@@ -257,18 +230,18 @@ export const ProviderSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [form, t]);
 
-  const loadEnvVars = async () => {
+  const loadEnvVars = useCallback(async () => {
     try {
       const response = await settingsService.getEnvVars();
       setEnvVarEntries(response.entries || []);
     } catch (error) {
       console.warn("Failed to load env vars for provider overrides:", error);
     }
-  };
+  }, []);
 
-  const checkCopilotAuthStatus = async () => {
+  const checkCopilotAuthStatus = useCallback(async () => {
     try {
       setCheckingCopilotAuth(true);
       const status = await settingsService.getCopilotAuthStatus();
@@ -282,7 +255,18 @@ export const ProviderSettings: React.FC = () => {
     } finally {
       setCheckingCopilotAuth(false);
     }
-  };
+  }, [t]);
+
+  useEffect(() => {
+    void loadConfig();
+    void loadEnvVars();
+  }, [loadConfig, loadEnvVars]);
+
+  useEffect(() => {
+    if (currentProvider === "copilot") {
+      void checkCopilotAuthStatus();
+    }
+  }, [currentProvider, checkCopilotAuthStatus]);
 
   const handleCopilotAuthenticate = async () => {
     try {
@@ -331,7 +315,7 @@ export const ProviderSettings: React.FC = () => {
         setCopiedUserCode(true);
         message.success(t("settings.providerTab.userCodeCopied"));
         setTimeout(() => setCopiedUserCode(false), 2000);
-      } catch (error) {
+      } catch {
         message.error(
           `${t("settings.providerTab.copyCodeFailedPrefix")} ${deviceCodeInfo.user_code}`,
         );
@@ -393,7 +377,7 @@ export const ProviderSettings: React.FC = () => {
   ) => {
     if (!issues.length) return;
 
-    const fields = issues
+    const fields: Parameters<typeof form.setFields>[0] = issues
       .map((issue) => {
         // Prefer backend-provided paths (e.g. providers.openai.api_key).
         const direct = pathToName(issue.path);
@@ -414,13 +398,11 @@ export const ProviderSettings: React.FC = () => {
       // De-dupe by name to avoid antd warnings.
       .filter(
         (field, index, arr) =>
-          arr.findIndex(
-            (f) => JSON.stringify(f.name) === JSON.stringify(field.name),
-          ) === index,
+          arr.findIndex((f) => JSON.stringify(f.name) === JSON.stringify(field.name)) === index,
       );
 
     if (fields.length) {
-      form.setFields(fields as any);
+      form.setFields(fields);
     }
   };
 
@@ -516,10 +498,7 @@ export const ProviderSettings: React.FC = () => {
             : fallbackMessage,
         );
       }
-      console.error(
-        `Failed to fetch ${providerLabel[provider]} models:`,
-        error,
-      );
+      console.error(`Failed to fetch ${providerLabel[provider]} models:`, error);
     } finally {
       setFetchingModels(false);
     }
@@ -532,12 +511,12 @@ export const ProviderSettings: React.FC = () => {
     try {
       setLoading(true);
 
-      const normalizedValues: ProviderConfig = {
+      const normalizedValues: ProviderConfig & { providers: EditableProviders } = {
         provider: values.provider,
-        providers: { ...(values.providers || {}) } as any,
+        providers: { ...(values.providers || {}) } as EditableProviders,
       };
-      for (const p of ["openai", "anthropic", "gemini", "copilot"] as const) {
-        const providerCfg = (normalizedValues.providers as any)?.[p];
+      for (const p of MODEL_PROVIDERS) {
+        const providerCfg = normalizedValues.providers[p];
         if (!providerCfg) continue;
 
         const rawJson = providerCfg.request_overrides_json;
@@ -577,18 +556,15 @@ export const ProviderSettings: React.FC = () => {
 
       const validation = await validateProviderPatch(normalizedValues);
       if (!validation.valid) {
-        const errorMessage =
-          validation.message || t("settings.providerTab.invalidConfig");
+        const errorMessage = validation.message || t("settings.providerTab.invalidConfig");
         if (options?.showMessage !== false) {
-          message.error(
-            `${t("settings.providerTab.invalidConfigPrefix")}: ${errorMessage}`,
-          );
+          message.error(`${t("settings.providerTab.invalidConfigPrefix")}: ${errorMessage}`);
         }
         if (options?.throwOnError) throw new Error(errorMessage);
         return;
       }
 
-      console.log("Saving provider config:", payload);
+      debugLog("[Provider]", "Saving provider config:", payload);
       await settingsService.saveProviderConfig(payload);
       if (options?.showMessage !== false) {
         message.success(t("settings.providerTab.saveConfigSuccess"));
@@ -609,19 +585,14 @@ export const ProviderSettings: React.FC = () => {
     }
   };
 
-  const handleApply = async (options?: {
-    showMessage?: boolean;
-    throwOnError?: boolean;
-  }) => {
+  const handleApply = async (options?: { showMessage?: boolean; throwOnError?: boolean }) => {
     try {
       setApplyingConfig(true);
 
       // POST /bamboo/settings/provider already saves the config and reloads the provider
       // on the backend. Here we just refresh the frontend store so useActiveModel()
       // reflects the updated provider/model immediately.
-      const { useProviderStore } = await import(
-        "../../../ChatPage/store/slices/providerSlice"
-      );
+      const { useProviderStore } = await import("../../../ChatPage/store/slices/providerSlice");
       await useProviderStore.getState().loadProviderConfig();
 
       if (options?.showMessage !== false) {
@@ -681,10 +652,7 @@ export const ProviderSettings: React.FC = () => {
     await handleFetchProviderModels(provider, { force: options?.force });
   };
 
-  const handleModelDropdownOpen = async (
-    provider: ModelProvider,
-    open: boolean,
-  ) => {
+  const handleModelDropdownOpen = async (provider: ModelProvider, open: boolean) => {
     if (!open) return;
     if (fetchingModels) return;
     if (availableModels.length > 0) return;
@@ -693,10 +661,7 @@ export const ProviderSettings: React.FC = () => {
     await handleFetchModelsWithSave(provider);
   };
 
-  const handleModelChange = async (
-    provider: ModelProvider,
-    value: string | undefined,
-  ) => {
+  const handleModelChange = async (provider: ModelProvider, value: string | undefined) => {
     if (!value) return; // Don't auto-save cleared values
     if (modelAutoSaveStatus === "saving") return;
 
@@ -704,13 +669,15 @@ export const ProviderSettings: React.FC = () => {
     setModelAutoSaveError(null);
 
     try {
-      const currentValues = form.getFieldsValue(true) as ProviderConfig;
+      const currentValues = form.getFieldsValue(true) as ProviderConfig & {
+        providers: EditableProviders;
+      };
 
       // Ensure we save with the newly-selected model even if Form's internal
       // update hasn't propagated yet.
       currentValues.providers = currentValues.providers || {};
-      (currentValues.providers as any)[provider] = {
-        ...(currentValues.providers as any)[provider],
+      currentValues.providers[provider] = {
+        ...(currentValues.providers[provider] ?? {}),
         model: value,
       };
 
@@ -746,10 +713,12 @@ export const ProviderSettings: React.FC = () => {
     setModelAutoSaveError(null);
 
     try {
-      const currentValues = form.getFieldsValue(true) as ProviderConfig;
+      const currentValues = form.getFieldsValue(true) as ProviderConfig & {
+        providers: EditableProviders;
+      };
       currentValues.providers = currentValues.providers || {};
-      (currentValues.providers as any)[provider] = {
-        ...(currentValues.providers as any)[provider],
+      currentValues.providers[provider] = {
+        ...(currentValues.providers[provider] ?? {}),
         [field]: value || undefined, // clear → undefined (falls back to default)
       };
 
@@ -777,18 +746,13 @@ export const ProviderSettings: React.FC = () => {
     provider: ModelProvider,
     fallbackModels: ReadonlyArray<{ value: string; label: string }>,
   ) => {
-    const models =
-      availableModels.length > 0 ? availableModels : fallbackModels;
+    const models = availableModels.length > 0 ? availableModels : fallbackModels;
     return (
       <>
         <Form.Item
           name={["providers", provider, "fast_model"]}
           label={t("settings.providerTab.fastModel")}
-          extra={
-            <Text type="secondary">
-              {t("settings.providerTab.fastModelHelp")}
-            </Text>
-          }
+          extra={<Text type="secondary">{t("settings.providerTab.fastModelHelp")}</Text>}
         >
           <Select
             placeholder={t("settings.providerTab.sameAsDefault")}
@@ -797,12 +761,8 @@ export const ProviderSettings: React.FC = () => {
             loading={fetchingModels}
             disabled={modelAutoSaveStatus === "saving"}
             notFoundContent={fetchingModels ? <Spin size="small" /> : null}
-            onDropdownVisibleChange={(open) =>
-              handleModelDropdownOpen(provider, open)
-            }
-            onChange={(value) =>
-              handleRoleModelChange(provider, "fast_model", value)
-            }
+            onDropdownVisibleChange={(open) => handleModelDropdownOpen(provider, open)}
+            onChange={(value) => handleRoleModelChange(provider, "fast_model", value)}
           >
             {models.map((model) => (
               <Option key={model.value} value={model.value}>
@@ -814,11 +774,7 @@ export const ProviderSettings: React.FC = () => {
         <Form.Item
           name={["providers", provider, "vision_model"]}
           label={t("settings.providerTab.visionModel")}
-          extra={
-            <Text type="secondary">
-              {t("settings.providerTab.visionModelHelp")}
-            </Text>
-          }
+          extra={<Text type="secondary">{t("settings.providerTab.visionModelHelp")}</Text>}
         >
           <Select
             placeholder={t("settings.providerTab.sameAsDefault")}
@@ -827,12 +783,8 @@ export const ProviderSettings: React.FC = () => {
             loading={fetchingModels}
             disabled={modelAutoSaveStatus === "saving"}
             notFoundContent={fetchingModels ? <Spin size="small" /> : null}
-            onDropdownVisibleChange={(open) =>
-              handleModelDropdownOpen(provider, open)
-            }
-            onChange={(value) =>
-              handleRoleModelChange(provider, "vision_model", value)
-            }
+            onDropdownVisibleChange={(open) => handleModelDropdownOpen(provider, open)}
+            onChange={(value) => handleRoleModelChange(provider, "vision_model", value)}
           >
             {models.map((model) => (
               <Option key={model.value} value={model.value}>
@@ -845,10 +797,7 @@ export const ProviderSettings: React.FC = () => {
     );
   };
 
-  const renderModelFetchExtra = (
-    provider: ModelProvider,
-    sourceLabel: "API" | "backend",
-  ) => (
+  const renderModelFetchExtra = (provider: ModelProvider, sourceLabel: "API" | "backend") => (
     <Space direction="vertical" size={4}>
       <Space size="small">
         <Button
@@ -873,12 +822,7 @@ export const ProviderSettings: React.FC = () => {
           <CheckCircleOutlined style={{ color: "var(--lotus-chart-secondary)" }} />
         )}
         {modelAutoSaveStatus === "error" && (
-          <Tooltip
-            title={
-              modelAutoSaveError ||
-              t("settings.providerTab.saveModelChangeFailed")
-            }
-          >
+          <Tooltip title={modelAutoSaveError || t("settings.providerTab.saveModelChangeFailed")}>
             <CloseCircleOutlined style={{ color: "var(--lotus-chart-danger)" }} />
           </Tooltip>
         )}
@@ -886,9 +830,7 @@ export const ProviderSettings: React.FC = () => {
       {modelsFetchError && (
         <Space size="small">
           <Tooltip title={modelsFetchError}>
-            <Text type="danger">
-              {t("settings.providerTab.fetchModelsFailedShort")}
-            </Text>
+            <Text type="danger">{t("settings.providerTab.fetchModelsFailedShort")}</Text>
           </Tooltip>
           <Button
             size="small"
@@ -930,14 +872,12 @@ export const ProviderSettings: React.FC = () => {
         extra={
           <Space direction="vertical" size={4}>
             <Text type="secondary">
-              Customize provider request headers/body patch rules. Supports
-              endpoint scoping and model-based rules.
+              Customize provider request headers/body patch rules. Supports endpoint scoping and
+              model-based rules.
             </Text>
             <Text type="secondary">
               Env var injection:{" "}
-              <Text
-                code
-              >{`{ "type": "env_ref", "name": "YOUR_ENV_NAME" }`}</Text>
+              <Text code>{`{ "type": "env_ref", "name": "YOUR_ENV_NAME" }`}</Text>
             </Text>
             {envNames.length > 0 && (
               <Space wrap size={[6, 6]}>
@@ -1013,15 +953,10 @@ export const ProviderSettings: React.FC = () => {
                 loading={fetchingModels}
                 disabled={modelAutoSaveStatus === "saving"}
                 notFoundContent={fetchingModels ? <Spin size="small" /> : null}
-                onDropdownVisibleChange={(open) =>
-                  handleModelDropdownOpen("openai", open)
-                }
+                onDropdownVisibleChange={(open) => handleModelDropdownOpen("openai", open)}
                 onChange={(value) => handleModelChange("openai", value)}
               >
-                {(availableModels.length > 0
-                  ? availableModels
-                  : OPENAI_MODELS
-                ).map((model) => (
+                {(availableModels.length > 0 ? availableModels : OPENAI_MODELS).map((model) => (
                   <Option key={model.value} value={model.value}>
                     {model.label}
                   </Option>
@@ -1094,15 +1029,10 @@ export const ProviderSettings: React.FC = () => {
                 loading={fetchingModels}
                 disabled={modelAutoSaveStatus === "saving"}
                 notFoundContent={fetchingModels ? <Spin size="small" /> : null}
-                onDropdownVisibleChange={(open) =>
-                  handleModelDropdownOpen("anthropic", open)
-                }
+                onDropdownVisibleChange={(open) => handleModelDropdownOpen("anthropic", open)}
                 onChange={(value) => handleModelChange("anthropic", value)}
               >
-                {(availableModels.length > 0
-                  ? availableModels
-                  : ANTHROPIC_MODELS
-                ).map((model) => (
+                {(availableModels.length > 0 ? availableModels : ANTHROPIC_MODELS).map((model) => (
                   <Option key={model.value} value={model.value}>
                     {model.label}
                   </Option>
@@ -1170,15 +1100,10 @@ export const ProviderSettings: React.FC = () => {
                 loading={fetchingModels}
                 disabled={modelAutoSaveStatus === "saving"}
                 notFoundContent={fetchingModels ? <Spin size="small" /> : null}
-                onDropdownVisibleChange={(open) =>
-                  handleModelDropdownOpen("gemini", open)
-                }
+                onDropdownVisibleChange={(open) => handleModelDropdownOpen("gemini", open)}
                 onChange={(value) => handleModelChange("gemini", value)}
               >
-                {(availableModels.length > 0
-                  ? availableModels
-                  : GEMINI_MODELS
-                ).map((model) => (
+                {(availableModels.length > 0 ? availableModels : GEMINI_MODELS).map((model) => (
                   <Option key={model.value} value={model.value}>
                     {model.label}
                   </Option>
@@ -1193,11 +1118,9 @@ export const ProviderSettings: React.FC = () => {
         );
 
       case "copilot": {
-        const configuredCopilotModel = form.getFieldValue([
-          "providers",
-          "copilot",
-          "model",
-        ]) as string | undefined;
+        const configuredCopilotModel = form.getFieldValue(["providers", "copilot", "model"]) as
+          | string
+          | undefined;
 
         // Prefer the real /v1/models list. If it's not loaded yet, keep showing the currently
         // configured model so the Select doesn't appear blank.
@@ -1266,10 +1189,7 @@ export const ProviderSettings: React.FC = () => {
                     {t("settings.providerTab.authenticateCopilot")}
                   </Button>
                 )}
-                <Button
-                  onClick={checkCopilotAuthStatus}
-                  loading={checkingCopilotAuth}
-                >
+                <Button onClick={checkCopilotAuthStatus} loading={checkingCopilotAuth}>
                   {t("settings.providerTab.refreshStatus")}
                 </Button>
               </Space>
@@ -1312,9 +1232,7 @@ export const ProviderSettings: React.FC = () => {
                     </Text>
                   )
                 }
-                onDropdownVisibleChange={(open) =>
-                  handleModelDropdownOpen("copilot", open)
-                }
+                onDropdownVisibleChange={(open) => handleModelDropdownOpen("copilot", open)}
                 onChange={(value) => handleModelChange("copilot", value)}
               >
                 {copilotModelOptions.map((model) => (
@@ -1370,9 +1288,7 @@ export const ProviderSettings: React.FC = () => {
         </Text>
       }
     >
-      <Paragraph type="secondary">
-        {t("settings.providerTab.description")}
-      </Paragraph>
+      <Paragraph type="secondary">{t("settings.providerTab.description")}</Paragraph>
 
       <Divider />
 
@@ -1392,11 +1308,7 @@ export const ProviderSettings: React.FC = () => {
             },
           ]}
         >
-          <Select
-            data-testid="provider-select"
-            onChange={handleProviderChange}
-            size="large"
-          >
+          <Select data-testid="provider-select" onChange={handleProviderChange} size="large">
             {(Object.keys(PROVIDER_LABELS) as ProviderType[]).map((key) => (
               <Option key={key} value={key}>
                 {PROVIDER_LABELS[key]}
@@ -1426,119 +1338,17 @@ export const ProviderSettings: React.FC = () => {
       </Form>
 
       {/* Device Code Modal for Copilot Authentication */}
-      <Modal
-        title={t("settings.providerTab.copilotAuthModalTitle")}
+      <DeviceCodeModal
         open={isDeviceCodeModalVisible}
         onCancel={() => setIsDeviceCodeModalVisible(false)}
-        footer={[
-          <Button
-            key="cancel"
-            onClick={() => setIsDeviceCodeModalVisible(false)}
-          >
-            {t("settings.providerTab.cancel")}
-          </Button>,
-          <Button
-            key="complete"
-            type="primary"
-            onClick={handleCompleteAuth}
-            loading={completingAuth}
-          >
-            {t("settings.providerTab.completedAuthorization")}
-          </Button>,
-        ]}
-      >
-        {deviceCodeInfo && (
-          <Space direction="vertical" size="large" style={{ width: "100%" }}>
-            <Alert
-              message={t("settings.providerTab.browserOpened")}
-              description={
-                <ol>
-                  <li>{t("settings.providerTab.authStep1")}</li>
-                  <li>{t("settings.providerTab.authStep2")}</li>
-                  <li>{t("settings.providerTab.authStep3")}</li>
-                </ol>
-              }
-              type="info"
-            />
-
-            {/* Verification URL */}
-            <Card size="small" className="lotus-settings-card">
-              <Space direction="vertical" style={{ width: "100%" }}>
-                <Text type="secondary">
-                  {t("settings.providerTab.visitUrl")}
-                </Text>
-                <Space>
-                  <Text copyable={{ text: deviceCodeInfo.verification_uri }}>
-                    {deviceCodeInfo.verification_uri}
-                  </Text>
-                </Space>
-              </Space>
-            </Card>
-
-            {/* User Code */}
-            <Card
-              style={{
-                textAlign: "center",
-                background: token.colorFillTertiary,
-                borderColor: token.colorBorderSecondary,
-              }}
-            >
-              <Space direction="vertical" style={{ width: "100%" }}>
-                <Text type="secondary">
-                  {t("settings.providerTab.enterCode")}
-                </Text>
-                <Space>
-                  <Text
-                    style={{
-                      color: token.colorText,
-                      fontSize: "32px",
-                      fontFamily: "monospace",
-                      fontWeight: "bold",
-                      letterSpacing: "4px",
-                    }}
-                  >
-                    {deviceCodeInfo.user_code}
-                  </Text>
-                  <Button
-                    icon={
-                      copiedUserCode ? (
-                        <CheckCircleOutlined />
-                      ) : (
-                        <CopyOutlined />
-                      )
-                    }
-                    onClick={handleCopyUserCode}
-                    type={copiedUserCode ? "default" : "primary"}
-                  >
-                    {copiedUserCode
-                      ? t("settings.providerTab.copied")
-                      : t("settings.providerTab.copyCode")}
-                  </Button>
-                </Space>
-                <div style={{ marginTop: 8 }}>
-                  <Tag
-                    color={
-                      timeRemaining < 60
-                        ? "error"
-                        : timeRemaining < 180
-                          ? "warning"
-                          : "success"
-                    }
-                  >
-                    <ClockCircleOutlined style={{ marginRight: 4 }} />
-                    Expires in {Math.floor(timeRemaining / 60)}:
-                    {(timeRemaining % 60).toString().padStart(2, "0")}
-                  </Tag>
-                </div>
-              </Space>
-            </Card>
-
-            <Paragraph type="secondary">
-              {t("settings.providerTab.afterContinueHint")}
-            </Paragraph>
-          </Space>
-        )}
-      </Modal>
+        onComplete={handleCompleteAuth}
+        onCopyCode={handleCopyUserCode}
+        completingAuth={completingAuth}
+        copiedUserCode={copiedUserCode}
+        deviceCodeInfo={deviceCodeInfo}
+        timeRemaining={timeRemaining}
+        token={token}
+      />
     </Card>
   );
 };

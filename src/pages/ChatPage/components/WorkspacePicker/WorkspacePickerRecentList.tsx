@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Button, Empty, Flex, List, Space, Spin, Typography } from "antd";
 import { FolderOutlined, HistoryOutlined } from "@ant-design/icons";
@@ -11,7 +12,7 @@ interface WorkspacePickerRecentListProps {
   isLoading: boolean;
   recentWorkspaces: WorkspaceInfo[];
   onSelect: (path: string) => void;
-  token: any;
+  token: GlobalToken;
 }
 
 const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
@@ -58,11 +59,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
                   height: "auto",
                 }}
               >
-                <Flex
-                  justify="space-between"
-                  align="center"
-                  style={{ width: "100%" }}
-                >
+                <Flex justify="space-between" align="center" style={{ width: "100%" }}>
                   <Space>
                     <FolderOutlined style={{ color: token.colorWarning }} />
                     <Text strong>

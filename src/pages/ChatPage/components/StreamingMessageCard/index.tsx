@@ -1,5 +1,5 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useEffect, useState, memo, useMemo } from "react";
-import { useThemeStore } from "@shared/store/themeStore";
 import { Card, Collapse, Flex, Space, Typography, theme } from "antd";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";
@@ -20,7 +20,7 @@ const { useToken } = theme;
  * 1. 不渲染 Mermaid 图表（避免流式内容不完整导致的错误）
  * 2. Mermaid 代码块显示为普通代码
  */
-const createStreamingMarkdownComponents = (token: any): Components => ({
+const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   p: ({ children }) => (
     <Text
       style={{
@@ -64,6 +64,7 @@ const createStreamingMarkdownComponents = (token: any): Components => ({
     </li>
   ),
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-markdown component signature
   code({ className, children, inline, ...props }: any) {
     const match = /language-([^\s]+)/i.exec(className || "");
     const language = match ? match[1] : "";
@@ -177,17 +178,13 @@ const createStreamingMarkdownComponents = (token: any): Components => ({
   ),
 
   thead: ({ children }) => (
-    <thead style={{ backgroundColor: token.colorBgContainer }}>
-      {children}
-    </thead>
+    <thead style={{ backgroundColor: token.colorBgContainer }}>{children}</thead>
   ),
 
   tbody: ({ children }) => <tbody>{children}</tbody>,
 
   tr: ({ children }) => (
-    <tr style={{ borderBottom: `1px solid ${token.colorBorder}` }}>
-      {children}
-    </tr>
+    <tr style={{ borderBottom: `1px solid ${token.colorBorder}` }}>{children}</tr>
   ),
 
   th: ({ children }) => (
@@ -237,128 +234,118 @@ interface StreamingMessageCardProps {
   sessionId: string;
 }
 
-const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(
-  ({ sessionId }) => {
-    const { token } = useToken();
-    const { t } = useTranslation();
-    const isDark = useThemeStore((s) => s.themeMode) === "dark";
-    const messageId = `streaming-${sessionId}`;
-    const reasoningMessageId = `streaming-reasoning-${sessionId}`;
-    const [content, setContent] = useState<string>(
-      () => streamingMessageBus.getLatest(messageId) ?? "",
-    );
-    const [reasoningContent, setReasoningContent] = useState<string>(
-      () => streamingMessageBus.getLatest(reasoningMessageId) ?? "",
-    );
+const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessionId }) => {
+  const { token } = useToken();
+  const { t } = useTranslation();
+  const messageId = `streaming-${sessionId}`;
+  const reasoningMessageId = `streaming-reasoning-${sessionId}`;
+  const [content, setContent] = useState<string>(
+    () => streamingMessageBus.getLatest(messageId) ?? "",
+  );
+  const [reasoningContent, setReasoningContent] = useState<string>(
+    () => streamingMessageBus.getLatest(reasoningMessageId) ?? "",
+  );
 
-    useEffect(() => {
-      return streamingMessageBus.subscribeMessage(messageId, (next) => {
-        setContent(next ?? "");
-      });
-    }, [messageId]);
+  useEffect(() => {
+    return streamingMessageBus.subscribeMessage(messageId, (next) => {
+      setContent(next ?? "");
+    });
+  }, [messageId]);
 
-    useEffect(() => {
-      return streamingMessageBus.subscribeMessage(reasoningMessageId, (next) => {
-        setReasoningContent(next ?? "");
-      });
-    }, [reasoningMessageId]);
+  useEffect(() => {
+    return streamingMessageBus.subscribeMessage(reasoningMessageId, (next) => {
+      setReasoningContent(next ?? "");
+    });
+  }, [reasoningMessageId]);
 
-    // 准备 Markdown 渲染配置
-    // 流式阶段使用简化版配置（不渲染 Mermaid 图表，避免内容不完整导致的错误）
-    const markdownPlugins = useMemo(() => [remarkGfm, remarkBreaks], []);
-    const rehypePlugins = useMemo(() => [rehypeSanitize], []);
-    const markdownComponents = useMemo(
-      () => createStreamingMarkdownComponents(token),
-      [token],
-    );
+  // 准备 Markdown 渲染配置
+  // 流式阶段使用简化版配置（不渲染 Mermaid 图表，避免内容不完整导致的错误）
+  const markdownPlugins = useMemo(() => [remarkGfm, remarkBreaks], []);
+  const rehypePlugins = useMemo(() => [rehypeSanitize], []);
+  const markdownComponents = useMemo(() => createStreamingMarkdownComponents(token), [token]);
 
-    return (
-      <Card
-        data-testid="streaming-indicator"
-        style={{
-          width: "100%",
-          minWidth: "100%",
-          maxWidth: "800px",
-          margin: "0 auto",
-          background: isDark
-            ? "linear-gradient(180deg, rgba(15, 23, 42, 0.8) 0%, rgba(11, 16, 28, 0.72) 100%)"
-            : "linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 255, 0.82) 100%)",
-          backdropFilter: "blur(14px)",
-          WebkitBackdropFilter: "blur(14px)",
-          borderRadius: token.borderRadiusLG,
-          boxShadow: "none",
-          position: "relative",
-          wordWrap: "break-word",
-          overflowWrap: "break-word",
-        }}
-      >
-        <Space
-          direction="vertical"
-          size={token.marginXS}
-          style={{ width: "100%", maxWidth: "100%" }}
-        >
-          <Flex align="baseline" justify="space-between" gap={token.marginXS}>
-            <Text
-              type="secondary"
-              strong
-              style={{ fontSize: token.fontSizeSM }}
-            >
-              {t("chat.streaming.assistant")}
-            </Text>
-          </Flex>
-          <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
-            {reasoningContent ? (
-              <Collapse
-                size="small"
-                defaultActiveKey={["reasoning"]}
-                style={{
-                  marginBottom: token.marginSM,
-                  background: token.colorBgContainer,
-                  borderColor: token.colorBorderSecondary,
-                }}
-                items={[
-                  {
-                    key: "reasoning",
-                    label: <Text strong>{t("chat.messageCard.reasoning")}</Text>,
-                    children: (
-                      <ReactMarkdown
-                        remarkPlugins={markdownPlugins}
-                        rehypePlugins={rehypePlugins}
-                        components={markdownComponents}
-                      >
-                        {reasoningContent}
-                      </ReactMarkdown>
-                    ),
-                  },
-                ]}
-              />
-            ) : null}
-
-            {!content ? (
-              <Text italic className="thinking-shimmer">{t("chat.messageCard.assistantThinking")}</Text>
-            ) : (
-              <ReactMarkdown
-                remarkPlugins={markdownPlugins}
-                rehypePlugins={rehypePlugins}
-                components={markdownComponents}
-              >
-                {content}
-              </ReactMarkdown>
-            )}
-            <span
-              className="blinking-cursor"
+  return (
+    <Card
+      data-testid="streaming-indicator"
+      role="status"
+      aria-live="polite"
+      aria-busy={true}
+      aria-label="AI is responding"
+      style={{
+        width: "100%",
+        minWidth: "100%",
+        maxWidth: "800px",
+        margin: "0 auto",
+        background: "var(--lotus-message-streaming-bg)",
+        backdropFilter: "blur(14px)",
+        WebkitBackdropFilter: "blur(14px)",
+        borderRadius: token.borderRadiusLG,
+        boxShadow: "none",
+        position: "relative",
+        wordWrap: "break-word",
+        overflowWrap: "break-word",
+      }}
+    >
+      <Space direction="vertical" size={token.marginXS} style={{ width: "100%", maxWidth: "100%" }}>
+        <Flex align="baseline" justify="space-between" gap={token.marginXS}>
+          <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>
+            {t("chat.streaming.assistant")}
+          </Text>
+        </Flex>
+        <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
+          {reasoningContent ? (
+            <Collapse
+              size="small"
+              defaultActiveKey={["reasoning"]}
               style={{
-                display: "inline-block",
-                marginLeft: "0.2em",
-                color: token.colorText,
+                marginBottom: token.marginSM,
+                background: token.colorBgContainer,
+                borderColor: token.colorBorderSecondary,
               }}
+              items={[
+                {
+                  key: "reasoning",
+                  label: <Text strong>{t("chat.messageCard.reasoning")}</Text>,
+                  children: (
+                    <ReactMarkdown
+                      remarkPlugins={markdownPlugins}
+                      rehypePlugins={rehypePlugins}
+                      components={markdownComponents}
+                    >
+                      {reasoningContent}
+                    </ReactMarkdown>
+                  ),
+                },
+              ]}
             />
-          </Flex>
-        </Space>
-      </Card>
-    );
-  },
-);
+          ) : null}
+
+          {!content ? (
+            <Text italic className="thinking-shimmer">
+              {t("chat.messageCard.assistantThinking")}
+            </Text>
+          ) : (
+            <ReactMarkdown
+              remarkPlugins={markdownPlugins}
+              rehypePlugins={rehypePlugins}
+              components={markdownComponents}
+            >
+              {content}
+            </ReactMarkdown>
+          )}
+          <span
+            className="blinking-cursor"
+            style={{
+              display: "inline-block",
+              marginLeft: "0.2em",
+              color: token.colorText,
+            }}
+          />
+        </Flex>
+      </Space>
+    </Card>
+  );
+});
 
 StreamingMessageCard.displayName = "StreamingMessageCard";
 

@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Flex, Space, Spin, Typography } from "antd";
 
@@ -9,7 +10,7 @@ interface MessageInputFooterProps {
   isOverCharLimit: boolean;
   isNearCharLimit: boolean;
   isProcessingAttachments: boolean;
-  token: any;
+  token: GlobalToken;
 }
 
 const MessageInputFooter: React.FC<MessageInputFooterProps> = ({
@@ -21,9 +22,7 @@ const MessageInputFooter: React.FC<MessageInputFooterProps> = ({
   token,
 }) => {
   const hasCharLimit =
-    typeof maxCharCount === "number" &&
-    Number.isFinite(maxCharCount) &&
-    maxCharCount > 0;
+    typeof maxCharCount === "number" && Number.isFinite(maxCharCount) && maxCharCount > 0;
 
   // Avoid always reserving vertical space for the footer. Show only when it's useful.
   if (!isProcessingAttachments && !isNearCharLimit && !isOverCharLimit) {
@@ -35,13 +34,7 @@ const MessageInputFooter: React.FC<MessageInputFooterProps> = ({
       {hasCharLimit && (
         <Flex justify="flex-end" style={{ marginTop: token.marginXXS }}>
           <Text
-            type={
-              isOverCharLimit
-                ? "danger"
-                : isNearCharLimit
-                  ? "warning"
-                  : "secondary"
-            }
+            type={isOverCharLimit ? "danger" : isNearCharLimit ? "warning" : "secondary"}
             style={{ fontSize: token.fontSizeSM }}
           >
             {charCount.toLocaleString()} / {maxCharCount.toLocaleString()}

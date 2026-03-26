@@ -8,16 +8,20 @@ const { useToken } = theme;
 
 type ImageFallbackMode = "placeholder" | "error" | "ocr" | "vision";
 
-const getImageFallbackMode = (config: any): ImageFallbackMode => {
-  const mode = String(config?.hooks?.image_fallback?.mode || "placeholder")
+const getImageFallbackMode = (config: Record<string, unknown>): ImageFallbackMode => {
+  const hooks = config?.hooks as Record<string, unknown> | undefined;
+  const imageFallback = hooks?.image_fallback as Record<string, unknown> | undefined;
+  const mode = String(imageFallback?.mode || "placeholder")
     .trim()
     .toLowerCase();
   if (mode === "error" || mode === "ocr" || mode === "vision") return mode;
   return "placeholder";
 };
 
-const getImageFallbackEnabled = (config: any): boolean => {
-  const value = config?.hooks?.image_fallback?.enabled;
+const getImageFallbackEnabled = (config: Record<string, unknown>): boolean => {
+  const hooks = config?.hooks as Record<string, unknown> | undefined;
+  const imageFallback = hooks?.image_fallback as Record<string, unknown> | undefined;
+  const value = imageFallback?.enabled;
   return typeof value === "boolean" ? value : false;
 };
 
@@ -49,50 +53,37 @@ const SystemSettingsHooksTab: React.FC = () => {
       setEnabled(getImageFallbackEnabled(config));
       setMode(getImageFallbackMode(config));
     } catch (error) {
-      msgApi.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.hooksTab.loadFailed"),
-      );
+      msgApi.error(error instanceof Error ? error.message : t("settings.hooksTab.loadFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [msgApi]);
+  }, [msgApi, t]);
 
-  const patch = useCallback(
-    async (nextEnabled: boolean, nextMode: ImageFallbackMode) => {
-      await serviceFactory.setBambooConfig({
-        hooks: {
-          image_fallback: {
-            enabled: nextEnabled,
-            mode: nextMode,
-          },
+  const patch = useCallback(async (nextEnabled: boolean, nextMode: ImageFallbackMode) => {
+    await serviceFactory.setBambooConfig({
+      hooks: {
+        image_fallback: {
+          enabled: nextEnabled,
+          mode: nextMode,
         },
-      });
-    },
-    [],
-  );
+      },
+    });
+  }, []);
 
   const handleEnabledChange = useCallback(
     async (checked: boolean) => {
       setIsLoading(true);
       try {
         await patch(checked, mode);
-        msgApi.success(
-          checked
-            ? t("settings.hooksTab.enabled")
-            : t("settings.hooksTab.disabled"),
-        );
+        msgApi.success(checked ? t("settings.hooksTab.enabled") : t("settings.hooksTab.disabled"));
         await load();
       } catch (error) {
-        msgApi.error(
-          error instanceof Error ? error.message : t("settings.hooksTab.updateFailed"),
-        );
+        msgApi.error(error instanceof Error ? error.message : t("settings.hooksTab.updateFailed"));
       } finally {
         setIsLoading(false);
       }
     },
-    [load, mode, msgApi, patch],
+    [load, mode, msgApi, patch, t],
   );
 
   const handleModeChange = useCallback(
@@ -102,23 +93,19 @@ const SystemSettingsHooksTab: React.FC = () => {
         await patch(enabled, nextMode);
         msgApi.success(
           t("settings.hooksTab.modeUpdated", {
-            mode:
-              modeOptions.find((option) => option.value === nextMode)?.label ??
-              nextMode,
+            mode: modeOptions.find((option) => option.value === nextMode)?.label ?? nextMode,
           }),
         );
         await load();
       } catch (error) {
         msgApi.error(
-          error instanceof Error
-            ? error.message
-            : t("settings.hooksTab.modeUpdateFailed"),
+          error instanceof Error ? error.message : t("settings.hooksTab.modeUpdateFailed"),
         );
       } finally {
         setIsLoading(false);
       }
     },
-    [enabled, load, msgApi, patch],
+    [enabled, load, modeOptions, msgApi, patch, t],
   );
 
   useEffect(() => {

@@ -193,14 +193,11 @@ describe("CommandService", () => {
 
       try {
         await service.listCommands();
-      } catch (e) {
+      } catch {
         // Expected
       }
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[CommandService] Failed to list commands:",
-        error,
-      );
+      expect(consoleSpy).toHaveBeenCalledWith("[CommandService] Failed to list commands:", error);
 
       consoleSpy.mockRestore();
     });
@@ -225,10 +222,8 @@ describe("CommandService", () => {
 
       await service.listCommands();
 
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[CommandService] Loaded commands:",
-        1,
-      );
+      // debugLog is a no-op in test mode, so console.log should NOT be called
+      expect(consoleSpy).not.toHaveBeenCalled();
 
       consoleSpy.mockRestore();
     });
@@ -281,11 +276,7 @@ describe("CommandService", () => {
       const result = await service.listCommands();
 
       expect(result).toHaveLength(3);
-      expect(result.map((c) => c.type)).toEqual([
-        "workflow",
-        "skill",
-        "mcp",
-      ]);
+      expect(result.map((c) => c.type)).toEqual(["workflow", "skill", "mcp"]);
     });
   });
 
@@ -311,9 +302,7 @@ describe("CommandService", () => {
 
       await service.getCommand("skill", "complex-command-id");
 
-      expect(apiClient.get).toHaveBeenCalledWith(
-        "commands/skill/complex-command-id",
-      );
+      expect(apiClient.get).toHaveBeenCalledWith("commands/skill/complex-command-id");
     });
 
     it("should throw error when command not found", async () => {
@@ -332,7 +321,7 @@ describe("CommandService", () => {
 
       try {
         await service.getCommand("workflow", "cmd1");
-      } catch (e) {
+      } catch {
         // Expected
       }
 
@@ -596,9 +585,7 @@ describe("CommandService", () => {
       const error = new Error("Unauthorized");
       vi.mocked(apiClient.get).mockRejectedValueOnce(error);
 
-      await expect(service.getCommand("workflow", "cmd1")).rejects.toThrow(
-        "Unauthorized",
-      );
+      await expect(service.getCommand("workflow", "cmd1")).rejects.toThrow("Unauthorized");
     });
 
     it("should handle malformed response", async () => {
@@ -607,9 +594,7 @@ describe("CommandService", () => {
         total: "not a number",
       });
 
-      await expect(service.listCommands()).rejects.toThrow(
-        "Invalid command list response",
-      );
+      await expect(service.listCommands()).rejects.toThrow("Invalid command list response");
     });
 
     it("should handle malformed response with missing commands property", async () => {

@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useCallback, useState } from "react";
 import { DownloadOutlined } from "@ant-design/icons";
 import { App as AntApp, Button, Tooltip } from "antd";
@@ -13,7 +14,7 @@ interface MermaidChartViewerProps {
   chartKey?: string;
   className?: string;
   style?: React.CSSProperties;
-  token: any;
+  token: GlobalToken;
   containerRef: React.RefObject<HTMLDivElement>;
 }
 
@@ -61,10 +62,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
       const normalizedSvg = normalizeSvgMarkup(svg);
       const bytes = new TextEncoder().encode(normalizedSvg);
       const prefix = chartKey ? `mermaid-${chartKey.slice(0, 8)}` : "mermaid-graph";
-      const defaultPath = FileOperationsService.generateTimestampedFilename(
-        prefix,
-        "svg",
-      );
+      const defaultPath = FileOperationsService.generateTimestampedFilename(prefix, "svg");
 
       const result = await FileOperationsService.saveBinaryFile(
         bytes,
@@ -84,9 +82,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
       appMessage.error(result.error || t("chat.messageActions.exportFailed"));
     } catch (error) {
       const exportError =
-        error instanceof Error
-          ? error.message
-          : t("components.mermaid.exportFailed");
+        error instanceof Error ? error.message : t("components.mermaid.exportFailed");
       appMessage.error(exportError);
     } finally {
       setIsExporting(false);

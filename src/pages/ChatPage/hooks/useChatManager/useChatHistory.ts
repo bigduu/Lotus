@@ -11,14 +11,8 @@ interface UseChatHistoryDeps {
   onRetry?: (content: string) => Promise<void>;
 }
 
-export function useChatHistory(
-  state: UseChatState,
-  deps?: UseChatHistoryDeps,
-): UseChatHistory {
-  const currentMessages = useMemo(
-    () => state.baseMessages,
-    [state.baseMessages],
-  );
+export function useChatHistory(state: UseChatState, deps?: UseChatHistoryDeps): UseChatHistory {
+  const currentMessages = useMemo(() => state.baseMessages, [state.baseMessages]);
 
   const retryLastMessage = useCallback(async () => {
     if (!state.currentSessionId || !state.currentChat) return;
@@ -28,29 +22,20 @@ export function useChatHistory(
     const lastMessage = history[history.length - 1];
     let trimmedHistory = history;
     if (lastMessage?.role === "assistant") {
-      state.deleteMessage(state.currentSessionId, lastMessage.id);
+      const deleteResult = await state.deleteMessage(state.currentSessionId, lastMessage.id);
+      if (!deleteResult.success) return;
       trimmedHistory = history.slice(0, -1);
     }
 
-    const lastUser = [...trimmedHistory]
-      .reverse()
-      .find((msg) => msg.role === "user");
+    const lastUser = [...trimmedHistory].reverse().find((msg) => msg.role === "user");
     if (!lastUser) return;
 
     const content =
-      "content" in lastUser
-        ? lastUser.content
-        : (lastUser as UserFileReferenceMessage).displayText;
+      "content" in lastUser ? lastUser.content : (lastUser as UserFileReferenceMessage).displayText;
 
     if (typeof content !== "string") return;
     await deps?.onRetry?.(content);
-  }, [
-    deps,
-    state.baseMessages,
-    state.currentChat,
-    state.currentSessionId,
-    state.deleteMessage,
-  ]);
+  }, [state, deps]);
 
   return {
     currentMessages,

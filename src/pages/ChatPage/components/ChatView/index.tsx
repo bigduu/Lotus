@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   App as AntApp,
   Button,
@@ -36,22 +30,15 @@ import { SubSessionsPanel } from "./SubSessionsPanel";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
 import type { WorkflowDraft } from "../InputContainer";
-import {
-  useChatViewMessages,
-  type RenderableEntry,
-} from "./useChatViewMessages";
+import { useChatViewMessages, type RenderableEntry } from "./useChatViewMessages";
 import type { SessionDiffSummary } from "./ActiveToolMessageCard";
-import {
-  getFileChangeDiffStats,
-  parseFileChangeResultPayload,
-} from "../../utils/resultFormatters";
+import { getFileChangeDiffStats, parseFileChangeResultPayload } from "../../utils/resultFormatters";
 import { getMessageText } from "../MessageCard/messageCardParsing";
 import { MessageExportService } from "../../services/MessageExportService";
-import {
-  CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT,
-} from "./events";
+import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "./events";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { useTranslation } from "react-i18next";
+import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -79,9 +66,7 @@ const buildBatchExportMarkdown = (
     .map(({ message, text }, index) => {
       const roleLabel = getMessageRoleLabel(message);
       const timeLabel = getMessageTimeLabel(message.createdAt);
-      return [`## ${index + 1}. ${roleLabel} · ${timeLabel}`, "", text].join(
-        "\n",
-      );
+      return [`## ${index + 1}. ${roleLabel} · ${timeLabel}`, "", text].join("\n");
     })
     .join("\n\n---\n\n");
 };
@@ -104,9 +89,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 }) => {
   const { message: appMessage } = AntApp.useApp();
   const { t } = useTranslation();
-  const sessionId = useAppStore(
-    (state) => sessionIdProp ?? state.currentSessionId,
-  );
+  const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(sessionId));
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
@@ -114,10 +97,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const tokenUsages = useAppStore((state) => state.tokenUsages);
   const truncationOccurred = useAppStore((state) => state.truncationOccurred);
   const segmentsRemoved = useAppStore((state) => state.segmentsRemoved);
-  const currentMessages = useMemo(
-    () => currentChat?.messages || [],
-    [currentChat],
-  );
+  const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
   const sharedTaskSessionId = useMemo(() => {
     if (!sessionId || !currentChat) return sessionId;
     if (currentChat.kind === "child") {
@@ -132,9 +112,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     if (!sessionId) return false;
     const progressMap = state.subSessionsByParent[sessionId];
     if (progressMap && Object.keys(progressMap).length > 0) return true;
-    return state.chats.some(
-      (c) => c.kind === "child" && c.parentSessionId === sessionId,
-    );
+    return state.chats.some((c) => c.kind === "child" && c.parentSessionId === sessionId);
   });
 
   // Lazy-load history when switching sessions (backend is source of truth).
@@ -184,8 +162,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         existing.added += diffStats.added;
         existing.removed += diffStats.removed;
         existing.diffChunks.push(payload.diff.unified);
-        existing.truncated =
-          existing.truncated || Boolean(payload.diff.truncated);
+        existing.truncated = existing.truncated || Boolean(payload.diff.truncated);
       } else {
         files.set(payload.file_path, {
           added: diffStats.added,
@@ -219,9 +196,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, [currentMessages]);
 
   const interactionState = useMemo(() => {
-    const value: "IDLE" | "THINKING" | "AWAITING_APPROVAL" = isProcessing
-      ? "THINKING"
-      : "IDLE";
+    const value: "IDLE" | "THINKING" | "AWAITING_APPROVAL" = isProcessing ? "THINKING" : "IDLE";
     return {
       value,
       context: {
@@ -229,30 +204,91 @@ export const ChatView: React.FC<ChatViewProps> = ({
         toolCallRequest: null,
         parsedParameters: null,
       },
-      matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") =>
-        stateName === value,
+      matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => stateName === value,
     };
   }, [isProcessing]);
 
-  const handleDeleteMessage = useCallback(
-    (messageId: string) => {
-      if (sessionId) {
-        deleteMessage(sessionId, messageId);
+  const formatDeleteFailureMessage = useCallback(
+    (result: DeleteMessageResult) => {
+      if (result.success) return null;
+      switch (result.reason) {
+        case "session_not_found":
+        case "message_not_found":
+        case "backend_not_found":
+          return t("chat.messageActions.deleteNotFound");
+        case "session_running":
+          return t("chat.messageActions.deleteConflict");
+        default:
+          return result.errorMessage || t("chat.messageActions.deleteFailed");
       }
     },
-    [sessionId, deleteMessage],
+    [t],
+  );
+
+  const handleDeleteMessage = useCallback(
+    async (messageId: string, options?: { notify?: boolean }) => {
+      if (!sessionId) {
+        const result: DeleteMessageResult = {
+          success: false,
+          sessionId: "",
+          messageId,
+          reason: "session_not_found",
+        };
+        if (options?.notify !== false) {
+          appMessage.error(formatDeleteFailureMessage(result));
+        }
+        return result;
+      }
+
+      const result = await deleteMessage(sessionId, messageId);
+      if (!result.success && options?.notify !== false) {
+        appMessage.error(formatDeleteFailureMessage(result));
+      }
+      return result;
+    },
+    [sessionId, deleteMessage, appMessage, formatDeleteFailureMessage],
+  );
+
+  const handleDeleteToolMessages = useCallback(
+    async (messageIds: string[]) => {
+      const uniqueMessageIds = Array.from(
+        new Set(messageIds.map((id) => id.trim()).filter(Boolean)),
+      );
+      if (uniqueMessageIds.length === 0) return;
+
+      const results = await Promise.all(
+        uniqueMessageIds.map((id) =>
+          handleDeleteMessage(id, {
+            notify: false,
+          }),
+        ),
+      );
+      const failed = results.filter(
+        (result): result is Exclude<typeof result, { success: true }> => !result.success,
+      );
+      if (failed.length === 0) return;
+
+      if (failed.length === 1) {
+        appMessage.error(formatDeleteFailureMessage(failed[0]));
+        return;
+      }
+
+      appMessage.error(
+        t("chat.messageActions.deleteBatchFailed", {
+          failed: failed.length,
+          total: uniqueMessageIds.length,
+        }),
+      );
+    },
+    [handleDeleteMessage, appMessage, formatDeleteFailureMessage, t],
   );
 
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
   const screens = useBreakpoint();
-  const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(
-    null,
-  );
+  const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
-  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
 
   const getContainerMaxWidth = () => {
@@ -288,14 +324,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
     setSelectedMessageIds(new Set());
   }, [sessionId]);
 
-  const { systemPromptMessage, renderableMessages, convertRenderableEntry } =
-    useChatViewMessages(currentChat, currentMessages);
+  const { systemPromptMessage, renderableMessages, convertRenderableEntry } = useChatViewMessages(
+    currentChat,
+    currentMessages,
+  );
 
   const hasMessages = currentMessages.length > 0;
   const hasWorkflowDraft = Boolean(workflowDraft?.content);
   const hasSystemPrompt = Boolean(systemPromptMessage);
-  const showMessagesView =
-    sessionId && (hasMessages || hasSystemPrompt || hasWorkflowDraft);
+  const showMessagesView = sessionId && (hasMessages || hasSystemPrompt || hasWorkflowDraft);
 
   // In split-pane mode, the PaneShell shows floating split/close buttons at the top-right.
   // Reserve some horizontal space so token usage (also top-right) isn't covered on hover.
@@ -319,9 +356,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     return [...renderableMessages, draftEntry];
   }, [renderableMessages, workflowDraft]);
 
-  const selectableMessages = useMemo<
-    Array<{ id: string; message: Message; text: string }>
-  >(() => {
+  const selectableMessages = useMemo<Array<{ id: string; message: Message; text: string }>>(() => {
     const result: Array<{ id: string; message: Message; text: string }> = [];
     for (const entry of renderableMessagesWithDraft) {
       if (!("message" in entry)) {
@@ -477,8 +512,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const storeTruncation = sessionId ? truncationOccurred[sessionId] : false;
   const configTruncation = currentChat?.config?.truncationOccurred;
-  const currentTruncationOccurred =
-    storeTruncation || configTruncation || false;
+  const currentTruncationOccurred = storeTruncation || configTruncation || false;
 
   const storeSegments = sessionId ? segmentsRemoved[sessionId] : 0;
   const configSegments = currentChat?.config?.segmentsRemoved;
@@ -510,9 +544,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   };
 
   const shouldShowSelectionToolbar =
-    Boolean(showMessagesView) &&
-    hasSelectableMessages &&
-    (!embedded || selectionMode);
+    Boolean(showMessagesView) && hasSelectableMessages && (!embedded || selectionMode);
   const tokenUsageIndicator =
     currentTokenUsage && currentTokenUsage.budgetLimit > 0 ? (
       <div
@@ -522,11 +554,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           gap: token.marginXS,
         }}
       >
-        <TokenUsageDisplay
-          usage={currentTokenUsage}
-          showDetails={true}
-          size="small"
-        />
+        <TokenUsageDisplay usage={currentTokenUsage} showDetails={true} size="small" />
         {currentTruncationOccurred && (
           <span
             style={{
@@ -543,6 +571,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   return (
     <Layout
+      role="region"
+      aria-label={t("chat.view.chatRegion", "Chat conversation")}
       style={{
         flex: 1,
         minHeight: 0,
@@ -597,8 +627,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           <div
             style={{
               paddingTop: token.paddingXS,
-              paddingRight:
-                getContainerPadding() + paneActionOverlayRightPadding,
+              paddingRight: getContainerPadding() + paneActionOverlayRightPadding,
               paddingBottom: 0,
               paddingLeft: getContainerPadding(),
               maxWidth: getContainerMaxWidth(),
@@ -618,12 +647,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                 </Tooltip>
               </Flex>
             ) : (
-              <Flex
-                align="center"
-                justify="space-between"
-                wrap="wrap"
-                gap={token.marginXS}
-              >
+              <Flex align="center" justify="space-between" wrap="wrap" gap={token.marginXS}>
                 <Text type="secondary">
                   {t("chat.selectionToolbar.selectedCount", {
                     selected: selectedMessages.length,
@@ -658,11 +682,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   >
                     {t("chat.selectionToolbar.exportPdf")}
                   </Button>
-                  <Button
-                    size="small"
-                    icon={<CloseOutlined />}
-                    onClick={handleToggleSelectionMode}
-                  >
+                  <Button size="small" icon={<CloseOutlined />} onClick={handleToggleSelectionMode}>
                     {t("chat.selectionToolbar.done")}
                   </Button>
                 </Space>
@@ -676,6 +696,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           currentSessionId={sessionId}
           convertRenderableEntry={convertRenderableEntry}
           handleDeleteMessage={handleDeleteMessage}
+          handleDeleteToolMessages={handleDeleteToolMessages}
           handleMessagesScroll={handleMessagesScroll}
           hasSystemPrompt={hasSystemPrompt}
           messagesListRef={messagesListRef}

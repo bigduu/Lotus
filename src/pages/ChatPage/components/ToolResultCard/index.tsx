@@ -1,14 +1,5 @@
 import React, { memo, useMemo } from "react";
-import {
-  Alert,
-  Button,
-  Collapse,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-  theme,
-} from "antd";
+import { Alert, Button, Collapse, Space, Tag, Tooltip, Typography, theme } from "antd";
 import { RobotOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -19,10 +10,13 @@ import {
   getStatusColor,
   parseUnifiedDiffLines,
   parseFileChangeResultPayload,
+  parseConclusionToolResultPayload,
+  parseMermaidToolResultPayload,
   safeStringify,
 } from "../../utils/resultFormatters";
 import { ExecutionStatus } from "../../types/chat";
 import { copyText } from "@shared/utils/clipboard";
+import MermaidChart from "@shared/components/MermaidChart";
 
 const { Text } = Typography;
 
@@ -49,6 +43,23 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   const { token } = theme.useToken();
 
   const formatted = useMemo(() => formatResultContent(content), [content]);
+  const normalizedToolName = useMemo(() => toolName.trim().toLowerCase(), [toolName]);
+  const mermaidPayload = useMemo(
+    () => (normalizedToolName === "mermaid" ? parseMermaidToolResultPayload(content) : null),
+    [content, normalizedToolName],
+  );
+  const conclusionPayload = useMemo(
+    () => (normalizedToolName === "conclusion" ? parseConclusionToolResultPayload(content) : null),
+    [content, normalizedToolName],
+  );
+  const subtleToolResultLabel = useMemo(() => {
+    if (!mermaidPayload && !conclusionPayload) {
+      return null;
+    }
+    return t("components.toolResult.structuredToolResultHint", {
+      tool: normalizedToolName,
+    });
+  }, [conclusionPayload, mermaidPayload, normalizedToolName, t]);
 
   const derivedIsLoading = useMemo(() => {
     if (typeof isLoading === "boolean") {
@@ -61,15 +72,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     () => createCompactPreview(formatted.formattedText),
     [formatted.formattedText],
   );
-  const fileChangePayload = useMemo(
-    () => parseFileChangeResultPayload(content),
-    [content],
-  );
+  const fileChangePayload = useMemo(() => parseFileChangeResultPayload(content), [content]);
   const parsedDiffLines = useMemo(
-    () =>
-      fileChangePayload
-        ? parseUnifiedDiffLines(fileChangePayload.diff.unified)
-        : [],
+    () => (fileChangePayload ? parseUnifiedDiffLines(fileChangePayload.diff.unified) : []),
     [fileChangePayload],
   );
 
@@ -87,9 +92,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   // Use stable key based on tool name and content hash for consistency
   const collapseKey = useMemo(() => {
     // Simple hash of content for stability
-    const hash = content
-      ? content.slice(0, 50).replace(/[^a-zA-Z0-9]/g, "")
-      : "empty";
+    const hash = content ? content.slice(0, 50).replace(/[^a-zA-Z0-9]/g, "") : "empty";
     return `tool-result-${toolName}-${hash}`;
   }, [toolName, content]);
 
@@ -115,9 +118,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 width: "100%",
               }}
             >
-              <RobotOutlined
-                style={{ color: token.colorPrimary, flexShrink: 0 }}
-              />
+              <RobotOutlined style={{ color: token.colorPrimary, flexShrink: 0 }} />
               <Text strong style={{ color: token.colorText, flexShrink: 0 }}>
                 {toolName}
               </Text>
@@ -128,20 +129,13 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               >
                 {derivedIsLoading ? t("components.toolResult.waiting") : preview}
               </Text>
-              <Tag
-                color={getStatusColor(status)}
-                style={{ flexShrink: 0, margin: 0 }}
-              >
+              <Tag color={getStatusColor(status)} style={{ flexShrink: 0, margin: 0 }}>
                 {status}
               </Tag>
             </div>
           ),
           children: (
-            <Space
-              direction="vertical"
-              style={{ width: "100%" }}
-              size={token.marginSM}
-            >
+            <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
               {/* Timestamp */}
               {timestamp && (
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
@@ -181,9 +175,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 </Tooltip>
 
                 {derivedIsLoading ? (
-                  <Text type="secondary">
-                    {t("components.toolResult.waitingForResult")}
-                  </Text>
+                  <Text type="secondary">{t("components.toolResult.waitingForResult")}</Text>
                 ) : fileChangePayload ? (
                   <Space direction="vertical" style={{ width: "100%" }} size={8}>
                     {fileChangePayload.message && (
@@ -262,6 +254,93 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                         {t("components.toolResult.diffTruncated")}
                       </Text>
                     )}
+                  </Space>
+                ) : mermaidPayload ? (
+                  <Space direction="vertical" style={{ width: "100%" }} size={8}>
+                    {subtleToolResultLabel && (
+                      <Text type="secondary" style={{ fontSize: token.fontSizeSM, opacity: 0.85 }}>
+                        {subtleToolResultLabel}
+                      </Text>
+                    )}
+                    {mermaidPayload.title && (
+                      <Text strong style={{ fontSize: token.fontSize }}>
+                        {mermaidPayload.title}
+                      </Text>
+                    )}
+                    {mermaidPayload.summary && (
+                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                        {mermaidPayload.summary}
+                      </Text>
+                    )}
+                    <MermaidChart chart={mermaidPayload.chart} />
+                  </Space>
+                ) : conclusionPayload ? (
+                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                    {subtleToolResultLabel && (
+                      <Text type="secondary" style={{ fontSize: token.fontSizeSM, opacity: 0.85 }}>
+                        {subtleToolResultLabel}
+                      </Text>
+                    )}
+                    <div
+                      style={{
+                        border: `1px solid ${token.colorBorderSecondary}`,
+                        backgroundColor: token.colorFillAlter,
+                        borderRadius: token.borderRadiusSM,
+                        padding: token.padding,
+                      }}
+                    >
+                      <Space direction="vertical" style={{ width: "100%" }} size={8}>
+                        <Text strong style={{ fontSize: token.fontSizeLG }}>
+                          {conclusionPayload.title}
+                        </Text>
+                        <Text style={{ fontSize: token.fontSize }}>
+                          {conclusionPayload.conclusion}
+                        </Text>
+                        {conclusionPayload.confidence && (
+                          <Tag color="blue" style={{ width: "fit-content", margin: 0 }}>
+                            Confidence: {conclusionPayload.confidence}
+                          </Tag>
+                        )}
+                        {conclusionPayload.key_points.length > 0 && (
+                          <div>
+                            <Text strong style={{ fontSize: token.fontSizeSM }}>
+                              Key points
+                            </Text>
+                            <ul
+                              style={{
+                                margin: `${token.marginXS}px 0 0 0`,
+                                paddingInlineStart: token.paddingLG,
+                              }}
+                            >
+                              {conclusionPayload.key_points.map((point, index) => (
+                                <li key={`${index}-${point}`}>
+                                  <Text style={{ fontSize: token.fontSizeSM }}>{point}</Text>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {conclusionPayload.next_steps.length > 0 && (
+                          <div>
+                            <Text strong style={{ fontSize: token.fontSizeSM }}>
+                              Next steps
+                            </Text>
+                            <ol
+                              style={{
+                                margin: `${token.marginXS}px 0 0 0`,
+                                paddingInlineStart: token.paddingLG,
+                              }}
+                            >
+                              {conclusionPayload.next_steps.map((step, index) => (
+                                <li key={`${index}-${step}`}>
+                                  <Text style={{ fontSize: token.fontSizeSM }}>{step}</Text>
+                                </li>
+                              ))}
+                            </ol>
+                          </div>
+                        )}
+                      </Space>
+                    </div>
                   </Space>
                 ) : formatted.isJson ? (
                   <SyntaxHighlighter

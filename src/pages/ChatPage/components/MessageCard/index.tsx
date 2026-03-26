@@ -1,5 +1,5 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
-import { useThemeStore } from "@shared/store/themeStore";
 import { App as AntApp, Card, Dropdown, Flex, Grid, Space, theme } from "antd";
 import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
@@ -7,18 +7,10 @@ import remarkGfm from "remark-gfm";
 import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { ImageGrid } from "../ImageGrid";
-import {
-  ActionButtonGroup,
-  createCopyButton,
-  createReferenceButton,
-} from "../ActionButtonGroup";
+import { ActionButtonGroup, createCopyButton, createReferenceButton } from "../ActionButtonGroup";
 import { useAppStore } from "../../store";
 import { agentClient } from "../../services/AgentService";
-import {
-  isTaskListMessage,
-  isUserFileReferenceMessage,
-  type Message,
-} from "../../types/chat";
+import { isTaskListMessage, isUserFileReferenceMessage, type Message } from "../../types/chat";
 import PlanMessageCard from "../PlanMessageCard";
 import QuestionMessageCard from "../QuestionMessageCard";
 import FileReferenceCard from "../FileReferenceCard";
@@ -73,38 +65,39 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   const refreshChats = useAppStore((state) => state.refreshChats);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState<boolean>(false);
-  const isDark = useThemeStore((s) => s.themeMode) === "dark";
-
   // Select only the boolean we need, not the whole Set
   const isProcessing = useAppStore((state) => {
     return sessionId ? state.processingChats.has(sessionId) : false;
   });
 
-  const sendMessage = useCallback((content: string) => {
-    if (typeof window === "undefined") {
-      return Promise.reject(new Error("window is unavailable"));
-    }
-
-    return new Promise<void>((resolve, reject) => {
-      const detail: ChatSendMessageEventDetail = {
-        content,
-        sessionId,
-        handled: false,
-        resolve,
-        reject,
-      };
-
-      window.dispatchEvent(
-        new CustomEvent<ChatSendMessageEventDetail>(CHAT_SEND_MESSAGE_EVENT, {
-          detail,
-        }),
-      );
-
-      if (!detail.handled) {
-        reject(new Error("No chat message dispatcher available"));
+  const sendMessage = useCallback(
+    (content: string) => {
+      if (typeof window === "undefined") {
+        return Promise.reject(new Error("window is unavailable"));
       }
-    });
-  }, []);
+
+      return new Promise<void>((resolve, reject) => {
+        const detail: ChatSendMessageEventDetail = {
+          content,
+          sessionId,
+          handled: false,
+          resolve,
+          reject,
+        };
+
+        window.dispatchEvent(
+          new CustomEvent<ChatSendMessageEventDetail>(CHAT_SEND_MESSAGE_EVENT, {
+            detail,
+          }),
+        );
+
+        if (!detail.handled) {
+          reject(new Error("No chat message dispatcher available"));
+        }
+      });
+    },
+    [sessionId],
+  );
 
   const formattedTimestamp = useMemo(() => {
     if (!message.createdAt) return null;
@@ -114,7 +107,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     }
     try {
       return format(parsed, "MMM d, yyyy HH:mm");
-    } catch (error) {
+    } catch {
       return parsed.toLocaleString();
     }
   }, [message.createdAt]);
@@ -156,9 +149,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
         const fileErrorCount = result.file_errors?.length ?? 0;
         if (fileErrorCount > 0) {
-          appMessage.warning(
-            t("chat.messageActions.restorePartial", { count: fileErrorCount }),
-          );
+          appMessage.warning(t("chat.messageActions.restorePartial", { count: fileErrorCount }));
           return;
         }
 
@@ -177,9 +168,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
         }
       } catch (error) {
         const message =
-          error instanceof Error
-            ? error.message
-            : t("chat.messageActions.restoreFailed");
+          error instanceof Error ? error.message : t("chat.messageActions.restoreFailed");
         appMessage.error(message);
       }
     },
@@ -194,20 +183,16 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     void restoreSessionState(true);
   }, [restoreSessionState]);
 
-  const {
-    contextMenuItems,
-    handleMouseUp,
-    copyToClipboard,
-    referenceMessage,
-  } = useMessageCardActions({
-    messageText,
-    messageId,
-    currentSessionId: sessionId,
-    onDelete,
-    onRestoreChat,
-    onRestoreFilesAndChat,
-    cardRef,
-  });
+  const { contextMenuItems, handleMouseUp, copyToClipboard, referenceMessage } =
+    useMessageCardActions({
+      messageText,
+      messageId,
+      currentSessionId: sessionId,
+      onDelete,
+      onRestoreChat,
+      onRestoreFilesAndChat,
+      cardRef,
+    });
 
   const isUserToolCall = useMemo(
     () => role === "user" && messageText.startsWith("/"),
@@ -227,24 +212,17 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const actionButtons = useMemo(
     () => [
-      createCopyButton(
-        () => copyToClipboard(messageText),
-        t("chat.actions.copyMessage"),
-      ),
-      createReferenceButton(
-        referenceMessage,
-        t("chat.actions.referenceMessage"),
-      ),
+      createCopyButton(() => copyToClipboard(messageText), t("chat.actions.copyMessage")),
+      createReferenceButton(referenceMessage, t("chat.actions.referenceMessage")),
     ],
     [messageText, copyToClipboard, referenceMessage, t],
   );
 
-  const { handleExecutePlan, handleRefinePlan, handleQuestionAnswer } =
-    useMessageCardPlanActions({
-      currentSessionId: sessionId,
-      updateSession,
-      sendMessage,
-    });
+  const { handleExecutePlan, handleRefinePlan, handleQuestionAnswer } = useMessageCardPlanActions({
+    currentSessionId: sessionId,
+    updateSession,
+    sendMessage,
+  });
 
   if (detectedMessageType === "plan" && parsedPlan && role === "assistant") {
     return (
@@ -258,11 +236,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
     );
   }
 
-  if (
-    detectedMessageType === "question" &&
-    parsedQuestion &&
-    role === "assistant"
-  ) {
+  if (detectedMessageType === "question" && parsedQuestion && role === "assistant") {
     return (
       <QuestionMessageCard
         question={parsedQuestion}
@@ -279,7 +253,8 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   }
 
   if (isUserFileReferenceMessage(message)) {
-    console.log(
+    debugLog(
+      "[MessageCard]",
       "[MessageCard] Rendering FileReferenceCard for message:",
       message.id,
       "paths:",
@@ -297,11 +272,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   }
 
   return (
-    <Flex
-      vertical
-      onContextMenu={(e) => handleMouseUp(e)}
-      style={{ width: "100%" }}
-    >
+    <Flex vertical onContextMenu={(e) => handleMouseUp(e)} style={{ width: "100%" }}>
       <Dropdown menu={{ items: contextMenuItems }} trigger={["contextMenu"]}>
         <Card
           data-testid={role === "assistant" ? "assistant-message" : "user-message"}
@@ -314,28 +285,22 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
             margin: "0 auto",
             background:
               role === "user"
-                ? isDark
-                  ? "linear-gradient(135deg, rgba(13, 148, 136, 0.14) 0%, rgba(5, 150, 105, 0.12) 100%)"
-                  : "linear-gradient(135deg, rgba(240, 253, 250, 0.98) 0%, rgba(204, 251, 241, 0.88) 100%)"
+                ? "var(--lotus-message-user-bg)"
                 : role === "assistant"
-                  ? isDark
-                    ? "linear-gradient(180deg, rgba(15, 23, 42, 0.8) 0%, rgba(11, 16, 28, 0.72) 100%)"
-                    : "linear-gradient(180deg, rgba(255, 255, 255, 0.88) 0%, rgba(248, 250, 255, 0.82) 100%)"
+                  ? "var(--lotus-message-assistant-bg)"
                   : token.colorBgContainer,
             backdropFilter: "blur(14px)",
             WebkitBackdropFilter: "blur(14px)",
             border:
               role === "user"
-                ? isDark
-                  ? "1px solid rgba(45, 212, 191, 0.24)"
-                  : "1px solid rgba(13, 148, 136, 0.18)"
-                : `1px solid ${isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(255, 255, 255, 0.72)"}`,
+                ? `1px solid var(--lotus-message-user-border)`
+                : `1px solid var(--lotus-glass-border-subtle)`,
             borderRadius: token.borderRadiusLG,
             boxShadow: isHovering
-              ? "0 20px 40px rgba(15, 23, 42, 0.12), 0 8px 18px rgba(13, 148, 136, 0.10)"
+              ? "var(--lotus-card-hover-shadow)"
               : role === "user"
-                ? "0 12px 28px rgba(13, 148, 136, 0.10), 0 4px 12px rgba(15, 23, 42, 0.05)"
-                : "0 10px 26px rgba(15, 23, 42, 0.08), 0 3px 10px rgba(15, 23, 42, 0.04)",
+                ? "var(--lotus-shadow-soft)"
+                : "var(--lotus-shadow-soft)",
             position: "relative",
             wordWrap: "break-word",
             overflowWrap: "break-word",
@@ -354,15 +319,9 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
             size={token.marginXS}
             style={{ width: "100%", maxWidth: "100%" }}
           >
-            <MessageCardHeader
-              role={role}
-              formattedTimestamp={formattedTimestamp}
-              token={token}
-            />
+            <MessageCardHeader role={role} formattedTimestamp={formattedTimestamp} token={token} />
 
-            {message.role === "user" && message.images && (
-              <ImageGrid images={message.images} />
-            )}
+            {message.role === "user" && message.images && <ImageGrid images={message.images} />}
 
             <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
               <MessageCardContent

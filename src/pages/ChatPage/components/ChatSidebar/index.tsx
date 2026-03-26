@@ -45,22 +45,24 @@ export const ChatSidebar: React.FC = () => {
     unpinSession,
   } = useChatSidebarState();
 
+  const { xs, sm } = screens;
+
   useEffect(() => {
     // `useBreakpoint()` returns a fresh object reference very frequently.
     // Depend only on the primitive booleans to avoid effect re-running every render.
-    const { xs, sm } = screens;
     if (typeof xs !== "boolean" || typeof sm !== "boolean") return;
     if (xs === false && sm === false) {
       setCollapsed(true);
     }
-  }, [screens.xs, screens.sm, setCollapsed]);
+  }, [sm, xs, setCollapsed]);
 
   if (collapsed) {
     return null;
   }
 
   return (
-    <div
+    <nav
+      aria-label={t("chat.sidebar.title", "Chat sidebar")}
       style={{
         width: "100%",
         height: "100%",
@@ -87,11 +89,14 @@ export const ChatSidebar: React.FC = () => {
           onClick={() => setCollapsed(true)}
           size={screens.xs ? "small" : "middle"}
           className="lotus-toolbar-icon"
+          aria-label={t("chat.sidebar.collapse", "Collapse sidebar")}
         />
       </Flex>
 
       <Flex
         vertical
+        role="list"
+        aria-label={t("chat.sidebar.chatList", "Chat list")}
         style={{
           flex: 1,
           minHeight: 0,
@@ -136,6 +141,6 @@ export const ChatSidebar: React.FC = () => {
         title={t("chat.prompt.newSessionSelectorTitle")}
         showCancelButton={true}
       />
-    </div>
+    </nav>
   );
 };

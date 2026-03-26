@@ -1,21 +1,5 @@
-import {
-  CodeOutlined,
-  FormOutlined,
-  MinusCircleOutlined,
-  PlusOutlined,
-} from "@ant-design/icons";
-import {
-  Alert,
-  Button,
-  Form,
-  Input,
-  Modal,
-  Radio,
-  Select,
-  Space,
-  Switch,
-  Typography,
-} from "antd";
+import { CodeOutlined, FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
+import { Alert, Button, Form, Input, Modal, Radio, Select, Space, Switch, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -72,9 +56,7 @@ interface McpServerFormModalProps {
   onSubmit: (config: McpServerConfig) => Promise<void> | void;
 }
 
-const toFormValues = (
-  initialConfig: McpServerConfig | null | undefined,
-): McpServerFormValues => {
+const toFormValues = (initialConfig: McpServerConfig | null | undefined): McpServerFormValues => {
   const config = initialConfig ?? createDefaultMcpServerConfig("");
   const transport = config.transport;
 
@@ -105,8 +87,7 @@ const toFormValues = (
     url: transport.type === "sse" ? transport.url : undefined,
     headerEntries,
     requestTimeoutMs: config.request_timeout_ms || DEFAULT_REQUEST_TIMEOUT_MS,
-    healthcheckIntervalMs:
-      config.healthcheck_interval_ms || DEFAULT_HEALTHCHECK_INTERVAL_MS,
+    healthcheckIntervalMs: config.healthcheck_interval_ms || DEFAULT_HEALTHCHECK_INTERVAL_MS,
     allowedTools: config.allowed_tools || [],
     deniedTools: config.denied_tools || [],
   };
@@ -151,8 +132,7 @@ const toServerConfig = (
   const preservedHealthcheckIntervalMs =
     typeof values.healthcheckIntervalMs === "number"
       ? values.healthcheckIntervalMs
-      : (initialConfig?.healthcheck_interval_ms ??
-        DEFAULT_HEALTHCHECK_INTERVAL_MS);
+      : (initialConfig?.healthcheck_interval_ms ?? DEFAULT_HEALTHCHECK_INTERVAL_MS);
 
   const preservedAllowedTools = Array.isArray(values.allowedTools)
     ? values.allowedTools
@@ -170,8 +150,7 @@ const toServerConfig = (
           headers: entriesToHeaders(values.headerEntries || []),
           connect_timeout_ms:
             initialConfig?.transport.type === "sse"
-              ? (initialConfig.transport.connect_timeout_ms ??
-                DEFAULT_SSE_CONNECT_TIMEOUT_MS)
+              ? (initialConfig.transport.connect_timeout_ms ?? DEFAULT_SSE_CONNECT_TIMEOUT_MS)
               : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
         } satisfies SseTransportConfig)
       : ({
@@ -179,14 +158,10 @@ const toServerConfig = (
           command: values.command?.trim() || "",
           args: values.args || [],
           env: entriesToRecord(values.envEntries || []),
-          cwd:
-            initialConfig?.transport.type === "stdio"
-              ? initialConfig.transport.cwd
-              : undefined,
+          cwd: initialConfig?.transport.type === "stdio" ? initialConfig.transport.cwd : undefined,
           startup_timeout_ms:
             initialConfig?.transport.type === "stdio"
-              ? (initialConfig.transport.startup_timeout_ms ??
-                DEFAULT_STDIO_STARTUP_TIMEOUT_MS)
+              ? (initialConfig.transport.startup_timeout_ms ?? DEFAULT_STDIO_STARTUP_TIMEOUT_MS)
               : DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
         } satisfies StdioTransportConfig);
 
@@ -213,9 +188,7 @@ const formatJson = (config: McpServerConfig | null | undefined): string => {
 const validateJson = (
   json: string,
   t: (key: string, options?: Record<string, unknown>) => string,
-):
-  | { valid: true; config: McpServerConfig }
-  | { valid: false; error: string } => {
+): { valid: true; config: McpServerConfig } | { valid: false; error: string } => {
   try {
     const parsed = JSON.parse(json) as unknown;
     if (!parsed || typeof parsed !== "object") {
@@ -274,14 +247,10 @@ const validateJson = (
         : DEFAULT_HEALTHCHECK_INTERVAL_MS;
 
     const allowed_tools = Array.isArray(record.allowed_tools)
-      ? record.allowed_tools.filter(
-          (item): item is string => typeof item === "string",
-        )
+      ? record.allowed_tools.filter((item): item is string => typeof item === "string")
       : [];
     const denied_tools = Array.isArray(record.denied_tools)
-      ? record.denied_tools.filter(
-          (item): item is string => typeof item === "string",
-        )
+      ? record.denied_tools.filter((item): item is string => typeof item === "string")
       : [];
 
     const name = typeof record.name === "string" ? record.name : undefined;
@@ -294,8 +263,7 @@ const validateJson = (
               if (!item || typeof item !== "object") return null;
               const pair = item as Record<string, unknown>;
               const headerName = typeof pair.name === "string" ? pair.name : "";
-              const headerValue =
-                typeof pair.value === "string" ? pair.value : "";
+              const headerValue = typeof pair.value === "string" ? pair.value : "";
               if (!headerName.trim()) return null;
               return { name: headerName, value: headerValue };
             })
@@ -343,14 +311,15 @@ const validateJson = (
       const envRaw = record.env;
       const env =
         envRaw && typeof envRaw === "object"
-          ? Object.entries(envRaw as Record<string, unknown>).reduce<
-              Record<string, string>
-            >((acc, [key, value]) => {
-              if (typeof value === "string") {
-                acc[key] = value;
-              }
-              return acc;
-            }, {})
+          ? Object.entries(envRaw as Record<string, unknown>).reduce<Record<string, string>>(
+              (acc, [key, value]) => {
+                if (typeof value === "string") {
+                  acc[key] = value;
+                }
+                return acc;
+              },
+              {},
+            )
           : {};
 
       const startup_timeout_ms =
@@ -389,10 +358,7 @@ const validateJson = (
     return {
       valid: false,
       error: t("settings.mcpServerForm.invalidJson", {
-        message:
-          e instanceof Error
-            ? e.message
-            : t("settings.mcpServerForm.unknownError"),
+        message: e instanceof Error ? e.message : t("settings.mcpServerForm.unknownError"),
       }),
     };
   }
@@ -412,10 +378,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   const [jsonValue, setJsonValue] = useState<string>("");
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const initialFormValues = useMemo(
-    () => toFormValues(initialConfig),
-    [initialConfig],
-  );
+  const initialFormValues = useMemo(() => toFormValues(initialConfig), [initialConfig]);
 
   const transportType = Form.useWatch("transportType", form) ?? "stdio";
 
@@ -545,11 +508,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
           onChange={(e) => handleJsonChange(e.target.value)}
           rows={20}
           style={{ fontFamily: "monospace", fontSize: 13 }}
-          placeholder={JSON.stringify(
-            createDefaultMcpServerConfig("example-server"),
-            null,
-            2,
-          )}
+          placeholder={JSON.stringify(createDefaultMcpServerConfig("example-server"), null, 2)}
         />
       ) : (
         <Form<McpServerFormValues>
@@ -572,17 +531,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
               },
             ]}
           >
-            <Input
-              placeholder="filesystem"
-              disabled={mode === "edit"}
-              autoComplete="off"
-            />
+            <Input placeholder="filesystem" disabled={mode === "edit"} autoComplete="off" />
           </Form.Item>
 
-          <Form.Item
-            name="name"
-            label={t("settings.mcpServerForm.displayName")}
-          >
+          <Form.Item name="name" label={t("settings.mcpServerForm.displayName")}>
             <Input placeholder="Filesystem MCP" autoComplete="off" />
           </Form.Item>
 
@@ -634,10 +586,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                 <Input placeholder="npx" autoComplete="off" />
               </Form.Item>
 
-              <Form.Item
-                name="args"
-                label={t("settings.mcpServerForm.arguments")}
-              >
+              <Form.Item name="args" label={t("settings.mcpServerForm.arguments")}>
                 <Select
                   mode="tags"
                   tokenSeparators={[","]}
@@ -664,11 +613,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                     </Space>
 
                     {fields.map((field) => (
-                      <Space
-                        key={field.key}
-                        align="baseline"
-                        style={{ display: "flex" }}
-                      >
+                      <Space key={field.key} align="baseline" style={{ display: "flex" }}>
                         <Form.Item
                           {...field}
                           name={[field.name, "key"]}
@@ -682,16 +627,17 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                           <Input placeholder="MCP_ROOT" autoComplete="off" />
                         </Form.Item>
                         <Form.Item {...field} name={[field.name, "value"]}>
-                          <Input
-                            placeholder="/Users/me/workspace"
-                            autoComplete="off"
-                          />
+                          <Input placeholder="/Users/me/workspace" autoComplete="off" />
                         </Form.Item>
                         <Button
                           danger
                           type="text"
                           icon={<MinusCircleOutlined />}
                           onClick={() => remove(field.name)}
+                          aria-label={t(
+                            "settings.mcpServerForm.removeEnv",
+                            "Remove environment variable",
+                          )}
                         />
                       </Space>
                     ))}
@@ -717,18 +663,13 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       try {
                         new URL(value);
                       } catch {
-                        throw new Error(
-                          t("settings.mcpServerForm.validUrlRequired"),
-                        );
+                        throw new Error(t("settings.mcpServerForm.validUrlRequired"));
                       }
                     },
                   },
                 ]}
               >
-                <Input
-                  placeholder="http://localhost:4000/sse"
-                  autoComplete="off"
-                />
+                <Input placeholder="http://localhost:4000/sse" autoComplete="off" />
               </Form.Item>
 
               <Form.List name="headerEntries">
@@ -749,39 +690,28 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                     </Space>
 
                     {fields.map((field) => (
-                      <Space
-                        key={field.key}
-                        align="baseline"
-                        style={{ display: "flex" }}
-                      >
+                      <Space key={field.key} align="baseline" style={{ display: "flex" }}>
                         <Form.Item
                           {...field}
                           name={[field.name, "name"]}
                           rules={[
                             {
                               required: true,
-                              message: t(
-                                "settings.mcpServerForm.headerNameRequired",
-                              ),
+                              message: t("settings.mcpServerForm.headerNameRequired"),
                             },
                           ]}
                         >
-                          <Input
-                            placeholder="Authorization"
-                            autoComplete="off"
-                          />
+                          <Input placeholder="Authorization" autoComplete="off" />
                         </Form.Item>
                         <Form.Item {...field} name={[field.name, "value"]}>
-                          <Input
-                            placeholder="Bearer token"
-                            autoComplete="off"
-                          />
+                          <Input placeholder="Bearer token" autoComplete="off" />
                         </Form.Item>
                         <Button
                           danger
                           type="text"
                           icon={<MinusCircleOutlined />}
                           onClick={() => remove(field.name)}
+                          aria-label={t("settings.mcpServerForm.removeHeader", "Remove header")}
                         />
                       </Space>
                     ))}

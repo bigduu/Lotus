@@ -1,20 +1,15 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import { Card, Typography } from "antd";
 import type { Components } from "react-markdown";
-import {
-  renderCodeBlock,
-  type MermaidRenderMode,
-} from "./MarkdownCodeBlock";
+import { renderCodeBlock, type MermaidRenderMode } from "./MarkdownCodeBlock";
 import { openExternalLink } from "../../utils/openExternalLink";
 
 const { Text } = Typography;
 
 export const createMarkdownComponents = (
-  token: any,
+  token: Partial<GlobalToken>,
   options?: {
-    onFixMermaid?: (
-      chart: string,
-      renderError?: string,
-    ) => Promise<void> | void;
+    onFixMermaid?: (chart: string, renderError?: string) => Promise<void> | void;
     mermaidRenderMode?: MermaidRenderMode;
   },
 ): Components => ({
@@ -61,6 +56,7 @@ export const createMarkdownComponents = (
     </li>
   ),
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-markdown component signature
   code({ className, children, inline, ...props }: any) {
     const match = /language-([^\s]+)/i.exec(className || "");
     const language = match ? match[1] : "";
@@ -160,9 +156,7 @@ export const createMarkdownComponents = (
   tbody: ({ children }) => <tbody>{children}</tbody>,
 
   tr: ({ children }) => (
-    <tr style={{ borderBottom: `1px solid ${token.colorBorder}` }}>
-      {children}
-    </tr>
+    <tr style={{ borderBottom: `1px solid ${token.colorBorder}` }}>{children}</tr>
   ),
 
   th: ({ children }) => (

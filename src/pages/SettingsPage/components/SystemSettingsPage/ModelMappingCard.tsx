@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import React, { useState, useEffect, useCallback } from "react";
 import {
   Collapse,
@@ -75,9 +76,7 @@ export const ModelMappingCard: React.FC = () => {
         const newProvider = config.provider || "copilot";
 
         if (newProvider !== currentProvider && currentProvider !== "") {
-          console.log(
-            `Provider changed from ${currentProvider} to ${newProvider}`,
-          );
+          debugLog("[ModelMapping]", `Provider changed from ${currentProvider} to ${newProvider}`);
           setCurrentProvider(newProvider);
           setError(null);
         }
@@ -115,7 +114,7 @@ export const ModelMappingCard: React.FC = () => {
         const now = Date.now();
 
         if (now - cached.timestamp < CACHE_EXPIRATION_MS) {
-          console.log(`Using cached models for ${currentProvider}`);
+          debugLog("[ModelMapping]", `Using cached models for ${currentProvider}`);
           setAvailableModels(cached.models);
           setError(null);
           return;
@@ -131,9 +130,7 @@ export const ModelMappingCard: React.FC = () => {
         // For Copilot provider, use the /models endpoint (via modelService)
         // For other providers, use /bamboo/settings/provider/models
         if (currentProvider === "copilot") {
-          const { modelService } = await import(
-            "../../../../services/chat/ModelService"
-          );
+          const { modelService } = await import("../../../../services/chat/ModelService");
           models = await modelService.getModels();
         } else {
           models = await settingsService.fetchProviderModels(currentProvider);
@@ -150,13 +147,11 @@ export const ModelMappingCard: React.FC = () => {
           },
         }));
 
-        console.log(`Fetched ${models.length} models for ${currentProvider}`);
+        debugLog("[ModelMapping]", `Fetched ${models.length} models for ${currentProvider}`);
       } catch (error) {
         console.error("Failed to fetch models:", error);
         const errorMessage =
-          error instanceof Error
-            ? error.message
-            : t("settings.modelMappingCard.loadModelsFailed");
+          error instanceof Error ? error.message : t("settings.modelMappingCard.loadModelsFailed");
         setError(errorMessage);
         msgApi.error(t("settings.modelMappingCard.loadModelsHint"));
         setAvailableModels([]);
@@ -174,10 +169,7 @@ export const ModelMappingCard: React.FC = () => {
     }
   }, [currentProvider, fetchModels]);
 
-  const handleMappingChange = async (
-    modelType: string,
-    selectedModel: string,
-  ) => {
+  const handleMappingChange = async (modelType: string, selectedModel: string) => {
     // Handle custom input
     if (selectedModel === "__custom__") {
       setCustomModelType(modelType);
@@ -253,19 +245,14 @@ export const ModelMappingCard: React.FC = () => {
       description: t("settings.modelMappingCard.modelTypeHaikuDescription"),
     },
   ];
-  const providerLabel =
-    currentProvider.charAt(0).toUpperCase() + currentProvider.slice(1);
+  const providerLabel = currentProvider.charAt(0).toUpperCase() + currentProvider.slice(1);
 
   const collapseItems = [
     {
       key: "1",
       label: t("settings.modelMappingCard.collapseTitle"),
       children: (
-        <Space
-          direction="vertical"
-          size={token.marginSM}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
           <Text type="secondary">
             {t("settings.modelMappingCard.description", {
               provider: providerLabel,
@@ -320,10 +307,7 @@ export const ModelMappingCard: React.FC = () => {
                     style={{ width: "100%" }}
                     value={mappedModel || undefined}
                     onChange={(value) => handleMappingChange(key, value)}
-                    placeholder={t(
-                      "settings.modelMappingCard.selectModelPlaceholder",
-                      { label },
-                    )}
+                    placeholder={t("settings.modelMappingCard.selectModelPlaceholder", { label })}
                     loading={isLoadingModels}
                     disabled={isLoadingModels || availableModels.length === 0}
                     showSearch
@@ -343,10 +327,7 @@ export const ModelMappingCard: React.FC = () => {
                     ]}
                     status={!isMappingValid ? "warning" : undefined}
                     filterOption={(input, option) =>
-                      (option?.label ?? "")
-                        .toString()
-                        .toLowerCase()
-                        .includes(input.toLowerCase())
+                      (option?.label ?? "").toString().toLowerCase().includes(input.toLowerCase())
                     }
                   />
                   {/* Model Validation Warning */}
@@ -377,16 +358,11 @@ export const ModelMappingCard: React.FC = () => {
           </Space>
 
           {/* Status Information */}
-          <Space
-            direction="vertical"
-            size={token.marginXXS}
-            style={{ width: "100%" }}
-          >
+          <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
               {t("settings.modelMappingCard.currentProvider")}:{" "}
               <Text strong>
-                {currentProvider ||
-                  t("settings.modelMappingCard.loadingProvider")}
+                {currentProvider || t("settings.modelMappingCard.loadingProvider")}
               </Text>
             </Text>
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>

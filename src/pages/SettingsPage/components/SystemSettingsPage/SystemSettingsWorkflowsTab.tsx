@@ -1,15 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  Card,
-  Flex,
-  Input,
-  List,
-  Space,
-  Typography,
-  message,
-  theme,
-} from "antd";
+import { Button, Card, Flex, Input, List, Space, Typography, message, theme } from "antd";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -44,16 +34,12 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [selectedWorkflow, setSelectedWorkflow] =
-    useState<WorkflowMetadata | null>(null);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowMetadata | null>(null);
   const [editorName, setEditorName] = useState("");
   const [editorContent, setEditorContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
 
-  const workflowService = useMemo(
-    () => WorkflowManagerService.getInstance(),
-    [],
-  );
+  const workflowService = useMemo(() => WorkflowManagerService.getInstance(), []);
 
   const loadWorkflows = useCallback(async () => {
     setIsLoading(true);
@@ -61,13 +47,13 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
       const result = await workflowService.listWorkflows();
       setWorkflows(result);
       return result;
-    } catch (error) {
+    } catch {
       msgApi.error(t("settings.workflowsTab.loadFailed"));
       return [];
     } finally {
       setIsLoading(false);
     }
-  }, [msgApi, workflowService]);
+  }, [msgApi, t, workflowService]);
 
   useEffect(() => {
     loadWorkflows();
@@ -82,14 +68,14 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
       try {
         const result = await workflowService.getWorkflow(workflow.name);
         setEditorContent(result.content ?? "");
-      } catch (error) {
+      } catch {
         msgApi.error(t("settings.workflowsTab.loadContentFailed"));
         setEditorContent("");
       } finally {
         setIsLoadingContent(false);
       }
     },
-    [msgApi, workflowService],
+    [msgApi, t, workflowService],
   );
 
   const handleCreateNew = () => {
@@ -122,21 +108,11 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
         setSelectedWorkflow(updated);
       }
     } catch (error) {
-      msgApi.error(
-        error instanceof Error ? error.message : t("settings.workflowsTab.saveFailed"),
-      );
+      msgApi.error(error instanceof Error ? error.message : t("settings.workflowsTab.saveFailed"));
     } finally {
       setIsSaving(false);
     }
-  }, [
-    editorContent,
-    editorName,
-    loadWorkflows,
-    msgApi,
-    selectedWorkflow,
-    t,
-    workflows,
-  ]);
+  }, [editorContent, editorName, loadWorkflows, msgApi, selectedWorkflow, t, workflows]);
 
   const handleDelete = useCallback(
     async (workflow: WorkflowMetadata) => {
@@ -150,9 +126,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
         await loadWorkflows();
       } catch (error) {
         msgApi.error(
-          error instanceof Error
-            ? error.message
-            : t("settings.workflowsTab.deleteFailed"),
+          error instanceof Error ? error.message : t("settings.workflowsTab.deleteFailed"),
         );
       }
     },
@@ -166,18 +140,10 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
         title={t("settings.workflowsTab.title")}
         extra={
           <Space>
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={loadWorkflows}
-              loading={isLoading}
-            >
+            <Button icon={<ReloadOutlined />} onClick={loadWorkflows} loading={isLoading}>
               {t("settings.workflowsTab.refresh")}
             </Button>
-            <Button
-              data-testid="create-workflow"
-              icon={<PlusOutlined />}
-              onClick={handleCreateNew}
-            >
+            <Button data-testid="create-workflow" icon={<PlusOutlined />} onClick={handleCreateNew}>
               {t("settings.workflowsTab.newWorkflow")}
             </Button>
             <Button
@@ -193,9 +159,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
           </Space>
         }
       >
-        <Text type="secondary">
-          {t("settings.workflowsTab.description")}
-        </Text>
+        <Text type="secondary">{t("settings.workflowsTab.description")}</Text>
         <Flex gap={token.marginLG} style={{ marginTop: token.marginLG }}>
           <div style={{ width: 320, flexShrink: 0 }}>
             <List
@@ -226,11 +190,12 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
                         e.stopPropagation();
                         handleDelete(workflow);
                       }}
+                      aria-label={t("settings.workflowsTab.delete")}
                     />,
                   ]}
                 >
-                <Space direction="vertical" size={0}>
-                  <Text strong>/{workflow.name}</Text>
+                  <Space direction="vertical" size={0}>
+                    <Text strong>/{workflow.name}</Text>
                     <Text type="secondary" style={{ fontSize: 12 }}>
                       {workflow.filename}
                     </Text>
@@ -240,11 +205,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
             />
           </div>
           <div style={{ flex: 1 }}>
-            <Space
-              direction="vertical"
-              size={token.marginSM}
-              style={{ width: "100%" }}
-            >
+            <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
               <Input
                 data-testid="workflow-name"
                 placeholder={t("settings.workflowsTab.namePlaceholder")}

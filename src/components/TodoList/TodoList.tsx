@@ -1,17 +1,7 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useState } from "react";
 import { useAppStore } from "../../pages/ChatPage/store";
-import {
-  Card,
-  List,
-  Tag,
-  Progress,
-  Badge,
-  Tooltip,
-  Space,
-  Typography,
-  Alert,
-  theme,
-} from "antd";
+import { Card, List, Tag, Progress, Badge, Tooltip, Space, Typography, Alert, theme } from "antd";
 import {
   CheckCircleOutlined,
   SyncOutlined,
@@ -58,7 +48,9 @@ interface TaskListPanelProps {
 
 // Status configuration
 // Status configuration factory – uses Ant Design theme tokens for dark/light safety
-const getStatusConfig = (token: any): Record<
+const getStatusConfig = (
+  token: GlobalToken,
+): Record<
   TaskItem["status"],
   {
     icon: React.ReactNode;
@@ -93,29 +85,20 @@ const getStatusConfig = (token: any): Record<
   },
 });
 
-export const TodoList: React.FC<TaskListPanelProps> = ({
-  sessionId,
-  initialCollapsed = true,
-}) => {
+export const TodoList: React.FC<TaskListPanelProps> = ({ sessionId, initialCollapsed = true }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const statusConfig = React.useMemo(() => getStatusConfig(token), [token]);
-  const sessionSummary = useAppStore((state) =>
-    state.chats.find((chat) => chat.id === sessionId),
-  );
+  const sessionSummary = useAppStore((state) => state.chats.find((chat) => chat.id === sessionId));
   const sharedSessionId =
     sessionSummary?.kind === "child"
-      ? sessionSummary.parentSessionId ||
-        sessionSummary.rootSessionId ||
-        sessionId
+      ? sessionSummary.parentSessionId || sessionSummary.rootSessionId || sessionId
       : sessionId;
 
   // Get from Zustand store (real-time updates via useAgentEventSubscription)
   const taskListData = useAppStore((state) => state.taskLists[sharedSessionId]);
   const activeItemId = useAppStore((state) => state.activeItems[sharedSessionId]);
-  const evaluationState = useAppStore(
-    (state) => state.evaluationStates[sharedSessionId],
-  );
+  const evaluationState = useAppStore((state) => state.evaluationStates[sharedSessionId]);
 
   const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
   const [isPinned, setIsPinned] = useState(false);
@@ -131,14 +114,12 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
         title: taskListData.title,
         items: taskListData.items,
         progress: {
-          completed: taskListData.items.filter((i) => i.status === "completed")
-            .length,
+          completed: taskListData.items.filter((i) => i.status === "completed").length,
           total: taskListData.items.length,
           percentage:
             taskListData.items.length > 0
               ? Math.round(
-                  (taskListData.items.filter((i) => i.status === "completed")
-                    .length /
+                  (taskListData.items.filter((i) => i.status === "completed").length /
                     taskListData.items.length) *
                     100,
                 )
@@ -188,10 +169,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
         },
       }}
       title={
-        <Space
-          onClick={toggleCollapse}
-          style={{ cursor: "pointer", width: "100%" }}
-        >
+        <Space onClick={toggleCollapse} style={{ cursor: "pointer", width: "100%" }}>
           <UnorderedListOutlined style={{ color: token.colorPrimary }} />
           <Text strong style={{ fontSize: 15 }}>
             {title || t("components.todoList.title")}
@@ -217,19 +195,11 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
             <Text type="secondary" style={{ fontSize: 13 }}>
               {progress.completed}/{progress.total}
               {isCompleted && (
-                <CheckCircleOutlined
-                  style={{ color: token.colorSuccess, marginLeft: 4 }}
-                />
+                <CheckCircleOutlined style={{ color: token.colorSuccess, marginLeft: 4 }} />
               )}
             </Text>
           )}
-          <Tooltip
-            title={
-              isPinned
-                ? t("components.todoList.unpin")
-                : t("components.todoList.pin")
-            }
-          >
+          <Tooltip title={isPinned ? t("components.todoList.unpin") : t("components.todoList.pin")}>
             <span
               onClick={togglePin}
               style={{
@@ -301,9 +271,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
                       ? `3px solid ${token.colorPrimary}`
                       : "3px solid transparent",
                     paddingLeft: isActive ? 12 : 15,
-                    backgroundColor: isActive
-                      ? token.colorPrimaryBg
-                      : "transparent",
+                    backgroundColor: isActive ? token.colorPrimaryBg : "transparent",
                     borderRadius: 4,
                     marginBottom: 4,
                   }}
@@ -311,18 +279,13 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
                   <div style={{ width: "100%" }}>
                     <Space align="start" style={{ width: "100%" }}>
                       <Tooltip title={statusText}>
-                        <span style={{ color: status.color, fontSize: 16 }}>
-                          {status.icon}
-                        </span>
+                        <span style={{ color: status.color, fontSize: 16 }}>{status.icon}</span>
                       </Tooltip>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <Text
                           style={{
-                            textDecoration:
-                              item.status === "completed"
-                                ? "line-through"
-                                : "none",
+                            textDecoration: item.status === "completed" ? "line-through" : "none",
                             color:
                               item.status === "completed"
                                 ? token.colorTextSecondary
@@ -339,13 +302,11 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
                             <Tag color={status.tagColor}>{statusText}</Tag>
 
                             {/* Tool calls count */}
-                            {item.tool_calls_count !== undefined &&
-                              item.tool_calls_count > 0 && (
-                                <Tag icon={<ToolOutlined />} color="processing">
-                                  {item.tool_calls_count}{" "}
-                                  {t("components.todoList.tools")}
-                                </Tag>
-                              )}
+                            {item.tool_calls_count !== undefined && item.tool_calls_count > 0 && (
+                              <Tag icon={<ToolOutlined />} color="processing">
+                                {item.tool_calls_count} {t("components.todoList.tools")}
+                              </Tag>
+                            )}
 
                             {/* Dependencies */}
                             {item.depends_on.length > 0 && (
@@ -355,8 +316,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
                                 })}
                               >
                                 <Tag icon={<LinkOutlined />}>
-                                  {item.depends_on.length}{" "}
-                                  {t("components.todoList.dependencies")}
+                                  {item.depends_on.length} {t("components.todoList.dependencies")}
                                 </Tag>
                               </Tooltip>
                             )}

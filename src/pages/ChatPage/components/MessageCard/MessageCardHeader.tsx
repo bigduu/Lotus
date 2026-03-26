@@ -1,13 +1,12 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Flex, Typography } from "antd";
-import { useThemeStore } from "@shared/store/themeStore";
-
 const { Text } = Typography;
 
 interface MessageCardHeaderProps {
   role: "user" | "assistant" | "system" | "tool";
   formattedTimestamp?: string | null;
-  token: any;
+  token: GlobalToken;
 }
 
 const MessageCardHeader: React.FC<MessageCardHeaderProps> = ({
@@ -15,7 +14,6 @@ const MessageCardHeader: React.FC<MessageCardHeaderProps> = ({
   formattedTimestamp,
   token,
 }) => {
-  const isDark = useThemeStore((s) => s.themeMode) === "dark";
   const isUser = role === "user";
   const isAssistant = role === "assistant";
   const label = isUser ? "You" : isAssistant ? "Bodhi" : role;
@@ -41,17 +39,17 @@ const MessageCardHeader: React.FC<MessageCardHeaderProps> = ({
             fontWeight: 700,
             letterSpacing: "0.3px",
             background: isUser
-              ? "linear-gradient(135deg, #0d9488 0%, #0891b2 100%)"
+              ? "var(--lotus-avatar-user-bg)"
               : isAssistant
-                ? "linear-gradient(135deg, #059669 0%, #06b6d4 100%)"
-                : "linear-gradient(135deg, rgba(148,163,184,0.9) 0%, rgba(100,116,139,0.92) 100%)",
+                ? "var(--lotus-avatar-assistant-bg)"
+                : "var(--lotus-avatar-system-bg)",
             color: "white",
             boxShadow: isUser
-              ? "0 6px 16px rgba(13, 148, 136, 0.28)"
+              ? "var(--lotus-avatar-user-shadow)"
               : isAssistant
-                ? "0 6px 16px rgba(13, 148, 136, 0.22)"
-                : "0 4px 12px rgba(100, 116, 139, 0.18)",
-            border: "1px solid rgba(255, 255, 255, 0.18)",
+                ? "var(--lotus-avatar-assistant-shadow)"
+                : "var(--lotus-avatar-system-shadow)",
+            border: "var(--lotus-avatar-border)",
           }}
         >
           {avatarText}
@@ -90,12 +88,8 @@ const MessageCardHeader: React.FC<MessageCardHeaderProps> = ({
             opacity: 0.92,
             padding: "4px 8px",
             borderRadius: 999,
-            background: isDark
-              ? "rgba(30, 41, 59, 0.92)"
-              : "rgba(224, 231, 255, 0.9)",
-            border: isDark
-              ? "1px solid rgba(148,163,184,0.18)"
-              : "1px solid rgba(148,163,184,0.22)",
+            background: "var(--lotus-timestamp-bg)",
+            border: "1px solid var(--lotus-timestamp-border)",
           }}
         >
           {formattedTimestamp}

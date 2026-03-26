@@ -1,5 +1,4 @@
 import React, { memo, useState, useCallback } from "react";
-import { useThemeStore } from "@shared/store/themeStore";
 import { List, Button, Input, Tag, Dropdown, theme } from "antd";
 import type { MenuProps } from "antd";
 import {
@@ -47,10 +46,9 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const { token } = theme.useToken();
-  const isDark = useThemeStore((s) => s.themeMode) === "dark";
 
   const handleSave = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.SyntheticEvent) => {
       e.stopPropagation();
       if (onEdit && editValue.trim()) {
         onEdit(chat.id, editValue.trim());
@@ -101,9 +99,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               <LoadingOutlined />
             ) : (
               <BulbOutlined
-                style={
-                  titleGenerationError ? { color: token.colorError } : undefined
-                }
+                style={titleGenerationError ? { color: token.colorError } : undefined}
               />
             ),
             label: titleGenerationError || t("chat.actions.generateTitle"),
@@ -136,29 +132,19 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     cursor: "pointer",
     transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
     backgroundColor: isSelected
-      ? isDark
-        ? "rgba(13, 148, 136, 0.24)"
-        : "rgba(13, 148, 136, 0.16)"
+      ? "var(--lotus-primary-soft)"
       : isHovered || dropdownOpen
-        ? isDark
-          ? "rgba(30, 41, 59, 0.82)"
-          : "rgba(226, 232, 240, 0.86)"
+        ? "var(--lotus-item-hover-bg)"
         : "transparent",
     border: "1px solid transparent",
     borderColor: isSelected
-      ? "rgba(13, 148, 136, 0.36)"
+      ? "var(--lotus-tool-card-border)"
       : isHovered || dropdownOpen
-        ? isDark
-          ? "rgba(148, 163, 184, 0.22)"
-          : "rgba(148, 163, 184, 0.28)"
+        ? token.colorBorderSecondary
         : "transparent",
     position: "relative",
     overflow: "visible",
-    boxShadow: isSelected
-      ? isDark
-        ? "none"
-        : "0 2px 6px rgba(13, 148, 136, 0.08)"
-      : "none",
+    boxShadow: isSelected ? "var(--lotus-tool-card-shadow)" : "none",
     transform: isHovered && !isSelected ? "translateX(2px)" : "none",
   };
 
@@ -179,66 +165,85 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   };
 
   // Show save/cancel when editing, or "⋯" dropdown when hovered
-  const actions =
-    isEditing
+  const actions = isEditing
+    ? [
+        <Button
+          key="save"
+          type="text"
+          size="small"
+          icon={<CheckOutlined style={{ color: token.colorSuccess }} />}
+          onClick={handleSave}
+          aria-label={t("common.save")}
+        />,
+        <Button
+          key="cancel"
+          type="text"
+          size="small"
+          icon={<CloseOutlined style={{ color: token.colorError }} />}
+          onClick={handleCancel}
+          aria-label={t("common.cancel")}
+        />,
+      ]
+    : isHovered || dropdownOpen
       ? [
-          <Button
-            key="save"
-            type="text"
-            size="small"
-            icon={<CheckOutlined style={{ color: token.colorSuccess }} />}
-            onClick={handleSave}
-          />,
-          <Button
-            key="cancel"
-            type="text"
-            size="small"
-            icon={<CloseOutlined style={{ color: token.colorError }} />}
-            onClick={handleCancel}
-          />,
+          <Dropdown
+            key="more"
+            menu={{ items: menuItems }}
+            trigger={["click"]}
+            placement="bottomRight"
+            open={dropdownOpen}
+            onOpenChange={(open) => setDropdownOpen(open)}
+          >
+            <Button
+              type="text"
+              size="small"
+              icon={<MoreOutlined />}
+              aria-label={t("common.moreActions", "More actions")}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                color: token.colorTextSecondary,
+                borderRadius: token.borderRadiusSM,
+                background: token.colorFillTertiary,
+                width: 24,
+                height: 24,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            />
+          </Dropdown>,
         ]
-      : isHovered || dropdownOpen
-        ? [
-            <Dropdown
-              key="more"
-              menu={{ items: menuItems }}
-              trigger={["click"]}
-              placement="bottomRight"
-              open={dropdownOpen}
-              onOpenChange={(open) => setDropdownOpen(open)}
-            >
-              <Button
-                type="text"
-                size="small"
-                icon={<MoreOutlined />}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  color: token.colorTextSecondary,
-                  borderRadius: token.borderRadiusSM,
-                  background: isDark
-                    ? "rgba(255, 255, 255, 0.08)"
-                    : "rgba(0, 0, 0, 0.06)",
-                  width: 24,
-                  height: 24,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              />
-            </Dropdown>,
-          ]
-        : [];
+      : [];
 
   return (
     <List.Item
       style={itemStyle}
+      tabIndex={0}
       onClick={() => !isEditing && onSelect(chat.id)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !isEditing) {
+          e.preventDefault();
+          onSelect(chat.id);
+        } else if (e.key === "Delete" || e.key === "Backspace") {
+          if (!isEditing && e.metaKey) {
+            e.preventDefault();
+            onDelete(chat.id);
+          }
+        }
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => {
         if (!dropdownOpen) setIsHovered(false);
       }}
+      onFocus={() => setIsHovered(true)}
+      onBlur={() => {
+        if (!dropdownOpen) setIsHovered(false);
+      }}
       actions={actions}
       data-testid="chat-item"
+      role="option"
+      aria-selected={isSelected}
+      aria-label={chat.title || t("chat.sidebar.untitledChat")}
     >
       <List.Item.Meta
         title={
@@ -249,7 +254,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               onClick={(e) => e.stopPropagation()}
               onPressEnter={(e) => {
                 e.preventDefault();
-                handleSave(e as any);
+                handleSave(e);
               }}
               autoFocus
               style={editInputStyle}
@@ -286,10 +291,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                 {chat.title}
               </span>
               {chat.kind === "child" ? (
-                <Tag
-                  color="processing"
-                  style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
-                >
+                <Tag color="processing" style={{ marginInlineEnd: 0, flex: "0 0 auto" }}>
                   {t("chat.chatItem.childTag")}
                 </Tag>
               ) : null}
@@ -302,10 +304,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
 };
 
 // Custom comparison function to ensure re-render when title changes
-const arePropsEqual = (
-  prevProps: ChatItemProps,
-  nextProps: ChatItemProps,
-): boolean => {
+const arePropsEqual = (prevProps: ChatItemProps, nextProps: ChatItemProps): boolean => {
   return (
     prevProps.chat.id === nextProps.chat.id &&
     prevProps.chat.title === nextProps.chat.title &&

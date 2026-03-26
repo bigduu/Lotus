@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { useCallback, useEffect, useRef } from "react";
 import { App as AntApp } from "antd";
 import { useTranslation } from "react-i18next";
@@ -7,6 +8,7 @@ import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { useAppStore } from "../../store";
 import { getSystemPromptEnhancementText } from "@shared/utils/systemPromptEnhancement";
+import { isCopilotAskUserEnhancementEnabled } from "@shared/utils/copilotAskUserEnhancementUtils";
 import { useActiveModel } from "../useActiveModel";
 import { useProviderStore } from "../../store/slices/providerSlice";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
@@ -18,10 +20,7 @@ export interface UseMessageStreaming {
     reasoningEffort?: ReasoningEffort,
     selectedSkillIds?: string[],
   ) => Promise<void>;
-  retryLastTurn: (
-    reasoningEffort?: ReasoningEffort,
-    mode?: MessageRetryMode,
-  ) => Promise<void>;
+  retryLastTurn: (reasoningEffort?: ReasoningEffort, mode?: MessageRetryMode) => Promise<void>;
   cancel: () => void;
   agentAvailable: boolean | null;
 }
@@ -38,9 +37,7 @@ interface UseMessageStreamingDeps {
  *
  * Agent-only flow using the local agent endpoints (localhost:9562).
  */
-export function useMessageStreaming(
-  deps: UseMessageStreamingDeps,
-): UseMessageStreaming {
+export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageStreaming {
   const { modal, message: appMessage } = AntApp.useApp();
   const { t } = useTranslation();
   const abortRef = useRef<AbortController | null>(null);
@@ -49,23 +46,15 @@ export function useMessageStreaming(
   const agentClientRef = useRef(new AgentClient());
 
   const agentAvailable = useAppStore((state) => state.agentAvailability);
-  const setAgentAvailability = useAppStore(
-    (state) => state.setAgentAvailability,
-  );
-  const checkAgentAvailability = useAppStore(
-    (state) => state.checkAgentAvailability,
-  );
-  const startAgentHealthCheck = useAppStore(
-    (state) => state.startAgentHealthCheck,
-  );
+  const setAgentAvailability = useAppStore((state) => state.setAgentAvailability);
+  const checkAgentAvailability = useAppStore((state) => state.checkAgentAvailability);
+  const startAgentHealthCheck = useAppStore((state) => state.startAgentHealthCheck);
   const activeModel = useActiveModel();
   const currentProvider = useProviderStore((state) => state.currentProvider);
 
   // Fetch chat internally based on sessionId
   const currentChat = useAppStore((state) =>
-    deps.sessionId
-      ? state.chats.find((chat) => chat.id === deps.sessionId) || null
-      : null,
+    deps.sessionId ? state.chats.find((chat) => chat.id === deps.sessionId) || null : null,
   );
 
   useEffect(() => {
@@ -80,10 +69,7 @@ export function useMessageStreaming(
     const sessionId = currentChat?.id;
     if (sessionId) {
       agentClientRef.current.stopGeneration(sessionId).catch((error) => {
-        console.error(
-          "[useMessageStreaming] Failed to stop generation:",
-          error,
-        );
+        console.error("[useMessageStreaming] Failed to stop generation:", error);
       });
     }
   }, [currentChat?.id]);
@@ -109,8 +95,10 @@ export function useMessageStreaming(
       abortRef.current = controller;
 
       try {
-        const enhancePrompt =
-          getSystemPromptEnhancementText(currentProvider).trim();
+        const enhancePrompt = getSystemPromptEnhancementText(currentProvider).trim();
+        const copilotAskUserEnhancementEnabled =
+          (currentProvider ?? "").trim().toLowerCase() === "copilot" &&
+          isCopilotAskUserEnhancementEnabled();
         // Normalize workspace path: remove trailing slashes, handle cross-platform
         const rawWorkspacePath = currentChat?.config?.workspacePath || "";
         const workspacePath = rawWorkspacePath
@@ -123,11 +111,10 @@ export function useMessageStreaming(
           message: content,
           session_id: sessionId,
           enhance_prompt: enhancePrompt || undefined,
+          copilot_ask_user_enhancement_enabled: copilotAskUserEnhancementEnabled,
           workspace_path: workspacePath || undefined,
           selected_skill_ids:
-            selectedSkillIds && selectedSkillIds.length > 0
-              ? selectedSkillIds
-              : undefined,
+            selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
           images: userMessage.images
             ?.filter((img) => Boolean(img.base64))
             .map((img) => ({
@@ -154,20 +141,16 @@ export function useMessageStreaming(
 
         // Step 3: Trigger execution (idempotent)
         const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(
-              sessionId,
-              activeModel,
-              reasoningEffort,
-            )
+          ? await agentClientRef.current.execute(sessionId, activeModel, reasoningEffort)
           : await agentClientRef.current.execute(sessionId, activeModel);
-        console.log("[Agent] Execute status:", executeResult.status);
+        debugLog("[Streaming]", "[Agent] Execute status:", executeResult.status);
 
         // Keep/adjust processing state based on execute result.
         if (["started", "already_running"].includes(executeResult.status)) {
           // keep true
         } else if (executeResult.status === "completed") {
           // Session already completed, no need to process
-          console.log("[Agent] Session already completed");
+          debugLog("[Streaming]", "[Agent] Session already completed");
           deps.setSessionProcessing(sessionId, false);
         } else {
           // Error or other status
@@ -179,7 +162,7 @@ export function useMessageStreaming(
         throw error; // Re-throw to trigger fallback
       }
     },
-    [deps, activeModel, currentChat, currentProvider],
+    [deps, activeModel, currentChat, currentProvider, t],
   );
 
   const sendMessage = useCallback(
@@ -251,14 +234,8 @@ export function useMessageStreaming(
       await deps.addMessage(sessionId, userMessage);
 
       try {
-        console.log("[useChatStreaming] Using Agent Server");
-        await sendWithAgent(
-          content,
-          sessionId,
-          userMessage,
-          reasoningEffort,
-          selectedSkillIds,
-        );
+        debugLog("[Streaming]", "[useChatStreaming] Using Agent Server");
+        await sendWithAgent(content, sessionId, userMessage, reasoningEffort, selectedSkillIds);
         // Note: Don't set processing false here - let useAgentEventSubscription handle it
       } catch (error) {
         if (streamingMessageIdRef.current) {
@@ -295,14 +272,12 @@ export function useMessageStreaming(
       sendWithAgent,
       setAgentAvailability,
       activeModel,
+      t,
     ],
   );
 
   const retryLastTurn = useCallback(
-    async (
-      reasoningEffort?: ReasoningEffort,
-      mode: MessageRetryMode = "regenerate",
-    ) => {
+    async (reasoningEffort?: ReasoningEffort, mode: MessageRetryMode = "regenerate") => {
       if (!currentChat) {
         modal.info({
           title: t("chat.streaming.noActiveChatTitle"),
@@ -347,21 +322,14 @@ export function useMessageStreaming(
       streamingContentRef.current = "";
 
       try {
-        const truncateMode =
-          mode === "error_retry" ? "error_retry" : "after_last_user";
-        const truncateResult =
-          await agentClientRef.current.truncateSessionMessages(sessionId, {
-            mode: truncateMode,
-          });
+        const truncateMode = mode === "error_retry" ? "error_retry" : "after_last_user";
+        const truncateResult = await agentClientRef.current.truncateSessionMessages(sessionId, {
+          mode: truncateMode,
+        });
 
-        if (
-          mode === "regenerate" ||
-          (truncateResult.messages_removed ?? 0) > 0
-        ) {
+        if (mode === "regenerate" || (truncateResult.messages_removed ?? 0) > 0) {
           // Reconcile UI with persisted history so old assistant/tool tail disappears.
-          await useAppStore
-            .getState()
-            .loadChatHistory(sessionId, { mode: "replace" });
+          await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
         }
 
         // Activate event subscription (handled by useAgentEventSubscription).
@@ -369,11 +337,7 @@ export function useMessageStreaming(
 
         // Re-run execution (idempotent).
         const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(
-              sessionId,
-              activeModel,
-              reasoningEffort,
-            )
+          ? await agentClientRef.current.execute(sessionId, activeModel, reasoningEffort)
           : await agentClientRef.current.execute(sessionId, activeModel);
         if (["started", "already_running"].includes(executeResult.status)) {
           // Keep processing true.
@@ -395,16 +359,7 @@ export function useMessageStreaming(
         abortRef.current = null;
       }
     },
-    [
-      activeModel,
-      agentAvailable,
-      appMessage,
-      checkAgentAvailability,
-      currentChat,
-      deps,
-      modal,
-      t,
-    ],
+    [activeModel, agentAvailable, appMessage, checkAgentAvailability, currentChat, deps, modal, t],
   );
 
   return {

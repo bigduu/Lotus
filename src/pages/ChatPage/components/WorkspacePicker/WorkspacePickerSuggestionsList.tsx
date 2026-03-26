@@ -1,10 +1,7 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Button, Empty, Flex, List, Space, Spin, Typography } from "antd";
-import {
-  FolderOutlined,
-  HistoryOutlined,
-  HomeOutlined,
-} from "@ant-design/icons";
+import { FolderOutlined, HistoryOutlined, HomeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { PathSuggestion } from "../../services/WorkspaceApiService";
 
@@ -15,10 +12,10 @@ interface WorkspacePickerSuggestionsListProps {
   isLoading: boolean;
   suggestions: PathSuggestion[];
   onSelect: (path: string) => void;
-  token: any;
+  token: GlobalToken;
 }
 
-const getSuggestionIcon = (suggestion: PathSuggestion, token: any) => {
+const getSuggestionIcon = (suggestion: PathSuggestion, token: GlobalToken) => {
   switch (suggestion.suggestion_type) {
     case "home":
       return <HomeOutlined style={{ color: token.colorPrimary }} />;
@@ -33,9 +30,13 @@ const getSuggestionIcon = (suggestion: PathSuggestion, token: any) => {
   }
 };
 
-const WorkspacePickerSuggestionsList: React.FC<
-  WorkspacePickerSuggestionsListProps
-> = ({ show, isLoading, suggestions, onSelect, token }) => {
+const WorkspacePickerSuggestionsList: React.FC<WorkspacePickerSuggestionsListProps> = ({
+  show,
+  isLoading,
+  suggestions,
+  onSelect,
+  token,
+}) => {
   const { t } = useTranslation();
   if (!show) return null;
 
@@ -73,11 +74,7 @@ const WorkspacePickerSuggestionsList: React.FC<
                   height: "auto",
                 }}
               >
-                <Flex
-                  justify="space-between"
-                  align="center"
-                  style={{ width: "100%" }}
-                >
+                <Flex justify="space-between" align="center" style={{ width: "100%" }}>
                   <Space>
                     {getSuggestionIcon(suggestion, token)}
                     <Text strong>{suggestion.name}</Text>

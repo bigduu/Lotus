@@ -4,7 +4,9 @@
   box-sizing: border-box;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100vh;
   overflow: hidden;
 }
@@ -125,9 +127,9 @@ html, body, #root {
   margin: 0;
 }
 
-.agent-session-tabs .ant-tabs-tab {
-  border-radius: 999px !important;
-  padding: 6px 14px !important;
+.agent-session-tabs .ant-tabs-tab.ant-tabs-tab {
+  border-radius: 999px;
+  padding: 6px 14px;
   background: var(--ant-color-fill-tertiary);
   border: 1px solid var(--ant-color-border);
   transition: all 0.2s ease;
@@ -159,7 +161,15 @@ html, body, #root {
 }
 
 :root {
-  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   font-size: 16px;
   line-height: 24px;
   font-weight: 400;
@@ -184,7 +194,11 @@ html, body, #root {
   --lotus-danger: #dc2626;
   --lotus-focus-ring: rgba(13, 148, 136, 0.22);
 
-  --lotus-metric-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(245, 253, 250, 0.92) 100%);
+  --lotus-metric-card-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(245, 253, 250, 0.92) 100%
+  );
   --lotus-metric-card-border: rgba(153, 246, 228, 0.95);
   --lotus-metric-text-strong: #134e4a;
   --lotus-metric-text-muted: #64748b;
@@ -212,13 +226,97 @@ html, body, #root {
 
   --lotus-surface-border: rgba(255, 255, 255, 0.72);
   --lotus-surface-bg: rgba(255, 255, 255, 0.72);
-  --lotus-main-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.76) 100%);
-  --lotus-sidebar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.84) 0%, rgba(240, 253, 250, 0.76) 100%);
+  --lotus-main-surface: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.9) 0%,
+    rgba(255, 255, 255, 0.76) 100%
+  );
+  --lotus-sidebar-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(240, 253, 250, 0.76) 100%
+  );
+  --lotus-sidebar-item-hover-bg: rgba(204, 251, 241, 0.92);
+  --lotus-sidebar-item-hover-border: rgba(13, 148, 136, 0.28);
+  --lotus-sidebar-item-active-bg: rgba(204, 251, 241, 0.72);
   --lotus-overlay-bg: rgba(255, 255, 255, 0.82);
   --lotus-code-surface: rgba(245, 253, 250, 0.92);
   --lotus-shadow-shell: 0 24px 60px rgba(15, 118, 110, 0.12), 0 8px 24px rgba(15, 23, 42, 0.08);
   --lotus-shadow-floating: 0 18px 45px rgba(15, 118, 110, 0.14), 0 8px 20px rgba(15, 23, 42, 0.08);
   --lotus-shadow-soft: 0 10px 30px rgba(13, 148, 136, 0.12), 0 4px 12px rgba(15, 23, 42, 0.06);
+
+  /* ── Component surface tokens (light) ──────────────────────────── */
+  --lotus-tool-card-bg: linear-gradient(
+    135deg,
+    rgba(239, 246, 255, 0.96) 0%,
+    rgba(250, 245, 255, 0.96) 100%
+  );
+  --lotus-tool-card-border: rgba(13, 148, 136, 0.16);
+  --lotus-tool-card-shadow: 0 10px 24px rgba(13, 148, 136, 0.08);
+  --lotus-tool-badge-bg: linear-gradient(
+    135deg,
+    rgba(13, 148, 136, 0.14) 0%,
+    rgba(5, 150, 105, 0.12) 100%
+  );
+  --lotus-tool-badge-border: 1px solid rgba(13, 148, 136, 0.12);
+  --lotus-tool-badge-shadow: 0 8px 18px rgba(13, 148, 136, 0.12);
+  --lotus-send-btn-shadow: 0 10px 24px rgba(13, 148, 136, 0.28);
+  --lotus-card-hover-shadow: 0 12px 28px rgba(13, 148, 136, 0.14);
+  --lotus-card-hover-border: rgba(13, 148, 136, 0.32);
+  --lotus-purple-shadow: 0 4px 12px rgba(139, 92, 246, 0.14);
+  --lotus-item-hover-bg: rgba(204, 251, 241, 0.72);
+  --lotus-item-active-bg: rgba(204, 251, 241, 0.55);
+  --lotus-message-user-bg: linear-gradient(
+    135deg,
+    rgba(13, 148, 136, 0.1) 0%,
+    rgba(5, 150, 105, 0.08) 100%
+  );
+  --lotus-message-user-border: rgba(13, 148, 136, 0.18);
+  --lotus-divider-color: rgba(13, 148, 136, 0.12);
+
+  /* ── Avatar tokens (light) ──────────────────────────────────── */
+  --lotus-avatar-user-bg: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
+  --lotus-avatar-assistant-bg: linear-gradient(135deg, #059669 0%, #06b6d4 100%);
+  --lotus-avatar-system-bg: linear-gradient(
+    135deg,
+    rgba(148, 163, 184, 0.9) 0%,
+    rgba(100, 116, 139, 0.92) 100%
+  );
+  --lotus-avatar-user-shadow: 0 6px 16px rgba(13, 148, 136, 0.28);
+  --lotus-avatar-assistant-shadow: 0 6px 16px rgba(13, 148, 136, 0.22);
+  --lotus-avatar-system-shadow: 0 4px 12px rgba(100, 116, 139, 0.18);
+  --lotus-avatar-border: 1px solid rgba(255, 255, 255, 0.18);
+  --lotus-glass-border-subtle: rgba(255, 255, 255, 0.18);
+
+  /* ── Timestamp tokens (light) ────────────────────────────────── */
+  --lotus-timestamp-bg: rgba(224, 231, 255, 0.9);
+  --lotus-timestamp-border: rgba(148, 163, 184, 0.22);
+  --lotus-code-copy-btn-bg: rgba(0, 0, 0, 0.6);
+  --lotus-code-copy-btn-color: white;
+
+  /* ── Message card tokens (light) ────────────────────────────── */
+  --lotus-message-assistant-bg: transparent;
+  --lotus-message-assistant-border: transparent;
+  --lotus-message-streaming-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.88) 0%,
+    rgba(248, 250, 255, 0.82) 100%
+  );
+
+  /* ── Input shell tokens (light) ─────────────────────────────── */
+  --lotus-input-border: rgba(255, 255, 255, 0.88);
+  --lotus-input-border-active: rgba(13, 148, 136, 0.42);
+  --lotus-input-bg: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(248, 250, 255, 0.88) 100%
+  );
+  --lotus-input-bg-active: linear-gradient(
+    180deg,
+    rgba(220, 252, 246, 0.96) 0%,
+    rgba(204, 251, 241, 0.92) 100%
+  );
+  --lotus-input-shadow: 0 20px 40px rgba(13, 148, 136, 0.12), 0 8px 18px rgba(15, 23, 42, 0.06);
 
   color: #0f172a;
   background-color: #f0fdfa;
@@ -276,15 +374,59 @@ body[data-theme="dark"] {
 
   --lotus-surface-border: rgba(255, 255, 255, 0.12);
   --lotus-surface-bg: rgba(10, 20, 16, 0.84);
-  --lotus-main-surface: linear-gradient(180deg, rgba(12, 24, 20, 0.96) 0%, rgba(9, 18, 15, 0.92) 100%);
-  --lotus-sidebar-bg: linear-gradient(180deg, rgba(10, 20, 17, 0.96) 0%, rgba(8, 16, 13, 0.92) 100%);
+  --lotus-main-surface: linear-gradient(
+    180deg,
+    rgba(12, 24, 20, 0.96) 0%,
+    rgba(9, 18, 15, 0.92) 100%
+  );
+  --lotus-sidebar-bg: linear-gradient(
+    180deg,
+    rgba(10, 20, 17, 0.96) 0%,
+    rgba(8, 16, 13, 0.92) 100%
+  );
+  --lotus-sidebar-item-hover-bg: rgba(30, 41, 59, 0.88);
+  --lotus-sidebar-item-hover-border: rgba(13, 148, 136, 0.28);
+  --lotus-sidebar-item-active-bg: rgba(30, 41, 59, 0.6);
   --lotus-overlay-bg: rgba(14, 24, 20, 0.96);
   --lotus-code-surface: rgba(2, 6, 23, 0.88);
   --lotus-shadow-shell: 0 28px 72px rgba(2, 6, 23, 0.5), 0 10px 24px rgba(15, 23, 42, 0.34);
   --lotus-shadow-floating: 0 24px 60px rgba(2, 6, 23, 0.52), 0 8px 22px rgba(15, 23, 42, 0.34);
   --lotus-shadow-soft: 0 14px 36px rgba(30, 41, 59, 0.36), 0 4px 14px rgba(2, 6, 23, 0.22);
 
-  --lotus-metric-card-bg: linear-gradient(180deg, rgba(12, 24, 20, 0.94) 0%, rgba(9, 18, 15, 0.92) 100%);
+  /* ── Component surface tokens (dark) ───────────────────────────── */
+  --lotus-tool-card-bg: linear-gradient(
+    135deg,
+    rgba(13, 148, 136, 0.08) 0%,
+    rgba(5, 150, 105, 0.06) 100%
+  );
+  --lotus-tool-card-border: rgba(13, 148, 136, 0.22);
+  --lotus-tool-card-shadow: 0 10px 24px rgba(2, 6, 23, 0.18);
+  --lotus-tool-badge-bg: linear-gradient(
+    135deg,
+    rgba(13, 148, 136, 0.22) 0%,
+    rgba(5, 150, 105, 0.2) 100%
+  );
+  --lotus-tool-badge-border: 1px solid rgba(255, 255, 255, 0.08);
+  --lotus-tool-badge-shadow: 0 8px 18px rgba(2, 6, 23, 0.22);
+  --lotus-send-btn-shadow: 0 10px 24px rgba(13, 148, 136, 0.35);
+  --lotus-card-hover-shadow: 0 14px 28px rgba(2, 6, 23, 0.26);
+  --lotus-card-hover-border: rgba(45, 212, 191, 0.2);
+  --lotus-purple-shadow: 0 4px 12px rgba(139, 92, 246, 0.22);
+  --lotus-item-hover-bg: rgba(30, 41, 59, 0.68);
+  --lotus-item-active-bg: rgba(30, 41, 59, 0.48);
+  --lotus-message-user-bg: linear-gradient(
+    135deg,
+    rgba(13, 148, 136, 0.12) 0%,
+    rgba(5, 150, 105, 0.1) 100%
+  );
+  --lotus-message-user-border: rgba(13, 148, 136, 0.22);
+  --lotus-divider-color: rgba(45, 212, 191, 0.12);
+
+  --lotus-metric-card-bg: linear-gradient(
+    180deg,
+    rgba(12, 24, 20, 0.94) 0%,
+    rgba(9, 18, 15, 0.92) 100%
+  );
   --lotus-metric-card-border: rgba(71, 85, 105, 0.72);
   --lotus-metric-text-strong: #f8fafc;
   --lotus-metric-text-muted: #94a3b8;
@@ -302,6 +444,45 @@ body[data-theme="dark"] {
   --lotus-heat-2: #0d9488;
   --lotus-heat-3: #059669;
   --lotus-heat-4: #2dd4bf;
+
+  /* ── Avatar tokens (dark) ──────────────────────────────────── */
+  --lotus-avatar-user-bg: linear-gradient(135deg, #0f766e 0%, #0e7490 100%);
+  --lotus-avatar-assistant-bg: linear-gradient(135deg, #047857 0%, #0891b2 100%);
+  --lotus-avatar-system-bg: linear-gradient(
+    135deg,
+    rgba(100, 116, 139, 0.9) 0%,
+    rgba(71, 85, 105, 0.92) 100%
+  );
+  --lotus-avatar-user-shadow: 0 6px 16px rgba(13, 148, 136, 0.32);
+  --lotus-avatar-assistant-shadow: 0 6px 16px rgba(13, 148, 136, 0.26);
+  --lotus-avatar-system-shadow: 0 4px 12px rgba(100, 116, 139, 0.22);
+  --lotus-avatar-border: 1px solid rgba(255, 255, 255, 0.12);
+  --lotus-glass-border-subtle: rgba(255, 255, 255, 0.12);
+
+  /* ── Timestamp tokens (dark) ─────────────────────────────────── */
+  --lotus-timestamp-bg: rgba(30, 41, 59, 0.92);
+  --lotus-timestamp-border: rgba(148, 163, 184, 0.18);
+  --lotus-code-copy-btn-bg: rgba(0, 0, 0, 0.6);
+  --lotus-code-copy-btn-color: rgba(255, 255, 255, 0.9);
+
+  --lotus-message-assistant-bg: transparent;
+  --lotus-message-assistant-border: transparent;
+  --lotus-message-streaming-bg: linear-gradient(
+    180deg,
+    rgba(15, 23, 42, 0.8) 0%,
+    rgba(11, 16, 28, 0.72) 100%
+  );
+
+  /* ── Input shell tokens (dark) ──────────────────────────────── */
+  --lotus-input-border: rgba(255, 255, 255, 0.14);
+  --lotus-input-border-active: rgba(13, 148, 136, 0.42);
+  --lotus-input-bg: linear-gradient(180deg, rgba(15, 23, 42, 0.84) 0%, rgba(11, 16, 28, 0.76) 100%);
+  --lotus-input-bg-active: linear-gradient(
+    180deg,
+    rgba(30, 41, 59, 0.92) 0%,
+    rgba(15, 23, 42, 0.84) 100%
+  );
+  --lotus-input-shadow: 0 22px 44px rgba(2, 6, 23, 0.32), 0 8px 20px rgba(15, 23, 42, 0.22);
 }
 
 body[data-theme="dark"]::before {
@@ -326,45 +507,45 @@ body[data-theme="dark"] .ant-tag-geekblue {
   border-color: rgba(255, 255, 255, 0.24);
 }
 
-/* ── Global Ant Design table header overrides ─────────────────────── */
-body[data-theme="light"] .ant-table-thead > tr > th,
-body[data-theme="light"] .ant-table-thead > tr > td {
-  background: rgba(240, 253, 250, 0.85) !important;
-  color: #334155 !important;
-  border-bottom-color: rgba(13, 148, 136, 0.15) !important;
+/* ── Global Ant Design table header overrides (doubled selectors) ── */
+body[data-theme="light"] .ant-table-thead.ant-table-thead > tr > th,
+body[data-theme="light"] .ant-table-thead.ant-table-thead > tr > td {
+  background: rgba(240, 253, 250, 0.85);
+  color: #334155;
+  border-bottom-color: var(--lotus-divider-color);
 }
 
-body[data-theme="light"] .ant-table-tbody > tr > td {
-  color: #1e293b !important;
-  border-bottom-color: rgba(13, 148, 136, 0.08) !important;
+body[data-theme="light"] .ant-table-tbody > tr > td.ant-table-cell {
+  color: #1e293b;
+  border-bottom-color: rgba(13, 148, 136, 0.08);
 }
 
-body[data-theme="light"] .ant-table-tbody > tr:hover > td {
-  background: rgba(240, 253, 250, 0.6) !important;
+body[data-theme="light"] .ant-table-tbody > tr:hover > td.ant-table-cell {
+  background: rgba(240, 253, 250, 0.6);
 }
 
-body[data-theme="dark"] .ant-table-thead > tr > th,
-body[data-theme="dark"] .ant-table-thead > tr > td {
-  background: rgba(13, 148, 136, 0.10) !important;
-  color: #e2e8f0 !important;
-  border-bottom-color: rgba(148, 163, 184, 0.22) !important;
+body[data-theme="dark"] .ant-table-thead.ant-table-thead > tr > th,
+body[data-theme="dark"] .ant-table-thead.ant-table-thead > tr > td {
+  background: rgba(13, 148, 136, 0.1);
+  color: #e2e8f0;
+  border-bottom-color: rgba(148, 163, 184, 0.22);
 }
 
-body[data-theme="dark"] .ant-table-tbody > tr > td {
-  border-bottom-color: rgba(148, 163, 184, 0.12) !important;
+body[data-theme="dark"] .ant-table-tbody > tr > td.ant-table-cell {
+  border-bottom-color: rgba(148, 163, 184, 0.12);
 }
 
-body[data-theme="dark"] .ant-table-tbody > tr:hover > td {
-  background: rgba(13, 148, 136, 0.08) !important;
+body[data-theme="dark"] .ant-table-tbody > tr:hover > td.ant-table-cell {
+  background: rgba(13, 148, 136, 0.08);
 }
 
-/* Keep switch active state blue while the rest of the theme stays neutral gray. */
-.ant-switch.ant-switch-checked {
-  background-color: #0d9488 !important;
+/* Keep switch active state — doubled for specificity */
+.ant-switch.ant-switch.ant-switch-checked {
+  background-color: var(--lotus-primary);
 }
 
-.ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) {
-  background-color: #14b8a6 !important;
+.ant-switch.ant-switch.ant-switch-checked:hover:not(.ant-switch-disabled) {
+  background-color: #14b8a6;
 }
 
 #root {
@@ -437,8 +618,8 @@ body[data-theme="dark"] .lotus-shell-panel::before {
   background: var(--lotus-main-surface);
 }
 
-.lotus-toolbar-icon.ant-btn {
-  border-radius: 12px !important;
+.lotus-toolbar-icon.lotus-toolbar-icon.ant-btn {
+  border-radius: 12px;
   width: 34px;
   height: 34px;
   color: var(--ant-color-text-secondary);
@@ -447,34 +628,34 @@ body[data-theme="dark"] .lotus-shell-panel::before {
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
 }
 
-body[data-theme="dark"] .lotus-toolbar-icon.ant-btn {
+body[data-theme="dark"] .lotus-toolbar-icon.lotus-toolbar-icon.ant-btn {
   background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.08);
   box-shadow: none;
 }
 
-.lotus-toolbar-icon.ant-btn:hover,
-.lotus-toolbar-icon.ant-btn:focus {
-  color: var(--lotus-primary) !important;
-  background: rgba(13, 148, 136, 0.1) !important;
-  border-color: rgba(13, 148, 136, 0.18) !important;
+.lotus-toolbar-icon.lotus-toolbar-icon.ant-btn:hover,
+.lotus-toolbar-icon.lotus-toolbar-icon.ant-btn:focus {
+  color: var(--lotus-primary);
+  background: rgba(13, 148, 136, 0.1);
+  border-color: var(--lotus-message-user-border);
 }
 
-body[data-theme="dark"] .lotus-toolbar-icon.ant-btn:hover,
-body[data-theme="dark"] .lotus-toolbar-icon.ant-btn:focus {
-  background: rgba(13, 148, 136, 0.14) !important;
-  border-color: rgba(13, 148, 136, 0.2) !important;
+body[data-theme="dark"] .lotus-toolbar-icon.lotus-toolbar-icon.ant-btn:hover,
+body[data-theme="dark"] .lotus-toolbar-icon.lotus-toolbar-icon.ant-btn:focus {
+  background: rgba(13, 148, 136, 0.14);
+  border-color: rgba(13, 148, 136, 0.2);
 }
 
-.lotus-primary-cta.ant-btn {
-  background: linear-gradient(135deg, #0d9488 0%, #0891b2 100%) !important;
-  border: none !important;
-  box-shadow: 0 10px 24px rgba(13, 148, 136, 0.28);
+.lotus-primary-cta.lotus-primary-cta.ant-btn {
+  background: linear-gradient(135deg, var(--lotus-primary) 0%, var(--lotus-accent-secondary) 100%);
+  border: none;
+  box-shadow: var(--lotus-send-btn-shadow);
 }
 
-.lotus-primary-cta.ant-btn:hover,
-.lotus-primary-cta.ant-btn:focus {
-  box-shadow: 0 14px 30px rgba(13, 148, 136, 0.36) !important;
+.lotus-primary-cta.lotus-primary-cta.ant-btn:hover,
+.lotus-primary-cta.lotus-primary-cta.ant-btn:focus {
+  box-shadow: 0 14px 30px rgba(13, 148, 136, 0.36);
 }
 
 .lotus-secondary-button.ant-btn {
@@ -493,18 +674,18 @@ body[data-theme="dark"] .lotus-secondary-button.ant-btn {
 
 .lotus-secondary-button.ant-btn:hover,
 .lotus-secondary-button.ant-btn:focus {
-  border-color: rgba(13, 148, 136, 0.22) !important;
-  color: var(--lotus-primary) !important;
-  background: rgba(13, 148, 136, 0.08) !important;
+  border-color: var(--lotus-tool-card-border);
+  color: var(--lotus-primary);
+  background: rgba(13, 148, 136, 0.08);
 }
 
-body[data-theme="dark"] .lotus-secondary-button.ant-btn:hover,
-body[data-theme="dark"] .lotus-secondary-button.ant-btn:focus {
-  background: rgba(13, 148, 136, 0.12) !important;
+body[data-theme="dark"] .lotus-secondary-button.lotus-secondary-button.ant-btn:hover,
+body[data-theme="dark"] .lotus-secondary-button.lotus-secondary-button.ant-btn:focus {
+  background: rgba(13, 148, 136, 0.12);
 }
 
-.lotus-floating-sidebar-toggle.ant-btn {
-  border-radius: 12px !important;
+.lotus-floating-sidebar-toggle.lotus-floating-sidebar-toggle.ant-btn {
+  border-radius: 12px;
   backdrop-filter: blur(var(--lotus-blur-sm));
   -webkit-backdrop-filter: blur(var(--lotus-blur-sm));
 }
@@ -527,41 +708,41 @@ body[data-theme="dark"] .lotus-message-input-shell::before {
   opacity: 1;
 }
 
-.lotus-message-input-shell:focus-within {
-  border-color: rgba(13, 148, 136, 0.35) !important;
-  box-shadow: 0 18px 40px rgba(13, 148, 136, 0.18) !important;
+.lotus-message-input-shell.lotus-message-input-shell:focus-within {
+  border-color: rgba(13, 148, 136, 0.35);
+  box-shadow: 0 18px 40px rgba(13, 148, 136, 0.18);
   transform: translateY(-1px);
 }
 
-.lotus-message-input-shell.is-drag-over {
-  border-color: rgba(13, 148, 136, 0.42) !important;
-  box-shadow: 0 20px 40px rgba(13, 148, 136, 0.22) !important;
+.lotus-message-input-shell.lotus-message-input-shell.is-drag-over {
+  border-color: rgba(13, 148, 136, 0.42);
+  box-shadow: 0 20px 40px rgba(13, 148, 136, 0.22);
 }
 
-.lotus-message-input-field.ant-input {
-  font-size: 15px !important;
-  line-height: 1.65 !important;
+.lotus-message-input-field.lotus-message-input-field.ant-input {
+  font-size: 15px;
+  line-height: 1.65;
 }
 
 .lotus-message-input-field.ant-input::placeholder {
   color: var(--ant-color-text-tertiary);
 }
 
-.lotus-code-surface {
-  background: var(--lotus-code-surface) !important;
+.lotus-code-surface.lotus-code-surface {
+  background: var(--lotus-code-surface);
   border: 1px solid rgba(13, 148, 136, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
 }
 
-body[data-theme="dark"] .lotus-code-surface {
-  background: rgba(2, 6, 23, 0.88) !important;
+body[data-theme="dark"] .lotus-code-surface.lotus-code-surface {
+  background: rgba(2, 6, 23, 0.88);
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
-.lotus-metric-card.ant-card {
-  background: var(--lotus-metric-card-bg) !important;
-  border: 1px solid var(--lotus-metric-card-border) !important;
+.lotus-metric-card.lotus-metric-card.ant-card {
+  background: var(--lotus-metric-card-bg);
+  border: 1px solid var(--lotus-metric-card-border);
   box-shadow: var(--lotus-shadow-soft);
   overflow: hidden;
   transition:
@@ -579,70 +760,70 @@ body[data-theme="dark"] .lotus-metric-card.ant-card:hover {
   box-shadow: 0 6px 20px rgba(2, 6, 23, 0.28);
 }
 
-.lotus-metric-card .ant-card-head {
-  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 80%, transparent) !important;
+.lotus-metric-card.lotus-metric-card .ant-card-head {
+  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 80%, transparent);
 }
 
-.lotus-metric-card .ant-card-head-title,
-.lotus-metric-card .ant-statistic-content,
-.lotus-metric-card .ant-statistic-content-value,
-.lotus-metric-card .ant-typography {
+.lotus-metric-card.lotus-metric-card .ant-card-head-title,
+.lotus-metric-card.lotus-metric-card .ant-statistic-content,
+.lotus-metric-card.lotus-metric-card .ant-statistic-content-value,
+.lotus-metric-card.lotus-metric-card .ant-typography {
   color: var(--lotus-metric-text-strong);
 }
 
-.lotus-metric-card .ant-statistic-title,
-.lotus-metric-card .ant-typography.ant-typography-secondary,
-.lotus-metric-card .ant-card-extra,
-.lotus-metric-card .ant-descriptions-item-label {
-  color: var(--lotus-metric-text-muted) !important;
+.lotus-metric-card.lotus-metric-card .ant-statistic-title,
+.lotus-metric-card.lotus-metric-card .ant-typography.ant-typography-secondary,
+.lotus-metric-card.lotus-metric-card .ant-card-extra,
+.lotus-metric-card.lotus-metric-card .ant-descriptions-item-label {
+  color: var(--lotus-metric-text-muted);
 }
 
-.lotus-metric-card .ant-table {
+.lotus-metric-card.lotus-metric-card .ant-table {
   background: transparent;
   color: var(--lotus-metric-text-strong);
 }
 
-.lotus-metric-card .ant-table-thead > tr > th {
-  background: transparent !important;
-  color: var(--lotus-metric-text-muted) !important;
-  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 70%, transparent) !important;
+.lotus-metric-card.lotus-metric-card .ant-table-thead > tr > th {
+  background: transparent;
+  color: var(--lotus-metric-text-muted);
+  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 70%, transparent);
 }
 
-.lotus-metric-card .ant-table-tbody > tr > td {
-  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 60%, transparent) !important;
-  background: transparent !important;
+.lotus-metric-card.lotus-metric-card .ant-table-tbody > tr > td {
+  border-bottom-color: color-mix(in srgb, var(--lotus-metric-card-border) 60%, transparent);
+  background: transparent;
 }
 
-.lotus-metric-card .ant-table-tbody > tr:hover > td {
-  background: color-mix(in srgb, var(--lotus-chart-primary) 12%, transparent) !important;
+.lotus-metric-card.lotus-metric-card .ant-table-tbody > tr:hover > td {
+  background: color-mix(in srgb, var(--lotus-chart-primary) 12%, transparent);
 }
 
-.lotus-metric-card .recharts-cartesian-grid line,
-.lotus-metric-card .recharts-cartesian-grid path,
-.lotus-metric-card .recharts-polar-grid line,
-.lotus-metric-card .recharts-reference-line line {
-  stroke: var(--lotus-metric-grid) !important;
+.lotus-metric-card.lotus-metric-card .recharts-cartesian-grid line,
+.lotus-metric-card.lotus-metric-card .recharts-cartesian-grid path,
+.lotus-metric-card.lotus-metric-card .recharts-polar-grid line,
+.lotus-metric-card.lotus-metric-card .recharts-reference-line line {
+  stroke: var(--lotus-metric-grid);
 }
 
-.lotus-metric-card .recharts-text,
-.lotus-metric-card .recharts-legend-item-text {
-  fill: var(--lotus-metric-text-muted) !important;
+.lotus-metric-card.lotus-metric-card .recharts-text,
+.lotus-metric-card.lotus-metric-card .recharts-legend-item-text {
+  fill: var(--lotus-metric-text-muted);
 }
 
-.recharts-default-tooltip {
-  background: var(--lotus-metric-tooltip-bg) !important;
-  border: 1px solid var(--lotus-metric-tooltip-border) !important;
-  border-radius: 12px !important;
-  box-shadow: var(--lotus-shadow-soft) !important;
+.recharts-default-tooltip.recharts-default-tooltip {
+  background: var(--lotus-metric-tooltip-bg);
+  border: 1px solid var(--lotus-metric-tooltip-border);
+  border-radius: 12px;
+  box-shadow: var(--lotus-shadow-soft);
 }
 
-.recharts-tooltip-label,
-.recharts-tooltip-item {
-  color: var(--lotus-metric-text-strong) !important;
+.recharts-tooltip-label.recharts-tooltip-label,
+.recharts-tooltip-item.recharts-tooltip-item {
+  color: var(--lotus-metric-text-strong);
 }
 
-.token-usage-display .ant-progress-inner {
-  background: color-mix(in srgb, var(--lotus-chart-primary) 14%, transparent) !important;
+.token-usage-display .ant-progress-inner.ant-progress-inner {
+  background: color-mix(in srgb, var(--lotus-chart-primary) 14%, transparent);
 }
 
 .token-usage-display,
@@ -650,9 +831,9 @@ body[data-theme="dark"] .lotus-metric-card.ant-card:hover {
   color: var(--lotus-metric-text-strong);
 }
 
-.lotus-settings-card.ant-card {
-  background: var(--lotus-main-surface) !important;
-  border: 1px solid var(--lotus-surface-border) !important;
+.lotus-settings-card.lotus-settings-card.ant-card {
+  background: var(--lotus-main-surface);
+  border: 1px solid var(--lotus-surface-border);
   box-shadow: var(--lotus-shadow-soft);
   overflow: hidden;
   transition:
@@ -661,18 +842,18 @@ body[data-theme="dark"] .lotus-metric-card.ant-card:hover {
     transform 0.18s ease;
 }
 
-.lotus-settings-card.ant-card:hover {
-  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.10);
-  border-color: rgba(13, 148, 136, 0.25) !important;
+.lotus-settings-card.lotus-settings-card.ant-card:hover {
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.1);
+  border-color: var(--lotus-tool-card-border);
 }
 
-body[data-theme="dark"] .lotus-settings-card.ant-card:hover {
+body[data-theme="dark"] .lotus-settings-card.lotus-settings-card.ant-card:hover {
   box-shadow: 0 4px 16px rgba(2, 6, 23, 0.22);
-  border-color: rgba(45, 212, 191, 0.20) !important;
+  border-color: var(--lotus-card-hover-border);
 }
 
-.lotus-settings-card .ant-card-head {
-  border-bottom-color: color-mix(in srgb, var(--lotus-surface-border) 75%, transparent) !important;
+.lotus-settings-card.lotus-settings-card .ant-card-head {
+  border-bottom-color: color-mix(in srgb, var(--lotus-surface-border) 75%, transparent);
 }
 
 .lotus-settings-card .ant-card-head-title,
@@ -688,10 +869,10 @@ body[data-theme="dark"] .lotus-settings-card.ant-card:hover {
 }
 
 .lotus-settings-card .ant-typography.ant-typography-secondary,
-.lotus-settings-card .ant-card-extra,
-.lotus-settings-card .ant-form-item-explain,
-.lotus-settings-card .ant-list-item-meta-description {
-  color: var(--ant-color-text-secondary) !important;
+.lotus-settings-card.lotus-settings-card .ant-card-extra,
+.lotus-settings-card.lotus-settings-card .ant-form-item-explain,
+.lotus-settings-card.lotus-settings-card .ant-list-item-meta-description {
+  color: var(--ant-color-text-secondary);
 }
 
 .lotus-settings-surface {
@@ -714,11 +895,11 @@ body[data-theme="dark"] .lotus-settings-card.ant-card:hover {
 }
 
 .ant-dropdown .ant-dropdown-menu,
-.ant-select-dropdown,
-.ant-popover .ant-popover-inner,
-.ant-modal .ant-modal-content {
-  background: var(--lotus-overlay-bg) !important;
-  border: 1px solid var(--lotus-surface-border) !important;
+.ant-select-dropdown.ant-select-dropdown,
+.ant-popover .ant-popover-inner.ant-popover-inner,
+.ant-modal .ant-modal-content.ant-modal-content {
+  background: var(--lotus-overlay-bg);
+  border: 1px solid var(--lotus-surface-border);
   backdrop-filter: blur(var(--lotus-blur-lg));
   -webkit-backdrop-filter: blur(var(--lotus-blur-lg));
   box-shadow: var(--lotus-shadow-floating);
@@ -748,6 +929,14 @@ body[data-theme="dark"] .lotus-settings-card.ant-card:hover {
 
 /* Suppress inner focus ring when the input lives inside the shell —
    the shell already shows its own elevated shadow on :focus-within. */
+/* Focus rings for sidebar and list items */
+[data-testid="chat-item"]:focus-visible,
+.chat-sidebar-date-group-header:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--lotus-focus-ring) !important;
+  border-radius: 8px;
+}
+
 .lotus-message-input-shell .ant-input:focus-visible,
 .lotus-message-input-shell .ant-input:focus,
 .lotus-message-input-shell .ant-input-focused,
@@ -777,3 +966,75 @@ body[data-theme="dark"] .lotus-settings-card.ant-card:hover {
   }
 }
 
+/* ── Page transition animations (Settings ↔ Chat) ────────────────── */
+
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pageExit {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.lotus-page-enter {
+  animation: pageEnter 0.22s ease-out both;
+}
+
+.lotus-page-exit {
+  animation: pageExit 0.15s ease-in both;
+}
+
+/* ── List item exit animation (delete) ───────────────────────────── */
+
+@keyframes listItemExit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+    max-height: 200px;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-16px);
+    max-height: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+}
+
+.lotus-list-item-exit {
+  animation: listItemExit 0.25s ease-in both;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lotus-page-enter,
+  .lotus-page-exit,
+  .lotus-list-item-exit {
+    animation: none !important;
+  }
+
+  /* Globally reduce motion for all transitions & animations */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

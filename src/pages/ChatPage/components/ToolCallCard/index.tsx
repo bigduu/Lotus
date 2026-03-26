@@ -1,5 +1,4 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
-import { useThemeStore } from "@shared/store/themeStore";
 import { Collapse, Space, Button, Typography, theme, Tooltip, Tag } from "antd";
 import { ToolOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -13,7 +12,7 @@ const { Text } = Typography;
 
 export interface ToolCallCardProps {
   toolName: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   toolCallId: string;
   streamingOutput?: string;
   defaultExpanded?: boolean;
@@ -22,10 +21,7 @@ export interface ToolCallCardProps {
 /**
  * Generate a human-readable intent description from tool name and parameters
  */
-function generateIntentDescription(
-  toolName: string,
-  params: Record<string, any>,
-): string {
+function generateIntentDescription(toolName: string, params: Record<string, unknown>): string {
   const mcpParts = parseMcpToolAlias(toolName);
   if (mcpParts) {
     return `MCP ${mcpParts.serverId}: ${mcpParts.toolName}`;
@@ -38,15 +34,14 @@ function generateIntentDescription(
   };
 
   const nameMap: Record<string, (p: typeof params) => string> = {
-    file_read: (p) =>
-      `Reading: ${truncate(p.path || p.file_path || "unknown", 40)}`,
-    file_write: (p) =>
-      `Writing to: ${truncate(p.path || p.file_path || "unknown", 35)}`,
-    file_edit: (p) =>
-      `Editing: ${truncate(p.path || p.file_path || "unknown", 40)}`,
+    file_read: (p) => `Reading: ${truncate(p.path || p.file_path || "unknown", 40)}`,
+    file_write: (p) => `Writing to: ${truncate(p.path || p.file_path || "unknown", 35)}`,
+    file_edit: (p) => `Editing: ${truncate(p.path || p.file_path || "unknown", 40)}`,
     bash: (p) => `Executing: ${truncate(p.command, 40)}`,
     grep: (p) => `Searching: "${truncate(p.pattern, 30)}"`,
     glob: (p) => `Finding files: "${p.pattern}"`,
+    mermaid: (p) => `Rendering diagram: ${truncate(p.title || "Mermaid", 35)}`,
+    conclusion: (p) => `Presenting conclusion: "${truncate(p.conclusion || p.title || "", 30)}"`,
     read: (p) => `Reading: ${p.file_path || "file"}`,
     write: (p) => `Writing: ${p.file_path || "file"}`,
     edit: (p) => `Editing: ${p.file_path || "file"}`,
@@ -67,12 +62,9 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
-  const isDark = useThemeStore((s) => s.themeMode) === "dark";
   const mcpParts = useMemo(() => parseMcpToolAlias(toolName), [toolName]);
 
-  const [activeKeys, setActiveKeys] = useState<string[]>(
-    defaultExpanded ? [toolCallId] : [],
-  );
+  const [activeKeys, setActiveKeys] = useState<string[]>(defaultExpanded ? [toolCallId] : []);
   const autoExpandedOnceRef = useRef(false);
   const liveOutputScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -99,10 +91,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
     [toolName, parameters],
   );
 
-  const formattedJson = useMemo(
-    () => safeStringify(parameters, 2),
-    [parameters],
-  );
+  const formattedJson = useMemo(() => safeStringify(parameters, 2), [parameters]);
 
   const handleCopy = async () => {
     try {
@@ -114,14 +103,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
 
   // Get first 2-3 key params for bullet list in expanded view
   const keyParamsList = useMemo(() => {
-    const priorityKeys = [
-      "path",
-      "file_path",
-      "command",
-      "pattern",
-      "query",
-      "limit",
-    ];
+    const priorityKeys = ["path", "file_path", "command", "pattern", "query", "limit"];
     const entries = Object.entries(parameters);
     const sortedEntries = entries.sort((a, b) => {
       const aIndex = priorityKeys.indexOf(a[0]);
@@ -149,14 +131,12 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
         }
       }}
       style={{
-        background: isDark
-          ? "linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(5, 150, 105, 0.06) 100%)"
-          : "linear-gradient(135deg, rgba(239, 246, 255, 0.96) 0%, rgba(250, 245, 255, 0.96) 100%)",
-        borderColor: isDark ? "rgba(13, 148, 136, 0.22)" : "rgba(13, 148, 136, 0.16)",
+        background: "var(--lotus-tool-card-bg)",
+        borderColor: "var(--lotus-tool-card-border)",
         borderWidth: 1,
         borderStyle: "solid",
         borderRadius: token.borderRadiusLG,
-        boxShadow: isDark ? "0 10px 24px rgba(2, 6, 23, 0.18)" : "0 10px 24px rgba(13, 148, 136, 0.08)",
+        boxShadow: "var(--lotus-tool-card-shadow)",
         transition: "all 0.3s ease",
         overflow: "hidden",
       }}
@@ -182,20 +162,12 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
-                  background: isDark
-                    ? "linear-gradient(135deg, rgba(13, 148, 136, 0.22) 0%, rgba(5, 150, 105, 0.2) 100%)"
-                    : "linear-gradient(135deg, rgba(13, 148, 136, 0.14) 0%, rgba(5, 150, 105, 0.12) 100%)",
-                  border: isDark
-                    ? "1px solid rgba(255,255,255,0.08)"
-                    : "1px solid rgba(13,148,136,0.12)",
-                  boxShadow: isDark
-                    ? "none"
-                    : "0 8px 18px rgba(13, 148, 136, 0.12)",
+                  background: "var(--lotus-tool-badge-bg)",
+                  border: "var(--lotus-tool-badge-border)",
+                  boxShadow: "var(--lotus-tool-badge-shadow)",
                 }}
               >
-                <ToolOutlined
-                  style={{ color: token.colorPrimary, flexShrink: 0 }}
-                />
+                <ToolOutlined style={{ color: token.colorPrimary, flexShrink: 0 }} />
               </div>
               {mcpParts ? (
                 <Space size="small" wrap={false}>
@@ -206,9 +178,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                       borderRadius: 999,
                       paddingInline: 8,
                       fontWeight: 700,
-                      boxShadow: isDark
-                        ? "none"
-                        : "0 4px 12px rgba(139, 92, 246, 0.14)",
+                      boxShadow: "var(--lotus-purple-shadow)",
                     }}
                   >
                     MCP
@@ -237,11 +207,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
             </div>
           ),
           children: (
-            <Space
-              direction="vertical"
-              style={{ width: "100%" }}
-              size={token.marginSM}
-            >
+            <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
               {/* Live Output Section (optional) */}
               {streamingOutput && streamingOutput.trim().length > 0 && (
                 <div>
@@ -307,10 +273,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                           {key}
                         </Text>
                         <Text style={{ fontSize: token.fontSizeSM }}>
-                          :{" "}
-                          {typeof value === "string"
-                            ? value
-                            : JSON.stringify(value)}
+                          : {typeof value === "string" ? value : JSON.stringify(value)}
                         </Text>
                       </li>
                     ))}

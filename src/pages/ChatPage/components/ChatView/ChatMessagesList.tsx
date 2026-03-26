@@ -20,7 +20,8 @@ type ChatMessagesListProps = {
   currentChat: ChatItem | null;
   currentSessionId: string | null;
   convertRenderableEntry: (entry: RenderableEntry) => ConvertedEntry;
-  handleDeleteMessage: (messageId: string) => void;
+  handleDeleteMessage: (messageId: string) => void | Promise<unknown>;
+  handleDeleteToolMessages: (messageIds: string[]) => void | Promise<void>;
   handleMessagesScroll: (e: React.UIEvent<HTMLElement>) => void;
   hasSystemPrompt: boolean;
   messagesListRef: React.RefObject<HTMLDivElement>;
@@ -50,6 +51,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   currentSessionId,
   convertRenderableEntry,
   handleDeleteMessage,
+  handleDeleteToolMessages,
   handleMessagesScroll,
   hasSystemPrompt,
   messagesListRef,
@@ -78,16 +80,6 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     [], // messagesRef is stable
   );
 
-  const handleDeleteToolMessages = useCallback(
-    (messageIds: string[]) => {
-      const uniqueMessageIds = Array.from(
-        new Set(messageIds.map((id) => id.trim()).filter(Boolean)),
-      );
-      uniqueMessageIds.forEach((id) => handleDeleteMessage(id));
-    },
-    [handleDeleteMessage],
-  );
-
   const virtualizer = useVirtualizer({
     count: renderableMessages.length,
     getScrollElement: () => messagesListRef.current,
@@ -97,10 +89,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     getItemKey,
   });
 
-  const renderMessageSelectionCheckbox = (
-    messageId: string,
-    align: "flex-start" | "flex-end",
-  ) => {
+  const renderMessageSelectionCheckbox = (messageId: string, align: "flex-start" | "flex-end") => {
     if (!selectionMode) return null;
 
     const isSelectable = selectableMessageIds.has(messageId);
@@ -135,10 +124,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
 
     if (convertedEntry.type === "tool_session") {
       return (
-        <Flex
-          justify="flex-start"
-          style={{ width: "100%", maxWidth: "100%" }}
-        >
+        <Flex justify="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
           <div
             id={`message-${convertedEntry.id}`}
             style={{
@@ -151,9 +137,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
               sessionId={convertedEntry.sessionId}
               createdAt={convertedEntry.createdAt}
               defaultExpanded={false}
-              onDeleteMessageIds={
-                currentSessionId ? handleDeleteToolMessages : undefined
-              }
+              onDeleteMessageIds={currentSessionId ? handleDeleteToolMessages : undefined}
             />
           </div>
         </Flex>
@@ -162,19 +146,10 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
 
     if (convertedEntry.message.role === "system") {
       return (
-        <Flex
-          align="flex-start"
-          style={{ width: "100%", maxWidth: "100%" }}
-        >
-          {renderMessageSelectionCheckbox(
-            convertedEntry.message.id,
-            "flex-start",
-          )}
+        <Flex align="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
+          {renderMessageSelectionCheckbox(convertedEntry.message.id, "flex-start")}
           <div style={{ flex: 1, minWidth: 0 }}>
-            <SystemMessageCard
-              currentChat={currentChat}
-              message={convertedEntry.message}
-            />
+            <SystemMessageCard currentChat={currentChat} message={convertedEntry.message} />
           </div>
         </Flex>
       );
@@ -187,16 +162,10 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
         style={{ width: "100%", maxWidth: "100%" }}
       >
         {convertedEntry.align === "flex-start" &&
-          renderMessageSelectionCheckbox(
-            convertedEntry.message.id,
-            convertedEntry.align,
-          )}
+          renderMessageSelectionCheckbox(convertedEntry.message.id, convertedEntry.align)}
         <div
           style={{
-            width:
-              convertedEntry.message.role === "user"
-                ? "85%"
-                : "100%",
+            width: convertedEntry.message.role === "user" ? "85%" : "100%",
             maxWidth: screens.xs ? "100%" : "90%",
           }}
         >
@@ -205,32 +174,26 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
             message={convertedEntry.message}
             messageType={convertedEntry.messageType}
             onDelete={
-              convertedEntry.message.id === workflowDraftId
-                ? undefined
-                : handleDeleteMessage
+              convertedEntry.message.id === workflowDraftId ? undefined : handleDeleteMessage
             }
           />
         </div>
         {convertedEntry.align === "flex-end" &&
-          renderMessageSelectionCheckbox(
-            convertedEntry.message.id,
-            convertedEntry.align,
-          )}
+          renderMessageSelectionCheckbox(convertedEntry.message.id, convertedEntry.align)}
       </Flex>
     );
   };
 
-  const hasMessages =
-    (showMessagesView || hasSystemPrompt) && renderableMessages.length > 0;
+  const hasMessages = (showMessagesView || hasSystemPrompt) && renderableMessages.length > 0;
   const virtualItems = virtualizer.getVirtualItems();
-  const shouldUseVirtualization =
-    renderableMessages.length > VIRTUALIZATION_THRESHOLD;
+  const shouldUseVirtualization = renderableMessages.length > VIRTUALIZATION_THRESHOLD;
 
   return (
     <Content
-      className={`chat-view-messages-list ${
-        showMessagesView ? "visible" : "hidden"
-      }`}
+      role="log"
+      aria-live="polite"
+      aria-label="Chat messages"
+      className={`chat-view-messages-list ${showMessagesView ? "visible" : "hidden"}`}
       style={{
         flex: 1,
         minHeight: 0,
@@ -243,8 +206,8 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
       ref={messagesListRef}
       onScroll={handleMessagesScroll}
     >
-      {hasMessages && (
-        shouldUseVirtualization ? (
+      {hasMessages &&
+        (shouldUseVirtualization ? (
           <div
             style={{
               position: "relative",
@@ -272,9 +235,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <div className="messageEnter">
-                    {renderEntry(entry)}
-                  </div>
+                  <div className="messageEnter">{renderEntry(entry)}</div>
                 </div>
               );
             })}
@@ -297,14 +258,10 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
               );
             })}
           </div>
-        )
-      )}
+        ))}
       {interactionState.matches("THINKING") && currentSessionId && (
         <div className="streaming-card-enter" style={{ paddingTop: rowGap }}>
-          <Flex
-            justify="flex-start"
-            style={{ width: "100%", maxWidth: "100%" }}
-          >
+          <Flex justify="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
             <div
               style={{
                 width: "100%",

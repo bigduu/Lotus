@@ -1,5 +1,10 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { apiClient } from "@services/api";
 import type { CommandItem, CommandListResponse } from "../types/command";
+
+type CommandDetail = Record<string, unknown> & {
+  content?: string;
+};
 
 export class CommandService {
   private static instance: CommandService;
@@ -30,7 +35,7 @@ export class CommandService {
       }
       this.cache = response.commands;
       this.cacheTime = now;
-      console.log("[CommandService] Loaded commands:", this.cache.length);
+      debugLog("[CommandService]", "[CommandService] Loaded commands:", this.cache.length);
       return this.cache;
     } catch (error) {
       console.error("[CommandService] Failed to list commands:", error);
@@ -38,14 +43,11 @@ export class CommandService {
     }
   }
 
-  async getCommand(type: string, id: string): Promise<any> {
+  async getCommand(type: string, id: string): Promise<CommandDetail> {
     try {
-      return await apiClient.get<any>(`commands/${type}/${id}`);
+      return await apiClient.get<CommandDetail>(`commands/${type}/${id}`);
     } catch (error) {
-      console.error(
-        `[CommandService] Failed to get command ${type}/${id}:`,
-        error,
-      );
+      console.error(`[CommandService] Failed to get command ${type}/${id}:`, error);
       throw error;
     }
   }

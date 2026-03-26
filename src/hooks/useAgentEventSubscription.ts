@@ -9,6 +9,7 @@ import {
 } from "../services/chat/AgentService";
 import { useAppStore } from "../pages/ChatPage/store";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
+import type { Message } from "../pages/ChatPage/types/chatMessages";
 import { message } from "antd";
 
 type SubscriptionEntry = {
@@ -16,8 +17,10 @@ type SubscriptionEntry = {
   controller: AbortController;
 };
 
-const isAbortError = (err: unknown) =>
-  (err as any)?.name === "AbortError" || (err as any)?.code === 20;
+const isAbortError = (err: unknown) => {
+  const e = err as { name?: string; code?: number };
+  return e?.name === "AbortError" || e?.code === 20;
+};
 
 const MAX_TASK_EVALUATION_REASONING_CHARS = 220;
 
@@ -29,9 +32,7 @@ const compactEvaluationReasoning = (reasoning: string): string => {
   return `${normalized.slice(0, MAX_TASK_EVALUATION_REASONING_CHARS)}...`;
 };
 
-const isTaskItemStatus = (
-  status: AgentEvent["status"],
-): status is TaskListDelta["status"] =>
+const isTaskItemStatus = (status: AgentEvent["status"]): status is TaskListDelta["status"] =>
   status === "pending" ||
   status === "in_progress" ||
   status === "completed" ||
@@ -42,9 +43,7 @@ export function useAgentEventSubscription() {
 
   // Stable store actions
   const addMessage = useAppStore((state) => state.addMessage);
-  const setSessionProcessing = useAppStore(
-    (state) => state.setSessionProcessing,
-  );
+  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
   const updateTokenUsage = useAppStore((state) => state.updateTokenUsage);
   const setTruncationInfo = useAppStore((state) => state.setTruncationInfo);
   const updateSession = useAppStore((state) => state.updateSession);
@@ -52,17 +51,13 @@ export function useAgentEventSubscription() {
   const setTaskList = useAppStore((state) => state.setTaskList);
   const updateTaskListDelta = useAppStore((state) => state.updateTaskListDelta);
   const setEvaluationState = useAppStore((state) => state.setEvaluationState);
-  const upsertSubSessionProgress = useAppStore(
-    (state) => state.upsertSubSessionProgress,
-  );
+  const upsertSubSessionProgress = useAppStore((state) => state.upsertSubSessionProgress);
   const refreshChats = useAppStore((state) => state.refreshChats);
 
   const agentClientRef = useRef(new AgentClient());
 
   // sessionId -> subscription
-  const subscriptionsBySessionRef = useRef<Map<string, SubscriptionEntry>>(
-    new Map(),
-  );
+  const subscriptionsBySessionRef = useRef<Map<string, SubscriptionEntry>>(new Map());
 
   // sessionId -> streaming state
   const streamingStateBySessionRef = useRef<
@@ -93,10 +88,7 @@ export function useAgentEventSubscription() {
 
   // Reconnect backoff state (sessionId -> state)
   const reconnectStateBySessionRef = useRef<
-    Map<
-      string,
-      { attempt: number; timer: ReturnType<typeof setTimeout> | null }
-    >
+    Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null }>
   >(new Map());
 
   const clearReconnect = useCallback((sessionId: string) => {
@@ -123,16 +115,11 @@ export function useAgentEventSubscription() {
       // Clear streaming placeholder only when we really want to discard the draft.
       // This lets us preserve in-memory draft content across view switches and
       // transient resubscribe cycles (e.g. network hiccups) without touching storage.
-      const streaming = streamingStateBySessionRef.current.get(
-        existing.sessionId,
-      );
+      const streaming = streamingStateBySessionRef.current.get(existing.sessionId);
       if (streaming) {
         if (opts?.clearDraft) {
           streamingMessageBus.clear(streaming.sessionId, streaming.messageId);
-          streamingMessageBus.clear(
-            streaming.sessionId,
-            streaming.reasoningMessageId,
-          );
+          streamingMessageBus.clear(streaming.sessionId, streaming.reasoningMessageId);
         }
         streamingStateBySessionRef.current.delete(existing.sessionId);
       } else if (opts?.clearDraft) {
@@ -140,7 +127,7 @@ export function useAgentEventSubscription() {
         streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
       }
     },
-    [],
+    [clearReconnect],
   );
 
   const startSubscription = useCallback(
@@ -157,9 +144,7 @@ export function useAgentEventSubscription() {
       const messageId = `streaming-${sessionId}`;
       const reasoningMessageId = `streaming-reasoning-${sessionId}`;
       const existingDraft = streamingMessageBus.getLatest(messageId);
-      const existingReasoningDraft = streamingMessageBus.getLatest(
-        reasoningMessageId,
-      );
+      const existingReasoningDraft = streamingMessageBus.getLatest(reasoningMessageId);
       streamingStateBySessionRef.current.set(sessionId, {
         sessionId,
         messageId,
@@ -183,9 +168,7 @@ export function useAgentEventSubscription() {
         const timer = setTimeout(() => {
           reconnectStateBySessionRef.current.delete(sessionId);
           if (!useAppStore.getState().processingChats.has(sessionId)) return;
-          const chat = useAppStore
-            .getState()
-            .chats.find((c) => c.id === sessionId);
+          const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
           const sid = chat?.id?.trim();
           if (!sid) return;
           startSubscription(sid);
@@ -225,21 +208,18 @@ export function useAgentEventSubscription() {
             onToolStart: (toolCallId, toolName, args) => {
               // Flush any buffered assistant draft before tool execution starts
               // so streaming view keeps a natural "assistant text -> tool call" order.
-              const streamingState =
-                streamingStateBySessionRef.current.get(sessionId);
+              const streamingState = streamingStateBySessionRef.current.get(sessionId);
               const bufferedRaw = streamingState?.content || "";
               const bufferedReasoningRaw = streamingState?.reasoningContent || "";
               const hasBufferedContent = bufferedRaw.trim().length > 0;
               const hasBufferedReasoning = bufferedReasoningRaw.trim().length > 0;
               if (hasBufferedContent || hasBufferedReasoning) {
-                const chat = useAppStore
-                  .getState()
-                  .chats.find((c) => c.id === sessionId);
-                const last = chat?.messages?.[chat.messages.length - 1] as any;
+                const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
+                const last = chat?.messages?.[chat.messages.length - 1] as
+                  | (Message & { metadata?: { reasoning?: string } })
+                  | undefined;
                 const lastReasoning =
-                  typeof last?.metadata?.reasoning === "string"
-                    ? last.metadata.reasoning
-                    : "";
+                  typeof last?.metadata?.reasoning === "string" ? last.metadata.reasoning : "";
                 const lastIsSame =
                   last?.role === "assistant" &&
                   last?.type === "text" &&
@@ -257,9 +237,7 @@ export function useAgentEventSubscription() {
                     metadata: {
                       sessionId,
                       model: "agent",
-                      ...(hasBufferedReasoning
-                        ? { reasoning: bufferedReasoningRaw }
-                        : {}),
+                      ...(hasBufferedReasoning ? { reasoning: bufferedReasoningRaw } : {}),
                     },
                   });
                 }
@@ -303,29 +281,34 @@ export function useAgentEventSubscription() {
             },
 
             onToolToken: (toolCallId: string, tokenContent: string) => {
-              const messageId =
-                toolCallMessageIdByCallIdRef.current.get(toolCallId);
+              const messageId = toolCallMessageIdByCallIdRef.current.get(toolCallId);
               if (!messageId) return;
 
-              const chat = useAppStore
-                .getState()
-                .chats.find((c) => c.id === sessionId);
+              const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
               if (!chat) return;
-              const msg = chat?.messages.find((m) => m.id === messageId) as any;
+              const msg = chat?.messages.find((m) => m.id === messageId);
               if (
                 !msg ||
+                !("type" in msg) ||
                 msg.type !== "tool_call" ||
+                !("toolCalls" in msg) ||
                 !Array.isArray(msg.toolCalls)
               ) {
                 return;
               }
 
-              const updatedToolCalls = msg.toolCalls.map((call: any) => {
-                if (call.toolCallId !== toolCallId) return call;
-                const next =
-                  (call.streamingOutput || "") + (tokenContent || "");
-                return { ...call, streamingOutput: next };
-              });
+              const updatedToolCalls = msg.toolCalls.map(
+                (call: {
+                  toolCallId: string;
+                  toolName: string;
+                  parameters: Record<string, unknown>;
+                  streamingOutput?: string;
+                }) => {
+                  if (call.toolCallId !== toolCallId) return call;
+                  const next = (call.streamingOutput || "") + (tokenContent || "");
+                  return { ...call, streamingOutput: next };
+                },
+              );
 
               updateMessage(sessionId, messageId, {
                 toolCalls: updatedToolCalls,
@@ -334,16 +317,12 @@ export function useAgentEventSubscription() {
 
             onToolComplete: (toolCallId, result: AgentEvent["result"]) => {
               // Retrieve tool name tracked in onToolStart
-              const toolName =
-                toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
+              const toolName = toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
               toolNamesByCallIdRef.current.delete(toolCallId);
               toolCallMessageIdByCallIdRef.current.delete(toolCallId);
 
               const displayPreference =
-                (result?.display_preference as
-                  | "Default"
-                  | "Collapsible"
-                  | "Hidden") || "Default";
+                (result?.display_preference as "Default" | "Collapsible" | "Hidden") || "Default";
 
               void addMessage(sessionId, {
                 id: crypto.randomUUID(),
@@ -390,16 +369,10 @@ export function useAgentEventSubscription() {
               };
 
               updateTokenUsage(sessionId, tokenUsage);
-              setTruncationInfo(
-                sessionId,
-                usage.truncation_occurred,
-                usage.segments_removed,
-              );
+              setTruncationInfo(sessionId, usage.truncation_occurred, usage.segments_removed);
 
               // Persist in chat config without causing resubscribe:
-              const chat = useAppStore
-                .getState()
-                .chats.find((c) => c.id === sessionId);
+              const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
 
               if (chat) {
                 updateSession(sessionId, {
@@ -457,10 +430,7 @@ export function useAgentEventSubscription() {
               });
 
               if (updatesCount > 0) {
-                message.success(
-                  `Evaluation complete: ${updatesCount} task(s) updated.`,
-                  3,
-                );
+                message.success(`Evaluation complete: ${updatesCount} task(s) updated.`, 3);
               } else {
                 message.info(`Evaluation complete: No updates needed`, 2);
               }
@@ -481,8 +451,7 @@ export function useAgentEventSubscription() {
                 // different controller, meaning our cleanup would kill the live
                 // successor.
                 const isSuperseded = () => {
-                  const cur =
-                    subscriptionsBySessionRef.current.get(sessionId);
+                  const cur = subscriptionsBySessionRef.current.get(sessionId);
                   return cur != null && cur.controller !== ownerController;
                 };
 
@@ -494,22 +463,17 @@ export function useAgentEventSubscription() {
                 const streamedRaw = state?.content || "";
                 const streamedReasoningRaw = state?.reasoningContent || "";
                 const hasStreamedContent = streamedRaw.trim().length > 0;
-                const hasStreamedReasoning =
-                  streamedReasoningRaw.trim().length > 0;
+                const hasStreamedReasoning = streamedReasoningRaw.trim().length > 0;
 
                 // Convert the streaming draft into a normal assistant message immediately so it
                 // doesn't "disappear" when we turn off processing UI.
                 if (hasStreamedContent || hasStreamedReasoning) {
-                  const chat = useAppStore
-                    .getState()
-                    .chats.find((c) => c.id === sessionId);
-                  const last = chat?.messages?.[
-                    chat.messages.length - 1
-                  ] as any;
+                  const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
+                  const last = chat?.messages?.[chat.messages.length - 1] as
+                    | (Message & { metadata?: { reasoning?: string } })
+                    | undefined;
                   const lastReasoning =
-                    typeof last?.metadata?.reasoning === "string"
-                      ? last.metadata.reasoning
-                      : "";
+                    typeof last?.metadata?.reasoning === "string" ? last.metadata.reasoning : "";
                   const lastIsSame =
                     last?.role === "assistant" &&
                     last?.type === "text" &&
@@ -527,9 +491,7 @@ export function useAgentEventSubscription() {
                       metadata: {
                         sessionId,
                         model: "agent",
-                        ...(hasStreamedReasoning
-                          ? { reasoning: streamedReasoningRaw }
-                          : {}),
+                        ...(hasStreamedReasoning ? { reasoning: streamedReasoningRaw } : {}),
                       },
                     });
                   }
@@ -556,14 +518,13 @@ export function useAgentEventSubscription() {
                     .chats.find((c) => c.id === sessionId);
                   const lastAssistantText = [...(chatAfterSync?.messages || [])]
                     .reverse()
-                    .find(
-                      (msg: any) =>
-                        msg?.role === "assistant" && msg?.type === "text",
-                    ) as any;
+                    .find((msg) => msg?.role === "assistant" && msg?.type === "text") as
+                    | (Message & { metadata?: Record<string, unknown> })
+                    | undefined;
 
                   const hasPersistedReasoning =
                     typeof lastAssistantText?.metadata?.reasoning === "string" &&
-                    lastAssistantText.metadata.reasoning.trim().length > 0;
+                    (lastAssistantText.metadata.reasoning as string).trim().length > 0;
 
                   if (lastAssistantText?.id && !hasPersistedReasoning) {
                     updateMessage(sessionId, lastAssistantText.id, {
@@ -571,7 +532,7 @@ export function useAgentEventSubscription() {
                         ...(lastAssistantText.metadata || {}),
                         reasoning: streamedReasoningRaw,
                       },
-                    } as any);
+                    } as Partial<Message>);
                   }
                 }
 
@@ -594,17 +555,10 @@ export function useAgentEventSubscription() {
                   setSessionProcessing(sessionId, false);
                 } else {
                   // Clear the draft but keep subscription.
-                  const entry =
-                    subscriptionsBySessionRef.current.get(sessionId);
+                  const entry = subscriptionsBySessionRef.current.get(sessionId);
                   if (entry) {
-                    streamingMessageBus.clear(
-                      sessionId,
-                      `streaming-${sessionId}`,
-                    );
-                    streamingMessageBus.clear(
-                      sessionId,
-                      `streaming-reasoning-${sessionId}`,
-                    );
+                    streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
+                    streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
                     streamingStateBySessionRef.current.delete(entry.sessionId);
                   }
                 }
@@ -661,14 +615,9 @@ export function useAgentEventSubscription() {
               void refreshChats();
             },
 
-            onSubSessionEvent: (
-              parentSessionId,
-              childSessionId,
-              evt: AgentEvent,
-            ) => {
+            onSubSessionEvent: (parentSessionId, childSessionId, evt: AgentEvent) => {
               if (evt.type === "task_list_updated" && evt.task_list) {
-                const sharedSessionId =
-                  evt.task_list.session_id || parentSessionId;
+                const sharedSessionId = evt.task_list.session_id || parentSessionId;
                 setTaskList(sharedSessionId, evt.task_list);
                 return;
               }
@@ -705,9 +654,7 @@ export function useAgentEventSubscription() {
                 setEvaluationState(sharedSessionId, {
                   isEvaluating: false,
                   reasoning:
-                    updatesCount > 0
-                      ? compactEvaluationReasoning(evt.reasoning ?? "")
-                      : null,
+                    updatesCount > 0 ? compactEvaluationReasoning(evt.reasoning ?? "") : null,
                   timestamp: Date.now(),
                 });
                 return;
@@ -716,9 +663,8 @@ export function useAgentEventSubscription() {
               // Maintain a small rolling preview for fast UI feedback.
               if (evt.type === "token" && typeof evt.content === "string") {
                 const prev =
-                  useAppStore.getState().subSessionsByParent?.[
-                    parentSessionId
-                  ]?.[childSessionId]?.outputPreview || "";
+                  useAppStore.getState().subSessionsByParent?.[parentSessionId]?.[childSessionId]
+                    ?.outputPreview || "";
                 const next = (prev + evt.content).slice(-2000);
                 upsertSubSessionProgress(parentSessionId, childSessionId, {
                   status: "running",
@@ -740,12 +686,7 @@ export function useAgentEventSubscription() {
               });
             },
 
-            onSubSessionCompleted: (
-              parentSessionId,
-              childSessionId,
-              status,
-              error,
-            ) => {
+            onSubSessionCompleted: (parentSessionId, childSessionId, status, error) => {
               const bg =
                 backgroundChildrenByParentRef.current.get(parentSessionId) ??
                 ({ children: new Set<string>(), parentDone: false } as const);
@@ -780,13 +721,10 @@ export function useAgentEventSubscription() {
 
           // If a newer subscription already replaced this one (e.g. user
           // responded to ask_user quickly), don't interfere with it.
-          const currentSub =
-            subscriptionsBySessionRef.current.get(sessionId);
+          const currentSub = subscriptionsBySessionRef.current.get(sessionId);
           if (currentSub && currentSub.controller !== controller) return;
 
-          const stillProcessing = useAppStore
-            .getState()
-            .processingChats.has(sessionId);
+          const stillProcessing = useAppStore.getState().processingChats.has(sessionId);
           if (!stillProcessing) {
             cleanupChat(sessionId, { clearDraft: true });
             return;
@@ -802,9 +740,7 @@ export function useAgentEventSubscription() {
           // Some runtimes surface network disconnects as AbortError even when we didn't abort.
           // In that case, attempt to resubscribe instead of tearing down processing state.
           if (isAbortError(err)) {
-            const stillProcessing = useAppStore
-              .getState()
-              .processingChats.has(sessionId);
+            const stillProcessing = useAppStore.getState().processingChats.has(sessionId);
             if (!stillProcessing) {
               cleanupChat(sessionId, { clearDraft: true });
               return;
@@ -821,16 +757,18 @@ export function useAgentEventSubscription() {
     },
     [
       addMessage,
-      setSessionProcessing,
-      updateTokenUsage,
-      setTruncationInfo,
-      updateSession,
-      updateMessage,
-      setTaskList,
-      updateTaskListDelta,
-      setEvaluationState,
       cleanupChat,
       clearReconnect,
+      refreshChats,
+      setEvaluationState,
+      setSessionProcessing,
+      setTaskList,
+      setTruncationInfo,
+      updateMessage,
+      updateSession,
+      updateTaskListDelta,
+      updateTokenUsage,
+      upsertSubSessionProgress,
     ],
   );
 
@@ -843,16 +781,12 @@ export function useAgentEventSubscription() {
 
       pendingSessionIdsRef.current.delete(normalizedSessionId);
 
-      const existing =
-        subscriptionsBySessionRef.current.get(normalizedSessionId);
+      const existing = subscriptionsBySessionRef.current.get(normalizedSessionId);
       // Only skip if the existing subscription is still alive (controller not aborted).
       // When onComplete is still running its async cleanup (loadChatHistory with retries),
       // the subscription entry lingers but the SSE reader has already finished.
       // In that case we must restart so events from the next execution run are captured.
-      if (
-        existing?.sessionId === normalizedSessionId &&
-        !existing.controller.signal.aborted
-      ) {
+      if (existing?.sessionId === normalizedSessionId && !existing.controller.signal.aborted) {
         return;
       }
 
@@ -870,9 +804,7 @@ export function useAgentEventSubscription() {
     processingChats.forEach((sessionId) => ensureSubscription(sessionId));
 
     // Stop subscriptions for chats no longer processing
-    for (const sessionId of Array.from(
-      subscriptionsBySessionRef.current.keys(),
-    )) {
+    for (const sessionId of Array.from(subscriptionsBySessionRef.current.keys())) {
       if (!processingChats.has(sessionId)) {
         cleanupChat(sessionId, { clearDraft: true });
       }
@@ -906,10 +838,11 @@ export function useAgentEventSubscription() {
 
   // Effect B: unmount cleanup only
   useEffect(() => {
+    const subscriptionsBySession = subscriptionsBySessionRef.current;
+
     return () => {
-      for (const sessionId of Array.from(
-        subscriptionsBySessionRef.current.keys(),
-      )) {
+      const activeSessionIds = Array.from(subscriptionsBySession.keys());
+      for (const sessionId of activeSessionIds) {
         cleanupChat(sessionId, { clearDraft: true });
       }
     };

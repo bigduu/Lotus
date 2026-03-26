@@ -10,7 +10,7 @@ const MAX_CACHE = 200;
 const resultCache = new Map<string, MermaidRenderResult>();
 const inFlight = new Map<string, Promise<MermaidRenderResult>>();
 
-let mermaidPromise: Promise<any> | null = null;
+let mermaidPromise: Promise<typeof import("mermaid")> | null = null;
 
 const countInvalidNegativeRectWidths = (svgMarkup: string): number => {
   const parser = new DOMParser();
@@ -53,10 +53,7 @@ export function clearMermaidRenderCache() {
   inFlight.clear();
 }
 
-export function renderMermaidCached(
-  chartKey: string,
-  normalizedChart: string,
-) {
+export function renderMermaidCached(chartKey: string, normalizedChart: string) {
   const cached = getCachedMermaid(chartKey);
   if (cached) return Promise.resolve(cached);
 
@@ -91,19 +88,20 @@ export function renderMermaidCached(
       "overflow:visible",
     ].join(";");
     document.body.appendChild(renderHost);
-    let renderResult: any;
+    let renderResult: { svg: string } | string;
     try {
       renderResult = await mermaid.render(id, normalizedChart, renderHost);
     } finally {
       document.body.removeChild(renderHost);
     }
-    const svg = renderResult.svg ?? renderResult;
+    const svg =
+      typeof renderResult === "object" && "svg" in renderResult
+        ? renderResult.svg
+        : String(renderResult);
 
     const invalidNegativeRectCount = countInvalidNegativeRectWidths(svg);
     if (invalidNegativeRectCount > 0) {
-      throw new Error(
-        `Mermaid rendered invalid SVG (${invalidNegativeRectCount} rect widths < 0)`,
-      );
+      throw new Error(`Mermaid rendered invalid SVG (${invalidNegativeRectCount} rect widths < 0)`);
     }
 
     // 使用 DOMParser 测量 SVG 尺寸
@@ -127,8 +125,7 @@ export function renderMermaidCached(
       // 备用方案：使用 getBoundingClientRect
       if (width === 800 && height === 300) {
         const tempDiv = document.createElement("div");
-        tempDiv.style.cssText =
-          "position:absolute;visibility:hidden;width:800px;";
+        tempDiv.style.cssText = "position:absolute;visibility:hidden;width:800px;";
         tempDiv.innerHTML = svg;
         document.body.appendChild(tempDiv);
 

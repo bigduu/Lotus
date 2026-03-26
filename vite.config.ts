@@ -1,5 +1,6 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { visualizer } from "rollup-plugin-visualizer";
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -13,7 +14,16 @@ export default defineConfig(async ({ command }) => ({
   // regardless of whether runtime uses custom protocol or file scheme.
   base: command === "serve" ? "/" : "./",
 
-  plugins: [react()],
+  plugins: [
+    react(),
+    // Bundle analysis — run `npx vite build` then open stats.html
+    visualizer({
+      filename: "stats.html",
+      gzipSize: true,
+      brotliSize: true,
+      open: false,
+    }),
+  ],
 
   resolve: {
     alias: {
@@ -35,6 +45,24 @@ export default defineConfig(async ({ command }) => ({
     rollupOptions: {
       input: {
         main: "index.html",
+      },
+      output: {
+        manualChunks: {
+          // ── Vendor splits ──────────────────────────────
+          "vendor-react": ["react", "react-dom"],
+          "vendor-antd": ["antd", "@ant-design/icons"],
+          "vendor-markdown": [
+            "react-markdown",
+            "react-syntax-highlighter",
+            "remark-gfm",
+            "remark-breaks",
+            "rehype-sanitize",
+          ],
+          "vendor-charts": ["recharts"],
+          "vendor-mermaid": ["mermaid"],
+          "vendor-i18n": ["i18next", "react-i18next"],
+          "vendor-pdf": ["jspdf", "html2canvas", "html2pdf.js"],
+        },
       },
     },
   },

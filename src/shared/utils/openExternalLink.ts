@@ -1,9 +1,6 @@
 import { isTauriEnvironment } from "../../utils/environment";
 
-const openInBrowser = (
-  url: string,
-  options?: { allowLocationFallback?: boolean },
-): void => {
+const openInBrowser = (url: string, options?: { allowLocationFallback?: boolean }): void => {
   if (typeof window === "undefined") {
     return;
   }
@@ -28,7 +25,10 @@ export const openExternalLink = async (url: string): Promise<void> => {
 
   const isDesktop = isTauriEnvironment();
   if (isDesktop) {
-    const invoke = (window as any).__TAURI_INTERNALS__?.invoke;
+    const tauriInternals = (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ as
+      | { invoke?: (...args: unknown[]) => Promise<unknown> }
+      | undefined;
+    const invoke = tauriInternals?.invoke;
     if (typeof invoke === "function") {
       try {
         await invoke("plugin:shell|open", { path: normalizedUrl });

@@ -7,12 +7,7 @@ import type {
 import type { ChatItem } from "../../types/chat";
 import type { ToolSessionItem } from "../ToolSessionCard";
 
-export type MessageType =
-  | "text"
-  | "plan"
-  | "question"
-  | "tool_call"
-  | "tool_result";
+export type MessageType = "text" | "plan" | "question" | "tool_call" | "tool_result";
 
 export type RenderableEntry =
   | {
@@ -88,40 +83,29 @@ const isSystemEntry = (entry: RenderableEntry): boolean => {
 /**
  * Check if a message is a tool call
  */
-function isToolCallMessage(
-  message: Message,
-): message is AssistantToolCallMessage {
-  return message.role === "assistant" && (message as any).type === "tool_call";
+function isToolCallMessage(message: Message): message is AssistantToolCallMessage {
+  return message.role === "assistant" && "type" in message && message.type === "tool_call";
 }
 
 /**
  * Check if a message is a tool result
  */
-function isToolResultMessage(
-  message: Message,
-): message is AssistantToolResultMessage {
-  return (
-    message.role === "assistant" && (message as any).type === "tool_result"
-  );
+function isToolResultMessage(message: Message): message is AssistantToolResultMessage {
+  return message.role === "assistant" && "type" in message && message.type === "tool_result";
 }
 
 const getToolCallId = (item: ToolSessionItem): string =>
   item.call.toolCalls?.[0]?.toolCallId || item.result?.toolCallId || "unknown-call";
 
-const getToolMessageScopeId = (
-  item: ToolSessionItem,
-  fallbackIndex: number,
-): string =>
+const getToolMessageScopeId = (item: ToolSessionItem, fallbackIndex: number): string =>
   item.call.id ||
   item.callMessageId ||
   item.resultMessageId ||
   item.result?.id ||
   `unknown-message-${fallbackIndex}`;
 
-const getToolSessionEntryId = (
-  item: ToolSessionItem,
-  fallbackIndex: number,
-): string => `tool-session-${getToolMessageScopeId(item, fallbackIndex)}:${getToolCallId(item)}`;
+const getToolSessionEntryId = (item: ToolSessionItem, fallbackIndex: number): string =>
+  `tool-session-${getToolMessageScopeId(item, fallbackIndex)}:${getToolCallId(item)}`;
 
 /**
  * Split and pair tool call/result messages into per-call entries.
@@ -129,9 +113,7 @@ const getToolSessionEntryId = (
  * This keeps streaming and persisted-history rendering consistent:
  * one tool invocation maps to one visual message entry.
  */
-function groupToolMessages(
-  messages: Message[],
-): Array<Message | ToolSessionItem[]> {
+function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem[]> {
   const result: Array<Message | ToolSessionItem[]> = [];
   const pendingItemsByToolCallId = new Map<string, ToolSessionItem[]>();
 
@@ -229,14 +211,9 @@ function groupToolMessages(
   return result;
 }
 
-export const useChatViewMessages = (
-  currentChat: ChatItem | null,
-  currentMessages: Message[],
-) => {
+export const useChatViewMessages = (currentChat: ChatItem | null, currentMessages: Message[]) => {
   const systemPromptMessage = useMemo(() => {
-    const existingSystemMessage = currentMessages.find(
-      (msg: Message) => msg.role === "system",
-    );
+    const existingSystemMessage = currentMessages.find((msg: Message) => msg.role === "system");
     if (existingSystemMessage) {
       return existingSystemMessage as Message;
     }
@@ -259,69 +236,57 @@ export const useChatViewMessages = (
     return false;
   }, []);
 
-  const convertRenderableEntry = useCallback(
-    (entry: RenderableEntry): ConvertedEntry => {
-      if (isCompressionDividerEntry(entry)) {
-        return {
-          type: "compression_divider",
-          id: entry.id,
-          createdAt: entry.createdAt,
-          label: entry.label,
-        };
-      }
-
-      // Handle tool session type
-      if (isToolSessionEntry(entry)) {
-        return {
-          type: "tool_session",
-          id: entry.id,
-          sessionId: entry.sessionId,
-          tools: entry.tools,
-          createdAt: entry.createdAt,
-        };
-      }
-
-      // Handle regular message type
-      const align = entry.message.role === "user" ? "flex-end" : "flex-start";
-
-      let resolvedType = entry.messageType;
-      if (
-        !resolvedType &&
-        entry.message.role === "assistant" &&
-        "type" in entry.message
-      ) {
-        const assistantType = (entry.message as any).type as string | undefined;
-        if (
-          assistantType === "text" ||
-          assistantType === "plan" ||
-          assistantType === "question" ||
-          assistantType === "tool_call" ||
-          assistantType === "tool_result"
-        ) {
-          resolvedType = assistantType;
-        }
-      }
-
+  const convertRenderableEntry = useCallback((entry: RenderableEntry): ConvertedEntry => {
+    if (isCompressionDividerEntry(entry)) {
       return {
-        type: "message",
-        message: entry.message,
-        align,
-        messageType: resolvedType,
+        type: "compression_divider",
+        id: entry.id,
+        createdAt: entry.createdAt,
+        label: entry.label,
       };
-    },
-    [],
-  );
+    }
+
+    // Handle tool session type
+    if (isToolSessionEntry(entry)) {
+      return {
+        type: "tool_session",
+        id: entry.id,
+        sessionId: entry.sessionId,
+        tools: entry.tools,
+        createdAt: entry.createdAt,
+      };
+    }
+
+    // Handle regular message type
+    const align = entry.message.role === "user" ? "flex-end" : "flex-start";
+
+    let resolvedType = entry.messageType;
+    if (!resolvedType && entry.message.role === "assistant" && "type" in entry.message) {
+      const assistantType = "type" in entry.message ? (entry.message.type as string) : undefined;
+      if (
+        assistantType === "text" ||
+        assistantType === "plan" ||
+        assistantType === "question" ||
+        assistantType === "tool_call" ||
+        assistantType === "tool_result"
+      ) {
+        resolvedType = assistantType;
+      }
+    }
+
+    return {
+      type: "message",
+      message: entry.message,
+      align,
+      messageType: resolvedType,
+    };
+  }, []);
 
   const renderableMessages = useMemo<RenderableEntry[]>(() => {
     const filtered = currentMessages.filter((item) => {
       const role = item.role;
 
-      if (
-        role !== "user" &&
-        role !== "assistant" &&
-        role !== "system" &&
-        role !== "tool"
-      ) {
+      if (role !== "user" && role !== "assistant" && role !== "system" && role !== "tool") {
         return false;
       }
 
@@ -341,15 +306,11 @@ export const useChatViewMessages = (
         const firstTool = group[0];
         entries.push({
           type: "tool_session",
-          id: firstTool
-            ? getToolSessionEntryId(firstTool, index)
-            : `tool-session-unknown-${index}`,
+          id: firstTool ? getToolSessionEntryId(firstTool, index) : `tool-session-unknown-${index}`,
           sessionId: currentChat?.id || "default",
           tools: group,
           createdAt:
-            firstTool?.call?.createdAt ||
-            firstTool?.result?.createdAt ||
-            new Date().toISOString(),
+            firstTool?.call?.createdAt || firstTool?.result?.createdAt || new Date().toISOString(),
         });
         return;
       }
@@ -358,7 +319,7 @@ export const useChatViewMessages = (
       const message = group as Message;
       let inferredType: MessageType | undefined;
       if (message.role === "assistant" && "type" in message) {
-        const assistantType = (message as any).type as string | undefined;
+        const assistantType = "type" in message ? (message.type as string) : undefined;
         if (
           assistantType === "text" ||
           assistantType === "plan" ||
@@ -384,11 +345,8 @@ export const useChatViewMessages = (
     // Insert compression events into timeline by timestamp so newer messages
     // naturally appear below historical compression separators.
     const compressionEvents = currentChat?.config?.compressionEvents || [];
-    const firstNonSystemIndex = entries.findIndex(
-      (entry) => !isSystemEntry(entry),
-    );
-    const insertBoundary =
-      firstNonSystemIndex === -1 ? entries.length : firstNonSystemIndex;
+    const firstNonSystemIndex = entries.findIndex((entry) => !isSystemEntry(entry));
+    const insertBoundary = firstNonSystemIndex === -1 ? entries.length : firstNonSystemIndex;
 
     for (const event of compressionEvents) {
       const divider: RenderableEntry = {
@@ -400,8 +358,7 @@ export const useChatViewMessages = (
       const eventTs = toTimestamp(event.createdAt);
       const insertIndex = entries.findIndex(
         (entry, index) =>
-          index >= insertBoundary &&
-          toTimestamp(getEntryCreatedAt(entry)) > eventTs,
+          index >= insertBoundary && toTimestamp(getEntryCreatedAt(entry)) > eventTs,
       );
       if (insertIndex === -1) {
         entries.push(divider);

@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { useEffect, useRef, useState } from "react";
 import { CommandService } from "../../services/CommandService";
 import type { CommandItem } from "../../types/command";
@@ -32,7 +33,7 @@ export const useCommandSelectorState = ({
       setIsLoading(true);
       try {
         const fetchedCommands = await commandService.listCommands();
-        console.log("[CommandSelector] Fetched commands:", fetchedCommands);
+        debugLog("[CommandSelector]", "[CommandSelector] Fetched commands:", fetchedCommands);
         setCommands(fetchedCommands);
         setSelectedIndex(0);
       } catch (error) {
@@ -55,18 +56,11 @@ export const useCommandSelectorState = ({
         displayNameLower.includes(searchLower) ||
         command.description.toLowerCase().includes(searchLower) ||
         (command.type === "mcp" &&
-          [
-            command.metadata?.serverId,
-            command.metadata?.serverName,
-            command.metadata?.originalName,
-          ]
+          [command.metadata?.serverId, command.metadata?.serverName, command.metadata?.originalName]
             .filter((v): v is string => typeof v === "string")
             .some((v) => v.toLowerCase().includes(searchLower))) ||
         (command.category?.toLowerCase().includes(searchLower) ?? false) ||
-        (command.tags?.some((tag: string) =>
-          tag.toLowerCase().includes(searchLower),
-        ) ??
-          false)
+        (command.tags?.some((tag: string) => tag.toLowerCase().includes(searchLower)) ?? false)
       );
     });
     setFilteredCommands(filtered);
@@ -88,20 +82,20 @@ export const useCommandSelectorState = ({
     }
   }, [selectedIndex, filteredCommands]);
 
-  const handleCommandSelect = async (command: CommandItem) => {
-    try {
-      onSelect({
-        name: command.name,
-        type: command.type,
-        id: command.id,
-      });
-    } catch (error) {
-      console.error(
-        `[CommandSelector] Failed to select command '${command.name}':`,
-        error,
-      );
-    }
-  };
+  const handleCommandSelect = useCallback(
+    async (command: CommandItem) => {
+      try {
+        onSelect({
+          name: command.name,
+          type: command.type,
+          id: command.id,
+        });
+      } catch (error) {
+        console.error(`[CommandSelector] Failed to select command '${command.name}':`, error);
+      }
+    },
+    [onSelect],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -113,18 +107,14 @@ export const useCommandSelectorState = ({
           if (event.key === "n" && !event.ctrlKey) break;
           event.preventDefault();
           event.stopPropagation();
-          setSelectedIndex((prev) =>
-            prev < filteredCommands.length - 1 ? prev + 1 : 0,
-          );
+          setSelectedIndex((prev) => (prev < filteredCommands.length - 1 ? prev + 1 : 0));
           break;
         case "ArrowUp":
         case "p":
           if (event.key === "p" && !event.ctrlKey) break;
           event.preventDefault();
           event.stopPropagation();
-          setSelectedIndex((prev) =>
-            prev > 0 ? prev - 1 : filteredCommands.length - 1,
-          );
+          setSelectedIndex((prev) => (prev > 0 ? prev - 1 : filteredCommands.length - 1));
           break;
         case "Enter":
           event.preventDefault();
@@ -151,7 +141,7 @@ export const useCommandSelectorState = ({
 
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [visible, filteredCommands, selectedIndex, onCancel, onAutoComplete]);
+  }, [visible, filteredCommands, selectedIndex, onCancel, onAutoComplete, handleCommandSelect]);
 
   return {
     containerRef,

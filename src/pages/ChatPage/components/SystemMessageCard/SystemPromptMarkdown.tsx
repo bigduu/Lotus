@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React, { memo } from "react";
 import { Typography } from "antd";
 import ReactMarkdown from "react-markdown";
@@ -6,7 +7,7 @@ const { Text, Paragraph } = Typography;
 
 type SystemPromptMarkdownProps = {
   content: string;
-  token: any;
+  token: GlobalToken;
   headingColor?: string;
 };
 
@@ -19,9 +20,7 @@ const SystemPromptMarkdownComponent: React.FC<SystemPromptMarkdownProps> = ({
     <ReactMarkdown
       components={{
         p: ({ children }) => (
-          <Paragraph style={{ marginBottom: token.marginSM }}>
-            {children}
-          </Paragraph>
+          <Paragraph style={{ marginBottom: token.marginSM }}>{children}</Paragraph>
         ),
         ol: ({ children }) => (
           <ol
@@ -43,9 +42,7 @@ const SystemPromptMarkdownComponent: React.FC<SystemPromptMarkdownProps> = ({
             {children}
           </ul>
         ),
-        li: ({ children }) => (
-          <li style={{ marginBottom: token.marginXS }}>{children}</li>
-        ),
+        li: ({ children }) => <li style={{ marginBottom: token.marginXS }}>{children}</li>,
         h1: ({ children }) => (
           <Text
             strong

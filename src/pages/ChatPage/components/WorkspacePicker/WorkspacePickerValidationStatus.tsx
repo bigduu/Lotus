@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Alert, Space, Typography } from "antd";
 import { useTranslation } from "react-i18next";
@@ -7,12 +8,13 @@ const { Text } = Typography;
 
 interface WorkspacePickerValidationStatusProps {
   result: WorkspaceValidationResult | null;
-  token: any;
+  token: GlobalToken;
 }
 
-const WorkspacePickerValidationStatus: React.FC<
-  WorkspacePickerValidationStatusProps
-> = ({ result, token }) => {
+const WorkspacePickerValidationStatus: React.FC<WorkspacePickerValidationStatusProps> = ({
+  result,
+  token,
+}) => {
   const { t } = useTranslation();
   if (!result) return null;
 
@@ -24,9 +26,7 @@ const WorkspacePickerValidationStatus: React.FC<
           message={
             <Space>
               <span>{t("chat.workspace.validWorkspace")}</span>
-              {result.workspace_name && (
-                <Text type="secondary">({result.workspace_name})</Text>
-              )}
+              {result.workspace_name && <Text type="secondary">({result.workspace_name})</Text>}
               {result.file_count !== undefined && (
                 <Text type="secondary">
                   {t("chat.workspace.fileCount", { count: result.file_count })}

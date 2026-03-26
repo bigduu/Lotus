@@ -1,3 +1,4 @@
+import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Card, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
@@ -9,7 +10,7 @@ const { Text, Paragraph } = Typography;
 
 type SystemPromptPreviewProps = {
   content: string;
-  token: any;
+  token: GlobalToken;
   showGradient: boolean;
   onClick: (event: React.MouseEvent) => void;
 };
@@ -44,9 +45,7 @@ export const SystemPromptPreview: React.FC<SystemPromptPreviewProps> = ({
           remarkPlugins={[remarkGfm]}
           components={{
             p: ({ children }) => (
-              <Paragraph style={{ marginBottom: token.marginSM }}>
-                {children}
-              </Paragraph>
+              <Paragraph style={{ marginBottom: token.marginSM }}>{children}</Paragraph>
             ),
             ol: ({ children }) => (
               <ol
@@ -68,9 +67,7 @@ export const SystemPromptPreview: React.FC<SystemPromptPreviewProps> = ({
                 {children}
               </ul>
             ),
-            li: ({ children }) => (
-              <li style={{ marginBottom: token.marginXS }}>{children}</li>
-            ),
+            li: ({ children }) => <li style={{ marginBottom: token.marginXS }}>{children}</li>,
             h1: ({ children }) => (
               <Text
                 strong
@@ -95,6 +92,7 @@ export const SystemPromptPreview: React.FC<SystemPromptPreviewProps> = ({
                 {children}
               </Text>
             ),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-markdown component signature
             code: ({ inline, className, children, ...props }: any) => {
               const match = /language-(\w+)/.exec(className || "");
               if (!inline) {

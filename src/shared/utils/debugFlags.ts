@@ -1,8 +1,6 @@
-type DebugFlagKey =
-  | "bodhi_debug_ui_layout";
+type DebugFlagKey = "bodhi_debug_ui_layout" | "bodhi_debug_verbose";
 
-const isDevRuntime = (): boolean =>
-  Boolean(import.meta.env.DEV) && import.meta.env.MODE !== "test";
+const isDevRuntime = (): boolean => Boolean(import.meta.env.DEV) && import.meta.env.MODE !== "test";
 
 const readFlag = (key: DebugFlagKey): boolean => {
   if (!isDevRuntime()) return false;
@@ -13,15 +11,25 @@ const readFlag = (key: DebugFlagKey): boolean => {
   }
 };
 
-export const isUILayoutDebugEnabled = (): boolean =>
-  readFlag("bodhi_debug_ui_layout");
+export const isUILayoutDebugEnabled = (): boolean => readFlag("bodhi_debug_ui_layout");
 
-export const uiLayoutDebug = (
-  message: string,
-  data?: Record<string, unknown>,
-): void => {
+export const uiLayoutDebug = (message: string, data?: Record<string, unknown>): void => {
   if (!isUILayoutDebugEnabled()) return;
   // eslint-disable-next-line no-console -- dev-only debug trace
   console.log(`[ui-layout] ${message}`, data ?? "");
 };
 
+/**
+ * General-purpose dev-only debug logger.
+ *
+ * Usage: `debugLog("[Agent]", "Subscribing to events", { sessionId })`
+ *
+ * In production builds all calls are no-ops (zero cost).
+ * In dev builds, set `localStorage.bodhi_debug_verbose = "1"` to enable.
+ */
+export const debugLog = (tag: string, message: string, ...args: unknown[]): void => {
+  if (!isDevRuntime()) return;
+  if (!readFlag("bodhi_debug_verbose")) return;
+  // eslint-disable-next-line no-console -- dev-only debug trace
+  console.log(`${tag} ${message}`, ...args);
+};

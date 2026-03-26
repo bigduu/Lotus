@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 /**
  * Tool Service
  *
@@ -13,9 +14,7 @@ export type { ToolExecutionResult, DisplayPreference } from "./types";
 export interface ToolCallRequest {
   tool_name: string;
   user_description: string;
-  parameter_parsing_strategy?:
-    | "AIParameterParsing"
-    | "RegexParameterExtraction";
+  parameter_parsing_strategy?: "AIParameterParsing" | "RegexParameterExtraction";
 }
 
 export interface ParameterValue {
@@ -34,9 +33,7 @@ export interface ToolUIInfo {
   description: string;
   parameters: ParameterInfo[];
   tool_type: string;
-  parameter_parsing_strategy?:
-    | "AIParameterParsing"
-    | "RegexParameterExtraction";
+  parameter_parsing_strategy?: "AIParameterParsing" | "RegexParameterExtraction";
   required_approval: boolean;
   parameter_regex?: string;
   ai_prompt_template?: string;
@@ -79,12 +76,11 @@ export class ToolService {
    * e.g., "/simple_tool 123" -> { tool_name: "simple_tool", user_description: "123" }
    */
   parseUserCommand(content: string): ToolCallRequest | null {
-    console.log(
-      `[ToolService] parseUserCommand: Parsing content: "${content}"`,
-    );
+    debugLog("[ToolService]", `[ToolService] parseUserCommand: Parsing content: "${content}"`);
     const trimmedContent = content.trim();
     if (!trimmedContent.startsWith("/")) {
-      console.log(
+      debugLog(
+        "[ToolService]",
         '[ToolService] parseUserCommand: Content does not start with "/", not a tool command.',
       );
       return null;
@@ -106,14 +102,16 @@ export class ToolService {
 
     if (tool_name) {
       const result = { tool_name, user_description };
-      console.log(
+      debugLog(
+        "[ToolService]",
         "[ToolService] parseUserCommand: Successfully parsed command:",
         result,
       );
       return result;
     }
 
-    console.log(
+    debugLog(
+      "[ToolService]",
       "[ToolService] parseUserCommand: Failed to parse tool name from content.",
     );
     return null;
@@ -131,30 +129,24 @@ export class ToolService {
   /**
    * Execute tool
    */
-  async executeTool(
-    request: ToolExecutionRequest,
-  ): Promise<ToolExecutionResult> {
-    console.log(
+  async executeTool(request: ToolExecutionRequest): Promise<ToolExecutionResult> {
+    debugLog(
+      "[ToolService]",
       "[ToolService] executeTool: Attempting to execute tool via HTTP with request:",
       request,
     );
     try {
-      const data = await apiClient.post<{ result: string }>(
-        "tools/execute",
-        request,
-      );
+      const data = await apiClient.post<{ result: string }>("tools/execute", request);
       const structuredResult: ToolExecutionResult = JSON.parse(data.result);
-      console.log(
+      debugLog(
+        "[ToolService]",
         "[ToolService] executeTool: Parsed structured result:",
         structuredResult,
       );
 
       return structuredResult;
     } catch (error) {
-      console.error(
-        "[ToolService] executeTool: HTTP tool execution failed:",
-        error,
-      );
+      console.error("[ToolService] executeTool: HTTP tool execution failed:", error);
       if (error instanceof ApiError) {
         throw new Error(`Workflow execution failed: ${error.message}`);
       }

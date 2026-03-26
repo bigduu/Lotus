@@ -6,7 +6,9 @@ import {
   formatResultContent,
   getFileChangeDiffStats,
   getStatusColor,
+  parseConclusionToolResultPayload,
   parseFileChangeResultPayload,
+  parseMermaidToolResultPayload,
   parseUnifiedDiffLines,
   safeStringify,
   shouldCollapseContent,
@@ -153,10 +155,7 @@ describe("formatResultContent", () => {
 
 describe("shouldCollapseContent", () => {
   it("collapses when content exceeds default limits", () => {
-    const longContent = Array.from(
-      { length: 30 },
-      (_, idx) => `line-${idx}`,
-    ).join("\n");
+    const longContent = Array.from({ length: 30 }, (_, idx) => `line-${idx}`).join("\n");
     expect(shouldCollapseContent(longContent)).toBe(true);
   });
 
@@ -171,15 +170,10 @@ describe("shouldCollapseContent", () => {
   });
 
   it("collapses based on line count threshold", () => {
-    const shortContent = Array.from({ length: 5 }, (_, i) => `line${i}`).join(
-      "\n",
-    );
+    const shortContent = Array.from({ length: 5 }, (_, i) => `line${i}`).join("\n");
     expect(shouldCollapseContent(shortContent)).toBe(false);
 
-    const longContent = Array.from(
-      { length: 15 },
-      (_, i) => `line${i}`,
-    ).join("\n");
+    const longContent = Array.from({ length: 15 }, (_, i) => `line${i}`).join("\n");
     expect(shouldCollapseContent(longContent)).toBe(true);
   });
 
@@ -232,6 +226,54 @@ describe("createContentPreview", () => {
   });
 });
 
+describe("structured tool payload parsing", () => {
+  it("parses mermaid payload", () => {
+    const payload = JSON.stringify({
+      type: "mermaid",
+      title: "Flow",
+      summary: "Main flow",
+      chart: "flowchart TD\nA-->B",
+    });
+
+    expect(parseMermaidToolResultPayload(payload)).toEqual({
+      type: "mermaid",
+      title: "Flow",
+      summary: "Main flow",
+      chart: "flowchart TD\nA-->B",
+    });
+  });
+
+  it("returns null for invalid mermaid payload", () => {
+    const payload = JSON.stringify({ type: "mermaid", chart: "   " });
+    expect(parseMermaidToolResultPayload(payload)).toBeNull();
+  });
+
+  it("parses conclusion payload", () => {
+    const payload = JSON.stringify({
+      type: "conclusion",
+      title: "Conclusion",
+      conclusion: "Ready to ship",
+      key_points: ["Tests passed", "No blockers"],
+      next_steps: ["Release"],
+      confidence: "high",
+    });
+
+    expect(parseConclusionToolResultPayload(payload)).toEqual({
+      type: "conclusion",
+      title: "Conclusion",
+      conclusion: "Ready to ship",
+      key_points: ["Tests passed", "No blockers"],
+      next_steps: ["Release"],
+      confidence: "high",
+    });
+  });
+
+  it("returns null for invalid conclusion payload", () => {
+    const payload = JSON.stringify({ type: "conclusion", conclusion: "" });
+    expect(parseConclusionToolResultPayload(payload)).toBeNull();
+  });
+});
+
 describe("getStatusColor", () => {
   it("maps statuses to semantic colors", () => {
     expect(getStatusColor("success")).toBe("green");
@@ -273,7 +315,8 @@ describe("parseFileChangeResultPayload", () => {
         path: "/tmp/checkpoint/demo.checkpoint",
       },
       diff: {
-        unified: "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-console.log('a')\n+console.log('b')",
+        unified:
+          "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-console.log('a')\n+console.log('b')",
         truncated: false,
       },
     });
@@ -478,9 +521,7 @@ describe("parseFileChangeResultPayload", () => {
   });
 
   it("returns null for array at root level", () => {
-    const payload = JSON.stringify([
-      { operation: "Edit", file_path: "/tmp/file.ts" },
-    ]);
+    const payload = JSON.stringify([{ operation: "Edit", file_path: "/tmp/file.ts" }]);
     expect(parseFileChangeResultPayload(payload)).toBeNull();
   });
 });
@@ -651,8 +692,7 @@ describe("getFileChangeDiffStats", () => {
       operation: "Edit",
       file_path: "/tmp/demo.ts",
       diff: {
-        unified:
-          "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-const a = 1;\n+const a = 2;",
+        unified: "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-const a = 1;\n+const a = 2;",
         added_lines: 8,
         removed_lines: 3,
       },

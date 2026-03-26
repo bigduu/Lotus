@@ -5,6 +5,7 @@
  */
 
 import { apiClient } from "../api";
+import type { ProviderConfig } from "../../pages/ChatPage/types/providerConfig";
 
 // ── Env Vars types ──────────────────────────────────────────────
 
@@ -70,14 +71,14 @@ export class SettingsService {
   /**
    * Get the current provider configuration
    */
-  async getProviderConfig(): Promise<any> {
-    return apiClient.get<any>("/bamboo/settings/provider");
+  async getProviderConfig(): Promise<ProviderConfig> {
+    return apiClient.get<ProviderConfig>("/bamboo/settings/provider");
   }
 
   /**
    * Save provider configuration
    */
-  async saveProviderConfig(config: any): Promise<void> {
+  async saveProviderConfig(config: Record<string, unknown>): Promise<void> {
     return apiClient.post<void>("/bamboo/settings/provider", config);
   }
 
@@ -156,17 +157,13 @@ export class SettingsService {
    * Delete an environment variable by name.
    */
   async deleteEnvVar(name: string): Promise<EnvVarsListResponse> {
-    return apiClient.delete<EnvVarsListResponse>(
-      `/bamboo/env-vars/${encodeURIComponent(name)}`,
-    );
+    return apiClient.delete<EnvVarsListResponse>(`/bamboo/env-vars/${encodeURIComponent(name)}`);
   }
 
   /**
    * Replace the entire env vars list (bulk save).
    */
-  async replaceEnvVars(
-    entries: UpsertEnvVarRequest[],
-  ): Promise<EnvVarsListResponse> {
+  async replaceEnvVars(entries: UpsertEnvVarRequest[]): Promise<EnvVarsListResponse> {
     return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars/replace", {
       entries,
     });

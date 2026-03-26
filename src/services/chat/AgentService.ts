@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 /**
  * Agent Client Service
  *
@@ -5,6 +6,7 @@
  * Handles SSE streaming and AgentEvent processing
  */
 import { agentApiClient } from "../api";
+import { debugLog } from "../../shared/utils/debugFlags";
 
 // Agent Event Types (matching Rust backend)
 export type AgentEventType =
@@ -47,11 +49,7 @@ export interface ContextSummaryInfo {
 }
 
 // TaskList Types
-export type TaskItemStatus =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "blocked";
+export type TaskItemStatus = "pending" | "in_progress" | "completed" | "blocked";
 
 export interface TaskItem {
   id: string;
@@ -127,6 +125,7 @@ export interface ChatRequest {
   session_id?: string;
   system_prompt?: string;
   enhance_prompt?: string;
+  copilot_ask_user_enhancement_enabled?: boolean;
   workspace_path?: string;
   selected_skill_ids?: string[];
   images?: Array<{
@@ -326,40 +325,20 @@ export interface AgentEventHandlers {
   onToken?: (content: string) => void;
   onReasoningToken?: (content: string) => void;
   onToolToken?: (toolCallId: string, content: string) => void;
-  onToolStart?: (
-    toolCallId: string,
-    toolName: string,
-    args: Record<string, unknown>,
-  ) => void;
+  onToolStart?: (toolCallId: string, toolName: string, args: Record<string, unknown>) => void;
   onToolComplete?: (toolCallId: string, result: AgentEvent["result"]) => void;
   onToolError?: (toolCallId: string, error: string) => void;
   onTaskListUpdated?: (taskList: TaskList) => void;
   onTaskListItemProgress?: (delta: TaskListDelta) => void;
-  onTaskListCompleted?: (
-    sessionId: string,
-    totalRounds: number,
-    totalToolCalls: number,
-  ) => void;
+  onTaskListCompleted?: (sessionId: string, totalRounds: number, totalToolCalls: number) => void;
   onTaskEvaluationStarted?: (sessionId: string, itemsCount: number) => void;
-  onTaskEvaluationCompleted?: (
-    sessionId: string,
-    updatesCount: number,
-    reasoning: string,
-  ) => void;
+  onTaskEvaluationCompleted?: (sessionId: string, updatesCount: number, reasoning: string) => void;
   onTokenBudgetUpdated?: (usage: TokenBudgetUsage) => void;
   onContextSummarized?: (summaryInfo: ContextSummaryInfo) => void;
   onComplete?: (usage: AgentEvent["usage"]) => void;
   onError?: (message: string) => void;
-  onSubSessionStarted?: (
-    parentSessionId: string,
-    childSessionId: string,
-    title?: string,
-  ) => void;
-  onSubSessionEvent?: (
-    parentSessionId: string,
-    childSessionId: string,
-    event: AgentEvent,
-  ) => void;
+  onSubSessionStarted?: (parentSessionId: string, childSessionId: string, title?: string) => void;
+  onSubSessionEvent?: (parentSessionId: string, childSessionId: string, event: AgentEvent) => void;
   onSubSessionHeartbeat?: (
     parentSessionId: string,
     childSessionId: string,
@@ -406,10 +385,7 @@ export class AgentClient {
     if (reasoningEffort) {
       payload.reasoning_effort = reasoningEffort;
     }
-    return agentApiClient.post<ExecuteResponse>(
-      `execute/${sessionId}`,
-      payload,
-    );
+    return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, payload);
   }
 
   /**
@@ -422,19 +398,14 @@ export class AgentClient {
   /**
    * Create a new backend session (root).
    */
-  async createSession(
-    req: CreateSessionRequest,
-  ): Promise<CreateSessionResponse> {
+  async createSession(req: CreateSessionRequest): Promise<CreateSessionResponse> {
     return agentApiClient.post<CreateSessionResponse>("sessions", req);
   }
 
   /**
    * Patch a session (title/pinned).
    */
-  async patchSession(
-    sessionId: string,
-    req: PatchSessionRequest,
-  ): Promise<void> {
+  async patchSession(sessionId: string, req: PatchSessionRequest): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     await agentApiClient.patch(`sessions/${encodedSessionId}`, req);
   }
@@ -442,9 +413,7 @@ export class AgentClient {
   /**
    * Get a session prompt snapshot (effective system prompt + extracted sections).
    */
-  async getSessionSystemPrompt(
-    sessionId: string,
-  ): Promise<SessionSystemPromptResponse> {
+  async getSessionSystemPrompt(sessionId: string): Promise<SessionSystemPromptResponse> {
     const encodedSessionId = encodeURIComponent(sessionId);
     return agentApiClient.get<SessionSystemPromptResponse>(
       `sessions/${encodedSessionId}/system-prompt`,
@@ -501,10 +470,7 @@ export class AgentClient {
   ): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     const encodedMessageId = encodeURIComponent(messageId);
-    await agentApiClient.patch(
-      `sessions/${encodedSessionId}/messages/${encodedMessageId}`,
-      req,
-    );
+    await agentApiClient.patch(`sessions/${encodedSessionId}/messages/${encodedMessageId}`, req);
   }
 
   /**
@@ -512,24 +478,16 @@ export class AgentClient {
    *
    * Note: Some UI messages are local-only placeholders and may not exist on the backend.
    */
-  async deleteSessionMessage(
-    sessionId: string,
-    messageId: string,
-  ): Promise<void> {
+  async deleteSessionMessage(sessionId: string, messageId: string): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     const encodedMessageId = encodeURIComponent(messageId);
-    await agentApiClient.delete(
-      `sessions/${encodedSessionId}/messages/${encodedMessageId}`,
-    );
+    await agentApiClient.delete(`sessions/${encodedSessionId}/messages/${encodedMessageId}`);
   }
 
   /**
    * Cleanup sessions by mode.
    */
-  async cleanupSessions(
-    mode: "all" | "empty" | "children",
-    keepPinned: boolean,
-  ): Promise<void> {
+  async cleanupSessions(mode: "all" | "empty" | "children", keepPinned: boolean): Promise<void> {
     await agentApiClient.post("sessions/cleanup", {
       mode,
       keep_pinned: keepPinned,
@@ -551,10 +509,7 @@ export class AgentClient {
     return agentApiClient.post<ScheduleEntry>("schedules", req);
   }
 
-  async patchSchedule(
-    scheduleId: string,
-    req: PatchScheduleRequest,
-  ): Promise<ScheduleEntry> {
+  async patchSchedule(scheduleId: string, req: PatchScheduleRequest): Promise<ScheduleEntry> {
     const encoded = encodeURIComponent(scheduleId);
     return agentApiClient.patch<ScheduleEntry>(`schedules/${encoded}`, req);
   }
@@ -569,13 +524,9 @@ export class AgentClient {
     await agentApiClient.post(`schedules/${encoded}/run`);
   }
 
-  async listScheduleSessions(
-    scheduleId: string,
-  ): Promise<ListScheduleSessionsResponse> {
+  async listScheduleSessions(scheduleId: string): Promise<ListScheduleSessionsResponse> {
     const encoded = encodeURIComponent(scheduleId);
-    return agentApiClient.get<ListScheduleSessionsResponse>(
-      `schedules/${encoded}/sessions`,
-    );
+    return agentApiClient.get<ListScheduleSessionsResponse>(`schedules/${encoded}/sessions`);
   }
 
   /**
@@ -588,14 +539,15 @@ export class AgentClient {
     abortController?: AbortController,
   ): Promise<void> {
     const signal = abortController?.signal;
-    console.log("[AgentClient] Subscribing to events for session:", sessionId);
+    debugLog("[AgentClient]", "[AgentClient] Subscribing to events for session:", sessionId);
 
     try {
       const response = await agentApiClient.fetchRaw(`events/${sessionId}`, {
         signal,
       });
 
-      console.log(
+      debugLog(
+        "[AgentClient]",
         "[AgentClient] Events subscription response:",
         response.status,
         response.statusText,
@@ -612,10 +564,7 @@ export class AgentClient {
             try {
               const errorData = JSON.parse(body);
               errorMessage =
-                errorData.error ||
-                errorData.message ||
-                errorData.detail ||
-                errorMessage;
+                errorData.error || errorData.message || errorData.detail || errorMessage;
             } catch {
               errorMessage = body || errorMessage;
             }
@@ -673,10 +622,7 @@ export class AgentClient {
     } catch (error) {
       if (signal?.aborted) {
         // Normal lifecycle (caller aborted due to navigation, completion, etc.)
-        console.debug(
-          "[AgentClient] Events subscription aborted for session:",
-          sessionId,
-        );
+        debugLog("[AgentClient]", "Events subscription aborted for session:", sessionId);
         return;
       }
       console.error("[AgentClient] Events subscription error:", error);
@@ -759,18 +705,11 @@ export class AgentClient {
         break;
       case "task_evaluation_started":
         if (event.session_id && event.items_count !== undefined) {
-          handlers.onTaskEvaluationStarted?.(
-            event.session_id,
-            event.items_count,
-          );
+          handlers.onTaskEvaluationStarted?.(event.session_id, event.items_count);
         }
         break;
       case "task_evaluation_completed":
-        if (
-          event.session_id &&
-          event.updates_count !== undefined &&
-          event.reasoning
-        ) {
+        if (event.session_id && event.updates_count !== undefined && event.reasoning) {
           handlers.onTaskEvaluationCompleted?.(
             event.session_id,
             event.updates_count,
@@ -807,11 +746,7 @@ export class AgentClient {
         }
         break;
       case "sub_session_heartbeat":
-        if (
-          event.parent_session_id &&
-          event.child_session_id &&
-          event.timestamp
-        ) {
+        if (event.parent_session_id && event.child_session_id && event.timestamp) {
           handlers.onSubSessionHeartbeat?.(
             event.parent_session_id,
             event.child_session_id,

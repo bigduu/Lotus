@@ -37,6 +37,22 @@ export interface DiffStats {
   removed: number;
 }
 
+export interface MermaidToolResultPayload {
+  type: "mermaid";
+  chart: string;
+  title?: string;
+  summary?: string;
+}
+
+export interface ConclusionToolResultPayload {
+  type: "conclusion";
+  title: string;
+  conclusion: string;
+  key_points: string[];
+  next_steps: string[];
+  confidence?: string;
+}
+
 export type DiffLineKind =
   | "meta"
   | "hunk"
@@ -73,9 +89,90 @@ const toNumberValue = (value: unknown): number | undefined =>
 const toBooleanValue = (value: unknown): boolean | undefined =>
   typeof value === "boolean" ? value : undefined;
 
-export const parseFileChangeResultPayload = (
+const parseJsonRecord = (content: string): Record<string, unknown> | null => {
+  if (!content) return null;
+  const trimmed = content.trim();
+  if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    return isRecord(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeTextArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+};
+
+const normalizeOptionalText = (value: unknown): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+export const parseMermaidToolResultPayload = (content: string): MermaidToolResultPayload | null => {
+  const parsed = parseJsonRecord(content);
+  if (!parsed) {
+    return null;
+  }
+
+  const chart = normalizeOptionalText(parsed.chart);
+  if (!chart) {
+    return null;
+  }
+
+  if (parsed.type != null && parsed.type !== "mermaid") {
+    return null;
+  }
+
+  return {
+    type: "mermaid",
+    chart,
+    title: normalizeOptionalText(parsed.title),
+    summary: normalizeOptionalText(parsed.summary),
+  };
+};
+
+export const parseConclusionToolResultPayload = (
   content: string,
-): FileChangeResultPayload | null => {
+): ConclusionToolResultPayload | null => {
+  const parsed = parseJsonRecord(content);
+  if (!parsed) {
+    return null;
+  }
+
+  const conclusion = normalizeOptionalText(parsed.conclusion);
+  if (!conclusion) {
+    return null;
+  }
+
+  if (parsed.type != null && parsed.type !== "conclusion") {
+    return null;
+  }
+
+  return {
+    type: "conclusion",
+    title: normalizeOptionalText(parsed.title) || "Conclusion",
+    conclusion,
+    key_points: normalizeTextArray(parsed.key_points),
+    next_steps: normalizeTextArray(parsed.next_steps),
+    confidence: normalizeOptionalText(parsed.confidence),
+  };
+};
+
+export const parseFileChangeResultPayload = (content: string): FileChangeResultPayload | null => {
   if (!content) {
     return null;
   }
@@ -134,11 +231,9 @@ export const parseFileChangeResultPayload = (
   }
 };
 
-const isRemovedLine = (line: string): boolean =>
-  line.startsWith("-") && !line.startsWith("---");
+const isRemovedLine = (line: string): boolean => line.startsWith("-") && !line.startsWith("---");
 
-const isAddedLine = (line: string): boolean =>
-  line.startsWith("+") && !line.startsWith("+++");
+const isAddedLine = (line: string): boolean => line.startsWith("+") && !line.startsWith("+++");
 
 export const parseUnifiedDiffLines = (unified: string): DiffLine[] => {
   const rawLines = unified.split("\n");
@@ -173,16 +268,10 @@ export const parseUnifiedDiffLines = (unified: string): DiffLine[] => {
       }
 
       if (addedBlock.length > 0) {
-        removedBlock.forEach((item) =>
-          output.push({ kind: "modified_remove", text: item }),
-        );
-        addedBlock.forEach((item) =>
-          output.push({ kind: "modified_add", text: item }),
-        );
+        removedBlock.forEach((item) => output.push({ kind: "modified_remove", text: item }));
+        addedBlock.forEach((item) => output.push({ kind: "modified_add", text: item }));
       } else {
-        removedBlock.forEach((item) =>
-          output.push({ kind: "remove", text: item }),
-        );
+        removedBlock.forEach((item) => output.push({ kind: "remove", text: item }));
       }
       continue;
     }
@@ -299,9 +388,7 @@ export const formatResultContent = (content: string): FormattedResult => {
       ) {
         // This is likely a wrapped text content, extract and unescape it
         const textContent = parsed[key] as string;
-        const unescaped = textContent
-          .replace(/\\n/g, "\n")
-          .replace(/\\t/g, "\t");
+        const unescaped = textContent.replace(/\\n/g, "\n").replace(/\\t/g, "\t");
         return {
           isJson: false, // Treat as plain text for better display
           formattedText: unescaped,
@@ -317,7 +404,7 @@ export const formatResultContent = (content: string): FormattedResult => {
       formattedText: JSON.stringify(unescaped, null, 2),
       parsedJson: unescaped,
     };
-  } catch (error) {
+  } catch {
     // Fall back to original content if parsing fails
     return {
       isJson: false,
@@ -329,10 +416,7 @@ export const formatResultContent = (content: string): FormattedResult => {
 /**
  * Determine whether a block of content should be collapsed by default.
  */
-export const shouldCollapseContent = (
-  content: string,
-  options: CollapseOptions = {},
-): boolean => {
+export const shouldCollapseContent = (content: string, options: CollapseOptions = {}): boolean => {
   const config: Required<CollapseOptions> = {
     ...DEFAULT_COLLAPSE_OPTIONS,
     ...options,
@@ -384,12 +468,9 @@ export const createCompactPreview = (content: string): string => {
   const trimmed = content.trim();
   const fileChangePayload = parseFileChangeResultPayload(trimmed);
   if (fileChangePayload) {
-    const target =
-      fileChangePayload.file_path.split(/[\\/]/).pop() || fileChangePayload.file_path;
+    const target = fileChangePayload.file_path.split(/[\\/]/).pop() || fileChangePayload.file_path;
     const summary = `${fileChangePayload.operation}: ${target}`;
-    return summary.length <= maxLength
-      ? summary
-      : summary.substring(0, maxLength).trimEnd() + "…";
+    return summary.length <= maxLength ? summary : summary.substring(0, maxLength).trimEnd() + "…";
   }
 
   if (trimmed.length <= maxLength) {
@@ -403,19 +484,39 @@ export const createCompactPreview = (content: string): string => {
 
       // Check for common result patterns
       if (typeof parsed === "object" && parsed !== null) {
+        if (
+          parsed.type === "mermaid" &&
+          typeof parsed.chart === "string" &&
+          parsed.chart.trim().length > 0
+        ) {
+          const title =
+            typeof parsed.title === "string" && parsed.title.trim().length > 0
+              ? parsed.title.trim()
+              : "Mermaid diagram";
+          const summary = `Diagram: ${title}`;
+          return summary.length <= maxLength
+            ? summary
+            : summary.substring(0, maxLength).trimEnd() + "…";
+        }
+
+        if (
+          parsed.type === "conclusion" &&
+          typeof parsed.conclusion === "string" &&
+          parsed.conclusion.trim().length > 0
+        ) {
+          const summary = parsed.conclusion.trim();
+          return summary.length <= maxLength
+            ? summary
+            : summary.substring(0, maxLength).trimEnd() + "…";
+        }
+
         // If it has a content/result/output field, use that
-        const resultKey = [
-          "content",
-          "result",
-          "output",
-          "message",
-          "data",
-        ].find((k) => k in parsed && typeof parsed[k] === "string");
+        const resultKey = ["content", "result", "output", "message", "data"].find(
+          (k) => k in parsed && typeof parsed[k] === "string",
+        );
         if (resultKey) {
           const value = parsed[resultKey];
-          return value.length <= maxLength
-            ? value
-            : value.substring(0, maxLength).trimEnd() + "…";
+          return value.length <= maxLength ? value : value.substring(0, maxLength).trimEnd() + "…";
         }
 
         // For arrays, show count

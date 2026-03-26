@@ -1,3 +1,4 @@
+import { debugLog } from "@shared/utils/debugFlags";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   WorkflowManagerService,
@@ -20,9 +21,7 @@ export const useWorkflowSelectorState = ({
   onAutoComplete,
 }: UseWorkflowSelectorStateProps) => {
   const [workflows, setWorkflows] = useState<WorkflowMetadata[]>([]);
-  const [filteredWorkflows, setFilteredWorkflows] = useState<
-    WorkflowMetadata[]
-  >([]);
+  const [filteredWorkflows, setFilteredWorkflows] = useState<WorkflowMetadata[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -61,7 +60,7 @@ export const useWorkflowSelectorState = ({
       setIsLoading(true);
       try {
         const fetchedWorkflows = await workflowServiceRef.current.listWorkflows();
-        console.log("[WorkflowSelector] Fetched workflows:", fetchedWorkflows);
+        debugLog("[WorkflowSelector]", "[WorkflowSelector] Fetched workflows:", fetchedWorkflows);
         setWorkflows(fetchedWorkflows);
         setSelectedIndex(0);
       } catch (error) {
@@ -107,10 +106,7 @@ export const useWorkflowSelectorState = ({
         content: workflow.content,
       });
     } catch (error) {
-      console.error(
-        `[WorkflowSelector] Failed to load workflow '${workflowName}':`,
-        error,
-      );
+      console.error(`[WorkflowSelector] Failed to load workflow '${workflowName}':`, error);
       onSelectRef.current({ name: workflowName, content: "" });
     }
   }, []);
@@ -125,9 +121,7 @@ export const useWorkflowSelectorState = ({
           if (event.key === "n" && !event.ctrlKey) break;
           event.preventDefault();
           event.stopPropagation();
-          setSelectedIndex((prev) =>
-            prev < workflowsRef.current.length - 1 ? prev + 1 : 0,
-          );
+          setSelectedIndex((prev) => (prev < workflowsRef.current.length - 1 ? prev + 1 : 0));
           break;
         case "ArrowUp":
         case "p":
