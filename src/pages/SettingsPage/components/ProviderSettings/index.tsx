@@ -64,11 +64,17 @@ const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
 
 type ModelProvider = "openai" | "anthropic" | "gemini" | "copilot";
 
-type EditableProviderConfig = NonNullable<ProviderConfig["providers"][ModelProvider]> & {
+type EditableProviderConfig<K extends ModelProvider = ModelProvider> = NonNullable<
+  ProviderConfig["providers"][K]
+> & {
   request_overrides_json?: string;
 };
 
-type EditableProviders = Partial<Record<ModelProvider, EditableProviderConfig>>;
+type EditableProviders = {
+  [K in ModelProvider]?: EditableProviderConfig<K>;
+};
+
+type EditableProviderRecord = Record<ModelProvider, EditableProviderConfig | undefined>;
 
 const MODEL_PROVIDERS = [
   "openai",
@@ -511,12 +517,13 @@ export const ProviderSettings: React.FC = () => {
     try {
       setLoading(true);
 
-      const normalizedValues: ProviderConfig & { providers: EditableProviders } = {
+      const normalizedValues: ProviderConfig = {
         provider: values.provider,
-        providers: { ...(values.providers || {}) } as EditableProviders,
+        providers: { ...(values.providers || {}) },
       };
+      const editableProviders = normalizedValues.providers as EditableProviders;
       for (const p of MODEL_PROVIDERS) {
-        const providerCfg = normalizedValues.providers[p];
+        const providerCfg = editableProviders[p];
         if (!providerCfg) continue;
 
         const rawJson = providerCfg.request_overrides_json;
@@ -675,11 +682,13 @@ export const ProviderSettings: React.FC = () => {
 
       // Ensure we save with the newly-selected model even if Form's internal
       // update hasn't propagated yet.
-      currentValues.providers = currentValues.providers || {};
-      currentValues.providers[provider] = {
-        ...(currentValues.providers[provider] ?? {}),
+      const providers = (currentValues.providers || {}) as EditableProviders;
+      const providerRecord = providers as EditableProviderRecord;
+      providerRecord[provider] = {
+        ...(providerRecord[provider] ?? {}),
         model: value,
       };
+      currentValues.providers = providers;
 
       await handleSave(currentValues, {
         showMessage: false,
@@ -716,11 +725,13 @@ export const ProviderSettings: React.FC = () => {
       const currentValues = form.getFieldsValue(true) as ProviderConfig & {
         providers: EditableProviders;
       };
-      currentValues.providers = currentValues.providers || {};
-      currentValues.providers[provider] = {
-        ...(currentValues.providers[provider] ?? {}),
+      const providers = (currentValues.providers || {}) as EditableProviders;
+      const providerRecord = providers as EditableProviderRecord;
+      providerRecord[provider] = {
+        ...(providerRecord[provider] ?? {}),
         [field]: value || undefined, // clear → undefined (falls back to default)
       };
+      currentValues.providers = providers;
 
       await handleSave(currentValues, {
         showMessage: false,
