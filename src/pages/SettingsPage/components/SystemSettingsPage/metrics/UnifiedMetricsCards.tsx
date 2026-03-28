@@ -42,18 +42,14 @@ const formatDuration = (durationMs: number | null | undefined): string => {
 
 const averageSessionDuration = (sessions: SessionMetrics[]): number => {
   const completed = sessions.filter(
-    (session) =>
-      typeof session.duration_ms === "number" && session.duration_ms > 0,
+    (session) => typeof session.duration_ms === "number" && session.duration_ms > 0,
   );
 
   if (completed.length === 0) {
     return 0;
   }
 
-  const total = completed.reduce(
-    (sum, session) => sum + (session.duration_ms ?? 0),
-    0,
-  );
+  const total = completed.reduce((sum, session) => sum + (session.duration_ms ?? 0), 0);
 
   return Math.floor(total / completed.length);
 };
@@ -161,10 +157,24 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
         <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.unifiedMetricsCards.avgSessionDuration")}
-            value={
-              averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"
-            }
+            value={averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"}
             valueStyle={{ color: "var(--lotus-chart-accent)" }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} xl={6}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.unifiedMetricsCards.promptCacheCompactions", {
+              defaultValue: "Prompt Cache Compactions",
+            })}
+            value={
+              chatSummary?.prompt_cached_tool_outputs ??
+              combinedSummary?.prompt_cached_tool_outputs ??
+              0
+            }
+            precision={0}
+            valueStyle={{ color: "var(--lotus-chart-cyan)" }}
           />
         </Card>
       </Col>
@@ -207,9 +217,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
             value={forwardSummary?.failed_requests ?? 0}
             precision={0}
             valueStyle={{
-              color: forwardSummary?.failed_requests
-                ? "var(--lotus-chart-danger)"
-                : undefined,
+              color: forwardSummary?.failed_requests ? "var(--lotus-chart-danger)" : undefined,
             }}
           />
         </Card>

@@ -11,6 +11,7 @@ export interface MetricsSummary {
   total_tokens: TokenUsage;
   total_tool_calls: number;
   active_sessions: number;
+  prompt_cached_tool_outputs?: number;
 }
 
 export interface ModelMetrics {
@@ -19,6 +20,7 @@ export interface ModelMetrics {
   rounds: number;
   tokens: TokenUsage;
   tool_calls: number;
+  prompt_cached_tool_outputs?: number;
 }
 
 export type SessionStatus = "running" | "completed" | "error" | "cancelled";
@@ -35,6 +37,7 @@ export interface SessionMetrics {
   status: SessionStatus;
   message_count: number;
   duration_ms?: number | null;
+  prompt_cached_tool_outputs?: number;
 }
 
 export interface ToolCallMetrics {
@@ -60,6 +63,7 @@ export interface RoundMetrics {
   status: RoundStatus;
   error?: string | null;
   duration_ms?: number | null;
+  prompt_cached_tool_outputs?: number;
 }
 
 export interface SessionDetail {
@@ -75,6 +79,7 @@ export interface DailyMetrics {
   total_tool_calls: number;
   model_breakdown: Record<string, TokenUsage>;
   tool_breakdown: Record<string, number>;
+  prompt_cached_tool_outputs?: number;
 }
 
 export interface PeriodMetrics {
@@ -87,6 +92,7 @@ export interface PeriodMetrics {
   total_tool_calls: number;
   model_breakdown: Record<string, TokenUsage>;
   tool_breakdown: Record<string, number>;
+  prompt_cached_tool_outputs?: number;
 }
 
 export interface MetricsDateRange {
@@ -160,6 +166,7 @@ export interface CombinedSummary {
   total_success: number;
   total_errors: number;
   success_rate: number;
+  prompt_cached_tool_outputs?: number;
 }
 
 export interface UnifiedTimelinePoint {
@@ -169,4 +176,5 @@ export interface UnifiedTimelinePoint {
   forward_tokens: number;
   forward_requests: number;
   total_tokens: number;
+  prompt_cached_tool_outputs?: number;
 }
