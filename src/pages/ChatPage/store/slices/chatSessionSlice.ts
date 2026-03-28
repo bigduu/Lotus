@@ -126,6 +126,10 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
         windowTokens: s.token_usage.window_tokens,
         totalTokens: s.token_usage.total_tokens,
         budgetLimit: s.token_usage.budget_limit,
+        ...(typeof s.token_usage.max_context_tokens === "number" &&
+        s.token_usage.max_context_tokens > 0
+          ? { maxContextTokens: s.token_usage.max_context_tokens }
+          : {}),
       }
     : undefined;
   return {

@@ -360,12 +360,17 @@ export function useAgentEventSubscription() {
             },
 
             onTokenBudgetUpdated: (usage: TokenBudgetUsage) => {
+              const maxContextTokens =
+                typeof usage.max_context_tokens === "number" && usage.max_context_tokens > 0
+                  ? usage.max_context_tokens
+                  : undefined;
               const tokenUsage = {
                 systemTokens: usage.system_tokens,
                 summaryTokens: usage.summary_tokens,
                 windowTokens: usage.window_tokens,
                 totalTokens: usage.total_tokens,
                 budgetLimit: usage.budget_limit,
+                ...(maxContextTokens ? { maxContextTokens } : {}),
               };
 
               updateTokenUsage(sessionId, tokenUsage);

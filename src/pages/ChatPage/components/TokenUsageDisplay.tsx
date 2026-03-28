@@ -3,6 +3,7 @@ import { Progress, Tooltip, Space } from "antd";
 import { useTranslation } from "react-i18next";
 import {
   TokenUsage,
+  getUsageDenominator,
   getUsagePercentage,
   getUsageColor,
   formatTokenCount,
@@ -34,7 +35,16 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   className = "",
 }) => {
   const { t } = useTranslation();
+  const denominator = getUsageDenominator(usage);
   const percentage = getUsagePercentage(usage);
+  const hasMaxContextWindow =
+    typeof usage.maxContextTokens === "number" && usage.maxContextTokens > 0;
+  const showInputBudgetDetail =
+    hasMaxContextWindow && usage.budgetLimit > 0 && usage.budgetLimit !== denominator;
+  const formatPercentageLabel = (value: number): string => {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+  };
   const color = getUsageColor(usage);
 
   const getProgressStrokeColor = () => {
@@ -45,13 +55,18 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
 
   const tooltipContent = (
     <div style={{ minWidth: 180, color: "var(--lotus-metric-text-strong)" }}>
-      <div style={{ marginBottom: 4, fontWeight: "bold" }}>
-        {t("components.tokenUsage.title")}
-      </div>
+      <div style={{ marginBottom: 4, fontWeight: "bold" }}>{t("components.tokenUsage.title")}</div>
       <div style={{ fontSize: 12 }}>
-        {formatTokenCount(usage.totalTokens)} /{" "}
-        {formatTokenCount(usage.budgetLimit)} {t("components.tokenUsage.tokens")}
+        {hasMaxContextWindow ? `${t("components.tokenUsage.contextWindow")}: ` : ""}
+        {formatTokenCount(usage.totalTokens)} / {formatTokenCount(denominator)}{" "}
+        {t("components.tokenUsage.tokens")}
       </div>
+      {showInputBudgetDetail && (
+        <div style={{ fontSize: 12, color: "var(--lotus-metric-text-muted)" }}>
+          {t("components.tokenUsage.inputBudget")}: {formatTokenCount(usage.budgetLimit)}{" "}
+          {t("components.tokenUsage.tokens")}
+        </div>
+      )}
       <div style={{ fontSize: 12, color: "var(--lotus-metric-text-muted)" }}>
         {t("components.tokenUsage.usedPercent", { value: percentage.toFixed(1) })}
       </div>
@@ -109,7 +124,7 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
             fontWeight: 600,
           }}
         >
-          {percentage.toFixed(0)}%
+          {formatPercentageLabel(percentage)}%
         </span>
       </Space>
     </Tooltip>
@@ -124,8 +139,24 @@ export const TokenUsageBadge: React.FC<{
   className?: string;
 }> = ({ usage, className = "" }) => {
   const { t } = useTranslation();
+  const denominator = getUsageDenominator(usage);
   const percentage = getUsagePercentage(usage);
+  const hasMaxContextWindow =
+    typeof usage.maxContextTokens === "number" && usage.maxContextTokens > 0;
+  const showInputBudgetDetail =
+    hasMaxContextWindow && usage.budgetLimit > 0 && usage.budgetLimit !== denominator;
+  const formatPercentageLabel = (value: number): string => {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
+  };
   const color = getUsageColor(usage);
+  const badgeTitle = `${formatTokenCount(usage.totalTokens)} / ${formatTokenCount(
+    denominator,
+  )} ${t("components.tokenUsage.tokens")} (${percentage.toFixed(1)}%)${
+    showInputBudgetDetail
+      ? ` • ${t("components.tokenUsage.inputBudget")}: ${formatTokenCount(usage.budgetLimit)} ${t("components.tokenUsage.tokens")}`
+      : ""
+  }`;
 
   const getBadgeColor = () => {
     switch (color) {
@@ -141,11 +172,7 @@ export const TokenUsageBadge: React.FC<{
   };
 
   return (
-    <Tooltip
-      title={`${formatTokenCount(usage.totalTokens)} / ${formatTokenCount(
-        usage.budgetLimit,
-      )} ${t("components.tokenUsage.tokens")} (${percentage.toFixed(1)}%)`}
-    >
+    <Tooltip title={badgeTitle}>
       <span
         className={`token-usage-badge ${className}`}
         style={{
@@ -161,7 +188,7 @@ export const TokenUsageBadge: React.FC<{
           lineHeight: 1,
         }}
       >
-        {percentage.toFixed(0)}%
+        {formatPercentageLabel(percentage)}%
       </span>
     </Tooltip>
   );

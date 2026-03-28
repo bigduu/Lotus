@@ -87,6 +87,29 @@ describe("TokenUsageDisplay", () => {
     expect(screen.getByText("150%")).toBeInTheDocument();
   });
 
+  it("renders one decimal place for non-integer percentages", () => {
+    render(<TokenUsageDisplay usage={makeUsage({ totalTokens: 997, budgetLimit: 1000 })} />);
+
+    expect(screen.getByText("99.7%")).toBeInTheDocument();
+    expect(screen.queryByText("100%")).toBeNull();
+  });
+
+  it("prefers context window as denominator when maxContextTokens is present", () => {
+    render(
+      <TokenUsageDisplay
+        usage={makeUsage({
+          totalTokens: 261789,
+          budgetLimit: 262522,
+          maxContextTokens: 400000,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("65.4%")).toBeInTheDocument();
+    expect(screen.getByText("Context window: 261,789 / 400,000 tokens")).toBeInTheDocument();
+    expect(screen.getByText("Input budget: 262,522 tokens")).toBeInTheDocument();
+  });
+
   it("hides detailed section when showDetails is false", () => {
     render(
       <TokenUsageDisplay

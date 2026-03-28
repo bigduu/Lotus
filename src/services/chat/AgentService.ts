@@ -36,6 +36,7 @@ export interface TokenBudgetUsage {
   summary_tokens: number;
   window_tokens: number;
   total_tokens: number;
+  max_context_tokens?: number;
   budget_limit: number;
   truncation_occurred: boolean;
   segments_removed: number;

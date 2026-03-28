@@ -1387,6 +1387,8 @@ export const resources = {
         },
         tokenUsage: {
           title: "Token Usage",
+          contextWindow: "Context window",
+          inputBudget: "Input budget",
           summary: "Summary",
           system: "System",
           messages: "Messages",
@@ -2786,6 +2788,8 @@ export const resources = {
         },
         tokenUsage: {
           title: "Token 使用",
+          contextWindow: "上下文窗口",
+          inputBudget: "输入预算",
           summary: "汇总",
           system: "系统",
           messages: "消息",

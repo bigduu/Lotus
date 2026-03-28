@@ -34,9 +34,7 @@ describe("tokenBudget utilities", () => {
 
   it("resolves model context by exact, partial and fallback matching", () => {
     expect(getModelContextLimit("gpt-4o")).toBe(KNOWN_MODEL_LIMITS["gpt-4o"]);
-    expect(getModelContextLimit("openai/gpt-4o-mini")).toBe(
-      KNOWN_MODEL_LIMITS["gpt-4o-mini"],
-    );
+    expect(getModelContextLimit("openai/gpt-4o-mini")).toBe(KNOWN_MODEL_LIMITS["gpt-4o-mini"]);
     expect(getModelContextLimit("unknown-model")).toBe(128000);
   });
 
@@ -50,6 +48,17 @@ describe("tokenBudget utilities", () => {
         budgetLimit: 0,
       }),
     ).toBe(0);
+
+    expect(
+      getUsagePercentage({
+        systemTokens: 1,
+        summaryTokens: 1,
+        windowTokens: 1,
+        totalTokens: 40,
+        budgetLimit: 10,
+        maxContextTokens: 100,
+      }),
+    ).toBe(40);
 
     const mkUsage = (totalTokens: number) => ({
       systemTokens: 0,

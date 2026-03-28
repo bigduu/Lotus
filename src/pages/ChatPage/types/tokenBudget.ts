@@ -37,6 +37,8 @@ export interface TokenUsage {
   windowTokens: number;
   /** Total tokens in prepared context */
   totalTokens: number;
+  /** Optional model context window size (input + output) */
+  maxContextTokens?: number;
   /** Budget limit for input tokens */
   budgetLimit: number;
 }
@@ -128,23 +130,29 @@ export function getModelContextLimit(model: string): number {
   return 128000;
 }
 
+export function getUsageDenominator(usage: TokenUsage): number {
+  if (typeof usage.maxContextTokens === "number" && usage.maxContextTokens > 0) {
+    return usage.maxContextTokens;
+  }
+  return usage.budgetLimit;
+}
+
 /**
  * Calculate the percentage of budget used.
  */
 export function getUsagePercentage(usage: TokenUsage): number {
-  if (usage.budgetLimit === 0) {
+  const denominator = getUsageDenominator(usage);
+  if (denominator === 0) {
     return 0;
   }
-  return (usage.totalTokens / usage.budgetLimit) * 100;
+  return (usage.totalTokens / denominator) * 100;
 }
 
 /**
  * Get the color for the usage percentage.
  * Returns 'success', 'warning', or 'error' for different ranges.
  */
-export function getUsageColor(
-  usage: TokenUsage,
-): "success" | "warning" | "error" | "default" {
+export function getUsageColor(usage: TokenUsage): "success" | "warning" | "error" | "default" {
   const percentage = getUsagePercentage(usage);
   if (percentage >= 90) return "error";
   if (percentage >= 70) return "warning";
