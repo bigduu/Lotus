@@ -130,6 +130,10 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
         s.token_usage.max_context_tokens > 0
           ? { maxContextTokens: s.token_usage.max_context_tokens }
           : {}),
+        ...(typeof s.token_usage.prompt_cached_tool_outputs === "number" &&
+        s.token_usage.prompt_cached_tool_outputs > 0
+          ? { promptCachedToolOutputs: s.token_usage.prompt_cached_tool_outputs }
+          : {}),
       }
     : undefined;
   return {

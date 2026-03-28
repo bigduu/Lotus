@@ -41,6 +41,8 @@ export interface TokenUsage {
   maxContextTokens?: number;
   /** Budget limit for input tokens */
   budgetLimit: number;
+  /** Number of long tool outputs compacted into prompt-side cached summaries */
+  promptCachedToolOutputs?: number;
 }
 
 /**

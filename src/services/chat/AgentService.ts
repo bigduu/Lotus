@@ -40,6 +40,7 @@ export interface TokenBudgetUsage {
   budget_limit: number;
   truncation_occurred: boolean;
   segments_removed: number;
+  prompt_cached_tool_outputs?: number;
 }
 
 export interface ContextSummaryInfo {

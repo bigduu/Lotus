@@ -371,6 +371,10 @@ export function useAgentEventSubscription() {
                 totalTokens: usage.total_tokens,
                 budgetLimit: usage.budget_limit,
                 ...(maxContextTokens ? { maxContextTokens } : {}),
+                ...(typeof usage.prompt_cached_tool_outputs === "number" &&
+                usage.prompt_cached_tool_outputs > 0
+                  ? { promptCachedToolOutputs: usage.prompt_cached_tool_outputs }
+                  : {}),
               };
 
               updateTokenUsage(sessionId, tokenUsage);

@@ -90,6 +90,15 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
           <div>
             {t("components.tokenUsage.messages")}: {formatTokenCount(usage.windowTokens)}
           </div>
+          {typeof usage.promptCachedToolOutputs === "number" &&
+            usage.promptCachedToolOutputs > 0 && (
+              <div style={{ color: "var(--lotus-metric-text-muted)" }}>
+                {t("components.tokenUsage.cachedToolOutputs", {
+                  count: usage.promptCachedToolOutputs,
+                  defaultValue: "Prompt cache: {{count}} tool outputs summarized",
+                })}
+              </div>
+            )}
         </div>
       )}
     </div>
