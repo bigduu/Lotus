@@ -1,7 +1,8 @@
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { App as AntdApp } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { EmptyTaskLauncher } from "../index";
+import { EmptyTaskLauncher } from "./index";
 import { useAppStore } from "@pages/ChatPage/store";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { CHAT_FOCUS_INPUT_EVENT } from "@pages/ChatPage/components/ChatView/events";

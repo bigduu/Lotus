@@ -697,6 +697,7 @@ describe("chatUtils", () => {
       expect(isThisMonth(today)).toBe(true);
 
       const lastMonth = new Date();
+      lastMonth.setDate(1);
       lastMonth.setMonth(lastMonth.getMonth() - 1);
       expect(isThisMonth(lastMonth)).toBe(false);
     });

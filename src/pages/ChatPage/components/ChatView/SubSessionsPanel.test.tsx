@@ -148,7 +148,7 @@ describe("SubSessionsPanel", () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByTestId("sub-sessions-list")).toHaveStyle({
-      maxHeight: "420px",
+      maxHeight: "600px",
       overflowY: "auto",
     });
   });
