@@ -190,6 +190,38 @@ describe("useAgentEventSubscription", () => {
     });
   });
 
+  it("shows a friendly completion policy violation message", async () => {
+    let errorHandler: any;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      errorHandler = handlers.onError;
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      await errorHandler(
+        "completion policy violation: model repeatedly attempted to end the task without calling conclusion_with_options while copilot conclusion-with-options enhancement is enabled (attempts=3)",
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockAddMessage).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          content: expect.stringContaining("Bamboo stopped this completion"),
+          finishReason: "error",
+        }),
+      );
+    });
+  });
+
   it("should handle onError and show error message", async () => {
     let errorHandler: any;
     mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {

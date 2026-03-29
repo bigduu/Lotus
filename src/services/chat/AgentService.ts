@@ -21,7 +21,9 @@ export type AgentEventType =
   | "task_evaluation_started"
   | "task_evaluation_completed"
   | "token_budget_updated"
+  | "context_compression_status"
   | "context_summarized"
+  | "tool_lifecycle"
   | "sub_session_started"
   | "sub_session_event"
   | "sub_session_heartbeat"
@@ -104,6 +106,7 @@ export interface AgentEvent {
   session_id?: string;
   item_id?: string;
   status?: TaskItemStatus | string;
+  phase?: string;
   tool_calls_count?: number;
   version?: number;
   completed_at?: string;
@@ -113,6 +116,11 @@ export interface AgentEvent {
   items_count?: number;
   updates_count?: number;
   reasoning?: string;
+  // Tool lifecycle events
+  elapsed_ms?: number;
+  is_mutating?: boolean;
+  auto_approved?: boolean;
+  summary?: string;
   // Sub-session events
   parent_session_id?: string;
   child_session_id?: string;
@@ -126,7 +134,7 @@ export interface ChatRequest {
   session_id?: string;
   system_prompt?: string;
   enhance_prompt?: string;
-  copilot_ask_user_enhancement_enabled?: boolean;
+  copilot_conclusion_with_options_enhancement_enabled?: boolean;
   workspace_path?: string;
   selected_skill_ids?: string[];
   images?: Array<{
@@ -143,15 +151,39 @@ export interface ChatResponse {
   status: string;
 }
 
+export type ExecuteSyncReason =
+  | "message_count_mismatch"
+  | "last_message_id_mismatch"
+  | "pending_question_mismatch";
+
+export interface ExecuteClientSync {
+  client_message_count: number;
+  client_last_message_id?: string | null;
+  client_has_pending_question: boolean;
+  client_pending_question_tool_call_id?: string | null;
+}
+
+export interface ExecuteSyncInfo {
+  need_sync: boolean;
+  reason?: ExecuteSyncReason;
+  server_message_count: number;
+  server_last_message_id?: string | null;
+  has_pending_question: boolean;
+  pending_question_tool_call_id?: string | null;
+  has_pending_user_message: boolean;
+}
+
 export interface ExecuteResponse {
   session_id: string;
   status: "started" | "already_running" | "completed" | "error" | "cancelled";
   events_url: string;
+  sync?: ExecuteSyncInfo;
 }
 
 export interface ExecuteRequest {
   model: string;
   reasoning_effort?: ReasoningEffort;
+  client_sync?: ExecuteClientSync;
 }
 
 export interface HistoryResponse {
@@ -335,7 +367,18 @@ export interface AgentEventHandlers {
   onTaskEvaluationStarted?: (sessionId: string, itemsCount: number) => void;
   onTaskEvaluationCompleted?: (sessionId: string, updatesCount: number, reasoning: string) => void;
   onTokenBudgetUpdated?: (usage: TokenBudgetUsage) => void;
+  onContextCompressionStatus?: (phase: string, status: string) => void;
   onContextSummarized?: (summaryInfo: ContextSummaryInfo) => void;
+  onToolLifecycle?: (
+    toolCallId: string,
+    toolName: string,
+    phase: string,
+    elapsedMs?: number,
+    isMutating?: boolean,
+    autoApproved?: boolean,
+    summary?: string,
+    error?: string,
+  ) => void;
   onComplete?: (usage: AgentEvent["usage"]) => void;
   onError?: (message: string) => void;
   onSubSessionStarted?: (parentSessionId: string, childSessionId: string, title?: string) => void;
@@ -381,10 +424,14 @@ export class AgentClient {
     sessionId: string,
     model: string,
     reasoningEffort?: ReasoningEffort,
+    clientSync?: ExecuteClientSync,
   ): Promise<ExecuteResponse> {
     const payload: ExecuteRequest = { model };
     if (reasoningEffort) {
       payload.reasoning_effort = reasoningEffort;
+    }
+    if (clientSync) {
+      payload.client_sync = clientSync;
     }
     return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, payload);
   }
@@ -722,6 +769,23 @@ export class AgentClient {
         if (event.usage && "system_tokens" in event.usage) {
           handlers.onTokenBudgetUpdated?.(event.usage);
         }
+        break;
+      case "context_compression_status":
+        if (typeof event.phase === "string" && typeof event.status === "string") {
+          handlers.onContextCompressionStatus?.(event.phase, event.status);
+        }
+        break;
+      case "tool_lifecycle":
+        handlers.onToolLifecycle?.(
+          event.tool_call_id || "",
+          event.tool_name || "",
+          event.phase || "",
+          event.elapsed_ms,
+          event.is_mutating,
+          event.auto_approved,
+          event.summary,
+          event.error,
+        );
         break;
       case "context_summarized":
         if (event.summary_info) {

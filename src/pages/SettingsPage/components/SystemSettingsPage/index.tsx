@@ -18,9 +18,9 @@ import {
   setTaskEnhancementEnabled,
 } from "../../../../shared/utils/taskEnhancementUtils";
 import {
-  isCopilotAskUserEnhancementEnabled,
-  setCopilotAskUserEnhancementEnabled,
-} from "../../../../shared/utils/copilotAskUserEnhancementUtils";
+  isCopilotConclusionWithOptionsEnhancementEnabled,
+  setCopilotConclusionWithOptionsEnhancementEnabled,
+} from "../../../../shared/utils/copilotConclusionWithOptionsEnhancementUtils";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
@@ -75,11 +75,11 @@ const SystemSettingsPage = ({
   const [taskEnhancementEnabled, setTaskEnhancementEnabledState] = useState(
     isTaskEnhancementEnabled(),
   );
-  const [copilotAskUserEnhancementEnabled, setCopilotAskUserEnhancementEnabledState] = useState(
-    isCopilotAskUserEnhancementEnabled(),
+  const [copilotConclusionWithOptionsEnhancementEnabled, setCopilotConclusionWithOptionsEnhancementEnabledState] = useState(
+    isCopilotConclusionWithOptionsEnhancementEnabled(),
   );
   const currentProvider = useProviderStore((state) => state.currentProvider);
-  const showCopilotAskUserEnhancement = currentProvider === "copilot";
+  const showCopilotConclusionWithOptionsEnhancement = currentProvider === "copilot";
   const activeTabKey = useSettingsViewStore((state) => state.activeTabKey);
   const setActiveTabKey = useSettingsViewStore((state) => state.setActiveTabKey);
   const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);
@@ -174,16 +174,16 @@ const SystemSettingsPage = ({
     setTaskEnhancementEnabled(checked);
   };
 
-  const handleCopilotAskUserToggle = (checked: boolean) => {
-    setCopilotAskUserEnhancementEnabledState(checked);
-    setCopilotAskUserEnhancementEnabled(checked);
+  const handleCopilotConclusionWithOptionsToggle = (checked: boolean) => {
+    setCopilotConclusionWithOptionsEnhancementEnabledState(checked);
+    setCopilotConclusionWithOptionsEnhancementEnabled(checked);
   };
 
   useEffect(() => {
     setPromptEnhancement(getSystemPromptEnhancement());
     setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
     setTaskEnhancementEnabledState(isTaskEnhancementEnabled());
-    setCopilotAskUserEnhancementEnabledState(isCopilotAskUserEnhancementEnabled());
+    setCopilotConclusionWithOptionsEnhancementEnabledState(isCopilotConclusionWithOptionsEnhancementEnabled());
   }, []);
 
   return (
@@ -254,11 +254,11 @@ const SystemSettingsPage = ({
                   onPromptEnhancementChange={setPromptEnhancement}
                   mermaidEnhancementEnabled={mermaidEnhancementEnabled}
                   taskEnhancementEnabled={taskEnhancementEnabled}
-                  showCopilotAskUserEnhancement={showCopilotAskUserEnhancement}
-                  copilotAskUserEnhancementEnabled={copilotAskUserEnhancementEnabled}
+                  showCopilotConclusionWithOptionsEnhancement={showCopilotConclusionWithOptionsEnhancement}
+                  copilotConclusionWithOptionsEnhancementEnabled={copilotConclusionWithOptionsEnhancementEnabled}
                   onMermaidToggle={handleMermaidToggle}
                   onTaskToggle={handleTaskToggle}
-                  onCopilotAskUserToggle={handleCopilotAskUserToggle}
+                  onCopilotConclusionWithOptionsToggle={handleCopilotConclusionWithOptionsToggle}
                   onSaveEnhancement={handleSaveEnhancement}
                 />
               ),

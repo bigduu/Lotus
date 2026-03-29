@@ -239,11 +239,15 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
   const { t } = useTranslation();
   const messageId = `streaming-${sessionId}`;
   const reasoningMessageId = `streaming-reasoning-${sessionId}`;
+  const statusMessageId = `streaming-status-${sessionId}`;
   const [content, setContent] = useState<string>(
     () => streamingMessageBus.getLatest(messageId) ?? "",
   );
   const [reasoningContent, setReasoningContent] = useState<string>(
     () => streamingMessageBus.getLatest(reasoningMessageId) ?? "",
+  );
+  const [statusContent, setStatusContent] = useState<string>(
+    () => streamingMessageBus.getLatest(statusMessageId) ?? "",
   );
 
   useEffect(() => {
@@ -257,6 +261,17 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
       setReasoningContent(next ?? "");
     });
   }, [reasoningMessageId]);
+
+  useEffect(() => {
+    return streamingMessageBus.subscribeMessage(statusMessageId, (next) => {
+      setStatusContent(next ?? "");
+    });
+  }, [statusMessageId]);
+
+  const pendingStatusText =
+    statusContent === "context_compacting"
+      ? t("chat.messageCard.assistantCompactingContext")
+      : t("chat.messageCard.assistantThinking");
 
   // 准备 Markdown 渲染配置
   // 流式阶段使用简化版配置（不渲染 Mermaid 图表，避免内容不完整导致的错误）
@@ -322,7 +337,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
 
           {!content ? (
             <Text italic className="thinking-shimmer">
-              {t("chat.messageCard.assistantThinking")}
+              {pendingStatusText}
             </Text>
           ) : (
             <ReactMarkdown

@@ -347,9 +347,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   // Respond mode: when QuestionDialog activates "Other (custom input)",
   // InputContainer submits to the respond API instead of sending a new message.
-  const isRespondMode = Boolean(
-    pendingQuestionRespond && pendingQuestionRespond.sessionId === sessionId,
-  );
+  const currentPendingRespond =
+    pendingQuestionRespond && pendingQuestionRespond.sessionId === sessionId
+      ? pendingQuestionRespond
+      : null;
+  const isRespondMode = Boolean(currentPendingRespond);
+  const respondOptions = currentPendingRespond?.options || [];
+  const respondAllowCustom = currentPendingRespond?.allowCustom ?? true;
 
   const shouldUseRespondModeForSession = useCallback((targetSessionId?: string | null): boolean => {
     if (!targetSessionId) {
@@ -363,6 +367,19 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     async (responseText: string) => {
       const trimmed = responseText.trim();
       if (!trimmed || !sessionId) return;
+
+      const latestPendingRespond = useAppStore.getState().pendingQuestionRespond;
+      const currentRespondPayload =
+        latestPendingRespond?.sessionId === sessionId ? latestPendingRespond : null;
+      if (
+        currentRespondPayload &&
+        !currentRespondPayload.allowCustom &&
+        currentRespondPayload.options.length > 0 &&
+        !currentRespondPayload.options.includes(trimmed)
+      ) {
+        messageApi.warning(t("components.questionDialog.selectOptionWarning"));
+        return;
+      }
 
       try {
         const modelToUse = activeModel?.trim();
@@ -638,7 +655,43 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   }, [referenceText, isToolSpecificMode, isRestrictConversation, allowedTools, autoToolPrefix, t]);
 
   // In respond mode, override placeholder to guide the user
-  const placeholder = isRespondMode ? t("chat.respond.customAnswerPlaceholder") : basePlaceholder;
+  const placeholder =
+    isRespondMode && respondAllowCustom
+      ? t("chat.respond.customAnswerPlaceholder")
+      : isRespondMode
+        ? t("components.questionDialog.selectOptionWarning")
+        : basePlaceholder;
+
+  const respondModeIndicator = useMemo(() => {
+    if (!isRespondMode) {
+      return null;
+    }
+
+    return (
+      <Tag color="processing" style={{ marginInlineEnd: 0 }}>
+        {t("chat.respond.modeLabel", "Tool response mode")}
+      </Tag>
+    );
+  }, [isRespondMode, t]);
+
+  const resolvedStatusIndicator = useMemo(() => {
+    if (!respondModeIndicator) {
+      return statusIndicator ?? null;
+    }
+    if (!statusIndicator) {
+      return respondModeIndicator;
+    }
+    return (
+      <Space size={6} align="center">
+        {respondModeIndicator}
+        {statusIndicator}
+      </Space>
+    );
+  }, [respondModeIndicator, statusIndicator]);
+
+  const submitButtonLabel = isRespondMode
+    ? t("chat.respond.submitToolResult", "Submit tool result")
+    : undefined;
 
   const reasoningEffortLabelMap = useMemo<Record<ReasoningEffort, string>>(
     () => ({
@@ -861,14 +914,33 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           />
         </Suspense>
       )}
+      {isRespondMode && respondOptions.length > 0 && (
+        <div style={{ marginBottom: token.marginSM }}>
+          <Space wrap size={[8, 8]}>
+            {respondOptions.map((option) => (
+              <Button
+                key={option}
+                size="small"
+                onClick={() => {
+                  void handleRespondSubmit(option);
+                }}
+                disabled={isStreaming}
+              >
+                {option}
+              </Button>
+            ))}
+          </Space>
+        </div>
+      )}
       <MessageInput
         value={content}
         onChange={commandState.handleInputChange}
         onSubmit={effectiveHandleSubmit}
         placeholder={placeholder}
         allowImages={true}
-        disabled={!activeModel}
-        statusIndicator={statusIndicator ?? null}
+        disabled={!activeModel || (isRespondMode && !respondAllowCustom && respondOptions.length > 0)}
+        statusIndicator={resolvedStatusIndicator}
+        submitButtonLabel={submitButtonLabel}
         isWorkflowSelectorVisible={commandState.showCommandSelector}
         textAreaRef={textAreaRef}
         validateMessage={(message) => {

@@ -12,10 +12,15 @@ import {
   type Message,
 } from "../../types/chat";
 import ToolResultCard from "../ToolResultCard";
-import ToolCallCard from "../ToolCallCard";
+import ToolCallCard, { type ToolCallCardProps } from "../ToolCallCard";
 import WorkflowResultCard from "../WorkflowResultCard";
+import InteractiveQuestionToolCard from "./InteractiveQuestionToolCard";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
-import { formatConclusionToolResultAsMarkdown } from "../../utils/resultFormatters";
+import {
+  formatConclusionWithOptionsConclusionAsMarkdown,
+  formatConclusionToolResultAsMarkdown,
+  parseInteractiveQuestionToolResultPayload,
+} from "../../utils/resultFormatters";
 
 const { Text } = Typography;
 
@@ -68,6 +73,7 @@ const extractSelectionHints = (input: string): { cleanText: string; hints: Selec
 };
 
 interface MessageCardContentProps {
+  sessionId: string | null;
   message: Message;
   messageText: string;
   isUserToolCall: boolean;
@@ -78,6 +84,7 @@ interface MessageCardContentProps {
 }
 
 const MessageCardContent: React.FC<MessageCardContentProps> = ({
+  sessionId,
   message,
   messageText,
   isUserToolCall,
@@ -105,10 +112,33 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
 
     const normalizedToolName = (message.toolName ?? "").trim().toLowerCase();
     const expandStructuredSummaryCardByDefault = normalizedToolName === "conclusion";
+    const interactiveQuestionPayload = parseInteractiveQuestionToolResultPayload(toolResultContent);
+    const shouldRenderInteractiveQuestion =
+      (normalizedToolName === "conclusion_with_options" ||
+        normalizedToolName === "exitplanmode" ||
+        normalizedToolName === "request_permissions") &&
+      !message.isError &&
+      interactiveQuestionPayload;
     const formattedConclusion =
       normalizedToolName === "conclusion"
         ? formatConclusionToolResultAsMarkdown(toolResultContent)
         : null;
+
+    if (shouldRenderInteractiveQuestion && interactiveQuestionPayload) {
+      return (
+        <InteractiveQuestionToolCard
+          sessionId={sessionId}
+          question={interactiveQuestionPayload.question}
+          options={interactiveQuestionPayload.options}
+          allowCustom={interactiveQuestionPayload.allow_custom}
+          toolCallId={message.toolCallId}
+          conclusionMarkdown={formatConclusionWithOptionsConclusionAsMarkdown(interactiveQuestionPayload.conclusion)}
+          markdownComponents={markdownComponents}
+          markdownPlugins={markdownPlugins}
+          rehypePlugins={rehypePlugins}
+        />
+      );
+    }
 
     if (formattedConclusion) {
       return (
@@ -176,6 +206,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
             toolCallId={call.toolCallId}
             streamingOutput={call.streamingOutput}
             defaultExpanded={false}
+            metadata={message.metadata as ToolCallCardProps["metadata"]}
           />
         ))}
       </Space>

@@ -46,6 +46,27 @@ export interface ConclusionToolResultPayload {
   confidence?: string;
 }
 
+export interface MermaidGraphPayload {
+  title?: string;
+  graph: string;
+}
+
+export interface ConclusionWithOptionsConclusionPayload {
+  title: string;
+  summary: string;
+  key_points: string[];
+  next_steps: string[];
+  confidence?: string;
+  mermaid?: MermaidGraphPayload;
+}
+
+export interface ConclusionWithOptionsToolResultPayload {
+  question: string;
+  options: string[];
+  allow_custom: boolean;
+  conclusion?: ConclusionWithOptionsConclusionPayload;
+}
+
 export type DiffLineKind =
   | "meta"
   | "hunk"
@@ -97,13 +118,27 @@ const parseJsonRecord = (content: string): Record<string, unknown> | null => {
   }
 };
 
+const decodeEscapedText = (value: string): string => {
+  if (!/\\u[0-9a-fA-F]{4}|\\n|\\t|\\r/.test(value)) {
+    return value;
+  }
+
+  return value
+    .replace(/\\u([0-9a-fA-F]{4})/g, (_match, hex: string) =>
+      String.fromCharCode(parseInt(hex, 16)),
+    )
+    .replace(/\\n/g, "\n")
+    .replace(/\\t/g, "\t")
+    .replace(/\\r/g, "\r");
+};
+
 const normalizeTextArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
     return [];
   }
   return value
     .filter((item): item is string => typeof item === "string")
-    .map((item) => item.trim())
+    .map((item) => decodeEscapedText(item).trim())
     .filter(Boolean);
 };
 
@@ -111,8 +146,44 @@ const normalizeOptionalText = (value: unknown): string | undefined => {
   if (typeof value !== "string") {
     return undefined;
   }
-  const trimmed = value.trim();
+  const trimmed = decodeEscapedText(value).trim();
   return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const parseMermaidPayload = (value: unknown): MermaidGraphPayload | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const graph = normalizeOptionalText(value.graph);
+  if (!graph) {
+    return undefined;
+  }
+
+  return {
+    title: normalizeOptionalText(value.title),
+    graph,
+  };
+};
+
+const parseConclusionWithOptionsConclusionPayload = (value: unknown): ConclusionWithOptionsConclusionPayload | undefined => {
+  if (!isRecord(value)) {
+    return undefined;
+  }
+
+  const summary = normalizeOptionalText(value.summary) ?? normalizeOptionalText(value.conclusion);
+  if (!summary) {
+    return undefined;
+  }
+
+  return {
+    title: normalizeOptionalText(value.title) || "Conclusion",
+    summary,
+    key_points: normalizeTextArray(value.key_points),
+    next_steps: normalizeTextArray(value.next_steps),
+    confidence: normalizeOptionalText(value.confidence),
+    mermaid: parseMermaidPayload(value.mermaid),
+  };
 };
 
 export const parseConclusionToolResultPayload = (
@@ -140,6 +211,69 @@ export const parseConclusionToolResultPayload = (
     next_steps: normalizeTextArray(parsed.next_steps),
     confidence: normalizeOptionalText(parsed.confidence),
   };
+};
+
+export const parseInteractiveQuestionToolResultPayload = (
+  content: string,
+): ConclusionWithOptionsToolResultPayload | null => {
+  const parsed = parseJsonRecord(content);
+  if (!parsed) {
+    return null;
+  }
+
+  const question = normalizeOptionalText(parsed.question);
+  if (!question) {
+    return null;
+  }
+
+  const status = normalizeOptionalText(parsed.status);
+  if (
+    status &&
+    status !== "awaiting_user_input" &&
+    status !== "awaiting_permission_approval"
+  ) {
+    return null;
+  }
+
+  return {
+    question,
+    options: normalizeTextArray(parsed.options),
+    allow_custom: typeof parsed.allow_custom === "boolean" ? parsed.allow_custom : true,
+    conclusion: parseConclusionWithOptionsConclusionPayload(parsed.conclusion),
+  };
+};
+
+export const formatConclusionWithOptionsConclusionAsMarkdown = (
+  conclusion: ConclusionWithOptionsConclusionPayload | undefined,
+): string | null => {
+  if (!conclusion) {
+    return null;
+  }
+
+  const sections: string[] = [`## ${conclusion.title}`, conclusion.summary];
+  if (conclusion.confidence) {
+    sections.push(`**Confidence:** ${conclusion.confidence}`);
+  }
+  if (conclusion.key_points.length > 0) {
+    sections.push(
+      ["**Key points**", ...conclusion.key_points.map((point) => `- ${point}`)].join("\n"),
+    );
+  }
+  if (conclusion.next_steps.length > 0) {
+    sections.push(
+      ["**Next steps**", ...conclusion.next_steps.map((step, index) => `${index + 1}. ${step}`)].join(
+        "\n",
+      ),
+    );
+  }
+  if (conclusion.mermaid?.graph) {
+    const mermaidTitle = conclusion.mermaid.title
+      ? `**${conclusion.mermaid.title}**\n\n`
+      : "**Flow**\n\n";
+    sections.push(`${mermaidTitle}\`\`\`mermaid\n${conclusion.mermaid.graph}\n\`\`\``);
+  }
+
+  return sections.join("\n\n");
 };
 
 export const formatConclusionToolResultAsMarkdown = (content: string): string | null => {

@@ -4,9 +4,11 @@ import {
   createContentPreview,
   createCompactPreview,
   formatConclusionToolResultAsMarkdown,
+  formatConclusionWithOptionsConclusionAsMarkdown,
   formatResultContent,
   getFileChangeDiffStats,
   getStatusColor,
+  parseInteractiveQuestionToolResultPayload,
   parseConclusionToolResultPayload,
   parseFileChangeResultPayload,
   parseUnifiedDiffLines,
@@ -271,6 +273,104 @@ describe("structured tool payload parsing", () => {
         "**Next steps**\n1. Release",
       ].join("\n\n"),
     );
+  });
+
+  it("parses interactive conclusion_with_options payload with conclusion", () => {
+    const payload = JSON.stringify({
+      status: "awaiting_user_input",
+      question: "Any other requests before I finish?",
+      options: ["OK", "Need changes"],
+      allow_custom: true,
+      conclusion: {
+        title: "Conclusion",
+        summary: "Core validation is complete and release is ready.",
+        key_points: ["All targeted tests passed"],
+        next_steps: ["Proceed with release train"],
+        confidence: "high",
+        mermaid: {
+          graph: "graph TD\nA[Validated]-->B[Ready]",
+        },
+      },
+    });
+
+    expect(parseInteractiveQuestionToolResultPayload(payload)).toEqual({
+      question: "Any other requests before I finish?",
+      options: ["OK", "Need changes"],
+      allow_custom: true,
+      conclusion: {
+        title: "Conclusion",
+        summary: "Core validation is complete and release is ready.",
+        key_points: ["All targeted tests passed"],
+        next_steps: ["Proceed with release train"],
+        confidence: "high",
+        mermaid: {
+          graph: "graph TD\nA[Validated]-->B[Ready]",
+        },
+      },
+    });
+  });
+
+  it("formats conclusion_with_options conclusion payload as markdown with mermaid", () => {
+    const markdown = formatConclusionWithOptionsConclusionAsMarkdown({
+      title: "Conclusion",
+      summary: "Ready to ship",
+      key_points: ["Tests passed"],
+      next_steps: ["Release"],
+      confidence: "high",
+      mermaid: {
+        graph: "graph TD\nA-->B",
+      },
+    });
+
+    expect(markdown).toContain("## Conclusion");
+    expect(markdown).toContain("Ready to ship");
+    expect(markdown).toContain("```mermaid");
+    expect(markdown).toContain("graph TD");
+  });
+
+  it("parses request_permissions payload as interactive question", () => {
+    const payload = JSON.stringify({
+      status: "awaiting_permission_approval",
+      question: "Approve filesystem write?",
+      options: ["Approve", "Deny"],
+      allow_custom: false,
+    });
+
+    expect(parseInteractiveQuestionToolResultPayload(payload)).toEqual({
+      question: "Approve filesystem write?",
+      options: ["Approve", "Deny"],
+      allow_custom: false,
+      conclusion: undefined,
+    });
+  });
+
+  it("decodes unicode-escaped text in interactive question payload", () => {
+    const payload = JSON.stringify({
+      status: "awaiting_user_input",
+      question: "\\u8bf7\\u786e\\u8ba4\\u662f\\u5426\\u7ee7\\u7eed\\u6267\\u884c\\uff1f",
+      options: ["\\u7ee7\\u7eed", "\\u505c\\u6b62"],
+      allow_custom: true,
+      conclusion: {
+        title: "Conclusion",
+        summary: "\\u5df2\\u5b8c\\u6210\\u4e0a\\u4e0b\\u6587\\u538b\\u7f29\\u3002",
+        key_points: ["\\u6458\\u8981\\u5df2\\u66f4\\u65b0"],
+        next_steps: ["\\u7b49\\u5f85\\u4f60\\u7684\\u9009\\u62e9"],
+      },
+    });
+
+    expect(parseInteractiveQuestionToolResultPayload(payload)).toEqual({
+      question: "请确认是否继续执行？",
+      options: ["继续", "停止"],
+      allow_custom: true,
+      conclusion: {
+        title: "Conclusion",
+        summary: "已完成上下文压缩。",
+        key_points: ["摘要已更新"],
+        next_steps: ["等待你的选择"],
+        confidence: undefined,
+        mermaid: undefined,
+      },
+    });
   });
 });
 

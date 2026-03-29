@@ -407,7 +407,7 @@ describe("chatSessionSlice history mapping", () => {
           id: "tool-policy",
           role: "tool",
           content:
-            "Tool policy blocked 'conclusion': when copilot ask-user enhancement is enabled, pair conclusion with an `ask_user` tool call in the same assistant response.",
+            "Tool policy blocked 'conclusion': when copilot conclusion-with-options enhancement is enabled, pair conclusion with an `conclusion_with_options` tool call in the same assistant response.",
           tool_success: false,
           created_at: "2026-03-15T00:00:01Z",
         },

@@ -132,6 +132,12 @@ export interface AssistantToolCallMessage extends BaseMessage {
   }[];
   model?: string;
   finishReason?: "tool_calls";
+  /** Lifecycle metadata injected by ToolLifecycle events (timing, mutating flag) */
+  metadata?: {
+    elapsed_ms?: number;
+    is_mutating?: boolean;
+    [key: string]: any;
+  };
 }
 
 export interface AssistantToolResultMessage extends BaseMessage {
@@ -197,6 +203,12 @@ export interface ChatItem {
     truncationOccurred?: boolean;
     segmentsRemoved?: number;
     compressionEvents?: CompressionEvent[];
+    syncCursor?: {
+      messageCount: number;
+      lastMessageId: string | null;
+      hasPendingQuestion: boolean;
+      pendingQuestionToolCallId: string | null;
+    };
   };
   currentInteraction: {
     machineState: string; // Legacy field, no longer used

@@ -55,6 +55,7 @@ interface MessageInputProps {
   onFileReferenceButtonClick?: () => void;
   maxCharCount?: number;
   leftControlsExtra?: React.ReactNode;
+  submitButtonLabel?: string;
 }
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -77,6 +78,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   onFileReferenceButtonClick,
   maxCharCount,
   leftControlsExtra,
+  submitButtonLabel,
 }) => {
   const { t } = useTranslation();
   const {
@@ -267,6 +269,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               isOverCharLimit={isOverCharLimit}
               token={token}
               statusIndicator={statusIndicator}
+              submitButtonLabel={submitButtonLabel}
             />
           </Flex>
         </Flex>

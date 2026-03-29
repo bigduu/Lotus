@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { App as AntApp } from "antd";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../store";
@@ -6,6 +6,126 @@ import { getOpenAIClient } from "../../services/openaiClient";
 import type { AssistantTextMessage, Message } from "../../types/chat";
 import type { UseChatState } from "./types";
 import { useFastModel } from "../useActiveModel";
+import i18n from "../../../../shared/i18n";
+
+const PROMPT_TEMPLATE_MARKER = "__BODHI_PROMPT_TITLE__";
+
+const normalizeTitleText = (value: string): string => value.trim().toLowerCase();
+
+const readNestedString = (input: unknown, path: readonly string[]): string | undefined => {
+  let current: unknown = input;
+  for (const key of path) {
+    if (!current || typeof current !== "object" || !(key in current)) {
+      return undefined;
+    }
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" ? current : undefined;
+};
+
+const getResourceTranslationValues = (path: readonly string[]): string[] => {
+  const out = new Set<string>();
+  const resources = i18n.options.resources;
+  if (!resources || typeof resources !== "object") {
+    return [];
+  }
+
+  Object.values(resources as Record<string, unknown>).forEach((resourceByLocale) => {
+    if (!resourceByLocale || typeof resourceByLocale !== "object") {
+      return;
+    }
+    const root =
+      "translation" in resourceByLocale &&
+      (resourceByLocale as Record<string, unknown>).translation &&
+      typeof (resourceByLocale as Record<string, unknown>).translation === "object"
+        ? (resourceByLocale as Record<string, unknown>).translation
+        : resourceByLocale;
+    const value = readNestedString(root, path);
+    if (!value) {
+      return;
+    }
+    const normalized = normalizeTitleText(value);
+    if (normalized) {
+      out.add(normalized);
+    }
+  });
+
+  return Array.from(out);
+};
+
+const buildDefaultTitleMatcher = (
+  t: (key: string, options?: Record<string, unknown>) => string,
+): ((title: string | undefined | null) => boolean) => {
+  const exactMatches = new Set<string>(["new session", "new chat", "main"]);
+  const prefixMatches = new Set<string>(["new session", "new chat"]);
+  const templateMatches: Array<{ prefix: string; suffix: string }> = [];
+
+  const addDefaultLabel = (label: string) => {
+    const normalized = normalizeTitleText(label);
+    if (!normalized) {
+      return;
+    }
+    exactMatches.add(normalized);
+    prefixMatches.add(normalized);
+  };
+
+  const addTemplateLabel = (template: string) => {
+    const normalized = normalizeTitleText(template);
+    if (!normalized) {
+      return;
+    }
+    if (normalized.includes("{{prompt}}")) {
+      const [prefix, suffix] = normalized.split("{{prompt}}", 2);
+      templateMatches.push({ prefix, suffix });
+      return;
+    }
+    if (normalized.includes(PROMPT_TEMPLATE_MARKER.toLowerCase())) {
+      const [prefix, suffix] = normalized.split(PROMPT_TEMPLATE_MARKER.toLowerCase(), 2);
+      templateMatches.push({ prefix, suffix });
+      return;
+    }
+    prefixMatches.add(normalized);
+  };
+
+  getResourceTranslationValues(["chat", "sidebar", "newSession"]).forEach(addDefaultLabel);
+  getResourceTranslationValues(["chat", "session", "defaultTitle"]).forEach(addDefaultLabel);
+  getResourceTranslationValues(["chat", "sidebar", "newSessionWithPrompt"]).forEach(addTemplateLabel);
+
+  addDefaultLabel(t("chat.sidebar.newSession"));
+  addDefaultLabel(t("chat.session.defaultTitle"));
+  addTemplateLabel(t("chat.sidebar.newSessionWithPrompt", { prompt: PROMPT_TEMPLATE_MARKER }));
+
+  return (title: string | undefined | null) => {
+    if (!title) return true;
+    const normalized = normalizeTitleText(title);
+    if (!normalized) return true;
+    if (exactMatches.has(normalized)) return true;
+
+    for (const prefix of prefixMatches) {
+      if (!prefix) continue;
+      if (
+        normalized.startsWith(`${prefix} -`) ||
+        normalized.startsWith(`${prefix}-`) ||
+        normalized.startsWith(`${prefix}:`) ||
+        normalized.startsWith(`${prefix}：`)
+      ) {
+        return true;
+      }
+    }
+
+    for (const { prefix, suffix } of templateMatches) {
+      if (!normalized.startsWith(prefix) || !normalized.endsWith(suffix)) {
+        continue;
+      }
+      const middle = normalized.slice(prefix.length, normalized.length - suffix.length);
+      if (middle.trim().length > 0) {
+        return true;
+      }
+    }
+
+    return false;
+  };
+};
 
 /**
  * Hook for chat title generation and validation
@@ -40,15 +160,14 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
     Record<string, { status: "idle" | "loading" | "error"; error?: string }>
   >({});
 
-  const isDefaultTitle = useCallback((title: string | undefined | null) => {
-    if (!title) return true;
-    const normalized = title.trim().toLowerCase();
-    if (normalized.length === 0) return true;
-    // Keep this list aligned with backend defaults + UI create flows.
-    if (normalized === "new session" || normalized === "new chat") return true;
-    if (normalized === "main") return true;
-    return normalized.startsWith("new session -") || normalized.startsWith("new chat -");
-  }, []);
+  const isDefaultTitleMatcher = useMemo(
+    () => buildDefaultTitleMatcher((key, options) => t(key, options)),
+    [t, i18n.language],
+  );
+  const isDefaultTitle = useCallback(
+    (title: string | undefined | null) => isDefaultTitleMatcher(title),
+    [isDefaultTitleMatcher],
+  );
 
   const generateChatTitle = useCallback(
     async (sessionId: string, options?: { force?: boolean }) => {

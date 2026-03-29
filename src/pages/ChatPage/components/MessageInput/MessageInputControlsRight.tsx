@@ -25,6 +25,7 @@ interface MessageInputControlsRightProps {
   isOverCharLimit: boolean;
   token: GlobalToken;
   statusIndicator?: React.ReactNode;
+  submitButtonLabel?: string;
 }
 
 const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
@@ -40,10 +41,12 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
   isOverCharLimit,
   token,
   statusIndicator,
+  submitButtonLabel,
 }) => {
   const { t } = useTranslation();
   const canSend = !value.trim() && images.length === 0;
   const retryDisabled = isStreaming || disabled || !onRetry;
+  const resolvedSubmitLabel = submitButtonLabel ?? t("chat.actions.sendMessage");
 
   return (
     <Flex
@@ -125,8 +128,8 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
           transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
           transform: "scale(1)",
         }}
-        title={isStreaming ? t("chat.actions.cancelRequest") : t("chat.actions.sendMessage")}
-        aria-label={isStreaming ? t("chat.actions.cancelRequest") : t("chat.actions.sendMessage")}
+        title={isStreaming ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
+        aria-label={isStreaming ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
       />
     </Flex>
   );

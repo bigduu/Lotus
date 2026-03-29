@@ -16,6 +16,11 @@ export interface ToolCallCardProps {
   toolCallId: string;
   streamingOutput?: string;
   defaultExpanded?: boolean;
+  /** Lifecycle metadata injected by ToolLifecycle events */
+  metadata?: {
+    elapsed_ms?: number;
+    is_mutating?: boolean;
+  };
 }
 
 /**
@@ -58,6 +63,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
   toolCallId,
   streamingOutput,
   defaultExpanded = false,
+  metadata,
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
@@ -203,6 +209,25 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
               >
                 {intentDescription}
               </Text>
+              {metadata?.elapsed_ms != null && (
+                <Tooltip title={metadata.is_mutating ? "Mutating tool" : "Read-only tool"}>
+                  <Tag
+                    color={metadata.is_mutating ? "orange" : "green"}
+                    style={{
+                      marginInlineEnd: 0,
+                      borderRadius: 999,
+                      paddingInline: 6,
+                      fontSize: token.fontSizeSM - 1,
+                      lineHeight: "18px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {metadata.elapsed_ms < 1000
+                      ? `${metadata.elapsed_ms}ms`
+                      : `${(metadata.elapsed_ms / 1000).toFixed(1)}s`}
+                  </Tag>
+                </Tooltip>
+              )}
             </div>
           ),
           children: (

@@ -418,6 +418,9 @@ describe("QuestionDialog", () => {
     expect(mockSetPendingQuestionRespond).toHaveBeenCalledWith({
       sessionId: "test-session-1",
       question: "Test?",
+      options: ["A"],
+      allowCustom: true,
+      toolCallId: "tool-1",
     });
 
     // In custom mode, no submit button is shown (user submits via InputContainer)

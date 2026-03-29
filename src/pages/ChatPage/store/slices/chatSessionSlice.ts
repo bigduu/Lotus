@@ -167,7 +167,8 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
   };
 };
 
-const mapHistoryMessagesToUi = (
+/** @internal Exported for testing only. */
+export const mapHistoryMessagesToUi = (
   sessionId: string,
   history: Array<{
     id: string;
@@ -200,10 +201,20 @@ const mapHistoryMessagesToUi = (
     tool_call_id?: string;
     tool_success?: boolean;
     reasoning?: string;
+    metadata?: Record<string, unknown>;
     created_at: string;
   }>,
 ): Message[] => {
   const toolNameByCallId = new Map<string, string>();
+  // Pre-build a map from tool_call_id -> metadata from tool result messages.
+  // This lets us attach lifecycle metadata to the tool_call card during
+  // session loading (when the SSE lifecycle events are no longer available).
+  const metadataByToolCallId = new Map<string, Record<string, unknown>>();
+  for (const msg of history) {
+    if (msg.role === "tool" && msg.tool_call_id && msg.metadata) {
+      metadataByToolCallId.set(msg.tool_call_id, msg.metadata);
+    }
+  }
   const out: Message[] = [];
 
   for (const msg of history) {
@@ -297,6 +308,11 @@ const mapHistoryMessagesToUi = (
             );
           }
         }
+        // Look up lifecycle metadata from the first tool call's result message.
+        const firstCallId = toolCalls[0]?.id;
+        const lifecycleMetadata = firstCallId
+          ? metadataByToolCallId.get(firstCallId)
+          : undefined;
         const toolCallMsg: AssistantToolCallMessage = {
           role: "assistant",
           type: "tool_call",
@@ -314,6 +330,7 @@ const mapHistoryMessagesToUi = (
             })(),
             streamingOutput: "",
           })),
+          ...(lifecycleMetadata ? { metadata: lifecycleMetadata } : {}),
           isCompressed: Boolean(msg.compressed),
           compressedEventId: msg.compressed_by_event_id,
         };
@@ -805,6 +822,15 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
               messagesCompressed: event.messages_compressed,
               segmentsRemoved: event.segments_removed,
             })),
+            syncCursor: {
+              messageCount: history.messages.length,
+              lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
+              hasPendingQuestion: Boolean(get().pendingQuestionRespond?.sessionId === sessionId),
+              pendingQuestionToolCallId:
+                get().pendingQuestionRespond?.sessionId === sessionId
+                  ? (get().pendingQuestionRespond?.toolCallId ?? null)
+                  : null,
+            },
           },
         });
         return;

@@ -10,9 +10,9 @@ import {
 import { getMermaidEnhancementPrompt, setMermaidEnhancementEnabled } from "../mermaidUtils";
 import { getTaskEnhancementPrompt, setTaskEnhancementEnabled } from "../taskEnhancementUtils";
 import {
-  getCopilotAskUserEnhancementPrompt,
-  setCopilotAskUserEnhancementEnabled,
-} from "../copilotAskUserEnhancementUtils";
+  getCopilotConclusionWithOptionsEnhancementPrompt,
+  setCopilotConclusionWithOptionsEnhancementEnabled,
+} from "../copilotConclusionWithOptionsEnhancementUtils";
 import { getOSInfoEnhancementPrompt } from "../osInfoUtils";
 
 const OPERATIONAL_GUIDANCE_HEADING = "## Bamboo Operational Guidance";
@@ -30,7 +30,7 @@ describe("systemPromptEnhancement", () => {
     localStorage.clear();
     setMermaidEnhancementEnabled(false);
     setTaskEnhancementEnabled(false);
-    setCopilotAskUserEnhancementEnabled(false);
+    setCopilotConclusionWithOptionsEnhancementEnabled(false);
   });
 
   it("returns base prompt when enhancement is empty", () => {
@@ -178,17 +178,17 @@ describe("systemPromptEnhancement", () => {
     expect(osIndex).toBeLessThan(userIndex);
   });
 
-  it("adds ask_user rule only for copilot provider when enabled", () => {
-    setCopilotAskUserEnhancementEnabled(true);
+  it("adds conclusion_with_options rule only for copilot provider when enabled", () => {
+    setCopilotConclusionWithOptionsEnhancementEnabled(true);
 
     expect(getSystemPromptEnhancementText("copilot")).toContain(
-      getCopilotAskUserEnhancementPrompt().trim(),
+      getCopilotConclusionWithOptionsEnhancementPrompt().trim(),
     );
     expect(getSystemPromptEnhancementText("openai")).not.toContain(
-      getCopilotAskUserEnhancementPrompt().trim(),
+      getCopilotConclusionWithOptionsEnhancementPrompt().trim(),
     );
     expect(getSystemPromptEnhancementText()).not.toContain(
-      getCopilotAskUserEnhancementPrompt().trim(),
+      getCopilotConclusionWithOptionsEnhancementPrompt().trim(),
     );
   });
 });

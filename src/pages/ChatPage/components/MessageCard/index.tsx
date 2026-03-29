@@ -326,6 +326,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
             <Flex vertical style={{ width: "100%", maxWidth: "100%" }}>
               <MessageCardContent
+                sessionId={sessionId}
                 message={message}
                 messageText={messageText}
                 isUserToolCall={isUserToolCall}

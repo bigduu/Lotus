@@ -100,6 +100,15 @@ const isStructuredSummaryTool = (toolName: string | undefined): boolean => {
   return normalized === "conclusion";
 };
 
+const isInteractiveQuestionTool = (toolName: string | undefined): boolean => {
+  const normalized = (toolName ?? "").trim().toLowerCase();
+  return (
+    normalized === "conclusion_with_options" ||
+    normalized === "exitplanmode" ||
+    normalized === "request_permissions"
+  );
+};
+
 const getToolCallId = (item: ToolSessionItem): string =>
   item.call.toolCalls?.[0]?.toolCallId || item.result?.toolCallId || "tool-call-missing";
 
@@ -167,6 +176,18 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
           passthroughToolCallIds.add(callId);
           return;
         }
+
+        if (isInteractiveQuestionTool(toolCall.toolName)) {
+          passthroughToolCallIds.add(callId);
+          const singleCallMessage: AssistantToolCallMessage = {
+            ...message,
+            id: `${message.id}:tool-call:${index}:${callId}`,
+            toolCalls: [{ ...toolCall, toolCallId: callId }],
+          };
+          result.push(singleCallMessage);
+          return;
+        }
+
         const singleCallMessage: AssistantToolCallMessage = {
           ...message,
           id: `${message.id}:tool-call:${index}:${callId}`,

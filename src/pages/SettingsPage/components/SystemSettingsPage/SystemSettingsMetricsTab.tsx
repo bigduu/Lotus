@@ -45,6 +45,7 @@ import TokenChart from "./metrics/TokenChart";
 import ForwardMetricsCards from "./metrics/ForwardMetricsCards";
 import ForwardEndpointDistribution from "./metrics/ForwardEndpointDistribution";
 import ForwardRequestTable from "./metrics/ForwardRequestTable";
+import SyncMismatchBreakdownCard from "./metrics/SyncMismatchBreakdownCard";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -486,6 +487,10 @@ const SystemSettingsMetricsTab: React.FC = () => {
               children: (
                 <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
                   <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
+                  <SyncMismatchBreakdownCard
+                    breakdown={summary?.sync_mismatch_breakdown}
+                    loading={isLoading}
+                  />
                   <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
                   <Card
                     size="small"

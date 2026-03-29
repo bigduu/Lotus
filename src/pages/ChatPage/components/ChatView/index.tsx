@@ -30,7 +30,6 @@ import { QuestionDialog } from "@components/QuestionDialog";
 import { TokenUsageDisplay } from "../TokenUsageDisplay";
 import { SubSessionsPanel } from "./SubSessionsPanel";
 import { ContextBar } from "../ContextBar";
-import { ExecutionStatusRail } from "../ExecutionStatusRail";
 import { SessionSummaryCard } from "../SessionSummaryCard";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
 import "./styles.css";
@@ -509,9 +508,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
   }, [sessionId, handleToggleSelectionMode]);
 
-  // In v2, frontend chat id === backend session id.
-  const agentSessionId = currentChat?.id;
-
   // Get token usage - prefer store (real-time), fallback to chat config (persisted)
   const storeTokenUsage = sessionId ? tokenUsages[sessionId] : null;
   const configTokenUsage = currentChat?.config?.tokenUsage;
@@ -552,11 +548,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
     messagesListRef,
     renderableMessages: renderableMessagesWithDraft,
   });
-
-  const handleQuestionAppeared = useCallback(() => {
-    resetUserScroll();
-    scrollToBottom();
-  }, [resetUserScroll, scrollToBottom]);
 
   const getScrollButtonPosition = () => {
     return screens.xs ? 16 : 32;
@@ -661,7 +652,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
         )}
 
         {/* TaskList - show when there is an active agent session */}
-        {agentSessionId && hasTaskList && (
+        {sessionId && hasTaskList && (
           <div
             style={{
               paddingTop: getContainerPadding(),
@@ -673,7 +664,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <TodoList sessionId={agentSessionId} initialCollapsed={true} />
+            <TodoList sessionId={sessionId} initialCollapsed={true} />
           </div>
         )}
 
@@ -820,23 +811,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         )}
 
-        {/* ExecutionStatusRail - unified status bar above input */}
-        {sessionId && <ExecutionStatusRail sessionId={sessionId} />}
-
-        {/* QuestionDialog - show above input area when there's an active agent session */}
-        {agentSessionId && (
+        {sessionId && (
           <div
             style={{
-              padding: `0 ${getContainerPadding()}px`,
-              maxWidth: showMessagesView ? getContainerMaxWidth() : "100%",
+              paddingTop: token.paddingXS,
+              paddingRight: getContainerPadding(),
+              paddingBottom: 0,
+              paddingLeft: getContainerPadding(),
+              maxWidth: getContainerMaxWidth(),
               margin: "0 auto",
               width: "100%",
             }}
           >
-            <QuestionDialog
-              sessionId={agentSessionId}
-              onQuestionAppeared={handleQuestionAppeared}
-            />
+            <QuestionDialog sessionId={sessionId} />
           </div>
         )}
 

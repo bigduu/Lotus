@@ -19,12 +19,15 @@ export interface InputState {
   reasoningEffort: ReasoningEffort;
 }
 
-// When the user selects "Other (custom input)" in QuestionDialog,
-// we activate "respond mode" in InputContainer so the user can type
-// their custom answer using the full-featured input (with image paste, etc.)
+// When conclusion_with_options/request_permissions is awaiting user input,
+// InputContainer enters "respond mode" and uses this payload to render
+// quick options plus optional custom-response behavior.
 export interface PendingQuestionRespond {
   sessionId: string;
   question: string;
+  options: string[];
+  allowCustom: boolean;
+  toolCallId?: string | null;
 }
 
 export interface InputStateSliceState {
@@ -218,7 +221,7 @@ export const createInputStateSlice: StateCreator<AppState, [], [], InputStateSli
   setPendingQuestionRespond: (respond) => set({ pendingQuestionRespond: respond }),
 
   // Session-scoped clear for multi-pane safety:
-  // avoid one pane clearing another pane's pending ask_user response state.
+  // avoid one pane clearing another pane's pending conclusion_with_options response state.
   clearPendingQuestionRespondForSession: (sessionId) =>
     set((state) => {
       if (state.pendingQuestionRespond?.sessionId !== sessionId) {

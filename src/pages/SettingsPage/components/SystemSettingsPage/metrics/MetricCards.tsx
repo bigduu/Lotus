@@ -47,7 +47,24 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
 
   return (
     <Row gutter={[token.marginSM, token.marginSM]}>
-      <Col xs={24} sm={12} xl={6}>
+      <Col xs={24} sm={12} lg={8} xl={4}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.metricsCards.syncMismatches", {
+              defaultValue: "Sync Mismatches",
+            })}
+            value={summary?.total_sync_mismatches ?? 0}
+            precision={0}
+            valueStyle={{
+              color:
+                (summary?.total_sync_mismatches ?? 0) > 0
+                  ? "var(--lotus-chart-danger)"
+                  : "var(--lotus-chart-secondary)",
+            }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.totalSessions")}
@@ -57,7 +74,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
           />
         </Card>
       </Col>
-      <Col xs={24} sm={12} xl={6}>
+      <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.chatTokens")}
@@ -67,7 +84,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
           />
         </Card>
       </Col>
-      <Col xs={24} sm={12} xl={6}>
+      <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.totalToolCalls")}
@@ -77,7 +94,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
           />
         </Card>
       </Col>
-      <Col xs={24} sm={12} xl={6}>
+      <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.avgSessionDuration")}

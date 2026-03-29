@@ -89,16 +89,22 @@ describe("inputStateSlice", () => {
     harness.getState().setPendingQuestionRespond({
       sessionId: "session-1",
       question: "q1",
+      options: ["a", "b"],
+      allowCustom: false,
     });
     expect(harness.getState().pendingQuestionRespond).toMatchObject({
       sessionId: "session-1",
       question: "q1",
+      options: ["a", "b"],
+      allowCustom: false,
     });
 
     harness.getState().clearPendingQuestionRespondForSession("session-2");
     expect(harness.getState().pendingQuestionRespond).toMatchObject({
       sessionId: "session-1",
       question: "q1",
+      options: ["a", "b"],
+      allowCustom: false,
     });
 
     harness.getState().clearPendingQuestionRespondForSession("session-1");

@@ -2,9 +2,9 @@ import { getMermaidEnhancementPrompt, isMermaidEnhancementEnabled } from "./merm
 import { getTaskEnhancementPrompt, isTaskEnhancementEnabled } from "./taskEnhancementUtils";
 import { getOSInfoEnhancementPrompt } from "./osInfoUtils";
 import {
-  getCopilotAskUserEnhancementPrompt,
-  isCopilotAskUserEnhancementEnabled,
-} from "./copilotAskUserEnhancementUtils";
+  getCopilotConclusionWithOptionsEnhancementPrompt,
+  isCopilotConclusionWithOptionsEnhancementEnabled,
+} from "./copilotConclusionWithOptionsEnhancementUtils";
 
 const SYSTEM_PROMPT_ENHANCEMENT_KEY = "bamboo_system_prompt_enhancement";
 
@@ -90,8 +90,8 @@ export const getSystemPromptEnhancementPipeline = (currentProvider?: string): st
   }
 
   const normalizedProvider = (currentProvider ?? "").trim().toLowerCase();
-  if (normalizedProvider === "copilot" && isCopilotAskUserEnhancementEnabled()) {
-    pipeline.push(getCopilotAskUserEnhancementPrompt().trim());
+  if (normalizedProvider === "copilot" && isCopilotConclusionWithOptionsEnhancementEnabled()) {
+    pipeline.push(getCopilotConclusionWithOptionsEnhancementPrompt().trim());
   }
 
   return pipeline;

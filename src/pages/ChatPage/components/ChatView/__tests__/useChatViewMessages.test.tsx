@@ -144,4 +144,40 @@ describe("useChatViewMessages tool session keys", () => {
       renderable.filter((entry) => !("type" in entry)).map((entry) => entry.message.id),
     ).toEqual(["result-1"]);
   });
+
+  it("keeps conclusion_with_options as regular message entries so interactive cards can render", () => {
+    const chat = buildChat();
+    const callId = "ask-1";
+    const toolCallMessage = buildNamedToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", [
+      { toolCallId: callId, toolName: "conclusion_with_options" },
+    ]);
+    const toolResultMessage = buildToolResultMessage(
+      "result-ask",
+      "2026-03-24T00:00:01.000Z",
+      callId,
+      JSON.stringify({
+        status: "awaiting_user_input",
+        question: "Any other requests before I finish?",
+        options: ["OK", "Need changes"],
+        allow_custom: true,
+        conclusion: {
+          summary: "Everything is done.",
+          mermaid: {
+            graph: "graph TD\nA[Done]-->B[Confirm]",
+          },
+        },
+      }),
+      "conclusion_with_options",
+    );
+
+    const { result } = renderHook(() => useChatViewMessages(chat, [toolCallMessage, toolResultMessage]));
+    const renderable = result.current.renderableMessages;
+    const toolEntries = getToolSessionEntries(renderable);
+    const messageEntries = renderable.filter((entry) => !("type" in entry));
+
+    expect(toolEntries).toHaveLength(0);
+    expect(messageEntries.map((entry) => entry.message.type)).toEqual(["tool_call", "tool_result"]);
+    expect(messageEntries[0].message.id).toContain(callId);
+    expect(messageEntries[1].message.id).toBe("result-ask");
+  });
 });

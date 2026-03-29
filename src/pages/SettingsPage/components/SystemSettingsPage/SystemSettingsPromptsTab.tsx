@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import { Button, Card, Collapse, Flex, Input, Space, Spin, Switch, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import MermaidSettingsTab from "./MermaidSettingsTab";
+import { getCopilotConclusionWithOptionsEnhancementUserFacingText } from "../../../../shared/utils/copilotConclusionWithOptionsEnhancementUtils";
 
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
 const { Text } = Typography;
@@ -12,11 +13,11 @@ interface SystemSettingsPromptsTabProps {
   onPromptEnhancementChange: (value: string) => void;
   mermaidEnhancementEnabled: boolean;
   taskEnhancementEnabled: boolean;
-  showCopilotAskUserEnhancement: boolean;
-  copilotAskUserEnhancementEnabled: boolean;
+  showCopilotConclusionWithOptionsEnhancement: boolean;
+  copilotConclusionWithOptionsEnhancementEnabled: boolean;
   onMermaidToggle: (checked: boolean) => void;
   onTaskToggle: (checked: boolean) => void;
-  onCopilotAskUserToggle: (checked: boolean) => void;
+  onCopilotConclusionWithOptionsToggle: (checked: boolean) => void;
   onSaveEnhancement: () => void;
 }
 
@@ -25,11 +26,11 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
   onPromptEnhancementChange,
   mermaidEnhancementEnabled,
   taskEnhancementEnabled,
-  showCopilotAskUserEnhancement,
-  copilotAskUserEnhancementEnabled,
+  showCopilotConclusionWithOptionsEnhancement,
+  copilotConclusionWithOptionsEnhancementEnabled,
   onMermaidToggle,
   onTaskToggle,
-  onCopilotAskUserToggle,
+  onCopilotConclusionWithOptionsToggle,
   onSaveEnhancement,
 }) => {
   const { t } = useTranslation();
@@ -54,14 +55,21 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
             <Text strong>{t("settings.promptsTab.taskListRules")}</Text>
             <Switch checked={taskEnhancementEnabled} onChange={onTaskToggle} />
           </Flex>
-          {showCopilotAskUserEnhancement && (
-            <Flex align="center" gap={token.marginSM}>
-              <Text strong>{t("settings.promptsTab.copilotAskUserBeforeFinish")}</Text>
-              <Switch
-                checked={copilotAskUserEnhancementEnabled}
-                onChange={onCopilotAskUserToggle}
-              />
-            </Flex>
+          {showCopilotConclusionWithOptionsEnhancement && (
+            <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
+              <Flex align="center" gap={token.marginSM}>
+                <Text strong>{t("settings.promptsTab.copilotConclusionWithOptionsBeforeFinish")}</Text>
+                <Switch
+                  checked={copilotConclusionWithOptionsEnhancementEnabled}
+                  onChange={onCopilotConclusionWithOptionsToggle}
+                />
+              </Flex>
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                {t("settings.promptsTab.copilotConclusionWithOptionsBeforeFinishDescription", {
+                  defaultValue: getCopilotConclusionWithOptionsEnhancementUserFacingText(),
+                })}
+              </Text>
+            </Space>
           )}
           <Input.TextArea
             rows={6}

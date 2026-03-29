@@ -26,6 +26,7 @@ import ModelDistribution from "./metrics/ModelDistribution";
 import SessionTable from "./metrics/SessionTable";
 import ForwardEndpointDistribution from "./metrics/ForwardEndpointDistribution";
 import ForwardRequestTable from "./metrics/ForwardRequestTable";
+import SyncMismatchBreakdownCard from "./metrics/SyncMismatchBreakdownCard";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -230,6 +231,11 @@ const UnifiedMetricsDashboard: React.FC = () => {
         <UnifiedTimelineChart data={timeline} loading={isLoading} />
         <ModelDistribution data={modelMetrics} loading={isLoading} />
       </div>
+
+      <SyncMismatchBreakdownCard
+        breakdown={chatSummary?.sync_mismatch_breakdown}
+        loading={isLoading}
+      />
 
       {/* Forward Endpoint Distribution */}
       <ForwardEndpointDistribution data={endpointMetrics} loading={isLoading} />

@@ -126,6 +126,26 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
+            title={t("settings.unifiedMetricsCards.syncMismatches", {
+              defaultValue: "Sync Mismatches",
+            })}
+            value={
+              chatSummary?.total_sync_mismatches ?? combinedSummary?.total_sync_mismatches ?? 0
+            }
+            precision={0}
+            valueStyle={{
+              color:
+                (chatSummary?.total_sync_mismatches ?? combinedSummary?.total_sync_mismatches ?? 0) >
+                0
+                  ? "var(--lotus-chart-danger)"
+                  : "var(--lotus-chart-secondary)",
+            }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} xl={6}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
             title={t("settings.unifiedMetricsCards.chatSessions")}
             value={chatSummary?.total_sessions ?? 0}
             precision={0}

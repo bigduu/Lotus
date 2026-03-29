@@ -11,6 +11,7 @@ import { useAppStore } from "../pages/ChatPage/store";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
 import { message } from "antd";
+import { formatCompletionPolicyViolationMessage, isCompletionPolicyViolationError } from "../shared/utils/completionPolicyViolation";
 
 type SubscriptionEntry = {
   sessionId: string;
@@ -69,6 +70,8 @@ export function useAgentEventSubscription() {
         content: string;
         reasoningMessageId: string;
         reasoningContent: string;
+        statusMessageId: string;
+        status: string;
       }
     >
   >(new Map());
@@ -120,11 +123,13 @@ export function useAgentEventSubscription() {
         if (opts?.clearDraft) {
           streamingMessageBus.clear(streaming.sessionId, streaming.messageId);
           streamingMessageBus.clear(streaming.sessionId, streaming.reasoningMessageId);
+          streamingMessageBus.clear(streaming.sessionId, streaming.statusMessageId);
         }
         streamingStateBySessionRef.current.delete(existing.sessionId);
       } else if (opts?.clearDraft) {
         streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
         streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
+        streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
       }
     },
     [clearReconnect],
@@ -143,14 +148,18 @@ export function useAgentEventSubscription() {
 
       const messageId = `streaming-${sessionId}`;
       const reasoningMessageId = `streaming-reasoning-${sessionId}`;
+      const statusMessageId = `streaming-status-${sessionId}`;
       const existingDraft = streamingMessageBus.getLatest(messageId);
       const existingReasoningDraft = streamingMessageBus.getLatest(reasoningMessageId);
+      const existingStatus = streamingMessageBus.getLatest(statusMessageId);
       streamingStateBySessionRef.current.set(sessionId, {
         sessionId,
         messageId,
         content: existingDraft ?? "",
         reasoningMessageId,
         reasoningContent: existingReasoningDraft ?? "",
+        statusMessageId,
+        status: existingStatus ?? "",
       });
 
       // Only publish an empty placeholder if we don't already have a draft.
@@ -186,6 +195,10 @@ export function useAgentEventSubscription() {
             onToken: (tokenContent: string) => {
               const state = streamingStateBySessionRef.current.get(sessionId);
               if (!state) return;
+              if (state.status) {
+                state.status = "";
+                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
+              }
               state.content += tokenContent;
               streamingMessageBus.publish({
                 sessionId: state.sessionId,
@@ -197,6 +210,10 @@ export function useAgentEventSubscription() {
             onReasoningToken: (tokenContent: string) => {
               const state = streamingStateBySessionRef.current.get(sessionId);
               if (!state) return;
+              if (state.status) {
+                state.status = "";
+                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
+              }
               state.reasoningContent += tokenContent;
               streamingMessageBus.publish({
                 sessionId: state.sessionId,
@@ -245,6 +262,13 @@ export function useAgentEventSubscription() {
                 if (streamingState) {
                   streamingState.content = "";
                   streamingState.reasoningContent = "";
+                  if (streamingState.status) {
+                    streamingState.status = "";
+                    streamingMessageBus.clear(
+                      streamingState.sessionId,
+                      streamingState.statusMessageId,
+                    );
+                  }
                   streamingMessageBus.publish({
                     sessionId: streamingState.sessionId,
                     messageId: streamingState.messageId,
@@ -276,6 +300,7 @@ export function useAgentEventSubscription() {
                     streamingOutput: "",
                   },
                 ],
+                metadata: {},
                 createdAt: new Date().toISOString(),
               });
             },
@@ -359,6 +384,40 @@ export function useAgentEventSubscription() {
               });
             },
 
+            onToolLifecycle: (toolCallId, _toolName, phase, elapsedMs, isMutating) => {
+              // When a tool finishes, update its message card with timing metadata
+              if (phase === "finished" || phase === "error") {
+                const messageId = toolCallMessageIdByCallIdRef.current.get(toolCallId);
+                if (messageId) {
+                  void updateMessage(sessionId, messageId, {
+                    metadata: {
+                      elapsed_ms: elapsedMs,
+                      is_mutating: isMutating,
+                    },
+                  });
+                }
+              }
+            },
+
+            onContextCompressionStatus: (_phase, status) => {
+              const state = streamingStateBySessionRef.current.get(sessionId);
+              if (!state) return;
+              if (status === "started") {
+                state.status = "context_compacting";
+                streamingMessageBus.publish({
+                  sessionId: state.sessionId,
+                  messageId: state.statusMessageId,
+                  content: state.status,
+                });
+                return;
+              }
+
+              if (state.status) {
+                state.status = "";
+              }
+              streamingMessageBus.clear(state.sessionId, state.statusMessageId);
+            },
+
             onTokenBudgetUpdated: (usage: TokenBudgetUsage) => {
               const maxContextTokens =
                 typeof usage.max_context_tokens === "number" && usage.max_context_tokens > 0
@@ -396,6 +455,11 @@ export function useAgentEventSubscription() {
             },
 
             onContextSummarized: (summaryInfo: ContextSummaryInfo) => {
+              const state = streamingStateBySessionRef.current.get(sessionId);
+              if (state?.status) {
+                state.status = "";
+                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
+              }
               message.info(
                 `Conversation summarized: ${summaryInfo.messages_summarized} messages compressed, saved ${summaryInfo.tokens_saved.toLocaleString()} tokens`,
                 5,
@@ -448,7 +512,7 @@ export function useAgentEventSubscription() {
             onComplete: () => {
               // Capture the controller that owns THIS execution run.  The async
               // body below may outlive this subscription (e.g. loadChatHistory
-              // retries take ~2s).  If the user responds to ask_user and a *new*
+              // retries take ~2s).  If the user responds to conclusion_with_options and a *new*
               // subscription starts for the same sessionId in the meantime, we
               // must NOT clean up the new one.
               const ownerController = controller;
@@ -568,6 +632,7 @@ export function useAgentEventSubscription() {
                   if (entry) {
                     streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
                     streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
+                    streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
                     streamingStateBySessionRef.current.delete(entry.sessionId);
                   }
                 }
@@ -575,11 +640,21 @@ export function useAgentEventSubscription() {
             },
 
             onError: async (errorMessage: string) => {
+              const state = streamingStateBySessionRef.current.get(sessionId);
+              if (state?.status) {
+                state.status = "";
+                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
+              }
+
+              const friendlyErrorMessage = isCompletionPolicyViolationError(errorMessage)
+                ? formatCompletionPolicyViolationMessage(errorMessage)
+                : errorMessage;
+
               await addMessage(sessionId, {
                 id: `error-${Date.now()}`,
                 role: "assistant",
                 type: "text",
-                content: `❌ **Error**: ${errorMessage}`,
+                content: `❌ **Error**: ${friendlyErrorMessage}`,
                 createdAt: new Date().toISOString(),
                 finishReason: "error",
               });
@@ -729,7 +804,7 @@ export function useAgentEventSubscription() {
           if (controller.signal.aborted) return;
 
           // If a newer subscription already replaced this one (e.g. user
-          // responded to ask_user quickly), don't interfere with it.
+          // responded to conclusion_with_options quickly), don't interfere with it.
           const currentSub = subscriptionsBySessionRef.current.get(sessionId);
           if (currentSub && currentSub.controller !== controller) return;
 

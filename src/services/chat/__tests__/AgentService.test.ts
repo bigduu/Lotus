@@ -515,6 +515,7 @@ describe("AgentClient", () => {
       onTaskEvaluationStarted: vi.fn(),
       onTaskEvaluationCompleted: vi.fn(),
       onTokenBudgetUpdated: vi.fn(),
+      onContextCompressionStatus: vi.fn(),
       onContextSummarized: vi.fn(),
       onSubSessionStarted: vi.fn(),
       onSubSessionEvent: vi.fn(),
@@ -559,6 +560,14 @@ describe("AgentClient", () => {
           truncation_occurred: false,
           segments_removed: 0,
         },
+      },
+      handlers,
+    );
+    (client as any).handleEvent(
+      {
+        type: "context_compression_status",
+        phase: "mid-turn",
+        status: "started",
       },
       handlers,
     );
@@ -615,6 +624,7 @@ describe("AgentClient", () => {
     expect(handlers.onTaskEvaluationStarted).toHaveBeenCalledWith("s1", 5);
     expect(handlers.onTaskEvaluationCompleted).toHaveBeenCalledWith("s1", 2, "done");
     expect(handlers.onTokenBudgetUpdated).toHaveBeenCalledTimes(1);
+    expect(handlers.onContextCompressionStatus).toHaveBeenCalledWith("mid-turn", "started");
     expect(handlers.onContextSummarized).toHaveBeenCalledWith({
       summary: "sum",
       messages_summarized: 3,

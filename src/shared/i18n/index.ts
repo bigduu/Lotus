@@ -248,7 +248,7 @@ const frTranslation = {
       title: "Amélioration du prompt système",
       mermaidEnhancement: "Amélioration Mermaid",
       taskListRules: "Règles de tâches partagées",
-      copilotAskUserBeforeFinish: "Copilot ask_user avant de terminer",
+      copilotConclusionWithOptionsBeforeFinish: "Copilot conclusion_with_options avant de terminer",
       switchOn: "ACTIVÉ",
       switchOff: "DÉSACTIVÉ",
       enhancementPlaceholder:

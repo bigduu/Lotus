@@ -2,6 +2,10 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@shared/i18n";
 
+const { mockAgentApiGet } = vi.hoisted(() => ({
+  mockAgentApiGet: vi.fn(),
+}));
+
 const mockModalInfo = vi.fn();
 const mockMessageApi = {
   warning: vi.fn(),
@@ -21,6 +25,17 @@ const mockStoreState = {
   checkAgentAvailability: vi.fn<() => Promise<boolean>>(),
   setAgentAvailability: vi.fn(),
   loadChatHistory: vi.fn(),
+  setPendingQuestionRespond: vi.fn(),
+  clearPendingQuestionRespondForSession: vi.fn(),
+  pendingQuestionRespond: null as
+    | {
+        sessionId: string;
+        question: string;
+        options: string[];
+        allowCustom: boolean;
+        toolCallId?: string | null;
+      }
+    | null,
   chats: [] as any[],
 };
 
@@ -49,6 +64,12 @@ vi.mock("../../services/AgentService", () => ({
   },
 }));
 
+vi.mock("@services/api", () => ({
+  agentApiClient: {
+    get: mockAgentApiGet,
+  },
+}));
+
 vi.mock("../../utils/streamingMessageBus", () => ({
   streamingMessageBus: {
     publish: vi.fn(),
@@ -61,10 +82,20 @@ vi.mock("../../store", () => {
     selector(mockStoreState);
   (
     useAppStore as typeof useAppStore & {
-      getState: () => { loadChatHistory: typeof mockStoreState.loadChatHistory };
+      getState: () => {
+        loadChatHistory: typeof mockStoreState.loadChatHistory;
+        chats: typeof mockStoreState.chats;
+        pendingQuestionRespond: typeof mockStoreState.pendingQuestionRespond;
+        setPendingQuestionRespond: typeof mockStoreState.setPendingQuestionRespond;
+        clearPendingQuestionRespondForSession: typeof mockStoreState.clearPendingQuestionRespondForSession;
+      };
     }
   ).getState = () => ({
     loadChatHistory: mockStoreState.loadChatHistory,
+    chats: mockStoreState.chats,
+    pendingQuestionRespond: mockStoreState.pendingQuestionRespond,
+    setPendingQuestionRespond: mockStoreState.setPendingQuestionRespond,
+    clearPendingQuestionRespondForSession: mockStoreState.clearPendingQuestionRespondForSession,
   });
 
   return { useAppStore };
@@ -84,12 +115,16 @@ describe("useMessageStreaming", () => {
     mockAgentSubscribeToEvents.mockReset();
     mockAgentHealthCheck.mockReset();
     mockAgentTruncateSessionMessages.mockReset();
+    mockAgentApiGet.mockReset();
 
     mockStoreState.agentAvailability = null;
     mockStoreState.startAgentHealthCheck.mockReset();
     mockStoreState.checkAgentAvailability.mockReset();
     mockStoreState.setAgentAvailability.mockReset();
     mockStoreState.loadChatHistory.mockReset();
+    mockStoreState.setPendingQuestionRespond.mockReset();
+    mockStoreState.clearPendingQuestionRespondForSession.mockReset();
+    mockStoreState.pendingQuestionRespond = null;
     mockStoreState.chats = [];
   });
 
@@ -186,6 +221,52 @@ describe("useMessageStreaming", () => {
 
     expect(mockStoreState.setAgentAvailability).toHaveBeenCalledWith(false);
     expect(mockMessageApi.error).toHaveBeenCalledWith(i18n.t("chat.streaming.sendFailed"));
+  });
+
+  it("shows a friendly completion policy violation error instead of marking agent unavailable", async () => {
+    mockStoreState.agentAvailability = true;
+    mockAgentSendMessage.mockRejectedValueOnce(
+      new Error(
+        "completion policy violation: model repeatedly attempted to end the task without calling conclusion_with_options while copilot conclusion-with-options enhancement is enabled (attempts=3)",
+      ),
+    );
+
+    const mockChat = {
+      id: "chat-1",
+      title: "Test Chat",
+      createdAt: Date.now(),
+      messages: [],
+      config: {
+        systemPromptId: "general_assistant",
+        baseSystemPrompt: "",
+        lastUsedEnhancedPrompt: null,
+      },
+      currentInteraction: {
+        machineState: "idle",
+        streamingMessageId: null,
+        streamingContent: null,
+      },
+    };
+
+    mockStoreState.chats = [mockChat];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("hello");
+    });
+
+    expect(mockMessageApi.error).toHaveBeenCalledWith(
+      expect.stringContaining("Bamboo stopped this completion"),
+    );
+    expect(mockStoreState.setAgentAvailability).not.toHaveBeenCalledWith(false);
   });
 
   it("passes workspace_path to agent chat requests", async () => {
@@ -398,5 +479,102 @@ describe("useMessageStreaming", () => {
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("chat-1", {
       mode: "replace",
     });
+  });
+
+  it("recovers from two consecutive need_sync responses without hanging processing", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
+    mockAgentApiGet.mockResolvedValue({ has_pending_question: false });
+    mockAgentSendMessage.mockResolvedValue({
+      session_id: "chat-1",
+      status: "started",
+    });
+    mockAgentExecute
+      .mockResolvedValueOnce({
+        session_id: "chat-1",
+        status: "completed",
+        events_url: "/api/v1/events/chat-1",
+        sync: {
+          need_sync: true,
+          reason: "message_count_mismatch",
+          server_message_count: 4,
+          server_last_message_id: "msg-4",
+          has_pending_question: false,
+          pending_question_tool_call_id: null,
+          has_pending_user_message: true,
+        },
+      })
+      .mockResolvedValueOnce({
+        session_id: "chat-1",
+        status: "completed",
+        events_url: "/api/v1/events/chat-1",
+        sync: {
+          need_sync: true,
+          reason: "last_message_id_mismatch",
+          server_message_count: 5,
+          server_last_message_id: "msg-5",
+          has_pending_question: false,
+          pending_question_tool_call_id: null,
+          has_pending_user_message: true,
+        },
+      })
+      .mockResolvedValueOnce({
+        session_id: "chat-1",
+        status: "completed",
+        events_url: "/api/v1/events/chat-1",
+        sync: {
+          need_sync: true,
+          reason: "last_message_id_mismatch",
+          server_message_count: 6,
+          server_last_message_id: "msg-6",
+          has_pending_question: false,
+          pending_question_tool_call_id: null,
+          has_pending_user_message: true,
+        },
+      });
+
+    mockStoreState.chats = [
+      {
+        id: "chat-1",
+        title: "Test Chat",
+        createdAt: Date.now(),
+        messageCount: 3,
+        messages: [],
+        config: {
+          systemPromptId: "general_assistant",
+          baseSystemPrompt: "",
+          lastUsedEnhancedPrompt: null,
+          syncCursor: {
+            messageCount: 3,
+            lastMessageId: "msg-3",
+            hasPendingQuestion: false,
+            pendingQuestionToolCallId: null,
+          },
+        },
+        currentInteraction: {
+          machineState: "idle",
+          streamingMessageId: null,
+          streamingContent: null,
+        },
+      },
+    ];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("hello");
+    });
+
+    expect(mockAgentExecute).toHaveBeenCalledTimes(3);
+    expect(mockAgentApiGet).toHaveBeenCalledTimes(2);
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledTimes(3);
+    expect(deps.setSessionProcessing).toHaveBeenLastCalledWith("chat-1", false);
   });
 });

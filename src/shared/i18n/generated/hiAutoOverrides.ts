@@ -314,7 +314,7 @@ export const hiAutoOverrides = {
       title: "सिस्टम प्रॉम्प्ट एन्हांसमेंट",
       mermaidEnhancement: "जलपरी संवर्धन",
       taskListRules: "साझा कार्य नियम",
-      copilotAskUserBeforeFinish: "समाप्त होने से पहले सह-पायलट ने_उपयोगकर्ता से पूछा",
+      copilotConclusionWithOptionsBeforeFinish: "समाप्त होने से पहले सह-पायलट ने_उपयोगकर्ता से पूछा",
       enhancementPlaceholder:
         "प्रत्येक सिस्टम प्रॉम्प्ट में जोड़ने के लिए वैश्विक एन्हांसमेंट टेक्स्ट जोड़ें।",
       saveEnhancement: "संवर्द्धन सहेजें",

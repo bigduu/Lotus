@@ -12,6 +12,8 @@ export interface MetricsSummary {
   total_tool_calls: number;
   active_sessions: number;
   prompt_cached_tool_outputs?: number;
+  total_sync_mismatches?: number;
+  sync_mismatch_breakdown?: Record<string, number>;
 }
 
 export interface ModelMetrics {
@@ -167,6 +169,7 @@ export interface CombinedSummary {
   total_errors: number;
   success_rate: number;
   prompt_cached_tool_outputs?: number;
+  total_sync_mismatches?: number;
 }
 
 export interface UnifiedTimelinePoint {

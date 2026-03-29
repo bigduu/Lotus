@@ -31,7 +31,7 @@ export const formatPendingQuestionText = (raw?: string): string => {
   if (!normalized) return "";
   if (normalized.includes("\n")) return normalized;
 
-  // Auto-break common inline list patterns so long ask_user prompts stay readable.
+  // Auto-break common inline list patterns so long conclusion_with_options prompts stay readable.
   return normalized
     .replace(/\s+(?=\d+[).]\s)/g, "\n")
     .replace(/\s+(?=[一二三四五六七八九十]+[、.]\s)/g, "\n")
@@ -137,6 +137,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       setPendingQuestionRespond({
         sessionId,
         question: pendingQuestion?.question || "",
+        options: pendingQuestion?.options || [],
+        allowCustom: pendingQuestion?.allow_custom ?? true,
+        toolCallId: pendingQuestion?.tool_call_id ?? null,
       });
       setCollapsed(false);
       onQuestionAppearedRef.current?.();
