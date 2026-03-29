@@ -215,9 +215,19 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
       }));
 
       try {
-        const candidate = await generateTitleWithAI(userAssistantMessages, fastModel);
+        let candidate = await generateTitleWithAI(userAssistantMessages, fastModel);
         if (!candidate) {
-          throw new Error("Generated title is empty");
+          candidate = buildFallbackTitle(userAssistantMessages);
+        }
+        if (!candidate) {
+          if (isAuto) {
+            setTitleGenerationState((prev) => ({
+              ...prev,
+              [sessionId]: { status: "idle" },
+            }));
+            return;
+          }
+          throw new Error(t("chat.title.generateFailed"));
         }
 
         state.updateSession(sessionId, { title: candidate });
@@ -267,23 +277,22 @@ const MAX_TITLE_TOKENS = 20;
 const MAX_MESSAGES_FOR_TITLE = 8;
 const MAX_MESSAGE_CHARS = 220;
 
+const extractMessageText = (message: Message): string => {
+  if ("content" in message && typeof message.content === "string") {
+    return message.content.trim();
+  }
+  if ("displayText" in message && typeof message.displayText === "string") {
+    return message.displayText.trim();
+  }
+  return "";
+};
+
 const buildTitleContext = (messages: Message[]): string => {
   const slice = messages.slice(0, MAX_MESSAGES_FOR_TITLE);
   const lines = slice
     .map((message) => {
       const role = message.role === "user" ? "User" : "Assistant";
-      const text = (() => {
-        if ("content" in message && typeof message.content === "string") {
-          return message.content.trim();
-        }
-        if ("displayText" in message) {
-          const displayText = message.displayText;
-          if (typeof displayText === "string") {
-            return displayText.trim();
-          }
-        }
-        return "";
-      })();
+      const text = extractMessageText(message);
       if (!text) return "";
       const trimmed =
         text.length > MAX_MESSAGE_CHARS ? `${text.slice(0, MAX_MESSAGE_CHARS - 3)}...` : text;
@@ -294,6 +303,24 @@ const buildTitleContext = (messages: Message[]): string => {
   return lines.join("\n");
 };
 
+const buildFallbackTitle = (messages: Message[]): string => {
+  const ordered = [
+    ...messages.filter((message) => message.role === "user"),
+    ...messages.filter((message) => message.role !== "user"),
+  ];
+  for (const message of ordered) {
+    const text = extractMessageText(message).replace(/\s+/g, " ").trim();
+    if (!text) {
+      continue;
+    }
+    const title = normalizeTitle(text);
+    if (title) {
+      return title;
+    }
+  }
+  return "";
+};
+
 const normalizeTitle = (title: string): string => {
   const singleLine = title.split(/\r?\n/)[0]?.trim() ?? "";
   const unquoted = singleLine.replace(/^["']+|["']+$/g, "");
@@ -301,6 +328,52 @@ const normalizeTitle = (title: string): string => {
     return unquoted;
   }
   return `${unquoted.slice(0, MAX_TITLE_CHARS - 3)}...`;
+};
+
+const extractTextFromCompletionMessage = (message: unknown): string => {
+  if (!message || typeof message !== "object") {
+    return "";
+  }
+  const record = message as Record<string, unknown>;
+  const content = record.content;
+
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    const parts = content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+        if (!part || typeof part !== "object") {
+          return "";
+        }
+        const obj = part as Record<string, unknown>;
+        if (typeof obj.text === "string") {
+          return obj.text;
+        }
+        if (obj.text && typeof obj.text === "object") {
+          const nested = obj.text as Record<string, unknown>;
+          if (typeof nested.value === "string") {
+            return nested.value;
+          }
+        }
+        if (typeof obj.content === "string") {
+          return obj.content;
+        }
+        return "";
+      })
+      .filter((part): part is string => part.trim().length > 0);
+    return parts.join("\n");
+  }
+
+  if (typeof record.refusal === "string") {
+    return record.refusal;
+  }
+
+  return "";
 };
 
 const generateTitleWithAI = async (messages: Message[], model?: string | null): Promise<string> => {
@@ -332,6 +405,6 @@ const generateTitleWithAI = async (messages: Message[], model?: string | null): 
     ],
   });
 
-  const candidate = response.choices?.[0]?.message?.content?.trim() ?? "";
+  const candidate = extractTextFromCompletionMessage(response.choices?.[0]?.message).trim();
   return normalizeTitle(candidate);
 };
