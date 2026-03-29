@@ -27,6 +27,7 @@ type ChatSidebarDateGroupsProps = {
   onGenerateTitle: (sessionId: string) => void;
   titleGenerationState: Record<string, { status: "loading" | "error" | "idle"; error?: string }>;
   token: GlobalToken;
+  hasActiveFilters: boolean;
 };
 
 export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
@@ -47,6 +48,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   onGenerateTitle,
   titleGenerationState,
   token,
+  hasActiveFilters,
 }) => {
   const { t } = useTranslation();
 
@@ -72,13 +74,38 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
       <Empty
         image={Empty.PRESENTED_IMAGE_SIMPLE}
         description={
-          <Space direction="vertical" size={4}>
+          <Space direction="vertical" size={4} align="center">
             <span style={{ color: token.colorTextSecondary }}>
-              {t("chat.sidebar.empty.noSessions")}
+              {hasActiveFilters
+                ? t("chat.sidebar.empty.noMatches", "No matching sessions")
+                : t("chat.sidebar.empty.noSessions")}
             </span>
             <span style={{ color: token.colorTextSecondary, fontSize: 12 }}>
-              {t("chat.sidebar.empty.hint")}
+              {hasActiveFilters
+                ? t("chat.sidebar.empty.filterHint", "Try adjusting your search or filters")
+                : t("chat.sidebar.empty.hint")}
             </span>
+            {hasActiveFilters && (
+              <Button
+                size="small"
+                type="link"
+                onClick={() => {
+                  // Clear search by triggering sidebar search clear event
+                  const searchInput = document.querySelector<HTMLInputElement>(
+                    '[data-testid="sidebar-search-input"] input, .lotus-sidebar-search input',
+                  );
+                  if (searchInput) {
+                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                      window.HTMLInputElement.prototype, "value",
+                    )?.set;
+                    nativeInputValueSetter?.call(searchInput, "");
+                    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
+                  }
+                }}
+              >
+                {t("chat.sidebar.empty.clearFilters", "Clear filters")}
+              </Button>
+            )}
           </Space>
         }
       />

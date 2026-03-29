@@ -9,10 +9,7 @@ interface SkillSelectorProps {
   sessionId?: string;
 }
 
-export const SkillSelector: React.FC<SkillSelectorProps> = ({
-  selectedSkillIds,
-  onChange,
-}) => {
+export const SkillSelector: React.FC<SkillSelectorProps> = ({ selectedSkillIds, onChange }) => {
   const { t } = useTranslation();
   const skills = useAppStore((state) => state.skills);
   const isLoadingSkills = useAppStore((state) => state.isLoadingSkills);
@@ -58,9 +55,7 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({
       loading={isLoadingSkills}
       style={{ width: "100%" }}
       filterOption={(input, option) =>
-        (option as { searchText?: string })?.searchText?.includes(
-          input.toLowerCase(),
-        ) ?? false
+        (option as { searchText?: string })?.searchText?.includes(input.toLowerCase()) ?? false
       }
       allowClear
     />

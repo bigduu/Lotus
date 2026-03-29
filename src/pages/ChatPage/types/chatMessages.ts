@@ -3,12 +3,7 @@ import type { TokenUsage } from "./tokenBudget";
 
 export type AgentRole = "planner" | "actor";
 
-export type MessageType =
-  | "text"
-  | "plan"
-  | "question"
-  | "tool_call"
-  | "tool_result";
+export type MessageType = "text" | "plan" | "question" | "tool_call" | "tool_result";
 
 export interface PlanMessage {
   goal: string;

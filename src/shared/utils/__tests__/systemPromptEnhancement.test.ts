@@ -7,14 +7,8 @@ import {
   getSystemPromptEnhancementText,
   setSystemPromptEnhancement,
 } from "../systemPromptEnhancement";
-import {
-  getMermaidEnhancementPrompt,
-  setMermaidEnhancementEnabled,
-} from "../mermaidUtils";
-import {
-  getTaskEnhancementPrompt,
-  setTaskEnhancementEnabled,
-} from "../taskEnhancementUtils";
+import { getMermaidEnhancementPrompt, setMermaidEnhancementEnabled } from "../mermaidUtils";
+import { getTaskEnhancementPrompt, setTaskEnhancementEnabled } from "../taskEnhancementUtils";
 import {
   getCopilotAskUserEnhancementPrompt,
   setCopilotAskUserEnhancementEnabled,

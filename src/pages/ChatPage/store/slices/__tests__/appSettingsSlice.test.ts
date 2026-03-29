@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createSessionSlice,
-  type SessionSlice,
-} from "../appSettingsSlice";
+import { createSessionSlice, type SessionSlice } from "../appSettingsSlice";
 import { createSliceHarness } from "./sliceHarness";
 
 type SessionHarnessState = SessionSlice & {
@@ -13,13 +10,10 @@ type SessionHarnessState = SessionSlice & {
 
 describe("appSettingsSlice", () => {
   it("stores current request controller", () => {
-    const harness = createSliceHarness<SessionHarnessState>(
-      createSessionSlice as any,
-      {
-        processingChats: new Set<string>(),
-        setSessionProcessing: vi.fn(),
-      },
-    );
+    const harness = createSliceHarness<SessionHarnessState>(createSessionSlice as any, {
+      processingChats: new Set<string>(),
+      setSessionProcessing: vi.fn(),
+    });
 
     const controller = new AbortController();
     harness.getState().setCurrentRequestController(controller);
@@ -28,13 +22,10 @@ describe("appSettingsSlice", () => {
 
   it("cancels request and clears processing chats", () => {
     const setSessionProcessing = vi.fn();
-    const harness = createSliceHarness<SessionHarnessState>(
-      createSessionSlice as any,
-      {
-        processingChats: new Set(["session-1", "session-2"]),
-        setSessionProcessing,
-      },
-    );
+    const harness = createSliceHarness<SessionHarnessState>(createSessionSlice as any, {
+      processingChats: new Set(["session-1", "session-2"]),
+      setSessionProcessing,
+    });
     const controller = new AbortController();
     const abortSpy = vi.spyOn(controller, "abort");
     harness.getState().setCurrentRequestController(controller);
@@ -49,13 +40,10 @@ describe("appSettingsSlice", () => {
 
   it("handles cancel when controller is missing", () => {
     const setSessionProcessing = vi.fn();
-    const harness = createSliceHarness<SessionHarnessState>(
-      createSessionSlice as any,
-      {
-        processingChats: new Set<string>(),
-        setSessionProcessing,
-      },
-    );
+    const harness = createSliceHarness<SessionHarnessState>(createSessionSlice as any, {
+      processingChats: new Set<string>(),
+      setSessionProcessing,
+    });
 
     harness.getState().cancelCurrentRequest();
     expect(setSessionProcessing).not.toHaveBeenCalled();

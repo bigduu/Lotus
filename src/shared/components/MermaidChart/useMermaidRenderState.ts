@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  getCachedMermaid,
-  renderMermaidCached,
-} from "./mermaidRenderManager";
+import { getCachedMermaid, renderMermaidCached } from "./mermaidRenderManager";
 import { normalizeMermaidChart } from "./mermaidConfig";
 
 export interface MermaidRenderState {
@@ -25,10 +22,7 @@ function hashString(s: string) {
 
 export const useMermaidRenderState = (chart: string, enabled: boolean) => {
   const normalizedChart = useMemo(() => normalizeMermaidChart(chart), [chart]);
-  const chartKey = useMemo(
-    () => hashString(normalizedChart),
-    [normalizedChart],
-  );
+  const chartKey = useMemo(() => hashString(normalizedChart), [normalizedChart]);
 
   const [renderState, setRenderState] = useState<MermaidRenderState>(() => {
     const cached = getCachedMermaid(chartKey);
@@ -105,8 +99,7 @@ export const useMermaidRenderState = (chart: string, enabled: boolean) => {
       .catch((err) => {
         if (!cancelled) {
           console.error("[MermaidState] Render error:", err);
-          const errorMessage =
-            err instanceof Error ? err.message : String(err);
+          const errorMessage = err instanceof Error ? err.message : String(err);
           setRenderState((prev) => ({
             ...prev,
             error: errorMessage || "Failed to render Mermaid diagram",

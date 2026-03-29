@@ -6,8 +6,7 @@ import type { AppState } from "../";
 
 const LAST_SELECTED_PROMPT_ID_LS_KEY = "copilot_last_selected_prompt_id";
 const LEGACY_CUSTOM_PROMPTS_LS_KEY = "copilot_custom_system_prompts_v2";
-const LEGACY_PROMPTS_MIGRATED_LS_KEY =
-  "copilot_custom_system_prompts_v2_migrated_to_backend";
+const LEGACY_PROMPTS_MIGRATED_LS_KEY = "copilot_custom_system_prompts_v2_migrated_to_backend";
 const DEFAULT_PROMPT_ID = "general_assistant";
 const MAX_PROMPT_ID_LENGTH = 80;
 
@@ -72,8 +71,7 @@ function loadLegacyCustomPrompts(): UserSystemPrompt[] {
 
     for (const item of parsed) {
       const name = typeof item?.name === "string" ? item.name.trim() : "";
-      const content =
-        typeof item?.content === "string" ? item.content.trim() : "";
+      const content = typeof item?.content === "string" ? item.content.trim() : "";
       if (!name || !content) continue;
 
       const rawId = sanitizePresetId(item?.id);
@@ -89,9 +87,7 @@ function loadLegacyCustomPrompts(): UserSystemPrompt[] {
         name,
         content,
         description:
-          typeof item?.description === "string"
-            ? item.description.trim() || undefined
-            : undefined,
+          typeof item?.description === "string" ? item.description.trim() || undefined : undefined,
         isDefault: Boolean(item?.isDefault),
       });
     }
@@ -166,10 +162,7 @@ async function migrateLegacyPromptsToBackend(): Promise<void> {
       existingIds.add(created.id);
     } catch (error) {
       hasFailures = true;
-      console.error(
-        `[promptSlice] Failed to migrate legacy prompt '${name}' to backend:`,
-        error,
-      );
+      console.error(`[promptSlice] Failed to migrate legacy prompt '${name}' to backend:`, error);
     }
   }
 
@@ -201,14 +194,10 @@ export interface PromptSlice {
   setLastSelectedPromptId: (promptId: string) => void;
 }
 
-export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
-  set,
-  get,
-) => ({
+export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (set, get) => ({
   // Initial state
   systemPrompts: [],
-  lastSelectedPromptId:
-    localStorage.getItem(LAST_SELECTED_PROMPT_ID_LS_KEY) || null,
+  lastSelectedPromptId: localStorage.getItem(LAST_SELECTED_PROMPT_ID_LS_KEY) || null,
 
   // System prompt management
   loadSystemPrompts: async () => {
@@ -225,9 +214,7 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
       console.error("Failed to load system prompts from backend:", error);
     }
 
-    let merged = backendPrompts.length
-      ? backendPrompts
-      : getDefaultSystemPrompts();
+    let merged = backendPrompts.length ? backendPrompts : getDefaultSystemPrompts();
 
     if (!isLegacyMigrationComplete()) {
       const legacyPrompts = loadLegacyCustomPrompts();
@@ -281,10 +268,7 @@ export const createPromptSlice: StateCreator<AppState, [], [], PromptSlice> = (
     try {
       localStorage.setItem(LAST_SELECTED_PROMPT_ID_LS_KEY, promptId);
     } catch (error) {
-      console.error(
-        "Failed to save last selected prompt ID to localStorage:",
-        error,
-      );
+      console.error("Failed to save last selected prompt ID to localStorage:", error);
     }
   },
 });

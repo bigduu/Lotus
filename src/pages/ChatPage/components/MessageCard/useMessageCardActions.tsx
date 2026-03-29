@@ -94,12 +94,7 @@ export const useMessageCardActions = ({
       e.stopPropagation();
       const selection = window.getSelection();
       const text = selection ? selection.toString() : "";
-      if (
-        text &&
-        cardRef.current &&
-        selection &&
-        cardRef.current.contains(selection.anchorNode)
-      ) {
+      if (text && cardRef.current && selection && cardRef.current.contains(selection.anchorNode)) {
         setSelectedText(text);
       } else {
         setSelectedText("");

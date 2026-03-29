@@ -1,14 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  Card,
-  Input,
-  List,
-  message,
-  Spin,
-  Empty,
-  Row,
-  Button,
-} from "antd";
+import { Card, Input, List, message, Spin, Empty, Row, Button } from "antd";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../pages/ChatPage/store";
@@ -121,10 +112,7 @@ export const SkillManager = () => {
             >
               {t("components.skillManager.refresh")}
             </Button>
-            <span
-              className="lotus-settings-note"
-              style={{ fontSize: "12px", marginLeft: "auto" }}
-            >
+            <span className="lotus-settings-note" style={{ fontSize: "12px", marginLeft: "auto" }}>
               {t("components.skillManager.lastUpdated", {
                 value: formatLastRefresh(),
               })}

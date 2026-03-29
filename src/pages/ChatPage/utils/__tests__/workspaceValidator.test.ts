@@ -58,20 +58,16 @@ describe("WorkspaceValidator", () => {
         json: async () => mockResult,
       });
 
-      const result =
-        await workspaceValidator.validateWorkspace("/valid/workspace");
+      const result = await workspaceValidator.validateWorkspace("/valid/workspace");
 
-      expect(fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:9562/v1/workspace/validate",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ path: "/valid/workspace" }),
-          signal: expect.any(AbortSignal),
+      expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:9562/v1/workspace/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ path: "/valid/workspace" }),
+        signal: expect.any(AbortSignal),
+      });
 
       expect(result).toEqual(mockResult);
     });
@@ -82,9 +78,7 @@ describe("WorkspaceValidator", () => {
         status: 500,
       });
 
-      await expect(
-        workspaceValidator.validateWorkspace("/invalid/path"),
-      ).rejects.toThrow();
+      await expect(workspaceValidator.validateWorkspace("/invalid/path")).rejects.toThrow();
     });
 
     it("should use cached results", async () => {
@@ -99,13 +93,11 @@ describe("WorkspaceValidator", () => {
       });
 
       // First call
-      const result1 =
-        await workspaceValidator.validateWorkspace("/cached/workspace");
+      const result1 = await workspaceValidator.validateWorkspace("/cached/workspace");
       expect(fetch).toHaveBeenCalledTimes(1);
 
       // Second call should use cache
-      const result2 =
-        await workspaceValidator.validateWorkspace("/cached/workspace");
+      const result2 = await workspaceValidator.validateWorkspace("/cached/workspace");
       expect(fetch).toHaveBeenCalledTimes(1); // No additional calls
 
       expect(result1).toEqual(result2);
@@ -209,10 +201,7 @@ describe("WorkspaceValidator", () => {
 
       const callback = vi.fn();
 
-      const cancel = workspaceValidator.validateWorkspaceDebounced(
-        "/cancel/workspace",
-        callback,
-      );
+      const cancel = workspaceValidator.validateWorkspaceDebounced("/cancel/workspace", callback);
 
       // Cancel immediately
       cancel();

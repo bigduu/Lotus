@@ -32,7 +32,7 @@ describe("ApiClient error parsing", () => {
     } satisfies Partial<ApiError>);
   });
 
-  it("extracts direct { success:false, error:\"...\" } messages", async () => {
+  it('extracts direct { success:false, error:"..." } messages', async () => {
     const client = new ApiClient({ baseUrl: "http://example.test/v1" });
 
     vi.stubGlobal(
@@ -52,4 +52,3 @@ describe("ApiClient error parsing", () => {
     } satisfies Partial<ApiError>);
   });
 });
-

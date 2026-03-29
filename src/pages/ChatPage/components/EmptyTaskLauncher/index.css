@@ -1,0 +1,209 @@
+.lotus-empty-task-launcher {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  color: var(--lotus-empty-launcher-text);
+  max-height: calc(100vh - 240px);
+  overflow-y: auto;
+}
+
+.lotus-empty-task-launcher__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.lotus-empty-task-launcher.is-embedded .lotus-empty-task-launcher__header {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.lotus-empty-task-launcher__subtitle {
+  margin: 0;
+  max-width: 720px;
+}
+
+.lotus-empty-task-launcher__hint {
+  font-size: 12px;
+  color: var(--lotus-empty-launcher-text-secondary);
+}
+
+/* Search */
+.lotus-empty-task-launcher__search {
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.lotus-empty-task-launcher.is-embedded .lotus-empty-task-launcher__search {
+  margin: 0;
+}
+
+/* Categories */
+.lotus-empty-task-launcher__categories {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lotus-empty-task-launcher__category {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lotus-empty-task-launcher__category-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--lotus-empty-launcher-category-border, transparent);
+}
+
+/* Grid */
+.lotus-empty-task-launcher__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+/* Card */
+.lotus-empty-task-card {
+  appearance: none;
+  border: 1px solid var(--lotus-empty-launcher-border);
+  border-radius: 20px;
+  padding: 18px;
+  width: 100%;
+  text-align: left;
+  background: color-mix(in srgb, var(--lotus-empty-launcher-bg) 92%, var(--lotus-empty-launcher-icon-bg) 8%);
+  box-shadow: var(--lotus-empty-launcher-shadow);
+  color: inherit;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
+}
+
+.lotus-empty-task-card:hover:not(:disabled),
+.lotus-empty-task-card:focus-visible {
+  border-color: var(--lotus-empty-launcher-border-hover);
+  box-shadow: var(--lotus-empty-launcher-shadow-hover);
+  background: color-mix(in srgb, var(--lotus-empty-launcher-bg) 84%, var(--lotus-empty-launcher-icon-bg) 16%);
+  transform: translateY(-2px);
+  outline: none;
+}
+
+.lotus-empty-task-card:disabled {
+  cursor: progress;
+  opacity: 0.72;
+}
+
+.lotus-empty-task-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  background: var(--lotus-empty-launcher-icon-bg);
+  color: var(--lotus-empty-launcher-icon-color);
+  font-size: 18px;
+}
+
+.lotus-empty-task-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lotus-empty-task-card__titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lotus-empty-task-card__title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.lotus-empty-task-card__arrow {
+  flex-shrink: 0;
+  color: var(--lotus-empty-launcher-text-secondary);
+}
+
+.lotus-empty-task-card__description {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--lotus-empty-launcher-text-secondary);
+}
+
+/* Badges */
+.lotus-empty-task-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.lotus-empty-task-card__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--lotus-empty-launcher-badge-bg, var(--lotus-empty-launcher-icon-bg));
+  color: var(--lotus-empty-launcher-badge-text, var(--lotus-empty-launcher-icon-color));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* No results */
+.lotus-empty-task-launcher__no-results {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .lotus-empty-task-launcher {
+    gap: 14px;
+  }
+
+  .lotus-empty-task-launcher__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lotus-empty-task-card {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .lotus-empty-task-launcher__search {
+    max-width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lotus-empty-task-card {
+    transition: none;
+  }
+
+  .lotus-empty-task-card:hover:not(:disabled),
+  .lotus-empty-task-card:focus-visible {
+    transform: none;
+  }
+}

@@ -38,21 +38,15 @@ describe("ModalFooter", () => {
     });
 
     it("should render with custom className", () => {
-      const buttons: ModalFooterButton[] = [
-        { key: "ok", text: "OK", onClick: mockOnClick },
-      ];
+      const buttons: ModalFooterButton[] = [{ key: "ok", text: "OK", onClick: mockOnClick }];
 
-      const { container } = render(
-        <ModalFooter buttons={buttons} className="custom-class" />,
-      );
+      const { container } = render(<ModalFooter buttons={buttons} className="custom-class" />);
 
       expect(container.firstChild).toHaveClass("custom-class");
     });
 
     it("should render with custom style", () => {
-      const buttons: ModalFooterButton[] = [
-        { key: "ok", text: "OK", onClick: mockOnClick },
-      ];
+      const buttons: ModalFooterButton[] = [{ key: "ok", text: "OK", onClick: mockOnClick }];
 
       const { container } = render(
         <ModalFooter buttons={buttons} style={{ backgroundColor: "red" }} />,
@@ -63,9 +57,7 @@ describe("ModalFooter", () => {
   });
 
   describe("alignment", () => {
-    const buttons: ModalFooterButton[] = [
-      { key: "ok", text: "OK", onClick: mockOnClick },
-    ];
+    const buttons: ModalFooterButton[] = [{ key: "ok", text: "OK", onClick: mockOnClick }];
 
     it("should align right by default", () => {
       const { container } = render(<ModalFooter buttons={buttons} />);
@@ -76,9 +68,7 @@ describe("ModalFooter", () => {
     });
 
     it("should align left when align='left'", () => {
-      const { container } = render(
-        <ModalFooter buttons={buttons} align="left" />,
-      );
+      const { container } = render(<ModalFooter buttons={buttons} align="left" />);
 
       expect(container.firstChild).toHaveStyle({
         justifyContent: "flex-start",
@@ -86,9 +76,7 @@ describe("ModalFooter", () => {
     });
 
     it("should align center when align='center'", () => {
-      const { container } = render(
-        <ModalFooter buttons={buttons} align="center" />,
-      );
+      const { container } = render(<ModalFooter buttons={buttons} align="center" />);
 
       expect(container.firstChild).toHaveStyle({
         justifyContent: "center",
@@ -96,9 +84,7 @@ describe("ModalFooter", () => {
     });
 
     it("should align right when align='right'", () => {
-      const { container } = render(
-        <ModalFooter buttons={buttons} align="right" />,
-      );
+      const { container } = render(<ModalFooter buttons={buttons} align="right" />);
 
       expect(container.firstChild).toHaveStyle({
         justifyContent: "flex-end",
@@ -205,9 +191,7 @@ describe("ModalFooter", () => {
 
   describe("button size", () => {
     it("should render with default size middle", () => {
-      const buttons: ModalFooterButton[] = [
-        { key: "ok", text: "OK", onClick: mockOnClick },
-      ];
+      const buttons: ModalFooterButton[] = [{ key: "ok", text: "OK", onClick: mockOnClick }];
 
       render(<ModalFooter buttons={buttons} />);
 
@@ -216,9 +200,7 @@ describe("ModalFooter", () => {
     });
 
     it("should render with size small", () => {
-      const buttons: ModalFooterButton[] = [
-        { key: "ok", text: "OK", onClick: mockOnClick },
-      ];
+      const buttons: ModalFooterButton[] = [{ key: "ok", text: "OK", onClick: mockOnClick }];
 
       render(<ModalFooter buttons={buttons} size="small" />);
 
@@ -227,9 +209,7 @@ describe("ModalFooter", () => {
     });
 
     it("should render with size large", () => {
-      const buttons: ModalFooterButton[] = [
-        { key: "ok", text: "OK", onClick: mockOnClick },
-      ];
+      const buttons: ModalFooterButton[] = [{ key: "ok", text: "OK", onClick: mockOnClick }];
 
       render(<ModalFooter buttons={buttons} size="large" />);
 
@@ -394,10 +374,7 @@ describe("Button factory functions", () => {
 
   describe("integration with ModalFooter", () => {
     it("should render factory buttons correctly", () => {
-      const buttons = [
-        createCancelButton(mockOnClick),
-        createOkButton(mockOnClick),
-      ];
+      const buttons = [createCancelButton(mockOnClick), createOkButton(mockOnClick)];
 
       render(<ModalFooter buttons={buttons} />);
 

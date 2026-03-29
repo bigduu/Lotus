@@ -38,10 +38,7 @@ export function restoreScrollAnchorUntilStable(args: {
       const currentOffset = anchorRect.top - containerRect.top;
 
       // Desired: make anchor's top offset equal to saved offsetPx
-      const desired = clampScrollTop(
-        scrollEl,
-        scrollEl.scrollTop + (currentOffset - offsetPx),
-      );
+      const desired = clampScrollTop(scrollEl, scrollEl.scrollTop + (currentOffset - offsetPx));
 
       if (Math.abs(scrollEl.scrollTop - desired) > EPS) {
         scrollEl.scrollTop = desired;

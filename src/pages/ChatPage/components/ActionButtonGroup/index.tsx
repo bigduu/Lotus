@@ -82,10 +82,7 @@ export const ActionButtonGroup: React.FC<ActionButtonGroupProps> = ({
 };
 
 // Predefined common action button configurations
-export const createCopyButton = (
-  onCopy: () => void,
-  title?: string,
-): ActionButton => {
+export const createCopyButton = (onCopy: () => void, title?: string): ActionButton => {
   return {
     key: "copy",
     "data-testid": "copy-message",
@@ -95,10 +92,7 @@ export const createCopyButton = (
   };
 };
 
-export const createReferenceButton = (
-  onReference: () => void,
-  title?: string,
-): ActionButton => {
+export const createReferenceButton = (onReference: () => void, title?: string): ActionButton => {
   return {
     key: "reference",
     icon: <BookOutlined />,

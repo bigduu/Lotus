@@ -1,12 +1,4 @@
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  expectTypeOf,
-  it,
-  vi,
-} from "vitest";
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { AgentClient, ChatRequest } from "../AgentService";
 import { mockFetchError, mockFetchResponse } from "@test/helpers";
@@ -250,9 +242,7 @@ describe("AgentClient", () => {
   it("calls stop generation and history endpoints", async () => {
     fetchMock
       .mockResolvedValueOnce(mockFetchResponse({}))
-      .mockResolvedValueOnce(
-        mockFetchResponse({ session_id: "session-1", messages: [] }),
-      );
+      .mockResolvedValueOnce(mockFetchResponse({ session_id: "session-1", messages: [] }));
     const client = AgentClient.getInstance();
 
     await client.stopGeneration("session-1");
@@ -277,12 +267,8 @@ describe("AgentClient", () => {
   describe("Model Requirement", () => {
     it("keeps model-related API types strict", () => {
       expectTypeOf<ChatRequest["model"]>().toEqualTypeOf<string>();
-      expectTypeOf<
-        Parameters<AgentClient["execute"]>[1]
-      >().toEqualTypeOf<string>();
-      expectTypeOf<
-        Parameters<AgentClient["sendMessage"]>[0]["model"]
-      >().toEqualTypeOf<string>();
+      expectTypeOf<Parameters<AgentClient["execute"]>[1]>().toEqualTypeOf<string>();
+      expectTypeOf<Parameters<AgentClient["sendMessage"]>[0]["model"]>().toEqualTypeOf<string>();
     });
 
     it("execute method requires model parameter", async () => {
@@ -453,10 +439,7 @@ describe("AgentClient", () => {
     const client = AgentClient.getInstance();
     const onTaskListUpdated = vi.fn();
 
-    (client as any).handleEvent(
-      { type: "task_list_updated" },
-      { onTaskListUpdated },
-    );
+    (client as any).handleEvent({ type: "task_list_updated" }, { onTaskListUpdated });
 
     expect(onTaskListUpdated).not.toHaveBeenCalled();
   });
@@ -488,10 +471,7 @@ describe("AgentClient", () => {
     const client = AgentClient.getInstance();
     const onError = vi.fn();
 
-    (client as any).handleEvent(
-      { type: "error", message: "Something went wrong" },
-      { onError },
-    );
+    (client as any).handleEvent({ type: "error", message: "Something went wrong" }, { onError });
 
     expect(onError).toHaveBeenCalledWith("Something went wrong");
   });
@@ -500,10 +480,7 @@ describe("AgentClient", () => {
     const client = AgentClient.getInstance();
     const onError = vi.fn();
 
-    (client as any).handleEvent(
-      { type: "error", error: "Fallback error" },
-      { onError },
-    );
+    (client as any).handleEvent({ type: "error", error: "Fallback error" }, { onError });
 
     expect(onError).toHaveBeenCalledWith("Fallback error");
   });
@@ -519,9 +496,7 @@ describe("AgentClient", () => {
 
   it("handles unknown event types", () => {
     const client = AgentClient.getInstance();
-    const consoleWarnSpy = vi
-      .spyOn(console, "warn")
-      .mockImplementation(() => {});
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     (client as any).handleEvent({ type: "unknown_event" as any }, {});
 
@@ -638,30 +613,17 @@ describe("AgentClient", () => {
 
     expect(handlers.onTaskListItemProgress).toHaveBeenCalledTimes(1);
     expect(handlers.onTaskEvaluationStarted).toHaveBeenCalledWith("s1", 5);
-    expect(handlers.onTaskEvaluationCompleted).toHaveBeenCalledWith(
-      "s1",
-      2,
-      "done",
-    );
+    expect(handlers.onTaskEvaluationCompleted).toHaveBeenCalledWith("s1", 2, "done");
     expect(handlers.onTokenBudgetUpdated).toHaveBeenCalledTimes(1);
     expect(handlers.onContextSummarized).toHaveBeenCalledWith({
       summary: "sum",
       messages_summarized: 3,
       tokens_saved: 20,
     });
-    expect(handlers.onSubSessionStarted).toHaveBeenCalledWith(
-      "p",
-      "c",
-      "child",
-    );
+    expect(handlers.onSubSessionStarted).toHaveBeenCalledWith("p", "c", "child");
     expect(handlers.onSubSessionEvent).toHaveBeenCalledTimes(1);
     expect(handlers.onSubSessionHeartbeat).toHaveBeenCalledTimes(1);
-    expect(handlers.onSubSessionCompleted).toHaveBeenCalledWith(
-      "p",
-      "c",
-      "completed",
-      undefined,
-    );
+    expect(handlers.onSubSessionCompleted).toHaveBeenCalledWith("p", "c", "completed", undefined);
     expect(handlers.onError).toHaveBeenCalledWith("boom");
   });
 

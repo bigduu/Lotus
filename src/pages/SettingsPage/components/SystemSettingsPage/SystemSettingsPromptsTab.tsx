@@ -1,16 +1,5 @@
 import React, { Suspense, lazy } from "react";
-import {
-  Button,
-  Card,
-  Collapse,
-  Flex,
-  Input,
-  Space,
-  Spin,
-  Switch,
-  Typography,
-  theme,
-} from "antd";
+import { Button, Card, Collapse, Flex, Input, Space, Spin, Switch, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import MermaidSettingsTab from "./MermaidSettingsTab";
 
@@ -55,25 +44,15 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
         </Suspense>
       </Card>
       <Card size="small" className="lotus-settings-card">
-        <Space
-          direction="vertical"
-          size={token.marginXS}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
           <Text strong>{t("settings.promptsTab.title")}</Text>
           <Flex align="center" gap={token.marginSM}>
             <Text strong>{t("settings.promptsTab.mermaidEnhancement")}</Text>
-            <Switch
-              checked={mermaidEnhancementEnabled}
-              onChange={onMermaidToggle}
-            />
+            <Switch checked={mermaidEnhancementEnabled} onChange={onMermaidToggle} />
           </Flex>
           <Flex align="center" gap={token.marginSM}>
             <Text strong>{t("settings.promptsTab.taskListRules")}</Text>
-            <Switch
-              checked={taskEnhancementEnabled}
-              onChange={onTaskToggle}
-            />
+            <Switch checked={taskEnhancementEnabled} onChange={onTaskToggle} />
           </Flex>
           {showCopilotAskUserEnhancement && (
             <Flex align="center" gap={token.marginSM}>
@@ -106,11 +85,7 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
           items={[
             {
               key: "mermaid",
-              label: (
-                <Text strong>
-                  {t("settings.mermaidTab.title")}
-                </Text>
-              ),
+              label: <Text strong>{t("settings.mermaidTab.title")}</Text>,
               children: <MermaidSettingsTab />,
             },
           ]}

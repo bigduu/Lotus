@@ -315,16 +315,12 @@ describe("SystemSettingsKeywordMaskingTab", () => {
 
       // Find match type select and set to exact
       const selects = screen.getAllByRole("combobox");
-      const matchTypeSelect = selects.find((s) =>
-        s.textContent?.includes("Exact"),
-      );
+      const matchTypeSelect = selects.find((s) => s.textContent?.includes("Exact"));
 
       // Preview should show masked text
       await waitFor(() => {
         const previewInputs = screen.getAllByRole("textbox");
-        const readOnlyPreview = previewInputs.find(
-          (input) => (input as HTMLInputElement).readOnly,
-        );
+        const readOnlyPreview = previewInputs.find((input) => (input as HTMLInputElement).readOnly);
         expect(readOnlyPreview).toBeInTheDocument();
       });
     });
@@ -341,9 +337,7 @@ describe("SystemSettingsKeywordMaskingTab", () => {
 
       // Find match type select and set to regex
       const selects = screen.getAllByRole("combobox");
-      const regexOption = selects.find((s) =>
-        s.textContent?.includes("Regex"),
-      );
+      const regexOption = selects.find((s) => s.textContent?.includes("Regex"));
 
       await waitFor(() => {
         const errorText = screen.queryByText(/invalid/i);
@@ -370,9 +364,7 @@ describe("SystemSettingsKeywordMaskingTab", () => {
 
       await waitFor(() => {
         const previewInputs = screen.getAllByRole("textbox");
-        const readOnlyPreview = previewInputs.find(
-          (input) => (input as HTMLInputElement).readOnly,
-        );
+        const readOnlyPreview = previewInputs.find((input) => (input as HTMLInputElement).readOnly);
         expect(readOnlyPreview).toBeInTheDocument();
       });
     });
@@ -387,8 +379,7 @@ describe("SystemSettingsKeywordMaskingTab", () => {
       fireEvent.click(addButton);
 
       const examplesSelect = await screen.findByTestId("keyword-examples-select");
-      const trigger =
-        examplesSelect.querySelector(".ant-select-selector") ?? examplesSelect;
+      const trigger = examplesSelect.querySelector(".ant-select-selector") ?? examplesSelect;
       fireEvent.mouseDown(trigger);
 
       const exampleOption = await screen.findByText("Mask GitHub tokens");

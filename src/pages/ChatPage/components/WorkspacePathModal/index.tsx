@@ -24,8 +24,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
 }) => {
   const { t } = useTranslation();
   const [path, setPath] = useState(initialPath);
-  const [validationResult, setValidationResult] =
-    useState<WorkspaceValidationResult | null>(null);
+  const [validationResult, setValidationResult] = useState<WorkspaceValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -116,12 +115,8 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
           message={t("chat.workspace.descriptionTitle")}
           description={
             <div>
-              <p>
-                {t("chat.workspace.descriptionP1")}
-              </p>
-              <p>
-                {t("chat.workspace.descriptionP2")}
-              </p>
+              <p>{t("chat.workspace.descriptionP1")}</p>
+              <p>{t("chat.workspace.descriptionP2")}</p>
             </div>
           }
           type="info"
@@ -142,10 +137,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
         {validationResult && !validationResult.is_valid && (
           <Alert
             message={t("chat.workspace.checkTitle")}
-            description={
-              validationResult.error_message ||
-              t("chat.workspace.checkDescription")
-            }
+            description={validationResult.error_message || t("chat.workspace.checkDescription")}
             type="warning"
             showIcon
           />

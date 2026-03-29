@@ -1,10 +1,4 @@
-import {
-  render,
-  screen,
-  fireEvent,
-  waitFor,
-  act,
-} from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QuestionDialog, formatPendingQuestionText } from "../QuestionDialog";
 import { useAppStore } from "../../../pages/ChatPage/store";
@@ -53,8 +47,7 @@ describe("QuestionDialog", () => {
           setSessionProcessing: mockSetSessionProcessing,
           isSessionProcessing: mockIsSessionProcessing,
           setPendingQuestionRespond: mockSetPendingQuestionRespond,
-          clearPendingQuestionRespondForSession:
-            mockClearPendingQuestionRespondForSession,
+          clearPendingQuestionRespondForSession: mockClearPendingQuestionRespondForSession,
           chats: [],
           inputStates: {},
           // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
@@ -66,8 +59,7 @@ describe("QuestionDialog", () => {
         setSessionProcessing: mockSetSessionProcessing,
         isSessionProcessing: mockIsSessionProcessing,
         setPendingQuestionRespond: mockSetPendingQuestionRespond,
-        clearPendingQuestionRespondForSession:
-          mockClearPendingQuestionRespondForSession,
+        clearPendingQuestionRespondForSession: mockClearPendingQuestionRespondForSession,
         chats: [],
         inputStates: {},
         selectedModel: "gpt-5-ultra-expensive",
@@ -92,9 +84,7 @@ describe("QuestionDialog", () => {
     render(<QuestionDialog {...defaultProps} />);
 
     await waitFor(() => {
-      expect(agentApiClient.get).toHaveBeenCalledWith(
-        "respond/test-session-1/pending",
-      );
+      expect(agentApiClient.get).toHaveBeenCalledWith("respond/test-session-1/pending");
     });
   });
 
@@ -108,9 +98,7 @@ describe("QuestionDialog", () => {
   });
 
   it("converts escaped newline sequences into real newlines", () => {
-    const formatted = formatPendingQuestionText(
-      "Line 1\\nLine 2\\r\\nLine 3",
-    );
+    const formatted = formatPendingQuestionText("Line 1\\nLine 2\\r\\nLine 3");
     expect(formatted).toBe("Line 1\nLine 2\nLine 3");
   });
 
@@ -178,18 +166,12 @@ describe("QuestionDialog", () => {
     });
 
     await waitFor(() => {
-      expect(agentApiClient.post).toHaveBeenCalledWith(
-        "respond/test-session-1",
-        {
-          response: "A",
-          model: "gpt-5-mini",
-          reasoning_effort: "medium",
-        },
-      );
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith(
-        "test-session-1",
-        true,
-      );
+      expect(agentApiClient.post).toHaveBeenCalledWith("respond/test-session-1", {
+        response: "A",
+        model: "gpt-5-mini",
+        reasoning_effort: "medium",
+      });
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("test-session-1", true);
     });
   });
 
@@ -221,14 +203,11 @@ describe("QuestionDialog", () => {
     });
 
     await waitFor(() => {
-      expect(agentApiClient.post).toHaveBeenCalledWith(
-        "respond/test-session-1",
-        {
-          response: "A",
-          model: "gpt-5-mini",
-          reasoning_effort: "medium",
-        },
-      );
+      expect(agentApiClient.post).toHaveBeenCalledWith("respond/test-session-1", {
+        response: "A",
+        model: "gpt-5-mini",
+        reasoning_effort: "medium",
+      });
     });
   });
 
@@ -372,14 +351,11 @@ describe("QuestionDialog", () => {
 
     await waitFor(() => {
       // Should still call /respond
-      expect(agentApiClient.post).toHaveBeenCalledWith(
-        "respond/test-session-1",
-        {
-          response: "A",
-          model: "gpt-5-mini",
-          reasoning_effort: "medium",
-        },
-      );
+      expect(agentApiClient.post).toHaveBeenCalledWith("respond/test-session-1", {
+        response: "A",
+        model: "gpt-5-mini",
+        reasoning_effort: "medium",
+      });
 
       // Should log error
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -399,9 +375,7 @@ describe("QuestionDialog", () => {
     const { rerender } = render(<QuestionDialog {...defaultProps} />);
 
     await waitFor(() => {
-      expect(agentApiClient.get).toHaveBeenCalledWith(
-        "respond/test-session-1/pending",
-      );
+      expect(agentApiClient.get).toHaveBeenCalledWith("respond/test-session-1/pending");
     });
 
     // Change session ID
@@ -410,9 +384,7 @@ describe("QuestionDialog", () => {
     rerender(<QuestionDialog sessionId="test-session-2" />);
 
     await waitFor(() => {
-      expect(agentApiClient.get).toHaveBeenCalledWith(
-        "respond/test-session-2/pending",
-      );
+      expect(agentApiClient.get).toHaveBeenCalledWith("respond/test-session-2/pending");
     });
   });
 
@@ -433,17 +405,13 @@ describe("QuestionDialog", () => {
     // Wait for loading to complete and question to appear
     await waitFor(
       () => {
-        expect(
-          screen.getByText("Other (type below)"),
-        ).toBeInTheDocument();
+        expect(screen.getByText("Other (type below)")).toBeInTheDocument();
       },
       { timeout: 3000 },
     );
 
     // Select custom option — this should activate respond mode via the store
-    const customOption = screen.getByText(
-      "Other (type below)",
-    );
+    const customOption = screen.getByText("Other (type below)");
     fireEvent.click(customOption);
 
     // Verify that setPendingQuestionRespond was called with the correct payload
@@ -456,11 +424,7 @@ describe("QuestionDialog", () => {
     expect(screen.queryByText("Confirm")).not.toBeInTheDocument();
 
     // A hint should appear guiding the user to the input box below
-    expect(
-      screen.getByText(
-        /Custom answer/,
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Custom answer/)).toBeInTheDocument();
 
     // Switching back to a predefined option keeps respond mode active
     // for the current pending question lifecycle.

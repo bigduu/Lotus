@@ -60,8 +60,7 @@ export const useChatManager = () => {
     // State from useChatTitleGeneration
     titleGenerationState: titleGeneration.titleGenerationState,
     autoGenerateTitles: titleGeneration.autoGenerateTitles,
-    isUpdatingAutoTitlePreference:
-      titleGeneration.isUpdatingAutoTitlePreference,
+    isUpdatingAutoTitlePreference: titleGeneration.isUpdatingAutoTitlePreference,
 
     // Actions from useChatState
     addMessage: state.addMessage,
@@ -76,8 +75,7 @@ export const useChatManager = () => {
 
     // Actions from useChatTitleGeneration
     generateChatTitle: titleGeneration.generateChatTitle,
-    setAutoGenerateTitlesPreference:
-      titleGeneration.setAutoGenerateTitlesPreference,
+    setAutoGenerateTitlesPreference: titleGeneration.setAutoGenerateTitlesPreference,
 
     // Actions from useChatOperations
     createNewChat: operations.createNewChat,

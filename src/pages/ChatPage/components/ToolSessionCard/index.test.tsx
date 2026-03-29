@@ -52,10 +52,7 @@ describe("ToolSessionCard", () => {
     fireEvent.click(screen.getByTestId("delete-tool-message-call-1"));
 
     expect(onDeleteMessageIds).toHaveBeenCalledTimes(1);
-    expect(onDeleteMessageIds).toHaveBeenCalledWith([
-      "assistant-msg-1",
-      "tool-msg-1",
-    ]);
+    expect(onDeleteMessageIds).toHaveBeenCalledWith(["assistant-msg-1", "tool-msg-1"]);
   });
 
   it("disables delete when no persisted message id is available", () => {
@@ -86,13 +83,10 @@ describe("ToolSessionCard", () => {
       />,
     );
 
-    const button = screen.getByTestId(
-      "delete-tool-message-call-2",
-    ) as HTMLButtonElement;
+    const button = screen.getByTestId("delete-tool-message-call-2") as HTMLButtonElement;
     expect(button).toBeDisabled();
 
     fireEvent.click(button);
     expect(onDeleteMessageIds).not.toHaveBeenCalled();
   });
 });
-

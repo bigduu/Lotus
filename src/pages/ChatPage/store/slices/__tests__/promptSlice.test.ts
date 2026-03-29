@@ -132,18 +132,13 @@ describe("promptSlice - ID Generation", () => {
           const fixedPrompts = prompts.map((p) => {
             if (!p.id || p.id.trim() === "" || !p.id.match(/^[a-z0-9_]+$/)) {
               const newId = generateIdFromName(p.name);
-              console.log(
-                `[Migration] Fixed prompt "${p.name}" with invalid ID, new ID: ${newId}`,
-              );
+              console.log(`[Migration] Fixed prompt "${p.name}" with invalid ID, new ID: ${newId}`);
               return { ...p, id: newId };
             }
             return p;
           });
           // Save the fixed prompts
-          localStorage.setItem(
-            CUSTOM_PROMPTS_LS_KEY,
-            JSON.stringify(fixedPrompts),
-          );
+          localStorage.setItem(CUSTOM_PROMPTS_LS_KEY, JSON.stringify(fixedPrompts));
           return fixedPrompts;
         }
 
@@ -165,10 +160,7 @@ describe("promptSlice - ID Generation", () => {
         },
       ];
 
-      localStorage.setItem(
-        "copilot_custom_system_prompts_v2",
-        JSON.stringify(prompts),
-      );
+      localStorage.setItem("copilot_custom_system_prompts_v2", JSON.stringify(prompts));
 
       const loaded = loadCustomPrompts();
 
@@ -195,10 +187,7 @@ describe("promptSlice - ID Generation", () => {
         },
       ];
 
-      localStorage.setItem(
-        "copilot_custom_system_prompts_v2",
-        JSON.stringify(prompts),
-      );
+      localStorage.setItem("copilot_custom_system_prompts_v2", JSON.stringify(prompts));
 
       const loaded = loadCustomPrompts();
 
@@ -218,10 +207,7 @@ describe("promptSlice - ID Generation", () => {
         },
       ];
 
-      localStorage.setItem(
-        "copilot_custom_system_prompts_v2",
-        JSON.stringify(prompts),
-      );
+      localStorage.setItem("copilot_custom_system_prompts_v2", JSON.stringify(prompts));
 
       const loaded = loadCustomPrompts();
 
@@ -240,10 +226,7 @@ describe("promptSlice - ID Generation", () => {
         },
       ];
 
-      localStorage.setItem(
-        "copilot_custom_system_prompts_v2",
-        JSON.stringify(prompts),
-      );
+      localStorage.setItem("copilot_custom_system_prompts_v2", JSON.stringify(prompts));
 
       const loaded = loadCustomPrompts();
 
@@ -257,10 +240,7 @@ describe("promptSlice - ID Generation", () => {
     });
 
     it("should handle invalid JSON in localStorage", () => {
-      localStorage.setItem(
-        "copilot_custom_system_prompts_v2",
-        "invalid json",
-      );
+      localStorage.setItem("copilot_custom_system_prompts_v2", "invalid json");
 
       const loaded = loadCustomPrompts();
       expect(loaded).toEqual([]);
@@ -277,17 +257,12 @@ describe("promptSlice - ID Generation", () => {
         },
       ];
 
-      localStorage.setItem(
-        "copilot_custom_system_prompts_v2",
-        JSON.stringify(prompts),
-      );
+      localStorage.setItem("copilot_custom_system_prompts_v2", JSON.stringify(prompts));
 
       loadCustomPrompts();
 
       // Check that localStorage was updated
-      const saved = JSON.parse(
-        localStorage.getItem("copilot_custom_system_prompts_v2") || "[]",
-      );
+      const saved = JSON.parse(localStorage.getItem("copilot_custom_system_prompts_v2") || "[]");
       expect(saved[0].id).not.toBe("");
     });
   });

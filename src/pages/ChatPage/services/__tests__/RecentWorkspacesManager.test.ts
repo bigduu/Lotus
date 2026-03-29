@@ -42,24 +42,19 @@ describe("RecentWorkspacesManager", () => {
 
       const result = await recentWorkspacesManager.getRecentWorkspaces();
 
-      expect(fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:9562/v1/workspace/recent",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          signal: expect.any(AbortSignal),
+      expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:9562/v1/workspace/recent", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        signal: expect.any(AbortSignal),
+      });
 
       expect(result).toEqual(mockWorkspaces);
     });
 
     it("should use cached results when available", async () => {
-      const mockWorkspaces: WorkspaceInfo[] = [
-        { path: "/cached/workspace", is_valid: true },
-      ];
+      const mockWorkspaces: WorkspaceInfo[] = [{ path: "/cached/workspace", is_valid: true }];
 
       (fetch as any).mockResolvedValueOnce({
         ok: true,
@@ -89,20 +84,17 @@ describe("RecentWorkspacesManager", () => {
         workspace_name: "new-workspace",
       });
 
-      expect(fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:9562/v1/workspace/recent",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            path: "/new/workspace",
-            metadata: { workspace_name: "new-workspace" },
-          }),
-          signal: expect.any(AbortSignal),
+      expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:9562/v1/workspace/recent", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          path: "/new/workspace",
+          metadata: { workspace_name: "new-workspace" },
+        }),
+        signal: expect.any(AbortSignal),
+      });
     });
   });
 
@@ -120,20 +112,16 @@ describe("RecentWorkspacesManager", () => {
         json: async () => mockValidation,
       });
 
-      const result =
-        await recentWorkspacesManager.validateWorkspacePath("/valid/workspace");
+      const result = await recentWorkspacesManager.validateWorkspacePath("/valid/workspace");
 
-      expect(fetch).toHaveBeenCalledWith(
-        "http://127.0.0.1:9562/v1/workspace/validate",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ path: "/valid/workspace" }),
-          signal: expect.any(AbortSignal),
+      expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:9562/v1/workspace/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({ path: "/valid/workspace" }),
+        signal: expect.any(AbortSignal),
+      });
 
       expect(result).toEqual(mockValidation);
     });

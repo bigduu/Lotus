@@ -129,9 +129,7 @@ describe("useActiveModel", () => {
         setCurrentProvider: vi.fn(),
       };
 
-      vi.mocked(useProviderStore).mockImplementation((selector) =>
-        selector(storeState),
-      );
+      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
 
       const { result, rerender } = renderHook(() => useActiveModel());
 
@@ -162,9 +160,7 @@ describe("useActiveModel", () => {
         setCurrentProvider: vi.fn(),
       };
 
-      vi.mocked(useProviderStore).mockImplementation((selector) =>
-        selector(storeState),
-      );
+      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
 
       const { result, rerender } = renderHook(() => useActiveModel());
 
@@ -319,9 +315,7 @@ describe("useActiveModel", () => {
         setCurrentProvider: vi.fn(),
       };
 
-      vi.mocked(useProviderStore).mockImplementation((selector) =>
-        selector(storeState),
-      );
+      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
 
       const { result, rerender } = renderHook(() => useActiveModelInfo());
 
@@ -390,9 +384,7 @@ describe("useActiveModel", () => {
         setCurrentProvider: vi.fn(),
       };
 
-      vi.mocked(useProviderStore).mockImplementation((selector) =>
-        selector(storeState),
-      );
+      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
 
       const { result, rerender } = renderHook(() => useActiveModelInfo());
 

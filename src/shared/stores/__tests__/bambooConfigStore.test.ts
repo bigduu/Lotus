@@ -16,12 +16,10 @@ describe("useBambooConfigStore", () => {
   });
 
   it("dedupes concurrent loadConfig calls", async () => {
-    const spy = vi
-      .spyOn(serviceFactory, "getBambooConfig")
-      .mockImplementation(async () => {
-        await new Promise((r) => setTimeout(r, 10));
-        return { provider: "openai" } as any;
-      });
+    const spy = vi.spyOn(serviceFactory, "getBambooConfig").mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      return { provider: "openai" } as any;
+    });
 
     const store = useBambooConfigStore.getState();
     const [a, b] = await Promise.all([store.loadConfig(), store.loadConfig()]);
@@ -57,31 +55,22 @@ describe("useBambooConfigStore", () => {
     const saved = await store.saveConfig({ provider: "gemini" } as any);
 
     expect(saved.provider).toBe("gemini");
-    expect(useBambooConfigStore.getState().config?.http_proxy).toBe(
-      "http://proxy:8080",
-    );
+    expect(useBambooConfigStore.getState().config?.http_proxy).toBe("http://proxy:8080");
   });
 
   it("dedupes concurrent loadProxyAuthStatus calls", async () => {
-    const spy = vi
-      .spyOn(serviceFactory, "getProxyAuthStatus")
-      .mockImplementation(async () => {
-        await new Promise((r) => setTimeout(r, 10));
-        return { configured: true, username: "alice" };
-      });
+    const spy = vi.spyOn(serviceFactory, "getProxyAuthStatus").mockImplementation(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      return { configured: true, username: "alice" };
+    });
 
     const store = useBambooConfigStore.getState();
-    const [a, b] = await Promise.all([
-      store.loadProxyAuthStatus(),
-      store.loadProxyAuthStatus(),
-    ]);
+    const [a, b] = await Promise.all([store.loadProxyAuthStatus(), store.loadProxyAuthStatus()]);
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(a.configured).toBe(true);
     expect(b.username).toBe("alice");
-    expect(useBambooConfigStore.getState().proxyAuthStatus?.username).toBe(
-      "alice",
-    );
+    expect(useBambooConfigStore.getState().proxyAuthStatus?.username).toBe("alice");
   });
 
   it("applyProxyAuth refreshes proxy auth status", async () => {
@@ -97,9 +86,6 @@ describe("useBambooConfigStore", () => {
 
     expect(setSpy).toHaveBeenCalledTimes(1);
     expect(statusSpy).toHaveBeenCalledTimes(1);
-    expect(useBambooConfigStore.getState().proxyAuthStatus?.username).toBe(
-      "bob",
-    );
+    expect(useBambooConfigStore.getState().proxyAuthStatus?.username).toBe("bob");
   });
 });
-

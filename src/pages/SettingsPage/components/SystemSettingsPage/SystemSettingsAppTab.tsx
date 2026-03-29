@@ -1,21 +1,7 @@
 import React from "react";
-import {
-  Button,
-  Card,
-  Flex,
-  Popconfirm,
-  Space,
-  Switch,
-  Typography,
-  theme,
-  Divider,
-} from "antd";
+import { Button, Card, Flex, Popconfirm, Space, Switch, Typography, theme, Divider } from "antd";
 import { useTranslation } from "react-i18next";
-import {
-  DeleteOutlined,
-  WarningOutlined,
-  RedoOutlined,
-} from "@ant-design/icons";
+import { DeleteOutlined, WarningOutlined, RedoOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -48,11 +34,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
 
   return (
     <Card size="small" className="lotus-settings-card">
-      <Space
-        direction="vertical"
-        size={token.marginSM}
-        style={{ width: "100%" }}
-      >
+      <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
         <Flex align="center" gap={token.marginSM}>
           <Text strong>{t("settings.appTab.autoGenerateTitle")}</Text>
           <Switch

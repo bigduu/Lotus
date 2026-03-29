@@ -1,15 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Table,
-  Input,
-  InputNumber,
-  Button,
-  Space,
-  Card,
-  Typography,
-  Divider,
-  message,
-} from "antd";
+import { Table, Input, InputNumber, Button, Space, Card, Typography, Divider, message } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { SaveOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -172,10 +162,7 @@ function normalizeModelLimit(value: unknown): ModelLimitConfig | null {
   );
 
   return {
-    vendor:
-      typeof row.vendor === "string" && row.vendor.trim()
-        ? row.vendor.trim()
-        : "",
+    vendor: typeof row.vendor === "string" && row.vendor.trim() ? row.vendor.trim() : "",
     model_pattern: patternValue.trim(),
     max_context_tokens: maxContextTokens,
     max_output_tokens: maxOutputTokens,
@@ -212,10 +199,7 @@ function getConfigModelLimits(config: BambooConfig): {
   hasModelLimitsKey: boolean;
   modelLimits: ModelLimitConfig[];
 } {
-  const hasModelLimitsKey = Object.prototype.hasOwnProperty.call(
-    config,
-    MODEL_LIMITS_KEY,
-  );
+  const hasModelLimitsKey = Object.prototype.hasOwnProperty.call(config, MODEL_LIMITS_KEY);
 
   if (!hasModelLimitsKey) {
     return { hasModelLimitsKey: false, modelLimits: [] };
@@ -288,22 +272,15 @@ function validateModelLimits(
  */
 export const ModelLimitsSettings: React.FC = () => {
   const { t } = useTranslation();
-  const [configs, setConfigs] = useState<ModelLimitConfig[]>(() =>
-    createFallbackDefaultConfigs(t),
-  );
+  const [configs, setConfigs] = useState<ModelLimitConfig[]>(() => createFallbackDefaultConfigs(t));
   const [loading, setLoading] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
 
-  const updateConfig = useCallback(
-    (index: number, updates: Partial<ModelLimitConfig>) => {
-      setConfigs((prev) =>
-        prev.map((config, rowIndex) =>
-          rowIndex === index ? { ...config, ...updates } : config,
-        ),
-      );
-    },
-    [],
-  );
+  const updateConfig = useCallback((index: number, updates: Partial<ModelLimitConfig>) => {
+    setConfigs((prev) =>
+      prev.map((config, rowIndex) => (rowIndex === index ? { ...config, ...updates } : config)),
+    );
+  }, []);
 
   const addConfigRow = useCallback(() => {
     setConfigs((prev) => [
@@ -334,8 +311,7 @@ export const ModelLimitsSettings: React.FC = () => {
     setLoading(true);
     try {
       const bambooConfig = await serviceFactory.getBambooConfig();
-      const { hasModelLimitsKey, modelLimits } =
-        getConfigModelLimits(bambooConfig);
+      const { hasModelLimitsKey, modelLimits } = getConfigModelLimits(bambooConfig);
 
       if (modelLimits.length > 0) {
         setConfigs(modelLimits);
@@ -418,9 +394,7 @@ export const ModelLimitsSettings: React.FC = () => {
           <Input
             value={value}
             placeholder={t("settings.modelLimits.placeholders.vendor")}
-            onChange={(event) =>
-              updateConfig(index, { vendor: event.target.value })
-            }
+            onChange={(event) => updateConfig(index, { vendor: event.target.value })}
           />
         ),
       },
@@ -433,9 +407,7 @@ export const ModelLimitsSettings: React.FC = () => {
           <Input
             value={value}
             placeholder={t("settings.modelLimits.placeholders.model")}
-            onChange={(event) =>
-              updateConfig(index, { model_pattern: event.target.value })
-            }
+            onChange={(event) => updateConfig(index, { model_pattern: event.target.value })}
           />
         ),
       },
@@ -488,9 +460,7 @@ export const ModelLimitsSettings: React.FC = () => {
           <Input
             value={value}
             placeholder={t("settings.modelLimits.placeholders.optional")}
-            onChange={(event) =>
-              updateConfig(index, { note: event.target.value })
-            }
+            onChange={(event) => updateConfig(index, { note: event.target.value })}
           />
         ),
       },
@@ -514,8 +484,7 @@ export const ModelLimitsSettings: React.FC = () => {
       <Card>
         <Title level={4}>{t("settings.modelLimits.title")}</Title>
         <Paragraph type="secondary">
-          {t("settings.modelLimits.descriptionPrefix")}{" "}
-          <Text code>config.json</Text>{" "}
+          {t("settings.modelLimits.descriptionPrefix")} <Text code>config.json</Text>{" "}
           {t("settings.modelLimits.descriptionSuffix")}
         </Paragraph>
 
@@ -523,9 +492,7 @@ export const ModelLimitsSettings: React.FC = () => {
 
         <Space direction="vertical" size="small" style={{ width: "100%" }}>
           <Text strong>{t("settings.modelLimits.defaultsTitle")}</Text>
-          <Text type="secondary">
-            {t("settings.modelLimits.defaultsDescription")}
-          </Text>
+          <Text type="secondary">{t("settings.modelLimits.defaultsDescription")}</Text>
         </Space>
 
         <Table
@@ -539,9 +506,7 @@ export const ModelLimitsSettings: React.FC = () => {
         />
 
         <Space>
-          <Button onClick={addConfigRow}>
-            {t("settings.modelLimits.actions.addRow")}
-          </Button>
+          <Button onClick={addConfigRow}>{t("settings.modelLimits.actions.addRow")}</Button>
           <Button
             type="primary"
             icon={<SaveOutlined />}

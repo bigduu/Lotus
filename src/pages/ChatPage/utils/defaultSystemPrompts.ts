@@ -13,6 +13,4 @@ const createDefaultSystemPrompt = (): UserSystemPrompt => ({
   isDefault: true,
 });
 
-export const getDefaultSystemPrompts = (): UserSystemPrompt[] => [
-  createDefaultSystemPrompt(),
-];
+export const getDefaultSystemPrompts = (): UserSystemPrompt[] => [createDefaultSystemPrompt()];

@@ -4,11 +4,7 @@ import { ApiError, getErrorMessage, withFallback } from "./errors";
 
 describe("getErrorMessage", () => {
   it("surfaces server-provided message for 500 errors", () => {
-    const err = new ApiError(
-      "Failed to reload provider: boom",
-      500,
-      "Internal Server Error",
-    );
+    const err = new ApiError("Failed to reload provider: boom", 500, "Internal Server Error");
     expect(getErrorMessage(err)).toBe("Failed to reload provider: boom");
   });
 
@@ -45,27 +41,18 @@ describe("getErrorMessage", () => {
 
 describe("withFallback", () => {
   it("returns value when promise resolves", async () => {
-    const result = await withFallback(
-      Promise.resolve("success"),
-      "fallback value",
-    );
+    const result = await withFallback(Promise.resolve("success"), "fallback value");
     expect(result).toBe("success");
   });
 
   it("returns fallback when promise rejects with non-ApiError", async () => {
-    const result = await withFallback(
-      Promise.reject(new Error("Network error")),
-      "fallback value",
-    );
+    const result = await withFallback(Promise.reject(new Error("Network error")), "fallback value");
     expect(result).toBe("fallback value");
   });
 
   it("returns fallback when promise rejects with ApiError", async () => {
     const apiError = new ApiError("Server error", 500, "Internal Server Error");
-    const result = await withFallback(
-      Promise.reject(apiError),
-      "fallback value",
-    );
+    const result = await withFallback(Promise.reject(apiError), "fallback value");
     expect(result).toBe("fallback value");
   });
 
@@ -73,11 +60,7 @@ describe("withFallback", () => {
     const onError = vi.fn();
     const apiError = new ApiError("Not found", 404, "Not Found");
 
-    await withFallback(
-      Promise.reject(apiError),
-      "fallback value",
-      onError,
-    );
+    await withFallback(Promise.reject(apiError), "fallback value", onError);
 
     expect(onError).toHaveBeenCalledWith(apiError);
   });
@@ -85,11 +68,7 @@ describe("withFallback", () => {
   it("does not call onError for non-ApiError", async () => {
     const onError = vi.fn();
 
-    await withFallback(
-      Promise.reject(new Error("Network error")),
-      "fallback value",
-      onError,
-    );
+    await withFallback(Promise.reject(new Error("Network error")), "fallback value", onError);
 
     expect(onError).not.toHaveBeenCalled();
   });
@@ -97,54 +76,34 @@ describe("withFallback", () => {
   it("does not call onError when promise resolves", async () => {
     const onError = vi.fn();
 
-    await withFallback(
-      Promise.resolve("success"),
-      "fallback value",
-      onError,
-    );
+    await withFallback(Promise.resolve("success"), "fallback value", onError);
 
     expect(onError).not.toHaveBeenCalled();
   });
 
   it("handles null fallback value", async () => {
-    const result = await withFallback(
-      Promise.reject(new Error("error")),
-      null,
-    );
+    const result = await withFallback(Promise.reject(new Error("error")), null);
     expect(result).toBeNull();
   });
 
   it("handles undefined fallback value", async () => {
-    const result = await withFallback(
-      Promise.reject(new Error("error")),
-      undefined,
-    );
+    const result = await withFallback(Promise.reject(new Error("error")), undefined);
     expect(result).toBeUndefined();
   });
 
   it("handles complex fallback objects", async () => {
     const fallbackObj = { data: "fallback", count: 42 };
-    const result = await withFallback(
-      Promise.reject(new Error("error")),
-      fallbackObj,
-    );
+    const result = await withFallback(Promise.reject(new Error("error")), fallbackObj);
     expect(result).toEqual(fallbackObj);
   });
 
   it("handles promise that resolves to undefined", async () => {
-    const result = await withFallback(
-      Promise.resolve(undefined),
-      "fallback",
-    );
+    const result = await withFallback(Promise.resolve(undefined), "fallback");
     expect(result).toBeUndefined();
   });
 
   it("handles promise that resolves to null", async () => {
-    const result = await withFallback(
-      Promise.resolve(null),
-      "fallback",
-    );
+    const result = await withFallback(Promise.resolve(null), "fallback");
     expect(result).toBeNull();
   });
 });
-

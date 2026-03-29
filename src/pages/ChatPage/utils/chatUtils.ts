@@ -37,10 +37,7 @@ export const isThisWeek = (date: Date): boolean => {
 
 export const isThisMonth = (date: Date): boolean => {
   const today = new Date();
-  return (
-    date.getMonth() === today.getMonth() &&
-    date.getFullYear() === today.getFullYear()
-  );
+  return date.getMonth() === today.getMonth() && date.getFullYear() === today.getFullYear();
 };
 
 export const getDateGroupKey = (date: Date): string => {
@@ -67,9 +64,7 @@ export const getDateGroupWeight = (dateKey: string): number => {
   return weights[dateKey] ?? 4; // Older dates get weight 4+
 };
 
-export const groupChatsByDate = (
-  chats: ChatItem[],
-): Record<string, ChatItem[]> => {
+export const groupChatsByDate = (chats: ChatItem[]): Record<string, ChatItem[]> => {
   const grouped: Record<string, ChatItem[]> = {};
   // Add pinned group at the top if any pinned chats
   const pinnedChats = chats.filter((chat) => chat.pinned);
@@ -78,9 +73,7 @@ export const groupChatsByDate = (
   }
 
   // Group scheduled sessions separately so they appear under a special section.
-  const scheduledChats = chats.filter(
-    (chat) => !chat.pinned && Boolean(chat.createdByScheduleId),
-  );
+  const scheduledChats = chats.filter((chat) => !chat.pinned && Boolean(chat.createdByScheduleId));
   if (scheduledChats.length > 0) {
     grouped["Scheduled"] = scheduledChats.sort((a, b) => b.createdAt - a.createdAt);
   }
@@ -110,9 +103,7 @@ export const groupChatsByDate = (
 /**
  * Group chats by tool category, sort by time within each category
  */
-export const groupChatsByToolCategory = (
-  chats: ChatItem[],
-): Record<string, ChatItem[]> => {
+export const groupChatsByToolCategory = (chats: ChatItem[]): Record<string, ChatItem[]> => {
   const grouped: Record<string, ChatItem[]> = {};
 
   // Handle pinned chats first
@@ -158,17 +149,12 @@ export interface DateCategoryGroup {
 export const getSortedDateKeys = (
   grouped: Record<string, ChatItem[]> | DateCategoryGroup,
 ): string[] => {
-  const getLatestTimestamp = (
-    group: ChatItem[] | Record<string, ChatItem[]>,
-  ): number => {
+  const getLatestTimestamp = (group: ChatItem[] | Record<string, ChatItem[]>): number => {
     if (Array.isArray(group)) {
       return group.reduce((max, chat) => Math.max(max, chat.createdAt), 0);
     }
     return Object.values(group).reduce((max, chats) => {
-      const groupMax = chats.reduce(
-        (innerMax, chat) => Math.max(innerMax, chat.createdAt),
-        0,
-      );
+      const groupMax = chats.reduce((innerMax, chat) => Math.max(innerMax, chat.createdAt), 0);
       return Math.max(max, groupMax);
     }, 0);
   };
@@ -183,12 +169,8 @@ export const getSortedDateKeys = (
     const bGroup = grouped[b];
     if (!aGroup || !bGroup) return 0;
 
-    const aTime = getLatestTimestamp(
-      aGroup as ChatItem[] | Record<string, ChatItem[]>,
-    );
-    const bTime = getLatestTimestamp(
-      bGroup as ChatItem[] | Record<string, ChatItem[]>,
-    );
+    const aTime = getLatestTimestamp(aGroup as ChatItem[] | Record<string, ChatItem[]>);
+    const bTime = getLatestTimestamp(bGroup as ChatItem[] | Record<string, ChatItem[]>);
 
     if (aTime !== bTime) return bTime - aTime;
 

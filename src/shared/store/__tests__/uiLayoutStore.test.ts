@@ -58,4 +58,3 @@ describe("uiLayoutStore session mapping", () => {
     });
   });
 });
-

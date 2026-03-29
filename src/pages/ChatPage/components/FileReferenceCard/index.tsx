@@ -10,10 +10,7 @@ export interface FileReferenceCardProps {
   timestamp?: string;
 }
 
-const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({
-  paths,
-  displayText,
-}) => {
+const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({ paths, displayText }) => {
   const { token } = theme.useToken();
 
   // Extract user's question (remove all @filename parts)

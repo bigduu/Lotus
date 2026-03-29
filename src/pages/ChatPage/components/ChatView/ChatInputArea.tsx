@@ -3,9 +3,8 @@ import { Flex } from "antd";
 
 import { InputContainer } from "../InputContainer";
 import type { WorkflowDraft } from "../InputContainer";
-import ActiveToolMessageCard, {
-  type SessionDiffSummary,
-} from "./ActiveToolMessageCard";
+import ActiveToolMessageCard, { type SessionDiffSummary } from "./ActiveToolMessageCard";
+import EmptyTaskLauncher from "../EmptyTaskLauncher";
 
 type ChatInputAreaProps = {
   sessionId: string | null;
@@ -40,14 +39,15 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           margin: showMessagesView ? "0 auto" : undefined,
           position: "relative",
           paddingBottom: showMessagesView ? 12 : 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: showMessagesView ? 0 : 24,
         }}
       >
         {showMessagesView && (
-          <ActiveToolMessageCard
-            sessionDiffSummary={sessionDiffSummary}
-            sessionId={sessionId}
-          />
+          <ActiveToolMessageCard sessionDiffSummary={sessionDiffSummary} sessionId={sessionId} />
         )}
+        {!showMessagesView && sessionId && <EmptyTaskLauncher sessionId={sessionId} />}
         <InputContainer
           sessionId={sessionId}
           isCenteredLayout={isCenteredLayout}

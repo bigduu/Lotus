@@ -61,10 +61,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     } catch (error) {
       console.error("Failed to load provider config:", error);
       set({
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to load provider config",
+        error: error instanceof Error ? error.message : "Failed to load provider config",
         isLoading: false,
       });
     }
@@ -88,8 +85,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   // Get the active model for current provider
   getActiveModel: () => {
     const state = get();
-    const providerConfig =
-      state.providerConfig.providers[state.currentProvider];
+    const providerConfig = state.providerConfig.providers[state.currentProvider];
 
     if (!providerConfig) {
       return undefined;
@@ -106,14 +102,9 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   // Get fast/cheap model for current provider (falls back to active model)
   getFastModel: () => {
     const state = get();
-    const providerConfig =
-      state.providerConfig.providers[state.currentProvider];
+    const providerConfig = state.providerConfig.providers[state.currentProvider];
 
-    if (
-      providerConfig &&
-      "fast_model" in providerConfig &&
-      providerConfig.fast_model
-    ) {
+    if (providerConfig && "fast_model" in providerConfig && providerConfig.fast_model) {
       return providerConfig.fast_model;
     }
 
@@ -124,14 +115,9 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   // Get vision-capable model for current provider (falls back to active model)
   getVisionModel: () => {
     const state = get();
-    const providerConfig =
-      state.providerConfig.providers[state.currentProvider];
+    const providerConfig = state.providerConfig.providers[state.currentProvider];
 
-    if (
-      providerConfig &&
-      "vision_model" in providerConfig &&
-      providerConfig.vision_model
-    ) {
+    if (providerConfig && "vision_model" in providerConfig && providerConfig.vision_model) {
       return providerConfig.vision_model;
     }
 

@@ -17,9 +17,7 @@ function readPersistedTheme(): ThemeMode {
   } catch {
     /* noop */
   }
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export const useThemeStore = create<ThemeState>((set) => ({

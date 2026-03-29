@@ -94,7 +94,7 @@ describe("TokenUsageDisplay", () => {
     expect(screen.queryByText("100%")).toBeNull();
   });
 
-  it("prefers context window as denominator when maxContextTokens is present", () => {
+  it("uses context window as denominator when maxContextTokens is present", () => {
     render(
       <TokenUsageDisplay
         usage={makeUsage({
@@ -107,7 +107,6 @@ describe("TokenUsageDisplay", () => {
 
     expect(screen.getByText("65.4%")).toBeInTheDocument();
     expect(screen.getByText("Context window: 261,789 / 400,000 tokens")).toBeInTheDocument();
-    expect(screen.getByText("Input budget: 262,522 tokens")).toBeInTheDocument();
   });
 
   it("hides detailed section when showDetails is false", () => {

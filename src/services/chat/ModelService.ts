@@ -41,9 +41,7 @@ export class ModelService {
       const openaiClient = new ApiClient({
         baseUrl: this.resolveOpenAICompatBaseUrl(),
       });
-      const data = await openaiClient.get<{ data: Array<{ id: string }> }>(
-        "models",
-      );
+      const data = await openaiClient.get<{ data: Array<{ id: string }> }>("models");
       return data.data.map((model) => model.id);
     } catch (error) {
       console.error("Failed to fetch models from HTTP API:", error);
@@ -72,8 +70,7 @@ export class ModelService {
             "proxy_auth_required"
         ) {
           throw new ProxyAuthRequiredError(
-            (body as { error?: { message?: string } }).error?.message ||
-              error.message,
+            (body as { error?: { message?: string } }).error?.message || error.message,
           );
         }
       }

@@ -32,10 +32,7 @@ const formatTimestamp = (timestamp: string): string => {
   return date.toLocaleString();
 };
 
-const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
-  requests,
-  loading,
-}) => {
+const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({ requests, loading }) => {
   const { t } = useTranslation();
   const columns: ColumnsType<ForwardRequestMetrics> = [
     {
@@ -54,9 +51,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       dataIndex: "endpoint",
       key: "endpoint",
       width: 150,
-      render: (value: string) => (
-        <Tag color="processing">{value.split(".").pop() || value}</Tag>
-      ),
+      render: (value: string) => <Tag color="processing">{value.split(".").pop() || value}</Tag>,
     },
     {
       title: t("settings.metricsTable.forward.columns.model"),
@@ -83,11 +78,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       width: 100,
       render: (_, record) => {
         const statusColor =
-          record.status === "success"
-            ? "success"
-            : record.status === "error"
-              ? "error"
-              : "default";
+          record.status === "success" ? "success" : record.status === "error" ? "error" : "default";
 
         return (
           <Badge
@@ -132,7 +123,9 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       key: "started_at",
       width: 160,
       render: (value: string) => (
-        <Text type="secondary" style={{ fontSize: 12 }}>{formatTimestamp(value)}</Text>
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          {formatTimestamp(value)}
+        </Text>
       ),
     },
     {
@@ -162,8 +155,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({
       pagination={{
         pageSize: 10,
         showSizeChanger: true,
-        showTotal: (total) =>
-          t("settings.metricsTable.forward.totalRequests", { total }),
+        showTotal: (total) => t("settings.metricsTable.forward.totalRequests", { total }),
         pageSizeOptions: ["10", "20", "50", "100"],
       }}
       scroll={{ x: 1200 }}

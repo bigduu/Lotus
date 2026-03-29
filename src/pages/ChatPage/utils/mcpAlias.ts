@@ -23,4 +23,3 @@ export const parseMcpToolAlias = (value: string): McpToolAliasParts | null => {
 
   return { serverId, toolName };
 };
-

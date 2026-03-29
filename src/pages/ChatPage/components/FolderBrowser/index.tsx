@@ -12,17 +12,9 @@ import {
   Typography,
   theme,
 } from "antd";
-import {
-  FolderOutlined,
-  HomeOutlined,
-  ArrowLeftOutlined,
-  CheckOutlined,
-} from "@ant-design/icons";
+import { FolderOutlined, HomeOutlined, ArrowLeftOutlined, CheckOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import {
-  workspaceApiService,
-  BrowseFolderResponse,
-} from "../../services/WorkspaceApiService";
+import { workspaceApiService, BrowseFolderResponse } from "../../services/WorkspaceApiService";
 
 interface FolderItem {
   name: string;
@@ -35,11 +27,7 @@ interface FolderBrowserProps {
   onSelect: (path: string) => void;
 }
 
-export const FolderBrowser: React.FC<FolderBrowserProps> = ({
-  visible,
-  onClose,
-  onSelect,
-}) => {
+export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, onSelect }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { Text } = Typography;
@@ -59,8 +47,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
   const loadDirectory = async (path?: string) => {
     setLoading(true);
     try {
-      const result: BrowseFolderResponse =
-        await workspaceApiService.browseFolder(path);
+      const result: BrowseFolderResponse = await workspaceApiService.browseFolder(path);
       setCurrentPath(result.current_path);
       setParentPath(result.parent_path);
       setFolders(result.folders);
@@ -109,9 +96,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({
   const handleBreadcrumbClick = (index: number) => {
     const segments = getPathSegments();
     const targetPath = segments.slice(0, index + 1).join("/");
-    const normalizedPath = currentPath.startsWith("/")
-      ? targetPath
-      : targetPath;
+    const normalizedPath = currentPath.startsWith("/") ? targetPath : targetPath;
     loadDirectory(normalizedPath);
   };
 

@@ -33,9 +33,7 @@ vi.mock("antd", () => ({
       {children}
     </button>
   )),
-  Tooltip: vi.fn(({ title, children }) => (
-    <div data-tooltip={title}>{children}</div>
-  )),
+  Tooltip: vi.fn(({ title, children }) => <div data-tooltip={title}>{children}</div>),
 }));
 
 // Mock react-zoom-pan-pinch
@@ -45,7 +43,12 @@ const mockResetTransform = vi.fn();
 
 vi.mock("react-zoom-pan-pinch", () => ({
   TransformWrapper: vi.fn(({ children, initialScale, minScale, maxScale }) => (
-    <div data-testid="transform-wrapper" data-initial-scale={initialScale} data-min-scale={minScale} data-max-scale={maxScale}>
+    <div
+      data-testid="transform-wrapper"
+      data-initial-scale={initialScale}
+      data-min-scale={minScale}
+      data-max-scale={maxScale}
+    >
       {children({ zoomIn: mockZoomIn, zoomOut: mockZoomOut, resetTransform: mockResetTransform })}
     </div>
   )),
@@ -147,7 +150,9 @@ describe("MermaidChartViewer", () => {
     });
 
     it("should apply className prop", () => {
-      const { container } = render(<MermaidChartViewer {...defaultProps} className="custom-class" />);
+      const { container } = render(
+        <MermaidChartViewer {...defaultProps} className="custom-class" />,
+      );
 
       expect(container.firstChild).toHaveClass("custom-class");
     });
@@ -293,7 +298,9 @@ describe("MermaidChartViewer", () => {
 
     it("should disable export button when exporting", async () => {
       const mockSaveBinaryFile = vi.mocked(FileOperationsService.saveBinaryFile);
-      mockSaveBinaryFile.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
+      mockSaveBinaryFile.mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 100)),
+      );
 
       render(<MermaidChartViewer {...defaultProps} />);
 
@@ -310,7 +317,9 @@ describe("MermaidChartViewer", () => {
       const mockSaveBinaryFile = vi.mocked(FileOperationsService.saveBinaryFile);
       mockSaveBinaryFile.mockResolvedValue({ success: true, filename: "test.svg" });
 
-      const mockGenerateTimestampedFilename = vi.mocked(FileOperationsService.generateTimestampedFilename);
+      const mockGenerateTimestampedFilename = vi.mocked(
+        FileOperationsService.generateTimestampedFilename,
+      );
 
       render(<MermaidChartViewer {...defaultProps} chartKey="test-chart-123" />);
 
@@ -327,7 +336,9 @@ describe("MermaidChartViewer", () => {
       const mockSaveBinaryFile = vi.mocked(FileOperationsService.saveBinaryFile);
       mockSaveBinaryFile.mockResolvedValue({ success: true, filename: "test.svg" });
 
-      const mockGenerateTimestampedFilename = vi.mocked(FileOperationsService.generateTimestampedFilename);
+      const mockGenerateTimestampedFilename = vi.mocked(
+        FileOperationsService.generateTimestampedFilename,
+      );
 
       render(<MermaidChartViewer {...defaultProps} chartKey={undefined} />);
 
@@ -422,9 +433,7 @@ describe("MermaidChartViewer", () => {
       fireEvent.click(exportButton);
 
       await waitFor(() => {
-        expect(mockMessage.error).toHaveBeenCalledWith(
-          i18n.t("components.mermaid.exportFailed"),
-        );
+        expect(mockMessage.error).toHaveBeenCalledWith(i18n.t("components.mermaid.exportFailed"));
       });
     });
 
@@ -456,7 +465,9 @@ describe("MermaidChartViewer", () => {
 
     it("should prevent multiple simultaneous exports", async () => {
       const mockSaveBinaryFile = vi.mocked(FileOperationsService.saveBinaryFile);
-      mockSaveBinaryFile.mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
+      mockSaveBinaryFile.mockImplementation(
+        () => new Promise((resolve) => setTimeout(resolve, 100)),
+      );
 
       render(<MermaidChartViewer {...defaultProps} />);
 
@@ -530,7 +541,7 @@ describe("MermaidChartViewer", () => {
     });
 
     it("should handle SVG with special characters", () => {
-      const svgWithSpecialChars = '<svg><text>中文 & 日本語</text></svg>';
+      const svgWithSpecialChars = "<svg><text>中文 & 日本語</text></svg>";
       render(<MermaidChartViewer {...defaultProps} svg={svgWithSpecialChars} />);
 
       expect(screen.getByTestId("transform-component")).toBeInTheDocument();

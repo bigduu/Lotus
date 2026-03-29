@@ -1,10 +1,6 @@
 import { useState, useCallback } from "react";
 import { App as AntApp } from "antd";
-import {
-  ImageFile,
-  processImageFiles,
-  cleanupImagePreviews,
-} from "../utils/imageUtils";
+import { ImageFile, processImageFiles, cleanupImagePreviews } from "../utils/imageUtils";
 
 export const useImageHandler = (allowImages: boolean) => {
   // Use context-aware antd message API to avoid dynamic theme warnings

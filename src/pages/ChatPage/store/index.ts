@@ -5,15 +5,9 @@ import { ModelSlice, createModelSlice } from "./slices/modelSlice";
 import { PromptSlice, createPromptSlice } from "./slices/promptSlice";
 import { SessionSlice, createSessionSlice } from "./slices/appSettingsSlice";
 import { SkillSlice, createSkillSlice } from "./slices/skillSlice";
-import {
-  TokenBudgetSlice,
-  createTokenBudgetSlice,
-} from "./slices/tokenBudgetSlice";
+import { TokenBudgetSlice, createTokenBudgetSlice } from "./slices/tokenBudgetSlice";
 import { TaskListSlice, createTaskListSlice } from "./slices/todoListSlice";
-import {
-  InputStateSlice,
-  createInputStateSlice,
-} from "./slices/inputStateSlice";
+import { InputStateSlice, createInputStateSlice } from "./slices/inputStateSlice";
 import { AgentClient } from "../services/AgentService";
 import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
@@ -42,10 +36,7 @@ let agentHealthCheckTimer: ReturnType<typeof setInterval> | null = null;
 let agentHealthCheckInFlight: Promise<boolean> | null = null;
 let sessionsIndexSyncTimer: ReturnType<typeof setInterval> | null = null;
 let sessionsIndexRefreshInFlight: Promise<void> | null = null;
-const chatLookupCache = new WeakMap<
-  ReadonlyArray<ChatItem>,
-  Map<string, ChatItem>
->();
+const chatLookupCache = new WeakMap<ReadonlyArray<ChatItem>, Map<string, ChatItem>>();
 
 export type AppState = ChatSlice &
   ModelSlice &
@@ -143,9 +134,7 @@ export const useAppStore = create<AppState>()(
   ),
 );
 
-const getChatLookup = (
-  chats: ReadonlyArray<ChatItem>,
-): Map<string, ChatItem> => {
+const getChatLookup = (chats: ReadonlyArray<ChatItem>): Map<string, ChatItem> => {
   const cached = chatLookupCache.get(chats);
   if (cached) {
     return cached;

@@ -37,11 +37,7 @@ const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
         }}
       >
         <div style={{ flex: 1 }}>
-          <Text
-            style={{ fontSize: token.fontSizeSM, color: token.colorPrimary }}
-          >
-            Referencing
-          </Text>
+          <Text style={{ fontSize: token.fontSizeSM, color: token.colorPrimary }}>Referencing</Text>
           <Text
             style={{
               fontSize: token.fontSizeSM,

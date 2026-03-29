@@ -1,0 +1,101 @@
+/* ──────────────────────────────────────────────
+   MessageFeedback · like/dislike + retry controls
+   ────────────────────────────────────────────── */
+
+.lotus-msg-feedback {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 2px 0;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Show on card hover */
+.lotus-msg-feedback.is-visible,
+.lotus-msg-feedback:focus-within {
+  opacity: 1;
+}
+
+/* Always show if already rated */
+.lotus-msg-feedback.has-rating {
+  opacity: 1;
+}
+
+.lotus-msg-feedback-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--lotus-feedback-color, rgba(0, 0, 0, 0.35));
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.lotus-msg-feedback-btn:hover {
+  background: var(--lotus-feedback-hover-bg, rgba(0, 0, 0, 0.06));
+  color: var(--lotus-feedback-hover-color, rgba(0, 0, 0, 0.65));
+}
+
+.lotus-msg-feedback-btn:focus-visible {
+  outline: 2px solid var(--ant-color-primary, #0d9488);
+  outline-offset: -2px;
+}
+
+/* Active states */
+.lotus-msg-feedback-btn.is-liked {
+  color: #52c41a;
+  background: #52c41a12;
+}
+
+.lotus-msg-feedback-btn.is-liked:hover {
+  background: #52c41a20;
+}
+
+.lotus-msg-feedback-btn.is-disliked {
+  color: #ff4d4f;
+  background: #ff4d4f12;
+}
+
+.lotus-msg-feedback-btn.is-disliked:hover {
+  background: #ff4d4f20;
+}
+
+/* Separator */
+.lotus-msg-feedback-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--lotus-feedback-sep, rgba(0, 0, 0, 0.06));
+  margin: 0 4px;
+}
+
+/* Retry options */
+.lotus-msg-feedback-retry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+  animation: lotus-feedback-fade-in 0.2s ease;
+}
+
+@keyframes lotus-feedback-fade-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.lotus-msg-feedback-retry-tag {
+  font-size: 11px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.lotus-msg-feedback-retry-tag:hover {
+  opacity: 0.8;
+}

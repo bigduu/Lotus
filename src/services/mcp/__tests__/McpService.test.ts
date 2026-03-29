@@ -351,9 +351,8 @@ describe("mcpService", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "http://127.0.0.1:9562/api/v1/mcp/tools",
-      expect.objectContaining({ method: "GET" })
+      expect.objectContaining({ method: "GET" }),
     );
     expect(tools).toHaveLength(2);
   });
 });
-

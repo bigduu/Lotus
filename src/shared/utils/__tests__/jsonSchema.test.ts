@@ -25,10 +25,7 @@ describe("summarizeJsonSchema", () => {
     const summary = summarizeJsonSchema(schema);
     expect(summary?.schemaUri).toContain("2020-12");
     expect(summary?.additionalProperties).toBe(false);
-    expect(summary?.fields.map((f) => f.name)).toEqual([
-      "includeStatic",
-      "filename",
-    ]);
+    expect(summary?.fields.map((f) => f.name)).toEqual(["includeStatic", "filename"]);
     expect(summary?.fields[0]).toEqual(
       expect.objectContaining({
         name: "includeStatic",
@@ -203,11 +200,7 @@ describe("summarizeJsonSchema", () => {
       required: ["beta"],
     };
     const summary = summarizeJsonSchema(schema);
-    expect(summary?.fields.map((f) => f.name)).toEqual([
-      "beta",
-      "alpha",
-      "zebra",
-    ]);
+    expect(summary?.fields.map((f) => f.name)).toEqual(["beta", "alpha", "zebra"]);
   });
 
   it("handles nested object type", () => {
@@ -326,4 +319,3 @@ describe("summarizeJsonSchema", () => {
     );
   });
 });
-

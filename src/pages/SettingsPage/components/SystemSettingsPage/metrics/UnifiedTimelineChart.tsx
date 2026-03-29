@@ -20,10 +20,7 @@ interface UnifiedTimelineChartProps {
   loading: boolean;
 }
 
-const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({
-  data,
-  loading,
-}) => {
+const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({ data, loading }) => {
   const { t } = useTranslation();
   if (loading) {
     return (
@@ -50,9 +47,7 @@ const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({
         />
       ) : (
         <>
-          <Text type="secondary">
-            {t("settings.charts.unifiedTokenUsageDescription")}
-          </Text>
+          <Text type="secondary">{t("settings.charts.unifiedTokenUsageDescription")}</Text>
           <div style={{ width: "100%", height: 280, marginTop: 12 }}>
             <ResponsiveContainer>
               <LineChart data={data}>

@@ -1,12 +1,6 @@
 import { useEffect } from "react";
-import {
-  getFileReferenceInfo,
-  getWorkflowCommandInfo,
-} from "../../utils/inputHighlight";
-import type {
-  FileReferenceInfo,
-  WorkflowCommandInfo,
-} from "../../utils/inputHighlight";
+import { getFileReferenceInfo, getWorkflowCommandInfo } from "../../utils/inputHighlight";
+import type { FileReferenceInfo, WorkflowCommandInfo } from "../../utils/inputHighlight";
 import type { ImageFile } from "../../utils/imageUtils";
 
 interface UseMessageInputEffectsProps {

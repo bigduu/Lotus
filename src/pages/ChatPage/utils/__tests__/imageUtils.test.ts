@@ -164,22 +164,14 @@ describe("imageUtils", () => {
     });
 
     it("rejects files larger than 10MB", () => {
-      const largeFile = createMockImageFile(
-        "large.jpg",
-        "image/jpeg",
-        MAX_IMAGE_SIZE + 1,
-      );
+      const largeFile = createMockImageFile("large.jpg", "image/jpeg", MAX_IMAGE_SIZE + 1);
       const result = validateImageFile(largeFile);
       expect(result.isValid).toBe(false);
       expect(result.error).toContain("Image size too large");
     });
 
     it("accepts files at exactly 10MB", () => {
-      const exactFile = createMockImageFile(
-        "exact.jpg",
-        "image/jpeg",
-        MAX_IMAGE_SIZE,
-      );
+      const exactFile = createMockImageFile("exact.jpg", "image/jpeg", MAX_IMAGE_SIZE);
       const result = validateImageFile(exactFile);
       expect(result.isValid).toBe(true);
     });
@@ -586,10 +578,7 @@ describe("imageUtils", () => {
 
     it("handles mixed file types", () => {
       const dataTransfer = {
-        files: [
-          new File([""], "test.txt", { type: "text/plain" }),
-          createMockImageFile(),
-        ],
+        files: [new File([""], "test.txt", { type: "text/plain" }), createMockImageFile()],
       } as any;
 
       const result = hasImageFiles(dataTransfer);

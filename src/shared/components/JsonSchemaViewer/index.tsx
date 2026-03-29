@@ -74,11 +74,7 @@ export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) =>
       dataIndex: "description",
       key: "description",
       render: (d?: string) =>
-        d ? (
-          <Text style={{ whiteSpace: "pre-wrap" }}>{d}</Text>
-        ) : (
-          <Text type="secondary">-</Text>
-        ),
+        d ? <Text style={{ whiteSpace: "pre-wrap" }}>{d}</Text> : <Text type="secondary">-</Text>,
     },
   ] as const;
 
@@ -92,26 +88,24 @@ export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) =>
       <Descriptions
         size="small"
         column={1}
-        items={[
-          summary.schemaUri
-            ? {
-                key: "schema",
-                label: "$schema",
-                children: <Text code>{summary.schemaUri}</Text>,
-              }
-            : null,
-          typeof summary.additionalProperties === "boolean"
-            ? {
-                key: "additionalProperties",
-                label: "additionalProperties",
-                children: (
-                  <Text>
-                    {summary.additionalProperties ? "true" : "false"}
-                  </Text>
-                ),
-              }
-            : null,
-        ].filter(Boolean) as any}
+        items={
+          [
+            summary.schemaUri
+              ? {
+                  key: "schema",
+                  label: "$schema",
+                  children: <Text code>{summary.schemaUri}</Text>,
+                }
+              : null,
+            typeof summary.additionalProperties === "boolean"
+              ? {
+                  key: "additionalProperties",
+                  label: "additionalProperties",
+                  children: <Text>{summary.additionalProperties ? "true" : "false"}</Text>,
+                }
+              : null,
+          ].filter(Boolean) as any
+        }
       />
 
       <Table
@@ -127,4 +121,3 @@ export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) =>
 };
 
 export default JsonSchemaViewer;
-

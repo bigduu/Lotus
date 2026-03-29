@@ -17,10 +17,7 @@ export const mermaidCache = new Map<
   { svg: string; height: number; svgWidth: number; svgHeight: number }
 >();
 
-export const errorCache = new Map<
-  string,
-  { count: number; lastSeen: number }
->();
+export const errorCache = new Map<string, { count: number; lastSeen: number }>();
 
 const GANTT_HEADER_RE = /^(\s*%%\{[\s\S]*?\}%%\s*)*\s*gantt\b/i;
 
@@ -35,9 +32,7 @@ const normalizeGanttPunctuation = (chart: string): string => {
 };
 
 export const normalizeMermaidChart = (chart: string): string => {
-  const input = GANTT_HEADER_RE.test(chart)
-    ? normalizeGanttPunctuation(chart)
-    : chart;
+  const input = GANTT_HEADER_RE.test(chart) ? normalizeGanttPunctuation(chart) : chart;
 
   return input.replace(/\[([\s\S]*?)\]/g, (match, rawLabel) => {
     const label = String(rawLabel);
@@ -49,8 +44,7 @@ export const normalizeMermaidChart = (chart: string): string => {
     }
 
     const trimmed = label.trim();
-    const parensAreShape =
-      trimmed.startsWith("(") && trimmed.endsWith(")") && trimmed.length >= 2;
+    const parensAreShape = trimmed.startsWith("(") && trimmed.endsWith(")") && trimmed.length >= 2;
 
     let nextLabel = label;
     if (hasNewline) {

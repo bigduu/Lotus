@@ -23,10 +23,7 @@ describe("proxyAuth", () => {
         username: "testuser",
         password: "testpass",
       };
-      localStorage.setItem(
-        PROXY_AUTH_STORAGE_KEY,
-        JSON.stringify(credentials),
-      );
+      localStorage.setItem(PROXY_AUTH_STORAGE_KEY, JSON.stringify(credentials));
 
       const result = readStoredProxyAuth();
       expect(result).toEqual(credentials);
@@ -41,10 +38,7 @@ describe("proxyAuth", () => {
 
     it("trims username whitespace", () => {
       const credentials = { username: "  testuser  ", password: "testpass" };
-      localStorage.setItem(
-        PROXY_AUTH_STORAGE_KEY,
-        JSON.stringify(credentials),
-      );
+      localStorage.setItem(PROXY_AUTH_STORAGE_KEY, JSON.stringify(credentials));
 
       const result = readStoredProxyAuth();
       expect(result).toEqual({ username: "testuser", password: "testpass" });
@@ -52,10 +46,7 @@ describe("proxyAuth", () => {
 
     it("returns null when username is empty after trimming", () => {
       const credentials = { username: "   ", password: "testpass" };
-      localStorage.setItem(
-        PROXY_AUTH_STORAGE_KEY,
-        JSON.stringify(credentials),
-      );
+      localStorage.setItem(PROXY_AUTH_STORAGE_KEY, JSON.stringify(credentials));
 
       const result = readStoredProxyAuth();
       expect(result).toBeNull();
@@ -77,10 +68,7 @@ describe("proxyAuth", () => {
 
     it("returns credentials with empty password when password is not a string", () => {
       const credentials = { username: "testuser", password: 123 };
-      localStorage.setItem(
-        PROXY_AUTH_STORAGE_KEY,
-        JSON.stringify(credentials),
-      );
+      localStorage.setItem(PROXY_AUTH_STORAGE_KEY, JSON.stringify(credentials));
 
       const result = readStoredProxyAuth();
       expect(result).toEqual({ username: "testuser", password: "" });
@@ -89,12 +77,9 @@ describe("proxyAuth", () => {
     it("handles special characters in password", () => {
       const credentials: ProxyAuthCredentials = {
         username: "testuser",
-        password: 'p@$$w0rd!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~',
+        password: "p@$$w0rd!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~",
       };
-      localStorage.setItem(
-        PROXY_AUTH_STORAGE_KEY,
-        JSON.stringify(credentials),
-      );
+      localStorage.setItem(PROXY_AUTH_STORAGE_KEY, JSON.stringify(credentials));
 
       const result = readStoredProxyAuth();
       expect(result).toEqual(credentials);
@@ -105,10 +90,7 @@ describe("proxyAuth", () => {
         username: "用户名",
         password: "密码🔥",
       };
-      localStorage.setItem(
-        PROXY_AUTH_STORAGE_KEY,
-        JSON.stringify(credentials),
-      );
+      localStorage.setItem(PROXY_AUTH_STORAGE_KEY, JSON.stringify(credentials));
 
       const result = readStoredProxyAuth();
       expect(result).toEqual(credentials);
@@ -164,10 +146,7 @@ describe("proxyAuth", () => {
         username: "testuser",
         password: "testpass",
       };
-      localStorage.setItem(
-        PROXY_AUTH_STORAGE_KEY,
-        JSON.stringify(credentials),
-      );
+      localStorage.setItem(PROXY_AUTH_STORAGE_KEY, JSON.stringify(credentials));
 
       clearStoredProxyAuth();
 

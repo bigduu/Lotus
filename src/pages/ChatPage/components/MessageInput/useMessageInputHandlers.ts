@@ -12,10 +12,7 @@ interface UseMessageInputHandlersProps {
   onChange: (value: string) => void;
   onSubmit: (content: string, images?: ImageFile[]) => void;
   onRetry?: (mode: MessageRetryMode) => void;
-  onHistoryNavigate?: (
-    direction: "previous" | "next",
-    currentValue: string,
-  ) => string | null;
+  onHistoryNavigate?: (direction: "previous" | "next", currentValue: string) => string | null;
   validateMessage?: (message: string) => {
     isValid: boolean;
     errorMessage?: string;
@@ -54,12 +51,8 @@ export const useMessageInputHandlers = ({
 
     if (isOverCharLimit) {
       const maxLengthLabel =
-        typeof maxCharCount === "number"
-          ? maxCharCount.toLocaleString()
-          : "configured";
-      messageApi.error(
-        `Message exceeds the maximum length of ${maxLengthLabel} characters.`,
-      );
+        typeof maxCharCount === "number" ? maxCharCount.toLocaleString() : "configured";
+      messageApi.error(`Message exceeds the maximum length of ${maxLengthLabel} characters.`);
       return;
     }
 
@@ -67,9 +60,7 @@ export const useMessageInputHandlers = ({
       const validation = validateMessage(trimmedContent);
 
       if (!validation.isValid) {
-        messageApi.error(
-          validation.errorMessage || "Message format is incorrect",
-        );
+        messageApi.error(validation.errorMessage || "Message format is incorrect");
         return;
       }
     }
@@ -104,8 +95,7 @@ export const useMessageInputHandlers = ({
           event.preventDefault();
           onChange(historyValue);
           requestAnimationFrame(() => {
-            const textArea =
-              textAreaRef.current?.resizableTextArea?.textArea || null;
+            const textArea = textAreaRef.current?.resizableTextArea?.textArea || null;
             if (textArea) {
               const caret = historyValue.length;
               textArea.setSelectionRange(caret, caret);

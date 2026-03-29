@@ -29,6 +29,7 @@ import { useMessageCardActions } from "./useMessageCardActions";
 import { useMessageCardPlanActions } from "./useMessageCardPlanActions";
 import { useMessageCardMermaidFix } from "./useMessageCardMermaidFix";
 import { getMessageCardMaxWidth } from "./messageCardLayout";
+import { MessageFeedback } from "../MessageFeedback";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -343,6 +344,14 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
           </Space>
         </Card>
       </Dropdown>
+
+      {/* Feedback buttons for assistant text messages */}
+      {role === "assistant" && detectedMessageType === "text" && messageId && (
+        <MessageFeedback
+          messageId={messageId}
+          isVisible={isHovering}
+        />
+      )}
     </Flex>
   );
 };

@@ -9,9 +9,7 @@ export type HighlightSegment = {
 
 const isWhitespace = (char: string) => /\s/.test(char);
 
-export const getInputHighlightSegments = (
-  value: string,
-): HighlightSegment[] => {
+export const getInputHighlightSegments = (value: string): HighlightSegment[] => {
   if (!value) {
     return [{ text: "", type: "text" }];
   }
@@ -24,10 +22,8 @@ export const getInputHighlightSegments = (
     const char = value[index];
     const prevChar = index > 0 ? value[index - 1] : "";
 
-    const isCommandTrigger =
-      char === "/" && (index === 0 || isWhitespace(prevChar));
-    const isFileTrigger =
-      char === "@" && (index === 0 || isWhitespace(prevChar));
+    const isCommandTrigger = char === "/" && (index === 0 || isWhitespace(prevChar));
+    const isFileTrigger = char === "@" && (index === 0 || isWhitespace(prevChar));
 
     if (!isCommandTrigger && !isFileTrigger) {
       let start = index;
@@ -87,8 +83,7 @@ export const getWorkflowCommandInfo = (value: string): WorkflowCommandInfo => {
   }
 
   const rawCommand = match[2] || "";
-  const isTriggerActive =
-    !rawCommand.includes(" ") && match.index !== undefined;
+  const isTriggerActive = !rawCommand.includes(" ") && match.index !== undefined;
 
   return {
     command: rawCommand || null,

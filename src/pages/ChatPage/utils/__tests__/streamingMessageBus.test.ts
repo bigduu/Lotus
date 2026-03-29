@@ -8,9 +8,7 @@ describe("streamingMessageBus", () => {
     vi.resetModules();
 
     // Import fresh module
-    streamingMessageBus = await import("../streamingMessageBus").then(
-      (m) => m.streamingMessageBus,
-    );
+    streamingMessageBus = await import("../streamingMessageBus").then((m) => m.streamingMessageBus);
   });
 
   afterEach(() => {
@@ -103,10 +101,7 @@ describe("streamingMessageBus", () => {
 
     it("should return unsubscribe function", () => {
       const listener = vi.fn();
-      const unsubscribe = streamingMessageBus.subscribeMessage(
-        "msg1",
-        listener,
-      );
+      const unsubscribe = streamingMessageBus.subscribeMessage("msg1", listener);
 
       expect(typeof unsubscribe).toBe("function");
     });
@@ -118,10 +113,7 @@ describe("streamingMessageBus", () => {
       });
 
       const listener = vi.fn();
-      const unsubscribe = streamingMessageBus.subscribeMessage(
-        "msg1",
-        listener,
-      );
+      const unsubscribe = streamingMessageBus.subscribeMessage("msg1", listener);
 
       streamingMessageBus.publish({
         sessionId: "session1",
@@ -376,12 +368,10 @@ describe("streamingMessageBus", () => {
     });
 
     it("should use requestAnimationFrame to batch updates", async () => {
-      const rafSpy = vi
-        .spyOn(window, "requestAnimationFrame")
-        .mockImplementation((cb) => {
-          setTimeout(() => cb(performance.now()), 0);
-          return 1;
-        });
+      const rafSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+        setTimeout(() => cb(performance.now()), 0);
+        return 1;
+      });
 
       const listener = vi.fn();
       streamingMessageBus.subscribeMessage("msg1", listener);
@@ -398,13 +388,11 @@ describe("streamingMessageBus", () => {
     });
 
     it("should batch multiple updates before RAF", async () => {
-      const rafSpy = vi
-        .spyOn(window, "requestAnimationFrame")
-        .mockImplementation((cb) => {
-          // Delay the callback to simulate batching
-          setTimeout(() => cb(performance.now()), 0);
-          return 1;
-        });
+      const rafSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+        // Delay the callback to simulate batching
+        setTimeout(() => cb(performance.now()), 0);
+        return 1;
+      });
 
       const listener = vi.fn();
       streamingMessageBus.subscribeMessage("msg1", listener);
@@ -466,9 +454,7 @@ describe("streamingMessageBus", () => {
     });
 
     it("should clear pending updates", async () => {
-      const rafSpy = vi
-        .spyOn(window, "requestAnimationFrame")
-        .mockImplementation(() => 1);
+      const rafSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation(() => 1);
 
       streamingMessageBus.publish({
         sessionId: "session1",

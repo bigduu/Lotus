@@ -57,9 +57,7 @@ describe("providerSlice", () => {
           },
         },
       };
-      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(
-        mockConfig,
-      );
+      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(mockConfig);
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -110,16 +108,11 @@ describe("providerSlice", () => {
       const state = useProviderStore.getState();
       expect(state.error).toBe("Network error");
       expect(state.isLoading).toBe(false);
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        "Failed to load provider config:",
-        error,
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to load provider config:", error);
     });
 
     it("should handle non-Error errors", async () => {
-      vi.mocked(settingsService.getProviderConfig).mockRejectedValueOnce(
-        "string error",
-      );
+      vi.mocked(settingsService.getProviderConfig).mockRejectedValueOnce("string error");
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -143,9 +136,7 @@ describe("providerSlice", () => {
           },
         },
       };
-      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(
-        mockConfig,
-      );
+      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(mockConfig);
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -165,9 +156,7 @@ describe("providerSlice", () => {
           },
         },
       };
-      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(
-        mockConfig,
-      );
+      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(mockConfig);
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -374,9 +363,7 @@ describe("providerSlice", () => {
       act(() => {
         useProviderStore.getState().setCurrentProvider("anthropic");
       });
-      expect(useProviderStore.getState().getActiveModel()).toBe(
-        "claude-3-sonnet",
-      );
+      expect(useProviderStore.getState().getActiveModel()).toBe("claude-3-sonnet");
 
       act(() => {
         useProviderStore.getState().setCurrentProvider("openai");

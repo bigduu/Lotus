@@ -52,9 +52,7 @@ const TokenChart: React.FC<TokenChartProps> = ({ data, loading }) => {
         />
       ) : (
         <>
-          <Text type="secondary">
-            {t("settings.charts.tokenUsageDescription")}
-          </Text>
+          <Text type="secondary">{t("settings.charts.tokenUsageDescription")}</Text>
           <div style={{ width: "100%", height: 280, marginTop: 12 }}>
             <ResponsiveContainer>
               <LineChart data={data}>

@@ -78,9 +78,8 @@ const LazyMermaidChart: React.FC<MermaidChartProps> = (props) => {
 // 动态导入 MermaidChart
 const LazyMermaidChartRenderer: React.FC<MermaidChartProps> = (props) => {
   const { t } = useTranslation();
-  const [MermaidChartComponent, setMermaidChartComponent] = useState<
-    React.FC<MermaidChartProps> | null
-  >(null);
+  const [MermaidChartComponent, setMermaidChartComponent] =
+    useState<React.FC<MermaidChartProps> | null>(null);
 
   useEffect(() => {
     let cancelled = false;

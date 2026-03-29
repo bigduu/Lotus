@@ -12,25 +12,17 @@ import { useFastModel } from "../useActiveModel";
  * Handles both auto and manual title generation
  */
 export interface UseChatTitleGeneration {
-  titleGenerationState: Record<
-    string,
-    { status: "idle" | "loading" | "error"; error?: string }
-  >;
+  titleGenerationState: Record<string, { status: "idle" | "loading" | "error"; error?: string }>;
   autoGenerateTitles: boolean;
   isUpdatingAutoTitlePreference: boolean;
-  generateChatTitle: (
-    sessionId: string,
-    options?: { force?: boolean },
-  ) => Promise<void>;
+  generateChatTitle: (sessionId: string, options?: { force?: boolean }) => Promise<void>;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
   isDefaultTitle: (title: string | undefined | null) => boolean;
 }
 
 type ChatTitleState = Pick<UseChatState, "chats" | "updateSession">;
 
-export function useChatTitleGeneration(
-  state: ChatTitleState,
-): UseChatTitleGeneration {
+export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGeneration {
   const { message: appMessage } = AntApp.useApp();
   const { t } = useTranslation();
 
@@ -40,9 +32,7 @@ export function useChatTitleGeneration(
   const setAutoGenerateTitlesPreference = useAppStore(
     (state) => state.setAutoGenerateTitlesPreference,
   );
-  const isUpdatingAutoTitlePreference = useAppStore(
-    (state) => state.isUpdatingAutoTitlePreference,
-  );
+  const isUpdatingAutoTitlePreference = useAppStore((state) => state.isUpdatingAutoTitlePreference);
 
   const autoTitleGeneratedRef = useRef<Set<string>>(new Set());
   const titleGenerationInFlightRef = useRef<Set<string>>(new Set());
@@ -106,10 +96,7 @@ export function useChatTitleGeneration(
       }));
 
       try {
-        const candidate = await generateTitleWithAI(
-          userAssistantMessages,
-          fastModel,
-        );
+        const candidate = await generateTitleWithAI(userAssistantMessages, fastModel);
         if (!candidate) {
           throw new Error("Generated title is empty");
         }
@@ -180,9 +167,7 @@ const buildTitleContext = (messages: Message[]): string => {
       })();
       if (!text) return "";
       const trimmed =
-        text.length > MAX_MESSAGE_CHARS
-          ? `${text.slice(0, MAX_MESSAGE_CHARS - 3)}...`
-          : text;
+        text.length > MAX_MESSAGE_CHARS ? `${text.slice(0, MAX_MESSAGE_CHARS - 3)}...` : text;
       return `${role}: ${trimmed}`;
     })
     .filter((line) => line.length > 0);
@@ -199,10 +184,7 @@ const normalizeTitle = (title: string): string => {
   return `${unquoted.slice(0, MAX_TITLE_CHARS - 3)}...`;
 };
 
-const generateTitleWithAI = async (
-  messages: Message[],
-  model?: string | null,
-): Promise<string> => {
+const generateTitleWithAI = async (messages: Message[], model?: string | null): Promise<string> => {
   const context = buildTitleContext(messages);
   if (!context) {
     return "";
@@ -210,9 +192,7 @@ const generateTitleWithAI = async (
 
   const modelToUse = model?.trim();
   if (!modelToUse) {
-    throw new Error(
-      "No model configured. Please select a default model in Provider Settings.",
-    );
+    throw new Error("No model configured. Please select a default model in Provider Settings.");
   }
 
   const client = getOpenAIClient();

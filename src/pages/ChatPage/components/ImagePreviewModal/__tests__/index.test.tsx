@@ -50,60 +50,34 @@ describe("ImagePreviewModal", () => {
   describe("rendering", () => {
     it("should return null when images array is empty", () => {
       const { container } = render(
-        <ImagePreviewModal
-          visible={true}
-          images={[]}
-          onClose={mockOnClose}
-        />
+        <ImagePreviewModal visible={true} images={[]} onClose={mockOnClose} />,
       );
       expect(container.firstChild).toBeNull();
     });
 
     it("should return null when images is undefined", () => {
       const { container } = render(
-        <ImagePreviewModal
-          visible={true}
-          images={undefined as any}
-          onClose={mockOnClose}
-        />
+        <ImagePreviewModal visible={true} images={undefined as any} onClose={mockOnClose} />,
       );
       expect(container.firstChild).toBeNull();
     });
 
     it("should render modal when visible with single image", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[mockImages[0]]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[mockImages[0]]} onClose={mockOnClose} />);
 
       expect(screen.getByText("test1.png")).toBeInTheDocument();
       expect(screen.getByText(/1024 bytes/)).toBeInTheDocument();
     });
 
     it("should render modal with multiple images", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={mockImages}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       expect(screen.getByText("test1.png")).toBeInTheDocument();
       expect(screen.getByText(/1 of 3/)).toBeInTheDocument();
     });
 
     it("should not show navigation buttons for single image", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[mockImages[0]]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[mockImages[0]]} onClose={mockOnClose} />);
 
       // No left/right navigation buttons in header
       const leftButtons = screen.queryAllByRole("button", { name: /left/i });
@@ -115,13 +89,7 @@ describe("ImagePreviewModal", () => {
     });
 
     it("should show navigation buttons for multiple images", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={mockImages}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       // Should have left/right navigation buttons
       const leftButtons = screen.getAllByRole("button", { name: /left/i });
@@ -132,13 +100,7 @@ describe("ImagePreviewModal", () => {
     });
 
     it("should display thumbnail strip for multiple images", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={mockImages}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       // Should render thumbnails (1 main image + 3 thumbnails = 4 total)
       const thumbnails = screen.getAllByRole("img");
@@ -146,20 +108,12 @@ describe("ImagePreviewModal", () => {
     });
 
     it("should not display thumbnail strip for single image", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[mockImages[0]]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[mockImages[0]]} onClose={mockOnClose} />);
 
       // Only the main image should be rendered (no thumbnails)
       const images = screen.getAllByRole("img");
       // Should have exactly 1 main image (may include icon images from buttons)
-      const mainImages = images.filter(img =>
-        img.getAttribute("alt") === "test1.png"
-      );
+      const mainImages = images.filter((img) => img.getAttribute("alt") === "test1.png");
       expect(mainImages.length).toBe(1);
     });
   });
@@ -172,7 +126,7 @@ describe("ImagePreviewModal", () => {
           images={mockImages}
           currentIndex={1}
           onClose={mockOnClose}
-        />
+        />,
       );
 
       expect(screen.getByText("test2.jpg")).toBeInTheDocument();
@@ -180,26 +134,14 @@ describe("ImagePreviewModal", () => {
     });
 
     it("should default to first image when currentIndex not provided", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={mockImages}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       expect(screen.getByText("test1.png")).toBeInTheDocument();
       expect(screen.getByText(/1 of 3/)).toBeInTheDocument();
     });
 
     it("should navigate to next image when next button clicked", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={mockImages}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       const nextButtons = screen.getAllByRole("button", { name: /right/i });
       fireEvent.click(nextButtons[0]);
@@ -215,7 +157,7 @@ describe("ImagePreviewModal", () => {
           images={mockImages}
           currentIndex={1}
           onClose={mockOnClose}
-        />
+        />,
       );
 
       const prevButtons = screen.getAllByRole("button", { name: /left/i });
@@ -226,13 +168,7 @@ describe("ImagePreviewModal", () => {
     });
 
     it("should wrap to last image when previous on first image", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={mockImages}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       const prevButtons = screen.getAllByRole("button", { name: /left/i });
       fireEvent.click(prevButtons[0]);
@@ -248,7 +184,7 @@ describe("ImagePreviewModal", () => {
           images={mockImages}
           currentIndex={2}
           onClose={mockOnClose}
-        />
+        />,
       );
 
       const nextButtons = screen.getAllByRole("button", { name: /right/i });
@@ -259,13 +195,7 @@ describe("ImagePreviewModal", () => {
     });
 
     it("should display clickable thumbnails for multiple images", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={mockImages}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       // Verify thumbnails are present and clickable
       const allImages = screen.getAllByRole("img");
@@ -273,9 +203,10 @@ describe("ImagePreviewModal", () => {
       expect(allImages.length).toBeGreaterThan(3);
 
       // Thumbnails should be clickable (they're in a clickable container)
-      const thumbnailContainers = screen.getAllByRole("img")
+      const thumbnailContainers = screen
+        .getAllByRole("img")
         .slice(1) // Skip main image
-        .map(img => img.closest("div[style*='cursor: pointer']"))
+        .map((img) => img.closest("div[style*='cursor: pointer']"))
         .filter(Boolean);
 
       expect(thumbnailContainers.length).toBeGreaterThan(0);
@@ -290,7 +221,7 @@ describe("ImagePreviewModal", () => {
           images={[mockImages[0]]}
           onClose={mockOnClose}
           onDownload={mockOnDownload}
-        />
+        />,
       );
 
       const downloadButton = screen.getByRole("button", { name: /download/i });
@@ -307,7 +238,7 @@ describe("ImagePreviewModal", () => {
           images={mockImages}
           onClose={mockOnClose}
           onDownload={mockOnDownload}
-        />
+        />,
       );
 
       // Navigate to second image
@@ -324,13 +255,7 @@ describe("ImagePreviewModal", () => {
 
   describe("close functionality", () => {
     it("should call onClose when modal close button is clicked", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[mockImages[0]]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[mockImages[0]]} onClose={mockOnClose} />);
 
       // Ant Design Modal has a close button with aria-label="Close"
       const closeButton = screen.getByRole("button", { name: /close/i });
@@ -342,26 +267,14 @@ describe("ImagePreviewModal", () => {
 
   describe("accessibility", () => {
     it("should have accessible download button", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[mockImages[0]]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[mockImages[0]]} onClose={mockOnClose} />);
 
       const downloadButton = screen.getByRole("button", { name: /download/i });
       expect(downloadButton).toBeInTheDocument();
     });
 
     it("should display image information", () => {
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[mockImages[0]]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[mockImages[0]]} onClose={mockOnClose} />);
 
       expect(screen.getByText("test1.png")).toBeInTheDocument();
       expect(screen.getByText(/1024 bytes/)).toBeInTheDocument();
@@ -379,13 +292,7 @@ describe("ImagePreviewModal", () => {
         base64: "data:image/png;base64,test",
       };
 
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[specialImage]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[specialImage]} onClose={mockOnClose} />);
 
       expect(screen.getByText("test-image_@#$%.png")).toBeInTheDocument();
     });
@@ -400,13 +307,7 @@ describe("ImagePreviewModal", () => {
         base64: "data:image/png;base64,test",
       };
 
-      render(
-        <ImagePreviewModal
-          visible={true}
-          images={[unicodeImage]}
-          onClose={mockOnClose}
-        />
-      );
+      render(<ImagePreviewModal visible={true} images={[unicodeImage]} onClose={mockOnClose} />);
 
       expect(screen.getByText("图片测试🎉.png")).toBeInTheDocument();
     });

@@ -1,14 +1,5 @@
 import React from "react";
-import {
-  Card,
-  Button,
-  Typography,
-  Space,
-  Descriptions,
-  theme,
-  Tag,
-  Flex,
-} from "antd";
+import { Card, Button, Typography, Space, Descriptions, theme, Tag, Flex } from "antd";
 import { CheckOutlined, CloseOutlined, ToolOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -92,10 +83,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
 
         {data.parameters.length > 0 && (
           <Flex vertical>
-            <Text
-              strong
-              style={{ marginBottom: token.marginXS, display: "block" }}
-            >
+            <Text strong style={{ marginBottom: token.marginXS, display: "block" }}>
               {t("common.parameters")}:
             </Text>
             <Descriptions
@@ -116,9 +104,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             icon={<CheckOutlined />}
             onClick={onApprove}
             disabled={
-              disabled ||
-              data.approval_status === "approved" ||
-              data.approval_status === "rejected"
+              disabled || data.approval_status === "approved" || data.approval_status === "rejected"
             }
             style={{
               backgroundColor: token.colorSuccess,
@@ -132,9 +118,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             icon={<CloseOutlined />}
             onClick={onReject}
             disabled={
-              disabled ||
-              data.approval_status === "approved" ||
-              data.approval_status === "rejected"
+              disabled || data.approval_status === "approved" || data.approval_status === "rejected"
             }
           >
             {t("common.reject")}

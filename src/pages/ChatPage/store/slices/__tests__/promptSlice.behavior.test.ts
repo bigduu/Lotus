@@ -37,8 +37,7 @@ type PromptSlice = {
 };
 
 const LEGACY_CUSTOM_PROMPTS_LS_KEY = "copilot_custom_system_prompts_v2";
-const LEGACY_PROMPTS_MIGRATED_LS_KEY =
-  "copilot_custom_system_prompts_v2_migrated_to_backend";
+const LEGACY_PROMPTS_MIGRATED_LS_KEY = "copilot_custom_system_prompts_v2_migrated_to_backend";
 const LAST_SELECTED_PROMPT_ID_LS_KEY = "copilot_last_selected_prompt_id";
 
 const loadSlice = async () => {
@@ -177,9 +176,7 @@ describe("promptSlice behavior", () => {
       }),
     ).rejects.toThrow("update failed");
 
-    await expect(harness.getState().deleteSystemPrompt("p1")).rejects.toThrow(
-      "delete failed",
-    );
+    await expect(harness.getState().deleteSystemPrompt("p1")).rejects.toThrow("delete failed");
   });
 
   it("persists last selected prompt id", async () => {
@@ -188,8 +185,6 @@ describe("promptSlice behavior", () => {
 
     harness.getState().setLastSelectedPromptId("preset-x");
     expect(harness.getState().lastSelectedPromptId).toBe("preset-x");
-    expect(localStorage.getItem(LAST_SELECTED_PROMPT_ID_LS_KEY)).toBe(
-      "preset-x",
-    );
+    expect(localStorage.getItem(LAST_SELECTED_PROMPT_ID_LS_KEY)).toBe("preset-x");
   });
 });

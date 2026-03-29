@@ -126,12 +126,11 @@ export class WorkspaceService {
       this.getRecent().catch(() => []),
     ]);
 
-    const suggestionsAsWorkspaces: Workspace[] =
-      suggestionsResponse.suggestions.map((s) => ({
-        path: s.path,
-        is_valid: true,
-        workspace_name: s.name,
-      }));
+    const suggestionsAsWorkspaces: Workspace[] = suggestionsResponse.suggestions.map((s) => ({
+      path: s.path,
+      is_valid: true,
+      workspace_name: s.name,
+    }));
 
     const combined = [...suggestionsAsWorkspaces, ...recent];
     const unique = this.deduplicateByPath(combined);
@@ -231,8 +230,7 @@ export class WorkspaceService {
       return false;
     }
 
-    const isExpired =
-      Date.now() - this.cache.timestamp > this.options.cacheTimeoutMs;
+    const isExpired = Date.now() - this.cache.timestamp > this.options.cacheTimeoutMs;
     return !isExpired;
   }
 

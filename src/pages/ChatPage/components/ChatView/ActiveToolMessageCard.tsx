@@ -1,10 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Card, Space, Typography, theme } from "antd";
 import { DiffOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
-import {
-  parseUnifiedDiffLines,
-  type DiffLine,
-} from "../../utils/resultFormatters";
+import { parseUnifiedDiffLines, type DiffLine } from "../../utils/resultFormatters";
 
 const { Text } = Typography;
 
@@ -31,8 +28,7 @@ type ActiveToolMessageCardProps = {
 const EXIT_ANIMATION_MS = 220;
 const DIFF_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-diff-collapse:";
 
-const basename = (filePath: string): string =>
-  filePath.split(/[\\/]/).pop() || filePath;
+const basename = (filePath: string): string => filePath.split(/[\\/]/).pop() || filePath;
 
 interface PersistedCollapseState {
   isExpanded: boolean;
@@ -42,9 +38,7 @@ interface PersistedCollapseState {
 const getCollapseStorageKey = (sessionId?: string | null): string =>
   `${DIFF_COLLAPSE_STORAGE_KEY_PREFIX}${sessionId ?? "default"}`;
 
-const readPersistedCollapseState = (
-  sessionId?: string | null,
-): PersistedCollapseState | null => {
+const readPersistedCollapseState = (sessionId?: string | null): PersistedCollapseState | null => {
   if (typeof window === "undefined") return null;
 
   try {
@@ -55,14 +49,10 @@ const readPersistedCollapseState = (
     if (!parsed || typeof parsed !== "object") return null;
 
     const isExpanded =
-      "isExpanded" in parsed && typeof parsed.isExpanded === "boolean"
-        ? parsed.isExpanded
-        : true;
+      "isExpanded" in parsed && typeof parsed.isExpanded === "boolean" ? parsed.isExpanded : true;
     const expandedFiles =
       "expandedFiles" in parsed && Array.isArray(parsed.expandedFiles)
-        ? parsed.expandedFiles.filter(
-            (item): item is string => typeof item === "string",
-          )
+        ? parsed.expandedFiles.filter((item): item is string => typeof item === "string")
         : [];
 
     return { isExpanded, expandedFiles };
@@ -78,10 +68,7 @@ const writePersistedCollapseState = (
   if (typeof window === "undefined") return;
 
   try {
-    window.localStorage.setItem(
-      getCollapseStorageKey(sessionId),
-      JSON.stringify(state),
-    );
+    window.localStorage.setItem(getCollapseStorageKey(sessionId), JSON.stringify(state));
   } catch {
     // Best-effort persistence only.
   }
@@ -100,10 +87,7 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
     () => readPersistedCollapseState(sessionId)?.isExpanded ?? true,
   );
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(
-    () =>
-      new Set(
-        readPersistedCollapseState(sessionId)?.expandedFiles ?? [],
-      ),
+    () => new Set(readPersistedCollapseState(sessionId)?.expandedFiles ?? []),
   );
 
   useEffect(() => {
@@ -114,10 +98,7 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
     }
 
     setIsVisible(false);
-    const id = window.setTimeout(
-      () => setShouldRender(false),
-      EXIT_ANIMATION_MS,
-    );
+    const id = window.setTimeout(() => setShouldRender(false), EXIT_ANIMATION_MS);
     return () => window.clearTimeout(id);
   }, [hasDiff]);
 
@@ -220,12 +201,8 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
               <Text strong style={{ whiteSpace: "nowrap" }}>
                 Session diffs
               </Text>
-              <Text
-                type="secondary"
-                style={{ fontSize: token.fontSizeSM, whiteSpace: "nowrap" }}
-              >
-                ({sessionDiffSummary.files.length} files /{" "}
-                {sessionDiffSummary.changedTools} tools)
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM, whiteSpace: "nowrap" }}>
+                ({sessionDiffSummary.files.length} files / {sessionDiffSummary.changedTools} tools)
               </Text>
               <Space size={4} style={{ marginInlineStart: token.marginXS }}>
                 <Text

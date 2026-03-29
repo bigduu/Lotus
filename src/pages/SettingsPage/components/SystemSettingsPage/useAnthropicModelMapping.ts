@@ -12,9 +12,7 @@ interface UseAnthropicModelMappingProps {
   };
 }
 
-export const useAnthropicModelMapping = ({
-  msgApi,
-}: UseAnthropicModelMappingProps) => {
+export const useAnthropicModelMapping = ({ msgApi }: UseAnthropicModelMappingProps) => {
   const [mapping, setMapping] = useState<AnthropicModelMapping>({
     mappings: {},
   });
@@ -41,9 +39,7 @@ export const useAnthropicModelMapping = ({
         msgApi.success("Anthropic model mapping saved");
       } catch (error) {
         msgApi.error(
-          error instanceof Error
-            ? error.message
-            : "Failed to save Anthropic model mapping",
+          error instanceof Error ? error.message : "Failed to save Anthropic model mapping",
         );
         throw error;
       }

@@ -1,0 +1,47 @@
+.lotus-execution-rail {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+  padding: 4px 16px;
+  border-top: 1px solid transparent;
+  flex-shrink: 0;
+  transition: min-height 200ms ease, padding 200ms ease;
+}
+
+.lotus-execution-rail--active {
+  min-height: 36px;
+  padding: 6px 16px;
+}
+
+.lotus-execution-rail__content {
+  width: 100%;
+}
+
+.lotus-execution-rail__status-tag {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.lotus-execution-rail__detail {
+  font-size: 12px;
+}
+
+.lotus-execution-rail__detail-tag {
+  font-size: 11px;
+}
+
+@media (max-width: 768px) {
+  .lotus-execution-rail {
+    padding: 4px 8px;
+  }
+
+  .lotus-execution-rail--active {
+    padding: 6px 8px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lotus-execution-rail {
+    transition: none;
+  }
+}

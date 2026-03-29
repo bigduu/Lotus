@@ -1,17 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { message } from "antd";
-import {
-  workspaceValidator,
-  type WorkspaceValidationResult,
-} from "../../utils/workspaceValidator";
+import { workspaceValidator, type WorkspaceValidationResult } from "../../utils/workspaceValidator";
 import {
   recentWorkspacesManager,
   type WorkspaceInfo,
 } from "../../services/RecentWorkspacesManager";
-import {
-  workspaceApiService,
-  type PathSuggestion,
-} from "../../services/WorkspaceApiService";
+import { workspaceApiService, type PathSuggestion } from "../../services/WorkspaceApiService";
 
 interface ValidationStatus {
   isValidating: boolean;
@@ -113,16 +107,15 @@ export const useWorkspacePickerState = ({
       if (newPath.trim()) {
         setValidationStatus({ isValidating: true, result: null });
 
-        debouncedValidateRef.current =
-          workspaceValidator.validateWorkspaceDebounced(
-            newPath.trim(),
-            (result) => {
-              setValidationStatus({ isValidating: false, result });
-              if (onValidationChange) {
-                onValidationChange(result);
-              }
-            },
-          );
+        debouncedValidateRef.current = workspaceValidator.validateWorkspaceDebounced(
+          newPath.trim(),
+          (result) => {
+            setValidationStatus({ isValidating: false, result });
+            if (onValidationChange) {
+              onValidationChange(result);
+            }
+          },
+        );
       } else {
         setValidationStatus({ isValidating: false, result: null });
         if (onValidationChange) {

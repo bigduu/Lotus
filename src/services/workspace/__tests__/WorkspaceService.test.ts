@@ -44,21 +44,12 @@ describe("WorkspaceService", () => {
       folders: [{ name: "ws", path: "/ws" }],
     });
 
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "workspace/validate",
-      { path: "/ws" },
-    );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      2,
-      "workspace/recent",
-      { path: "/ws", metadata: { workspace_name: "Workspace" } },
-    );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      3,
-      "workspace/browse-folder",
-      { path: "/" },
-    );
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(1, "workspace/validate", { path: "/ws" });
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(2, "workspace/recent", {
+      path: "/ws",
+      metadata: { workspace_name: "Workspace" },
+    });
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(3, "workspace/browse-folder", { path: "/" });
   });
 
   it("caches getRecent results and reuses cache", async () => {
@@ -70,10 +61,7 @@ describe("WorkspaceService", () => {
     await expect(service.getRecent()).resolves.toEqual(recent);
 
     expect(mockApiClient.get).toHaveBeenCalledTimes(1);
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      "workspace/recent",
-      expect.any(Object),
-    );
+    expect(mockApiClient.get).toHaveBeenCalledWith("workspace/recent", expect.any(Object));
   });
 
   it("falls back to cached recent workspaces when refresh fails", async () => {
@@ -104,15 +92,11 @@ describe("WorkspaceService", () => {
     mockApiClient.get.mockResolvedValueOnce([{ path: "/b", is_valid: true }]);
 
     await service.removeRecent("/a");
-    await expect(service.getRecent()).resolves.toEqual([
-      { path: "/b", is_valid: true },
-    ]);
+    await expect(service.getRecent()).resolves.toEqual([{ path: "/b", is_valid: true }]);
     expect(mockApiClient.get).toHaveBeenCalledTimes(1);
 
     await service.clearRecent();
-    await expect(service.getRecent()).resolves.toEqual([
-      { path: "/b", is_valid: true },
-    ]);
+    await expect(service.getRecent()).resolves.toEqual([{ path: "/b", is_valid: true }]);
     expect(mockApiClient.get).toHaveBeenCalledTimes(2);
   });
 
@@ -131,11 +115,7 @@ describe("WorkspaceService", () => {
 
     const combined = await service.getCombinedSuggestions();
 
-    expect(combined.map((workspace) => workspace.path)).toEqual([
-      "/a",
-      "/c",
-      "/b",
-    ]);
+    expect(combined.map((workspace) => workspace.path)).toEqual(["/a", "/c", "/b"]);
   });
 
   it("returns health status with cache info on success and failure", async () => {

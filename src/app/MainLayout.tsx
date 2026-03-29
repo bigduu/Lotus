@@ -18,6 +18,7 @@ import { useUILayoutStore } from "../shared/store/uiLayoutStore";
 import { ResizableSplit } from "../shared/components/ResizableSplit";
 import type { AppLocale } from "../shared/i18n/types";
 import { detectOS } from "../shared/utils/osInfoUtils";
+import { CommandPalette } from "@shared/components/CommandPalette";
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
@@ -102,6 +103,7 @@ export const MainLayout: React.FC<{
       >
         {t("app.skipToContent", "Skip to main content")}
       </a>
+      <CommandPalette />
       <Layout
         style={{
           minHeight: "100vh",

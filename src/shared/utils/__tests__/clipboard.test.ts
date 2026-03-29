@@ -49,9 +49,7 @@ describe("clipboard", () => {
         configurable: true,
       });
 
-      await expect(copyText("test")).rejects.toThrow(
-        "Clipboard copy failed: navigator",
-      );
+      await expect(copyText("test")).rejects.toThrow("Clipboard copy failed: navigator");
     });
 
     it("fails when navigator.clipboard.writeText is undefined", async () => {
@@ -61,17 +59,13 @@ describe("clipboard", () => {
         configurable: true,
       });
 
-      await expect(copyText("test")).rejects.toThrow(
-        "Clipboard copy failed: navigator",
-      );
+      await expect(copyText("test")).rejects.toThrow("Clipboard copy failed: navigator");
     });
   });
 
   describe("copyWithExecCommand (fallback)", () => {
     it("creates textarea and executes copy when navigator.clipboard fails", async () => {
-      clipboardWriteText.mockRejectedValueOnce(
-        new Error("navigator.clipboard failed"),
-      );
+      clipboardWriteText.mockRejectedValueOnce(new Error("navigator.clipboard failed"));
       execCommand.mockReturnValueOnce(true);
 
       await copyText("test text");
@@ -124,9 +118,7 @@ describe("clipboard", () => {
       clipboardWriteText.mockRejectedValueOnce(new Error("navigator failed"));
       execCommand.mockReturnValueOnce(false);
 
-      await expect(copyText("test")).rejects.toThrow(
-        "Clipboard copy failed: navigator",
-      );
+      await expect(copyText("test")).rejects.toThrow("Clipboard copy failed: navigator");
     });
   });
 
@@ -210,9 +202,7 @@ describe("clipboard", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toContain("first error");
-        expect((error as Error).message).toContain(
-          "document.execCommand('copy') returned false",
-        );
+        expect((error as Error).message).toContain("document.execCommand('copy') returned false");
       }
     });
 

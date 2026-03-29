@@ -39,12 +39,7 @@ describe("WorkflowSelector", () => {
     ]);
 
     render(
-      <WorkflowSelector
-        visible={true}
-        onSelect={vi.fn()}
-        onCancel={vi.fn()}
-        searchText="rev"
-      />,
+      <WorkflowSelector visible={true} onSelect={vi.fn()} onCancel={vi.fn()} searchText="rev" />,
     );
 
     expect(await screen.findByText("/review")).toBeInTheDocument();
@@ -68,12 +63,7 @@ describe("WorkflowSelector", () => {
     const onSelect = vi.fn();
 
     render(
-      <WorkflowSelector
-        visible={true}
-        onSelect={onSelect}
-        onCancel={vi.fn()}
-        searchText=""
-      />,
+      <WorkflowSelector visible={true} onSelect={onSelect} onCancel={vi.fn()} searchText="" />,
     );
 
     const item = await screen.findByText("/review");

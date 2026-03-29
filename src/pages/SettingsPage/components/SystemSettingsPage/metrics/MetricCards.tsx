@@ -23,27 +23,19 @@ const formatDuration = (durationMs: number): string => {
 
 const averageSessionDuration = (sessions: SessionMetrics[]): number => {
   const completed = sessions.filter(
-    (session) =>
-      typeof session.duration_ms === "number" && session.duration_ms > 0,
+    (session) => typeof session.duration_ms === "number" && session.duration_ms > 0,
   );
 
   if (completed.length === 0) {
     return 0;
   }
 
-  const total = completed.reduce(
-    (sum, session) => sum + (session.duration_ms ?? 0),
-    0,
-  );
+  const total = completed.reduce((sum, session) => sum + (session.duration_ms ?? 0), 0);
 
   return Math.floor(total / completed.length);
 };
 
-const MetricCards: React.FC<MetricCardsProps> = ({
-  summary,
-  sessions,
-  loading,
-}) => {
+const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading }) => {
   const { t } = useTranslation();
   const { token } = useToken();
 
@@ -89,9 +81,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({
         <Card size="small" className="lotus-metric-card">
           <Statistic
             title={t("settings.metricsCards.avgSessionDuration")}
-            value={
-              averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"
-            }
+            value={averageDurationMs > 0 ? formatDuration(averageDurationMs) : "-"}
             valueStyle={{ color: "var(--lotus-chart-accent)" }}
           />
         </Card>

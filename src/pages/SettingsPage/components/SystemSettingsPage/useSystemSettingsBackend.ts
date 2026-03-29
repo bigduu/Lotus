@@ -20,11 +20,8 @@ export const useSystemSettingsBackend = ({
   msgApi,
   refreshModels,
 }: UseSystemSettingsBackendProps) => {
-  const [backendBaseUrl, setBackendBaseUrlState] =
-    useState(getBackendBaseUrlSync());
-  const [hasBackendOverride, setHasBackendOverride] = useState(
-    hasBackendBaseUrlOverride(),
-  );
+  const [backendBaseUrl, setBackendBaseUrlState] = useState(getBackendBaseUrlSync());
+  const [hasBackendOverride, setHasBackendOverride] = useState(hasBackendBaseUrlOverride());
 
   useEffect(() => {
     setBackendBaseUrlState(getBackendBaseUrlSync());

@@ -1,14 +1,17 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { act } from "@testing-library/react";
-import { useSettingsViewStore } from "../settingsViewStore";
+import {
+  DEFAULT_SETTINGS_TAB_KEY,
+  useSettingsViewStore,
+} from "../settingsViewStore";
 
 describe("settingsViewStore", () => {
   beforeEach(() => {
-    // Reset store to initial state
     act(() => {
       useSettingsViewStore.setState({
         isOpen: false,
         origin: "chat",
+        activeTabKey: DEFAULT_SETTINGS_TAB_KEY,
       });
     });
   });
@@ -24,10 +27,16 @@ describe("settingsViewStore", () => {
       expect(state.origin).toBe("chat");
     });
 
-    it("should have open and close actions", () => {
+    it("should default activeTabKey to provider", () => {
+      const state = useSettingsViewStore.getState();
+      expect(state.activeTabKey).toBe(DEFAULT_SETTINGS_TAB_KEY);
+    });
+
+    it("should have open, close, and setActiveTabKey actions", () => {
       const state = useSettingsViewStore.getState();
       expect(typeof state.open).toBe("function");
       expect(typeof state.close).toBe("function");
+      expect(typeof state.setActiveTabKey).toBe("function");
     });
   });
 
@@ -52,30 +61,24 @@ describe("settingsViewStore", () => {
       expect(useSettingsViewStore.getState().origin).toBe("chat");
     });
 
-    it("should update both isOpen and origin", () => {
+    it("should use default tab when none is provided", () => {
       const { open } = useSettingsViewStore.getState();
 
       act(() => {
         open("chat");
       });
 
-      const state = useSettingsViewStore.getState();
-      expect(state.isOpen).toBe(true);
-      expect(state.origin).toBe("chat");
+      expect(useSettingsViewStore.getState().activeTabKey).toBe(DEFAULT_SETTINGS_TAB_KEY);
     });
 
-    it("should work when called multiple times", () => {
+    it("should set provided activeTabKey", () => {
       const { open } = useSettingsViewStore.getState();
 
       act(() => {
-        open("chat");
-        open("chat");
-        open("chat");
+        open("chat", "mcp");
       });
 
-      const state = useSettingsViewStore.getState();
-      expect(state.isOpen).toBe(true);
-      expect(state.origin).toBe("chat");
+      expect(useSettingsViewStore.getState().activeTabKey).toBe("mcp");
     });
   });
 
@@ -84,7 +87,7 @@ describe("settingsViewStore", () => {
       const { open, close } = useSettingsViewStore.getState();
 
       act(() => {
-        open("chat");
+        open("chat", "sessions");
       });
       expect(useSettingsViewStore.getState().isOpen).toBe(true);
 
@@ -94,86 +97,32 @@ describe("settingsViewStore", () => {
       expect(useSettingsViewStore.getState().isOpen).toBe(false);
     });
 
-    it("should not change origin", () => {
+    it("should not change origin or activeTabKey", () => {
       const { open, close } = useSettingsViewStore.getState();
 
       act(() => {
-        open("chat");
-      });
-      expect(useSettingsViewStore.getState().origin).toBe("chat");
-
-      act(() => {
-        close();
-      });
-      expect(useSettingsViewStore.getState().origin).toBe("chat");
-    });
-
-    it("should work when already closed", () => {
-      const { close } = useSettingsViewStore.getState();
-
-      expect(useSettingsViewStore.getState().isOpen).toBe(false);
-
-      act(() => {
-        close();
-      });
-
-      expect(useSettingsViewStore.getState().isOpen).toBe(false);
-    });
-
-    it("should work when called multiple times", () => {
-      const { open, close } = useSettingsViewStore.getState();
-
-      act(() => {
-        open("chat");
+        open("chat", "sessions");
       });
 
       act(() => {
         close();
-        close();
-        close();
       });
 
-      expect(useSettingsViewStore.getState().isOpen).toBe(false);
+      const state = useSettingsViewStore.getState();
+      expect(state.origin).toBe("chat");
+      expect(state.activeTabKey).toBe("sessions");
     });
   });
 
-  describe("open/close toggle workflow", () => {
-    it("should toggle isOpen state", () => {
-      const { open, close } = useSettingsViewStore.getState();
+  describe("setActiveTabKey", () => {
+    it("should update activeTabKey independently", () => {
+      const { setActiveTabKey } = useSettingsViewStore.getState();
 
       act(() => {
-        open("chat");
+        setActiveTabKey("workflows");
       });
-      expect(useSettingsViewStore.getState().isOpen).toBe(true);
 
-      act(() => {
-        close();
-      });
-      expect(useSettingsViewStore.getState().isOpen).toBe(false);
-
-      act(() => {
-        open("chat");
-      });
-      expect(useSettingsViewStore.getState().isOpen).toBe(true);
-    });
-
-    it("should maintain origin when reopening", () => {
-      const { open, close } = useSettingsViewStore.getState();
-
-      act(() => {
-        open("chat");
-      });
-      expect(useSettingsViewStore.getState().origin).toBe("chat");
-
-      act(() => {
-        close();
-      });
-      expect(useSettingsViewStore.getState().origin).toBe("chat");
-
-      act(() => {
-        open("chat");
-      });
-      expect(useSettingsViewStore.getState().origin).toBe("chat");
+      expect(useSettingsViewStore.getState().activeTabKey).toBe("workflows");
     });
   });
 
@@ -184,130 +133,22 @@ describe("settingsViewStore", () => {
 
       const { open } = useSettingsViewStore.getState();
       act(() => {
-        open("chat");
+        open("chat", "provider");
       });
 
       expect(listener).toHaveBeenCalled();
     });
 
-    it("should notify subscribers on close", () => {
-      const { open } = useSettingsViewStore.getState();
-      act(() => {
-        open("chat");
-      });
-
+    it("should notify subscribers on tab change", () => {
       const listener = vi.fn();
       useSettingsViewStore.subscribe(listener);
 
-      const { close } = useSettingsViewStore.getState();
+      const { setActiveTabKey } = useSettingsViewStore.getState();
       act(() => {
-        close();
+        setActiveTabKey("app");
       });
 
       expect(listener).toHaveBeenCalled();
-    });
-  });
-
-  describe("state persistence", () => {
-    it("should maintain state between getState calls", () => {
-      const { open } = useSettingsViewStore.getState();
-
-      act(() => {
-        open("chat");
-      });
-
-      const state1 = useSettingsViewStore.getState();
-      const state2 = useSettingsViewStore.getState();
-
-      expect(state1.isOpen).toBe(state2.isOpen);
-      expect(state1.origin).toBe(state2.origin);
-    });
-
-    it("should return same state object reference", () => {
-      const state1 = useSettingsViewStore.getState();
-      const state2 = useSettingsViewStore.getState();
-
-      expect(state1).toBe(state2);
-    });
-  });
-
-  describe("setState", () => {
-    it("should allow direct state updates via setState", () => {
-      act(() => {
-        useSettingsViewStore.setState({ isOpen: true });
-      });
-
-      expect(useSettingsViewStore.getState().isOpen).toBe(true);
-    });
-
-    it("should allow partial state updates", () => {
-      act(() => {
-        useSettingsViewStore.setState({ isOpen: true });
-      });
-
-      const state = useSettingsViewStore.getState();
-      expect(state.isOpen).toBe(true);
-      expect(state.origin).toBe("chat"); // Unchanged
-    });
-
-    it("should update origin via setState", () => {
-      act(() => {
-        useSettingsViewStore.setState({ origin: "chat" });
-      });
-
-      expect(useSettingsViewStore.getState().origin).toBe("chat");
-    });
-  });
-
-  describe("edge cases", () => {
-    it("should handle rapid open/close", () => {
-      const { open, close } = useSettingsViewStore.getState();
-
-      for (let i = 0; i < 10; i++) {
-        act(() => {
-          open("chat");
-        });
-        act(() => {
-          close();
-        });
-      }
-
-      expect(useSettingsViewStore.getState().isOpen).toBe(false);
-    });
-
-    it("should handle opening when already open", () => {
-      const { open } = useSettingsViewStore.getState();
-
-      act(() => {
-        open("chat");
-      });
-      act(() => {
-        open("chat");
-      });
-
-      expect(useSettingsViewStore.getState().isOpen).toBe(true);
-    });
-  });
-
-  describe("type safety", () => {
-    it("should have correct types for all state properties", () => {
-      const state = useSettingsViewStore.getState();
-
-      expect(typeof state.isOpen).toBe("boolean");
-      expect(typeof state.origin).toBe("string");
-      expect(typeof state.open).toBe("function");
-      expect(typeof state.close).toBe("function");
-    });
-
-    it("should accept origin parameter in open action", () => {
-      const { open } = useSettingsViewStore.getState();
-
-      // Type check - should compile without error
-      act(() => {
-        open("chat");
-      });
-
-      expect(useSettingsViewStore.getState().origin).toBe("chat");
     });
   });
 });

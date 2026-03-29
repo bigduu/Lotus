@@ -1,8 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import {
-  isUILayoutDebugEnabled,
-  uiLayoutDebug,
-} from "../debugFlags";
+import { isUILayoutDebugEnabled, uiLayoutDebug } from "../debugFlags";
 
 describe("debugFlags", () => {
   beforeEach(() => {

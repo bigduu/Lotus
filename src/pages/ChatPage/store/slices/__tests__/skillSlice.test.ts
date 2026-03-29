@@ -54,9 +54,7 @@ describe("skillSlice", () => {
 
     mockGetSkill.mockResolvedValueOnce({ id: "s1", name: "Skill 1 Updated" });
     await harness.getState().getSkill("s1");
-    expect(harness.getState().skills).toEqual([
-      { id: "s1", name: "Skill 1 Updated" },
-    ]);
+    expect(harness.getState().skills).toEqual([{ id: "s1", name: "Skill 1 Updated" }]);
   });
 
   it("sets getSkill errors and supports clearSkillsError", async () => {

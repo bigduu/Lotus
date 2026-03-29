@@ -43,9 +43,7 @@ export const ChatPageIntegration: React.FC = () => {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       {/* Top: TodoList */}
-      {currentSessionId && (
-        <TodoList sessionId={currentSessionId} initialCollapsed={true} />
-      )}
+      {currentSessionId && <TodoList sessionId={currentSessionId} initialCollapsed={true} />}
 
       {/* Middle: Chat Messages */}
       <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>

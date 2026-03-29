@@ -68,9 +68,7 @@ describe("ServiceFactory", () => {
       const error = new Error("Clipboard failed");
       vi.mocked(copyText).mockRejectedValueOnce(error);
 
-      await expect(serviceFactory.copyToClipboard(testText)).rejects.toThrow(
-        "Clipboard failed",
-      );
+      await expect(serviceFactory.copyToClipboard(testText)).rejects.toThrow("Clipboard failed");
     });
   });
 
@@ -87,9 +85,7 @@ describe("ServiceFactory", () => {
       });
 
       it("should return empty object on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(
-          new Error("Network error"),
-        );
+        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Network error"));
 
         const result = await serviceFactory.getBambooConfig();
 
@@ -113,9 +109,7 @@ describe("ServiceFactory", () => {
       });
 
       it("should return empty tools list on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(
-          new Error("Network error"),
-        );
+        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Network error"));
 
         const result = await serviceFactory.getBambooTools();
 
@@ -148,9 +142,7 @@ describe("ServiceFactory", () => {
       });
 
       it("should return empty defaults on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(
-          new Error("Network error"),
-        );
+        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Network error"));
 
         const result = await serviceFactory.getModelLimitDefaults();
 
@@ -171,10 +163,7 @@ describe("ServiceFactory", () => {
         const result = await serviceFactory.setBambooConfig(inputConfig);
 
         expect(result).toEqual(responseConfig);
-        expect(apiClient.post).toHaveBeenCalledWith(
-          "bamboo/config",
-          inputConfig,
-        );
+        expect(apiClient.post).toHaveBeenCalledWith("bamboo/config", inputConfig);
       });
     });
 
@@ -187,10 +176,7 @@ describe("ServiceFactory", () => {
         const result = await serviceFactory.validateBambooConfigPatch(patch);
 
         expect(result).toEqual(mockResponse);
-        expect(apiClient.post).toHaveBeenCalledWith(
-          "bamboo/config/validate",
-          patch,
-        );
+        expect(apiClient.post).toHaveBeenCalledWith("bamboo/config/validate", patch);
       });
     });
 
@@ -233,9 +219,7 @@ describe("ServiceFactory", () => {
       });
 
       it("should return default status on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(
-          new Error("Auth error"),
-        );
+        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Auth error"));
 
         const result = await serviceFactory.getProxyAuthStatus();
 
@@ -272,15 +256,11 @@ describe("ServiceFactory", () => {
         const result = await serviceFactory.getAnthropicModelMapping();
 
         expect(result).toEqual(mockMapping);
-        expect(apiClient.get).toHaveBeenCalledWith(
-          "bamboo/anthropic-model-mapping",
-        );
+        expect(apiClient.get).toHaveBeenCalledWith("bamboo/anthropic-model-mapping");
       });
 
       it("should return empty mapping on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(
-          new Error("Mapping error"),
-        );
+        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Mapping error"));
 
         const result = await serviceFactory.getAnthropicModelMapping();
 
@@ -300,10 +280,7 @@ describe("ServiceFactory", () => {
         const result = await serviceFactory.setAnthropicModelMapping(mapping);
 
         expect(result).toEqual(mapping);
-        expect(apiClient.post).toHaveBeenCalledWith(
-          "bamboo/anthropic-model-mapping",
-          mapping,
-        );
+        expect(apiClient.post).toHaveBeenCalledWith("bamboo/anthropic-model-mapping", mapping);
       });
     });
   });
@@ -335,9 +312,7 @@ describe("ServiceFactory", () => {
         const result = await serviceFactory.deleteWorkflow(name);
 
         expect(result).toEqual(mockResponse);
-        expect(apiClient.delete).toHaveBeenCalledWith(
-          "bamboo/workflows/test-workflow",
-        );
+        expect(apiClient.delete).toHaveBeenCalledWith("bamboo/workflows/test-workflow");
       });
 
       it("should encode workflow name with special characters", async () => {
@@ -347,9 +322,7 @@ describe("ServiceFactory", () => {
 
         await serviceFactory.deleteWorkflow(name);
 
-        expect(apiClient.delete).toHaveBeenCalledWith(
-          "bamboo/workflows/test%20workflow%20%231",
-        );
+        expect(apiClient.delete).toHaveBeenCalledWith("bamboo/workflows/test%20workflow%20%231");
       });
     });
   });
@@ -358,9 +331,7 @@ describe("ServiceFactory", () => {
     describe("getKeywordMaskingConfig", () => {
       it("should fetch keyword masking config", async () => {
         const mockConfig = {
-          entries: [
-            { pattern: "secret", match_type: "exact", enabled: true },
-          ],
+          entries: [{ pattern: "secret", match_type: "exact", enabled: true }],
         };
         vi.mocked(apiClient.get).mockResolvedValueOnce(mockConfig);
 
@@ -371,9 +342,7 @@ describe("ServiceFactory", () => {
       });
 
       it("should return empty entries on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(
-          new Error("Config error"),
-        );
+        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Config error"));
 
         const result = await serviceFactory.getKeywordMaskingConfig();
 
@@ -387,43 +356,31 @@ describe("ServiceFactory", () => {
 
     describe("updateKeywordMaskingConfig", () => {
       it("should update keyword masking config", async () => {
-        const entries = [
-          { pattern: "password", match_type: "regex", enabled: true },
-        ];
+        const entries = [{ pattern: "password", match_type: "regex", enabled: true }];
         const mockResponse = { entries };
         vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
 
         const result = await serviceFactory.updateKeywordMaskingConfig(entries);
 
         expect(result).toEqual(mockResponse);
-        expect(apiClient.post).toHaveBeenCalledWith(
-          "bamboo/keyword-masking",
-          entries,
-        );
+        expect(apiClient.post).toHaveBeenCalledWith("bamboo/keyword-masking", entries);
       });
     });
 
     describe("validateKeywordEntries", () => {
       it("should validate keyword entries", async () => {
-        const entries = [
-          { pattern: "test", match_type: "exact", enabled: true },
-        ];
+        const entries = [{ pattern: "test", match_type: "exact", enabled: true }];
         const mockResponse = { valid: true };
         vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
 
         const result = await serviceFactory.validateKeywordEntries(entries);
 
         expect(result).toEqual(mockResponse);
-        expect(apiClient.post).toHaveBeenCalledWith(
-          "bamboo/keyword-masking/validate",
-          entries,
-        );
+        expect(apiClient.post).toHaveBeenCalledWith("bamboo/keyword-masking/validate", entries);
       });
 
       it("should return validation errors", async () => {
-        const entries = [
-          { pattern: "invalid[", match_type: "regex", enabled: true },
-        ];
+        const entries = [{ pattern: "invalid[", match_type: "regex", enabled: true }];
         const mockResponse = {
           valid: false,
           errors: [{ index: 0, message: "Invalid regex pattern" }],
@@ -458,9 +415,7 @@ describe("ServiceFactory", () => {
         const error = new Error("Network error");
         vi.mocked(apiClient.get).mockRejectedValueOnce(error);
 
-        await expect(serviceFactory.getSetupStatus()).rejects.toThrow(
-          "Network error",
-        );
+        await expect(serviceFactory.getSetupStatus()).rejects.toThrow("Network error");
       });
     });
 
@@ -483,10 +438,7 @@ describe("ServiceFactory", () => {
 
         await serviceFactory.resetSetupStatus();
 
-        expect(apiClient.post).toHaveBeenCalledWith(
-          "bamboo/setup/incomplete",
-          {},
-        );
+        expect(apiClient.post).toHaveBeenCalledWith("bamboo/setup/incomplete", {});
       });
     });
   });

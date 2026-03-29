@@ -1,0 +1,38 @@
+.lotus-context-bar {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 4px 16px;
+  border-bottom: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.lotus-context-bar__content {
+  width: 100%;
+  overflow-x: auto;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.lotus-context-bar__content::-webkit-scrollbar {
+  display: none;
+}
+
+.lotus-context-bar__tag {
+  font-size: 12px;
+  cursor: default;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .lotus-context-bar {
+    padding: 4px 8px;
+  }
+
+  .lotus-context-bar__tag {
+    max-width: 140px;
+  }
+}

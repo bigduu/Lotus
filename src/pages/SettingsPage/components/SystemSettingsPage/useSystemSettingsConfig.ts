@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  serviceFactory,
-  type BambooConfig,
-} from "@services/common/ServiceFactory";
+import { serviceFactory, type BambooConfig } from "@services/common/ServiceFactory";
 
 const cloneJson = (value: BambooConfig) => {
   try {
@@ -20,14 +17,10 @@ interface UseSystemSettingsBambooConfigProps {
   };
 }
 
-export const useSystemSettingsConfig = ({
-  msgApi,
-}: UseSystemSettingsBambooConfigProps) => {
+export const useSystemSettingsConfig = ({ msgApi }: UseSystemSettingsBambooConfigProps) => {
   const { t } = useTranslation();
   const [bambooConfigJson, setBambooConfigJson] = useState("");
-  const [bambooConfigError, setBambooConfigError] = useState<string | null>(
-    null,
-  );
+  const [bambooConfigError, setBambooConfigError] = useState<string | null>(null);
   const [isLoadingBambooConfig, setIsLoadingBambooConfig] = useState(false);
   const bambooConfigPollingRef = useRef<number | null>(null);
   const bambooConfigDirtyRef = useRef(false);
@@ -38,10 +31,7 @@ export const useSystemSettingsConfig = ({
     return config ?? {};
   };
 
-  const applyBambooConfig = async (
-    config: BambooConfig,
-    force = false,
-  ): Promise<void> => {
+  const applyBambooConfig = async (config: BambooConfig, force = false): Promise<void> => {
     const raw = JSON.stringify(config ?? {}, null, 2);
     if (force || !bambooConfigDirtyRef.current) {
       setBambooConfigJson(raw);
@@ -58,9 +48,7 @@ export const useSystemSettingsConfig = ({
       await applyBambooConfig(config, true);
     } catch (error) {
       setBambooConfigError(
-        error instanceof Error
-          ? error.message
-          : t("settings.configTab.loadBambooConfigFailed"),
+        error instanceof Error ? error.message : t("settings.configTab.loadBambooConfigFailed"),
       );
     } finally {
       setIsLoadingBambooConfig(false);
@@ -76,10 +64,7 @@ export const useSystemSettingsConfig = ({
     try {
       const config = await fetchBambooConfig();
       const raw = JSON.stringify(config ?? {}, null, 2);
-      if (
-        !bambooConfigDirtyRef.current &&
-        raw !== bambooConfigLastRef.current
-      ) {
+      if (!bambooConfigDirtyRef.current && raw !== bambooConfigLastRef.current) {
         await applyBambooConfig(config, true);
         return;
       }
@@ -98,9 +83,7 @@ export const useSystemSettingsConfig = ({
       await loadBambooConfig();
     } catch (error) {
       msgApi.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.configTab.saveBambooConfigFailed"),
+        error instanceof Error ? error.message : t("settings.configTab.saveBambooConfigFailed"),
       );
     }
   };

@@ -126,9 +126,7 @@ describe("getInputHighlightSegments", () => {
     it("should handle consecutive triggers without whitespace", () => {
       const segments = getInputHighlightSegments("/workflow@file");
       // The implementation treats consecutive triggers as one token (no whitespace between)
-      expect(segments).toEqual([
-        { text: "/workflow@file", type: "workflow" },
-      ]);
+      expect(segments).toEqual([{ text: "/workflow@file", type: "workflow" }]);
     });
   });
 
@@ -355,4 +353,3 @@ describe("getFileReferenceInfo", () => {
     });
   });
 });
-

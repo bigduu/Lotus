@@ -93,8 +93,7 @@ describe("App setup flow", () => {
       is_complete: true,
       has_proxy_config: false,
       has_proxy_env: false,
-      message:
-        "No proxy environment variables detected. You can proceed without proxy.",
+      message: "No proxy environment variables detected. You can proceed without proxy.",
     });
 
     render(<App />);

@@ -19,10 +19,7 @@ const PIE_COLORS = [
   "var(--lotus-chart-cyan)",
 ];
 
-const ModelDistribution: React.FC<ModelDistributionProps> = ({
-  data,
-  loading,
-}) => {
+const ModelDistribution: React.FC<ModelDistributionProps> = ({ data, loading }) => {
   const { t } = useTranslation();
   if (loading) {
     return (
@@ -42,11 +39,7 @@ const ModelDistribution: React.FC<ModelDistributionProps> = ({
   }));
 
   return (
-    <Card
-      size="small"
-      className="lotus-metric-card"
-      title={t("settings.charts.modelDistribution")}
-    >
+    <Card size="small" className="lotus-metric-card" title={t("settings.charts.modelDistribution")}>
       {chartData.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}

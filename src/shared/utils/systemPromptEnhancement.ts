@@ -1,11 +1,5 @@
-import {
-  getMermaidEnhancementPrompt,
-  isMermaidEnhancementEnabled,
-} from "./mermaidUtils";
-import {
-  getTaskEnhancementPrompt,
-  isTaskEnhancementEnabled,
-} from "./taskEnhancementUtils";
+import { getMermaidEnhancementPrompt, isMermaidEnhancementEnabled } from "./mermaidUtils";
+import { getTaskEnhancementPrompt, isTaskEnhancementEnabled } from "./taskEnhancementUtils";
 import { getOSInfoEnhancementPrompt } from "./osInfoUtils";
 import {
   getCopilotAskUserEnhancementPrompt,
@@ -74,9 +68,7 @@ export const setSystemPromptEnhancement = (value: string): void => {
   }
 };
 
-export const getSystemPromptEnhancementPipeline = (
-  currentProvider?: string,
-): string[] => {
+export const getSystemPromptEnhancementPipeline = (currentProvider?: string): string[] => {
   const pipeline: string[] = [];
 
   // OS info enhancement is ALWAYS included first (user cannot disable)
@@ -109,10 +101,7 @@ export const getSystemPromptEnhancementText = (currentProvider?: string): string
   return joinPromptSegments(getSystemPromptEnhancementPipeline(currentProvider));
 };
 
-export const buildEnhancedSystemPrompt = (
-  basePrompt: string,
-  enhancement?: string,
-): string => {
+export const buildEnhancedSystemPrompt = (basePrompt: string, enhancement?: string): string => {
   return appendPromptSegment(basePrompt, enhancement ?? "");
 };
 
@@ -125,8 +114,5 @@ export const getEffectiveSystemPrompt = (
     basePrompt,
     getSystemPromptEnhancementText(currentProvider),
   );
-  return appendPromptSegment(
-    enhanced,
-    buildWorkspaceContextSegment(workspacePath),
-  );
+  return appendPromptSegment(enhanced, buildWorkspaceContextSegment(workspacePath));
 };

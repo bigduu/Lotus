@@ -132,18 +132,10 @@ const drawResizedImageToCanvas = (
   ctx.drawImage(image, 0, 0, width, height);
 };
 
-const reencodeImageAsJpegDataUrl = async (
-  previewUrl: string,
-  quality: number,
-): Promise<string> => {
+const reencodeImageAsJpegDataUrl = async (previewUrl: string, quality: number): Promise<string> => {
   const img = await loadImage(previewUrl);
   const canvas = document.createElement("canvas");
-  drawResizedImageToCanvas(
-    canvas,
-    img,
-    MAX_SEND_IMAGE_WIDTH,
-    MAX_SEND_IMAGE_HEIGHT,
-  );
+  drawResizedImageToCanvas(canvas, img, MAX_SEND_IMAGE_WIDTH, MAX_SEND_IMAGE_HEIGHT);
   return canvasToBase64(canvas, quality);
 };
 
@@ -165,10 +157,7 @@ export const processImageFile = async (file: File): Promise<ImageFile> => {
       base64 = await fileToBase64(file);
     } else {
       try {
-        base64 = await reencodeImageAsJpegDataUrl(
-          preview,
-          DEFAULT_SEND_JPEG_QUALITY,
-        );
+        base64 = await reencodeImageAsJpegDataUrl(preview, DEFAULT_SEND_JPEG_QUALITY);
       } catch (e) {
         // Fallback to original encoding if canvas conversion fails.
         console.warn("[imageUtils] Failed to re-encode image, using original:", e);
@@ -196,9 +185,7 @@ export const processImageFile = async (file: File): Promise<ImageFile> => {
 /**
  * Process multiple image files
  */
-export const processImageFiles = async (
-  files: FileList | File[],
-): Promise<ImageFile[]> => {
+export const processImageFiles = async (files: FileList | File[]): Promise<ImageFile[]> => {
   const fileArray = Array.from(files);
   const processedImages: ImageFile[] = [];
 
@@ -234,9 +221,7 @@ export const getMimeTypeFromDataUrl = (dataUrl: string): string => {
 /**
  * Validate image dimensions
  */
-export const validateImageDimensions = (
-  image: HTMLImageElement,
-): ImageValidationResult => {
+export const validateImageDimensions = (image: HTMLImageElement): ImageValidationResult => {
   if (image.width > MAX_IMAGE_WIDTH || image.height > MAX_IMAGE_HEIGHT) {
     return {
       isValid: false,
@@ -249,9 +234,7 @@ export const validateImageDimensions = (
 /**
  * Load image and validate dimensions
  */
-export const loadAndValidateImage = (
-  src: string,
-): Promise<HTMLImageElement> => {
+export const loadAndValidateImage = (src: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -303,10 +286,7 @@ export const resizeImageIfNeeded = (
 /**
  * Convert canvas to base64 data URL
  */
-export const canvasToBase64 = (
-  canvas: HTMLCanvasElement,
-  quality: number = 0.8,
-): string => {
+export const canvasToBase64 = (canvas: HTMLCanvasElement, quality: number = 0.8): string => {
   return canvas.toDataURL("image/jpeg", quality);
 };
 
@@ -347,9 +327,7 @@ export const hasImageFiles = (dataTransfer: DataTransfer): boolean => {
     return false;
   }
 
-  return Array.from(dataTransfer.files).some((file) =>
-    SUPPORTED_IMAGE_TYPES.includes(file.type),
-  );
+  return Array.from(dataTransfer.files).some((file) => SUPPORTED_IMAGE_TYPES.includes(file.type));
 };
 
 /**
@@ -360,7 +338,5 @@ export const extractImageFiles = (dataTransfer: DataTransfer): File[] => {
     return [];
   }
 
-  return Array.from(dataTransfer.files).filter((file) =>
-    SUPPORTED_IMAGE_TYPES.includes(file.type),
-  );
+  return Array.from(dataTransfer.files).filter((file) => SUPPORTED_IMAGE_TYPES.includes(file.type));
 };

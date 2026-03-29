@@ -364,9 +364,7 @@ describe("useMessageInputHandlers", () => {
         result.current.handleSubmit();
       });
 
-      expect(messageApi.error).toHaveBeenCalledWith(
-        "Message format is incorrect",
-      );
+      expect(messageApi.error).toHaveBeenCalledWith("Message format is incorrect");
     });
 
     it("should submit when validation passes", () => {
@@ -550,10 +548,7 @@ describe("useMessageInputHandlers", () => {
         result.current.handleKeyDown(event);
       });
 
-      expect(onHistoryNavigate).toHaveBeenCalledWith(
-        "previous",
-        "current value",
-      );
+      expect(onHistoryNavigate).toHaveBeenCalledWith("previous", "current value");
       expect(event.preventDefault).toHaveBeenCalled();
       expect(onChange).toHaveBeenCalledWith("previous value");
       expect(mockTextArea.setSelectionRange).toHaveBeenCalledWith(14, 14);

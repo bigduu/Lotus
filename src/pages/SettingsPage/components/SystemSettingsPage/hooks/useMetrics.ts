@@ -22,14 +22,8 @@ export interface MetricsFilters {
 }
 
 interface MetricsHookService {
-  getSummary: (query?: {
-    startDate?: string;
-    endDate?: string;
-  }) => Promise<MetricsSummary>;
-  getByModel: (query?: {
-    startDate?: string;
-    endDate?: string;
-  }) => Promise<ModelMetrics[]>;
+  getSummary: (query?: { startDate?: string; endDate?: string }) => Promise<MetricsSummary>;
+  getByModel: (query?: { startDate?: string; endDate?: string }) => Promise<ModelMetrics[]>;
   getSessions: (query?: {
     startDate?: string;
     endDate?: string;
@@ -60,11 +54,7 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 export const useMetrics = (options: UseMetricsOptions = {}) => {
-  const {
-    filters,
-    autoRefreshMs = DEFAULT_AUTO_REFRESH_MS,
-    service = metricsService,
-  } = options;
+  const { filters, autoRefreshMs = DEFAULT_AUTO_REFRESH_MS, service = metricsService } = options;
 
   const normalizedFilters = useMemo(
     () => ({
@@ -98,12 +88,8 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
   const [summary, setSummary] = useState<MetricsSummary | null>(null);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics[]>([]);
   const [sessions, setSessions] = useState<SessionMetrics[]>([]);
-  const [timeline, setTimeline] = useState<Array<DailyMetrics | PeriodMetrics>>(
-    [],
-  );
-  const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(
-    null,
-  );
+  const [timeline, setTimeline] = useState<Array<DailyMetrics | PeriodMetrics>>([]);
+  const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [isSessionDetailLoading, setIsSessionDetailLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -118,32 +104,29 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
       }
 
       try {
-        const [
-          summaryResponse,
-          modelResponse,
-          sessionsResponse,
-          dailyResponse,
-        ] = await Promise.all([
-          service.getSummary({
-            startDate: resolvedRange.startDate,
-            endDate: resolvedRange.endDate,
-          }),
-          service.getByModel({
-            startDate: resolvedRange.startDate,
-            endDate: resolvedRange.endDate,
-          }),
-          service.getSessions({
-            startDate: resolvedRange.startDate,
-            endDate: resolvedRange.endDate,
-            model: normalizedFilters.model,
-            limit: normalizedFilters.sessionLimit,
-          }),
-          service.getDaily({
-            days: resolvedRange.days,
-            endDate: resolvedRange.endDate,
-            granularity: normalizedFilters.granularity,
-          }),
-        ]);
+        const [summaryResponse, modelResponse, sessionsResponse, dailyResponse] = await Promise.all(
+          [
+            service.getSummary({
+              startDate: resolvedRange.startDate,
+              endDate: resolvedRange.endDate,
+            }),
+            service.getByModel({
+              startDate: resolvedRange.startDate,
+              endDate: resolvedRange.endDate,
+            }),
+            service.getSessions({
+              startDate: resolvedRange.startDate,
+              endDate: resolvedRange.endDate,
+              model: normalizedFilters.model,
+              limit: normalizedFilters.sessionLimit,
+            }),
+            service.getDaily({
+              days: resolvedRange.days,
+              endDate: resolvedRange.endDate,
+              granularity: normalizedFilters.granularity,
+            }),
+          ],
+        );
 
         setSummary(summaryResponse);
         setModelMetrics(modelResponse);

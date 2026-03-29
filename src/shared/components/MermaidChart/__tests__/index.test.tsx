@@ -56,11 +56,7 @@ vi.mock("../MermaidChartError", () => ({
     <div data-testid="mermaid-error">
       <div data-error-message>{error}</div>
       {onFix && (
-        <button
-          data-testid="fix-button"
-          onClick={onFix}
-          disabled={isFixing}
-        >
+        <button data-testid="fix-button" onClick={onFix} disabled={isFixing}>
           Fix
         </button>
       )}
@@ -107,9 +103,9 @@ describe("MermaidChart", () => {
       render(<MermaidChart chart="graph TD\n  A --> B" />);
 
       expect(screen.getByTestId("mermaid-error")).toBeInTheDocument();
-      expect(screen.getByTestId("mermaid-error").querySelector("[data-error-message]")?.textContent).toBe(
-        "Syntax error in mermaid diagram",
-      );
+      expect(
+        screen.getByTestId("mermaid-error").querySelector("[data-error-message]")?.textContent,
+      ).toBe("Syntax error in mermaid diagram");
     });
 
     it("should render MermaidChartViewer when no error", () => {
@@ -332,9 +328,9 @@ describe("MermaidChart", () => {
       fireEvent.click(fixButton);
 
       await waitFor(() => {
-        expect(screen.getByTestId("mermaid-error").querySelector("[data-fix-error]")?.textContent).toBe(
-          "Fix failed",
-        );
+        expect(
+          screen.getByTestId("mermaid-error").querySelector("[data-fix-error]")?.textContent,
+        ).toBe("Fix failed");
       });
     });
 
@@ -358,9 +354,9 @@ describe("MermaidChart", () => {
       fireEvent.click(fixButton);
 
       await waitFor(() => {
-        expect(screen.getByTestId("mermaid-error").querySelector("[data-fix-error]")?.textContent).toBe(
-          "String error",
-        );
+        expect(
+          screen.getByTestId("mermaid-error").querySelector("[data-fix-error]")?.textContent,
+        ).toBe("String error");
       });
     });
 
@@ -384,14 +380,16 @@ describe("MermaidChart", () => {
       fireEvent.click(fixButton);
 
       await waitFor(() => {
-        expect(screen.getByTestId("mermaid-error").querySelector("[data-fix-error]")?.textContent).toBe(
-          "Failed to fix Mermaid diagram",
-        );
+        expect(
+          screen.getByTestId("mermaid-error").querySelector("[data-fix-error]")?.textContent,
+        ).toBe("Failed to fix Mermaid diagram");
       });
     });
 
     it("should prevent multiple simultaneous fix calls", async () => {
-      const onFix = vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
+      const onFix = vi
+        .fn()
+        .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
       mockUseMermaidRenderState.mockReturnValue({
         renderState: {
           svg: "",
@@ -420,7 +418,9 @@ describe("MermaidChart", () => {
     });
 
     it("should disable fix button while fixing", async () => {
-      const onFix = vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
+      const onFix = vi
+        .fn()
+        .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 100)));
       mockUseMermaidRenderState.mockReturnValue({
         renderState: {
           svg: "",
@@ -446,9 +446,12 @@ describe("MermaidChart", () => {
       });
 
       // Wait for fix to complete
-      await waitFor(() => {
-        expect(fixButton.disabled).toBe(false);
-      }, { timeout: 200 });
+      await waitFor(
+        () => {
+          expect(fixButton.disabled).toBe(false);
+        },
+        { timeout: 200 },
+      );
     });
   });
 

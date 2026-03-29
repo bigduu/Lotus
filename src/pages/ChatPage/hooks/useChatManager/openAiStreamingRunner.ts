@@ -50,10 +50,7 @@ interface StreamOpenAIWithToolsParams {
   streamingContentRef: React.MutableRefObject<string>;
   addMessage: (
     sessionId: string,
-    message:
-      | AssistantTextMessage
-      | AssistantToolCallMessage
-      | AssistantToolResultMessage,
+    message: AssistantTextMessage | AssistantToolCallMessage | AssistantToolResultMessage,
   ) => Promise<void>;
 }
 
@@ -89,10 +86,7 @@ export const streamOpenAIWithTools = async ({
       { signal: controller.signal },
     );
 
-    const toolCallsMap = new Map<
-      number,
-      { id: string; name: string; arguments: string }
-    >();
+    const toolCallsMap = new Map<number, { id: string; name: string; arguments: string }>();
     let sawToolCalls = false;
     let sawContent = false;
 

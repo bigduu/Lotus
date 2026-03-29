@@ -1,10 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { message } from "antd";
-import {
-  renderCodeBlock,
-  MermaidRenderMode,
-} from "./MarkdownCodeBlock";
+import { renderCodeBlock, MermaidRenderMode } from "./MarkdownCodeBlock";
 import * as clipboard from "@shared/utils/clipboard";
 
 // Mock dependencies
@@ -79,16 +76,12 @@ describe("MarkdownCodeBlock", () => {
     });
 
     it("trims language name", () => {
-      const { container } = render(
-        renderCodeBlock("  javascript  ", "const x = 1;", mockToken)!
-      );
+      const { container } = render(renderCodeBlock("  javascript  ", "const x = 1;", mockToken)!);
       expect(container.textContent).toContain("const x = 1;");
     });
 
     it("normalizes language to lowercase", () => {
-      const { container } = render(
-        renderCodeBlock("JAVASCRIPT", "const x = 1;", mockToken)!
-      );
+      const { container } = render(renderCodeBlock("JAVASCRIPT", "const x = 1;", mockToken)!);
       expect(container.textContent).toContain("const x = 1;");
     });
   });
@@ -96,95 +89,72 @@ describe("MarkdownCodeBlock", () => {
   describe("renderCodeBlock - Mermaid charts", () => {
     it("renders mermaid chart with mermaid language", () => {
       const chart = "graph TD\nA --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("mermaid", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("mermaid", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
-      expect(getByTestId("lazy-mermaid-chart")).toHaveAttribute(
-        "data-chart",
-        chart
-      );
+      expect(getByTestId("lazy-mermaid-chart")).toHaveAttribute("data-chart", chart);
     });
 
     it("renders eager mermaid chart when renderMode is eager", () => {
       const chart = "graph TD\nA --> B";
       const { getByTestId } = render(
-        renderCodeBlock("mermaid", chart, mockToken, undefined, "eager")!
+        renderCodeBlock("mermaid", chart, mockToken, undefined, "eager")!,
       );
       expect(getByTestId("mermaid-chart")).toBeInTheDocument();
     });
 
     it("renders lazy mermaid chart by default", () => {
       const chart = "graph TD\nA --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("mermaid", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("mermaid", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
     it("passes onFix callback to mermaid chart", () => {
       const onFix = vi.fn();
       const chart = "graph TD\nA --> B";
-      const { getByText } = render(
-        renderCodeBlock("mermaid", chart, mockToken, onFix)!
-      );
+      const { getByText } = render(renderCodeBlock("mermaid", chart, mockToken, onFix)!);
       fireEvent.click(getByText("Fix"));
       expect(onFix).toHaveBeenCalledWith(chart);
     });
 
     it("renders graph TD as mermaid", () => {
       const chart = "graph TD\nA --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("graph", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("graph", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
     it("renders flowchart as mermaid", () => {
       const chart = "flowchart TD\nA --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("flowchart", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("flowchart", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
     it("renders gantt chart as mermaid", () => {
       const chart = "gantt\ntitle Test";
-      const { getByTestId } = render(
-        renderCodeBlock("gantt", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("gantt", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
     it("renders sequenceDiagram as mermaid", () => {
       const chart = "sequenceDiagram\nA->>B: Test";
-      const { getByTestId } = render(
-        renderCodeBlock("sequencediagram", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("sequencediagram", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
     it("renders classDiagram as mermaid", () => {
       const chart = "classDiagram\nClass01 <|-- Class02";
-      const { getByTestId } = render(
-        renderCodeBlock("classdiagram", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("classdiagram", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
     it("renders stateDiagram as mermaid", () => {
       const chart = "stateDiagram-v2\n[*] --> Active";
-      const { getByTestId } = render(
-        renderCodeBlock("statediagram", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("statediagram", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
     it("renders erDiagram as mermaid", () => {
       const chart = "erDiagram\nCUSTOMER ||--o{ ORDER : places";
-      const { getByTestId } = render(
-        renderCodeBlock("erdiagram", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("erdiagram", chart, mockToken)!);
       expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
     });
 
@@ -195,39 +165,31 @@ describe("MarkdownCodeBlock", () => {
 
     it("prepends header to mermaid code without header", () => {
       const chart = "A --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("graph", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("graph", chart, mockToken)!);
       const rendered = getByTestId("lazy-mermaid-chart");
       expect(rendered).toHaveAttribute("data-chart", "graph TD\nA --> B");
     });
 
     it("does not prepend header if already present", () => {
       const chart = "graph TD\nA --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("graph", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("graph", chart, mockToken)!);
       const rendered = getByTestId("lazy-mermaid-chart");
       expect(rendered).toHaveAttribute("data-chart", chart);
     });
 
     it("strips mermaid directives before adding header", () => {
       const chart = "%%{init: {'theme': 'dark'}}%%\nA --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("graph", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("graph", chart, mockToken)!);
       const rendered = getByTestId("lazy-mermaid-chart");
       expect(rendered).toHaveAttribute(
         "data-chart",
-        "%%{init: {'theme': 'dark'}}%%\ngraph TD\nA --> B"
+        "%%{init: {'theme': 'dark'}}%%\ngraph TD\nA --> B",
       );
     });
 
     it("preserves directives and header when both present", () => {
       const chart = "%%{init: {'theme': 'dark'}}%%\ngraph TD\nA --> B";
-      const { getByTestId } = render(
-        renderCodeBlock("mermaid", chart, mockToken)!
-      );
+      const { getByTestId } = render(renderCodeBlock("mermaid", chart, mockToken)!);
       const rendered = getByTestId("lazy-mermaid-chart");
       expect(rendered).toHaveAttribute("data-chart", chart);
     });
@@ -236,17 +198,13 @@ describe("MarkdownCodeBlock", () => {
   describe("renderCodeBlock - Code blocks with syntax highlighting", () => {
     it("renders code block for non-mermaid language", () => {
       const code = "const x = 1;";
-      const { container } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
       expect(container.textContent).toContain(code);
     });
 
     it("shows copy button on hover", async () => {
       const code = "const x = 1;";
-      const { container, getByRole } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container, getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       fireEvent.mouseEnter(card!);
@@ -258,9 +216,7 @@ describe("MarkdownCodeBlock", () => {
 
     it("hides copy button on mouse leave", async () => {
       const code = "const x = 1;";
-      const { container, queryByRole } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container, queryByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       fireEvent.mouseEnter(card!);
@@ -275,9 +231,7 @@ describe("MarkdownCodeBlock", () => {
       const code = "const x = 1;";
       vi.mocked(clipboard.copyText).mockResolvedValueOnce(undefined);
 
-      const { container, getByRole } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container, getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       fireEvent.mouseEnter(card!);
@@ -295,9 +249,7 @@ describe("MarkdownCodeBlock", () => {
       const code = "const x = 1;";
       vi.mocked(clipboard.copyText).mockRejectedValueOnce(new Error("Copy failed"));
 
-      const { container, getByRole } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container, getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       fireEvent.mouseEnter(card!);
@@ -312,26 +264,20 @@ describe("MarkdownCodeBlock", () => {
 
     it("shows line numbers for code with >10 lines", () => {
       const code = Array(15).fill("line of code").join("\n");
-      const { container } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
       // Line numbers are rendered by SyntaxHighlighter
       expect(container.querySelector(".linenumber")).not.toBeNull();
     });
 
     it("hides line numbers for code with <=10 lines", () => {
       const code = "line 1\nline 2";
-      const { container } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
       expect(container.querySelector(".linenumber")).toBeFalsy();
     });
 
     it("uses text language for unsupported languages", () => {
       const code = "some code";
-      const { container } = render(
-        renderCodeBlock("unknown-language", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("unknown-language", code, mockToken)!);
       expect(container.textContent).toContain(code);
     });
   });
@@ -343,9 +289,7 @@ describe("MarkdownCodeBlock", () => {
 
       // Create a code string that might cause highlighting to fail
       const code = "test code";
-      const { container } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       // Should still render something
       expect(container.textContent).toContain(code);
@@ -356,9 +300,7 @@ describe("MarkdownCodeBlock", () => {
       const code = "test code";
       vi.mocked(clipboard.copyText).mockResolvedValueOnce(undefined);
 
-      const { container, getByRole } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container, getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       if (card) {
@@ -412,9 +354,7 @@ describe("MarkdownCodeBlock", () => {
     mermaidLanguages.forEach((lang) => {
       it(`renders ${lang} as mermaid chart`, () => {
         const code = "test content";
-        const { getByTestId } = render(
-          renderCodeBlock(lang, code, mockToken)!
-        );
+        const { getByTestId } = render(renderCodeBlock(lang, code, mockToken)!);
         expect(getByTestId("lazy-mermaid-chart")).toBeInTheDocument();
       });
     });
@@ -423,25 +363,19 @@ describe("MarkdownCodeBlock", () => {
   describe("renderCodeBlock - Edge cases", () => {
     it("handles code with special characters", () => {
       const code = "const x = '<>&\"';";
-      const { container } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
       expect(container.textContent).toContain(code);
     });
 
     it("handles very long code lines", () => {
       const code = "const x = '" + "a".repeat(500) + "';";
-      const { container } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
       expect(container.textContent).toContain(code);
     });
 
     it("handles code with unicode characters", () => {
       const code = "const 你好 = '世界';";
-      const { container } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
       expect(container.textContent).toContain(code);
     });
 
@@ -455,9 +389,7 @@ describe("MarkdownCodeBlock", () => {
   describe("renderCodeBlock - Button hover effects", () => {
     it("changes button opacity on hover", async () => {
       const code = "const x = 1;";
-      const { container, getByRole } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container, getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       fireEvent.mouseEnter(card!);
@@ -470,9 +402,7 @@ describe("MarkdownCodeBlock", () => {
 
     it("resets button opacity on mouse leave", async () => {
       const code = "const x = 1;";
-      const { container, getByRole } = render(
-        renderCodeBlock("javascript", code, mockToken)!
-      );
+      const { container, getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       fireEvent.mouseEnter(card!);

@@ -22,12 +22,9 @@ export interface TokenBudgetActions {
 
 export type TokenBudgetSlice = TokenBudgetState & TokenBudgetActions;
 
-export const createTokenBudgetSlice: StateCreator<
-  TokenBudgetSlice,
-  [],
-  [],
-  TokenBudgetSlice
-> = (set) => ({
+export const createTokenBudgetSlice: StateCreator<TokenBudgetSlice, [], [], TokenBudgetSlice> = (
+  set,
+) => ({
   tokenUsages: {},
   truncationOccurred: {},
   segmentsRemoved: {},

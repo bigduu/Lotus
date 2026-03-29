@@ -14,11 +14,7 @@ interface McpToolListProps {
 const buildExpectedAlias = (serverId: string, toolName: string): string =>
   `mcp__${serverId}__${toolName}`;
 
-export const McpToolList: React.FC<McpToolListProps> = ({
-  server,
-  tools,
-  loading = false,
-}) => {
+export const McpToolList: React.FC<McpToolListProps> = ({ server, tools, loading = false }) => {
   const { t } = useTranslation();
   return (
     <Card title={t("settings.mcpToolList.title")} size="small">
@@ -33,10 +29,7 @@ export const McpToolList: React.FC<McpToolListProps> = ({
           dataSource={tools}
           locale={{ emptyText: t("settings.mcpToolList.empty") }}
           renderItem={(tool) => {
-            const expectedAlias = buildExpectedAlias(
-              tool.server_id,
-              tool.original_name,
-            );
+            const expectedAlias = buildExpectedAlias(tool.server_id, tool.original_name);
             return (
               <List.Item>
                 <Space direction="vertical" size={2} style={{ width: "100%" }}>
@@ -46,8 +39,7 @@ export const McpToolList: React.FC<McpToolListProps> = ({
                   </Text>
                   <Text code>{tool.alias}</Text>
                   <Text type="secondary">
-                    {t("settings.mcpToolList.aliasMapping")}:{" "}
-                    <Text code>{expectedAlias}</Text>
+                    {t("settings.mcpToolList.aliasMapping")}: <Text code>{expectedAlias}</Text>
                   </Text>
                   {tool.parameters !== undefined && (
                     <Collapse
@@ -56,9 +48,7 @@ export const McpToolList: React.FC<McpToolListProps> = ({
                         {
                           key: "schema",
                           label: t("settings.mcpToolList.parametersSchema"),
-                          children: (
-                            <JsonSchemaViewer schema={tool.parameters} />
-                          ),
+                          children: <JsonSchemaViewer schema={tool.parameters} />,
                         },
                       ]}
                     />

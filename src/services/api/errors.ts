@@ -40,9 +40,7 @@ export function getErrorMessage(error: unknown): string {
       // Our ApiClient extracts it from JSON bodies like:
       // - { error: { message: "..." } }
       // - { success: false, error: "..." }
-      return error.message?.trim()
-        ? error.message
-        : "Server error. Please try again later.";
+      return error.message?.trim() ? error.message : "Server error. Please try again later.";
     }
     return error.message;
   }

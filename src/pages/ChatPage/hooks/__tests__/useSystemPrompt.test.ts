@@ -105,10 +105,9 @@ describe("useSystemPrompt", () => {
         .mockResolvedValueOnce({ id: "1", name: "Test 1" })
         .mockResolvedValueOnce({ id: "2", name: "Test 2" });
 
-      const { result, rerender } = renderHook(
-        ({ id }) => useSystemPrompt(id),
-        { initialProps: { id: "1" } }
-      );
+      const { result, rerender } = renderHook(({ id }) => useSystemPrompt(id), {
+        initialProps: { id: "1" },
+      });
 
       await waitFor(() => {
         expect(result.current.currentSystemPromptInfo).toEqual({ id: "1", name: "Test 1" });

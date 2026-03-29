@@ -277,9 +277,7 @@ describe("createMarkdownComponents", () => {
       const link = screen.getByRole("link", { name: "Test" });
       fireEvent.click(link);
 
-      expect(openExternalLinkModule.openExternalLink).toHaveBeenCalledWith(
-        "https://example.com",
-      );
+      expect(openExternalLinkModule.openExternalLink).toHaveBeenCalledWith("https://example.com");
     });
 
     it("prevents default and stops propagation on link click", () => {
@@ -467,9 +465,7 @@ describe("createMarkdownComponents", () => {
         </ReactMarkdown>,
       );
 
-      const checkbox = container.querySelector(
-        'input[type="checkbox"]',
-      ) as HTMLInputElement;
+      const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
       expect(checkbox).toBeInTheDocument();
       expect(checkbox.checked).toBe(true);
     });
@@ -482,7 +478,7 @@ describe("createMarkdownComponents", () => {
           rehypePlugins={[rehypeSanitize]}
           components={createMarkdownComponents(token)}
         >
-          {"<input type=\"text\" />"}
+          {'<input type="text" />'}
         </ReactMarkdown>,
       );
 

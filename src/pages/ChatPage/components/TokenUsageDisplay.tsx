@@ -37,10 +37,6 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   const { t } = useTranslation();
   const denominator = getUsageDenominator(usage);
   const percentage = getUsagePercentage(usage);
-  const hasMaxContextWindow =
-    typeof usage.maxContextTokens === "number" && usage.maxContextTokens > 0;
-  const showInputBudgetDetail =
-    hasMaxContextWindow && usage.budgetLimit > 0 && usage.budgetLimit !== denominator;
   const formatPercentageLabel = (value: number): string => {
     const rounded = Math.round(value * 10) / 10;
     return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
@@ -57,16 +53,10 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
     <div style={{ minWidth: 180, color: "var(--lotus-metric-text-strong)" }}>
       <div style={{ marginBottom: 4, fontWeight: "bold" }}>{t("components.tokenUsage.title")}</div>
       <div style={{ fontSize: 12 }}>
-        {hasMaxContextWindow ? `${t("components.tokenUsage.contextWindow")}: ` : ""}
+        {t("components.tokenUsage.contextWindow")}:{" "}
         {formatTokenCount(usage.totalTokens)} / {formatTokenCount(denominator)}{" "}
         {t("components.tokenUsage.tokens")}
       </div>
-      {showInputBudgetDetail && (
-        <div style={{ fontSize: 12, color: "var(--lotus-metric-text-muted)" }}>
-          {t("components.tokenUsage.inputBudget")}: {formatTokenCount(usage.budgetLimit)}{" "}
-          {t("components.tokenUsage.tokens")}
-        </div>
-      )}
       <div style={{ fontSize: 12, color: "var(--lotus-metric-text-muted)" }}>
         {t("components.tokenUsage.usedPercent", { value: percentage.toFixed(1) })}
       </div>
@@ -150,10 +140,6 @@ export const TokenUsageBadge: React.FC<{
   const { t } = useTranslation();
   const denominator = getUsageDenominator(usage);
   const percentage = getUsagePercentage(usage);
-  const hasMaxContextWindow =
-    typeof usage.maxContextTokens === "number" && usage.maxContextTokens > 0;
-  const showInputBudgetDetail =
-    hasMaxContextWindow && usage.budgetLimit > 0 && usage.budgetLimit !== denominator;
   const formatPercentageLabel = (value: number): string => {
     const rounded = Math.round(value * 10) / 10;
     return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
@@ -161,11 +147,7 @@ export const TokenUsageBadge: React.FC<{
   const color = getUsageColor(usage);
   const badgeTitle = `${formatTokenCount(usage.totalTokens)} / ${formatTokenCount(
     denominator,
-  )} ${t("components.tokenUsage.tokens")} (${percentage.toFixed(1)}%)${
-    showInputBudgetDetail
-      ? ` • ${t("components.tokenUsage.inputBudget")}: ${formatTokenCount(usage.budgetLimit)} ${t("components.tokenUsage.tokens")}`
-      : ""
-  }`;
+  )} ${t("components.tokenUsage.tokens")} (${percentage.toFixed(1)}%)`;
 
   const getBadgeColor = () => {
     switch (color) {

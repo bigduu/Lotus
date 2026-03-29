@@ -31,9 +31,7 @@ describe("SkillService", () => {
     const service = new SkillService();
     await service.listSkills({ search: "agent skill" }, true);
 
-    expect(mockApiClient.get).toHaveBeenCalledWith(
-      "skills?search=agent+skill&refresh=true",
-    );
+    expect(mockApiClient.get).toHaveBeenCalledWith("skills?search=agent+skill&refresh=true");
   });
 
   it("gets a single skill by id", async () => {

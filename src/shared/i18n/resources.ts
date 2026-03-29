@@ -9,6 +9,34 @@ export const resources = {
       layout: {
         showSidebar: "Show sidebar",
       },
+      commandPalette: {
+        searchPlaceholder: "Search sessions, settings, and actions",
+        navigationHint: "Use ↑↓ to navigate, Enter to open, and Esc to close.",
+        empty: "No matching commands",
+        groups: {
+          quickActions: "Quick actions",
+          settings: "System settings",
+        },
+        badges: {
+          quickAction: "Action",
+          pinned: "Pinned",
+          running: "Running",
+          child: "Child",
+          childSession: "Child session",
+          rootSession: "Session",
+        },
+        actions: {
+          newSession: "Create New Session",
+          openProviderSettings: "Open Provider Settings",
+          openMcpSettings: "Open MCP Settings",
+          openWorkflowSettings: "Open Workflow Settings",
+          openSessionsSettings: "Open Session Monitor",
+          openSchedulesSettings: "Open Schedules",
+        },
+        errors: {
+          actionFailed: "Command failed",
+        },
+      },
       common: {
         cancel: "Cancel",
         ok: "OK",
@@ -84,9 +112,18 @@ export const resources = {
           newSession: "New Session",
           createFailedTitle: "Failed to create session",
           createFailedUnknown: "Unknown error",
+          searchPlaceholder: "Search sessions",
+          filters: {
+            all: "All",
+            pinned: "Pinned",
+            running: "Running",
+            child: "Child",
+          },
           empty: {
             noSessions: "No sessions yet",
+            noMatches: "No matching sessions",
             hint: 'Click "New Session" to get started',
+            filterHint: "Try adjusting your search or filters",
           },
           dateGroups: {
             today: "Today",
@@ -247,6 +284,13 @@ export const resources = {
           exportPdf: "Export PDF",
           done: "Done",
         },
+        compression: {
+          tag: "Context compressed",
+          timelineDetail: "{{count}} messages archived",
+          timelineAria: "{{detail}} at {{time}}",
+          tooltip: "Latest compression at {{time}}: {{count}} messages archived",
+          archivedShort: "{{count}} archived",
+        },
         subSessions: {
           title: "Sub-sessions",
           expand: "Expand",
@@ -276,6 +320,37 @@ export const resources = {
         },
         respond: {
           customAnswerPlaceholder: "Type your custom answer...",
+        },
+        emptyLauncher: {
+          title: "Start with a task",
+          subtitle:
+            "Create a focused session in this pane and prefill the first message before you send it.",
+          hint: "Nothing is sent automatically — you can edit the prompt first.",
+          actions: {
+            blank: {
+              title: "Blank session",
+              description: "Start from scratch with the default assistant and an empty composer.",
+              sessionTitle: "New Session",
+              prefill: "",
+            },
+            codeReview: {
+              title: "Code review",
+              description: "Open a review-focused session with an editable review brief.",
+              sessionTitle: "Code Review",
+              prefill:
+                "Review the relevant code changes in this workspace or repository. Start with the overall scope, then list risks, notable diffs, and the most important fixes.",
+            },
+            tokenUsage: {
+              title: "Token usage investigation",
+              description: "Diagnose context growth, truncation risk, and token budget pressure.",
+              sessionTitle: "Token Usage Investigation",
+              prefill:
+                "Help me investigate token usage, context growth, and truncation risk for this session or workflow. Summarize the likely drivers and recommend concrete next fixes.",
+            },
+          },
+          errors: {
+            createFailed: "Failed to create session",
+          },
         },
         multiPane: {
           splitHorizontal: "Split horizontally",
@@ -1388,7 +1463,6 @@ export const resources = {
         tokenUsage: {
           title: "Token Usage",
           contextWindow: "Context window",
-          inputBudget: "Input budget",
           summary: "Summary",
           system: "System",
           messages: "Messages",
@@ -1445,6 +1519,34 @@ export const resources = {
       },
       layout: {
         showSidebar: "显示侧边栏",
+      },
+      commandPalette: {
+        searchPlaceholder: "搜索会话、设置和快捷操作",
+        navigationHint: "使用 ↑↓ 导航，Enter 打开，Esc 关闭。",
+        empty: "没有匹配的命令",
+        groups: {
+          quickActions: "快捷操作",
+          settings: "系统设置",
+        },
+        badges: {
+          quickAction: "操作",
+          pinned: "置顶",
+          running: "运行中",
+          child: "子会话",
+          childSession: "子会话",
+          rootSession: "会话",
+        },
+        actions: {
+          newSession: "创建新会话",
+          openProviderSettings: "打开 Provider 设置",
+          openMcpSettings: "打开 MCP 设置",
+          openWorkflowSettings: "打开工作流设置",
+          openSessionsSettings: "打开会话监控",
+          openSchedulesSettings: "打开计划任务",
+        },
+        errors: {
+          actionFailed: "命令执行失败",
+        },
       },
       common: {
         cancel: "取消",
@@ -1517,9 +1619,18 @@ export const resources = {
           newSession: "新建会话",
           createFailedTitle: "创建会话失败",
           createFailedUnknown: "未知错误",
+          searchPlaceholder: "搜索会话",
+          filters: {
+            all: "全部",
+            pinned: "置顶",
+            running: "运行中",
+            child: "子会话",
+          },
           empty: {
             noSessions: "暂无会话",
+            noMatches: "没有匹配的会话",
             hint: "点击「新建会话」开始",
+            filterHint: "请尝试调整搜索词或筛选条件",
           },
           dateGroups: {
             today: "今天",
@@ -1675,6 +1786,13 @@ export const resources = {
           exportPdf: "导出 PDF",
           done: "完成",
         },
+        compression: {
+          tag: "已压缩上下文",
+          timelineDetail: "已归档 {{count}} 条消息",
+          timelineAria: "{{time}}，{{detail}}",
+          tooltip: "最近一次压缩：{{time}}，已归档 {{count}} 条消息",
+          archivedShort: "已归档 {{count}} 条",
+        },
         subSessions: {
           title: "子会话",
           expand: "展开",
@@ -1704,6 +1822,36 @@ export const resources = {
         },
         respond: {
           customAnswerPlaceholder: "输入你的自定义回答...",
+        },
+        emptyLauncher: {
+          title: "从任务开始",
+          subtitle: "在当前分栏中创建一个聚焦会话，并先预填第一条消息，再由你决定是否发送。",
+          hint: "不会自动发送，你可以先编辑提示词。",
+          actions: {
+            blank: {
+              title: "空白会话",
+              description: "使用默认助手从零开始，并保留空白输入框。",
+              sessionTitle: "新建会话",
+              prefill: "",
+            },
+            codeReview: {
+              title: "代码评审",
+              description: "打开一个面向评审的会话，并预填可编辑的评审说明。",
+              sessionTitle: "代码评审",
+              prefill:
+                "请审查这个工作区或仓库中的相关代码变更。先概述范围，再列出风险点、关键 diff，以及最值得优先修复的问题。",
+            },
+            tokenUsage: {
+              title: "Token 使用调查",
+              description: "诊断上下文膨胀、截断风险和 token 预算压力。",
+              sessionTitle: "Token 使用调查",
+              prefill:
+                "请帮我分析这个会话或工作流的 token 使用、上下文增长和截断风险，归纳主要原因，并给出下一步最具体的优化建议。",
+            },
+          },
+          errors: {
+            createFailed: "创建会话失败",
+          },
         },
         multiPane: {
           splitHorizontal: "水平拆分",
@@ -2789,7 +2937,6 @@ export const resources = {
         tokenUsage: {
           title: "Token 使用",
           contextWindow: "上下文窗口",
-          inputBudget: "输入预算",
           summary: "汇总",
           system: "系统",
           messages: "消息",

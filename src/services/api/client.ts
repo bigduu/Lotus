@@ -77,8 +77,7 @@ export class ApiClient {
             typeof errorData?.error === "object"
               ? (errorData.error?.message as unknown)
               : undefined;
-          const directError =
-            typeof errorData?.error === "string" ? errorData.error : undefined;
+          const directError = typeof errorData?.error === "string" ? errorData.error : undefined;
 
           errorMessage =
             directError ||
@@ -92,12 +91,7 @@ export class ApiClient {
         }
       }
 
-      throw new ApiError(
-        errorMessage,
-        response.status,
-        response.statusText,
-        body,
-      );
+      throw new ApiError(errorMessage, response.status, response.statusText, body);
     }
 
     // Handle 204 No Content
@@ -201,11 +195,7 @@ export class ApiClient {
   /**
    * Make a POST request with timeout and retry
    */
-  async post<T>(
-    path: string,
-    data?: unknown,
-    options?: RequestInit,
-  ): Promise<T> {
+  async post<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
 
     const controller = new AbortController();
@@ -235,11 +225,7 @@ export class ApiClient {
   /**
    * Make a PUT request with timeout and retry
    */
-  async put<T>(
-    path: string,
-    data?: unknown,
-    options?: RequestInit,
-  ): Promise<T> {
+  async put<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
 
     const controller = new AbortController();
@@ -269,11 +255,7 @@ export class ApiClient {
   /**
    * Make a PATCH request with timeout and retry
    */
-  async patch<T>(
-    path: string,
-    data?: unknown,
-    options?: RequestInit,
-  ): Promise<T> {
+  async patch<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
 
     const controller = new AbortController();
@@ -332,11 +314,7 @@ export class ApiClient {
   /**
    * Make a request with custom method and timeout
    */
-  async request<T>(
-    method: string,
-    path: string,
-    options?: RequestInit,
-  ): Promise<T> {
+  async request<T>(method: string, path: string, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
 
     const controller = new AbortController();

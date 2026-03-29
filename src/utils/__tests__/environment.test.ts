@@ -133,7 +133,8 @@ describe("environment", () => {
 
     it("should return true for unknown feature values", () => {
       deleteWindow();
-      const feature = "custom-feature" as unknown as (typeof BROWSER_MODE_DISABLED_FEATURES)[number];
+      const feature =
+        "custom-feature" as unknown as (typeof BROWSER_MODE_DISABLED_FEATURES)[number];
       expect(isFeatureAvailable(feature)).toBe(true);
     });
 

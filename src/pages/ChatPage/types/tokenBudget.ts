@@ -39,7 +39,7 @@ export interface TokenUsage {
   totalTokens: number;
   /** Optional model context window size (input + output) */
   maxContextTokens?: number;
-  /** Budget limit for input tokens */
+  /** Context-window limit denominator (legacy field name from backend payload) */
   budgetLimit: number;
   /** Number of long tool outputs compacted into prompt-side cached summaries */
   promptCachedToolOutputs?: number;
@@ -136,7 +136,11 @@ export function getUsageDenominator(usage: TokenUsage): number {
   if (typeof usage.maxContextTokens === "number" && usage.maxContextTokens > 0) {
     return usage.maxContextTokens;
   }
-  return usage.budgetLimit;
+  // Legacy fallback for older payloads missing max_context_tokens.
+  if (usage.budgetLimit > 0) {
+    return usage.budgetLimit;
+  }
+  return 0;
 }
 
 /**

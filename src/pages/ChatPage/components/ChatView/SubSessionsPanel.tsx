@@ -11,10 +11,9 @@ import { toolService } from "../../../../services/tool/ToolService";
 
 const { Text } = Typography;
 const { useToken } = theme;
-const SUB_SESSIONS_COLLAPSE_STORAGE_KEY_PREFIX =
-  "chat-session-sub-sessions-collapsed:";
+const SUB_SESSIONS_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-sub-sessions-collapsed:";
 const AUTO_COLLAPSE_CHILD_THRESHOLD = 3;
-const SUB_SESSIONS_LIST_MAX_HEIGHT_PX = 420;
+const SUB_SESSIONS_LIST_MAX_HEIGHT_PX = 600;
 
 const normalizeSubSessionStatus = (status?: string): string => {
   const value = (status || "").trim().toLowerCase();
@@ -55,9 +54,7 @@ const getSubSessionsCollapseStorageKey = (parentSessionId: string) =>
 const readCollapsedState = (parentSessionId: string): boolean | null => {
   if (typeof window === "undefined") return false;
   try {
-    const raw = window.localStorage.getItem(
-      getSubSessionsCollapseStorageKey(parentSessionId),
-    );
+    const raw = window.localStorage.getItem(getSubSessionsCollapseStorageKey(parentSessionId));
     if (raw === "1") return true;
     if (raw === "0") return false;
     return null;
@@ -66,10 +63,7 @@ const readCollapsedState = (parentSessionId: string): boolean | null => {
   }
 };
 
-const persistCollapsedState = (
-  parentSessionId: string,
-  isCollapsed: boolean,
-) => {
+const persistCollapsedState = (parentSessionId: string, isCollapsed: boolean) => {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(
@@ -85,9 +79,7 @@ export interface SubSessionsPanelProps {
 
 type SubSessionRetryMode = "regenerate" | "error_retry";
 
-export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
-  parentSessionId,
-}) => {
+export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessionId }) => {
   const { t } = useTranslation();
   const { token } = useToken();
   const activeModel = useActiveModel();
@@ -95,9 +87,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
     () => readCollapsedState(parentSessionId) ?? false,
   );
   const [retryingChildId, setRetryingChildId] = useState<string | null>(null);
-  const [continuingChildId, setContinuingChildId] = useState<string | null>(
-    null,
-  );
+  const [continuingChildId, setContinuingChildId] = useState<string | null>(null);
   const [deletingChildId, setDeletingChildId] = useState<string | null>(null);
 
   const subSessionsByParent = useAppStore((s) => s.subSessionsByParent);
@@ -108,9 +98,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   const pinSession = useAppStore((s) => s.pinSession);
   const unpinSession = useAppStore((s) => s.unpinSession);
   const deleteSession = useAppStore((s) => s.deleteSession);
-  const upsertSubSessionProgress = useAppStore(
-    (s) => s.upsertSubSessionProgress,
-  );
+  const upsertSubSessionProgress = useAppStore((s) => s.upsertSubSessionProgress);
   const clearSubSessionProgress = useAppStore((s) => s.clearSubSessionProgress);
 
   // In-memory progress (lost on restart).
@@ -125,9 +113,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   // Persisted children (reconstructable after restart from backend index).
   const persistedChildren = useMemo(() => {
     return chats
-      .filter(
-        (c) => c.kind === "child" && c.parentSessionId === parentSessionId,
-      )
+      .filter((c) => c.kind === "child" && c.parentSessionId === parentSessionId)
       .sort((a, b) => {
         const aTime = Date.parse(a.updatedAt || "") || 0;
         const bTime = Date.parse(b.updatedAt || "") || 0;
@@ -136,9 +122,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   }, [chats, parentSessionId]);
 
   const mergedItems = useMemo(() => {
-    const progressById = new Map(
-      progressItems.map((x) => [x.childSessionId, x]),
-    );
+    const progressById = new Map(progressItems.map((x) => [x.childSessionId, x]));
     const out: Array<{
       childSessionId: string;
       title?: string;
@@ -160,9 +144,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
       out.push({
         childSessionId: child.id,
         title: p?.title || child.title,
-        status: normalizeSubSessionStatus(
-          deriveFallbackStatus(child, p?.status),
-        ),
+        status: normalizeSubSessionStatus(deriveFallbackStatus(child, p?.status)),
         error: p?.error || child.lastRunError,
         lastHeartbeatAt: p?.lastHeartbeatAt,
         lastEventAt: p?.lastEventAt,
@@ -219,10 +201,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
   }, []);
 
   const runChildSession = useCallback(
-    async (
-      childSessionId: string,
-      retryMode: SubSessionRetryMode = "regenerate",
-    ) => {
+    async (childSessionId: string, retryMode: SubSessionRetryMode = "regenerate") => {
       if (!activeModel) {
         upsertSubSessionProgress(parentSessionId, childSessionId, {
           status: "error",
@@ -241,29 +220,16 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
       setSessionProcessing(childSessionId, true);
 
       try {
-        const truncateMode =
-          retryMode === "error_retry" ? "error_retry" : "after_last_user";
-        const truncateResult = await agentClient.truncateSessionMessages(
-          childSessionId,
-          {
-            mode: truncateMode,
-          },
-        );
-        if (
-          retryMode === "regenerate" ||
-          (truncateResult.messages_removed ?? 0) > 0
-        ) {
+        const truncateMode = retryMode === "error_retry" ? "error_retry" : "after_last_user";
+        const truncateResult = await agentClient.truncateSessionMessages(childSessionId, {
+          mode: truncateMode,
+        });
+        if (retryMode === "regenerate" || (truncateResult.messages_removed ?? 0) > 0) {
           await loadChatHistory(childSessionId, { mode: "replace" });
         }
 
-        const executeResult = await agentClient.execute(
-          childSessionId,
-          activeModel,
-        );
-        if (
-          executeResult.status === "started" ||
-          executeResult.status === "already_running"
-        ) {
+        const executeResult = await agentClient.execute(childSessionId, activeModel);
+        if (executeResult.status === "started" || executeResult.status === "already_running") {
           return;
         }
 
@@ -303,8 +269,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
 
   const continueChildSession = useCallback(
     async (childSessionId: string) => {
-      const promptFn =
-        typeof window !== "undefined" ? window.prompt.bind(window) : null;
+      const promptFn = typeof window !== "undefined" ? window.prompt.bind(window) : null;
       if (!promptFn) return;
 
       const followUp = promptFn(
@@ -379,12 +344,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
         setContinuingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [
-      parentSessionId,
-      refreshChats,
-      setSessionProcessing,
-      upsertSubSessionProgress,
-    ],
+    [parentSessionId, refreshChats, setSessionProcessing, upsertSubSessionProgress],
   );
 
   const removeChildSession = useCallback(
@@ -410,8 +370,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
       data-testid="sub-sessions-panel"
       title={
         <Text strong>
-          {t("chat.subSessions.title")}{" "}
-          <Text type="secondary">({mergedItems.length})</Text>
+          {t("chat.subSessions.title")} <Text type="secondary">({mergedItems.length})</Text>
         </Text>
       }
       extra={
@@ -458,11 +417,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                 }}
               >
                 <Flex vertical style={{ flex: 1, minWidth: 0 }}>
-                  <Flex
-                    align="center"
-                    gap={token.marginXS}
-                    style={{ minWidth: 0 }}
-                  >
+                  <Flex align="center" gap={token.marginXS} style={{ minWidth: 0 }}>
                     <Text strong ellipsis style={{ minWidth: 0 }}>
                       {it.title || "Child Session"}
                     </Text>
@@ -483,24 +438,16 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                       {status}
                     </Tag>
                     {it.pinned ? (
-                      <Tag
-                        color="warning"
-                        style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
-                      >
+                      <Tag color="warning" style={{ marginInlineEnd: 0, flex: "0 0 auto" }}>
                         Pinned
                       </Tag>
                     ) : null}
                   </Flex>
 
-                  <Text
-                    type="secondary"
-                    style={{ fontSize: 12, marginTop: 2 }}
-                  >
+                  <Text type="secondary" style={{ fontSize: 12, marginTop: 2 }}>
                     {it.childSessionId.slice(0, 8)}
                     {it.updatedAt ? ` • ${it.updatedAt}` : ""}
-                    {it.lastHeartbeatAt
-                      ? ` • heartbeat: ${it.lastHeartbeatAt}`
-                      : ""}
+                    {it.lastHeartbeatAt ? ` • heartbeat: ${it.lastHeartbeatAt}` : ""}
                   </Text>
 
                   {it.outputPreview ? (
@@ -556,10 +503,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
                         },
                       ],
                       onClick: ({ key }) => {
-                        void runChildSession(
-                          it.childSessionId,
-                          key as SubSessionRetryMode,
-                        );
+                        void runChildSession(it.childSessionId, key as SubSessionRetryMode);
                       },
                     }}
                     disabled={isDeleting || isRunning || isContinuing}
@@ -607,6 +551,39 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({
           {t("chat.subSessions.hiddenHint", { count: mergedItems.length })}
         </Text>
       )}
+      {!isCollapsed && mergedItems.length > 1 && (
+        <SubSessionsSummaryFooter items={mergedItems} />
+      )}
     </Card>
+  );
+};
+
+/** Compact summary of child session statuses. */
+const SubSessionsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> = ({ items }) => {
+  const { token } = useToken();
+  const counts = items.reduce(
+    (acc, it) => {
+      const s = normalizeSubSessionStatus(it.status);
+      if (s === "completed") acc.completed++;
+      else if (s === "running") acc.running++;
+      else if (s === "error" || s === "failed") acc.error++;
+      else acc.pending++;
+      return acc;
+    },
+    { completed: 0, running: 0, error: 0, pending: 0 },
+  );
+  const parts: string[] = [];
+  if (counts.completed > 0) parts.push(`${counts.completed} completed`);
+  if (counts.running > 0) parts.push(`${counts.running} running`);
+  if (counts.pending > 0) parts.push(`${counts.pending} pending`);
+  if (counts.error > 0) parts.push(`${counts.error} failed`);
+  if (parts.length === 0) return null;
+  return (
+    <Text
+      type="secondary"
+      style={{ fontSize: 11, marginTop: token.marginXS, display: "block" }}
+    >
+      {parts.join(" · ")}
+    </Text>
   );
 };

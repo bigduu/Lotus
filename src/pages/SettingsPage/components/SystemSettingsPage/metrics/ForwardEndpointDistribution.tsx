@@ -20,9 +20,10 @@ interface ForwardEndpointDistributionProps {
 
 const { useToken } = theme;
 
-const ForwardEndpointDistribution: React.FC<
-  ForwardEndpointDistributionProps
-> = ({ data, loading }) => {
+const ForwardEndpointDistribution: React.FC<ForwardEndpointDistributionProps> = ({
+  data,
+  loading,
+}) => {
   const { t } = useTranslation();
   const { token } = useToken();
 

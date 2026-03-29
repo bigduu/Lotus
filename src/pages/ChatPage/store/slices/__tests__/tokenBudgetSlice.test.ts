@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createTokenBudgetSlice,
-  type TokenBudgetSlice,
-} from "../tokenBudgetSlice";
+import { createTokenBudgetSlice, type TokenBudgetSlice } from "../tokenBudgetSlice";
 import { createSliceHarness } from "./sliceHarness";
 
 describe("tokenBudgetSlice", () => {

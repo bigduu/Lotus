@@ -2,10 +2,7 @@ import { agentApiClient } from "../../../services/api";
 import type { UserSystemPrompt } from "../types/chat";
 import { getDefaultSystemPrompts } from "../utils/defaultSystemPrompts";
 
-const DEPRECATED_PROMPT_STORAGE_KEYS = [
-  "system_prompt",
-  "system_prompt_selected_id",
-];
+const DEPRECATED_PROMPT_STORAGE_KEYS = ["system_prompt", "system_prompt_selected_id"];
 
 interface PromptPresetItem {
   id: string;
@@ -82,8 +79,7 @@ export class SystemPromptService {
    */
   async getSystemPromptPresets(): Promise<UserSystemPrompt[]> {
     try {
-      const data =
-        await agentApiClient.get<PromptPresetListResponse>("prompt-presets");
+      const data = await agentApiClient.get<PromptPresetListResponse>("prompt-presets");
       const prompts = Array.isArray(data?.prompts) ? data.prompts : [];
       const presets = prompts
         .filter((preset) => preset.id && preset.id.trim().length > 0)
@@ -101,9 +97,7 @@ export class SystemPromptService {
   /**
    * Create a custom prompt preset.
    */
-  async createSystemPromptPreset(
-    req: CreatePromptPresetRequest,
-  ): Promise<UserSystemPrompt> {
+  async createSystemPromptPreset(req: CreatePromptPresetRequest): Promise<UserSystemPrompt> {
     const payload: CreatePromptPresetRequest = {
       name: req.name,
       content: req.content,
@@ -115,10 +109,7 @@ export class SystemPromptService {
       payload.description = req.description;
     }
 
-    const data = await agentApiClient.post<PromptPresetResponse>(
-      "prompt-presets",
-      payload,
-    );
+    const data = await agentApiClient.post<PromptPresetResponse>("prompt-presets", payload);
     if (!data?.prompt) {
       throw new Error("Backend did not return created prompt preset");
     }
@@ -128,9 +119,7 @@ export class SystemPromptService {
   /**
    * Update an existing custom prompt preset.
    */
-  async updateSystemPromptPreset(
-    prompt: UserSystemPrompt,
-  ): Promise<UserSystemPrompt> {
+  async updateSystemPromptPreset(prompt: UserSystemPrompt): Promise<UserSystemPrompt> {
     const encodedId = encodeURIComponent(prompt.id);
     const payload: PatchPromptPresetRequest = {
       name: prompt.name,
@@ -167,9 +156,7 @@ export class SystemPromptService {
   /**
    * Get current system prompt content
    */
-  async getCurrentSystemPromptContent(
-    selectedPresetId: string,
-  ): Promise<string> {
+  async getCurrentSystemPromptContent(selectedPresetId: string): Promise<string> {
     const preset = await this.findPresetById(selectedPresetId);
     if (preset) return preset.content;
 
@@ -177,5 +164,4 @@ export class SystemPromptService {
     const defaultPreset = presets.find((item) => item.isDefault) || presets[0];
     return defaultPreset?.content || "";
   }
-
 }

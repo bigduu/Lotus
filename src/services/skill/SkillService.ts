@@ -16,10 +16,7 @@ export class SkillService {
    * @param filter - Optional filter criteria
    * @param refresh - If true, reload skills from disk before returning
    */
-  async listSkills(
-    filter?: SkillFilter,
-    refresh?: boolean,
-  ): Promise<SkillListResponse> {
+  async listSkills(filter?: SkillFilter, refresh?: boolean): Promise<SkillListResponse> {
     const params = new URLSearchParams();
     if (filter?.search) params.append("search", filter.search);
     if (refresh) params.append("refresh", "true");
@@ -41,9 +38,7 @@ export class SkillService {
    */
   async getFilteredTools(sessionId?: string): Promise<unknown[]> {
     const params = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
-    const data = await apiClient.get<{ tools?: unknown[] }>(
-      `skills/filtered-tools${params}`,
-    );
+    const data = await apiClient.get<{ tools?: unknown[] }>(`skills/filtered-tools${params}`);
     return data.tools ?? [];
   }
 }

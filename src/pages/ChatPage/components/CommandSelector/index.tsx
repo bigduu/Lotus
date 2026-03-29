@@ -117,8 +117,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
     const typeConfig = TYPE_CONFIG[command.type];
     const isSelected = index === selectedIndex;
 
-    const mcpParts =
-      command.type === "mcp" ? parseMcpToolAlias(command.name) : null;
+    const mcpParts = command.type === "mcp" ? parseMcpToolAlias(command.name) : null;
     const mcpToolName =
       command.type === "mcp"
         ? command.metadata?.originalName ||
@@ -128,10 +127,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
         : null;
     const mcpServerLabel =
       command.type === "mcp"
-        ? command.metadata?.serverName ||
-          command.metadata?.serverId ||
-          mcpParts?.serverId ||
-          null
+        ? command.metadata?.serverName || command.metadata?.serverId || mcpParts?.serverId || null
         : null;
 
     return (
@@ -225,9 +221,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
       >
         {t("chat.commandSelector.navigationHint")}
       </div>
-      {filteredCommands.map((command, index) =>
-        renderCommandItem(command, index),
-      )}
+      {filteredCommands.map((command, index) => renderCommandItem(command, index))}
     </div>
   );
 };

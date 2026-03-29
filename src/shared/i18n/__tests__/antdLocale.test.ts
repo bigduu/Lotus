@@ -71,14 +71,7 @@ describe("antdLocale", () => {
     });
 
     it("should return locale with required properties", () => {
-      const locales: AppLocale[] = [
-        "zh-CN",
-        "zh-TW",
-        "en-US",
-        "fr-FR",
-        "ja-JP",
-        "hi-IN",
-      ];
+      const locales: AppLocale[] = ["zh-CN", "zh-TW", "en-US", "fr-FR", "ja-JP", "hi-IN"];
 
       locales.forEach((localeCode) => {
         const locale = getAntdLocale(localeCode);
@@ -89,14 +82,7 @@ describe("antdLocale", () => {
     });
 
     it("should handle all supported locales", () => {
-      const supportedLocales: AppLocale[] = [
-        "en-US",
-        "zh-CN",
-        "zh-TW",
-        "fr-FR",
-        "ja-JP",
-        "hi-IN",
-      ];
+      const supportedLocales: AppLocale[] = ["en-US", "zh-CN", "zh-TW", "fr-FR", "ja-JP", "hi-IN"];
 
       supportedLocales.forEach((locale) => {
         expect(getAntdLocale(locale)).toBe(localeMap[locale]);

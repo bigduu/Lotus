@@ -25,27 +25,22 @@ export const useInputContainerCommand = ({
 }: UseInputContainerCommandProps) => {
   const [showCommandSelector, setShowCommandSelector] = useState(false);
   const [commandSearchText, setCommandSearchText] = useState("");
-  const [selectedCommand, setSelectedCommand] = useState<WorkflowDraft | null>(
-    null,
-  );
+  const [selectedCommand, setSelectedCommand] = useState<WorkflowDraft | null>(null);
 
   useEffect(() => {
     setSelectedCommand(null);
     onWorkflowDraftChange?.(null);
   }, [currentSessionId, onWorkflowDraftChange]);
 
-  const matchesCommandToken = useCallback(
-    (value: string, commandName: string) => {
-      const trimmedValue = value.trimStart();
-      const token = `/${commandName}`;
-      if (!trimmedValue.startsWith(token)) {
-        return false;
-      }
-      const nextChar = trimmedValue.charAt(token.length);
-      return !nextChar || /\s/.test(nextChar);
-    },
-    [],
-  );
+  const matchesCommandToken = useCallback((value: string, commandName: string) => {
+    const trimmedValue = value.trimStart();
+    const token = `/${commandName}`;
+    if (!trimmedValue.startsWith(token)) {
+      return false;
+    }
+    const nextChar = trimmedValue.charAt(token.length);
+    return !nextChar || /\s/.test(nextChar);
+  }, []);
 
   const clearCommandDraft = useCallback(() => {
     setSelectedCommand(null);
@@ -60,9 +55,7 @@ export const useInputContainerCommand = ({
       const token = `/${command.name}`;
       const trimmedValue = value.trim();
       const extraInput = trimmedValue.slice(token.length).trim();
-      const content = [command.content, extraInput]
-        .filter(Boolean)
-        .join("\n\n");
+      const content = [command.content, extraInput].filter(Boolean).join("\n\n");
       onWorkflowDraftChange?.({ ...command, content });
     },
     [matchesCommandToken, onWorkflowDraftChange],
@@ -71,10 +64,7 @@ export const useInputContainerCommand = ({
   const handleInputChange = useCallback(
     (value: string) => {
       acknowledgeManualInput();
-      if (
-        selectedCommand &&
-        !matchesCommandToken(value, selectedCommand.name)
-      ) {
+      if (selectedCommand && !matchesCommandToken(value, selectedCommand.name)) {
         clearCommandDraft();
       }
       if (selectedCommand && matchesCommandToken(value, selectedCommand.name)) {
@@ -173,14 +163,9 @@ export const useInputContainerCommand = ({
           type: command.type,
           displayName: command.displayName,
           mcpAlias: command.type === "mcp" ? command.name : undefined,
-          mcpServerId:
-            command.type === "mcp" ? command.metadata?.serverId : undefined,
-          mcpServerName:
-            command.type === "mcp" ? command.metadata?.serverName : undefined,
-          mcpOriginalName:
-            command.type === "mcp"
-              ? command.metadata?.originalName
-              : undefined,
+          mcpServerId: command.type === "mcp" ? command.metadata?.serverId : undefined,
+          mcpServerName: command.type === "mcp" ? command.metadata?.serverName : undefined,
+          mcpOriginalName: command.type === "mcp" ? command.metadata?.originalName : undefined,
         };
         setSelectedCommand(draft);
         onWorkflowDraftChange?.(draft);
@@ -197,10 +182,7 @@ export const useInputContainerCommand = ({
           ? command.id.slice("workflow-".length)
           : command.id;
 
-        const fullCommand = await commandService.getCommand(
-          command.type,
-          realId,
-        );
+        const fullCommand = await commandService.getCommand(command.type, realId);
         const workflowContent = fullCommand.content?.trim() || "";
 
         if (workflowContent) {
@@ -218,20 +200,11 @@ export const useInputContainerCommand = ({
           clearCommandDraft();
         }
       } catch (error) {
-        console.error(
-          `[InputContainer] Failed to apply command '${command.name}':`,
-          error,
-        );
+        console.error(`[InputContainer] Failed to apply command '${command.name}':`, error);
         clearCommandDraft();
       }
     },
-    [
-      clearCommandDraft,
-      onWorkflowDraftChange,
-      setContent,
-      content,
-      textAreaRef,
-    ],
+    [clearCommandDraft, onWorkflowDraftChange, setContent, content, textAreaRef],
   );
 
   const handleCommandSelect = useCallback(
@@ -254,10 +227,7 @@ export const useInputContainerCommand = ({
 
         await applyCommandDraft(command);
       } catch (error) {
-        console.error(
-          `[InputContainer] Failed to select command '${commandInfo.name}':`,
-          error,
-        );
+        console.error(`[InputContainer] Failed to select command '${commandInfo.name}':`, error);
         setContent(`/${commandInfo.name} `);
         clearCommandDraft();
       }
@@ -280,9 +250,7 @@ export const useInputContainerCommand = ({
         if (command) {
           await applyCommandDraft(command);
         } else {
-          console.error(
-            `[InputContainer] Command '${commandName}' not found in auto-complete`,
-          );
+          console.error(`[InputContainer] Command '${commandName}' not found in auto-complete`);
           setContent(`/${commandName} `);
           clearCommandDraft();
         }

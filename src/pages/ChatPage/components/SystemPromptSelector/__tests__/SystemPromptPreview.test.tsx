@@ -40,12 +40,7 @@ describe("SystemPromptPreview", () => {
     const onClick = vi.fn();
 
     render(
-      <SystemPromptPreview
-        content=""
-        token={mockToken}
-        showGradient={false}
-        onClick={onClick}
-      />,
+      <SystemPromptPreview content="" token={mockToken} showGradient={false} onClick={onClick} />,
     );
 
     expect(screen.getByText("No content available.")).toBeInTheDocument();
@@ -83,9 +78,7 @@ describe("SystemPromptPreview", () => {
       />,
     );
 
-    const gradientDiv = container.querySelector(
-      'div[style*="linear-gradient"]',
-    );
+    const gradientDiv = container.querySelector('div[style*="linear-gradient"]');
     expect(gradientDiv).not.toBeNull();
   });
 
@@ -102,9 +95,7 @@ describe("SystemPromptPreview", () => {
       />,
     );
 
-    const gradientDiv = container.querySelector(
-      'div[style*="linear-gradient"]',
-    );
+    const gradientDiv = container.querySelector('div[style*="linear-gradient"]');
     expect(gradientDiv).toBeFalsy();
   });
 
@@ -127,7 +118,7 @@ describe("SystemPromptPreview", () => {
   });
 
   it("renders code blocks with syntax highlighting", () => {
-    const content = '```javascript\nconst x = 1;\n```';
+    const content = "```javascript\nconst x = 1;\n```";
     const onClick = vi.fn();
 
     const { container } = render(

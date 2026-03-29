@@ -73,8 +73,6 @@ describe("WorkflowManagerService", () => {
   it("throws when workflow is missing", async () => {
     mockFetch.mockResolvedValue(mockFetchError("Not found", 404));
 
-    await expect(service.getWorkflow("missing")).rejects.toThrow(
-      "Workflow 'missing' not found",
-    );
+    await expect(service.getWorkflow("missing")).rejects.toThrow("Workflow 'missing' not found");
   });
 });

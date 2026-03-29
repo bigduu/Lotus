@@ -20,9 +20,7 @@ vi.mock("../../pages/ChatPage/store", () => {
 vi.mock("../../services/chat/AgentService", () => {
   // SSE subscriptions are long-lived; default to a never-resolving promise so the hook
   // doesn't interpret the stream as "ended" and attempt to reconnect in tests.
-  const mockSubscribeToEvents = vi.fn().mockImplementation(
-    () => new Promise<void>(() => {}),
-  );
+  const mockSubscribeToEvents = vi.fn().mockImplementation(() => new Promise<void>(() => {}));
   return {
     AgentClient: class MockAgentClient {
       subscribeToEvents = mockSubscribeToEvents;
@@ -160,11 +158,9 @@ describe("useAgentEventSubscription", () => {
 
   it("should handle onComplete and save message", async () => {
     let completeHandler: any;
-    mockSubscribeToEvents.mockImplementation(
-      async (_sessionId: string, handlers: any) => {
-        completeHandler = handlers.onComplete;
-      },
-    );
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+    });
 
     mockState.processingChats = new Set(["session-1"]);
     mockStore.getState.mockReturnValue(mockState);
@@ -196,11 +192,9 @@ describe("useAgentEventSubscription", () => {
 
   it("should handle onError and show error message", async () => {
     let errorHandler: any;
-    mockSubscribeToEvents.mockImplementation(
-      async (_sessionId: string, handlers: any) => {
-        errorHandler = handlers.onError;
-      },
-    );
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      errorHandler = handlers.onError;
+    });
 
     mockState.processingChats = new Set(["session-1"]);
     mockStore.getState.mockReturnValue(mockState);
@@ -279,12 +273,10 @@ describe("useAgentEventSubscription", () => {
 
   it("should handle token streaming", async () => {
     let tokenHandler: any;
-    mockSubscribeToEvents.mockImplementation(
-      (_sessionId: string, handlers: any) => {
-        tokenHandler = handlers.onToken;
-        return new Promise<void>(() => {});
-      },
-    );
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      tokenHandler = handlers.onToken;
+      return new Promise<void>(() => {});
+    });
 
     mockState.processingChats = new Set(["session-1"]);
     mockStore.getState.mockReturnValue(mockState);
@@ -308,23 +300,19 @@ describe("useAgentEventSubscription", () => {
 
   it("should append tool_token output to the matching tool_call card", async () => {
     let capturedHandlers: any;
-    mockSubscribeToEvents.mockImplementation(
-      (_sessionId: string, handlers: any) => {
-        capturedHandlers = handlers;
-        return new Promise<void>(() => {});
-      },
-    );
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      capturedHandlers = handlers;
+      return new Promise<void>(() => {});
+    });
 
-    const updateMessage = vi.fn(
-      (_sessionId: string, messageId: string, patch: any) => {
-        // Simulate store mutation so subsequent onToolToken calls can append.
-        const msg = mockState.chats[0].messages.find((m: any) => m.id === messageId);
-        if (!msg) return;
-        if (patch?.toolCalls) {
-          msg.toolCalls = patch.toolCalls;
-        }
-      },
-    );
+    const updateMessage = vi.fn((_sessionId: string, messageId: string, patch: any) => {
+      // Simulate store mutation so subsequent onToolToken calls can append.
+      const msg = mockState.chats[0].messages.find((m: any) => m.id === messageId);
+      if (!msg) return;
+      if (patch?.toolCalls) {
+        msg.toolCalls = patch.toolCalls;
+      }
+    });
     let toolCallMessageId: string | undefined;
     const addMessage = vi.fn((_sessionId: string, msg: any) => {
       // Simulate store mutation so onToolToken can find the message.
@@ -368,9 +356,7 @@ describe("useAgentEventSubscription", () => {
       expect((toolCallMessageId ?? "").length).toBeGreaterThan(0);
       expect(updateMessage).toHaveBeenCalled();
 
-      const toolMsg = mockState.chats[0].messages.find(
-        (m: any) => m.id === toolCallMessageId,
-      );
+      const toolMsg = mockState.chats[0].messages.find((m: any) => m.id === toolCallMessageId);
       expect(toolMsg?.toolCalls?.[0]?.streamingOutput).toBe("hello world");
     });
   });

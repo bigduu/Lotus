@@ -152,9 +152,7 @@ describe("SetupPage", () => {
         ),
       ).toBe(true);
       expect(
-        (fetch as any).mock.calls.some((call: any[]) =>
-          call[0].includes("/bamboo/setup/complete"),
-        ),
+        (fetch as any).mock.calls.some((call: any[]) => call[0].includes("/bamboo/setup/complete")),
       ).toBe(true);
     });
 
@@ -324,7 +322,9 @@ describe("SetupPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Skip for now" }));
 
-    expect(await screen.findByText("Failed to complete setup. Please try again.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Failed to complete setup. Please try again."),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Setup Complete!")).toBeNull();
   });
 });

@@ -117,8 +117,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
           color: token.colorTextTertiary,
         }}
       >
-        ↑↓ Navigate • Ctrl+P/N Navigate • Enter Select • Space/Tab Complete •
-        Esc Cancel
+        ↑↓ Navigate • Ctrl+P/N Navigate • Enter Select • Space/Tab Complete • Esc Cancel
       </div>
       {filteredWorkflows.map((workflow, index) => (
         <div
@@ -131,8 +130,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
               index < filteredWorkflows.length - 1
                 ? `1px solid ${token.colorBorderSecondary}`
                 : "none",
-            backgroundColor:
-              index === selectedIndex ? token.colorPrimaryBg : "transparent",
+            backgroundColor: index === selectedIndex ? token.colorPrimaryBg : "transparent",
             transition: "background-color 0.2s",
           }}
           onClick={() => handleWorkflowSelect(workflow.name)}
@@ -164,7 +162,15 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
                 borderRadius: token.borderRadiusXS,
               }}
             >
-              {workflow.source === "workspace" ? <><FolderOutlined /> Workspace</> : <><GlobalOutlined /> Global</>}
+              {workflow.source === "workspace" ? (
+                <>
+                  <FolderOutlined /> Workspace
+                </>
+              ) : (
+                <>
+                  <GlobalOutlined /> Global
+                </>
+              )}
             </div>
           </div>
           <div

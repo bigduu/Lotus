@@ -11,37 +11,23 @@ const extractMermaidCode = (content: string) => {
   return content.trim();
 };
 
-const replaceMermaidBlock = (
-  content: string,
-  originalChart: string,
-  fixedChart: string,
-) => {
+const replaceMermaidBlock = (content: string, originalChart: string, fixedChart: string) => {
   const normalizedOriginal = originalChart.trim();
   const normalizedFixed = extractMermaidCode(fixedChart);
   let replaced = false;
-  const updated = content.replace(
-    /```mermaid\s*([\s\S]*?)```/gi,
-    (match, block) => {
-      if (replaced) return match;
-      if (block.trim() !== normalizedOriginal) return match;
-      replaced = true;
-      return `\`\`\`mermaid\n${normalizedFixed}\n\`\`\``;
-    },
-  );
+  const updated = content.replace(/```mermaid\s*([\s\S]*?)```/gi, (match, block) => {
+    if (replaced) return match;
+    if (block.trim() !== normalizedOriginal) return match;
+    replaced = true;
+    return `\`\`\`mermaid\n${normalizedFixed}\n\`\`\``;
+  });
   return replaced ? updated : null;
 };
 
 const DERIVED_TEXT_MESSAGE_SUFFIX = "_text";
 
-const isAssistantTextMessage = (
-  message: Message | undefined,
-): message is AssistantTextMessage =>
-  Boolean(
-    message &&
-      message.role === "assistant" &&
-      "type" in message &&
-      message.type === "text",
-  );
+const isAssistantTextMessage = (message: Message | undefined): message is AssistantTextMessage =>
+  Boolean(message && message.role === "assistant" && "type" in message && message.type === "text");
 
 const getBackendMessageId = (
   messageId: string,
@@ -100,19 +86,13 @@ const findRetryMessage = (
   return messages.find(
     (item) =>
       isAssistantTextMessage(item) &&
-      (item.content === originalContent ||
-        hasMatchingMermaidBlock(item.content, originalChart)),
+      (item.content === originalContent || hasMatchingMermaidBlock(item.content, originalChart)),
   ) as AssistantTextMessage | undefined;
 };
 
 const buildMermaidFixPrompt = (chart: string, renderError?: string) => {
   const normalizedError = (renderError ?? "").trim();
-  const sections = [
-    "Original Mermaid code:",
-    "```mermaid",
-    chart.trim(),
-    "```",
-  ];
+  const sections = ["Original Mermaid code:", "```mermaid", chart.trim(), "```"];
 
   if (normalizedError) {
     sections.push("", "Mermaid parser/render error:", normalizedError);
@@ -126,16 +106,10 @@ const buildMermaidFixPrompt = (chart: string, renderError?: string) => {
   return sections.join("\n");
 };
 
-const fixMermaidWithAI = async (
-  chart: string,
-  model?: string | null,
-  renderError?: string,
-) => {
+const fixMermaidWithAI = async (chart: string, model?: string | null, renderError?: string) => {
   const modelToUse = model?.trim();
   if (!modelToUse) {
-    throw new Error(
-      "No model configured. Please select a default model in Provider Settings.",
-    );
+    throw new Error("No model configured. Please select a default model in Provider Settings.");
   }
   const client = getOpenAIClient();
   const response = await client.chat.completions.create({
@@ -157,10 +131,7 @@ const fixMermaidWithAI = async (
   return extractMermaidCode(content);
 };
 
-export const useMessageCardMermaidFix = (
-  messageId: string,
-  sessionId?: string | null,
-) => {
+export const useMessageCardMermaidFix = (messageId: string, sessionId?: string | null) => {
   // Use fast/cheap model for mermaid fix (lightweight syntax repair task)
   const fastModel = useFastModel();
 
@@ -176,32 +147,18 @@ export const useMessageCardMermaidFix = (
 
       const msg = currentChat.messages.find((m) => m.id === messageId);
       if (!isAssistantTextMessage(msg)) {
-        throw new Error(
-          "Mermaid fix is only available for assistant text messages",
-        );
+        throw new Error("Mermaid fix is only available for assistant text messages");
       }
 
-      const fixedChart = await fixMermaidWithAI(
-        chart,
-        fastModel,
-        renderError,
-      );
+      const fixedChart = await fixMermaidWithAI(chart, fastModel, renderError);
       if (!fixedChart) throw new Error("AI did not return a Mermaid fix");
 
-      const updatedContent = replaceMermaidBlock(
-        msg.content,
-        chart,
-        fixedChart,
-      );
+      const updatedContent = replaceMermaidBlock(msg.content, chart, fixedChart);
       if (!updatedContent) {
         throw new Error("Unable to locate Mermaid block to update");
       }
 
-      let patchMessageId = getBackendMessageId(
-        messageId,
-        msg,
-        currentChat.messages,
-      );
+      let patchMessageId = getBackendMessageId(messageId, msg, currentChat.messages);
       try {
         await agentClient.patchSessionMessage(targetSessionId, patchMessageId, {
           content: updatedContent,
@@ -219,9 +176,7 @@ export const useMessageCardMermaidFix = (
         });
 
         const refreshedState = useAppStore.getState();
-        const refreshedChat = refreshedState.chats.find(
-          (c) => c.id === targetSessionId,
-        );
+        const refreshedChat = refreshedState.chats.find((c) => c.id === targetSessionId);
         if (!refreshedChat) {
           throw error;
         }
@@ -236,11 +191,7 @@ export const useMessageCardMermaidFix = (
           throw error;
         }
 
-        patchMessageId = getBackendMessageId(
-          retryMessage.id,
-          retryMessage,
-          refreshedChat.messages,
-        );
+        patchMessageId = getBackendMessageId(retryMessage.id, retryMessage, refreshedChat.messages);
 
         await agentClient.patchSessionMessage(targetSessionId, patchMessageId, {
           content: updatedContent,

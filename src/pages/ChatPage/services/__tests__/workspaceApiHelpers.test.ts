@@ -36,26 +36,17 @@ describe("workspaceApiHelpers", () => {
     });
 
     it("should handle nested endpoints", () => {
-      const result = buildWorkspaceUrl(
-        "http://localhost:8080",
-        "/api/v1/workspaces",
-      );
+      const result = buildWorkspaceUrl("http://localhost:8080", "/api/v1/workspaces");
       expect(result).toBe("http://localhost:8080/api/v1/workspaces");
     });
 
     it("should handle base URL with path", () => {
-      const result = buildWorkspaceUrl(
-        "http://localhost:8080/backend",
-        "/api/test",
-      );
+      const result = buildWorkspaceUrl("http://localhost:8080/backend", "/api/test");
       expect(result).toBe("http://localhost:8080/backend/api/test");
     });
 
     it("should handle complex endpoints with query string format", () => {
-      const result = buildWorkspaceUrl(
-        "http://localhost:8080",
-        "/api/files?path=/home",
-      );
+      const result = buildWorkspaceUrl("http://localhost:8080", "/api/files?path=/home");
       expect(result).toBe("http://localhost:8080/api/files?path=/home");
     });
   });
@@ -88,10 +79,7 @@ describe("workspaceApiHelpers", () => {
     });
 
     it("should handle undefined query params", () => {
-      const result = appendQueryParams(
-        "http://localhost:8080/api",
-        undefined,
-      );
+      const result = appendQueryParams("http://localhost:8080/api", undefined);
       expect(result).toBe("http://localhost:8080/api");
     });
 
@@ -107,10 +95,9 @@ describe("workspaceApiHelpers", () => {
     });
 
     it("should preserve existing query params", () => {
-      const result = appendQueryParams(
-        "http://localhost:8080/api?existing=param",
-        { new: "value" },
-      );
+      const result = appendQueryParams("http://localhost:8080/api?existing=param", {
+        new: "value",
+      });
       expect(result).toContain("existing=param");
       expect(result).toContain("new=value");
     });
@@ -187,9 +174,7 @@ describe("workspaceApiHelpers", () => {
     });
 
     it("should run requests in batches of 5", async () => {
-      const requests = Array.from({ length: 10 }, (_, i) =>
-        Promise.resolve(i),
-      ).map((p) => () => p);
+      const requests = Array.from({ length: 10 }, (_, i) => Promise.resolve(i)).map((p) => () => p);
       const results = await runBatchRequests(requests);
       expect(results).toHaveLength(10);
     });
@@ -253,9 +238,7 @@ describe("workspaceApiHelpers", () => {
     });
 
     it("should handle more than 5 requests", async () => {
-      const requests = Array.from({ length: 7 }, (_, i) =>
-        Promise.resolve(i),
-      ).map((p) => () => p);
+      const requests = Array.from({ length: 7 }, (_, i) => Promise.resolve(i)).map((p) => () => p);
       const results = await runBatchRequests(requests);
       expect(results).toHaveLength(7);
       expect(results).toEqual([0, 1, 2, 3, 4, 5, 6]);
@@ -290,14 +273,10 @@ describe("workspaceApiHelpers", () => {
       const mockRequest = vi.fn().mockResolvedValue({});
       const file = new File(["content"], "test.txt");
 
-      await uploadWorkspaceFile(
-        mockRequest,
-        "http://localhost:8080",
-        "/upload",
-        {},
-        file,
-        { userId: "123", description: "test file" },
-      );
+      await uploadWorkspaceFile(mockRequest, "http://localhost:8080", "/upload", {}, file, {
+        userId: "123",
+        description: "test file",
+      });
 
       const callArgs = mockRequest.mock.calls[0];
       const formData = callArgs[1].body as FormData;
@@ -351,18 +330,9 @@ describe("workspaceApiHelpers", () => {
       const mockRequest = vi.fn().mockResolvedValue({});
       const file = new File(["content"], "test.txt");
 
-      await uploadWorkspaceFile(
-        mockRequest,
-        "http://localhost:8080",
-        "upload",
-        {},
-        file,
-      );
+      await uploadWorkspaceFile(mockRequest, "http://localhost:8080", "upload", {}, file);
 
-      expect(mockRequest).toHaveBeenCalledWith(
-        "http://localhost:8080/upload",
-        expect.any(Object),
-      );
+      expect(mockRequest).toHaveBeenCalledWith("http://localhost:8080/upload", expect.any(Object));
     });
 
     it("should preserve other custom headers", async () => {
@@ -413,11 +383,7 @@ describe("workspaceApiHelpers", () => {
     });
 
     it("should yield parsed JSON lines from stream", async () => {
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       const results = [];
       for await (const item of generator) {
@@ -463,11 +429,7 @@ describe("workspaceApiHelpers", () => {
         statusText: "Not Found",
       } as any);
 
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       await expect(async () => {
         for await (const _ of generator) {
@@ -482,11 +444,7 @@ describe("workspaceApiHelpers", () => {
         body: null,
       } as any);
 
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       await expect(async () => {
         for await (const _ of generator) {
@@ -504,9 +462,7 @@ describe("workspaceApiHelpers", () => {
               .fn()
               .mockResolvedValueOnce({
                 done: false,
-                value: new TextEncoder().encode(
-                  '{"data":"test"}\n\n  \n{"data":"test2"}',
-                ),
+                value: new TextEncoder().encode('{"data":"test"}\n\n  \n{"data":"test2"}'),
               })
               .mockResolvedValueOnce({ done: true, value: undefined }),
             releaseLock: vi.fn(),
@@ -514,11 +470,7 @@ describe("workspaceApiHelpers", () => {
         },
       } as any);
 
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       const results = [];
       for await (const item of generator) {
@@ -530,9 +482,7 @@ describe("workspaceApiHelpers", () => {
     });
 
     it("should warn and skip lines that fail to parse", async () => {
-      const consoleSpy = vi
-        .spyOn(console, "warn")
-        .mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
       vi.mocked(fetch).mockResolvedValueOnce({
         ok: true,
         body: {
@@ -541,9 +491,7 @@ describe("workspaceApiHelpers", () => {
               .fn()
               .mockResolvedValueOnce({
                 done: false,
-                value: new TextEncoder().encode(
-                  '{"valid":"json"}\ninvalid json\n{"also":"valid"}',
-                ),
+                value: new TextEncoder().encode('{"valid":"json"}\ninvalid json\n{"also":"valid"}'),
               })
               .mockResolvedValueOnce({ done: true, value: undefined }),
             releaseLock: vi.fn(),
@@ -551,11 +499,7 @@ describe("workspaceApiHelpers", () => {
         },
       } as any);
 
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       const results = [];
       for await (const item of generator) {
@@ -578,19 +522,13 @@ describe("workspaceApiHelpers", () => {
         ok: true,
         body: {
           getReader: () => ({
-            read: vi
-              .fn()
-              .mockResolvedValueOnce({ done: true, value: undefined }),
+            read: vi.fn().mockResolvedValueOnce({ done: true, value: undefined }),
             releaseLock,
           }),
         },
       } as any);
 
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       // Consume generator
       for await (const _ of generator) {
@@ -612,11 +550,7 @@ describe("workspaceApiHelpers", () => {
         },
       } as any);
 
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       try {
         for await (const _ of generator) {
@@ -654,11 +588,7 @@ describe("workspaceApiHelpers", () => {
         },
       } as any);
 
-      const generator = streamWorkspaceResponse(
-        "http://localhost:8080",
-        "/stream",
-        {},
-      );
+      const generator = streamWorkspaceResponse("http://localhost:8080", "/stream", {});
 
       const results = [];
       for await (const item of generator) {
@@ -666,11 +596,7 @@ describe("workspaceApiHelpers", () => {
       }
 
       expect(results).toHaveLength(3);
-      expect(results).toEqual([
-        { chunk: 1 },
-        { chunk: 2 },
-        { chunk: 3 },
-      ]);
+      expect(results).toEqual([{ chunk: 1 }, { chunk: 2 }, { chunk: 3 }]);
     });
   });
 });

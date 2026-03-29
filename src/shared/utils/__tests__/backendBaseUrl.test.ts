@@ -27,15 +27,11 @@ describe("backendBaseUrl", () => {
   });
 
   it("normalizes by trimming and removing trailing slashes", () => {
-    expect(normalizeBackendBaseUrl(" http://localhost:9562/v1/ ")).toBe(
-      "http://localhost:9562/v1",
-    );
+    expect(normalizeBackendBaseUrl(" http://localhost:9562/v1/ ")).toBe("http://localhost:9562/v1");
   });
 
   it("removes multiple trailing slashes", () => {
-    expect(normalizeBackendBaseUrl("http://localhost:9562/v1///")).toBe(
-      "http://localhost:9562/v1",
-    );
+    expect(normalizeBackendBaseUrl("http://localhost:9562/v1///")).toBe("http://localhost:9562/v1");
   });
 
   it("handles empty string", () => {

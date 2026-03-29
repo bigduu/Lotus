@@ -11,11 +11,9 @@ describe("chatSessionSlice utilities", () => {
   describe("safeRandomId", () => {
     it("should use crypto.randomUUID when available", () => {
       const mockUUID = "test-uuid-1234";
-      const cryptoSpy = vi
-        .spyOn(globalThis, "crypto", "get")
-        .mockReturnValue({
-          randomUUID: () => mockUUID,
-        } as any);
+      const cryptoSpy = vi.spyOn(globalThis, "crypto", "get").mockReturnValue({
+        randomUUID: () => mockUUID,
+      } as any);
 
       // The function is called during slice initialization or actions
       // We can test it indirectly by checking that IDs are generated
@@ -39,11 +37,9 @@ describe("chatSessionSlice utilities", () => {
     });
 
     it("should handle crypto.randomUUID throwing error", () => {
-      const cryptoSpy = vi
-        .spyOn(globalThis, "crypto", "get")
-        .mockImplementation(() => {
-          throw new Error("Crypto not available");
-        });
+      const cryptoSpy = vi.spyOn(globalThis, "crypto", "get").mockImplementation(() => {
+        throw new Error("Crypto not available");
+      });
 
       // Should not throw, should use fallback
       const fallbackId = `id_${Date.now()}_${Math.random().toString(16).slice(2)}`;

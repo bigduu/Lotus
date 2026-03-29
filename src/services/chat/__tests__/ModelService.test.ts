@@ -79,9 +79,7 @@ describe("ModelService", () => {
     );
 
     const service = ModelService.getInstance();
-    await expect(service.getModels()).rejects.toBeInstanceOf(
-      ProxyAuthRequiredError,
-    );
+    await expect(service.getModels()).rejects.toBeInstanceOf(ProxyAuthRequiredError);
   });
 
   it("maps proxy_auth_required error code to ProxyAuthRequiredError", async () => {

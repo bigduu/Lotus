@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  mcpService,
-  type McpServer,
-  type McpServerConfig,
-  type McpToolInfo,
-} from "@services/mcp";
+import { mcpService, type McpServer, type McpServerConfig, type McpToolInfo } from "@services/mcp";
 
 export type McpServerAction = "connect" | "disconnect" | "refresh" | "delete";
 
@@ -55,12 +50,9 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
-const getActionKey = (serverId: string, action: McpServerAction): string =>
-  `${serverId}:${action}`;
+const getActionKey = (serverId: string, action: McpServerAction): string => `${serverId}:${action}`;
 
-export const useMcpSettings = (
-  options: UseMcpSettingsOptions = {},
-): UseMcpSettingsResult => {
+export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSettingsResult => {
   const {
     service = mcpService,
     autoRefreshMs = DEFAULT_AUTO_REFRESH_MS,
@@ -68,18 +60,10 @@ export const useMcpSettings = (
   } = options;
 
   const [servers, setServers] = useState<McpServer[]>([]);
-  const [selectedServerId, setSelectedServerIdState] = useState<string | null>(
-    null,
-  );
-  const [toolsByServer, setToolsByServer] = useState<
-    Record<string, McpToolInfo[]>
-  >({});
-  const [toolLoadingByServer, setToolLoadingByServer] = useState<
-    Record<string, boolean>
-  >({});
-  const [actionLoadingMap, setActionLoadingMap] = useState<
-    Record<string, boolean>
-  >({});
+  const [selectedServerId, setSelectedServerIdState] = useState<string | null>(null);
+  const [toolsByServer, setToolsByServer] = useState<Record<string, McpToolInfo[]>>({});
+  const [toolLoadingByServer, setToolLoadingByServer] = useState<Record<string, boolean>>({});
+  const [actionLoadingMap, setActionLoadingMap] = useState<Record<string, boolean>>({});
   const [isLoadingServers, setIsLoadingServers] = useState(false);
   const [isMutatingConfig, setIsMutatingConfig] = useState(false);
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
@@ -274,9 +258,7 @@ export const useMcpSettings = (
         await service.disconnectServer(serverId);
         await refreshServers({ silent: true });
       } catch (disconnectError) {
-        setError(
-          toErrorMessage(disconnectError, "Failed to disconnect MCP server"),
-        );
+        setError(toErrorMessage(disconnectError, "Failed to disconnect MCP server"));
         throw disconnectError;
       } finally {
         setServerActionLoading(serverId, "disconnect", false);

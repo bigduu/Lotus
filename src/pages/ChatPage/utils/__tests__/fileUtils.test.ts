@@ -1,18 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  processFiles,
-  separateImageFiles,
-  summarizeAttachments,
-} from "../fileUtils";
+import { processFiles, separateImageFiles, summarizeAttachments } from "../fileUtils";
 import type { ProcessedFile } from "../fileUtils";
 
 // Helper to create mock files
-function createMockFile(
-  content: string,
-  name: string,
-  type: string,
-  lastModified?: number,
-): File {
+function createMockFile(content: string, name: string, type: string, lastModified?: number): File {
   return new File([content], name, { type, lastModified });
 }
 
@@ -191,11 +182,7 @@ describe("fileUtils", () => {
 
     it("respects custom limitBytes option", async () => {
       const smallFile = createMockFile("small", "small.txt", "text/plain");
-      const largeFile = createMockFile(
-        "a".repeat(1024),
-        "large.txt",
-        "text/plain",
-      );
+      const largeFile = createMockFile("a".repeat(1024), "large.txt", "text/plain");
 
       const { processed } = await processFiles([smallFile, largeFile], {
         limitBytes: 100,

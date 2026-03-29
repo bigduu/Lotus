@@ -3,11 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ModelLimitsSettings from "./ModelLimitsSettings";
 
-const {
-  mockGetBambooConfig,
-  mockGetModelLimitDefaults,
-  mockSetBambooConfig,
-} = vi.hoisted(() => ({
+const { mockGetBambooConfig, mockGetModelLimitDefaults, mockSetBambooConfig } = vi.hoisted(() => ({
   mockGetBambooConfig: vi.fn(),
   mockGetModelLimitDefaults: vi.fn(),
   mockSetBambooConfig: vi.fn(),
@@ -71,9 +67,7 @@ describe("ModelLimitsSettings", () => {
     render(<ModelLimitsSettings />);
     await screen.findByDisplayValue("custom-model");
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /reset to defaults|恢复默认/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /reset to defaults|恢复默认/i }));
 
     await waitFor(() => {
       expect(mockSetBambooConfig).toHaveBeenCalled();

@@ -15,8 +15,7 @@ export const readStoredProxyAuth = (): ProxyAuthCredentials | null => {
     if (!parsed || typeof parsed !== "object") {
       return null;
     }
-    const username =
-      typeof parsed.username === "string" ? parsed.username.trim() : "";
+    const username = typeof parsed.username === "string" ? parsed.username.trim() : "";
     const password = typeof parsed.password === "string" ? parsed.password : "";
 
     if (!username) {

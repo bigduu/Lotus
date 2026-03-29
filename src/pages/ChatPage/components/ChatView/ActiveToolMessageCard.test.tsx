@@ -1,10 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-  ActiveToolMessageCard,
-  type SessionDiffSummary,
-} from "./ActiveToolMessageCard";
+import { ActiveToolMessageCard, type SessionDiffSummary } from "./ActiveToolMessageCard";
 
 const SESSION_ID = "chat-diff-test";
 const STORAGE_KEY = `chat-session-diff-collapse:${SESSION_ID}`;
@@ -32,23 +29,19 @@ const SECOND_DIFF = [
   "+print('world')",
 ].join("\n");
 
-const createSummary = (
-  files?: SessionDiffSummary["files"],
-): SessionDiffSummary => ({
+const createSummary = (files?: SessionDiffSummary["files"]): SessionDiffSummary => ({
   totalAdded: 2,
   totalRemoved: 2,
   changedTools: 1,
-  files:
-    files ??
-    [
-      {
-        filePath: PRIMARY_FILE_PATH,
-        added: 2,
-        removed: 2,
-        unifiedDiff: PRIMARY_DIFF,
-        truncated: false,
-      },
-    ],
+  files: files ?? [
+    {
+      filePath: PRIMARY_FILE_PATH,
+      added: 2,
+      removed: 2,
+      unifiedDiff: PRIMARY_DIFF,
+      truncated: false,
+    },
+  ],
 });
 
 describe("ActiveToolMessageCard", () => {
@@ -74,9 +67,7 @@ describe("ActiveToolMessageCard", () => {
 
     unmount();
 
-    render(
-      <ActiveToolMessageCard sessionDiffSummary={summary} sessionId={SESSION_ID} />,
-    );
+    render(<ActiveToolMessageCard sessionDiffSummary={summary} sessionId={SESSION_ID} />);
 
     expect(screen.queryByTestId("session-diff-file-list")).not.toBeInTheDocument();
   });
@@ -90,12 +81,7 @@ describe("ActiveToolMessageCard", () => {
       }),
     );
 
-    render(
-      <ActiveToolMessageCard
-        sessionDiffSummary={createSummary()}
-        sessionId={SESSION_ID}
-      />,
-    );
+    render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
 
     expect(screen.getByTestId("session-diff-file-panel")).toBeInTheDocument();
 
@@ -107,9 +93,7 @@ describe("ActiveToolMessageCard", () => {
     expect((addLine as HTMLElement).dataset.kind).toBe("add");
     expect((removeLine as HTMLElement).dataset.kind).toBe("remove");
     expect((modifiedAddLine as HTMLElement).dataset.kind).toBe("modified_add");
-    expect((modifiedRemoveLine as HTMLElement).dataset.kind).toBe(
-      "modified_remove",
-    );
+    expect((modifiedRemoveLine as HTMLElement).dataset.kind).toBe("modified_remove");
 
     expect((addLine as HTMLElement).style.background).not.toBe("");
     expect((removeLine as HTMLElement).style.background).not.toBe("");
@@ -137,10 +121,7 @@ describe("ActiveToolMessageCard", () => {
     );
 
     const { rerender } = render(
-      <ActiveToolMessageCard
-        sessionDiffSummary={createSummary()}
-        sessionId={SESSION_ID}
-      />,
+      <ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />,
     );
 
     expect(screen.queryByTestId("session-diff-file-panel")).not.toBeInTheDocument();

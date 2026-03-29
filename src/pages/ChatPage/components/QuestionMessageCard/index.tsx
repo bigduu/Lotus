@@ -1,16 +1,5 @@
 import React, { memo, useState } from "react";
-import {
-  Card,
-  Button,
-  Typography,
-  Space,
-  Radio,
-  Alert,
-  Tag,
-  Flex,
-  Input,
-  theme,
-} from "antd";
+import { Card, Button, Typography, Space, Radio, Alert, Tag, Flex, Input, theme } from "antd";
 import {
   QuestionCircleOutlined,
   CheckCircleOutlined,
@@ -41,9 +30,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const [selectedAnswer, setSelectedAnswer] = useState<string | undefined>(
-    question.default,
-  );
+  const [selectedAnswer, setSelectedAnswer] = useState<string | undefined>(question.default);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -62,9 +49,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
   const getSeverityIcon = () => {
     switch (question.severity) {
       case "critical":
-        return (
-          <ExclamationCircleOutlined style={{ color: token.colorError }} />
-        );
+        return <ExclamationCircleOutlined style={{ color: token.colorError }} />;
       case "major":
         return <WarningOutlined style={{ color: token.colorWarning }} />;
       case "minor":
@@ -164,28 +149,19 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
                 hoverable={!disabled && !loading}
                 style={{
                   borderColor:
-                    selectedAnswer === option.value
-                      ? token.colorPrimary
-                      : token.colorBorder,
+                    selectedAnswer === option.value ? token.colorPrimary : token.colorBorder,
                   backgroundColor:
-                    selectedAnswer === option.value
-                      ? token.colorPrimaryBg
-                      : token.colorBgContainer,
+                    selectedAnswer === option.value ? token.colorPrimaryBg : token.colorBgContainer,
                   cursor: disabled || loading ? "not-allowed" : "pointer",
                 }}
-                onClick={() =>
-                  !disabled && !loading && setSelectedAnswer(option.value)
-                }
+                onClick={() => !disabled && !loading && setSelectedAnswer(option.value)}
               >
                 <Radio value={option.value} style={{ width: "100%" }}>
                   <Flex vertical>
                     <Flex align="center" gap={token.marginXS} wrap="wrap">
                       <Text strong>{option.label}</Text>
                       {option.value === question.default && (
-                        <Tag
-                          color="processing"
-                          style={{ marginLeft: token.marginXS }}
-                        >
+                        <Tag color="processing" style={{ marginLeft: token.marginXS }}>
                           {t("components.question.recommended")}
                         </Tag>
                       )}
@@ -212,8 +188,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           </Text>
           <Input.TextArea
             value={
-              selectedAnswer &&
-              !question.options.find((o) => o.value === selectedAnswer)
+              selectedAnswer && !question.options.find((o) => o.value === selectedAnswer)
                 ? selectedAnswer
                 : ""
             }

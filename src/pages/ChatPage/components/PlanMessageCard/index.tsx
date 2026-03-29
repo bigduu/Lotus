@@ -82,9 +82,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
         <Title level={5} style={{ marginBottom: token.marginXS }}>
           {t("components.plan.goal")}
         </Title>
-        <Paragraph style={{ fontSize: 15, marginBottom: 0 }}>
-          {plan.goal}
-        </Paragraph>
+        <Paragraph style={{ fontSize: 15, marginBottom: 0 }}>{plan.goal}</Paragraph>
       </Flex>
 
       {/* Steps Section */}
@@ -98,15 +96,13 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
           items={plan.steps.map((step) => ({
             title: (
               <Text strong>
-                {t("components.plan.stepTitle", { number: step.step_number })}:{" "}
-                {step.action}
+                {t("components.plan.stepTitle", { number: step.step_number })}: {step.action}
               </Text>
             ),
             description: (
               <Flex vertical>
                 <Paragraph style={{ marginBottom: token.marginXS }}>
-                  <Text type="secondary">{t("components.plan.reason")}:</Text>{" "}
-                  {step.reason}
+                  <Text type="secondary">{t("components.plan.reason")}:</Text> {step.reason}
                 </Paragraph>
                 <Space wrap>
                   <Text type="secondary">
@@ -120,8 +116,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
                 </Space>
                 <Flex style={{ marginTop: token.marginXS }}>
                   <Text type="secondary">
-                    <ClockCircleOutlined /> {t("components.plan.estimated")}:{" "}
-                    {step.estimated_time}
+                    <ClockCircleOutlined /> {t("components.plan.estimated")}: {step.estimated_time}
                   </Text>
                 </Flex>
               </Flex>
@@ -132,10 +127,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
       </Flex>
 
       {/* Metadata Section */}
-      <Space
-        direction="vertical"
-        style={{ width: "100%", marginBottom: token.marginLG }}
-      >
+      <Space direction="vertical" style={{ width: "100%", marginBottom: token.marginLG }}>
         <Flex align="center" gap={token.marginXS} wrap="wrap">
           <Text type="secondary">
             <ClockCircleOutlined /> {t("components.plan.totalEstimatedTime")}{" "}
@@ -197,9 +189,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
       <Space style={{ width: "100%", justifyContent: "flex-end" }}>
         {!refineMode ? (
           <>
-            <Button onClick={() => setRefineMode(true)}>
-              {t("components.plan.refinePlan")}
-            </Button>
+            <Button onClick={() => setRefineMode(true)}>{t("components.plan.refinePlan")}</Button>
             <Button type="primary" icon={<ThunderboltOutlined />} onClick={onExecute}>
               {t("components.plan.executePlan")}
             </Button>
@@ -207,11 +197,7 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
         ) : (
           <>
             <Button onClick={() => setRefineMode(false)}>{t("common.cancel")}</Button>
-            <Button
-              type="primary"
-              onClick={handleRefine}
-              disabled={!feedback.trim()}
-            >
+            <Button type="primary" onClick={handleRefine} disabled={!feedback.trim()}>
               {t("components.plan.sendFeedback")}
             </Button>
           </>

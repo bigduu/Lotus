@@ -37,6 +37,8 @@ import { SkillManager } from "../../../../components/Skill";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
 import ModelLimitsSettings from "../../ModelLimitsSettings";
 import type { AppLocale } from "../../../../shared/i18n/types";
+import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
+import { useExperienceModeStore, ADVANCED_ONLY_SETTINGS_TABS } from "../../../../shared/store/experienceModeStore";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -78,6 +80,9 @@ const SystemSettingsPage = ({
   );
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const showCopilotAskUserEnhancement = currentProvider === "copilot";
+  const activeTabKey = useSettingsViewStore((state) => state.activeTabKey);
+  const setActiveTabKey = useSettingsViewStore((state) => state.setActiveTabKey);
+  const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);
   const settingsHeaderTopOffsetPx = token.paddingSM;
 
   // Build grouped tab items
@@ -225,7 +230,8 @@ const SystemSettingsPage = ({
       >
         <Tabs
           tabPosition="left"
-          defaultActiveKey="provider"
+          activeKey={activeTabKey}
+          onChange={(nextKey) => setActiveTabKey(nextKey as typeof activeTabKey)}
           items={[
             // ── AI ──
             groupLabel("group-ai", t("settings.page.groups.ai")),
@@ -338,7 +344,18 @@ const SystemSettingsPage = ({
                 />
               ),
             },
-          ]}
+          ].filter((item) => {
+            // In simple mode, hide advanced-only tabs and their group headers
+            if (!isAdvancedMode && item.key && ADVANCED_ONLY_SETTINGS_TABS.has(item.key)) {
+              return false;
+            }
+            // Hide group headers that would be empty in simple mode
+            if (!isAdvancedMode) {
+              if (item.key === "group-security") return false; // masking + env-vars are advanced
+              if (item.key === "group-monitoring") return false; // metrics + sessions are advanced
+            }
+            return true;
+          })}
         />
       </Layout.Content>
     </Flex>

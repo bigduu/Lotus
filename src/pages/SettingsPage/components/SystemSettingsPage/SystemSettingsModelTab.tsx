@@ -1,15 +1,5 @@
 import React from "react";
-import {
-  Button,
-  Card,
-  Flex,
-  Input,
-  Select,
-  Space,
-  Spin,
-  Typography,
-  theme,
-} from "antd";
+import { Button, Card, Flex, Input, Select, Space, Spin, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
@@ -49,11 +39,7 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
   return (
     <Flex vertical gap={tabGap}>
       <Card size="small">
-        <Space
-          direction="vertical"
-          size={token.marginXS}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
           <Text strong>{t("settings.modelTab.selectModelTitle")}</Text>
           {isLoadingModels ? (
             <div style={{ textAlign: "center", padding: token.paddingMD }}>
@@ -72,21 +58,14 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
               optionFilterProp="children"
               options={models.map((m) => ({ label: m, value: m }))}
               filterOption={(input, option) =>
-                (option?.label ?? "")
-                  .toString()
-                  .toLowerCase()
-                  .includes(input.toLowerCase())
+                (option?.label ?? "").toString().toLowerCase().includes(input.toLowerCase())
               }
             />
           )}
         </Space>
       </Card>
       <Card size="small">
-        <Space
-          direction="vertical"
-          size={token.marginXS}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
           <Text strong>{t("settings.modelTab.backendApiBaseUrlTitle")}</Text>
           <Input
             placeholder={defaultBackendBaseUrl}
@@ -94,10 +73,7 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
             onChange={(event) => onBackendBaseUrlChange(event.target.value)}
           />
           <Flex justify="flex-end" gap={token.marginSM}>
-            <Button
-              disabled={!hasBackendOverride}
-              onClick={onResetBackendBaseUrl}
-            >
+            <Button disabled={!hasBackendOverride} onClick={onResetBackendBaseUrl}>
               {t("settings.modelTab.resetToDefault")}
             </Button>
             <Button

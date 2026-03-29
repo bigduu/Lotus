@@ -30,17 +30,15 @@ vi.mock("antd", async () => {
 
 vi.mock("../../store", () => ({
   useAppStore: Object.assign(
-    (selector: (state: typeof mockStoreState) => unknown) =>
-      selector(mockStoreState),
+    (selector: (state: typeof mockStoreState) => unknown) => selector(mockStoreState),
     {
       subscribe: vi.fn(() => vi.fn()), // Return unsubscribe function
       getState: vi.fn(() => mockStoreState),
       setState: vi.fn(),
     },
   ),
-  selectSessionById:
-    (sessionId: string | null) => (state: typeof mockStoreState) =>
-      sessionId ? state.chats.find((c: any) => c.id === sessionId) || null : null,
+  selectSessionById: (sessionId: string | null) => (state: typeof mockStoreState) =>
+    sessionId ? state.chats.find((c: any) => c.id === sessionId) || null : null,
 }));
 
 vi.mock("../ChatView/useChatViewMessages", () => ({

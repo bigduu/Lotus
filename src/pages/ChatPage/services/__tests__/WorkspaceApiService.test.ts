@@ -1,8 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import {
-  workspaceApiService,
-  useWorkspaceApiService,
-} from "../WorkspaceApiService";
+import { workspaceApiService, useWorkspaceApiService } from "../WorkspaceApiService";
 
 // Mock the apiClient module - must be inside factory function
 vi.mock("../../../../services/api", () => ({
@@ -42,8 +39,7 @@ describe("WorkspaceApiService", () => {
 
       mockApiClient.post.mockResolvedValueOnce(mockResult);
 
-      const result =
-        await workspaceApiService.validateWorkspacePath("/valid/workspace");
+      const result = await workspaceApiService.validateWorkspacePath("/valid/workspace");
 
       expect(mockApiClient.post).toHaveBeenCalledWith("workspace/validate", {
         path: "/valid/workspace",
@@ -155,7 +151,7 @@ describe("WorkspaceApiService", () => {
     it("should return available status when API is working", async () => {
       // Health check calls apiClient.get twice (once for health check, once in getRecent)
       mockApiClient.get
-        .mockResolvedValueOnce([])  // First call: health check
+        .mockResolvedValueOnce([]) // First call: health check
         .mockResolvedValueOnce([]); // Second call: getRecent
 
       const status = await workspaceApiService.getHealthStatus();
@@ -185,10 +181,7 @@ describe("WorkspaceApiService", () => {
       await service.getRecentWorkspaces();
 
       // Unified apiClient uses the global base URL with /v1 prefix
-      expect(mockApiClient.get).toHaveBeenCalledWith(
-        "workspace/recent",
-        expect.any(Object),
-      );
+      expect(mockApiClient.get).toHaveBeenCalledWith("workspace/recent", expect.any(Object));
     });
 
     it("should use default base URL when no custom URL provided", async () => {
@@ -198,10 +191,7 @@ describe("WorkspaceApiService", () => {
 
       await service.getRecentWorkspaces();
 
-      expect(mockApiClient.get).toHaveBeenCalledWith(
-        "workspace/recent",
-        expect.any(Object),
-      );
+      expect(mockApiClient.get).toHaveBeenCalledWith("workspace/recent", expect.any(Object));
     });
   });
 });

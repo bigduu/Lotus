@@ -67,9 +67,7 @@ describe("modelSlice", () => {
     expect(mockGetModels).not.toHaveBeenCalled();
     expect(harness.getState().models).toEqual([]);
     expect(harness.getState().selectedModel).toBeUndefined();
-    expect(harness.getState().modelsError).toBe(
-      "Complete setup to access all models",
-    );
+    expect(harness.getState().modelsError).toBe("Complete setup to access all models");
     expect(harness.getState().isLoadingModels).toBe(false);
   });
 
@@ -114,9 +112,7 @@ describe("modelSlice", () => {
   it("keeps existing models when proxy auth is required", async () => {
     const { ProxyAuthRequiredError } = await import("../../../services/ModelService");
     mockGetSetupStatus.mockResolvedValueOnce({ is_complete: true });
-    mockGetModels.mockRejectedValueOnce(
-      new ProxyAuthRequiredError("Proxy login needed"),
-    );
+    mockGetModels.mockRejectedValueOnce(new ProxyAuthRequiredError("Proxy login needed"));
     const harness = createSliceHarness<ModelSlice>(createModelSlice as any);
     harness.setState({
       models: ["existing-model"],

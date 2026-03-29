@@ -1,20 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Card,
-  List,
-  Typography,
-  Space,
-  Button,
-  Empty,
-  Spin,
-  theme,
-  Alert,
-} from "antd";
-import {
-  FileTextOutlined,
-  FolderOutlined,
-  ReloadOutlined,
-} from "@ant-design/icons";
+import { Card, List, Typography, Space, Button, Empty, Spin, theme, Alert } from "antd";
+import { FileTextOutlined, FolderOutlined, ReloadOutlined } from "@ant-design/icons";
 import { WorkspaceFileEntry } from "../../types/workspace";
 
 const { Text } = Typography;
@@ -66,15 +52,10 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         setActiveIndex((prev) =>
           filteredFiles.length === 0 ? 0 : (prev + 1) % filteredFiles.length,
         );
-      } else if (
-        event.key === "ArrowUp" ||
-        (event.key === "p" && event.ctrlKey)
-      ) {
+      } else if (event.key === "ArrowUp" || (event.key === "p" && event.ctrlKey)) {
         event.preventDefault();
         setActiveIndex((prev) =>
-          filteredFiles.length === 0
-            ? 0
-            : (prev - 1 + filteredFiles.length) % filteredFiles.length,
+          filteredFiles.length === 0 ? 0 : (prev - 1 + filteredFiles.length) % filteredFiles.length,
         );
       } else if (event.key === "Enter") {
         if (filteredFiles[activeIndex]) {
@@ -162,9 +143,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         ) : filteredFiles.length === 0 && !loading ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={
-              searchText ? "No matching files found" : "Directory is empty"
-            }
+            description={searchText ? "No matching files found" : "Directory is empty"}
           />
         ) : (
           <div ref={listContainerRef}>
@@ -178,27 +157,17 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
                   ref={index === activeIndex ? activeItemRef : undefined}
                   style={{
                     cursor: "pointer",
-                    backgroundColor:
-                      index === activeIndex
-                        ? token.colorPrimaryBg
-                        : "transparent",
+                    backgroundColor: index === activeIndex ? token.colorPrimaryBg : "transparent",
                     borderRadius: token.borderRadiusSM,
                     padding: `${token.paddingXXS}px ${token.paddingXS}px`,
                   }}
                 >
                   <Space size={token.marginXS} align="center">
-                    {file.is_directory ? (
-                      <FolderOutlined />
-                    ) : (
-                      <FileTextOutlined />
-                    )}
+                    {file.is_directory ? <FolderOutlined /> : <FileTextOutlined />}
                     <div>
                       <Text>{file.name}</Text>
                       <div>
-                        <Text
-                          type="secondary"
-                          style={{ fontSize: token.fontSizeSM }}
-                        >
+                        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                           {file.is_directory ? "Directory" : "File"}
                         </Text>
                       </div>

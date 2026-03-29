@@ -114,9 +114,7 @@ const inferMimeType = (
     case "jpeg":
       return "image/jpeg";
     default:
-      return typeof content === "string"
-        ? "text/plain"
-        : "application/octet-stream";
+      return typeof content === "string" ? "text/plain" : "application/octet-stream";
   }
 };
 
@@ -131,8 +129,7 @@ export class FileOperationsService {
       return {
         filename: "",
         success: false,
-        error:
-          error instanceof Error ? error.message : "Unknown error occurred",
+        error: error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   }

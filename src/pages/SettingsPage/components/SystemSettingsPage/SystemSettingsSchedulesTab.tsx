@@ -81,9 +81,7 @@ export default function SystemSettingsSchedulesTab() {
         title: t("settings.schedulesTab.columns.model"),
         key: "model",
         render: (_, row) => (
-          <Text type="secondary">
-            {row.run_config?.model ? String(row.run_config.model) : "-"}
-          </Text>
+          <Text type="secondary">{row.run_config?.model ? String(row.run_config.model) : "-"}</Text>
         ),
       },
       {
@@ -255,9 +253,7 @@ export default function SystemSettingsSchedulesTab() {
               const taskMessage = String(values.task_message || "").trim();
               const model = String(values.model || "").trim();
               if (autoExecute && !taskMessage) {
-                msgApi.error(
-                  t("settings.schedulesTab.taskMessageRequired"),
-                );
+                msgApi.error(t("settings.schedulesTab.taskMessageRequired"));
                 return;
               }
               await agentClient.createSchedule({
@@ -299,9 +295,7 @@ export default function SystemSettingsSchedulesTab() {
               rules={[
                 {
                   required: true,
-                  message: t(
-                    "settings.schedulesTab.validation.intervalRequired",
-                  ),
+                  message: t("settings.schedulesTab.validation.intervalRequired"),
                 },
               ]}
               style={{ width: 200 }}
@@ -371,9 +365,7 @@ export default function SystemSettingsSchedulesTab() {
       <Modal
         title={t("settings.schedulesTab.scheduleSessionsTitle")}
         open={sessionsModal.open}
-        onCancel={() =>
-          setSessionsModal((s) => ({ ...s, open: false, scheduleId: null }))
-        }
+        onCancel={() => setSessionsModal((s) => ({ ...s, open: false, scheduleId: null }))}
         footer={null}
       >
         {sessionsModal.loading ? (
@@ -482,9 +474,7 @@ export default function SystemSettingsSchedulesTab() {
               rules={[
                 {
                   required: true,
-                  message: t(
-                    "settings.schedulesTab.validation.intervalRequired",
-                  ),
+                  message: t("settings.schedulesTab.validation.intervalRequired"),
                 },
               ]}
               style={{ width: 220 }}

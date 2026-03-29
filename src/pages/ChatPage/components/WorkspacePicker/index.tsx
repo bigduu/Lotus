@@ -99,10 +99,7 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
         }
       />
 
-      <WorkspacePickerValidationStatus
-        result={validationStatus.result}
-        token={token}
-      />
+      <WorkspacePickerValidationStatus result={validationStatus.result} token={token} />
 
       {(showRecentWorkspaces || showSuggestions) && (
         <>

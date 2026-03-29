@@ -13,9 +13,7 @@ describe("messageCardFormatters", () => {
       });
 
       it("should return regular message unchanged", () => {
-        expect(formatUserToolCall("This is a regular message")).toBe(
-          "This is a regular message",
-        );
+        expect(formatUserToolCall("This is a regular message")).toBe("This is a regular message");
       });
 
       it("should handle string with / in the middle", () => {
@@ -47,16 +45,12 @@ describe("messageCardFormatters", () => {
 
     describe("MCP tool calls", () => {
       it("should format MCP tool call correctly", () => {
-        const result = formatUserToolCall(
-          "/mcp__filesystem__read_file /path/to/file",
-        );
+        const result = formatUserToolCall("/mcp__filesystem__read_file /path/to/file");
         expect(result).toBe("🔌 MCP filesystem/read_file: /path/to/file");
       });
 
       it("should handle MCP tool with complex server ID", () => {
-        const result = formatUserToolCall(
-          "/mcp__my_server__execute_tool argument",
-        );
+        const result = formatUserToolCall("/mcp__my_server__execute_tool argument");
         expect(result).toBe("🔌 MCP my_server/execute_tool: argument");
       });
 
@@ -66,12 +60,8 @@ describe("messageCardFormatters", () => {
       });
 
       it("should handle MCP tool with multiple spaces in description", () => {
-        const result = formatUserToolCall(
-          "/mcp__github__create_issue title with spaces",
-        );
-        expect(result).toBe(
-          "🔌 MCP github/create_issue: title with spaces",
-        );
+        const result = formatUserToolCall("/mcp__github__create_issue title with spaces");
+        expect(result).toBe("🔌 MCP github/create_issue: title with spaces");
       });
 
       it("should handle incomplete MCP format (missing second __)", () => {
@@ -92,12 +82,8 @@ describe("messageCardFormatters", () => {
 
     describe("edge cases", () => {
       it("should handle tool call with multiple spaces", () => {
-        const result = formatUserToolCall(
-          "/search  query   with    multiple     spaces",
-        );
-        expect(result).toBe(
-          "🔧 Search:  query   with    multiple     spaces",
-        );
+        const result = formatUserToolCall("/search  query   with    multiple     spaces");
+        expect(result).toBe("🔧 Search:  query   with    multiple     spaces");
       });
 
       it("should handle tool name with numbers", () => {
@@ -147,9 +133,7 @@ describe("messageCardFormatters", () => {
       });
 
       it("should format write_to_file tool", () => {
-        const result = formatUserToolCall(
-          "/write_to_file test.txt content here",
-        );
+        const result = formatUserToolCall("/write_to_file test.txt content here");
         expect(result).toBe("🔧 Write To File: test.txt content here");
       });
 
@@ -159,9 +143,7 @@ describe("messageCardFormatters", () => {
       });
 
       it("should format search_files tool", () => {
-        const result = formatUserToolCall(
-          "/search_files pattern *.ts --recursive",
-        );
+        const result = formatUserToolCall("/search_files pattern *.ts --recursive");
         expect(result).toBe("🔧 Search Files: pattern *.ts --recursive");
       });
     });

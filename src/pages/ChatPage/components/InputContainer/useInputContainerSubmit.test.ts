@@ -5,9 +5,7 @@ import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "../../types/workspace";
 import type { ProcessedFile } from "../../utils/fileUtils";
 
-const createWorkflow = (
-  overrides: Partial<WorkflowDraft> = {},
-): WorkflowDraft => ({
+const createWorkflow = (overrides: Partial<WorkflowDraft> = {}): WorkflowDraft => ({
   id: "workflow-1",
   name: "plan",
   content: "Workflow body",
@@ -16,18 +14,13 @@ const createWorkflow = (
   ...overrides,
 });
 
-const createWorkspaceFile = (
-  name: string,
-  path: string,
-): WorkspaceFileEntry => ({
+const createWorkspaceFile = (name: string, path: string): WorkspaceFileEntry => ({
   name,
   path,
   is_directory: false,
 });
 
-const createAttachment = (
-  overrides: Partial<ProcessedFile> = {},
-): ProcessedFile => {
+const createAttachment = (overrides: Partial<ProcessedFile> = {}): ProcessedFile => {
   const file = new File(["hello"], "hello.txt", { type: "text/plain" });
   return {
     id: "file-1",
@@ -103,12 +96,7 @@ describe("useInputContainerSubmit", () => {
     });
 
     expect(props.recordEntry).toHaveBeenCalledWith("plain reply");
-    expect(props.sendMessage).toHaveBeenCalledWith(
-      "plain reply",
-      undefined,
-      "medium",
-      undefined,
-    );
+    expect(props.sendMessage).toHaveBeenCalledWith("plain reply", undefined, "medium", undefined);
   });
 
   it("returns early for empty message with no attachments and no images", async () => {
@@ -142,12 +130,7 @@ describe("useInputContainerSubmit", () => {
       await result.current.handleSubmit("  ", [imageFile]);
     });
 
-    expect(props.sendMessage).toHaveBeenCalledWith(
-      "",
-      [imageFile],
-      "medium",
-      undefined,
-    );
+    expect(props.sendMessage).toHaveBeenCalledWith("", [imageFile], "medium", undefined);
   });
 
   it("adds workflow content when workflow token is matched", async () => {
@@ -291,12 +274,7 @@ describe("useInputContainerSubmit", () => {
       await result.current.handleSubmit("plain message");
     });
 
-    expect(props.sendMessage).toHaveBeenCalledWith(
-      "plain message",
-      undefined,
-      "medium",
-      undefined,
-    );
+    expect(props.sendMessage).toHaveBeenCalledWith("plain message", undefined, "medium", undefined);
   });
 
   it("sends attachment summary when message is empty but attachments exist", async () => {

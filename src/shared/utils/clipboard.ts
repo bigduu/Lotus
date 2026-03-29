@@ -47,13 +47,9 @@ export const copyText = async (text: string): Promise<void> => {
       return;
     } catch (fallbackError) {
       const navigatorMessage =
-        navigatorError instanceof Error
-          ? navigatorError.message
-          : String(navigatorError);
+        navigatorError instanceof Error ? navigatorError.message : String(navigatorError);
       const fallbackMessage =
-        fallbackError instanceof Error
-          ? fallbackError.message
-          : String(fallbackError);
+        fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
       throw new Error(
         `Clipboard copy failed: navigator(${navigatorMessage}); fallback(${fallbackMessage})`,
       );

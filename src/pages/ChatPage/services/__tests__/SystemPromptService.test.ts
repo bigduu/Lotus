@@ -1,16 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const {
-  mockAgentApiGet,
-  mockAgentApiPost,
-  mockAgentApiPatch,
-  mockAgentApiDelete,
-} = vi.hoisted(() => ({
-  mockAgentApiGet: vi.fn(),
-  mockAgentApiPost: vi.fn(),
-  mockAgentApiPatch: vi.fn(),
-  mockAgentApiDelete: vi.fn(),
-}));
+const { mockAgentApiGet, mockAgentApiPost, mockAgentApiPatch, mockAgentApiDelete } = vi.hoisted(
+  () => ({
+    mockAgentApiGet: vi.fn(),
+    mockAgentApiPost: vi.fn(),
+    mockAgentApiPatch: vi.fn(),
+    mockAgentApiDelete: vi.fn(),
+  }),
+);
 
 vi.mock("../../../../services/api", () => ({
   agentApiClient: {
@@ -150,17 +147,12 @@ describe("SystemPromptService", () => {
     } as UserSystemPrompt);
     await service.deleteSystemPromptPreset("id with/slash");
 
-    expect(mockAgentApiPatch).toHaveBeenCalledWith(
-      "prompt-presets/id%20with%2Fslash",
-      {
-        name: "Updated",
-        content: "updated body",
-        description: undefined,
-      },
-    );
-    expect(mockAgentApiDelete).toHaveBeenCalledWith(
-      "prompt-presets/id%20with%2Fslash",
-    );
+    expect(mockAgentApiPatch).toHaveBeenCalledWith("prompt-presets/id%20with%2Fslash", {
+      name: "Updated",
+      content: "updated body",
+      description: undefined,
+    });
+    expect(mockAgentApiDelete).toHaveBeenCalledWith("prompt-presets/id%20with%2Fslash");
     expect(updated).toEqual({
       id: "id with/slash",
       name: "Updated",
@@ -193,8 +185,6 @@ describe("SystemPromptService", () => {
       ],
     });
 
-    await expect(service.getCurrentSystemPromptContent("missing")).resolves.toBe(
-      "default-content",
-    );
+    await expect(service.getCurrentSystemPromptContent("missing")).resolves.toBe("default-content");
   });
 });

@@ -32,10 +32,7 @@ const formatDuration = (durationMs: number | null | undefined): string => {
   return `${seconds}s`;
 };
 
-const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
-  summary,
-  loading,
-}) => {
+const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({ summary, loading }) => {
   const { t } = useTranslation();
   const { token } = useToken();
 
@@ -45,9 +42,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({
 
   const successRate =
     summary && summary.total_requests > 0
-      ? ((summary.successful_requests / summary.total_requests) * 100).toFixed(
-          1,
-        )
+      ? ((summary.successful_requests / summary.total_requests) * 100).toFixed(1)
       : "0.0";
 
   return (

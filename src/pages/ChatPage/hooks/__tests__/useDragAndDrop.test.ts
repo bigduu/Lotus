@@ -18,18 +18,14 @@ describe("useDragAndDrop", () => {
   describe("initial state", () => {
     it("should initialize with isDragOver false", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles }));
 
       expect(result.current.isDragOver).toBe(false);
     });
 
     it("should return handler functions", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles }));
 
       expect(typeof result.current.handleDragOver).toBe("function");
       expect(typeof result.current.handleDragLeave).toBe("function");
@@ -38,9 +34,7 @@ describe("useDragAndDrop", () => {
 
     it("should default to images mode", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles }));
 
       // Test behavior - in images mode, it checks hasImageFiles
       const mockEvent = {
@@ -62,9 +56,7 @@ describe("useDragAndDrop", () => {
   describe("handleDragOver - images mode", () => {
     it("should prevent default and stop propagation", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -84,9 +76,7 @@ describe("useDragAndDrop", () => {
 
     it("should set isDragOver to true when images are present", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -105,9 +95,7 @@ describe("useDragAndDrop", () => {
 
     it("should not set isDragOver when no images are present", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -128,9 +116,7 @@ describe("useDragAndDrop", () => {
   describe("handleDragOver - any mode", () => {
     it("should set isDragOver to true when any files are present", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -149,9 +135,7 @@ describe("useDragAndDrop", () => {
 
     it("should not set isDragOver when no files are present", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -170,9 +154,7 @@ describe("useDragAndDrop", () => {
 
     it("should handle missing dataTransfer", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -191,9 +173,7 @@ describe("useDragAndDrop", () => {
   describe("handleDragLeave", () => {
     it("should prevent default and stop propagation", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -210,9 +190,7 @@ describe("useDragAndDrop", () => {
 
     it("should set isDragOver to false", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       // First, set isDragOver to true
       const dragOverEvent = {
@@ -246,9 +224,7 @@ describe("useDragAndDrop", () => {
   describe("handleDrop - images mode", () => {
     it("should prevent default and stop propagation", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -268,9 +244,7 @@ describe("useDragAndDrop", () => {
 
     it("should set isDragOver to false", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       // First, set isDragOver to true
       const dragOverEvent = {
@@ -305,9 +279,7 @@ describe("useDragAndDrop", () => {
 
     it("should call onFiles with extracted images", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const imageFile = new File(["image"], "test.png", { type: "image/png" });
       const mockEvent = {
@@ -327,9 +299,7 @@ describe("useDragAndDrop", () => {
 
     it("should not call onFiles when no images are dropped", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -348,9 +318,7 @@ describe("useDragAndDrop", () => {
 
     it("should handle multiple images", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const image1 = new File(["image1"], "test1.png", { type: "image/png" });
       const image2 = new File(["image2"], "test2.jpg", { type: "image/jpeg" });
@@ -373,9 +341,7 @@ describe("useDragAndDrop", () => {
   describe("handleDrop - any mode", () => {
     it("should call onFiles with all dropped files", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const textFile = new File(["text"], "test.txt", { type: "text/plain" });
       const pdfFile = new File(["pdf"], "test.pdf", { type: "application/pdf" });
@@ -396,9 +362,7 @@ describe("useDragAndDrop", () => {
 
     it("should not call onFiles when no files are dropped", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -417,9 +381,7 @@ describe("useDragAndDrop", () => {
 
     it("should handle missing files property", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -438,10 +400,9 @@ describe("useDragAndDrop", () => {
   describe("callback stability", () => {
     it("should update handlers when mode changes", () => {
       const onFiles = vi.fn();
-      const { result, rerender } = renderHook(
-        ({ mode }) => useDragAndDrop({ onFiles, mode }),
-        { initialProps: { mode: "images" as const } },
-      );
+      const { result, rerender } = renderHook(({ mode }) => useDragAndDrop({ onFiles, mode }), {
+        initialProps: { mode: "images" as const },
+      });
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -506,9 +467,7 @@ describe("useDragAndDrop", () => {
   describe("edge cases", () => {
     it("should handle rapid drag over/drag leave cycles", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const dragOverEvent = {
         preventDefault: vi.fn(),
@@ -538,9 +497,7 @@ describe("useDragAndDrop", () => {
 
     it("should handle drop without prior drag over", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "images" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "images" }));
 
       const imageFile = new File(["image"], "test.png", { type: "image/png" });
       const mockEvent = {
@@ -561,9 +518,7 @@ describe("useDragAndDrop", () => {
 
     it("should handle empty FileList", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),
@@ -582,9 +537,7 @@ describe("useDragAndDrop", () => {
 
     it("should handle dataTransfer with undefined files", () => {
       const onFiles = vi.fn();
-      const { result } = renderHook(() =>
-        useDragAndDrop({ onFiles, mode: "any" }),
-      );
+      const { result } = renderHook(() => useDragAndDrop({ onFiles, mode: "any" }));
 
       const mockEvent = {
         preventDefault: vi.fn(),

@@ -1,0 +1,132 @@
+/* ──────────────────────────────────────────────
+   SessionSummaryCard · compact session overview
+   ────────────────────────────────────────────── */
+
+.lotus-session-summary {
+  border: 1px solid var(--lotus-summary-border, rgba(0, 0, 0, 0.06));
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--lotus-summary-bg, rgba(0, 0, 0, 0.02));
+  overflow: hidden;
+  transition: border-color 0.2s ease;
+}
+
+.lotus-session-summary:hover {
+  border-color: var(--lotus-summary-hover-border, rgba(0, 0, 0, 0.12));
+}
+
+/* ── Header ───────────────────────────────── */
+
+.lotus-session-summary-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.lotus-session-summary-header-icon {
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.lotus-session-summary-header-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lotus-session-summary-toggle {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.lotus-session-summary-toggle.is-expanded {
+  transform: rotate(180deg);
+}
+
+/* ── Body ─────────────────────────────────── */
+
+.lotus-session-summary-body {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: lotus-summary-fade-in 0.2s ease;
+}
+
+@keyframes lotus-summary-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Stats mini grid ──────────────────────── */
+
+.lotus-session-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.lotus-session-summary-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.lotus-session-summary-stat-icon {
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+
+.lotus-session-summary-stat-value {
+  font-weight: 600;
+}
+
+/* ── File changes ─────────────────────────── */
+
+.lotus-session-summary-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.lotus-session-summary-file-tag {
+  font-size: 11px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Mini conclusion ──────────────────────── */
+
+.lotus-session-summary-conclusion {
+  font-size: 12px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

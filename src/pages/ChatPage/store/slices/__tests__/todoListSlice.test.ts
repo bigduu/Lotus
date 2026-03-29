@@ -1,10 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  createTaskListSlice,
-  type TaskList,
-  type TaskListSlice,
-} from "../todoListSlice";
+import { createTaskListSlice, type TaskList, type TaskListSlice } from "../todoListSlice";
 import { createSliceHarness } from "./sliceHarness";
 
 const makeTaskList = (version = 1): TaskList => ({
@@ -81,9 +77,7 @@ describe("taskListSlice", () => {
     });
     expect(harness.getState().activeItems["session-1"]).toBe("item-1");
     expect(harness.getState().taskListVersions["session-1"]).toBe(4);
-    expect(harness.getState().taskLists["session-1"]?.updated_at).toBe(
-      "2026-01-02T00:00:00.000Z",
-    );
+    expect(harness.getState().taskLists["session-1"]?.updated_at).toBe("2026-01-02T00:00:00.000Z");
     expect(harness.getState().taskLists["session-1"]?.items[0]).toMatchObject({
       status: "in_progress",
       tool_calls_count: 2,

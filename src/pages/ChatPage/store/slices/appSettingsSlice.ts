@@ -10,12 +10,7 @@ export interface SessionSlice {
   cancelCurrentRequest: () => void;
 }
 
-export const createSessionSlice: StateCreator<
-  AppState,
-  [],
-  [],
-  SessionSlice
-> = (set, get) => ({
+export const createSessionSlice: StateCreator<AppState, [], [], SessionSlice> = (set, get) => ({
   // Initial state
   currentRequestController: null,
 

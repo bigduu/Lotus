@@ -30,10 +30,7 @@ describe("SettingsService", () => {
     await expect(settingsService.saveProviderConfig(config)).resolves.toBeUndefined();
 
     expect(mockApiClient.get).toHaveBeenCalledWith("/bamboo/settings/provider");
-    expect(mockApiClient.post).toHaveBeenCalledWith(
-      "/bamboo/settings/provider",
-      config,
-    );
+    expect(mockApiClient.post).toHaveBeenCalledWith("/bamboo/settings/provider", config);
   });
 
   it("calls Copilot auth endpoints", async () => {
@@ -72,48 +69,25 @@ describe("SettingsService", () => {
     await expect(service.authenticateCopilot()).resolves.toBeUndefined();
     await expect(service.logoutCopilot()).resolves.toBeUndefined();
 
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      1,
-      "/bamboo/settings/reload",
-    );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      2,
-      "/bamboo/copilot/auth/status",
-    );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      3,
-      "/bamboo/copilot/auth/start",
-    );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      4,
-      "/bamboo/copilot/auth/complete",
-      {
-        device_code: "dev",
-        interval: 5,
-        expires_in: 900,
-      },
-    );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      5,
-      "/bamboo/copilot/authenticate",
-    );
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(
-      6,
-      "/bamboo/copilot/logout",
-    );
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(1, "/bamboo/settings/reload");
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(2, "/bamboo/copilot/auth/status");
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(3, "/bamboo/copilot/auth/start");
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(4, "/bamboo/copilot/auth/complete", {
+      device_code: "dev",
+      interval: 5,
+      expires_in: 900,
+    });
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(5, "/bamboo/copilot/authenticate");
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(6, "/bamboo/copilot/logout");
   });
 
   it("fetches provider models from backend", async () => {
     const service = new SettingsService();
     mockApiClient.post.mockResolvedValueOnce({ models: ["gpt-5", "gpt-4.1"] });
 
-    await expect(service.fetchProviderModels("openai")).resolves.toEqual([
-      "gpt-5",
-      "gpt-4.1",
-    ]);
-    expect(mockApiClient.post).toHaveBeenCalledWith(
-      "/bamboo/settings/provider/models",
-      { provider: "openai" },
-    );
+    await expect(service.fetchProviderModels("openai")).resolves.toEqual(["gpt-5", "gpt-4.1"]);
+    expect(mockApiClient.post).toHaveBeenCalledWith("/bamboo/settings/provider/models", {
+      provider: "openai",
+    });
   });
 });

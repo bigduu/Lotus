@@ -6,10 +6,7 @@ interface DragAndDropOptions {
   mode?: "images" | "any";
 }
 
-export const useDragAndDrop = ({
-  onFiles,
-  mode = "images",
-}: DragAndDropOptions) => {
+export const useDragAndDrop = ({ onFiles, mode = "images" }: DragAndDropOptions) => {
   const [isDragOver, setIsDragOver] = useState(false);
 
   const handleDragOver = useCallback(
@@ -17,9 +14,7 @@ export const useDragAndDrop = ({
       e.preventDefault();
       e.stopPropagation();
       const hasAllowedFiles =
-        mode === "images"
-          ? hasImageFiles(e.dataTransfer)
-          : e.dataTransfer?.files?.length > 0;
+        mode === "images" ? hasImageFiles(e.dataTransfer) : e.dataTransfer?.files?.length > 0;
       if (hasAllowedFiles) setIsDragOver(true);
     },
     [mode],

@@ -6,11 +6,7 @@ interface PasteHandlerOptions {
   allowImages: boolean;
 }
 
-export const usePasteHandler = ({
-  onImages,
-  onAttachments,
-  allowImages,
-}: PasteHandlerOptions) => {
+export const usePasteHandler = ({ onImages, onAttachments, allowImages }: PasteHandlerOptions) => {
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
       if (!e.clipboardData) return;

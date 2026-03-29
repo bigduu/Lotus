@@ -1,6 +1,8 @@
 import React, { useCallback, useRef } from "react";
-import { Checkbox, Divider, Flex, Layout } from "antd";
+import { Checkbox, Flex, Layout, Tag, Typography } from "antd";
+import { InboxOutlined } from "@ant-design/icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useTranslation } from "react-i18next";
 
 import SystemMessageCard from "../SystemMessageCard";
 import MessageCard from "../MessageCard";
@@ -10,7 +12,16 @@ import type { RenderableEntry, ConvertedEntry } from "./useChatViewMessages";
 import type { ChatItem } from "../../types/chat";
 
 const { Content } = Layout;
+const { Text } = Typography;
 const VIRTUALIZATION_THRESHOLD = 24;
+
+const getCompressionTimeLabel = (createdAt: string): string => {
+  const parsed = new Date(createdAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return createdAt;
+  }
+  return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
 
 type InteractionState = {
   matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
@@ -67,6 +78,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   selectableMessageIds,
   onToggleMessageSelection,
 }) => {
+  const { t } = useTranslation();
   // Keep a ref-stable copy of the latest renderableMessages length
   // so the getItemKey callback doesn't trigger virtualizer resets.
   const messagesRef = useRef(renderableMessages);
@@ -115,10 +127,37 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     const convertedEntry = convertRenderableEntry(entry);
 
     if (convertedEntry.type === "compression_divider") {
+      const timeLabel = getCompressionTimeLabel(convertedEntry.createdAt);
       return (
-        <Divider plain style={{ margin: "6px 0 10px 0" }}>
-          {convertedEntry.label}
-        </Divider>
+        <div
+          role="note"
+          aria-label={t("chat.compression.timelineAria", {
+            detail: convertedEntry.label,
+            time: timeLabel,
+            defaultValue: "{{detail}} at {{time}}",
+          })}
+          style={{
+            margin: "6px 0 10px 0",
+            borderRadius: 10,
+            border: "1px solid rgba(250, 173, 20, 0.45)",
+            background: "rgba(250, 173, 20, 0.12)",
+            padding: screens.xs ? "8px 10px" : "10px 12px",
+          }}
+        >
+          <Flex align="center" justify="space-between" gap={8} wrap>
+            <Flex align="center" gap={8} wrap>
+              <Tag color="gold" icon={<InboxOutlined />}>
+                {t("chat.compression.tag", "Context compressed")}
+              </Tag>
+              <Text strong style={{ fontSize: 12 }}>
+                {convertedEntry.label}
+              </Text>
+            </Flex>
+            <Text type="secondary" style={{ fontSize: 11 }}>
+              {timeLabel}
+            </Text>
+          </Flex>
+        </div>
       );
     }
 

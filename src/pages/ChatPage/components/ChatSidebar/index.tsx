@@ -1,8 +1,6 @@
 import React, { useEffect } from "react";
-import { Flex, theme } from "antd";
-import { MenuFoldOutlined } from "@ant-design/icons";
-import { Button } from "antd";
-import { Grid } from "antd";
+import { Button, Flex, Grid, Input, Segmented, theme } from "antd";
+import { MenuFoldOutlined, SearchOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import SystemPromptSelector from "../SystemPromptSelector";
@@ -34,12 +32,17 @@ export const ChatSidebar: React.FC = () => {
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
+    handleSearchQueryChange,
+    handleStatusFilterChange,
     handleSystemPromptSelect,
+    hasActiveFilters,
     isNewChatSelectorOpen,
     pinSession,
+    searchQuery,
     selectSession,
     setCollapsed,
     sortedDateKeys,
+    statusFilter,
     systemPrompts,
     titleGenerationState,
     unpinSession,
@@ -95,13 +98,48 @@ export const ChatSidebar: React.FC = () => {
 
       <Flex
         vertical
+        gap="small"
+        style={{
+          flexShrink: 0,
+          padding: "10px 12px 8px 12px",
+        }}
+      >
+        <Input
+          allowClear
+          value={searchQuery}
+          onChange={(event) => handleSearchQueryChange(event.target.value)}
+          prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
+          placeholder={t("chat.sidebar.searchPlaceholder", "Search sessions")}
+          aria-label={t("chat.sidebar.searchPlaceholder", "Search sessions")}
+          size={screens.xs ? "middle" : "large"}
+          style={{
+            borderRadius: token.borderRadiusLG,
+          }}
+        />
+
+        <Segmented
+          block
+          size={screens.xs ? "middle" : "small"}
+          value={statusFilter}
+          onChange={(value) => handleStatusFilterChange(value as typeof statusFilter)}
+          options={[
+            { label: t("chat.sidebar.filters.all", "All"), value: "all" },
+            { label: t("chat.sidebar.filters.pinned", "Pinned"), value: "pinned" },
+            { label: t("chat.sidebar.filters.running", "Running"), value: "running" },
+            { label: t("chat.sidebar.filters.child", "Child"), value: "child" },
+          ]}
+        />
+      </Flex>
+
+      <Flex
+        vertical
         role="list"
         aria-label={t("chat.sidebar.chatList", "Chat list")}
         style={{
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          padding: "10px 12px 0 12px",
+          padding: "0 12px 0 12px",
         }}
       >
         <ChatSidebarDateGroups
@@ -122,6 +160,7 @@ export const ChatSidebar: React.FC = () => {
           onGenerateTitle={handleGenerateTitle}
           titleGenerationState={titleGenerationState}
           token={token}
+          hasActiveFilters={hasActiveFilters}
         />
       </Flex>
 

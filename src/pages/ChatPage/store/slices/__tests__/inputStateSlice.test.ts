@@ -58,9 +58,7 @@ describe("inputStateSlice", () => {
     expect(harness.getState().inputStates["session-1"]?.attachments).toHaveLength(1);
 
     expect(
-      JSON.parse(
-        localStorage.getItem("chat_input_reasoning_by_session_v1") || "{}",
-      ),
+      JSON.parse(localStorage.getItem("chat_input_reasoning_by_session_v1") || "{}"),
     ).toMatchObject({
       "session-1": "xhigh",
     });
@@ -97,17 +95,13 @@ describe("inputStateSlice", () => {
       question: "q1",
     });
 
-    harness
-      .getState()
-      .clearPendingQuestionRespondForSession("session-2");
+    harness.getState().clearPendingQuestionRespondForSession("session-2");
     expect(harness.getState().pendingQuestionRespond).toMatchObject({
       sessionId: "session-1",
       question: "q1",
     });
 
-    harness
-      .getState()
-      .clearPendingQuestionRespondForSession("session-1");
+    harness.getState().clearPendingQuestionRespondForSession("session-1");
     expect(harness.getState().pendingQuestionRespond).toBeNull();
   });
 });

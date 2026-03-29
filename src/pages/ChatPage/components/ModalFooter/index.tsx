@@ -31,12 +31,7 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
     className,
     style: {
       width: "100%",
-      justifyContent:
-        align === "left"
-          ? "flex-start"
-          : align === "center"
-            ? "center"
-            : "flex-end",
+      justifyContent: align === "left" ? "flex-start" : align === "center" ? "center" : "flex-end",
       ...style,
     },
   };
@@ -62,10 +57,7 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
 };
 
 // Predefined common button configurations
-export const createCancelButton = (
-  onCancel: () => void,
-  text?: string,
-): ModalFooterButton => {
+export const createCancelButton = (onCancel: () => void, text?: string): ModalFooterButton => {
   return {
     key: "cancel",
     text: text || "Cancel",

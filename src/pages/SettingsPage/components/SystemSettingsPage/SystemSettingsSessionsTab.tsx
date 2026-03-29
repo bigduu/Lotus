@@ -167,9 +167,7 @@ export default function SystemSettingsSessionsTab() {
       </Card>
 
       <Card size="small" title={t("settings.sessionsTab.devResetTitle")}>
-        <Text type="secondary">
-          {t("settings.sessionsTab.devResetDescription")}
-        </Text>
+        <Text type="secondary">{t("settings.sessionsTab.devResetDescription")}</Text>
         <Flex style={{ marginTop: 12 }}>
           <Button
             danger

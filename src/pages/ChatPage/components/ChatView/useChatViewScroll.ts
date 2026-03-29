@@ -44,8 +44,7 @@ export const useChatViewScroll = ({
         setShowScrollToTop(false);
         return;
       }
-      const distanceFromBottom =
-        el.scrollHeight - el.scrollTop - el.clientHeight;
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       const scrollTop = el.scrollTop;
       // 使用统一的阈值：距离底部 150px 以内都视为"在底部"
       const bottomThreshold = 150;
@@ -123,19 +122,13 @@ export const useChatViewScroll = ({
             ? targetEntry.id
             : messageId;
 
-      const messageElement = document.getElementById(
-        `message-${targetElementId}`,
-      );
+      const messageElement = document.getElementById(`message-${targetElementId}`);
       const entryElements = Array.from(
-        messagesListRef.current?.querySelectorAll<HTMLElement>(
-          "[data-chat-entry-id]",
-        ) || [],
+        messagesListRef.current?.querySelectorAll<HTMLElement>("[data-chat-entry-id]") || [],
       );
       const targetElement =
         messageElement ||
-        entryElements.find(
-          (node) => node.dataset.chatEntryId === targetElementId,
-        );
+        entryElements.find((node) => node.dataset.chatEntryId === targetElementId);
 
       if (!targetElement) {
         console.warn("Message element not found for navigation:", messageId);
@@ -149,15 +142,9 @@ export const useChatViewScroll = ({
       }, 2000);
     };
 
-    window.addEventListener(
-      "navigate-to-message",
-      handleMessageNavigation as EventListener,
-    );
+    window.addEventListener("navigate-to-message", handleMessageNavigation as EventListener);
     return () => {
-      window.removeEventListener(
-        "navigate-to-message",
-        handleMessageNavigation as EventListener,
-      );
+      window.removeEventListener("navigate-to-message", handleMessageNavigation as EventListener);
     };
   }, [renderableMessages]);
 
@@ -209,8 +196,7 @@ export const useChatViewScroll = ({
     const checkPosition = () => {
       const scrollEl = messagesListRef.current;
       if (!scrollEl) return;
-      const distanceFromBottom =
-        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+      const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
       const scrollTop = scrollEl.scrollTop;
       const bottomThreshold = 150;
       const topThreshold = 150;

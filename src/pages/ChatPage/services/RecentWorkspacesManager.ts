@@ -5,10 +5,7 @@
 import type { WorkspaceServiceOptions } from "@services/workspace";
 import { WorkspaceService, workspaceService } from "@services/workspace";
 
-export {
-  WorkspaceService as RecentWorkspacesManager,
-  workspaceService as recentWorkspacesManager,
-};
+export { WorkspaceService as RecentWorkspacesManager, workspaceService as recentWorkspacesManager };
 
 export type {
   Workspace as WorkspaceInfo,

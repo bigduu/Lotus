@@ -17,9 +17,7 @@ export const formatUserToolCall = (toolCall: string): string => {
     }
   }
 
-  const friendlyToolName = toolName
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (l) => l.toUpperCase());
+  const friendlyToolName = toolName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 
   return `🔧 ${friendlyToolName}: ${description}`;
 };

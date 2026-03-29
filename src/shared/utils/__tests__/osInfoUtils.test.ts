@@ -1,9 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  detectOS,
-  getOSDisplayName,
-  getOSInfoEnhancementPrompt,
-} from "../osInfoUtils";
+import { detectOS, getOSDisplayName, getOSInfoEnhancementPrompt } from "../osInfoUtils";
 
 describe("osInfoUtils", () => {
   beforeEach(() => {

@@ -8,6 +8,7 @@ import {
   theme,
   Flex,
   Space,
+  Tag,
   Tooltip,
   Typography,
 } from "antd";
@@ -16,6 +17,7 @@ import {
   CloseOutlined,
   DownOutlined,
   DownloadOutlined,
+  InboxOutlined,
   UpOutlined,
 } from "@ant-design/icons";
 
@@ -27,6 +29,10 @@ import { TodoList } from "@components/TodoList";
 import { QuestionDialog } from "@components/QuestionDialog";
 import { TokenUsageDisplay } from "../TokenUsageDisplay";
 import { SubSessionsPanel } from "./SubSessionsPanel";
+import { ContextBar } from "../ContextBar";
+import { ExecutionStatusRail } from "../ExecutionStatusRail";
+import { SessionSummaryCard } from "../SessionSummaryCard";
+import { useExperienceModeStore } from "@shared/store/experienceModeStore";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
 import type { WorkflowDraft } from "../InputContainer";
@@ -89,6 +95,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 }) => {
   const { message: appMessage } = AntApp.useApp();
   const { t } = useTranslation();
+  const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);
   const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(sessionId));
   const deleteMessage = useAppStore((state) => state.deleteMessage);
@@ -332,7 +339,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const hasMessages = currentMessages.length > 0;
   const hasWorkflowDraft = Boolean(workflowDraft?.content);
   const hasSystemPrompt = Boolean(systemPromptMessage);
-  const showMessagesView = sessionId && (hasMessages || hasSystemPrompt || hasWorkflowDraft);
+  const showMessagesView = Boolean(sessionId) && (hasMessages || hasWorkflowDraft);
 
   // In split-pane mode, the PaneShell shows floating split/close buttons at the top-right.
   // Reserve some horizontal space so token usage (also top-right) isn't covered on hover.
@@ -517,6 +524,18 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const storeSegments = sessionId ? segmentsRemoved[sessionId] : 0;
   const configSegments = currentChat?.config?.segmentsRemoved;
   const currentSegmentsRemoved = storeSegments || configSegments || 0;
+  const latestCompressionEvent = useMemo(() => {
+    const events = currentChat?.config?.compressionEvents;
+    if (!events || events.length === 0) return null;
+
+    return events.reduce((latest, event) => {
+      const latestTs = Date.parse(latest.createdAt);
+      const eventTs = Date.parse(event.createdAt);
+      if (!Number.isFinite(latestTs)) return event;
+      if (!Number.isFinite(eventTs)) return latest;
+      return eventTs > latestTs ? event : latest;
+    });
+  }, [currentChat?.config?.compressionEvents]);
 
   const rowGap = token.marginMD;
 
@@ -545,6 +564,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const shouldShowSelectionToolbar =
     Boolean(showMessagesView) && hasSelectableMessages && (!embedded || selectionMode);
+  const compressionIndicator = latestCompressionEvent ? (
+    <Tooltip
+      title={t("chat.compression.tooltip", {
+        count: latestCompressionEvent.messagesCompressed,
+        time: getMessageTimeLabel(latestCompressionEvent.createdAt),
+        defaultValue: "Latest compression at {{time}}: {{count}} messages archived",
+      })}
+    >
+      <Tag
+        color="gold"
+        icon={<InboxOutlined />}
+        style={{ marginInlineEnd: 0, whiteSpace: "nowrap" }}
+      >
+        {t("chat.compression.archivedShort", {
+          count: latestCompressionEvent.messagesCompressed,
+          defaultValue: "{{count}} archived",
+        })}
+      </Tag>
+    </Tooltip>
+  ) : null;
   const tokenUsageIndicator =
     currentTokenUsage && currentTokenUsage.budgetLimit > 0 ? (
       <div
@@ -566,6 +605,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
             ({currentSegmentsRemoved} truncated)
           </span>
         )}
+        {compressionIndicator}
+      </div>
+    ) : compressionIndicator ? (
+      <div
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: token.marginXS,
+        }}
+      >
+        {compressionIndicator}
       </div>
     ) : null;
 
@@ -590,6 +640,26 @@ export const ChatView: React.FC<ChatViewProps> = ({
           height: "100%",
         }}
       >
+        {/* ContextBar - persistent context overview */}
+        {sessionId && <ContextBar sessionId={sessionId} />}
+
+        {/* SessionSummaryCard - collapsible session overview (advanced mode only) */}
+        {isAdvancedMode && sessionId && showMessagesView && (
+          <div
+            style={{
+              paddingTop: token.paddingXS,
+              paddingRight: getContainerPadding(),
+              paddingBottom: 0,
+              paddingLeft: getContainerPadding(),
+              maxWidth: getContainerMaxWidth(),
+              margin: "0 auto",
+              width: "100%",
+            }}
+          >
+            <SessionSummaryCard sessionId={sessionId} />
+          </div>
+        )}
+
         {/* TaskList - show when there is an active agent session */}
         {agentSessionId && hasTaskList && (
           <div
@@ -749,6 +819,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
             )}
           </div>
         )}
+
+        {/* ExecutionStatusRail - unified status bar above input */}
+        {sessionId && <ExecutionStatusRail sessionId={sessionId} />}
 
         {/* QuestionDialog - show above input area when there's an active agent session */}
         {agentSessionId && (

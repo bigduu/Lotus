@@ -138,4 +138,3 @@ export const useBambooConfigStore = create<BambooConfigStoreState>((set, get) =>
     await get().loadProxyAuthStatus({ force: true });
   },
 }));
-

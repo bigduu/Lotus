@@ -77,9 +77,9 @@ describe("mermaidRenderManager", () => {
 
     const manager = await loadRenderManager();
 
-    await expect(
-      manager.renderMermaidCached("invalid-key", "graph TD\nA-->B"),
-    ).rejects.toThrow("rect widths < 0");
+    await expect(manager.renderMermaidCached("invalid-key", "graph TD\nA-->B")).rejects.toThrow(
+      "rect widths < 0",
+    );
 
     expect(manager.getCacheStats()).toEqual({ cacheSize: 0, inFlightSize: 0 });
   });
@@ -106,10 +106,7 @@ describe("mermaidRenderManager", () => {
       .mockReturnValue(rect);
 
     const manager = await loadRenderManager();
-    const result = await manager.renderMermaidCached(
-      "fallback-key",
-      "graph TD\nA-->B",
-    );
+    const result = await manager.renderMermaidCached("fallback-key", "graph TD\nA-->B");
 
     expect(result.width).toBe(432);
     expect(result.height).toBe(210);
@@ -171,9 +168,9 @@ describe("mermaidRenderManager", () => {
     const manager = await loadRenderManager();
     const beforeCount = document.body.childElementCount;
 
-    await expect(
-      manager.renderMermaidCached("render-error", "graph TD\nA-->B"),
-    ).rejects.toThrow("render failed");
+    await expect(manager.renderMermaidCached("render-error", "graph TD\nA-->B")).rejects.toThrow(
+      "render failed",
+    );
 
     expect(document.body.childElementCount).toBe(beforeCount);
     expect(manager.getCacheStats()).toEqual({ cacheSize: 0, inFlightSize: 0 });

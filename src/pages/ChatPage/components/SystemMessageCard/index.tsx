@@ -16,10 +16,7 @@ interface SystemMessageCardProps {
   message: Message;
 }
 
-const SystemMessageCardComponent: React.FC<SystemMessageCardProps> = ({
-  currentChat,
-  message,
-}) => {
+const SystemMessageCardComponent: React.FC<SystemMessageCardProps> = ({ currentChat, message }) => {
   const { token } = useToken();
   const systemPrompts = useAppStore((state) => state.systemPrompts);
 
@@ -50,18 +47,10 @@ const SystemMessageCardComponent: React.FC<SystemMessageCardProps> = ({
         boxShadow: "none",
       }}
     >
-      <Space
-        direction="vertical"
-        size={token.marginSM}
-        style={{ width: "100%" }}
-      >
+      <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
         <Flex justify="space-between" align="center">
           <Flex align="center" gap={token.marginXS}>
-            <Text
-              type="secondary"
-              strong
-              style={{ fontSize: token.fontSizeSM }}
-            >
+            <Text type="secondary" strong style={{ fontSize: token.fontSizeSM }}>
               System Prompt
             </Text>
           </Flex>
@@ -78,11 +67,7 @@ const SystemMessageCardComponent: React.FC<SystemMessageCardProps> = ({
               </Button>
             ) : null}
             {basePrompt && showEnhanced ? (
-              <Button
-                type="text"
-                size="small"
-                onClick={() => setShowEnhanced(false)}
-              >
+              <Button type="text" size="small" onClick={() => setShowEnhanced(false)}>
                 View Base
               </Button>
             ) : null}

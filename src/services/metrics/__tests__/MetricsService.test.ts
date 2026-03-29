@@ -142,9 +142,7 @@ describe("MetricsService", () => {
       expect.objectContaining({ method: "GET" }),
     );
 
-    await expect(service.getSessionDetail("session-2")).rejects.toThrow(
-      "bad request",
-    );
+    await expect(service.getSessionDetail("session-2")).rejects.toThrow("bad request");
   });
 
   it("calls v2 endpoints and omits empty query values", async () => {

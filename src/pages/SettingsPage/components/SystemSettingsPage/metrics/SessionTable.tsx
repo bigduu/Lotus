@@ -58,11 +58,7 @@ const statusColor = (status: SessionMetrics["status"]): string => {
   }
 };
 
-const SessionTable: React.FC<SessionTableProps> = ({
-  sessions,
-  loading,
-  onSelectSession,
-}) => {
+const SessionTable: React.FC<SessionTableProps> = ({ sessions, loading, onSelectSession }) => {
   const { t } = useTranslation();
   const columns: ColumnsType<SessionMetrics> = [
     {
@@ -87,9 +83,7 @@ const SessionTable: React.FC<SessionTableProps> = ({
       dataIndex: "status",
       key: "status",
       width: 120,
-      render: (value: SessionMetrics["status"]) => (
-        <Tag color={statusColor(value)}>{value}</Tag>
-      ),
+      render: (value: SessionMetrics["status"]) => <Tag color={statusColor(value)}>{value}</Tag>,
     },
     {
       title: t("settings.metricsTable.session.columns.started"),
@@ -98,8 +92,7 @@ const SessionTable: React.FC<SessionTableProps> = ({
       render: (value: string) => formatDateTime(value),
       width: 200,
       sorter: (left, right) =>
-        new Date(left.started_at).getTime() -
-        new Date(right.started_at).getTime(),
+        new Date(left.started_at).getTime() - new Date(right.started_at).getTime(),
       defaultSortOrder: "descend",
     },
     {
@@ -112,12 +105,10 @@ const SessionTable: React.FC<SessionTableProps> = ({
     {
       title: t("settings.metricsTable.session.columns.tokens"),
       key: "tokens",
-      render: (_, record) =>
-        record.total_token_usage.total_tokens.toLocaleString(),
+      render: (_, record) => record.total_token_usage.total_tokens.toLocaleString(),
       width: 120,
       sorter: (left, right) =>
-        left.total_token_usage.total_tokens -
-        right.total_token_usage.total_tokens,
+        left.total_token_usage.total_tokens - right.total_token_usage.total_tokens,
     },
     {
       title: t("settings.metricsTable.session.columns.toolCalls"),

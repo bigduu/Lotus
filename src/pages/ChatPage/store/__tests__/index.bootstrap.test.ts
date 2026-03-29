@@ -17,12 +17,8 @@ const loadStoreContext = async () => {
 
   const storeModule = await import("../index");
   const { AgentClient } = await import("../../services/AgentService");
-  const { serviceFactory } = await import(
-    "../../../../services/common/ServiceFactory"
-  );
-  const { useBambooConfigStore } = await import(
-    "../../../../shared/stores/bambooConfigStore"
-  );
+  const { serviceFactory } = await import("../../../../services/common/ServiceFactory");
+  const { useBambooConfigStore } = await import("../../../../shared/stores/bambooConfigStore");
 
   return {
     ...storeModule,
@@ -50,9 +46,7 @@ describe("store/index bootstrap and scheduling", () => {
     const { useAppStore, AgentClient } = await loadStoreContext();
     const client = AgentClient.getInstance();
     const deferred = createDeferred<boolean>();
-    const healthCheckSpy = vi
-      .spyOn(client, "healthCheck")
-      .mockReturnValue(deferred.promise);
+    const healthCheckSpy = vi.spyOn(client, "healthCheck").mockReturnValue(deferred.promise);
 
     const first = useAppStore.getState().checkAgentAvailability();
     const second = useAppStore.getState().checkAgentAvailability();
@@ -102,19 +96,12 @@ describe("store/index bootstrap and scheduling", () => {
   it("refreshSessionsIndex swallows refresh errors as best effort", async () => {
     const { useAppStore } = await loadStoreContext();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const refreshChatsSpy = vi
-      .fn()
-      .mockRejectedValue(new Error("backend temporarily unavailable"));
+    const refreshChatsSpy = vi.fn().mockRejectedValue(new Error("backend temporarily unavailable"));
     useAppStore.setState({ refreshChats: refreshChatsSpy } as any);
 
-    await expect(
-      useAppStore.getState().refreshSessionsIndex(),
-    ).resolves.toBeUndefined();
+    await expect(useAppStore.getState().refreshSessionsIndex()).resolves.toBeUndefined();
 
-    expect(warnSpy).toHaveBeenCalledWith(
-      "[AppStore] refreshChats failed:",
-      expect.any(Error),
-    );
+    expect(warnSpy).toHaveBeenCalledWith("[AppStore] refreshChats failed:", expect.any(Error));
   });
 
   it("startSessionsIndexSync schedules one timer and triggers immediate refresh", async () => {
@@ -132,12 +119,8 @@ describe("store/index bootstrap and scheduling", () => {
   });
 
   it("initializeStore applies stored proxy auth in auto mode and returns early when already initialized", async () => {
-    const {
-      initializeStore,
-      useAppStore,
-      serviceFactory,
-      useBambooConfigStore,
-    } = await loadStoreContext();
+    const { initializeStore, useAppStore, serviceFactory, useBambooConfigStore } =
+      await loadStoreContext();
     const startAgentHealthCheckSpy = vi.fn();
     const startSessionsIndexSyncSpy = vi.fn();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
@@ -152,12 +135,8 @@ describe("store/index bootstrap and scheduling", () => {
       loadSystemPrompts: loadSystemPromptsSpy,
     } as any);
 
-    const loadConfigSpy = vi
-      .fn()
-      .mockResolvedValue({ proxy_auth_mode: "auto" });
-    const loadProxyAuthStatusSpy = vi
-      .fn()
-      .mockResolvedValue({ configured: false, username: null });
+    const loadConfigSpy = vi.fn().mockResolvedValue({ proxy_auth_mode: "auto" });
+    const loadProxyAuthStatusSpy = vi.fn().mockResolvedValue({ configured: false, username: null });
     useBambooConfigStore.setState({
       loadConfig: loadConfigSpy,
       loadProxyAuthStatus: loadProxyAuthStatusSpy,
@@ -187,12 +166,8 @@ describe("store/index bootstrap and scheduling", () => {
   });
 
   it("initializeStore does not gate model bootstrap when required mode is already configured", async () => {
-    const {
-      initializeStore,
-      useAppStore,
-      serviceFactory,
-      useBambooConfigStore,
-    } = await loadStoreContext();
+    const { initializeStore, useAppStore, serviceFactory, useBambooConfigStore } =
+      await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
     const loadSystemPromptsSpy = vi.fn().mockResolvedValue(undefined);
@@ -203,9 +178,7 @@ describe("store/index bootstrap and scheduling", () => {
       loadSystemPrompts: loadSystemPromptsSpy,
     } as any);
 
-    const loadConfigSpy = vi
-      .fn()
-      .mockResolvedValue({ proxy_auth_mode: "required" });
+    const loadConfigSpy = vi.fn().mockResolvedValue({ proxy_auth_mode: "required" });
     const loadProxyAuthStatusSpy = vi
       .fn()
       .mockResolvedValue({ configured: true, username: "user" });
@@ -226,12 +199,8 @@ describe("store/index bootstrap and scheduling", () => {
   });
 
   it("initializeStore gates models when required mode has no configured or stored auth", async () => {
-    const {
-      initializeStore,
-      useAppStore,
-      serviceFactory,
-      useBambooConfigStore,
-    } = await loadStoreContext();
+    const { initializeStore, useAppStore, serviceFactory, useBambooConfigStore } =
+      await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
     const loadSystemPromptsSpy = vi.fn().mockResolvedValue(undefined);
@@ -246,12 +215,8 @@ describe("store/index bootstrap and scheduling", () => {
       isLoadingModels: true,
     } as any);
 
-    const loadConfigSpy = vi
-      .fn()
-      .mockResolvedValue({ proxy_auth_mode: "required" });
-    const loadProxyAuthStatusSpy = vi
-      .fn()
-      .mockResolvedValue({ configured: false, username: null });
+    const loadConfigSpy = vi.fn().mockResolvedValue({ proxy_auth_mode: "required" });
+    const loadProxyAuthStatusSpy = vi.fn().mockResolvedValue({ configured: false, username: null });
     useBambooConfigStore.setState({
       loadConfig: loadConfigSpy,
       loadProxyAuthStatus: loadProxyAuthStatusSpy,
@@ -267,20 +232,14 @@ describe("store/index bootstrap and scheduling", () => {
     expect(useAppStore.getState().models).toEqual([]);
     expect(useAppStore.getState().selectedModel).toBeUndefined();
     expect(useAppStore.getState().isLoadingModels).toBe(false);
-    expect(useAppStore.getState().modelsError).toContain(
-      "Proxy auth mode is set to required",
-    );
+    expect(useAppStore.getState().modelsError).toContain("Proxy auth mode is set to required");
     expect(loadChatsSpy).toHaveBeenCalledTimes(1);
     expect(loadSystemPromptsSpy).toHaveBeenCalledTimes(1);
   });
 
   it("initializeStore applies stored auth in required mode and continues bootstrap", async () => {
-    const {
-      initializeStore,
-      useAppStore,
-      serviceFactory,
-      useBambooConfigStore,
-    } = await loadStoreContext();
+    const { initializeStore, useAppStore, serviceFactory, useBambooConfigStore } =
+      await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
     const loadSystemPromptsSpy = vi.fn().mockResolvedValue(undefined);
@@ -294,9 +253,7 @@ describe("store/index bootstrap and scheduling", () => {
 
     useBambooConfigStore.setState({
       loadConfig: vi.fn().mockResolvedValue({ proxy_auth_mode: "required" }),
-      loadProxyAuthStatus: vi
-        .fn()
-        .mockResolvedValue({ configured: false, username: null }),
+      loadProxyAuthStatus: vi.fn().mockResolvedValue({ configured: false, username: null }),
     } as any);
 
     localStorage.setItem(
@@ -320,12 +277,8 @@ describe("store/index bootstrap and scheduling", () => {
   });
 
   it("initializeStore logs and continues when applying stored auth fails", async () => {
-    const {
-      initializeStore,
-      useAppStore,
-      serviceFactory,
-      useBambooConfigStore,
-    } = await loadStoreContext();
+    const { initializeStore, useAppStore, serviceFactory, useBambooConfigStore } =
+      await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
     const loadSystemPromptsSpy = vi.fn().mockResolvedValue(undefined);
@@ -343,9 +296,7 @@ describe("store/index bootstrap and scheduling", () => {
       PROXY_AUTH_STORAGE_KEY,
       JSON.stringify({ username: "alice", password: "secret" }),
     );
-    vi.spyOn(serviceFactory, "setProxyAuth").mockRejectedValue(
-      new Error("boom"),
-    );
+    vi.spyOn(serviceFactory, "setProxyAuth").mockRejectedValue(new Error("boom"));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await initializeStore(true);
@@ -360,8 +311,7 @@ describe("store/index bootstrap and scheduling", () => {
   });
 
   it("initializeStore logs gate evaluation failures and still loads models", async () => {
-    const { initializeStore, useAppStore, useBambooConfigStore } =
-      await loadStoreContext();
+    const { initializeStore, useAppStore, useBambooConfigStore } = await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
     const loadSystemPromptsSpy = vi.fn().mockResolvedValue(undefined);
@@ -389,8 +339,7 @@ describe("store/index bootstrap and scheduling", () => {
 
   it("initializeStore starts periodic checks outside test mode", async () => {
     vi.stubEnv("MODE", "development");
-    const { initializeStore, useAppStore, useBambooConfigStore } =
-      await loadStoreContext();
+    const { initializeStore, useAppStore, useBambooConfigStore } = await loadStoreContext();
     const startAgentHealthCheckSpy = vi.fn();
     const startSessionsIndexSyncSpy = vi.fn();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);

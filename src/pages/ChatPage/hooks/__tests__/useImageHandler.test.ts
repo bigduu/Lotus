@@ -568,10 +568,9 @@ describe("useImageHandler", () => {
 
       vi.mocked(processImageFiles).mockResolvedValue([mockImage]);
 
-      const { result, rerender } = renderHook(
-        ({ allowImages }) => useImageHandler(allowImages),
-        { initialProps: { allowImages: true } },
-      );
+      const { result, rerender } = renderHook(({ allowImages }) => useImageHandler(allowImages), {
+        initialProps: { allowImages: true },
+      });
 
       // Process with allowImages=true
       await act(async () => {

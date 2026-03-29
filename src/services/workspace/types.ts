@@ -34,13 +34,7 @@ export interface PathSuggestion {
   path: string;
   name: string;
   description?: string;
-  suggestion_type:
-    | "recent"
-    | "common"
-    | "home"
-    | "documents"
-    | "desktop"
-    | "downloads";
+  suggestion_type: "recent" | "common" | "home" | "documents" | "desktop" | "downloads";
 }
 
 /**

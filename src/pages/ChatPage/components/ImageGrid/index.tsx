@@ -58,8 +58,7 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
                 style={{
                   width: "100%",
                   height: "auto",
-                  maxHeight:
-                    images.length === 1 ? maxHeight.single : maxHeight.multiple,
+                  maxHeight: images.length === 1 ? maxHeight.single : maxHeight.multiple,
                   objectFit: "cover",
                 }}
                 preview={{
@@ -107,9 +106,7 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
                     }}
                   >
                     {(image.size / 1024).toFixed(1)} KB
-                    {image.width &&
-                      image.height &&
-                      ` • ${image.width}×${image.height}`}
+                    {image.width && image.height && ` • ${image.width}×${image.height}`}
                   </Text>
                 )}
               </Flex>
@@ -126,15 +123,11 @@ export const ImageGrid: React.FC<ImageGridProps> = ({
                       label: t("components.imageGrid.ocr"),
                       children: (
                         <>
-                          {image.ocrError && (
-                            <Text type="danger">{image.ocrError}</Text>
-                          )}
+                          {image.ocrError && <Text type="danger">{image.ocrError}</Text>}
                           {image.ocrText && (
                             <Typography.Paragraph
                               style={{
-                                marginTop: image.ocrError
-                                  ? token.marginXS
-                                  : 0,
+                                marginTop: image.ocrError ? token.marginXS : 0,
                                 marginBottom: 0,
                                 whiteSpace: "pre-wrap",
                               }}

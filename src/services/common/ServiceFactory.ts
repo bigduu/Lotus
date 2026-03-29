@@ -81,17 +81,12 @@ export interface UtilityService {
   /**
    * Validate a Bamboo config patch without saving.
    */
-  validateBambooConfigPatch(
-    patch: BambooConfig,
-  ): Promise<ValidateBambooConfigResponse>;
+  validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse>;
 
   /**
    * Set proxy auth credentials
    */
-  setProxyAuth(auth: {
-    username: string;
-    password: string;
-  }): Promise<ApiSuccessResponse>;
+  setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse>;
 
   /**
    * Get proxy auth status (returns whether proxy auth is configured, without password)
@@ -114,9 +109,7 @@ export interface UtilityService {
   /**
    * Set Anthropic model mapping
    */
-  setAnthropicModelMapping(
-    mapping: AnthropicModelMapping,
-  ): Promise<AnthropicModelMapping>;
+  setAnthropicModelMapping(mapping: AnthropicModelMapping): Promise<AnthropicModelMapping>;
 
   /**
    * Reset Bamboo config (delete config.json)
@@ -131,10 +124,7 @@ export interface UtilityService {
   /**
    * Workflow management
    */
-  saveWorkflow(
-    name: string,
-    content: string,
-  ): Promise<{ success: boolean; path: string }>;
+  saveWorkflow(name: string, content: string): Promise<{ success: boolean; path: string }>;
   deleteWorkflow(name: string): Promise<ApiSuccessResponse>;
 
   /**
@@ -205,19 +195,11 @@ class HttpUtilityService implements Partial<UtilityService> {
     return apiClient.post<BambooConfig>("bamboo/config", config);
   }
 
-  async validateBambooConfigPatch(
-    patch: BambooConfig,
-  ): Promise<ValidateBambooConfigResponse> {
-    return apiClient.post<ValidateBambooConfigResponse>(
-      "bamboo/config/validate",
-      patch,
-    );
+  async validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse> {
+    return apiClient.post<ValidateBambooConfigResponse>("bamboo/config/validate", patch);
   }
 
-  async setProxyAuth(auth: {
-    username: string;
-    password: string;
-  }): Promise<ApiSuccessResponse> {
+  async setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse> {
     return apiClient.post<ApiSuccessResponse>("bamboo/proxy-auth", auth);
   }
 
@@ -245,42 +227,30 @@ class HttpUtilityService implements Partial<UtilityService> {
 
   async getAnthropicModelMapping(): Promise<AnthropicModelMapping> {
     try {
-      return await apiClient.get<AnthropicModelMapping>(
-        "bamboo/anthropic-model-mapping",
-      );
+      return await apiClient.get<AnthropicModelMapping>("bamboo/anthropic-model-mapping");
     } catch (error) {
       console.error("Failed to fetch Anthropic model mapping:", error);
       return { mappings: {} };
     }
   }
 
-  async setAnthropicModelMapping(
-    mapping: AnthropicModelMapping,
-  ): Promise<AnthropicModelMapping> {
-    return apiClient.post<AnthropicModelMapping>(
-      "bamboo/anthropic-model-mapping",
-      mapping,
-    );
+  async setAnthropicModelMapping(mapping: AnthropicModelMapping): Promise<AnthropicModelMapping> {
+    return apiClient.post<AnthropicModelMapping>("bamboo/anthropic-model-mapping", mapping);
   }
 
   async resetBambooConfig(): Promise<ApiSuccessResponse> {
     return apiClient.post<ApiSuccessResponse>("bamboo/config/reset", {});
   }
 
-  async saveWorkflow(
-    name: string,
-    content: string,
-  ): Promise<{ success: boolean; path: string }> {
-    return apiClient.post<{ success: boolean; path: string }>(
-      "bamboo/workflows",
-      { name, content },
-    );
+  async saveWorkflow(name: string, content: string): Promise<{ success: boolean; path: string }> {
+    return apiClient.post<{ success: boolean; path: string }>("bamboo/workflows", {
+      name,
+      content,
+    });
   }
 
   async deleteWorkflow(name: string): Promise<ApiSuccessResponse> {
-    return apiClient.delete<ApiSuccessResponse>(
-      `bamboo/workflows/${encodeURIComponent(name)}`,
-    );
+    return apiClient.delete<ApiSuccessResponse>(`bamboo/workflows/${encodeURIComponent(name)}`);
   }
 
   async getKeywordMaskingConfig(): Promise<{
@@ -371,22 +341,18 @@ export class ServiceFactory {
   getUtilityService(): UtilityService {
     // All utility services are HTTP/web based.
     return {
-      copyToClipboard: (text: string) =>
-        this.httpUtilityService.copyToClipboard(text),
+      copyToClipboard: (text: string) => this.httpUtilityService.copyToClipboard(text),
       getBambooConfig: () => this.httpUtilityService.getBambooConfig(),
       getBambooTools: () => this.httpUtilityService.getBambooTools(),
-      getModelLimitDefaults: () =>
-        this.httpUtilityService.getModelLimitDefaults(),
-      setBambooConfig: (config: BambooConfig) =>
-        this.httpUtilityService.setBambooConfig(config),
+      getModelLimitDefaults: () => this.httpUtilityService.getModelLimitDefaults(),
+      setBambooConfig: (config: BambooConfig) => this.httpUtilityService.setBambooConfig(config),
       validateBambooConfigPatch: (patch: BambooConfig) =>
         this.httpUtilityService.validateBambooConfigPatch(patch),
       setProxyAuth: (auth: { username: string; password: string }) =>
         this.httpUtilityService.setProxyAuth(auth),
       getProxyAuthStatus: () => this.httpUtilityService.getProxyAuthStatus(),
       clearProxyAuth: () => this.httpUtilityService.clearProxyAuth(),
-      getAnthropicModelMapping: () =>
-        this.httpUtilityService.getAnthropicModelMapping(),
+      getAnthropicModelMapping: () => this.httpUtilityService.getAnthropicModelMapping(),
       setAnthropicModelMapping: (mapping: AnthropicModelMapping) =>
         this.httpUtilityService.setAnthropicModelMapping(mapping),
       resetBambooConfig: () => this.httpUtilityService.resetBambooConfig(),
@@ -394,15 +360,12 @@ export class ServiceFactory {
       // Workflow management
       saveWorkflow: (name: string, content: string) =>
         this.httpUtilityService.saveWorkflow(name, content),
-      deleteWorkflow: (name: string) =>
-        this.httpUtilityService.deleteWorkflow(name),
+      deleteWorkflow: (name: string) => this.httpUtilityService.deleteWorkflow(name),
       // Keyword masking
-      getKeywordMaskingConfig: () =>
-        this.httpUtilityService.getKeywordMaskingConfig(),
+      getKeywordMaskingConfig: () => this.httpUtilityService.getKeywordMaskingConfig(),
       updateKeywordMaskingConfig: (entries) =>
         this.httpUtilityService.updateKeywordMaskingConfig(entries),
-      validateKeywordEntries: (entries) =>
-        this.httpUtilityService.validateKeywordEntries(entries),
+      validateKeywordEntries: (entries) => this.httpUtilityService.validateKeywordEntries(entries),
       // Setup status
       getSetupStatus: () => this.httpUtilityService.getSetupStatus(),
       markSetupComplete: () => this.httpUtilityService.markSetupComplete(),
@@ -430,16 +393,11 @@ export class ServiceFactory {
     return this.getUtilityService().setBambooConfig(config);
   }
 
-  async validateBambooConfigPatch(
-    patch: BambooConfig,
-  ): Promise<ValidateBambooConfigResponse> {
+  async validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse> {
     return this.getUtilityService().validateBambooConfigPatch(patch);
   }
 
-  async setProxyAuth(auth: {
-    username: string;
-    password: string;
-  }): Promise<ApiSuccessResponse> {
+  async setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse> {
     return this.getUtilityService().setProxyAuth(auth);
   }
 
@@ -458,9 +416,7 @@ export class ServiceFactory {
     return this.getUtilityService().getAnthropicModelMapping();
   }
 
-  async setAnthropicModelMapping(
-    mapping: AnthropicModelMapping,
-  ): Promise<AnthropicModelMapping> {
+  async setAnthropicModelMapping(mapping: AnthropicModelMapping): Promise<AnthropicModelMapping> {
     return this.getUtilityService().setAnthropicModelMapping(mapping);
   }
 
@@ -472,10 +428,7 @@ export class ServiceFactory {
     return this.getUtilityService().resetSetupStatus();
   }
 
-  async saveWorkflow(
-    name: string,
-    content: string,
-  ): Promise<{ success: boolean; path: string }> {
+  async saveWorkflow(name: string, content: string): Promise<{ success: boolean; path: string }> {
     return this.getUtilityService().saveWorkflow(name, content);
   }
 

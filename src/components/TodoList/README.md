@@ -76,11 +76,11 @@ GET /api/v1/events/{session_id}
 Example:
 
 ```javascript
-const eventSource = new EventSource('/api/v1/events/session-123');
+const eventSource = new EventSource("/api/v1/events/session-123");
 eventSource.onmessage = (event) => {
   const data = JSON.parse(event.data);
   if (data.type === "task_list_updated") {
-    console.log('Task list updated:', data.task_list);
+    console.log("Task list updated:", data.task_list);
   }
 };
 ```

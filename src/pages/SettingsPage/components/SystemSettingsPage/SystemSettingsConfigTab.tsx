@@ -34,9 +34,7 @@ const readDisabledTools = (
     return [];
   }
 
-  return normalizeToolNames(
-    rawDisabled.filter((name): name is string => typeof name === "string"),
-  );
+  return normalizeToolNames(rawDisabled.filter((name): name is string => typeof name === "string"));
 };
 
 interface SystemSettingsConfigTabProps {
@@ -48,18 +46,18 @@ interface SystemSettingsConfigTabProps {
   onLocaleChange: (locale: AppLocale) => void;
 }
 
-export const SystemSettingsConfigTab: React.FC<
-  SystemSettingsConfigTabProps
-> = ({ msgApi, locale, onLocaleChange }) => {
+export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = ({
+  msgApi,
+  locale,
+  onLocaleChange,
+}) => {
   const { t } = useTranslation();
   const { token } = useToken();
   const [config, setConfig] = useState({
     http_proxy: "",
     https_proxy: "",
   });
-  const [backendBaseUrl, setBackendBaseUrl] = useState(
-    DEFAULT_BACKEND_BASE_URL,
-  );
+  const [backendBaseUrl, setBackendBaseUrl] = useState(DEFAULT_BACKEND_BASE_URL);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
   const [disabledTools, setDisabledTools] = useState<string[]>([]);
   const [savedDisabledTools, setSavedDisabledTools] = useState<string[]>([]);
@@ -187,8 +185,7 @@ export const SystemSettingsConfigTab: React.FC<
     }
   };
 
-  const hasToolChanges =
-    JSON.stringify(disabledTools) !== JSON.stringify(savedDisabledTools);
+  const hasToolChanges = JSON.stringify(disabledTools) !== JSON.stringify(savedDisabledTools);
   const disabledToolSet = new Set(disabledTools);
 
   return (
@@ -199,11 +196,7 @@ export const SystemSettingsConfigTab: React.FC<
             key: "general",
             label: t("settings.configTab.tabs.general"),
             children: (
-              <Space
-                direction="vertical"
-                size={token.marginMD}
-                style={{ width: "100%" }}
-              >
+              <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
                 <Alert
                   message={t("settings.configTab.providerMovedTitle")}
                   description={t("settings.configTab.providerMovedDescription")}
@@ -264,22 +257,10 @@ export const SystemSettingsConfigTab: React.FC<
 
                 <Card
                   size="small"
-                  title={
-                    <Text strong>
-                      {t("settings.configTab.backendApiBaseUrlTitle")}
-                    </Text>
-                  }
+                  title={<Text strong>{t("settings.configTab.backendApiBaseUrlTitle")}</Text>}
                 >
-                  <Space
-                    direction="vertical"
-                    size={token.marginSM}
-                    style={{ width: "100%" }}
-                  >
-                    <Space
-                      direction="vertical"
-                      size={token.marginXXS}
-                      style={{ width: "100%" }}
-                    >
+                  <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                    <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
                       <Input
                         style={{ width: "100%" }}
                         value={backendBaseUrl}
@@ -297,10 +278,7 @@ export const SystemSettingsConfigTab: React.FC<
                         gap: token.marginSM,
                       }}
                     >
-                      <Button
-                        data-testid="reset-to-defaults"
-                        onClick={handleResetBackendUrl}
-                      >
+                      <Button data-testid="reset-to-defaults" onClick={handleResetBackendUrl}>
                         {t("settings.configTab.resetToDefault")}
                       </Button>
                       <Button
@@ -320,21 +298,12 @@ export const SystemSettingsConfigTab: React.FC<
             key: "tools",
             label: t("settings.configTab.tabs.tools"),
             children: (
-              <Card
-                size="small"
-                title={<Text strong>{t("settings.configTab.toolsTitle")}</Text>}
-              >
+              <Card size="small" title={<Text strong>{t("settings.configTab.toolsTitle")}</Text>}>
                 <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-                  <Text type="secondary">
-                    {t("settings.configTab.toolsDescription")}
-                  </Text>
+                  <Text type="secondary">{t("settings.configTab.toolsDescription")}</Text>
 
                   {availableTools.length === 0 ? (
-                    <Alert
-                      type="info"
-                      showIcon
-                      message={t("settings.configTab.toolsEmpty")}
-                    />
+                    <Alert type="info" showIcon message={t("settings.configTab.toolsEmpty")} />
                   ) : (
                     <List
                       bordered
@@ -345,9 +314,7 @@ export const SystemSettingsConfigTab: React.FC<
                             <Switch
                               key={`${toolName}-switch`}
                               checked={!disabledToolSet.has(toolName)}
-                              onChange={(enabled) =>
-                                handleToolEnabledChange(toolName, enabled)
-                              }
+                              onChange={(enabled) => handleToolEnabledChange(toolName, enabled)}
                             />,
                           ]}
                         >

@@ -18,10 +18,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  MetricsGranularity,
-  RoundMetrics,
-} from "../../../../services/metrics";
+import type { MetricsGranularity, RoundMetrics } from "../../../../services/metrics";
 import { useUnifiedMetrics } from "./hooks/useUnifiedMetrics";
 import UnifiedMetricsCards from "./metrics/UnifiedMetricsCards";
 import UnifiedTimelineChart from "./metrics/UnifiedTimelineChart";
@@ -60,9 +57,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
   const { token } = useToken();
   const [startDate, setStartDate] = useState<string | undefined>(undefined);
   const [endDate, setEndDate] = useState<string | undefined>(undefined);
-  const [selectedModel, setSelectedModel] = useState<string | undefined>(
-    undefined,
-  );
+  const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined);
   const [days, setDays] = useState<number>(30);
   const [granularity, setGranularity] = useState<MetricsGranularity>("daily");
 
@@ -151,11 +146,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
         size="small"
         title={t("settings.metricsDashboard.filtersTitle")}
         extra={
-          <Button
-            icon={<ReloadOutlined />}
-            loading={isRefreshing}
-            onClick={() => void refresh()}
-          >
+          <Button icon={<ReloadOutlined />} loading={isRefreshing} onClick={() => void refresh()}>
             {t("settings.metricsDashboard.refresh")}
           </Button>
         }
@@ -244,10 +235,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
       <ForwardEndpointDistribution data={endpointMetrics} loading={isLoading} />
 
       {/* Detailed Data Tabs */}
-      <Card
-        size="small"
-        title={t("settings.metricsDashboard.detailedMetricsTitle")}
-      >
+      <Card size="small" title={t("settings.metricsDashboard.detailedMetricsTitle")}>
         <Tabs
           items={[
             {
@@ -270,12 +258,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
               label: t("settings.metricsDashboard.forwardTabLabel", {
                 count: forwardRequests.length,
               }),
-              children: (
-                <ForwardRequestTable
-                  requests={forwardRequests}
-                  loading={isLoading}
-                />
-              ),
+              children: <ForwardRequestTable requests={forwardRequests} loading={isLoading} />,
             },
           ]}
         />
@@ -293,11 +276,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
         {isSessionDetailLoading ? (
           <Text>{t("settings.metricsDashboard.loadingSessionDetails")}</Text>
         ) : selectedSession ? (
-          <Space
-            direction="vertical"
-            style={{ width: "100%" }}
-            size={token.marginMD}
-          >
+          <Space direction="vertical" style={{ width: "100%" }} size={token.marginMD}>
             <Descriptions size="small" bordered column={2}>
               <Descriptions.Item
                 label={t("settings.metricsDashboard.sessionDetail.sessionId")}
@@ -305,34 +284,22 @@ const UnifiedMetricsDashboard: React.FC = () => {
               >
                 {selectedSession.session_id}
               </Descriptions.Item>
-              <Descriptions.Item
-                label={t("settings.metricsDashboard.sessionDetail.model")}
-              >
+              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.model")}>
                 {selectedSession.model}
               </Descriptions.Item>
-              <Descriptions.Item
-                label={t("settings.metricsDashboard.sessionDetail.status")}
-              >
+              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.status")}>
                 {selectedSession.status}
               </Descriptions.Item>
-              <Descriptions.Item
-                label={t("settings.metricsDashboard.sessionDetail.duration")}
-              >
+              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.duration")}>
                 {formatDuration(selectedSession.duration_ms)}
               </Descriptions.Item>
-              <Descriptions.Item
-                label={t("settings.metricsDashboard.sessionDetail.messages")}
-              >
+              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.messages")}>
                 {selectedSession.message_count}
               </Descriptions.Item>
-              <Descriptions.Item
-                label={t("settings.metricsDashboard.sessionDetail.totalTokens")}
-              >
+              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.totalTokens")}>
                 {selectedSession.total_token_usage.total_tokens.toLocaleString()}
               </Descriptions.Item>
-              <Descriptions.Item
-                label={t("settings.metricsDashboard.sessionDetail.toolCalls")}
-              >
+              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.toolCalls")}>
                 {selectedSession.tool_call_count}
               </Descriptions.Item>
             </Descriptions>
@@ -346,9 +313,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
             />
           </Space>
         ) : (
-          <Text type="secondary">
-            {t("settings.metricsDashboard.noDetail")}
-          </Text>
+          <Text type="secondary">{t("settings.metricsDashboard.noDetail")}</Text>
         )}
       </Modal>
     </Space>

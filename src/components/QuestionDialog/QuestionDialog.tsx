@@ -1,12 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import {
-  Button,
-  Radio,
-  Space,
-  Typography,
-  message,
-  theme,
-} from "antd";
+import { Button, Radio, Space, Typography, message, theme } from "antd";
 import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { agentApiClient } from "../../services/api";
@@ -62,8 +55,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const [pendingQuestion, setPendingQuestion] =
-    useState<PendingQuestion | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<PendingQuestion | null>(null);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -75,12 +67,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const onQuestionAppearedRef = useRef(onQuestionAppeared);
   onQuestionAppearedRef.current = onQuestionAppeared;
 
-  const setSessionProcessing = useAppStore(
-    (state) => state.setSessionProcessing,
-  );
-  const setPendingQuestionRespond = useAppStore(
-    (state) => state.setPendingQuestionRespond,
-  );
+  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
+  const setPendingQuestionRespond = useAppStore((state) => state.setPendingQuestionRespond);
   const clearPendingQuestionRespondForSession = useAppStore(
     (state) => state.clearPendingQuestionRespondForSession,
   );
@@ -113,9 +101,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // Fetch pending question
   const fetchPendingQuestion = useCallback(async () => {
     try {
-      const data = await agentApiClient.get<PendingQuestion>(
-        `respond/${sessionId}/pending`,
-      );
+      const data = await agentApiClient.get<PendingQuestion>(`respond/${sessionId}/pending`);
       if (data.has_pending_question) {
         setPendingQuestion(data);
         emptyCountRef.current = 0;
@@ -168,8 +154,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // Poll for pending question periodically
   // When the agent is actively running, poll faster so the dialog shows quickly.
   // Otherwise keep it light.
-  const pollInterval =
-    pendingQuestion?.has_pending_question || isSessionProcessing ? 3000 : 15000;
+  const pollInterval = pendingQuestion?.has_pending_question || isSessionProcessing ? 3000 : 15000;
 
   useEffect(() => {
     fetchPendingQuestion();
@@ -203,27 +188,18 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       clearPendingQuestionRespondForSession(sessionId);
     };
 
-    window.addEventListener(
-      CHAT_PENDING_QUESTION_RESOLVED_EVENT,
-      onResolved as EventListener,
-    );
+    window.addEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     return () => {
-      window.removeEventListener(
-        CHAT_PENDING_QUESTION_RESOLVED_EVENT,
-        onResolved as EventListener,
-      );
+      window.removeEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     };
   }, [sessionId, clearPendingQuestionRespondForSession]);
 
   // Update selected option. Respond mode stays active for the entire
   // duration of the pending question (set in the effect above), so we
   // no longer toggle it per-option.
-  const handleOptionChange = useCallback(
-    (value: string) => {
-      setSelectedOption(value);
-    },
-    [],
-  );
+  const handleOptionChange = useCallback((value: string) => {
+    setSelectedOption(value);
+  }, []);
 
   // Clean up respond mode when question disappears or component unmounts
   useEffect(() => {
@@ -243,14 +219,11 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
 
     try {
       const modelToUse = activeModel?.trim();
-      const submitResult = await agentApiClient.post<RespondSubmitResult>(
-        `respond/${sessionId}`,
-        {
-          response: selectedOption,
-          model: modelToUse || undefined,
-          reasoning_effort: reasoningEffort,
-        },
-      );
+      const submitResult = await agentApiClient.post<RespondSubmitResult>(`respond/${sessionId}`, {
+        response: selectedOption,
+        model: modelToUse || undefined,
+        reasoning_effort: reasoningEffort,
+      });
 
       message.success(t("components.questionDialog.responseSubmitted"));
       setPendingQuestion(null);
@@ -269,13 +242,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         if (sessionId) {
           setSessionProcessing(sessionId, true);
         }
-      } else if (
-        resumeStatus === "invalid_model" ||
-        resumeStatus === "not_requested"
-      ) {
-        message.error(
-          t("components.questionDialog.noModelConfigured"),
-        );
+      } else if (resumeStatus === "invalid_model" || resumeStatus === "not_requested") {
+        message.error(t("components.questionDialog.noModelConfigured"));
       } else if (resumeStatus === "error") {
         console.error("[QuestionDialog] Failed to auto-resume agent execution");
       }
@@ -349,11 +317,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
           >
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
               {options?.map((option, index) => (
-                <Radio
-                  key={index}
-                  value={option}
-                  className={styles.optionItem}
-                >
+                <Radio key={index} value={option} className={styles.optionItem}>
                   <Text style={{ color: token.colorText }}>{option}</Text>
                 </Radio>
               ))}
@@ -382,12 +346,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
           {/* Submit button inline */}
           {selectedOption && selectedOption !== "custom" && (
             <div className={styles.questionFooter}>
-              <Button
-                type="primary"
-                size="small"
-                onClick={handleSubmit}
-                loading={isSubmitting}
-              >
+              <Button type="primary" size="small" onClick={handleSubmit} loading={isSubmitting}>
                 {t("components.questionDialog.confirm")}
               </Button>
             </div>

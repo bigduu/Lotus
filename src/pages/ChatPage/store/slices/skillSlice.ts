@@ -16,10 +16,7 @@ export interface SkillSlice {
   clearSkillsError: () => void;
 }
 
-export const createSkillSlice: StateCreator<AppState, [], [], SkillSlice> = (
-  set,
-  get,
-) => ({
+export const createSkillSlice: StateCreator<AppState, [], [], SkillSlice> = (set, get) => ({
   // Initial state
   skills: [],
   isLoadingSkills: false,
@@ -37,9 +34,7 @@ export const createSkillSlice: StateCreator<AppState, [], [], SkillSlice> = (
     } catch (error) {
       set({
         skillsError:
-          error instanceof Error
-            ? error.message
-            : i18n.t("components.skillManager.loadFailed"),
+          error instanceof Error ? error.message : i18n.t("components.skillManager.loadFailed"),
         isLoadingSkills: false,
       });
     }
@@ -62,9 +57,7 @@ export const createSkillSlice: StateCreator<AppState, [], [], SkillSlice> = (
     } catch (error) {
       set({
         skillsError:
-          error instanceof Error
-            ? error.message
-            : i18n.t("components.skillManager.getFailed"),
+          error instanceof Error ? error.message : i18n.t("components.skillManager.getFailed"),
         isLoadingSkills: false,
       });
     }

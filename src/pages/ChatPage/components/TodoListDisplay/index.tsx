@@ -1,14 +1,5 @@
 import React from "react";
-import {
-  Card,
-  Flex,
-  List,
-  Progress,
-  Space,
-  Tag,
-  Typography,
-  theme,
-} from "antd";
+import { Card, Flex, List, Progress, Space, Tag, Typography, theme } from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -22,9 +13,7 @@ interface TaskListDisplayProps {
   taskList: TaskListMsg;
 }
 
-export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({
-  taskList,
-}) => {
+export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({ taskList }) => {
   const { token } = theme.useToken();
   const { Text } = Typography;
 
@@ -80,9 +69,7 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({
 
   const completionPercentage = React.useMemo(() => {
     if (taskList.items.length === 0) return 0;
-    const completed = taskList.items.filter(
-      (item) => item.status === "completed",
-    ).length;
+    const completed = taskList.items.filter((item) => item.status === "completed").length;
     return Math.round((completed / taskList.items.length) * 100);
   }, [taskList.items]);
 
@@ -100,9 +87,7 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({
         <Flex align="center" justify="space-between" wrap="wrap" gap="small">
           <Space direction="vertical" size={2}>
             <Text strong>{taskList.title}</Text>
-            {taskList.description ? (
-              <Text type="secondary">{taskList.description}</Text>
-            ) : null}
+            {taskList.description ? <Text type="secondary">{taskList.description}</Text> : null}
           </Space>
           {getListStatusTag()}
         </Flex>
@@ -134,18 +119,11 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({
                   padding: token.paddingXS,
                   background: isCurrent ? token.colorPrimaryBg : "transparent",
                   border: "1px solid",
-                  borderColor: isCurrent
-                    ? token.colorPrimaryBorder
-                    : token.colorBorderSecondary,
+                  borderColor: isCurrent ? token.colorPrimaryBorder : token.colorBorderSecondary,
                 }}
               >
                 <Flex vertical style={{ width: "100%" }} gap={4}>
-                  <Flex
-                    align="center"
-                    justify="space-between"
-                    wrap="wrap"
-                    gap={8}
-                  >
+                  <Flex align="center" justify="space-between" wrap="wrap" gap={8}>
                     <Text>{item.description}</Text>
                     {getStatusTag(item.status)}
                   </Flex>

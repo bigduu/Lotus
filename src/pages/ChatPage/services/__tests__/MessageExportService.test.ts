@@ -143,10 +143,7 @@ describe("MessageExportService", () => {
       filenamePrefix: "custom-prefix",
     });
 
-    expect(mockGenerateTimestampedFilename).toHaveBeenCalledWith(
-      "custom-prefix",
-      "md",
-    );
+    expect(mockGenerateTimestampedFilename).toHaveBeenCalledWith("custom-prefix", "md");
     expect(result).toEqual({ success: false, error: "cancelled" });
   });
 
@@ -168,10 +165,7 @@ describe("MessageExportService", () => {
     });
 
     expect(generatePdfSpy).toHaveBeenCalledWith("render me");
-    expect(mockGenerateTimestampedFilename).toHaveBeenCalledWith(
-      "custom-pdf",
-      "pdf",
-    );
+    expect(mockGenerateTimestampedFilename).toHaveBeenCalledWith("custom-pdf", "pdf");
     expect(mockSaveBinaryFile).toHaveBeenCalledWith(
       pdfBytes,
       [{ name: "PDF", extensions: ["pdf"] }],
@@ -182,10 +176,9 @@ describe("MessageExportService", () => {
 
   it("returns pdf export error when generation fails", async () => {
     mockGenerateTimestampedFilename.mockReturnValueOnce("chat-message.pdf");
-    vi.spyOn(
-      MessageExportService as any,
-      "generatePdfFromText",
-    ).mockRejectedValueOnce(new Error("pdf failed"));
+    vi.spyOn(MessageExportService as any, "generatePdfFromText").mockRejectedValueOnce(
+      new Error("pdf failed"),
+    );
 
     const result = await MessageExportService.exportMessageText({
       format: "pdf",
@@ -218,10 +211,7 @@ describe("MessageExportService", () => {
 
   it("handles non-Error pdf exceptions with fallback message", async () => {
     mockGenerateTimestampedFilename.mockReturnValueOnce("chat-message.pdf");
-    vi.spyOn(
-      MessageExportService as any,
-      "generatePdfFromText",
-    ).mockRejectedValueOnce("boom");
+    vi.spyOn(MessageExportService as any, "generatePdfFromText").mockRejectedValueOnce("boom");
 
     const result = await MessageExportService.exportMessageText({
       format: "pdf",
@@ -236,10 +226,9 @@ describe("MessageExportService", () => {
 
   it("returns saveBinaryFile errors for pdf export", async () => {
     mockGenerateTimestampedFilename.mockReturnValueOnce("chat-message.pdf");
-    vi.spyOn(
-      MessageExportService as any,
-      "generatePdfFromText",
-    ).mockResolvedValueOnce(new Uint8Array([9, 8, 7]));
+    vi.spyOn(MessageExportService as any, "generatePdfFromText").mockResolvedValueOnce(
+      new Uint8Array([9, 8, 7]),
+    );
     mockSaveBinaryFile.mockResolvedValueOnce({
       success: false,
       error: "disk is read-only",
@@ -267,9 +256,7 @@ describe("MessageExportService", () => {
     pending.setAttribute("data-mermaid-loading", "true");
     container.appendChild(pending);
 
-    const waitPromise = (MessageExportService as any).waitForExportRenderReady(
-      container,
-    );
+    const waitPromise = (MessageExportService as any).waitForExportRenderReady(container);
     setTimeout(() => pending.remove(), 60);
     await vi.advanceTimersByTimeAsync(120);
     await waitPromise;
@@ -335,12 +322,7 @@ describe("MessageExportService", () => {
       width,
       height: 1000,
       getContext: vi.fn().mockReturnValue({
-        getImageData: (
-          _x: number,
-          y: number,
-          readWidth: number,
-          readHeight: number,
-        ) => {
+        getImageData: (_x: number, y: number, readWidth: number, readHeight: number) => {
           const data = new Uint8ClampedArray(readWidth * readHeight * 4);
           for (let row = 0; row < readHeight; row += 1) {
             const globalY = y + row;
@@ -358,11 +340,7 @@ describe("MessageExportService", () => {
       }),
     } as unknown as HTMLCanvasElement;
 
-    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(
-      canvas,
-      0,
-      400,
-    );
+    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(canvas, 0, 400);
 
     expect(sliceHeight).toBe(highlightedWhitespaceRow);
   });
@@ -374,30 +352,22 @@ describe("MessageExportService", () => {
       getContext: vi.fn().mockReturnValue(null),
     } as unknown as HTMLCanvasElement;
 
-    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(
-      canvas,
-      0,
-      500,
-    );
+    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(canvas, 0, 500);
 
     expect(sliceHeight).toBe(500);
   });
 
   it("generatePdfFromText renders markdown to multipage PDF and cleans up DOM nodes", async () => {
-    const getContextSpy = vi
-      .spyOn(HTMLCanvasElement.prototype, "getContext")
-      .mockReturnValue({
-        fillStyle: "#fff",
-        fillRect: vi.fn(),
-        drawImage: vi.fn(),
-      } as any);
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "#fff",
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+    } as any);
     const dataUrlSpy = vi
       .spyOn(HTMLCanvasElement.prototype, "toDataURL")
       .mockReturnValue("data:image/jpeg;base64,abc");
 
-    const bytes = await (MessageExportService as any).generatePdfFromText(
-      "# heading\n\ncontent",
-    );
+    const bytes = await (MessageExportService as any).generatePdfFromText("# heading\n\ncontent");
 
     expect(mockCreateRoot).toHaveBeenCalledTimes(1);
     expect(mockFlushSync).toHaveBeenCalledTimes(1);
@@ -419,13 +389,11 @@ describe("MessageExportService", () => {
   });
 
   it("generatePdfFromText throws when slice canvas context is unavailable", async () => {
-    const getContextSpy = vi
-      .spyOn(HTMLCanvasElement.prototype, "getContext")
-      .mockReturnValue(null);
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 
-    await expect(
-      (MessageExportService as any).generatePdfFromText("content"),
-    ).rejects.toThrow("PDF render failed (no canvas context)");
+    await expect((MessageExportService as any).generatePdfFromText("content")).rejects.toThrow(
+      "PDF render failed (no canvas context)",
+    );
 
     expect(getContextSpy).toHaveBeenCalled();
   });
@@ -433,26 +401,24 @@ describe("MessageExportService", () => {
   it("generatePdfFromText is unavailable when document is missing", async () => {
     vi.stubGlobal("document", undefined);
 
-    await expect(
-      (MessageExportService as any).generatePdfFromText("content"),
-    ).rejects.toThrow("PDF export is unavailable in this environment");
+    await expect((MessageExportService as any).generatePdfFromText("content")).rejects.toThrow(
+      "PDF export is unavailable in this environment",
+    );
   });
 
   it("generatePdfFromText accepts empty markdown content", async () => {
-    const getContextSpy = vi
-      .spyOn(HTMLCanvasElement.prototype, "getContext")
-      .mockReturnValue({
-        fillStyle: "#fff",
-        fillRect: vi.fn(),
-        drawImage: vi.fn(),
-      } as any);
+    const getContextSpy = vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      fillStyle: "#fff",
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+    } as any);
     vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
       "data:image/jpeg;base64,abc",
     );
 
-    await expect(
-      (MessageExportService as any).generatePdfFromText(""),
-    ).resolves.toBeInstanceOf(Uint8Array);
+    await expect((MessageExportService as any).generatePdfFromText("")).resolves.toBeInstanceOf(
+      Uint8Array,
+    );
     expect(getContextSpy).toHaveBeenCalled();
   });
 });

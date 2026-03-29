@@ -1,21 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { RefObject } from "react";
 import type { RenderableEntry } from "./useChatViewMessages";
-import {
-  loadScrollAnchor,
-  saveScrollAnchor,
-  type ScrollAnchorV1,
-} from "./scrollAnchorStorage";
+import { loadScrollAnchor, saveScrollAnchor, type ScrollAnchorV1 } from "./scrollAnchorStorage";
 import { restoreScrollAnchorUntilStable } from "./scrollAnchorRestore";
 
 const SAVE_DEBOUNCE_MS = 300;
 const OFFSET_EPS = 0.5; // localStorage write-threshold
 
 function entryId(entry: RenderableEntry): string | null {
-  if (
-    "type" in entry &&
-    (entry.type === "tool_session" || entry.type === "compression_divider")
-  ) {
+  if ("type" in entry && (entry.type === "tool_session" || entry.type === "compression_divider")) {
     return entry.id;
   }
   if ("message" in entry && entry.message) return entry.message.id;
@@ -23,10 +16,7 @@ function entryId(entry: RenderableEntry): string | null {
 }
 
 function entryCreatedAt(entry: RenderableEntry): string | undefined {
-  if (
-    "type" in entry &&
-    (entry.type === "tool_session" || entry.type === "compression_divider")
-  ) {
+  if ("type" in entry && (entry.type === "tool_session" || entry.type === "compression_divider")) {
     return entry.createdAt;
   }
   if ("message" in entry && entry.message) return entry.message.createdAt;
@@ -70,15 +60,10 @@ function resolveIndexFromDeletedAnchor(
 }
 
 function getEntryElements(scrollEl: HTMLDivElement): HTMLElement[] {
-  return Array.from(
-    scrollEl.querySelectorAll<HTMLElement>("[data-chat-entry-id]"),
-  );
+  return Array.from(scrollEl.querySelectorAll<HTMLElement>("[data-chat-entry-id]"));
 }
 
-function getEntryElementById(
-  scrollEl: HTMLDivElement,
-  id: string,
-): HTMLElement | null {
+function getEntryElementById(scrollEl: HTMLDivElement, id: string): HTMLElement | null {
   const entryElements = getEntryElements(scrollEl);
   for (const entryEl of entryElements) {
     if (entryEl.dataset.chatEntryId === id) return entryEl;
@@ -86,10 +71,7 @@ function getEntryElementById(
   return null;
 }
 
-function getEntryElementByIndex(
-  scrollEl: HTMLDivElement,
-  index: number,
-): HTMLElement | null {
+function getEntryElementByIndex(scrollEl: HTMLDivElement, index: number): HTMLElement | null {
   const entryElements = getEntryElements(scrollEl);
   if (entryElements.length === 0) return null;
   const clamped = Math.max(0, Math.min(entryElements.length - 1, index));
@@ -167,8 +149,7 @@ export function useScrollAnchorPersistence(args: {
     const containerRect = el.getBoundingClientRect();
     const anchorRect = anchorEl.getBoundingClientRect();
     const indexHint = idToIndex.get(anchorId);
-    const entry =
-      typeof indexHint === "number" ? renderableMessages[indexHint] : undefined;
+    const entry = typeof indexHint === "number" ? renderableMessages[indexHint] : undefined;
 
     return {
       v: 1,
@@ -246,9 +227,7 @@ export function useScrollAnchorPersistence(args: {
 
     const byId = idToIndex.get(saved.anchorId);
     const index =
-      typeof byId === "number"
-        ? byId
-        : resolveIndexFromDeletedAnchor(saved, renderableMessages);
+      typeof byId === "number" ? byId : resolveIndexFromDeletedAnchor(saved, renderableMessages);
 
     if (index == null) {
       restoredChatsRef.current.add(currentSessionId);
@@ -267,8 +246,7 @@ export function useScrollAnchorPersistence(args: {
 
     el.style.overflowAnchor = "none";
 
-    const isCancelled = () =>
-      restoreTokenRef.current !== token || userInteractedRef.current;
+    const isCancelled = () => restoreTokenRef.current !== token || userInteractedRef.current;
 
     restoreScrollAnchorUntilStable({
       scrollEl: el,

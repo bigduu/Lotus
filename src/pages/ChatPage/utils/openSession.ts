@@ -16,10 +16,7 @@ type OpenSessionOptions = {
   forceSubscribe?: boolean;
 };
 
-const ensureSessionVisibleAndLoaded = async (
-  sessionId: string,
-  options?: OpenSessionOptions,
-) => {
+const ensureSessionVisibleAndLoaded = async (sessionId: string, options?: OpenSessionOptions) => {
   const store = useAppStore.getState();
 
   const wasMissing = !store.chats.some((c) => c.id === sessionId);
@@ -74,12 +71,8 @@ const ensureSessionVisibleAndLoaded = async (
  * then update the global selection to avoid "sidebar selected but view not switched".
  */
 export const openSession = (sessionId: string, options?: OpenSessionOptions) => {
-  const {
-    activeLeafId,
-    leafSessionIds,
-    setLeafSessionId,
-    setActiveLeafId,
-  } = useUILayoutStore.getState();
+  const { activeLeafId, leafSessionIds, setLeafSessionId, setActiveLeafId } =
+    useUILayoutStore.getState();
 
   const existingLeafId = findLeafIdBySessionId(leafSessionIds, sessionId);
   const activeLeafSessionId = leafSessionIds[activeLeafId] ?? null;

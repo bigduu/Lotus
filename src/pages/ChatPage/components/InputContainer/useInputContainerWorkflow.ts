@@ -18,26 +18,22 @@ export const useInputContainerWorkflow = ({
 }: UseInputContainerWorkflowProps) => {
   const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
   const [workflowSearchText, setWorkflowSearchText] = useState("");
-  const [selectedWorkflow, setSelectedWorkflow] =
-    useState<WorkflowDraft | null>(null);
+  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowDraft | null>(null);
 
   useEffect(() => {
     setSelectedWorkflow(null);
     onWorkflowDraftChange?.(null);
   }, [currentSessionId, onWorkflowDraftChange]);
 
-  const matchesWorkflowToken = useCallback(
-    (value: string, workflowName: string) => {
-      const trimmedValue = value.trimStart();
-      const token = `/${workflowName}`;
-      if (!trimmedValue.startsWith(token)) {
-        return false;
-      }
-      const nextChar = trimmedValue.charAt(token.length);
-      return !nextChar || /\s/.test(nextChar);
-    },
-    [],
-  );
+  const matchesWorkflowToken = useCallback((value: string, workflowName: string) => {
+    const trimmedValue = value.trimStart();
+    const token = `/${workflowName}`;
+    if (!trimmedValue.startsWith(token)) {
+      return false;
+    }
+    const nextChar = trimmedValue.charAt(token.length);
+    return !nextChar || /\s/.test(nextChar);
+  }, []);
 
   const clearWorkflowDraft = useCallback(() => {
     setSelectedWorkflow(null);
@@ -52,9 +48,7 @@ export const useInputContainerWorkflow = ({
       const token = `/${workflow.name}`;
       const trimmedValue = value.trim();
       const extraInput = trimmedValue.slice(token.length).trim();
-      const content = [workflow.content, extraInput]
-        .filter(Boolean)
-        .join("\n\n");
+      const content = [workflow.content, extraInput].filter(Boolean).join("\n\n");
       onWorkflowDraftChange?.({ ...workflow, content });
     },
     [matchesWorkflowToken, onWorkflowDraftChange],
@@ -63,16 +57,10 @@ export const useInputContainerWorkflow = ({
   const handleInputChange = useCallback(
     (value: string) => {
       acknowledgeManualInput();
-      if (
-        selectedWorkflow &&
-        !matchesWorkflowToken(value, selectedWorkflow.name)
-      ) {
+      if (selectedWorkflow && !matchesWorkflowToken(value, selectedWorkflow.name)) {
         clearWorkflowDraft();
       }
-      if (
-        selectedWorkflow &&
-        matchesWorkflowToken(value, selectedWorkflow.name)
-      ) {
+      if (selectedWorkflow && matchesWorkflowToken(value, selectedWorkflow.name)) {
         updateWorkflowDraftPreview(value, selectedWorkflow);
       }
       setContent(value);
@@ -87,13 +75,10 @@ export const useInputContainerWorkflow = ({
     ],
   );
 
-  const handleWorkflowCommandChange = useCallback(
-    (info: WorkflowCommandInfo) => {
-      setShowWorkflowSelector(info.isTriggerActive);
-      setWorkflowSearchText(info.isTriggerActive ? info.searchText : "");
-    },
-    [],
-  );
+  const handleWorkflowCommandChange = useCallback((info: WorkflowCommandInfo) => {
+    setShowWorkflowSelector(info.isTriggerActive);
+    setWorkflowSearchText(info.isTriggerActive ? info.searchText : "");
+  }, []);
 
   const applyWorkflowDraft = useCallback(
     (workflow: { name: string; content: string }) => {

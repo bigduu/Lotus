@@ -50,8 +50,7 @@ export const MermaidChart: React.FC<MermaidChartProps> = React.memo(
       try {
         await onFix(chart, error);
       } catch (fixErr) {
-        const message =
-          fixErr instanceof Error ? fixErr.message : String(fixErr);
+        const message = fixErr instanceof Error ? fixErr.message : String(fixErr);
         setFixError(message || "Failed to fix Mermaid diagram");
       } finally {
         setIsFixing(false);

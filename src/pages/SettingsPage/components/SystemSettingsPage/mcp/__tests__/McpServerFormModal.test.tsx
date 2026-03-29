@@ -4,9 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { McpServerFormModal } from "../McpServerFormModal";
 
 describe("McpServerFormModal", () => {
-  let unhandledRejectionHandler:
-    | ((event: PromiseRejectionEvent) => void)
-    | null;
+  let unhandledRejectionHandler: ((event: PromiseRejectionEvent) => void) | null;
 
   beforeEach(() => {
     unhandledRejectionHandler = null;
@@ -17,31 +15,17 @@ describe("McpServerFormModal", () => {
   afterEach(() => {
     vi.useRealTimers();
     if (unhandledRejectionHandler) {
-      window.removeEventListener(
-        "unhandledrejection",
-        unhandledRejectionHandler,
-      );
+      window.removeEventListener("unhandledrejection", unhandledRejectionHandler);
     }
   });
 
   it("submits stdio server configuration", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
-    render(
-      <McpServerFormModal
-        open
-        mode="create"
-        onCancel={vi.fn()}
-        onSubmit={onSubmit}
-      />,
-    );
+    render(<McpServerFormModal open mode="create" onCancel={vi.fn()} onSubmit={onSubmit} />);
 
-    const serverIdInput = (await screen.findByPlaceholderText(
-      "filesystem",
-    )) as HTMLInputElement;
-    const displayNameInput = screen.getByPlaceholderText(
-      "Filesystem MCP",
-    ) as HTMLInputElement;
+    const serverIdInput = (await screen.findByPlaceholderText("filesystem")) as HTMLInputElement;
+    const displayNameInput = screen.getByPlaceholderText("Filesystem MCP") as HTMLInputElement;
     const commandInput = screen.getByPlaceholderText("npx") as HTMLInputElement;
 
     // Let modal/form effects settle before user interaction.
@@ -93,21 +77,10 @@ describe("McpServerFormModal", () => {
     };
     window.addEventListener("unhandledrejection", unhandledRejectionHandler);
 
-    render(
-      <McpServerFormModal
-        open
-        mode="create"
-        onCancel={onCancel}
-        onSubmit={onSubmit}
-      />,
-    );
+    render(<McpServerFormModal open mode="create" onCancel={onCancel} onSubmit={onSubmit} />);
 
-    const serverIdInput = (await screen.findByPlaceholderText(
-      "filesystem",
-    )) as HTMLInputElement;
-    const displayNameInput = screen.getByPlaceholderText(
-      "Filesystem MCP",
-    ) as HTMLInputElement;
+    const serverIdInput = (await screen.findByPlaceholderText("filesystem")) as HTMLInputElement;
+    const displayNameInput = screen.getByPlaceholderText("Filesystem MCP") as HTMLInputElement;
     const commandInput = screen.getByPlaceholderText("npx") as HTMLInputElement;
 
     await waitFor(() => {
@@ -131,9 +104,12 @@ describe("McpServerFormModal", () => {
     // Submit the form (it will fail)
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => {
-      expect(onSubmit).toHaveBeenCalled();
-    }, { timeout: 10000 });
+    await waitFor(
+      () => {
+        expect(onSubmit).toHaveBeenCalled();
+      },
+      { timeout: 10000 },
+    );
 
     // Verify form data is preserved after error
     expect(serverIdInput.value).toBe("my-server");
@@ -147,14 +123,7 @@ describe("McpServerFormModal", () => {
   it("submits via JSON editor", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
-    render(
-      <McpServerFormModal
-        open
-        mode="create"
-        onCancel={vi.fn()}
-        onSubmit={onSubmit}
-      />,
-    );
+    render(<McpServerFormModal open mode="create" onCancel={vi.fn()} onSubmit={onSubmit} />);
 
     // Switch to JSON mode
     fireEvent.click(screen.getByRole("radio", { name: /json/i }));
@@ -203,14 +172,7 @@ describe("McpServerFormModal", () => {
   it("shows error for invalid JSON", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
-    render(
-      <McpServerFormModal
-        open
-        mode="create"
-        onCancel={vi.fn()}
-        onSubmit={onSubmit}
-      />,
-    );
+    render(<McpServerFormModal open mode="create" onCancel={vi.fn()} onSubmit={onSubmit} />);
 
     // Switch to JSON mode
     fireEvent.click(screen.getByRole("radio", { name: /json/i }));

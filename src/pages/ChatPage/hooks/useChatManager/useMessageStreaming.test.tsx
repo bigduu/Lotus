@@ -145,9 +145,7 @@ describe("useMessageStreaming", () => {
 
     expect(mockStoreState.checkAgentAvailability).toHaveBeenCalledTimes(1);
     expect(deps.addMessage).not.toHaveBeenCalled();
-    expect(mockMessageApi.error).toHaveBeenCalledWith(
-      i18n.t("chat.streaming.agentUnavailable"),
-    );
+    expect(mockMessageApi.error).toHaveBeenCalledWith(i18n.t("chat.streaming.agentUnavailable"));
   });
 
   it("marks agent unavailable after non-abort request failures", async () => {
@@ -187,9 +185,7 @@ describe("useMessageStreaming", () => {
     });
 
     expect(mockStoreState.setAgentAvailability).toHaveBeenCalledWith(false);
-    expect(mockMessageApi.error).toHaveBeenCalledWith(
-      i18n.t("chat.streaming.sendFailed"),
-    );
+    expect(mockMessageApi.error).toHaveBeenCalledWith(i18n.t("chat.streaming.sendFailed"));
   });
 
   it("passes workspace_path to agent chat requests", async () => {

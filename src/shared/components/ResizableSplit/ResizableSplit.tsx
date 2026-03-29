@@ -155,11 +155,11 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
   // prefer the ratio so the split adapts to container resizes.
   // Otherwise prefer the absolute persistedFirstPx (e.g. sidebar width).
   const rawFirstPx =
-    liveFirstPx
-    ?? (persistedSplitRatio !== null ? ratioFirstPx : null)
-    ?? persistedFirstPx
-    ?? ratioFirstPx
-    ?? 0;
+    liveFirstPx ??
+    (persistedSplitRatio !== null ? ratioFirstPx : null) ??
+    persistedFirstPx ??
+    ratioFirstPx ??
+    0;
   const effectiveFirstPx =
     containerSize > 0
       ? clamp(rawFirstPx, bounds.minFirst, bounds.maxFirst)

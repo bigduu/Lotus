@@ -12,11 +12,7 @@ interface FilePreviewProps {
   onClear?: () => void;
 }
 
-const FilePreview: React.FC<FilePreviewProps> = ({
-  files,
-  onRemove,
-  onClear,
-}) => {
+const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) => {
   const { token } = useToken();
 
   if (files.length === 0) {

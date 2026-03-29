@@ -79,12 +79,8 @@ describe("useChatInputHistory", () => {
     });
 
     it("should maintain separate histories per session", () => {
-      const { result: result1 } = renderHook(() =>
-        useChatInputHistory("session1"),
-      );
-      const { result: result2 } = renderHook(() =>
-        useChatInputHistory("session2"),
-      );
+      const { result: result1 } = renderHook(() => useChatInputHistory("session1"));
+      const { result: result2 } = renderHook(() => useChatInputHistory("session2"));
 
       act(() => {
         result1.current.recordEntry("Session 1");
@@ -274,12 +270,8 @@ describe("useChatInputHistory", () => {
     });
 
     it("should not affect other sessions", () => {
-      const { result: result1 } = renderHook(() =>
-        useChatInputHistory("session1"),
-      );
-      const { result: result2 } = renderHook(() =>
-        useChatInputHistory("session2"),
-      );
+      const { result: result1 } = renderHook(() => useChatInputHistory("session1"));
+      const { result: result2 } = renderHook(() => useChatInputHistory("session2"));
 
       act(() => {
         result1.current.recordEntry("Session 1");
@@ -300,10 +292,9 @@ describe("useChatInputHistory", () => {
 
   describe("session changes", () => {
     it("should reset navigation state when session changes", () => {
-      const { result, rerender } = renderHook(
-        ({ sessionId }) => useChatInputHistory(sessionId),
-        { initialProps: { sessionId: "session1" } },
-      );
+      const { result, rerender } = renderHook(({ sessionId }) => useChatInputHistory(sessionId), {
+        initialProps: { sessionId: "session1" },
+      });
 
       act(() => {
         result.current.recordEntry("Session 1 message");
@@ -320,10 +311,9 @@ describe("useChatInputHistory", () => {
     });
 
     it("should preserve history when switching back to previous session", () => {
-      const { result, rerender } = renderHook(
-        ({ sessionId }) => useChatInputHistory(sessionId),
-        { initialProps: { sessionId: "session1" } },
-      );
+      const { result, rerender } = renderHook(({ sessionId }) => useChatInputHistory(sessionId), {
+        initialProps: { sessionId: "session1" },
+      });
 
       act(() => {
         result.current.recordEntry("Session 1 message");

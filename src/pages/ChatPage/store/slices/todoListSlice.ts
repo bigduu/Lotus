@@ -1,11 +1,7 @@
 import { StateCreator } from "zustand";
 
 // Task item status
-export type TaskItemStatus =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "blocked";
+export type TaskItemStatus = "pending" | "in_progress" | "completed" | "blocked";
 
 // Task item
 export interface TaskItem {
@@ -78,12 +74,10 @@ export interface TaskListActions {
 
 export type TaskListSlice = TaskListState & TaskListActions;
 
-export const createTaskListSlice: StateCreator<
-  TaskListSlice,
-  [],
-  [],
-  TaskListSlice
-> = (set, get) => ({
+export const createTaskListSlice: StateCreator<TaskListSlice, [], [], TaskListSlice> = (
+  set,
+  get,
+) => ({
   // State
   taskLists: {},
   taskListVersions: {},
@@ -156,8 +150,7 @@ export const createTaskListSlice: StateCreator<
       const { [sessionId]: _, ...remainingTaskLists } = state.taskLists;
       const { [sessionId]: __, ...remainingVersions } = state.taskListVersions;
       const { [sessionId]: ___, ...remainingActive } = state.activeItems;
-      const { [sessionId]: ____, ...remainingEvaluations } =
-        state.evaluationStates;
+      const { [sessionId]: ____, ...remainingEvaluations } = state.evaluationStates;
       return {
         taskLists: remainingTaskLists,
         taskListVersions: remainingVersions,
@@ -183,8 +176,7 @@ export const createTaskListSlice: StateCreator<
   // Clear evaluation state (NEW)
   clearEvaluationState: (sessionId) =>
     set((state) => {
-      const { [sessionId]: _, ...remainingEvaluations } =
-        state.evaluationStates;
+      const { [sessionId]: _, ...remainingEvaluations } = state.evaluationStates;
       return {
         evaluationStates: remainingEvaluations,
       };

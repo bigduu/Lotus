@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { Button, Flex, theme } from "antd";
 import {
   BorderHorizontalOutlined,
@@ -9,6 +9,7 @@ import {
 
 import { useAppStore } from "../../store";
 import { ChatView } from "../ChatView";
+import { HomeDashboard } from "../HomeDashboard";
 import {
   type LayoutNode,
   type LayoutSplitNode,
@@ -40,6 +41,9 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const setLeafSessionId = useUILayoutStore((s) => s.setLeafSessionId);
 
   const selectSession = useAppStore((s) => s.selectSession);
+  const addChat = useAppStore((s) => s.addChat);
+  const systemPrompts = useAppStore((s) => s.systemPrompts);
+  const lastSelectedPromptId = useAppStore((s) => s.lastSelectedPromptId);
 
   const sessionId = leafSessionIds[leafId] ?? null;
   const leafCount = useMemo(() => getLeafIdsFromTree(tree).length, [tree]);
@@ -49,6 +53,43 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const canClose = canClosePane || canClearSession;
   const hasMultiplePanes = leafCount > 1;
   const isActive = activeLeafId === leafId;
+
+  const handleOpenSession = useCallback(
+    (sid: string) => {
+      setLeafSessionId(leafId, sid);
+      setActiveLeafId(leafId);
+      selectSession(sid);
+    },
+    [leafId, selectSession, setActiveLeafId, setLeafSessionId],
+  );
+
+  const handleCreateSession = useCallback(async () => {
+    const selectedPrompt = systemPrompts.find((p) => p.id === lastSelectedPromptId);
+    const systemPromptId =
+      selectedPrompt?.id ||
+      (systemPrompts.length > 0
+        ? systemPrompts.find((p) => p.id === "general_assistant")?.id || systemPrompts[0].id
+        : "");
+
+    const newSessionId = await addChat({
+      title: t("chat.sidebar.newSession"),
+      createdAt: Date.now(),
+      messages: [],
+      config: {
+        systemPromptId,
+        baseSystemPrompt:
+          selectedPrompt?.content ||
+          (systemPrompts.length > 0
+            ? systemPrompts.find((p) => p.id === "general_assistant")?.content || systemPrompts[0].content
+            : ""),
+        lastUsedEnhancedPrompt: null,
+      },
+      currentInteraction: null,
+    });
+
+    setLeafSessionId(leafId, newSessionId);
+    setActiveLeafId(leafId);
+  }, [addChat, lastSelectedPromptId, systemPrompts, t, leafId, setLeafSessionId, setActiveLeafId]);
 
   return (
     <div
@@ -181,19 +222,12 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
           <ChatView sessionId={sessionId} embedded={true} />
         </ErrorBoundary>
       ) : (
-        <Flex
-          vertical
-          align="center"
-          justify="center"
-          style={{ height: "100%", minHeight: 0, padding: token.paddingLG }}
-        >
-          <div style={{ color: token.colorTextSecondary }}>
-            {t("chat.multiPane.selectSessionHint")}
-          </div>
-          <div style={{ color: token.colorTextTertiary, fontSize: 12 }}>
-            {t("chat.multiPane.hoverToSplitHint")}
-          </div>
-        </Flex>
+        <ErrorBoundary name="HomeDashboard">
+          <HomeDashboard
+            onOpenSession={handleOpenSession}
+            onCreateSession={handleCreateSession}
+          />
+        </ErrorBoundary>
       )}
     </div>
   );

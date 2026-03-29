@@ -3,11 +3,7 @@ import { Empty, Modal, Space, Typography, message, theme } from "antd";
 import { ToolOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import {
-  ModalFooter,
-  createCancelButton,
-  createOkButton,
-} from "../ModalFooter";
+import { ModalFooter, createCancelButton, createOkButton } from "../ModalFooter";
 import type { UserSystemPrompt } from "../../types/chat";
 import { useAppStore } from "../../store";
 import { SystemPromptListItem } from "./SystemPromptListItem";
@@ -36,28 +32,16 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
   const { t } = useTranslation();
   const { token } = useToken();
   const [messageApi, contextHolder] = message.useMessage();
-  const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId,
-  );
-  const setLastSelectedPromptId = useAppStore(
-    (state) => state.setLastSelectedPromptId,
-  );
+  const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
+  const setLastSelectedPromptId = useAppStore((state) => state.setLastSelectedPromptId);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [expandedPreviewId, setExpandedPreviewId] = useState<string | null>(
-    null,
-  );
+  const [expandedPreviewId, setExpandedPreviewId] = useState<string | null>(null);
 
   // Filter out prompts with empty or missing IDs - use useMemo to avoid recalculation
-  const validPrompts = useMemo(
-    () => prompts.filter((p) => p.id && p.id.trim() !== ""),
-    [prompts],
-  );
+  const validPrompts = useMemo(() => prompts.filter((p) => p.id && p.id.trim() !== ""), [prompts]);
 
-  const handleCopyPrompt = async (
-    event: React.MouseEvent,
-    prompt: UserSystemPrompt,
-  ) => {
+  const handleCopyPrompt = async (event: React.MouseEvent, prompt: UserSystemPrompt) => {
     event.stopPropagation();
 
     const content = prompt.content ?? "";
@@ -158,9 +142,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
                 isExpanded={expandedPreviewId === prompt.id}
                 onSelect={(promptId) => setSelectedId(promptId)}
                 onToggleExpand={(promptId) =>
-                  setExpandedPreviewId(
-                    expandedPreviewId === promptId ? null : promptId,
-                  )
+                  setExpandedPreviewId(expandedPreviewId === promptId ? null : promptId)
                 }
                 onCopy={handleCopyPrompt}
               />

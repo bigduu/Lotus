@@ -1,9 +1,6 @@
 import { useCallback } from "react";
 import type { ImageFile } from "../../utils/imageUtils";
-import {
-  summarizeAttachments,
-  type ProcessedFile,
-} from "../../utils/fileUtils";
+import { summarizeAttachments, type ProcessedFile } from "../../utils/fileUtils";
 import type { ReasoningEffort } from "../../services/AgentService";
 import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "../../types/workspace";
@@ -56,23 +53,15 @@ export const useInputContainerSubmit = ({
       if (selectedWorkflow?.content && selectedWorkflow.type === "workflow") {
         // Workflow: replace token with workflow content
         const token = `/${selectedWorkflow.name}`;
-        const hasToken = matchesWorkflowToken(
-          trimmedInput,
-          selectedWorkflow.name,
-        );
+        const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
         if (hasToken) {
           const extraInput = trimmedInput.slice(token.length).trim();
-          composedInput = [selectedWorkflow.content, extraInput]
-            .filter(Boolean)
-            .join("\n\n");
+          composedInput = [selectedWorkflow.content, extraInput].filter(Boolean).join("\n\n");
         }
       } else if (selectedWorkflow?.type === "skill") {
         // Skill: add explicit selection hint
         const token = `/${selectedWorkflow.name}`;
-        const hasToken = matchesWorkflowToken(
-          trimmedInput,
-          selectedWorkflow.name,
-        );
+        const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
         if (hasToken) {
           const extraInput = trimmedInput.slice(token.length).trim();
           const skillHint = `[User explicitly selected skill: ${selectedWorkflow.displayName || selectedWorkflow.name} (ID: ${selectedWorkflow.name})]`;
@@ -82,36 +71,23 @@ export const useInputContainerSubmit = ({
       } else if (selectedWorkflow?.type === "mcp") {
         // MCP Tool: add explicit selection hint
         const token = `/${selectedWorkflow.name}`;
-        const hasToken = matchesWorkflowToken(
-          trimmedInput,
-          selectedWorkflow.name,
-        );
+        const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
         if (hasToken) {
           const extraInput = trimmedInput.slice(token.length).trim();
           // Use the fully-qualified alias in the hint to disambiguate tools
           // across servers. UI will render this hint as a structured chip.
           const mcpHint = `[User explicitly selected MCP tool: ${
-            selectedWorkflow.mcpAlias ||
-            selectedWorkflow.displayName ||
-            selectedWorkflow.name
+            selectedWorkflow.mcpAlias || selectedWorkflow.displayName || selectedWorkflow.name
           }]`;
           composedInput = [mcpHint, extraInput].filter(Boolean).join("\n\n");
         }
       }
 
-      if (
-        !composedInput &&
-        !attachmentSummary &&
-        (!images || images.length === 0)
-      ) {
+      if (!composedInput && !attachmentSummary && (!images || images.length === 0)) {
         return;
       }
 
-      const composedMessage = [
-        normalizedReferenceText,
-        composedInput,
-        attachmentSummary,
-      ]
+      const composedMessage = [normalizedReferenceText, composedInput, attachmentSummary]
         .filter(Boolean)
         .join("\n\n");
 
@@ -120,9 +96,7 @@ export const useInputContainerSubmit = ({
       clearWorkflowDraft();
 
       if (fileReferences.size > 0) {
-        const fileRefMatches = Array.from(
-          composedMessage.matchAll(/@([^\\s]+)/g),
-        );
+        const fileRefMatches = Array.from(composedMessage.matchAll(/@([^\\s]+)/g));
 
         if (fileRefMatches.length > 0) {
           const referencedFiles: WorkspaceFileEntry[] = [];
@@ -140,35 +114,15 @@ export const useInputContainerSubmit = ({
               paths: referencedFiles.map((f) => f.path),
               display_text: composedMessage,
             });
-            await sendMessage(
-              structuredMessage,
-              images,
-              reasoningEffort,
-              selectedSkillIds,
-            );
+            await sendMessage(structuredMessage, images, reasoningEffort, selectedSkillIds);
           } else {
-            await sendMessage(
-              composedMessage,
-              images,
-              reasoningEffort,
-              selectedSkillIds,
-            );
+            await sendMessage(composedMessage, images, reasoningEffort, selectedSkillIds);
           }
         } else {
-          await sendMessage(
-            composedMessage,
-            images,
-            reasoningEffort,
-            selectedSkillIds,
-          );
+          await sendMessage(composedMessage, images, reasoningEffort, selectedSkillIds);
         }
       } else {
-        await sendMessage(
-          composedMessage,
-          images,
-          reasoningEffort,
-          selectedSkillIds,
-        );
+        await sendMessage(composedMessage, images, reasoningEffort, selectedSkillIds);
       }
 
       setReferenceText(null);

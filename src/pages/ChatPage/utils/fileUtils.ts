@@ -70,8 +70,7 @@ const isTextLike = (file: File): boolean => {
     return true;
   }
   return (
-    TEXT_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix)) ||
-    hasTextExtension(file.name)
+    TEXT_MIME_PREFIXES.some((prefix) => file.type.startsWith(prefix)) || hasTextExtension(file.name)
   );
 };
 
@@ -121,18 +120,14 @@ export const processFiles = async (
       }
     } catch (error) {
       console.error("[fileUtils] Failed to process file", file.name, error);
-      errors.push(
-        `Failed to process ${file.name}: ${(error as Error).message}`,
-      );
+      errors.push(`Failed to process ${file.name}: ${(error as Error).message}`);
     }
   }
 
   return { processed, errors };
 };
 
-export const separateImageFiles = (
-  files: File[],
-): { images: File[]; others: File[] } => {
+export const separateImageFiles = (files: File[]): { images: File[]; others: File[] } => {
   const images: File[] = [];
   const others: File[] = [];
 

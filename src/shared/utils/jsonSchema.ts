@@ -76,9 +76,7 @@ export type JsonSchemaSummary = {
  * - root: { type: "object", properties, required?, additionalProperties? }
  * - property nodes: { type, description?, default?, enum?, items?, oneOf/anyOf/allOf? }
  */
-export const summarizeJsonSchema = (
-  schema: unknown,
-): JsonSchemaSummary | null => {
+export const summarizeJsonSchema = (schema: unknown): JsonSchemaSummary | null => {
   if (!isRecord(schema)) return null;
 
   const properties = schema.properties;
@@ -98,19 +96,17 @@ export const summarizeJsonSchema = (
       .map((v) => v),
   );
 
-  const fields: JsonSchemaField[] = Object.entries(properties).map(
-    ([name, node]) => {
-      const rec = isRecord(node) ? node : undefined;
-      return {
-        name,
-        type: summarizeType(node),
-        required: required.has(name),
-        description: rec ? readString(rec, "description") : undefined,
-        defaultValue: rec ? rec.default : undefined,
-        enumValues: rec && Array.isArray(rec.enum) ? rec.enum : undefined,
-      };
-    },
-  );
+  const fields: JsonSchemaField[] = Object.entries(properties).map(([name, node]) => {
+    const rec = isRecord(node) ? node : undefined;
+    return {
+      name,
+      type: summarizeType(node),
+      required: required.has(name),
+      description: rec ? readString(rec, "description") : undefined,
+      defaultValue: rec ? rec.default : undefined,
+      enumValues: rec && Array.isArray(rec.enum) ? rec.enum : undefined,
+    };
+  });
 
   fields.sort((a, b) => {
     if (a.required !== b.required) return a.required ? -1 : 1;
@@ -125,4 +121,3 @@ export const summarizeJsonSchema = (
     fields,
   };
 };
-

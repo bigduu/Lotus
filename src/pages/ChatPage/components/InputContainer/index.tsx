@@ -1,22 +1,5 @@
-import React, {
-  useMemo,
-  useEffect,
-  useState,
-  lazy,
-  Suspense,
-  useRef,
-  useCallback,
-} from "react";
-import {
-  App as AntApp,
-  Space,
-  theme,
-  Tag,
-  Alert,
-  Spin,
-  Dropdown,
-  Button,
-} from "antd";
+import React, { useMemo, useEffect, useState, lazy, Suspense, useRef, useCallback } from "react";
+import { App as AntApp, Space, theme, Tag, Alert, Spin, Dropdown, Button } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import {
   ToolOutlined,
@@ -54,7 +37,7 @@ import { settingsService } from "@services/config/SettingsService";
 import { modelService } from "@services/chat/ModelService";
 import { agentApiClient } from "../../../../services/api";
 import type { ImageFile } from "../../utils/imageUtils";
-import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
+import { CHAT_FOCUS_INPUT_EVENT, CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const CommandSelector = lazy(() => import("../CommandSelector"));
@@ -66,13 +49,7 @@ const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
 const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
 const MODEL_OPTIONS_CACHE_PREFIX = "chat-model-options-cache-v1";
 const MODEL_OPTIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = [
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-];
+const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];
 
 type ModelOption = { value: string; label: string };
 type ModelCachePayload = {
@@ -105,10 +82,7 @@ const readModelOptionsCache = (provider: ProviderType): ModelOption[] | null => 
   }
 };
 
-const writeModelOptionsCache = (
-  provider: ProviderType,
-  options: ModelOption[],
-): void => {
+const writeModelOptionsCache = (provider: ProviderType, options: ModelOption[]): void => {
   if (typeof window === "undefined") return;
   try {
     const payload: ModelCachePayload = {
@@ -175,28 +149,20 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const updateSession = useAppStore((state) => state.updateSession);
   const processingChats = useAppStore((state) => state.processingChats);
   const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
-  const pendingQuestionRespond = useAppStore(
-    (state) => state.pendingQuestionRespond,
-  );
+  const pendingQuestionRespond = useAppStore((state) => state.pendingQuestionRespond);
   const clearPendingQuestionRespondForSession = useAppStore(
     (state) => state.clearPendingQuestionRespondForSession,
   );
   const activeModel = useActiveModel();
 
   // Get input state from Zustand slice (persisted per session)
-  const inputState = useAppStore((state) =>
-    sessionId ? state.inputStates[sessionId] : undefined,
-  );
+  const inputState = useAppStore((state) => (sessionId ? state.inputStates[sessionId] : undefined));
   const setInputContent = useAppStore((state) => state.setInputContent);
   const setReferenceText = useAppStore((state) => state.setReferenceText);
-  const setInputReasoningEffort = useAppStore(
-    (state) => state.setInputReasoningEffort,
-  );
+  const setInputReasoningEffort = useAppStore((state) => state.setInputReasoningEffort);
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
-  const [modelOptions, setModelOptions] = useState<
-    ModelOption[]
-  >([]);
+  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [isModelOptionsLoading, setIsModelOptionsLoading] = useState(false);
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(null);
   const [isSavingModel, setIsSavingModel] = useState(false);
@@ -260,6 +226,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       return;
     }
 
+    const shouldHandleSessionEvent = (targetSessionId?: string | null) => {
+      return targetSessionId
+        ? sessionId === targetSessionId
+        : sessionId !== null && sessionId === activeSessionId;
+    };
+
     const handleReferenceText = (event: Event) => {
       const customEvent = event as CustomEvent<ChatReferenceTextEventDetail>;
       if (!customEvent.detail || typeof customEvent.detail.text !== "string") {
@@ -267,13 +239,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
 
       const targetSessionId =
-        typeof customEvent.detail.sessionId === "string"
-          ? customEvent.detail.sessionId
-          : null;
-      const shouldHandle = targetSessionId
-        ? sessionId === targetSessionId
-        : sessionId !== null && sessionId === activeSessionId;
-      if (!shouldHandle) {
+        typeof customEvent.detail.sessionId === "string" ? customEvent.detail.sessionId : null;
+      if (!shouldHandleSessionEvent(targetSessionId)) {
         return;
       }
 
@@ -290,16 +257,29 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       });
     };
 
-    window.addEventListener(
-      CHAT_REFERENCE_TEXT_EVENT,
-      handleReferenceText as EventListener,
-    );
+    const handleFocusInput = (event: Event) => {
+      const customEvent = event as CustomEvent<{ sessionId?: string | null; handled?: boolean }>;
+      const targetSessionId =
+        typeof customEvent.detail?.sessionId === "string" ? customEvent.detail.sessionId : null;
+      if (!shouldHandleSessionEvent(targetSessionId)) {
+        return;
+      }
+
+      if (customEvent.detail) {
+        customEvent.detail.handled = true;
+      }
+
+      requestAnimationFrame(() => {
+        textAreaRef.current?.focus();
+      });
+    };
+
+    window.addEventListener(CHAT_REFERENCE_TEXT_EVENT, handleReferenceText as EventListener);
+    window.addEventListener(CHAT_FOCUS_INPUT_EVENT, handleFocusInput as EventListener);
 
     return () => {
-      window.removeEventListener(
-        CHAT_REFERENCE_TEXT_EVENT,
-        handleReferenceText as EventListener,
-      );
+      window.removeEventListener(CHAT_REFERENCE_TEXT_EVENT, handleReferenceText as EventListener);
+      window.removeEventListener(CHAT_FOCUS_INPUT_EVENT, handleFocusInput as EventListener);
     };
   }, [activeSessionId, sessionId, setReferenceTextPersisted]);
 
@@ -313,8 +293,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const allowedTools: string[] = [];
   const autoToolPrefix = undefined;
 
-  const { recordEntry, navigate, acknowledgeManualInput } =
-    useChatInputHistory(sessionId);
+  const { recordEntry, navigate, acknowledgeManualInput } = useChatInputHistory(sessionId);
 
   const {
     attachments,
@@ -372,16 +351,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     pendingQuestionRespond && pendingQuestionRespond.sessionId === sessionId,
   );
 
-  const shouldUseRespondModeForSession = useCallback(
-    (targetSessionId?: string | null): boolean => {
-      if (!targetSessionId) {
-        return false;
-      }
-      const latestPendingRespond = useAppStore.getState().pendingQuestionRespond;
-      return latestPendingRespond?.sessionId === targetSessionId;
-    },
-    [],
-  );
+  const shouldUseRespondModeForSession = useCallback((targetSessionId?: string | null): boolean => {
+    if (!targetSessionId) {
+      return false;
+    }
+    const latestPendingRespond = useAppStore.getState().pendingQuestionRespond;
+    return latestPendingRespond?.sessionId === targetSessionId;
+  }, []);
 
   const handleRespondSubmit = useCallback(
     async (responseText: string) => {
@@ -411,10 +387,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
 
         const resumeStatus = result?.auto_resume_status;
-        if (
-          resumeStatus &&
-          ["started", "already_running"].includes(resumeStatus)
-        ) {
+        if (resumeStatus && ["started", "already_running"].includes(resumeStatus)) {
           setSessionProcessing(sessionId, true);
         }
       } catch (err) {
@@ -471,9 +444,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       // If a target sessionId is provided, only the matching pane should handle it.
       // Otherwise, default to the globally active chat to avoid sending from all panes.
       const targetSessionId =
-        typeof customEvent.detail.sessionId === "string"
-          ? customEvent.detail.sessionId
-          : null;
+        typeof customEvent.detail.sessionId === "string" ? customEvent.detail.sessionId : null;
       const shouldHandle = targetSessionId
         ? sessionId === targetSessionId
         : sessionId !== null && sessionId === activeSessionId;
@@ -484,13 +455,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       customEvent.detail.handled = true;
       const contentValue = customEvent.detail?.content;
 
-      if (
-        typeof contentValue !== "string" ||
-        contentValue.trim().length === 0
-      ) {
-        customEvent.detail?.reject?.(
-          new Error("External send message content is empty"),
-        );
+      if (typeof contentValue !== "string" || contentValue.trim().length === 0) {
+        customEvent.detail?.reject?.(new Error("External send message content is empty"));
         return;
       }
 
@@ -503,16 +469,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         });
     };
 
-    window.addEventListener(
-      CHAT_SEND_MESSAGE_EVENT,
-      handleExternalSend as EventListener,
-    );
+    window.addEventListener(CHAT_SEND_MESSAGE_EVENT, handleExternalSend as EventListener);
 
     return () => {
-      window.removeEventListener(
-        CHAT_SEND_MESSAGE_EVENT,
-        handleExternalSend as EventListener,
-      );
+      window.removeEventListener(CHAT_SEND_MESSAGE_EVENT, handleExternalSend as EventListener);
     };
   }, [activeSessionId, sessionId, submitMessageWithLiveMode]);
 
@@ -528,9 +488,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const handleCloseReferencePreview = () => setReferenceTextPersisted(null);
 
   const currentProviderSettings = useMemo(() => {
-    return (providerConfig.providers as Partial<Record<ProviderType, any>>)?.[
-      currentProvider
-    ];
+    return (providerConfig.providers as Partial<Record<ProviderType, any>>)?.[currentProvider];
   }, [providerConfig, currentProvider]);
 
   const isProviderConfigured = useMemo(() => {
@@ -677,19 +635,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       autoToolPrefix,
       t,
     });
-  }, [
-    referenceText,
-    isToolSpecificMode,
-    isRestrictConversation,
-    allowedTools,
-    autoToolPrefix,
-    t,
-  ]);
+  }, [referenceText, isToolSpecificMode, isRestrictConversation, allowedTools, autoToolPrefix, t]);
 
   // In respond mode, override placeholder to guide the user
-  const placeholder = isRespondMode
-    ? t("chat.respond.customAnswerPlaceholder")
-    : basePlaceholder;
+  const placeholder = isRespondMode ? t("chat.respond.customAnswerPlaceholder") : basePlaceholder;
 
   const reasoningEffortLabelMap = useMemo<Record<ReasoningEffort, string>>(
     () => ({
@@ -733,10 +682,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           padding: "0 12px",
           height: 36,
           borderRadius: 18,
-          color:
-            reasoningEffort === "medium"
-              ? token.colorTextSecondary
-              : token.colorPrimary,
+          color: reasoningEffort === "medium" ? token.colorTextSecondary : token.colorPrimary,
         }}
         title={t("chat.input.reasoningTitle", { label: currentReasoningLabel })}
       >
@@ -751,9 +697,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   const modelLabel =
     activeModel ||
-    (isProviderConfigured
-      ? t("chat.model.selectModel")
-      : t("chat.model.configureProvider"));
+    (isProviderConfigured ? t("chat.model.selectModel") : t("chat.model.configureProvider"));
   const modelMenuItems = useMemo(
     () =>
       resolvedModelOptions.length > 0
@@ -865,9 +809,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           action={
             !isProviderConfigured ? (
               <Space>
-                <a onClick={() => openSettings("chat")}>
-                  {t("chat.model.openSettings")}
-                </a>
+                <a onClick={() => openSettings("chat")}>{t("chat.model.openSettings")}</a>
               </Space>
             ) : undefined
           }
@@ -889,8 +831,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
               </span>
               {autoToolPrefix && (
                 <Tag color="processing">
-                  <ToolOutlined />{" "}
-                  {t("chat.input.autoPrefixLabel", { prefix: autoToolPrefix })}
+                  <ToolOutlined /> {t("chat.input.autoPrefixLabel", { prefix: autoToolPrefix })}
                 </Tag>
               )}
             </Space>
@@ -910,12 +851,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         />
       )}
 
-      {referenceText && (
-        <InputPreview
-          text={referenceText}
-          onClose={handleCloseReferencePreview}
-        />
-      )}
+      {referenceText && <InputPreview text={referenceText} onClose={handleCloseReferencePreview} />}
       {attachments.length > 0 && (
         <Suspense fallback={<Spin size="small" />}>
           <FilePreview
@@ -952,9 +888,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         onAttachmentsAdded={handleAttachmentsAdded}
         onWorkflowCommandChange={commandState.handleCommandChange}
         onFileReferenceChange={fileReferenceState.handleFileReferenceChange}
-        onFileReferenceButtonClick={
-          fileReferenceState.handleFileReferenceButtonClick
-        }
+        onFileReferenceButtonClick={fileReferenceState.handleFileReferenceButtonClick}
         leftControlsExtra={
           <Space size={0} wrap>
             {modelControl}
@@ -992,9 +926,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             onSelect={fileReferenceState.handleFileReferenceSelect}
             onCancel={fileReferenceState.handleFileSelectorCancel}
             onChangeWorkspace={() => {
-              fileReferenceState.setWorkspacePathInput(
-                currentChat?.config.workspacePath ?? "",
-              );
+              fileReferenceState.setWorkspacePathInput(currentChat?.config.workspacePath ?? "");
               fileReferenceState.setIsWorkspaceModalVisible(true);
             }}
           />

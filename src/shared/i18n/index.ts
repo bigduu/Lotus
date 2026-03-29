@@ -3,11 +3,7 @@ import { initReactI18next } from "react-i18next";
 import { resources as baseResources } from "./resources";
 import { frAutoOverrides } from "./generated/frAutoOverrides";
 import { hiAutoOverrides } from "./generated/hiAutoOverrides";
-import {
-  DEFAULT_APP_LOCALE,
-  resolveInitialLocale,
-  SUPPORTED_APP_LOCALES,
-} from "./types";
+import { DEFAULT_APP_LOCALE, resolveInitialLocale, SUPPORTED_APP_LOCALES } from "./types";
 
 const enTranslation = baseResources["en-US"].translation;
 const zhCnTranslation = baseResources["zh-CN"].translation;
@@ -47,7 +43,7 @@ const frTranslation = {
       newSession: "Nouvelle session",
       empty: {
         noSessions: "Pas encore de sessions",
-        hint: "Cliquez sur \"Nouvelle session\" pour commencer",
+        hint: 'Cliquez sur "Nouvelle session" pour commencer',
       },
       dateGroups: {
         today: "Aujourd'hui",
@@ -100,13 +96,11 @@ const frTranslation = {
       deleteAllSuccess: "Toutes les sessions ont été supprimées (hors épinglées)",
       deleteEmptySuccess: "Les sessions vides ont été supprimées (hors épinglées)",
       localStorageCleared: "Le stockage local a été effacé",
-      resetSuccessReloading:
-        "Réinitialisation de l'application réussie. Rechargement...",
+      resetSuccessReloading: "Réinitialisation de l'application réussie. Rechargement...",
       resetFailed: "Échec de la réinitialisation de l'application",
       autoTitleEnabled: "Génération automatique des titres activée",
       autoTitleDisabled: "Génération automatique des titres désactivée",
-      autoTitleUpdateFailed:
-        "Échec de la mise à jour de la préférence de titre automatique",
+      autoTitleUpdateFailed: "Échec de la mise à jour de la préférence de titre automatique",
       promptEnhancementSaved: "Amélioration du prompt système enregistrée",
     },
     configTab: {
@@ -170,12 +164,10 @@ const frTranslation = {
         "Ces actions sont irréversibles. Toutes les données seront supprimées définitivement.",
       resetApplicationTitle: "Réinitialiser l'application",
       resetApplicationIntro: "Voulez-vous continuer ? Cette action va :",
-      resetStepDeleteAllSessions:
-        "Supprimer TOUTES les sessions (y compris les épinglées)",
+      resetStepDeleteAllSessions: "Supprimer TOUTES les sessions (y compris les épinglées)",
       resetStepClearStorage: "Effacer toutes les données du stockage local",
       resetStepResetConfig: "Réinitialiser config.json aux valeurs par défaut",
-      resetStepSetupFlow:
-        "Relancer l'assistant de configuration au prochain démarrage",
+      resetStepSetupFlow: "Relancer l'assistant de configuration au prochain démarrage",
       resetStepReload: "Recharger l'application",
       resetConfirm: "Oui, tout réinitialiser",
       resetButton: "Réinitialiser l'application (toutes les données)",
@@ -198,8 +190,7 @@ const frTranslation = {
     },
     modelMappingCard: {
       ...enTranslation.settings.modelMappingCard,
-      loadProviderFailed:
-        "Échec du chargement de la configuration du fournisseur",
+      loadProviderFailed: "Échec du chargement de la configuration du fournisseur",
       loadMappingsFailed: "Échec du chargement des mappages existants",
       loadModelsFailed: "Échec du chargement des modèles",
       loadModelsHint:
@@ -208,8 +199,7 @@ const frTranslation = {
       mappingSaveFailed: "Échec de l'enregistrement du mappage de modèle",
       enterModelName: "Veuillez saisir un nom de modèle",
       customMappingSaved: "Mappage de modèle personnalisé enregistré",
-      customMappingSaveFailed:
-        "Échec de l'enregistrement du mappage de modèle personnalisé",
+      customMappingSaveFailed: "Échec de l'enregistrement du mappage de modèle personnalisé",
       collapseTitle: "Mappage de modèles Anthropic",
       description:
         "Configurez les modèles {{provider}} à utiliser lorsque Claude CLI demande des modèles spécifiques.",
@@ -230,8 +220,7 @@ const frTranslation = {
       cached: "(en cache)",
       storedIn: "Enregistré dans",
       customModalTitle: "Saisir un nom de modèle personnalisé",
-      customModalDescription:
-        "Saisissez un nom de modèle personnalisé pour {{modelType}}",
+      customModalDescription: "Saisissez un nom de modèle personnalisé pour {{modelType}}",
       customModalPlaceholder: "ex. : gpt-4-turbo-preview",
       customModalNote:
         "Note : assurez-vous que ce nom de modèle est valide pour le fournisseur actuel.",
@@ -246,8 +235,7 @@ const frTranslation = {
       backendApiBaseUrlTitle: "URL de base de l'API du back-end",
       resetToDefault: "Rétablir les valeurs par défaut",
       save: "Enregistrer",
-      backendApiHint:
-        "Doit être une URL de base complète incluant /v1 (ex. {{example}}).",
+      backendApiHint: "Doit être une URL de base complète incluant /v1 (ex. {{example}}).",
     },
     common: {
       ...enTranslation.settings.common,
@@ -305,8 +293,7 @@ const frTranslation = {
       sampleTextPlaceholder: "Saisissez un texte d'exemple",
       maskedPreview: "Aperçu du masquage",
       emptyPattern: "(vide)",
-      loadFailed:
-        "Échec du chargement de la configuration de masquage de mots-clés",
+      loadFailed: "Échec du chargement de la configuration de masquage de mots-clés",
       saveFailed: "Échec de l'enregistrement de la configuration",
       saveSuccess: "Configuration de masquage de mots-clés enregistrée",
       validationFailedPrefix: "Échec de validation",
@@ -337,14 +324,12 @@ const frTranslation = {
       save: "Enregistrer",
       empty: "Aucun flux de travail trouvé",
       namePlaceholder: "Nom du flux",
-      contentPlaceholder:
-        "# Titre du flux\n\nDécrivez ici les étapes du flux de travail.",
+      contentPlaceholder: "# Titre du flux\n\nDécrivez ici les étapes du flux de travail.",
     },
     mermaidTab: {
       ...enTranslation.settings.mermaidTab,
       title: "Paramètres des diagrammes Mermaid",
-      description:
-        "Personnalisez le rendu des diagrammes Mermaid dans vos conversations",
+      description: "Personnalisez le rendu des diagrammes Mermaid dans vos conversations",
       themeCardTitle: "Thème",
       themeLabel: "Thème Mermaid",
       themeTooltip:
@@ -362,20 +347,16 @@ const frTranslation = {
         ...enTranslation.settings.mermaidTab.themeDescriptions,
         default:
           "Par défaut : apparence Mermaid classique, s'adapte automatiquement au clair/sombre",
-        neutral:
-          "Neutre : tons gris, s'adapte automatiquement au clair/sombre",
+        neutral: "Neutre : tons gris, s'adapte automatiquement au clair/sombre",
         dark: "Sombre : thème sombre permanent",
-        forest:
-          "Forêt : palette verte, adaptée aux diagrammes techniques",
+        forest: "Forêt : palette verte, adaptée aux diagrammes techniques",
         base: "Base : style minimal, pour un thème personnalisé",
       },
       globalCardTitle: "Paramètres globaux",
       fontSizeLabel: "Taille de police",
-      fontSizeTooltip:
-        "Taille de police de base pour tout le texte du diagramme (en pixels)",
+      fontSizeTooltip: "Taille de police de base pour tout le texte du diagramme (en pixels)",
       defaultZoomLabel: "Zoom par défaut",
-      defaultZoomTooltip:
-        "Niveau de zoom initial des diagrammes (1,0 = 100 %)",
+      defaultZoomTooltip: "Niveau de zoom initial des diagrammes (1,0 = 100 %)",
       responsiveWidthLabel: "Largeur adaptative",
       responsiveWidthTooltip:
         "Active l'adaptation du diagramme à la largeur du conteneur. Désactivez pour une largeur fixe.",
@@ -467,18 +448,14 @@ const frTranslation = {
       },
       validation: {
         ...enTranslation.settings.modelLimits.validation,
-        atLeastOneRow:
-          "Veuillez conserver au moins une ligne de limite de modèle.",
+        atLeastOneRow: "Veuillez conserver au moins une ligne de limite de modèle.",
         modelPatternEmpty: "Le motif du modèle ne peut pas être vide.",
         duplicateModelPattern: "Motif de modèle dupliqué : {{pattern}}",
-        contextWindowMin:
-          "La fenêtre de contexte pour {{pattern}} doit être d'au moins 1000.",
-        maxOutputMin:
-          "La sortie maximale pour {{pattern}} doit être d'au moins 1.",
+        contextWindowMin: "La fenêtre de contexte pour {{pattern}} doit être d'au moins 1000.",
+        maxOutputMin: "La sortie maximale pour {{pattern}} doit être d'au moins 1.",
         maxOutputExceedsContext:
           "La sortie maximale pour {{pattern}} doit être inférieure ou égale à la fenêtre de contexte.",
-        safetyMarginNegative:
-          "La marge de sécurité pour {{pattern}} ne peut pas être négative.",
+        safetyMarginNegative: "La marge de sécurité pour {{pattern}} ne peut pas être négative.",
         safetyMarginTooLarge:
           "La marge de sécurité pour {{pattern}} doit être inférieure à la fenêtre de contexte.",
       },
@@ -486,8 +463,7 @@ const frTranslation = {
     schedulesTab: {
       ...enTranslation.settings.schedulesTab,
       loadFailed: "Échec du chargement des planifications",
-      loadSessionsFailed:
-        "Échec du chargement des sessions de planification",
+      loadSessionsFailed: "Échec du chargement des sessions de planification",
       createFailed: "Échec de la création de la planification",
       updateFailed: "Échec de la mise à jour de la planification",
       deleteFailed: "Échec de la suppression de la planification",
@@ -568,30 +544,23 @@ const frTranslation = {
       keepPinned: "Conserver les épinglées",
       deleteAll: "Supprimer tout",
       deleteAllTitle: "Supprimer toutes les sessions",
-      deleteAllKeepPinned:
-        "Supprime toutes les sessions sauf celles épinglées.",
-      deleteAllIncludePinned:
-        "Supprime toutes les sessions, y compris les épinglées.",
+      deleteAllKeepPinned: "Supprime toutes les sessions sauf celles épinglées.",
+      deleteAllIncludePinned: "Supprime toutes les sessions, y compris les épinglées.",
       deleteEmpty: "Supprimer les vides",
       deleteEmptyTitle: "Supprimer les sessions vides",
-      deleteEmptyKeepPinned:
-        "Supprime les sessions vides sauf celles épinglées.",
-      deleteEmptyIncludePinned:
-        "Supprime les sessions vides, y compris les épinglées.",
+      deleteEmptyKeepPinned: "Supprime les sessions vides sauf celles épinglées.",
+      deleteEmptyIncludePinned: "Supprime les sessions vides, y compris les épinglées.",
       deleteChildren: "Supprimer les enfants",
       deleteChildrenTitle: "Supprimer les sessions enfants",
-      deleteChildrenKeepPinned:
-        "Supprime toutes les sessions enfants sauf celles épinglées.",
-      deleteChildrenIncludePinned:
-        "Supprime toutes les sessions enfants, y compris les épinglées.",
+      deleteChildrenKeepPinned: "Supprime toutes les sessions enfants sauf celles épinglées.",
+      deleteChildrenIncludePinned: "Supprime toutes les sessions enfants, y compris les épinglées.",
       delete: "Supprimer",
       cleanupComplete: "Nettoyage terminé",
       devResetTitle: "Réinitialisation de développement",
       devResetDescription:
         "Réinitialisation complète du stockage des sessions (supprime sessions/ et réinitialise sessions.json).",
       devResetAction: "Réinitialiser les sessions (dev)",
-      devResetConfirmTitle:
-        "Réinitialiser le stockage des sessions (dev)",
+      devResetConfirmTitle: "Réinitialiser le stockage des sessions (dev)",
       devResetConfirmContent:
         "Cette action supprime TOUTES les sessions (y compris épinglées/enfants) et réinitialise l'index des sessions. Une nouvelle session vide sera créée après rafraîchissement.",
       reset: "Réinitialiser",
@@ -606,19 +575,14 @@ const frTranslation = {
       activeProvider: "Fournisseur LLM actif",
       selectProviderRequired: "Veuillez sélectionner un fournisseur",
       saveAndApply: "Enregistrer et appliquer la configuration",
-      loadConfigFailed:
-        "Échec du chargement de la configuration du fournisseur",
+      loadConfigFailed: "Échec du chargement de la configuration du fournisseur",
       checkStatusFailed: "Échec de la vérification du statut",
-      startCopilotAuthFailed:
-        "Échec du démarrage de l'authentification Copilot",
+      startCopilotAuthFailed: "Échec du démarrage de l'authentification Copilot",
       copilotAuthSuccess: "Authentification Copilot réussie !",
-      providerReloaded:
-        "Fournisseur rechargé avec la nouvelle authentification.",
-      completeAuthFailed:
-        "Échec de la finalisation de l'authentification. Veuillez réessayer.",
+      providerReloaded: "Fournisseur rechargé avec la nouvelle authentification.",
+      completeAuthFailed: "Échec de la finalisation de l'authentification. Veuillez réessayer.",
       userCodeCopied: "Code utilisateur copié dans le presse-papiers !",
-      copyCodeFailedPrefix:
-        "Échec de la copie du code. Veuillez copier manuellement :",
+      copyCodeFailedPrefix: "Échec de la copie du code. Veuillez copier manuellement :",
       logoutSuccess: "Déconnecté de Copilot",
       logoutFailed: "Échec de la déconnexion de Copilot",
       unknownError: "Erreur inconnue",
@@ -645,8 +609,7 @@ const frTranslation = {
       fetchingModels: "Récupération des modèles...",
       refreshModelsFrom: "Actualiser les modèles disponibles depuis {{source}}",
       fetchModelsFrom: "Récupérer les modèles disponibles depuis {{source}}",
-      saveModelChangeFailed:
-        "Échec de l'enregistrement du changement de modèle",
+      saveModelChangeFailed: "Échec de l'enregistrement du changement de modèle",
       fetchModelsFailedShort: "Échec de la récupération des modèles",
       retry: "Réessayer",
       openaiConfigTitle: "Configuration OpenAI",
@@ -660,8 +623,7 @@ const frTranslation = {
       defaultModel: "Modèle par défaut",
       selectModelRequired: "Veuillez sélectionner un modèle",
       selectModel: "Sélectionner un modèle",
-      responsesOnlyModelsOptional:
-        "Modèles API Responses uniquement (optionnel)",
+      responsesOnlyModelsOptional: "Modèles API Responses uniquement (optionnel)",
       responsesOnlyHelp1:
         "Certains modèles ne prennent en charge que l'API OpenAI Responses (pas chat/completions). Ajoutez ici des ID de modèles pour forcer Bamboo à utiliser l'API en amont.",
       responsesOnlyHelp2:
@@ -696,23 +658,18 @@ const frTranslation = {
         "Affiche l'URL de connexion dans la console au lieu d'ouvrir automatiquement le navigateur",
       noModelsLoaded:
         "Aucun modèle n'est encore chargé. Cliquez sur Récupérer les modèles disponibles depuis le back-end.",
-      authFirstThenFetch:
-        "Authentifiez d'abord Copilot, puis récupérez les modèles.",
+      authFirstThenFetch: "Authentifiez d'abord Copilot, puis récupérez les modèles.",
       copilotUsageTitle: "Pour utiliser GitHub Copilot :",
-      copilotUsageStep1:
-        "Vérifiez que vous disposez d'un abonnement GitHub Copilot actif",
-      copilotUsageStep2:
-        "Cliquez sur Authentifier Copilot pour démarrer le flux de code appareil",
+      copilotUsageStep1: "Vérifiez que vous disposez d'un abonnement GitHub Copilot actif",
+      copilotUsageStep2: "Cliquez sur Authentifier Copilot pour démarrer le flux de code appareil",
       copilotUsageStep3:
         "Suivez les instructions dans votre terminal pour finaliser l'authentification",
       copilotAuthModalTitle: "Authentification Copilot",
       cancel: "Annuler",
       completedAuthorization: "J'ai terminé l'autorisation",
       browserOpened: "Navigateur ouvert automatiquement",
-      authStep1:
-        "Une page GitHub devrait s'être ouverte dans votre navigateur",
-      authStep2:
-        "Copiez le code ci-dessous puis collez-le sur la page GitHub",
+      authStep1: "Une page GitHub devrait s'être ouverte dans votre navigateur",
+      authStep2: "Copiez le code ci-dessous puis collez-le sur la page GitHub",
       authStep3: "Cliquez sur Continuer sur GitHub pour autoriser",
       visitUrl: "1. Ouvrez cette URL :",
       enterCode: "2. Saisissez ce code :",
@@ -755,13 +712,12 @@ const frTranslation = {
       addedServer: "{{name}} ajouté",
       saveServerFailed: "Échec de l'enregistrement du serveur MCP",
       copiedConfig: "Configuration MCP copiée dans le presse-papiers",
-      clipboardUnavailable:
-        "Presse-papiers indisponible. L'export est affiché dans la fenêtre.",
+      clipboardUnavailable: "Presse-papiers indisponible. L'export est affiché dans la fenêtre.",
       invalidJsonPrefix: "JSON invalide",
       unknownError: "Erreur inconnue",
       jsonMustBeObject: "Le JSON doit être un objet",
       missingMcpServers:
-        "Champ \"mcpServers\" manquant. Collez un bloc de configuration complet de style Claude Desktop : { \"mcpServers\": { ... } }",
+        'Champ "mcpServers" manquant. Collez un bloc de configuration complet de style Claude Desktop : { "mcpServers": { ... } }',
       importSummary:
         "{{count}} serveur(s) importé(s) ({{added}} ajoutés, {{updated}} mis à jour, {{removed}} supprimés). {{failed}} échec(s) de démarrage.",
       importStartFailures:
@@ -778,8 +734,7 @@ const frTranslation = {
       export: "Exporter",
       import: "Importer",
       importModalTitle: "Importer des serveurs MCP",
-      importHint:
-        "Collez un bloc de configuration style Claude Desktop. Exemple :",
+      importHint: "Collez un bloc de configuration style Claude Desktop. Exemple :",
       importModeMerge: "Fusionner (upsert)",
       importModeReplace: "Remplacer (supprimer les autres)",
       replaceWarning:
@@ -815,8 +770,7 @@ const frTranslation = {
     mcpToolList: {
       ...enTranslation.settings.mcpToolList,
       title: "Outils MCP",
-      selectServerHint:
-        "Sélectionnez un serveur pour inspecter ses outils MCP",
+      selectServerHint: "Sélectionnez un serveur pour inspecter ses outils MCP",
       empty: "Aucun outil trouvé pour ce serveur",
       noDescription: "Aucune description disponible",
       aliasMapping: "Mappage d'alias",
@@ -845,8 +799,7 @@ const frTranslation = {
         "Utilisez uniquement des lettres, des chiffres, des underscores et des tirets",
       displayName: "Nom d'affichage",
       enabled: "Activé",
-      enabledHelp:
-        "Les serveurs désactivés restent en configuration, mais ne seront pas démarrés.",
+      enabledHelp: "Les serveurs désactivés restent en configuration, mais ne seront pas démarrés.",
       transportType: "Type de transport",
       transportTypeRequired: "Le type de transport est requis",
       transportOptions: {
@@ -1018,11 +971,9 @@ const frTranslation = {
     charts: {
       ...enTranslation.settings.charts,
       tokenUsageOverTime: "Utilisation des tokens dans le temps",
-      unifiedTokenUsageOverTime:
-        "Utilisation des tokens dans le temps (chat + transfert)",
+      unifiedTokenUsageOverTime: "Utilisation des tokens dans le temps (chat + transfert)",
       noTokenUsage: "Aucune utilisation de tokens disponible",
-      tokenUsageDescription:
-        "Tokens de prompt, de réponse et totaux par jour/période.",
+      tokenUsageDescription: "Tokens de prompt, de réponse et totaux par jour/période.",
       unifiedTokenUsageDescription:
         "Utilisation combinée des tokens chat et transfert au fil du temps.",
       total: "Total",
@@ -1032,11 +983,9 @@ const frTranslation = {
       forward: "Transfert",
       modelDistribution: "Répartition des modèles",
       noModelMetrics: "Aucune métrique de modèle disponible",
-      modelDistributionDescription:
-        "Part des tokens totaux consommés par modèle.",
+      modelDistributionDescription: "Part des tokens totaux consommés par modèle.",
       endpointDistribution: "Répartition des points de terminaison",
-      noForwardMetrics:
-        "Aucune métrique de transfert disponible pour cette plage.",
+      noForwardMetrics: "Aucune métrique de transfert disponible pour cette plage.",
     },
   },
 };
@@ -1121,8 +1070,7 @@ const hiTranslation = {
     ...enTranslation.app,
     loading: "लोड हो रहा है...",
     retry: "पुनः प्रयास करें",
-    backendNotReachable:
-      "बैकएंड {{baseUrl}} पर उपलब्ध नहीं है (अंतिम त्रुटि: {{message}})",
+    backendNotReachable: "बैकएंड {{baseUrl}} पर उपलब्ध नहीं है (अंतिम त्रुटि: {{message}})",
   },
   chat: {
     ...enTranslation.chat,
@@ -1131,7 +1079,7 @@ const hiTranslation = {
       newSession: "नया सत्र",
       empty: {
         noSessions: "अभी तक कोई सत्र नहीं",
-        hint: "शुरू करने के लिए \"नया सत्र\" पर क्लिक करें",
+        hint: 'शुरू करने के लिए "नया सत्र" पर क्लिक करें',
       },
       dateGroups: {
         today: "आज",
@@ -1242,8 +1190,7 @@ const hiTranslation = {
       customModalTitle: "कस्टम मॉडल नाम दर्ज करें",
       customModalDescription: "{{modelType}} के लिए कस्टम मॉडल नाम दर्ज करें",
       customModalPlaceholder: "उदाहरण: gpt-4-turbo-preview",
-      customModalNote:
-        "नोट: सुनिश्चित करें कि मॉडल नाम वर्तमान प्रोवाइडर के लिए मान्य है।",
+      customModalNote: "नोट: सुनिश्चित करें कि मॉडल नाम वर्तमान प्रोवाइडर के लिए मान्य है।",
       save: "सहेजें",
       cancel: "रद्द करें",
     },
@@ -1303,8 +1250,7 @@ const frFullTranslation = {
       },
       deleteByDate: {
         title: "Supprimer les sessions du {{date}}",
-        confirm:
-          "Voulez-vous vraiment supprimer {{count}} session(s) du {{date}} ?",
+        confirm: "Voulez-vous vraiment supprimer {{count}} session(s) du {{date}} ?",
       },
       newSessionWithPrompt: "Nouvelle session avec {{prompt}}",
     },
@@ -1347,14 +1293,11 @@ const frFullTranslation = {
       createButton: "Créer une nouvelle session",
       helperText:
         "Choisissez un prompt système de base pour l'IA. Vous pouvez en ajouter ou modifier dans les paramètres système.",
-      emptyDescription:
-        "Aucun prompt système trouvé. Ajoutez-en un dans les paramètres système.",
-      newSessionSelectorTitle:
-        "Choisir un prompt système pour la nouvelle session",
+      emptyDescription: "Aucun prompt système trouvé. Ajoutez-en un dans les paramètres système.",
+      newSessionSelectorTitle: "Choisir un prompt système pour la nouvelle session",
       defaultDescription: "Prompt système par défaut.",
       loadPresetsFailed: "Échec du chargement des préréglages",
-      loadCurrentInfoFailed:
-        "Échec du chargement des informations actuelles",
+      loadCurrentInfoFailed: "Échec du chargement des informations actuelles",
     },
     commandSelector: {
       ...enTranslation.chat.commandSelector,
@@ -1381,10 +1324,8 @@ const frFullTranslation = {
       configureProvider: "Configurer le fournisseur",
       openSettings: "Ouvrir les paramètres",
       noModelsAvailable: "Aucun modèle disponible",
-      selectModelBeforeSend:
-        "Veuillez sélectionner un modèle avant l'envoi.",
-      selectModelBeforeRetry:
-        "Veuillez sélectionner un modèle avant de réessayer.",
+      selectModelBeforeSend: "Veuillez sélectionner un modèle avant l'envoi.",
+      selectModelBeforeRetry: "Veuillez sélectionner un modèle avant de réessayer.",
     },
     streaming: {
       ...enTranslation.chat.streaming,
@@ -1456,8 +1397,7 @@ const frFullTranslation = {
       splitVertical: "Diviser verticalement",
       closePane: "Fermer le panneau",
       selectSessionHint: "Sélectionnez une session pour voir les messages",
-      hoverToSplitHint:
-        "Survolez un panneau pour le diviser et comparer les conversations",
+      hoverToSplitHint: "Survolez un panneau pour le diviser et comparer les conversations",
       selectMessagesToExport: "Sélectionnez des messages à exporter",
     },
     messageCard: {
@@ -1481,12 +1421,9 @@ const frFullTranslation = {
       nothingToExport: "Rien à exporter",
       exportFailed: "Échec de l'export",
       cannotRestore: "Impossible de restaurer ce message",
-      restorePartial:
-        "Conversation restaurée. {{count}} fichier(s) n'ont pas pu être restaurés.",
-      restoreFilesSuccess:
-        "Fichiers et conversation restaurés ({{count}} message(s) supprimé(s)).",
-      restoreSuccess:
-        "Conversation restaurée ({{count}} message(s) supprimé(s)).",
+      restorePartial: "Conversation restaurée. {{count}} fichier(s) n'ont pas pu être restaurés.",
+      restoreFilesSuccess: "Fichiers et conversation restaurés ({{count}} message(s) supprimé(s)).",
+      restoreSuccess: "Conversation restaurée ({{count}} message(s) supprimé(s)).",
       restoreFailed: "Échec de restauration de la conversation",
       pdfUnavailable: "L'export PDF n'est pas disponible dans cet environnement",
       exportingPdf: "Export PDF en cours...",
@@ -1520,8 +1457,7 @@ const frFullTranslation = {
       reloadTools: "Recharger les outils",
       loadBambooConfigFailed: "Échec du chargement de la configuration Bamboo",
       bambooConfigSaved: "Configuration Bamboo enregistrée",
-      saveBambooConfigFailed:
-        "Échec de l'enregistrement de la configuration Bamboo",
+      saveBambooConfigFailed: "Échec de l'enregistrement de la configuration Bamboo",
     },
     keywordMaskingTab: {
       ...frTranslation.settings.keywordMaskingTab,
@@ -1570,8 +1506,7 @@ const frFullTranslation = {
       prerequisites: "Prérequis",
       potentialRisks: "Risques potentiels ({{count}})",
       totalEstimatedTime: "Temps total estimé",
-      feedbackPlaceholder:
-        "Indiquez à l'agent ce que vous souhaitez ajuster...",
+      feedbackPlaceholder: "Indiquez à l'agent ce que vous souhaitez ajuster...",
       sendFeedback: "Envoyer un retour",
       refinePlan: "Affiner le plan",
       executePlan: "Exécuter le plan",
@@ -1582,18 +1517,15 @@ const frFullTranslation = {
       context: "Contexte",
       chooseOption: "Choisir une option",
       recommended: "Recommandé",
-      customAnswerHint:
-        "Aucune option adaptée ? Saisissez votre propre réponse.",
+      customAnswerHint: "Aucune option adaptée ? Saisissez votre propre réponse.",
       customAnswerPlaceholder: "Saisissez votre réponse personnalisée...",
       submitAnswer: "Soumettre la réponse",
     },
     questionDialog: {
       ...enTranslation.components.questionDialog,
-      selectOptionWarning:
-        "Veuillez sélectionner une option avant de soumettre.",
+      selectOptionWarning: "Veuillez sélectionner une option avant de soumettre.",
       responseSubmitted: "Réponse soumise",
-      responseSubmittedContinue:
-        "Réponse soumise, l'IA va continuer le traitement",
+      responseSubmittedContinue: "Réponse soumise, l'IA va continuer le traitement",
       submitFailed: "Échec de soumission de la réponse",
       noModelConfigured: "Aucun modèle configuré",
       customAnswerTip: "Réponse personnalisée",
@@ -1610,8 +1542,7 @@ const frFullTranslation = {
       secondsAgo: "il y a {{count}} s",
       minutesAgo: "il y a {{count}} min",
       searchPlaceholder: "Rechercher des compétences",
-      readOnlyHint:
-        "Mode lecture seule : les compétences ne peuvent pas être modifiées.",
+      readOnlyHint: "Mode lecture seule : les compétences ne peuvent pas être modifiées.",
       noSkillsFound: "Aucune compétence trouvée",
       noMatch: "Aucune compétence ne correspond à la recherche",
       loadFailed: "Échec du chargement des compétences",
@@ -1676,8 +1607,7 @@ const frFullTranslation = {
       loadingDiagram: "Chargement du diagramme...",
       diagramError: "Erreur de diagramme Mermaid",
       errorTitlePrefix: "Erreur",
-      checkConsoleHint:
-        "Vérifiez la syntaxe Mermaid ou ouvrez la console pour les détails.",
+      checkConsoleHint: "Vérifiez la syntaxe Mermaid ou ouvrez la console pour les détails.",
       fixMermaid: "Corriger Mermaid",
       renderingDiagram: "Rendu du diagramme...",
       exportSvg: "Exporter en SVG",
@@ -1742,11 +1672,9 @@ const hiFullTranslation = {
       ...enTranslation.chat.input,
       placeholder: "संदेश भेजें...",
       placeholderWithReference: "संदेश भेजें (संदर्भ सहित)",
-      placeholderWithWorkflows:
-        "संदेश भेजें... (वर्कफ़्लो के लिए '/' टाइप करें)",
+      placeholderWithWorkflows: "संदेश भेजें... (वर्कफ़्लो के लिए '/' टाइप करें)",
       toolCallsOnly: "केवल टूल कॉल (अनुमत टूल: {{tools}})",
-      autoPrefixMode:
-        "ऑटो-प्रिफिक्स मोड: {{prefix}} (टूल चुनने के लिए '/' टाइप करें)",
+      autoPrefixMode: "ऑटो-प्रिफिक्स मोड: {{prefix}} (टूल चुनने के लिए '/' टाइप करें)",
       toolSpecificMode: "टूल-विशिष्ट मोड (अनुमत टूल: {{tools}})",
       processingFiles: "फ़ाइलें प्रोसेस की जा रही हैं…",
       addAttachments: "संलग्नक जोड़ें",
@@ -1776,8 +1704,7 @@ const hiFullTranslation = {
       createButton: "नया सेशन बनाएँ",
       helperText:
         "AI के लिए आधार सिस्टम प्रॉम्प्ट चुनें। आप सिस्टम सेटिंग्स में प्रॉम्प्ट जोड़ या संपादित कर सकते हैं।",
-      emptyDescription:
-        "कोई सिस्टम प्रॉम्प्ट नहीं मिला। सिस्टम सेटिंग्स में एक जोड़ें।",
+      emptyDescription: "कोई सिस्टम प्रॉम्प्ट नहीं मिला। सिस्टम सेटिंग्स में एक जोड़ें।",
       newSessionSelectorTitle: "नए सेशन के लिए सिस्टम प्रॉम्प्ट चुनें",
       defaultDescription: "डिफ़ॉल्ट सिस्टम प्रॉम्प्ट।",
       loadPresetsFailed: "प्रिसेट लोड करने में विफल",
@@ -1803,8 +1730,7 @@ const hiFullTranslation = {
       noModelSelected: "कोई मॉडल चयनित नहीं",
       selectModelHint: "चैट शुरू करने के लिए एक मॉडल चुनें।",
       providerNotConfigured: "प्रोवाइडर कॉन्फ़िगर नहीं है",
-      configureProviderHint:
-        "मॉडल चुनने से पहले सेटिंग्स में प्रोवाइडर कॉन्फ़िगर करें।",
+      configureProviderHint: "मॉडल चुनने से पहले सेटिंग्स में प्रोवाइडर कॉन्फ़िगर करें।",
       configureProvider: "प्रोवाइडर कॉन्फ़िगर करें",
       openSettings: "सेटिंग्स खोलें",
       noModelsAvailable: "कोई मॉडल उपलब्ध नहीं",
@@ -1820,15 +1746,11 @@ const hiFullTranslation = {
       modelConfigNotLoaded: "मॉडल कॉन्फ़िगरेशन लोड नहीं हुआ",
       agentUnavailable: "एजेंट उपलब्ध नहीं",
       noActiveChatTitle: "कोई सक्रिय चैट नहीं",
-      noActiveChatSendContent:
-        "संदेश भेजने से पहले चैट बनाएँ या चुनें।",
-      noActiveChatRetryContent:
-        "पुनः प्रयास से पहले चैट बनाएँ या चुनें।",
+      noActiveChatSendContent: "संदेश भेजने से पहले चैट बनाएँ या चुनें।",
+      noActiveChatRetryContent: "पुनः प्रयास से पहले चैट बनाएँ या चुनें।",
       noChatIdTitle: "चैट ID अनुपस्थित",
-      noChatIdSendContent:
-        "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
-      noChatIdRetryContent:
-        "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
+      noChatIdSendContent: "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
+      noChatIdRetryContent: "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
     },
     selectionToolbar: {
       ...enTranslation.chat.selectionToolbar,
@@ -1881,8 +1803,7 @@ const hiFullTranslation = {
       splitVertical: "ऊर्ध्वाधर विभाजित करें",
       closePane: "पैन बंद करें",
       selectSessionHint: "संदेश देखने के लिए एक सेशन चुनें",
-      hoverToSplitHint:
-        "चैट तुलना के लिए पैन पर होवर करके विभाजित करें",
+      hoverToSplitHint: "चैट तुलना के लिए पैन पर होवर करके विभाजित करें",
       selectMessagesToExport: "निर्यात के लिए संदेश चुनें",
     },
     messageCard: {
@@ -1906,10 +1827,8 @@ const hiFullTranslation = {
       nothingToExport: "निर्यात करने के लिए कुछ नहीं",
       exportFailed: "निर्यात विफल",
       cannotRestore: "यह संदेश पुनर्स्थापित नहीं किया जा सकता",
-      restorePartial:
-        "चैट पुनर्स्थापित हुई। {{count}} फ़ाइल(ें) पुनर्स्थापित नहीं हो सकीं।",
-      restoreFilesSuccess:
-        "फ़ाइलें और चैट पुनर्स्थापित ({{count}} संदेश हटाए गए)।",
+      restorePartial: "चैट पुनर्स्थापित हुई। {{count}} फ़ाइल(ें) पुनर्स्थापित नहीं हो सकीं।",
+      restoreFilesSuccess: "फ़ाइलें और चैट पुनर्स्थापित ({{count}} संदेश हटाए गए)।",
       restoreSuccess: "चैट पुनर्स्थापित ({{count}} संदेश हटाए गए)।",
       restoreFailed: "चैट पुनर्स्थापित करने में विफल",
       pdfUnavailable: "इस वातावरण में PDF निर्यात उपलब्ध नहीं है",
@@ -2029,8 +1948,7 @@ const hiFullTranslation = {
       ...enTranslation.components.questionDialog,
       selectOptionWarning: "सबमिट करने से पहले एक विकल्प चुनें।",
       responseSubmitted: "उत्तर सबमिट किया गया",
-      responseSubmittedContinue:
-        "उत्तर सबमिट किया गया, AI आगे प्रोसेस करेगा",
+      responseSubmittedContinue: "उत्तर सबमिट किया गया, AI आगे प्रोसेस करेगा",
       submitFailed: "उत्तर सबमिट करने में विफल",
       noModelConfigured: "कोई मॉडल कॉन्फ़िगर नहीं है",
       customAnswerTip: "कस्टम उत्तर",
@@ -2112,8 +2030,7 @@ const hiFullTranslation = {
       loadingDiagram: "डायग्राम लोड हो रहा है...",
       diagramError: "Mermaid डायग्राम त्रुटि",
       errorTitlePrefix: "त्रुटि",
-      checkConsoleHint:
-        "Mermaid सिंटैक्स जाँचें या विवरण के लिए कंसोल खोलें।",
+      checkConsoleHint: "Mermaid सिंटैक्स जाँचें या विवरण के लिए कंसोल खोलें।",
       fixMermaid: "Mermaid ठीक करें",
       renderingDiagram: "डायग्राम रेंडर हो रहा है...",
       exportSvg: "SVG निर्यात करें",

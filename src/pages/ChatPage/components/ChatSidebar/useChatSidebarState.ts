@@ -16,6 +16,50 @@ import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { openSession } from "../../utils/openSession";
 
+type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
+
+const matchesSearchQuery = (chat: ChatItem, normalizedQuery: string): boolean => {
+  if (!normalizedQuery) return true;
+
+  const haystack = [
+    chat.title,
+    chat.id,
+    chat.kind || "root",
+    chat.config.workspacePath || "",
+    chat.config.systemPromptId || "",
+    chat.updatedAt || "",
+    chat.createdByScheduleId || "",
+    chat.lastRunStatus || "",
+    chat.lastRunError || "",
+    // Include first user message content for lightweight content search
+    ...(chat.messages
+      .filter((m) => m.role === "user" && "content" in m)
+      .slice(0, 3)
+      .map((m) => ("content" in m ? (m as { content: string }).content : ""))
+    ),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  // Support multi-word search: all terms must match
+  const terms = normalizedQuery.split(/\s+/).filter(Boolean);
+  return terms.every((term) => haystack.includes(term));
+};
+
+const matchesStatusFilter = (chat: ChatItem, filter: SidebarStatusFilter): boolean => {
+  switch (filter) {
+    case "pinned":
+      return Boolean(chat.pinned);
+    case "running":
+      return Boolean(chat.isRunning);
+    case "child":
+      return chat.kind === "child";
+    case "all":
+    default:
+      return true;
+  }
+};
+
 export const useChatSidebarState = () => {
   const { t } = useTranslation();
   const chats = useAppStore((state) => state.chats);
@@ -26,16 +70,12 @@ export const useChatSidebarState = () => {
   const unpinSession = useAppStore((state) => state.unpinSession);
   const updateSession = useAppStore((state) => state.updateSession);
   const addChat = useAppStore((state) => state.addChat);
-  const lastSelectedPromptId = useAppStore(
-    (state) => state.lastSelectedPromptId,
-  );
+  const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
 
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
   const setSidebarCollapsed = useUILayoutStore((s) => s.setSidebarCollapsed);
-  const clearSessionFromAllLeaves = useUILayoutStore(
-    (s) => s.clearSessionFromAllLeaves,
-  );
+  const clearSessionFromAllLeaves = useUILayoutStore((s) => s.clearSessionFromAllLeaves);
 
   const { generateChatTitle, titleGenerationState } = useChatTitleGeneration({
     chats,
@@ -44,15 +84,12 @@ export const useChatSidebarState = () => {
 
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
-      const selectedPrompt = systemPrompts.find(
-        (p) => p.id === lastSelectedPromptId,
-      );
+      const selectedPrompt = systemPrompts.find((p) => p.id === lastSelectedPromptId);
 
       const systemPromptId =
         selectedPrompt?.id ||
         (systemPrompts.length > 0
-          ? systemPrompts.find((p) => p.id === "general_assistant")?.id ||
-            systemPrompts[0].id
+          ? systemPrompts.find((p) => p.id === "general_assistant")?.id || systemPrompts[0].id
           : "");
 
       const newChatData: Omit<ChatItem, "id"> = {
@@ -64,8 +101,8 @@ export const useChatSidebarState = () => {
           baseSystemPrompt:
             selectedPrompt?.content ||
             (systemPrompts.length > 0
-              ? systemPrompts.find((p) => p.id === "general_assistant")
-                  ?.content || systemPrompts[0].content
+              ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
+                systemPrompts[0].content
               : ""),
           lastUsedEnhancedPrompt: null,
         },
@@ -80,18 +117,13 @@ export const useChatSidebarState = () => {
       useUILayoutStore.getState().setLeafSessionId(targetLeafId, newSessionId);
       useUILayoutStore.getState().setActiveLeafId(targetLeafId);
     },
-    [
-      addChat,
-      lastSelectedPromptId,
-      systemPrompts,
-      t,
-    ],
+    [addChat, lastSelectedPromptId, systemPrompts, t],
   );
 
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(
-    new Set(["Today"]),
-  );
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set(["Today"]));
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<SidebarStatusFilter>("all");
 
   const currentChat = useAppStore(selectSessionById(currentSessionId));
 
@@ -120,14 +152,14 @@ export const useChatSidebarState = () => {
     });
   };
 
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const hasActiveFilters = normalizedSearchQuery.length > 0 || statusFilter !== "all";
+
   // Folder model: sidebar groups only root sessions by date.
   // Child sessions are rendered nested under their root.
-  const rootSessions = useMemo(
-    () => chats.filter((c) => c.kind !== "child"),
-    [chats],
-  );
+  const rootSessions = useMemo(() => chats.filter((c) => c.kind !== "child"), [chats]);
 
-  const childrenByRoot = useMemo(() => {
+  const allChildrenByRoot = useMemo(() => {
     const map: Record<string, ChatItem[]> = {};
     for (const c of chats) {
       if (c.kind !== "child") continue;
@@ -138,7 +170,6 @@ export const useChatSidebarState = () => {
     }
     Object.keys(map).forEach((rootId) => {
       map[rootId].sort((a, b) => {
-        // pinned first, then most recently updated
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
         const aTime = Date.parse(a.updatedAt || "") || a.createdAt || 0;
         const bTime = Date.parse(b.updatedAt || "") || b.createdAt || 0;
@@ -148,7 +179,48 @@ export const useChatSidebarState = () => {
     return map;
   }, [chats]);
 
-  const groupedChatsByDate = groupChatsByDate(rootSessions);
+  const filteredRootSessions = useMemo(() => {
+    if (!hasActiveFilters) return rootSessions;
+
+    return rootSessions.filter((rootChat) => {
+      const rootMatches =
+        matchesSearchQuery(rootChat, normalizedSearchQuery) && matchesStatusFilter(rootChat, statusFilter);
+      if (rootMatches) return true;
+
+      const childSessions = allChildrenByRoot[rootChat.id] || [];
+      return childSessions.some(
+        (childChat) =>
+          matchesSearchQuery(childChat, normalizedSearchQuery) &&
+          matchesStatusFilter(childChat, statusFilter),
+      );
+    });
+  }, [allChildrenByRoot, hasActiveFilters, normalizedSearchQuery, rootSessions, statusFilter]);
+
+  const childrenByRoot = useMemo(() => {
+    if (!hasActiveFilters) {
+      return allChildrenByRoot;
+    }
+
+    const map: Record<string, ChatItem[]> = {};
+    for (const rootChat of filteredRootSessions) {
+      const childSessions = allChildrenByRoot[rootChat.id] || [];
+      map[rootChat.id] = childSessions.filter(
+        (childChat) =>
+          matchesSearchQuery(childChat, normalizedSearchQuery) &&
+          matchesStatusFilter(childChat, statusFilter),
+      );
+    }
+
+    return map;
+  }, [
+    allChildrenByRoot,
+    filteredRootSessions,
+    hasActiveFilters,
+    normalizedSearchQuery,
+    statusFilter,
+  ]);
+
+  const groupedChatsByDate = groupChatsByDate(filteredRootSessions);
   const sortedDateKeys = getSortedDateKeys(groupedChatsByDate);
 
   const handlePinChat = useCallback(
@@ -170,9 +242,7 @@ export const useChatSidebarState = () => {
     (sessionId: string) => {
       // Compute the destination group key (best-effort) so the chat remains visible.
       const chat = chats.find((c) => c.id === sessionId);
-      const nextGroupKey = chat
-        ? getDateGroupKeyForChat({ ...chat, pinned: false })
-        : null;
+      const nextGroupKey = chat ? getDateGroupKeyForChat({ ...chat, pinned: false }) : null;
 
       unpinSession(sessionId);
 
@@ -206,6 +276,14 @@ export const useChatSidebarState = () => {
   const handleOpenSettings = () => {
     openSettings("chat");
   };
+
+  const handleSearchQueryChange = useCallback((value: string) => {
+    setSearchQuery(value);
+  }, []);
+
+  const handleStatusFilterChange = useCallback((value: SidebarStatusFilter) => {
+    setStatusFilter(value);
+  }, []);
 
   const handleEditTitle = (sessionId: string, newTitle: string) => {
     updateSession(sessionId, { title: newTitle });
@@ -249,25 +327,19 @@ export const useChatSidebarState = () => {
 
   const handleSystemPromptSelect = async (preset: UserSystemPrompt) => {
     try {
-      await createNewChat(
-        t("chat.sidebar.newSessionWithPrompt", { prompt: preset.name }),
-        {
-          config: {
-            systemPromptId: preset.id,
-            baseSystemPrompt: preset.content,
-            lastUsedEnhancedPrompt: null,
-          },
+      await createNewChat(t("chat.sidebar.newSessionWithPrompt", { prompt: preset.name }), {
+        config: {
+          systemPromptId: preset.id,
+          baseSystemPrompt: preset.content,
+          lastUsedEnhancedPrompt: null,
         },
-      );
+      });
       setIsNewChatSelectorOpen(false);
     } catch (error) {
       console.error("Failed to create chat:", error);
       Modal.error({
         title: t("chat.sidebar.createFailedTitle"),
-        content:
-          error instanceof Error
-            ? error.message
-            : t("chat.sidebar.createFailedUnknown"),
+        content: error instanceof Error ? error.message : t("chat.sidebar.createFailedUnknown"),
       });
     }
   };
@@ -284,9 +356,7 @@ export const useChatSidebarState = () => {
     const current = chats.find((c) => c.id === currentSessionId);
     if (current) {
       const rootId =
-        current.kind === "child"
-          ? current.parentSessionId || current.rootSessionId
-          : current.id;
+        current.kind === "child" ? current.parentSessionId || current.rootSessionId : current.id;
       if (rootId) next.add(rootId);
     }
 
@@ -298,8 +368,16 @@ export const useChatSidebarState = () => {
       }
     }
 
+    if (hasActiveFilters) {
+      for (const rootChat of filteredRootSessions) {
+        if ((childrenByRoot[rootChat.id]?.length ?? 0) > 0) {
+          next.add(rootChat.id);
+        }
+      }
+    }
+
     return next;
-  }, [chats, currentSessionId, expandedRoots]);
+  }, [chats, childrenByRoot, currentSessionId, expandedRoots, filteredRootSessions, hasActiveFilters]);
 
   const toggleRootExpanded = useCallback((rootId: string) => {
     setExpandedRoots((prev) => {
@@ -311,7 +389,7 @@ export const useChatSidebarState = () => {
   }, []);
 
   return {
-    chats: rootSessions,
+    chats: filteredRootSessions,
     childrenByRoot,
     expandedRootIds,
     toggleRootExpanded,
@@ -319,6 +397,7 @@ export const useChatSidebarState = () => {
     currentSessionId,
     expandedKeys,
     groupedChatsByDate,
+    hasActiveFilters,
     handleCollapseChange,
     handleDelete,
     handleDeleteByDate,
@@ -327,12 +406,16 @@ export const useChatSidebarState = () => {
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
+    handleSearchQueryChange,
+    handleStatusFilterChange,
     handleSystemPromptSelect,
     isNewChatSelectorOpen,
     pinSession: handlePinChat,
+    searchQuery,
     selectSession,
     setCollapsed: setSidebarCollapsed,
     sortedDateKeys,
+    statusFilter,
     systemPrompts,
     titleGenerationState,
     unpinSession: handleUnpinChat,

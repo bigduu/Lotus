@@ -42,10 +42,7 @@ export interface InputStateSliceActions {
   // Set attachments for a chat
   setAttachments: (sessionId: string, attachments: Attachment[]) => void;
   // Set reasoning effort for a chat
-  setInputReasoningEffort: (
-    sessionId: string,
-    reasoningEffort: ReasoningEffort,
-  ) => void;
+  setInputReasoningEffort: (sessionId: string, reasoningEffort: ReasoningEffort) => void;
   // Clear all input state for a chat
   clearInputState: (sessionId: string) => void;
   // Get input state for a chat (returns default if not found)
@@ -58,8 +55,7 @@ export interface InputStateSliceActions {
 
 export type InputStateSlice = InputStateSliceState & InputStateSliceActions;
 
-const INPUT_REASONING_BY_SESSION_LS_KEY =
-  "chat_input_reasoning_by_session_v1";
+const INPUT_REASONING_BY_SESSION_LS_KEY = "chat_input_reasoning_by_session_v1";
 const INPUT_REASONING_LAST_USED_LS_KEY = "chat_input_reasoning_last_used_v1";
 
 const DEFAULT_INPUT_STATE: InputState = {
@@ -70,11 +66,7 @@ const DEFAULT_INPUT_STATE: InputState = {
 };
 
 const isReasoningEffort = (value: unknown): value is ReasoningEffort =>
-  value === "low" ||
-  value === "medium" ||
-  value === "high" ||
-  value === "xhigh" ||
-  value === "max";
+  value === "low" || value === "medium" || value === "high" || value === "xhigh" || value === "max";
 
 const readReasoningBySession = (): Record<string, ReasoningEffort> => {
   if (typeof window === "undefined") {
@@ -146,12 +138,10 @@ const defaultInputStateForSession = (sessionId: string): InputState => ({
     readPersistedInputReasoningEffort(sessionId) ?? DEFAULT_INPUT_STATE.reasoningEffort,
 });
 
-export const createInputStateSlice: StateCreator<
-  AppState,
-  [],
-  [],
-  InputStateSlice
-> = (set, get) => ({
+export const createInputStateSlice: StateCreator<AppState, [], [], InputStateSlice> = (
+  set,
+  get,
+) => ({
   // State
   inputStates: {},
   pendingQuestionRespond: null,
@@ -162,8 +152,7 @@ export const createInputStateSlice: StateCreator<
       inputStates: {
         ...state.inputStates,
         [sessionId]: {
-          ...(state.inputStates[sessionId] ||
-            defaultInputStateForSession(sessionId)),
+          ...(state.inputStates[sessionId] || defaultInputStateForSession(sessionId)),
           content,
         },
       },
@@ -175,8 +164,7 @@ export const createInputStateSlice: StateCreator<
       inputStates: {
         ...state.inputStates,
         [sessionId]: {
-          ...(state.inputStates[sessionId] ||
-            defaultInputStateForSession(sessionId)),
+          ...(state.inputStates[sessionId] || defaultInputStateForSession(sessionId)),
           referenceText,
         },
       },
@@ -188,8 +176,7 @@ export const createInputStateSlice: StateCreator<
       inputStates: {
         ...state.inputStates,
         [sessionId]: {
-          ...(state.inputStates[sessionId] ||
-            defaultInputStateForSession(sessionId)),
+          ...(state.inputStates[sessionId] || defaultInputStateForSession(sessionId)),
           attachments,
         },
       },
@@ -201,8 +188,7 @@ export const createInputStateSlice: StateCreator<
       inputStates: {
         ...state.inputStates,
         [sessionId]: {
-          ...(state.inputStates[sessionId] ||
-            defaultInputStateForSession(sessionId)),
+          ...(state.inputStates[sessionId] || defaultInputStateForSession(sessionId)),
           reasoningEffort,
         },
       },

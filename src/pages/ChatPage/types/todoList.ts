@@ -1,9 +1,4 @@
-export type TaskItemStatus =
-  | "pending"
-  | "in_progress"
-  | "completed"
-  | "skipped"
-  | "failed";
+export type TaskItemStatus = "pending" | "in_progress" | "completed" | "skipped" | "failed";
 
 export type TaskListStatus = "active" | "completed" | "abandoned";
 

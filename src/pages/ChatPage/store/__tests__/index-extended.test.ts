@@ -68,7 +68,10 @@ describe("ChatPage Store - Extended Coverage", () => {
       {
         id: "session-2",
         title: "Chat 2",
-        messages: [{ role: "user", content: "Hi" } as any, { role: "assistant", content: "Hey" } as any],
+        messages: [
+          { role: "user", content: "Hi" } as any,
+          { role: "assistant", content: "Hey" } as any,
+        ],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       },
@@ -379,9 +382,7 @@ describe("ChatPage Store - Extended Coverage", () => {
     });
 
     it("should handle messages with emojis in role", () => {
-      const messages = [
-        { role: "user", content: "Test message" },
-      ];
+      const messages = [{ role: "user", content: "Test message" }];
 
       useAppStore.setState({
         chats: [

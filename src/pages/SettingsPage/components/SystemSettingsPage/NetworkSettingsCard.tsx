@@ -27,15 +27,9 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const proxyAuthStatus = useBambooConfigStore(
-    (state) => state.proxyAuthStatus,
-  );
-  const isLoadingProxyAuthStatus = useBambooConfigStore(
-    (state) => state.isLoadingProxyAuthStatus,
-  );
-  const loadProxyAuthStatus = useBambooConfigStore(
-    (state) => state.loadProxyAuthStatus,
-  );
+  const proxyAuthStatus = useBambooConfigStore((state) => state.proxyAuthStatus);
+  const isLoadingProxyAuthStatus = useBambooConfigStore((state) => state.isLoadingProxyAuthStatus);
+  const loadProxyAuthStatus = useBambooConfigStore((state) => state.loadProxyAuthStatus);
   const applyProxyAuth = useBambooConfigStore((state) => state.applyProxyAuth);
   const clearProxyAuth = useBambooConfigStore((state) => state.clearProxyAuth);
 
@@ -87,17 +81,9 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
       title={<Text strong>{t("settings.networkCard.title")}</Text>}
       className="lotus-settings-card"
     >
-      <Space
-        direction="vertical"
-        size={token.marginSM}
-        style={{ width: "100%" }}
-      >
+      <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
         {/* HTTP Proxy */}
-        <Space
-          direction="vertical"
-          size={token.marginXXS}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.networkCard.httpProxy")}</Text>
           <Input
             data-testid="proxy-url"
@@ -110,11 +96,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
         </Space>
 
         {/* HTTPS Proxy */}
-        <Space
-          direction="vertical"
-          size={token.marginXXS}
-          style={{ width: "100%" }}
-        >
+        <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.networkCard.httpsProxy")}</Text>
           <Input
             style={{ width: "100%" }}
@@ -150,11 +132,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
               </Button>
             </Space>
           ) : (
-            <Space
-              direction="vertical"
-              size={token.marginXS}
-              style={{ width: "100%" }}
-            >
+            <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
               <Input
                 placeholder={t("settings.networkCard.username")}
                 value={proxyAuthForm.username}
@@ -202,9 +180,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
         >
           <Button
             onClick={() =>
-              Promise.resolve(onReload()).finally(() =>
-                loadProxyAuthStatus({ force: true }),
-              )
+              Promise.resolve(onReload()).finally(() => loadProxyAuthStatus({ force: true }))
             }
             disabled={isLoading}
           >
@@ -214,9 +190,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
             data-testid="save-proxy-settings"
             type="primary"
             onClick={() =>
-              Promise.resolve(onSave()).finally(() =>
-                loadProxyAuthStatus({ force: true }),
-              )
+              Promise.resolve(onSave()).finally(() => loadProxyAuthStatus({ force: true }))
             }
             disabled={isLoading}
           >

@@ -427,9 +427,7 @@ describe("ChatPage Store", () => {
     });
 
     it("should handle messages with emojis in role", () => {
-      const messages = [
-        { role: "user", content: "Test message" },
-      ];
+      const messages = [{ role: "user", content: "Test message" }];
 
       useAppStore.setState({
         chats: [

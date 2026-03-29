@@ -21,67 +21,64 @@ describe("mermaidConfig", () => {
 
   describe("normalizeMermaidChart", () => {
     describe("Gantt chart punctuation normalization", () => {
-    it("normalizes full-width colons in gantt charts", () => {
-      const input = [
-        "gantt",
-        "  title 项目计划",
-        "  dateFormat YYYY-MM-DD",
-        "  section 需求阶段",
-        "  需求收集 ：done， d1， 2025－01－01， 3d",
-      ].join("\n");
+      it("normalizes full-width colons in gantt charts", () => {
+        const input = [
+          "gantt",
+          "  title 项目计划",
+          "  dateFormat YYYY-MM-DD",
+          "  section 需求阶段",
+          "  需求收集 ：done， d1， 2025－01－01， 3d",
+        ].join("\n");
 
-      const normalized = normalizeMermaidChart(input);
+        const normalized = normalizeMermaidChart(input);
 
-      expect(normalized).toContain("需求收集 :done, d1, 2025-01-01, 3d");
-      expect(normalized).not.toContain("：");
+        expect(normalized).toContain("需求收集 :done, d1, 2025-01-01, 3d");
+        expect(normalized).not.toContain("：");
+      });
+
+      it("normalizes full-width commas in gantt charts", () => {
+        const input = ["gantt", "  task1 ，a，b", "  task2（c，d）"].join("\n");
+        const normalized = normalizeMermaidChart(input);
+
+        expect(normalized).toContain(",");
+        expect(normalized).toContain(",");
+      });
+
+      it("normalizes full-width semicolons in gantt charts", () => {
+        const input = ["gantt", "  task1 ；phase1；phase2"].join("\n");
+        const normalized = normalizeMermaidChart(input);
+
+        expect(normalized).toContain(";");
+        expect(normalized).toContain(";");
+      });
+
+      it("normalizes full-width parentheses in gantt charts", () => {
+        const input = ["gantt", "  task （important）"].join("\n");
+        const normalized = normalizeMermaidChart(input);
+
+        expect(normalized).toContain("(important)");
+        expect(normalized).not.toContain("（");
+        expect(normalized).not.toContain("）");
+      });
+
+      it("normalizes full-width dashes in gantt charts", () => {
+        const input = ["gantt", "  task－1 : urgent"].join("\n");
+        const normalized = normalizeMermaidChart(input);
+
+        expect(normalized).toContain("-");
+        expect(normalized).not.toContain("－");
+      });
+
+      it("combines multiple full-width punctuations", () => {
+        const input = ["gantt", "  任务A ：阶段1（开始）；阶段2（结束）"].join("\n");
+        const normalized = normalizeMermaidChart(input);
+
+        expect(normalized).toContain(":");
+        expect(normalized).toContain(";");
+        expect(normalized).toContain("(");
+        expect(normalized).toContain(")");
+      });
     });
-
-    it("normalizes full-width commas in gantt charts", () => {
-      const input = ["gantt", "  task1 ，a，b", "  task2（c，d）"].join("\n");
-      const normalized = normalizeMermaidChart(input);
-
-      expect(normalized).toContain(",");
-      expect(normalized).toContain(",");
-    });
-
-    it("normalizes full-width semicolons in gantt charts", () => {
-      const input = ["gantt", "  task1 ；phase1；phase2"].join("\n");
-      const normalized = normalizeMermaidChart(input);
-
-      expect(normalized).toContain(";");
-      expect(normalized).toContain(";");
-    });
-
-    it("normalizes full-width parentheses in gantt charts", () => {
-      const input = ["gantt", "  task （important）"].join("\n");
-      const normalized = normalizeMermaidChart(input);
-
-      expect(normalized).toContain("(important)");
-      expect(normalized).not.toContain("（");
-      expect(normalized).not.toContain("）");
-    });
-
-    it("normalizes full-width dashes in gantt charts", () => {
-      const input = ["gantt", "  task－1 : urgent"].join("\n");
-      const normalized = normalizeMermaidChart(input);
-
-      expect(normalized).toContain("-");
-      expect(normalized).not.toContain("－");
-    });
-
-    it("combines multiple full-width punctuations", () => {
-      const input = [
-        "gantt",
-        "  任务A ：阶段1（开始）；阶段2（结束）",
-      ].join("\n");
-      const normalized = normalizeMermaidChart(input);
-
-      expect(normalized).toContain(":");
-      expect(normalized).toContain(";");
-      expect(normalized).toContain("(");
-      expect(normalized).toContain(")");
-    });
-  });
   });
 
   describe("Non-gantt chart handling", () => {
@@ -102,7 +99,7 @@ describe("mermaidConfig", () => {
 
   describe("Label escaping in square brackets", () => {
     it("escapes newlines in labels", () => {
-      const input = 'graph TD\nA[label with\nnewline] --> B';
+      const input = "graph TD\nA[label with\nnewline] --> B";
       const normalized = normalizeMermaidChart(input);
 
       expect(normalized).toContain("<br/>");
@@ -110,7 +107,7 @@ describe("mermaidConfig", () => {
     });
 
     it("escapes parentheses in labels when not shape", () => {
-      const input = 'graph TD\nA[Task (important)] --> B';
+      const input = "graph TD\nA[Task (important)] --> B";
       const normalized = normalizeMermaidChart(input);
 
       expect(normalized).toContain("&#40;");
@@ -118,7 +115,7 @@ describe("mermaidConfig", () => {
     });
 
     it("does not escape parentheses when they form a shape", () => {
-      const input = 'graph TD\nA[(shape)] --> B';
+      const input = "graph TD\nA[(shape)] --> B";
       const normalized = normalizeMermaidChart(input);
 
       expect(normalized).toContain("[(shape)]");
@@ -126,14 +123,14 @@ describe("mermaidConfig", () => {
     });
 
     it("escapes @ symbol in labels", () => {
-      const input = 'graph TD\nA[user@email] --> B';
+      const input = "graph TD\nA[user@email] --> B";
       const normalized = normalizeMermaidChart(input);
 
       expect(normalized).toContain("&#64;");
     });
 
     it("escapes multiple special characters in same label", () => {
-      const input = 'graph TD\nA[task (important) @work] --> B';
+      const input = "graph TD\nA[task (important) @work] --> B";
       const normalized = normalizeMermaidChart(input);
 
       expect(normalized).toContain("&#40;");
@@ -142,7 +139,7 @@ describe("mermaidConfig", () => {
     });
 
     it("handles label with newline and parentheses", () => {
-      const input = 'graph TD\nA[task\n(urgent)] --> B';
+      const input = "graph TD\nA[task\n(urgent)] --> B";
       const normalized = normalizeMermaidChart(input);
 
       expect(normalized).toContain("<br/>");
@@ -151,7 +148,7 @@ describe("mermaidConfig", () => {
     });
 
     it("preserves label without special characters", () => {
-      const input = 'graph TD\nA[simple label] --> B';
+      const input = "graph TD\nA[simple label] --> B";
       const normalized = normalizeMermaidChart(input);
 
       expect(normalized).toBe(input);

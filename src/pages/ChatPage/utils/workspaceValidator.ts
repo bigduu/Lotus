@@ -29,14 +29,8 @@ export interface WorkspaceValidatorOptions {
 }
 
 class WorkspaceValidator {
-  private cache = new Map<
-    string,
-    { result: WorkspaceValidationResult; timestamp: number }
-  >();
-  private pendingValidations = new Map<
-    string,
-    Promise<WorkspaceValidationResult>
-  >();
+  private cache = new Map<string, { result: WorkspaceValidationResult; timestamp: number }>();
+  private pendingValidations = new Map<string, Promise<WorkspaceValidationResult>>();
   private options: Required<WorkspaceValidatorOptions>;
 
   constructor(options: WorkspaceValidatorOptions = {}) {
@@ -104,9 +98,7 @@ class WorkspaceValidator {
           path,
           is_valid: false,
           error_message:
-            error instanceof Error
-              ? error.message
-              : i18n.t("chat.workspace.checkDescription"),
+            error instanceof Error ? error.message : i18n.t("chat.workspace.checkDescription"),
         };
         callback(errorResult);
       }
@@ -136,8 +128,7 @@ class WorkspaceValidator {
       return null;
     }
 
-    const isExpired =
-      Date.now() - cached.timestamp > this.options.cacheTimeoutMs;
+    const isExpired = Date.now() - cached.timestamp > this.options.cacheTimeoutMs;
     if (isExpired) {
       this.cache.delete(path);
       return null;
@@ -149,10 +140,7 @@ class WorkspaceValidator {
   /**
    * Set cached result
    */
-  private setCachedResult(
-    path: string,
-    result: WorkspaceValidationResult,
-  ): void {
+  private setCachedResult(path: string, result: WorkspaceValidationResult): void {
     this.cache.set(path, {
       result,
       timestamp: Date.now(),
@@ -167,16 +155,10 @@ class WorkspaceValidator {
     retryCount = 0,
   ): Promise<WorkspaceValidationResult> {
     try {
-      return await apiClient.post<WorkspaceValidationResult>(
-        "workspace/validate",
-        { path },
-      );
+      return await apiClient.post<WorkspaceValidationResult>("workspace/validate", { path });
     } catch (error) {
       // Retry logic
-      if (
-        retryCount < this.options.maxRetries &&
-        this.isRetryableError(error)
-      ) {
+      if (retryCount < this.options.maxRetries && this.isRetryableError(error)) {
         await this.delay(Math.pow(2, retryCount) * 1000); // Exponential backoff
         return this.performValidation(path, retryCount + 1);
       }
@@ -192,8 +174,7 @@ class WorkspaceValidator {
     if (error instanceof Error) {
       // Retry on network errors and 5xx server errors
       return (
-        error.message.includes("Failed to fetch") ||
-        error.message.includes("HTTP error! status: 5")
+        error.message.includes("Failed to fetch") || error.message.includes("HTTP error! status: 5")
       );
     }
     return false;
@@ -209,17 +190,13 @@ class WorkspaceValidator {
   /**
    * Validate multiple paths in parallel (with rate limiting)
    */
-  async validateMultiplePaths(
-    paths: string[],
-  ): Promise<WorkspaceValidationResult[]> {
+  async validateMultiplePaths(paths: string[]): Promise<WorkspaceValidationResult[]> {
     const BATCH_SIZE = 5; // Limit concurrent requests
     const results: WorkspaceValidationResult[] = [];
 
     for (let i = 0; i < paths.length; i += BATCH_SIZE) {
       const batch = paths.slice(i, i + BATCH_SIZE);
-      const batchResults = await Promise.all(
-        batch.map((path) => this.validateWorkspace(path)),
-      );
+      const batchResults = await Promise.all(batch.map((path) => this.validateWorkspace(path)));
       results.push(...batchResults);
 
       // Small delay between batches to avoid overwhelming the server
@@ -241,8 +218,7 @@ export function useWorkspaceValidator(options?: WorkspaceValidatorOptions) {
 
   return {
     validateWorkspace: validator.validateWorkspace.bind(validator),
-    validateWorkspaceDebounced:
-      validator.validateWorkspaceDebounced.bind(validator),
+    validateWorkspaceDebounced: validator.validateWorkspaceDebounced.bind(validator),
     validateMultiplePaths: validator.validateMultiplePaths.bind(validator),
     clearCache: validator.clearCache.bind(validator),
   };

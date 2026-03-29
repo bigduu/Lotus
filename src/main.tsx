@@ -30,15 +30,12 @@ const renderBootstrapError = (error: unknown) => {
           padding: 24,
           background: "var(--lotus-main-surface, #f6f6f6)",
           color: "var(--color-gray-800, #0f0f0f)",
-          fontFamily:
-            "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+          fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif",
         }}
       >
         <div style={{ maxWidth: 720, textAlign: "left" }}>
           <h2 style={{ margin: "0 0 12px" }}>Bodhi UI failed to start</h2>
-          <p style={{ margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-            {message}
-          </p>
+          <p style={{ margin: 0, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>{message}</p>
         </div>
       </div>
     </React.StrictMode>,

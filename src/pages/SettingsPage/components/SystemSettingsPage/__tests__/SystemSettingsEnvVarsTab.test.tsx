@@ -1,7 +1,11 @@
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsEnvVarsTab from "../SystemSettingsEnvVarsTab";
-import { settingsService, EnvVarsListResponse, EnvVarResponse } from "../../../../../services/config/SettingsService";
+import {
+  settingsService,
+  EnvVarsListResponse,
+  EnvVarResponse,
+} from "../../../../../services/config/SettingsService";
 
 // Mock settingsService
 vi.mock("../../../../../services/config/SettingsService", async () => {
@@ -191,9 +195,7 @@ describe("SystemSettingsEnvVarsTab", () => {
 
     it("should call upsertEnvVar on form submit", async () => {
       const newEntries: EnvVarsListResponse = {
-        entries: [
-          { name: "NEW_VAR", value: "new_val", secret: false, has_value: true },
-        ],
+        entries: [{ name: "NEW_VAR", value: "new_val", secret: false, has_value: true }],
       };
       mockUpsertEnvVar.mockResolvedValue(newEntries);
 

@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import type {
   Message,
   AssistantToolCallMessage,
@@ -231,6 +232,7 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
 }
 
 export const useChatViewMessages = (currentChat: ChatItem | null, currentMessages: Message[]) => {
+  const { t } = useTranslation();
   const systemPromptMessage = useMemo(() => {
     const existingSystemMessage = currentMessages.find((msg: Message) => msg.role === "system");
     if (existingSystemMessage) {
@@ -372,7 +374,10 @@ export const useChatViewMessages = (currentChat: ChatItem | null, currentMessage
         type: "compression_divider",
         id: `compression-divider-${event.id}`,
         createdAt: event.createdAt,
-        label: `Context compressed - ${event.messagesCompressed} messages archived`,
+        label: t("chat.compression.timelineDetail", {
+          count: event.messagesCompressed,
+          defaultValue: "{{count}} messages archived",
+        }),
       };
       const eventTs = toTimestamp(event.createdAt);
       const insertIndex = entries.findIndex(
@@ -393,6 +398,7 @@ export const useChatViewMessages = (currentChat: ChatItem | null, currentMessage
     currentMessages,
     shouldHideMessage,
     systemPromptMessage,
+    t,
   ]);
 
   return {

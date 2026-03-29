@@ -65,9 +65,7 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
   );
 
   const [summary, setSummary] = useState<ForwardMetricsSummary | null>(null);
-  const [endpointMetrics, setEndpointMetrics] = useState<
-    ForwardEndpointMetrics[]
-  >([]);
+  const [endpointMetrics, setEndpointMetrics] = useState<ForwardEndpointMetrics[]>([]);
   const [requests, setRequests] = useState<ForwardRequestMetrics[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -90,12 +88,11 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
           limit: normalizedFilters.limit,
         };
 
-        const [summaryResponse, endpointResponse, requestsResponse] =
-          await Promise.all([
-            metricsService.getForwardSummary(query),
-            metricsService.getForwardByEndpoint(query),
-            metricsService.getForwardRequests(query),
-          ]);
+        const [summaryResponse, endpointResponse, requestsResponse] = await Promise.all([
+          metricsService.getForwardSummary(query),
+          metricsService.getForwardByEndpoint(query),
+          metricsService.getForwardRequests(query),
+        ]);
 
         setSummary(summaryResponse);
         setEndpointMetrics(endpointResponse);

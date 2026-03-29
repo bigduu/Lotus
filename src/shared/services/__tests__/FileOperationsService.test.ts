@@ -104,7 +104,9 @@ describe("FileOperationsService", () => {
       expect(result).toContain(".md");
 
       const timestamp = result.replace("file-", "").replace(".md", "");
-      expect(timestamp >= before.replace(/:/g, "-") || timestamp <= after.replace(/:/g, "-")).toBe(true);
+      expect(timestamp >= before.replace(/:/g, "-") || timestamp <= after.replace(/:/g, "-")).toBe(
+        true,
+      );
     });
 
     it("should handle empty prefix", () => {
@@ -157,7 +159,11 @@ describe("FileOperationsService", () => {
         revokeObjectURL: vi.fn(),
       } as any;
 
-      const result = await FileOperationsService.saveTextFile("test content", FileOperationsService.FILTERS.TEXT, "test.txt");
+      const result = await FileOperationsService.saveTextFile(
+        "test content",
+        FileOperationsService.FILTERS.TEXT,
+        "test.txt",
+      );
 
       expect(result.success).toBe(true);
       expect(result.filename).toBe("test.txt");
@@ -187,7 +193,11 @@ describe("FileOperationsService", () => {
       } as any;
 
       const content = new TextEncoder().encode("binary content");
-      const result = await FileOperationsService.saveBinaryFile(content, FileOperationsService.FILTERS.JSON, "test.json");
+      const result = await FileOperationsService.saveBinaryFile(
+        content,
+        FileOperationsService.FILTERS.JSON,
+        "test.json",
+      );
 
       expect(result.success).toBe(true);
       expect(result.filename).toBe("test.json");

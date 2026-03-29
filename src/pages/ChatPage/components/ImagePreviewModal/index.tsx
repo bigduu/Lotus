@@ -1,11 +1,6 @@
 import React, { useState } from "react";
 import { Modal, Button, Space, Typography, theme, Carousel } from "antd";
-import {
-  LeftOutlined,
-  RightOutlined,
-  DownloadOutlined,
-  CloseOutlined,
-} from "@ant-design/icons";
+import { LeftOutlined, RightOutlined, DownloadOutlined, CloseOutlined } from "@ant-design/icons";
 import { ImageFile, formatFileSize } from "../../utils/imageUtils";
 
 const { Text, Title } = Typography;
@@ -106,11 +101,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   onClick={goToPrevious}
                   disabled={images.length <= 1}
                 />
-                <Button
-                  icon={<RightOutlined />}
-                  onClick={goToNext}
-                  disabled={images.length <= 1}
-                />
+                <Button icon={<RightOutlined />} onClick={goToNext} disabled={images.length <= 1} />
               </>
             )}
             <Button icon={<DownloadOutlined />} onClick={handleDownload}>

@@ -76,9 +76,7 @@ describe("recentWorkspacesUtils", () => {
 
     describe("edge cases", () => {
       it("should handle single workspace", () => {
-        const workspaces: WorkspaceInfo[] = [
-          { path: "/path/to/workspace1", name: "Workspace 1" },
-        ];
+        const workspaces: WorkspaceInfo[] = [{ path: "/path/to/workspace1", name: "Workspace 1" }];
         const result = deduplicateWorkspaces(workspaces);
         expect(result).toEqual(workspaces);
       });

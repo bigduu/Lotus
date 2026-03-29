@@ -27,8 +27,7 @@ const DEFAULT_CONFIG: SetupConfig = {
   rememberProxyAuth: true,
 };
 
-const parseString = (value: unknown): string =>
-  typeof value === "string" ? value : "";
+const parseString = (value: unknown): string => (typeof value === "string" ? value : "");
 
 export const SetupPage = () => {
   const { t } = useTranslation();
@@ -36,8 +35,7 @@ export const SetupPage = () => {
   const [config, setConfig] = useState<SetupConfig>(DEFAULT_CONFIG);
   const [needsProxy, setNeedsProxy] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
-  const [detectionResult, setDetectionResult] =
-    useState<ProxyDetectionState | null>(null);
+  const [detectionResult, setDetectionResult] = useState<ProxyDetectionState | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -65,8 +63,7 @@ export const SetupPage = () => {
           rememberProxyAuth: DEFAULT_CONFIG.rememberProxyAuth,
         });
 
-        hasExistingProxy =
-          httpProxy.trim().length > 0 || httpsProxy.trim().length > 0;
+        hasExistingProxy = httpProxy.trim().length > 0 || httpsProxy.trim().length > 0;
         setNeedsProxy(hasExistingProxy);
       } catch (error) {
         console.error("Failed to check config:", error);
@@ -96,8 +93,7 @@ export const SetupPage = () => {
     void checkInitialConfig();
   }, []);
 
-  const hasProxy =
-    config.httpProxy.trim().length > 0 || config.httpsProxy.trim().length > 0;
+  const hasProxy = config.httpProxy.trim().length > 0 || config.httpsProxy.trim().length > 0;
   const shouldShowAuthFields = hasProxy || needsProxy;
 
   const updateConfig = (partial: Partial<SetupConfig>) => {
@@ -195,9 +191,7 @@ export const SetupPage = () => {
         content: (
           <div>
             <h1>{t("setup.welcome.heading")}</h1>
-            <p>
-              {t("setup.welcome.description")}
-            </p>
+            <p>{t("setup.welcome.description")}</p>
             <Alert
               message={t("setup.welcome.skipInfo")}
               type="info"
@@ -208,7 +202,11 @@ export const SetupPage = () => {
               <Button data-testid="setup-next" type="primary" onClick={() => setCurrentStep(1)}>
                 {t("setup.button.next")}
               </Button>
-              <Button data-testid="setup-skip" onClick={() => void handleSkipSetup()} loading={isSaving}>
+              <Button
+                data-testid="setup-skip"
+                onClick={() => void handleSkipSetup()}
+                loading={isSaving}
+              >
                 {t("setup.button.skipForNow")}
               </Button>
             </div>
@@ -220,11 +218,7 @@ export const SetupPage = () => {
         content: (
           <div>
             <h2>{t("setup.proxy.title")}</h2>
-            <Alert
-              message={t("setup.proxy.info")}
-              type="info"
-              showIcon
-            />
+            <Alert message={t("setup.proxy.info")} type="info" showIcon />
             <Alert
               message={t("setup.proxy.providerInfo")}
               type="info"
@@ -257,12 +251,7 @@ export const SetupPage = () => {
             ) : null}
 
             {errorMessage ? (
-              <Alert
-                message={errorMessage}
-                type="error"
-                showIcon
-                style={{ marginTop: 16 }}
-              />
+              <Alert message={errorMessage} type="error" showIcon style={{ marginTop: 16 }} />
             ) : null}
 
             <div style={{ marginTop: 16 }}>
@@ -270,9 +259,7 @@ export const SetupPage = () => {
               <Input
                 id="setup-http-proxy"
                 value={config.httpProxy}
-                onChange={(event) =>
-                  updateConfig({ httpProxy: event.target.value })
-                }
+                onChange={(event) => updateConfig({ httpProxy: event.target.value })}
                 placeholder={t("setup.proxy.httpProxyPlaceholder")}
               />
             </div>
@@ -282,9 +269,7 @@ export const SetupPage = () => {
               <Input
                 id="setup-https-proxy"
                 value={config.httpsProxy}
-                onChange={(event) =>
-                  updateConfig({ httpsProxy: event.target.value })
-                }
+                onChange={(event) => updateConfig({ httpsProxy: event.target.value })}
                 placeholder={t("setup.proxy.httpsProxyPlaceholder")}
               />
             </div>
@@ -296,9 +281,7 @@ export const SetupPage = () => {
                   <Input
                     id="setup-proxy-username"
                     value={config.proxyUsername}
-                    onChange={(event) =>
-                      updateConfig({ proxyUsername: event.target.value })
-                    }
+                    onChange={(event) => updateConfig({ proxyUsername: event.target.value })}
                   />
                 </div>
 
@@ -307,9 +290,7 @@ export const SetupPage = () => {
                   <Input.Password
                     id="setup-proxy-password"
                     value={config.proxyPassword}
-                    onChange={(event) =>
-                      updateConfig({ proxyPassword: event.target.value })
-                    }
+                    onChange={(event) => updateConfig({ proxyPassword: event.target.value })}
                   />
                 </div>
 
@@ -327,8 +308,14 @@ export const SetupPage = () => {
             ) : null}
 
             <div className="setup-page__actions" style={{ marginTop: 24 }}>
-              <Button data-testid="setup-back" onClick={() => setCurrentStep(0)}>{t("setup.button.back")}</Button>
-              <Button data-testid="setup-skip" onClick={() => void handleSkipSetup()} loading={isSaving}>
+              <Button data-testid="setup-back" onClick={() => setCurrentStep(0)}>
+                {t("setup.button.back")}
+              </Button>
+              <Button
+                data-testid="setup-skip"
+                onClick={() => void handleSkipSetup()}
+                loading={isSaving}
+              >
                 {t("setup.button.skipForNow")}
               </Button>
               <Button
@@ -361,7 +348,9 @@ export const SetupPage = () => {
       <div data-testid="setup-complete" className="setup-complete">
         <h1>{t("setup.complete.title")}</h1>
         <p>{t("setup.complete.restartMessage")}</p>
-        <Button data-testid="setup-restart" onClick={() => window.location.reload()}>{t("setup.button.restart")}</Button>
+        <Button data-testid="setup-restart" onClick={() => window.location.reload()}>
+          {t("setup.button.restart")}
+        </Button>
       </div>
     );
   }
@@ -369,10 +358,7 @@ export const SetupPage = () => {
   return (
     <div className="setup-page">
       <Card style={{ maxWidth: 600, margin: "40px auto" }}>
-        <Steps
-          current={currentStep}
-          items={steps.map((step) => ({ title: step.title }))}
-        />
+        <Steps current={currentStep} items={steps.map((step) => ({ title: step.title }))} />
         <div style={{ marginTop: 24 }}>{steps[currentStep].content}</div>
       </Card>
     </div>

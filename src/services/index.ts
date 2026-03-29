@@ -12,14 +12,7 @@
  */
 
 // API Client (unified HTTP layer)
-export {
-  ApiClient,
-  apiClient,
-  ApiError,
-  isApiError,
-  getErrorMessage,
-  withFallback,
-} from "./api";
+export { ApiClient, apiClient, ApiError, isApiError, getErrorMessage, withFallback } from "./api";
 export type {
   ApiClientConfig,
   ErrorResponse,
@@ -30,11 +23,7 @@ export type {
 
 // Skill Service
 export { SkillService, skillService } from "./skill/SkillService";
-export type {
-  SkillDefinition,
-  SkillFilter,
-  SkillListResponse,
-} from "./skill/types";
+export type { SkillDefinition, SkillFilter, SkillListResponse } from "./skill/types";
 
 // MCP Service
 export { McpService, mcpService } from "./mcp";

@@ -2,11 +2,7 @@ import { useCallback, useState } from "react";
 import { useDragAndDrop } from "../../hooks/useDragAndDrop";
 import { useImageHandler } from "../../hooks/useImageHandler";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
-import {
-  processFiles,
-  separateImageFiles,
-  type ProcessedFile,
-} from "../../utils/fileUtils";
+import { processFiles, separateImageFiles, type ProcessedFile } from "../../utils/fileUtils";
 
 interface UseMessageInputAttachmentsProps {
   allowImages: boolean;
@@ -56,8 +52,10 @@ export const useMessageInputAttachments = ({
     [handleImageFiles, messageApi, onAttachmentsAdded],
   );
 
-  const { isDragOver, handleDragOver, handleDragLeave, handleDrop } =
-    useDragAndDrop({ onFiles: handleDroppedFiles, mode: "any" });
+  const { isDragOver, handleDragOver, handleDragLeave, handleDrop } = useDragAndDrop({
+    onFiles: handleDroppedFiles,
+    mode: "any",
+  });
 
   const { handlePaste } = usePasteHandler({
     onImages: handleImageFiles,

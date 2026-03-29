@@ -26,15 +26,10 @@ export const useSystemPromptContent = ({
   const [loadingEnhanced, setLoadingEnhanced] = useState(false);
   const [showEnhanced, setShowEnhanced] = useState(false);
 
-  const systemPromptService = useMemo(
-    () => SystemPromptService.getInstance(),
-    [],
-  );
+  const systemPromptService = useMemo(() => SystemPromptService.getInstance(), []);
   const agentClient = useMemo(() => AgentClient.getInstance(), []);
   const systemMessageContent =
-    message.role === "system" && typeof message.content === "string"
-      ? message.content
-      : "";
+    message.role === "system" && typeof message.content === "string" ? message.content : "";
   const hasPersistedSystemMessage =
     message.role === "system" &&
     !message.id.startsWith("system-prompt-") &&
@@ -58,8 +53,7 @@ export const useSystemPromptContent = ({
   }, [systemPromptId, systemPrompts]);
 
   const basePrompt = userPrompt?.content ?? presetPrompt?.content ?? "";
-  const categoryDescription =
-    userPrompt?.description ?? presetPrompt?.description ?? "";
+  const categoryDescription = userPrompt?.description ?? presetPrompt?.description ?? "";
 
   const lastPresetLoadKeyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -93,17 +87,12 @@ export const useSystemPromptContent = ({
           return;
         }
 
-        const next = preset
-          ? { content: preset.content, description: preset.description }
-          : null;
+        const next = preset ? { content: preset.content, description: preset.description } : null;
 
         setPresetPrompt((prev) => {
           if (!prev && !next) return prev;
           if (prev && next) {
-            if (
-              prev.content === next.content &&
-              prev.description === next.description
-            ) {
+            if (prev.content === next.content && prev.description === next.description) {
               return prev;
             }
           }
@@ -118,12 +107,7 @@ export const useSystemPromptContent = ({
     return () => {
       cancelled = true;
     };
-  }, [
-    currentSessionId,
-    systemPromptId,
-    systemPromptService,
-    userPrompt?.content,
-  ]);
+  }, [currentSessionId, systemPromptId, systemPromptService, userPrompt?.content]);
 
   const loadEnhancedPrompt = useCallback(async () => {
     if (loadingEnhanced) return;
@@ -132,9 +116,7 @@ export const useSystemPromptContent = ({
     try {
       if (currentSessionId) {
         try {
-          const snapshot = await agentClient.getSessionSystemPrompt(
-            currentSessionId,
-          );
+          const snapshot = await agentClient.getSessionSystemPrompt(currentSessionId);
           const effectivePrompt = snapshot.effective_system_prompt?.trim();
           if (effectivePrompt) {
             setEnhancedPrompt(effectivePrompt);
@@ -151,9 +133,7 @@ export const useSystemPromptContent = ({
         setShowEnhanced(true);
         return;
       }
-      console.warn(
-        "Enhanced prompt snapshot unavailable; keeping base prompt view.",
-      );
+      console.warn("Enhanced prompt snapshot unavailable; keeping base prompt view.");
     } catch (error) {
       console.error("Failed to load enhanced prompt:", error);
     } finally {

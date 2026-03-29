@@ -100,11 +100,7 @@ export interface MessageUpdates {
 // Extended message type
 export type ExtendedMessage = Message & {
   isHidden?: boolean; // Controls whether the message is displayed in the GUI
-  messageType?:
-    | "normal"
-    | "attachment_processing"
-    | "approval_request"
-    | "approval_response";
+  messageType?: "normal" | "attachment_processing" | "approval_request" | "approval_response";
   attachmentSummary?: string; // Attachment processing result
   parentMessageId?: string; // Association
   metadata?: MessageMetadata; // Metadata
