@@ -19,6 +19,7 @@ export class SkillService {
   async listSkills(filter?: SkillFilter, refresh?: boolean): Promise<SkillListResponse> {
     const params = new URLSearchParams();
     if (filter?.search) params.append("search", filter.search);
+    if (filter?.includeDisabled) params.append("include_disabled", "true");
     if (refresh) params.append("refresh", "true");
 
     const queryString = params.toString();

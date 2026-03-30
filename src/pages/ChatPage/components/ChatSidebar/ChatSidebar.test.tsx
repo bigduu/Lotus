@@ -140,4 +140,14 @@ describe("ChatSidebar", () => {
       expect(screen.queryByText("Platform roadmap")).toBeNull();
     });
   });
+
+  it("shows the running app version in the sidebar footer", async () => {
+    render(
+      <AntdApp>
+        <ChatSidebar />
+      </AntdApp>,
+    );
+
+    expect(await screen.findByTestId("app-version-badge")).toHaveTextContent("2026.3.110");
+  });
 });

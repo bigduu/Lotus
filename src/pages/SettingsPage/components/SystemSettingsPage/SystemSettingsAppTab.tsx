@@ -2,6 +2,7 @@ import React from "react";
 import { Button, Card, Flex, Popconfirm, Space, Switch, Typography, theme, Divider } from "antd";
 import { useTranslation } from "react-i18next";
 import { DeleteOutlined, WarningOutlined, RedoOutlined } from "@ant-design/icons";
+import { APP_VERSION } from "@shared/constants/appVersion";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -45,6 +46,18 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
         </Flex>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
           {t("settings.appTab.autoGenerateTitleDesc")}
+        </Text>
+        <Flex align="center" justify="space-between" gap={token.marginSM}>
+          <Text strong>{t("settings.appTab.runningVersion", "Running version")}</Text>
+          <Text code data-testid="settings-app-version">
+            v{APP_VERSION}
+          </Text>
+        </Flex>
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+          {t(
+            "settings.appTab.runningVersionDesc",
+            "This is the currently running Lotus frontend version.",
+          )}
         </Text>
         <Flex align="center" gap={token.marginSM}>
           <Text strong>{t("settings.appTab.darkMode")}</Text>

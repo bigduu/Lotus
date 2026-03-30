@@ -38,7 +38,11 @@ import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
 import ModelLimitsSettings from "../../ModelLimitsSettings";
 import type { AppLocale } from "../../../../shared/i18n/types";
 import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
-import { useExperienceModeStore, ADVANCED_ONLY_SETTINGS_TABS } from "../../../../shared/store/experienceModeStore";
+import {
+  useExperienceModeStore,
+  ADVANCED_ONLY_SETTINGS_TABS,
+} from "../../../../shared/store/experienceModeStore";
+import { APP_VERSION } from "../../../../shared/constants/appVersion";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -75,9 +79,10 @@ const SystemSettingsPage = ({
   const [taskEnhancementEnabled, setTaskEnhancementEnabledState] = useState(
     isTaskEnhancementEnabled(),
   );
-  const [copilotConclusionWithOptionsEnhancementEnabled, setCopilotConclusionWithOptionsEnhancementEnabledState] = useState(
-    isCopilotConclusionWithOptionsEnhancementEnabled(),
-  );
+  const [
+    copilotConclusionWithOptionsEnhancementEnabled,
+    setCopilotConclusionWithOptionsEnhancementEnabledState,
+  ] = useState(isCopilotConclusionWithOptionsEnhancementEnabled());
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const showCopilotConclusionWithOptionsEnhancement = currentProvider === "copilot";
   const activeTabKey = useSettingsViewStore((state) => state.activeTabKey);
@@ -183,7 +188,9 @@ const SystemSettingsPage = ({
     setPromptEnhancement(getSystemPromptEnhancement());
     setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
     setTaskEnhancementEnabledState(isTaskEnhancementEnabled());
-    setCopilotConclusionWithOptionsEnhancementEnabledState(isCopilotConclusionWithOptionsEnhancementEnabled());
+    setCopilotConclusionWithOptionsEnhancementEnabledState(
+      isCopilotConclusionWithOptionsEnhancementEnabled(),
+    );
   }, []);
 
   return (
@@ -219,6 +226,9 @@ const SystemSettingsPage = ({
             {t("settings.page.title")}
           </Text>
         </Flex>
+        <Text type="secondary" data-testid="settings-page-version">
+          {t("settings.appTab.runningVersion", "Running version")}: v{APP_VERSION}
+        </Text>
       </Flex>
       <Layout.Content
         style={{
@@ -254,8 +264,12 @@ const SystemSettingsPage = ({
                   onPromptEnhancementChange={setPromptEnhancement}
                   mermaidEnhancementEnabled={mermaidEnhancementEnabled}
                   taskEnhancementEnabled={taskEnhancementEnabled}
-                  showCopilotConclusionWithOptionsEnhancement={showCopilotConclusionWithOptionsEnhancement}
-                  copilotConclusionWithOptionsEnhancementEnabled={copilotConclusionWithOptionsEnhancementEnabled}
+                  showCopilotConclusionWithOptionsEnhancement={
+                    showCopilotConclusionWithOptionsEnhancement
+                  }
+                  copilotConclusionWithOptionsEnhancementEnabled={
+                    copilotConclusionWithOptionsEnhancementEnabled
+                  }
                   onMermaidToggle={handleMermaidToggle}
                   onTaskToggle={handleTaskToggle}
                   onCopilotConclusionWithOptionsToggle={handleCopilotConclusionWithOptionsToggle}

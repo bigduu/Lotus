@@ -1,8 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, Input, List, message, Spin, Empty, Row, Button } from "antd";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { useAppStore } from "../../pages/ChatPage/store";
+import { skillService } from "../../services/skill/SkillService";
+import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
+import { useBambooConfigStore } from "../../shared/stores/bambooConfigStore";
 import { SkillCard } from "./SkillCard";
 
 // Refresh interval in milliseconds (30 seconds)
@@ -10,57 +12,117 @@ const REFRESH_INTERVAL = 30000;
 
 export const SkillManager = () => {
   const { t } = useTranslation();
-  // State from store
-  const skills = useAppStore((state) => state.skills);
-  const isLoadingSkills = useAppStore((state) => state.isLoadingSkills);
-  const skillsError = useAppStore((state) => state.skillsError);
+  const bambooConfig = useBambooConfigStore((state) => state.config);
+  const loadConfig = useBambooConfigStore((state) => state.loadConfig);
+  const saveConfig = useBambooConfigStore((state) => state.saveConfig);
 
-  // Actions from store
-  const loadSkills = useAppStore((state) => state.loadSkills);
-  const clearSkillsError = useAppStore((state) => state.clearSkillsError);
+  const [skills, setSkills] = useState<SkillDefinition[]>([]);
+  const [isLoadingSkills, setIsLoadingSkills] = useState(false);
+  const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [savingSkillId, setSavingSkillId] = useState<string | null>(null);
 
   // Local state
   const [searchQuery, setSearchQuery] = useState("");
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
+  const disabledSkillIds = useMemo(
+    () =>
+      new Set((bambooConfig?.skills?.disabled ?? []).map((value) => value.trim()).filter(Boolean)),
+    [bambooConfig],
+  );
+
+  const loadSkillSettings = useCallback(
+    async (refresh = true) => {
+      setIsLoadingSkills(true);
+      setSkillsError(null);
+      try {
+        const [skillResponse] = await Promise.all([
+          skillService.listSkills({ includeDisabled: true }, refresh),
+          loadConfig({ force: refresh }),
+        ]);
+        setSkills(skillResponse.skills);
+        setLastRefresh(new Date());
+      } catch (error) {
+        const messageText =
+          error instanceof Error ? error.message : t("components.skillManager.loadFailed");
+        setSkillsError(messageText);
+      } finally {
+        setIsLoadingSkills(false);
+      }
+    },
+    [loadConfig, t],
+  );
+
   // Load skills on mount and periodically (with refresh from disk)
   useEffect(() => {
-    loadSkills(undefined, true);
+    void loadSkillSettings(true);
 
-    // Set up periodic refresh
     const intervalId = setInterval(() => {
-      loadSkills(undefined, true);
-      setLastRefresh(new Date());
+      void loadSkillSettings(true);
     }, REFRESH_INTERVAL);
 
     return () => clearInterval(intervalId);
-  }, [loadSkills]);
+  }, [loadSkillSettings]);
 
   // Refresh when window regains focus
   useEffect(() => {
     const handleFocus = () => {
-      loadSkills(undefined, true);
-      setLastRefresh(new Date());
+      void loadSkillSettings(true);
     };
 
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
-  }, [loadSkills]);
+  }, [loadSkillSettings]);
 
   // Manual refresh handler
   const handleRefresh = useCallback(async () => {
-    await loadSkills(undefined, true);
-    setLastRefresh(new Date());
+    await loadSkillSettings(true);
     message.success(t("components.skillManager.skillsRefreshed"));
-  }, [loadSkills, t]);
+  }, [loadSkillSettings, t]);
 
   // Show error message
   useEffect(() => {
     if (skillsError) {
       message.error(skillsError);
-      clearSkillsError();
+      setSkillsError(null);
     }
-  }, [skillsError, clearSkillsError]);
+  }, [skillsError]);
+
+  const handleToggleDisabled = useCallback(
+    async (skillId: string, nextDisabled: boolean) => {
+      setSavingSkillId(skillId);
+      try {
+        const latestConfig = await loadConfig({ force: true });
+        const currentDisabled = latestConfig?.skills?.disabled ?? [];
+        const nextDisabledList = Array.from(
+          new Set(
+            (nextDisabled
+              ? [...currentDisabled, skillId]
+              : currentDisabled.filter((value) => value !== skillId)
+            )
+              .map((value) => value.trim())
+              .filter(Boolean),
+          ),
+        ).sort();
+
+        await saveConfig({
+          ...(latestConfig ?? {}),
+          skills: {
+            ...(latestConfig?.skills ?? {}),
+            disabled: nextDisabledList,
+          },
+        });
+        message.success(t("components.skillManager.skillStateSaved"));
+      } catch (error) {
+        message.error(
+          error instanceof Error ? error.message : t("components.skillManager.saveFailed"),
+        );
+      } finally {
+        setSavingSkillId(null);
+      }
+    },
+    [loadConfig, saveConfig, t],
+  );
 
   // Filter skills
   const filteredSkills = skills.filter((skill) => {
@@ -123,6 +185,9 @@ export const SkillManager = () => {
         <div className="lotus-settings-note" style={{ marginBottom: "16px" }}>
           {t("components.skillManager.readOnlyHint")}
         </div>
+        <div className="lotus-settings-note" style={{ marginBottom: "16px" }}>
+          {t("components.skillManager.disabledHint")}
+        </div>
         {/* Filters */}
         <Row style={{ marginBottom: "24px" }}>
           <Input
@@ -157,7 +222,12 @@ export const SkillManager = () => {
               dataSource={filteredSkills}
               renderItem={(skill) => (
                 <List.Item>
-                  <SkillCard skill={skill} />
+                  <SkillCard
+                    skill={skill}
+                    disabled={disabledSkillIds.has(skill.id)}
+                    busy={savingSkillId === skill.id}
+                    onToggleDisabled={handleToggleDisabled}
+                  />
                 </List.Item>
               )}
             />

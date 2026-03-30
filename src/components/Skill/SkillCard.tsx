@@ -1,25 +1,52 @@
 import React from "react";
-import { Card, Space, Tag, Typography, theme } from "antd";
+import { Card, Space, Switch, Tag, Typography, theme } from "antd";
+import { useTranslation } from "react-i18next";
 import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
 
 const { Text } = Typography;
 
 interface SkillCardProps {
   skill: SkillDefinition;
+  disabled?: boolean;
+  busy?: boolean;
+  onToggleDisabled?: (skillId: string, nextDisabled: boolean) => void;
 }
 
-export const SkillCard: React.FC<SkillCardProps> = ({ skill }) => {
+export const SkillCard: React.FC<SkillCardProps> = ({
+  skill,
+  disabled = false,
+  busy = false,
+  onToggleDisabled,
+}) => {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
 
   return (
     <Card
       title={
-        <Space size={token.marginXS} wrap>
-          <span>{skill.name}</span>
-          {skill.license && <Tag color="processing">License: {skill.license}</Tag>}
+        <Space
+          size={token.marginXS}
+          wrap
+          style={{ width: "100%", justifyContent: "space-between" }}
+        >
+          <Space size={token.marginXS} wrap>
+            <span>{skill.name}</span>
+            {disabled && <Tag color="default">{t("components.skillManager.disabledTag")}</Tag>}
+            {skill.license && <Tag color="processing">License: {skill.license}</Tag>}
+          </Space>
+          {onToggleDisabled && (
+            <Switch
+              checked={!disabled}
+              loading={busy}
+              onChange={(enabled) => onToggleDisabled(skill.id, !enabled)}
+              checkedChildren={t("components.skillManager.switchEnabled")}
+              unCheckedChildren={t("components.skillManager.switchDisabled")}
+            />
+          )}
         </Space>
       }
       styles={{ body: { padding: token.paddingMD } }}
+      style={{ opacity: disabled ? 0.72 : 1 }}
     >
       <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
         <Text type="secondary">{skill.description}</Text>

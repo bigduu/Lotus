@@ -8,6 +8,10 @@ export interface BambooToolsConfig {
   disabled?: string[];
 }
 
+export interface BambooSkillsConfig {
+  disabled?: string[];
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -16,6 +20,7 @@ export interface BambooConfig {
   https_proxy?: string;
   headless_auth?: boolean;
   tools?: BambooToolsConfig;
+  skills?: BambooSkillsConfig;
   [key: string]: unknown;
 }
 

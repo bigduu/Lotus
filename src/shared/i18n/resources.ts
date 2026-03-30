@@ -478,6 +478,8 @@ export const resources = {
           resetStepReload: "Reload the application",
           resetConfirm: "Yes, reset everything",
           resetButton: "Reset Application (All Data)",
+          runningVersion: "Running version",
+          runningVersionDesc: "This is the currently running Lotus frontend version.",
         },
         configTab: {
           tabs: {
@@ -1434,7 +1436,15 @@ export const resources = {
           secondsAgo: "{{count}}s ago",
           minutesAgo: "{{count}}m ago",
           searchPlaceholder: "Search skills",
-          readOnlyHint: "Read-only mode: skills cannot be edited.",
+          readOnlyHint:
+            "Skill files remain read-only, but you can enable or disable them for prompt usage.",
+          disabledHint:
+            "Disabled skills stay visible here, but Bamboo filters them from system prompt skill context and blocks load_skill at runtime.",
+          disabledTag: "Disabled",
+          switchEnabled: "On",
+          switchDisabled: "Off",
+          skillStateSaved: "Skill state saved",
+          saveFailed: "Failed to save skill state",
           noSkillsFound: "No skills found",
           noMatch: "No skills match the current search",
           loadFailed: "Failed to load skills",
@@ -1442,6 +1452,8 @@ export const resources = {
         },
         skillSelector: {
           placeholder: "Select skills",
+          disabledSkillsHint:
+            "{{count}} previously selected skill is now globally disabled and has been removed.",
         },
         imageGrid: {
           preview: "Preview",
@@ -2909,7 +2921,14 @@ export const resources = {
           secondsAgo: "{{count}} 秒前",
           minutesAgo: "{{count}} 分钟前",
           searchPlaceholder: "搜索技能",
-          readOnlyHint: "只读模式：技能不可编辑。",
+          readOnlyHint: "技能文件本身仍是只读的，但你可以控制它们是否参与 prompt 使用。",
+          disabledHint:
+            "这里会显示全部技能。被禁用的技能不会进入系统提示中的 skill context，且运行时会被禁止 load_skill。",
+          disabledTag: "已禁用",
+          switchEnabled: "开",
+          switchDisabled: "关",
+          skillStateSaved: "技能状态已保存",
+          saveFailed: "保存技能状态失败",
           noSkillsFound: "未找到技能",
           noMatch: "没有匹配的技能",
           loadFailed: "加载技能失败",
@@ -2917,6 +2936,7 @@ export const resources = {
         },
         skillSelector: {
           placeholder: "选择技能",
+          disabledSkillsHint: "有 {{count}} 个先前选中的技能现已被全局禁用，并已从选择中移除。",
         },
         imageGrid: {
           preview: "预览",

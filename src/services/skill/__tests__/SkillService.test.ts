@@ -34,6 +34,17 @@ describe("SkillService", () => {
     expect(mockApiClient.get).toHaveBeenCalledWith("skills?search=agent+skill&refresh=true");
   });
 
+  it("lists skills with include_disabled query param", async () => {
+    mockApiClient.get.mockResolvedValueOnce({ skills: [], total: 0 });
+
+    const service = new SkillService();
+    await service.listSkills({ search: "agent skill", includeDisabled: true }, true);
+
+    expect(mockApiClient.get).toHaveBeenCalledWith(
+      "skills?search=agent+skill&include_disabled=true&refresh=true",
+    );
+  });
+
   it("gets a single skill by id", async () => {
     mockApiClient.get.mockResolvedValueOnce({ id: "s1", name: "Skill" });
 

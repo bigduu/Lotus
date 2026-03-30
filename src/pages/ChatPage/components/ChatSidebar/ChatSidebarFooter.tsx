@@ -1,9 +1,12 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Button, Flex, Tooltip } from "antd";
+import { Button, Flex, Tooltip, Typography } from "antd";
 import { PlusOutlined, SettingOutlined, SunOutlined, MoonOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "@shared/store/themeStore";
+import { APP_VERSION } from "@shared/constants/appVersion";
+
+const { Text } = Typography;
 
 type ChatSidebarFooterProps = {
   collapsed: boolean;
@@ -101,6 +104,20 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
           </Tooltip>
         )}
       </Flex>
+
+      {!collapsed && (
+        <Text
+          type="secondary"
+          data-testid="app-version-badge"
+          style={{
+            fontSize: token.fontSizeSM,
+            textAlign: "center",
+            userSelect: "text",
+          }}
+        >
+          {t("settings.appTab.runningVersion", "Running version")}: v{APP_VERSION}
+        </Text>
+      )}
     </Flex>
   );
 };

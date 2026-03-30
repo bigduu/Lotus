@@ -171,6 +171,9 @@ const frTranslation = {
       resetStepReload: "Recharger l'application",
       resetConfirm: "Oui, tout réinitialiser",
       resetButton: "Réinitialiser l'application (toutes les données)",
+      runningVersion: "Version en cours",
+      runningVersionDesc:
+        "Il s'agit de la version frontend Lotus actuellement en cours d'exécution.",
     },
     networkCard: {
       ...enTranslation.settings.networkCard,

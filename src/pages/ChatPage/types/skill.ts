@@ -15,6 +15,7 @@ export interface SkillDefinition {
 
 export interface SkillFilter {
   search?: string;
+  includeDisabled?: boolean;
 }
 
 export interface SkillListResponse {
