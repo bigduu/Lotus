@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import { useAppStore } from "../../store";
 import { useChatTitleGeneration } from "../../hooks/useChatManager/useChatTitleGeneration";
 
+const AUTO_TITLE_RETRY_COOLDOWN_MS = 15_000;
+
 export const ChatAutoTitleEffect: React.FC = () => {
   const chats = useAppStore((state) => state.chats);
   const updateSession = useAppStore((state) => state.updateSession);
@@ -9,6 +11,8 @@ export const ChatAutoTitleEffect: React.FC = () => {
 
   // Track last processed message ID per chat
   const lastAutoTitleMessageIdsRef = useRef<Map<string, string>>(new Map());
+  // Track failed attempts (same assistant message) to avoid retry spam.
+  const lastAutoTitleFailedRef = useRef<Map<string, { messageId: string; at: number }>>(new Map());
 
   useEffect(() => {
     // Process ALL chats, not just current
@@ -27,13 +31,33 @@ export const ChatAutoTitleEffect: React.FC = () => {
       const lastProcessedId = lastAutoTitleMessageIdsRef.current.get(sessionId);
       if (lastMessage.id === lastProcessedId) return;
 
-      // Mark as processed
-      lastAutoTitleMessageIdsRef.current.set(sessionId, lastMessage.id);
+      // Back off retries for the same failed assistant message.
+      const failed = lastAutoTitleFailedRef.current.get(sessionId);
+      if (
+        failed &&
+        failed.messageId === lastMessage.id &&
+        Date.now() - failed.at < AUTO_TITLE_RETRY_COOLDOWN_MS
+      ) {
+        return;
+      }
 
       // Generate title
-      generateChatTitle(sessionId).catch((error) => {
-        console.warn("Auto title generation failed for chat", sessionId, ":", error);
-      });
+      generateChatTitle(sessionId)
+        .then((generated) => {
+          if (!generated) {
+            return;
+          }
+          // Mark as processed only after generation flow completes successfully.
+          lastAutoTitleMessageIdsRef.current.set(sessionId, lastMessage.id);
+          lastAutoTitleFailedRef.current.delete(sessionId);
+        })
+        .catch((error) => {
+          lastAutoTitleFailedRef.current.set(sessionId, {
+            messageId: lastMessage.id,
+            at: Date.now(),
+          });
+          console.warn("Auto title generation failed for chat", sessionId, ":", error);
+        });
     });
   }, [chats, generateChatTitle]);
 
@@ -45,6 +69,7 @@ export const ChatAutoTitleEffect: React.FC = () => {
     trackedIds.forEach((sessionId) => {
       if (!currentSessionIds.has(sessionId)) {
         lastAutoTitleMessageIdsRef.current.delete(sessionId);
+        lastAutoTitleFailedRef.current.delete(sessionId);
       }
     });
   }, [chats]);

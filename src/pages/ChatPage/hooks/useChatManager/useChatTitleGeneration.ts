@@ -3,9 +3,9 @@ import { App as AntApp } from "antd";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../store";
 import { getOpenAIClient } from "../../services/openaiClient";
-import type { AssistantTextMessage, Message } from "../../types/chat";
+import type { Message } from "../../types/chat";
 import type { UseChatState } from "./types";
-import { useFastModel } from "../useActiveModel";
+import { useActiveModel, useFastModel } from "../useActiveModel";
 import i18n from "../../../../shared/i18n";
 
 const PROMPT_TEMPLATE_MARKER = "__BODHI_PROMPT_TITLE__";
@@ -89,7 +89,9 @@ const buildDefaultTitleMatcher = (
 
   getResourceTranslationValues(["chat", "sidebar", "newSession"]).forEach(addDefaultLabel);
   getResourceTranslationValues(["chat", "session", "defaultTitle"]).forEach(addDefaultLabel);
-  getResourceTranslationValues(["chat", "sidebar", "newSessionWithPrompt"]).forEach(addTemplateLabel);
+  getResourceTranslationValues(["chat", "sidebar", "newSessionWithPrompt"]).forEach(
+    addTemplateLabel,
+  );
 
   addDefaultLabel(t("chat.sidebar.newSession"));
   addDefaultLabel(t("chat.session.defaultTitle"));
@@ -127,6 +129,63 @@ const buildDefaultTitleMatcher = (
   };
 };
 
+const extractMessageText = (message: Message): string => {
+  if ("content" in message && typeof message.content === "string") {
+    const text = message.content.trim();
+    if (text) return text;
+  }
+  if ("displayText" in message && typeof message.displayText === "string") {
+    const text = message.displayText.trim();
+    if (text) return text;
+  }
+
+  if (message.role === "assistant" && "type" in message) {
+    if (message.type === "tool_result" && "result" in message) {
+      const result = message.result?.result;
+      if (typeof result === "string" && result.trim()) {
+        return result.trim();
+      }
+    }
+    if (message.type === "task_list" && "taskList" in message) {
+      const title = message.taskList?.title?.trim() || "";
+      const firstPending = message.taskList?.items?.find((item) => item?.description?.trim());
+      const firstPendingText = firstPending?.description?.trim() || "";
+      const merged = [title, firstPendingText].filter(Boolean).join(" - ");
+      if (merged) return merged;
+    }
+    if (message.type === "tool_call" && "toolCalls" in message) {
+      const toolNames = (message.toolCalls || [])
+        .map((call) => call?.toolName?.trim())
+        .filter((name): name is string => Boolean(name));
+      if (toolNames.length > 0) {
+        return `Tool calls: ${toolNames.join(", ")}`;
+      }
+    }
+  }
+
+  if (
+    message.role === "assistant" &&
+    "metadata" in message &&
+    message.metadata &&
+    typeof message.metadata === "object" &&
+    "reasoning" in message.metadata &&
+    typeof message.metadata.reasoning === "string"
+  ) {
+    const reasoning = message.metadata.reasoning.trim();
+    if (reasoning) return reasoning;
+  }
+
+  return "";
+};
+
+const collectTitleSourceMessages = (messages: Message[]): Message[] =>
+  messages.filter((message) => {
+    if (message.role !== "user" && message.role !== "assistant") {
+      return false;
+    }
+    return extractMessageText(message).length > 0;
+  });
+
 /**
  * Hook for chat title generation and validation
  * Handles both auto and manual title generation
@@ -135,7 +194,7 @@ export interface UseChatTitleGeneration {
   titleGenerationState: Record<string, { status: "idle" | "loading" | "error"; error?: string }>;
   autoGenerateTitles: boolean;
   isUpdatingAutoTitlePreference: boolean;
-  generateChatTitle: (sessionId: string, options?: { force?: boolean }) => Promise<void>;
+  generateChatTitle: (sessionId: string, options?: { force?: boolean }) => Promise<boolean>;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
   isDefaultTitle: (title: string | undefined | null) => boolean;
 }
@@ -149,6 +208,7 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
   const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
   // Use fast/cheap model for title generation (lightweight task, max 20 tokens)
   const fastModel = useFastModel();
+  const activeModel = useActiveModel();
   const setAutoGenerateTitlesPreference = useAppStore(
     (state) => state.setAutoGenerateTitlesPreference,
   );
@@ -162,7 +222,7 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
 
   const isDefaultTitleMatcher = useMemo(
     () => buildDefaultTitleMatcher((key, options) => t(key, options)),
-    [t, i18n.language],
+    [t],
   );
   const isDefaultTitle = useCallback(
     (title: string | undefined | null) => isDefaultTitleMatcher(title),
@@ -170,41 +230,43 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
   );
 
   const generateChatTitle = useCallback(
-    async (sessionId: string, options?: { force?: boolean }) => {
-      const chat = state.chats.find((c) => c.id === sessionId);
+    async (sessionId: string, options?: { force?: boolean }): Promise<boolean> => {
+      let chat = state.chats.find((c) => c.id === sessionId);
       if (!chat) {
-        return;
+        return false;
       }
 
-      const userAssistantMessages = chat.messages.filter((msg: Message) => {
-        if (msg.role === "user") return true;
-        if (msg.role === "assistant" && "type" in msg) {
-          return (msg as AssistantTextMessage).type === "text";
+      let userAssistantMessages = collectTitleSourceMessages(chat.messages);
+      if (options?.force && userAssistantMessages.length === 0) {
+        await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
+        const refreshed = useAppStore.getState().chats.find((c) => c.id === sessionId);
+        if (refreshed) {
+          chat = refreshed;
+          userAssistantMessages = collectTitleSourceMessages(refreshed.messages);
         }
-        return false;
-      });
+      }
 
       const isAuto = !options?.force;
       if (isAuto && !autoGenerateTitles) {
-        return;
+        return false;
       }
       const MAX_AUTO_MESSAGES = 6;
 
       if (isAuto) {
         if (titleGenerationInFlightRef.current.has(sessionId)) {
-          return;
+          return false;
         }
         if (autoTitleGeneratedRef.current.has(sessionId)) {
-          return;
+          return false;
         }
         if (!isDefaultTitle(chat.title)) {
-          return;
+          return false;
         }
         if (userAssistantMessages.length === 0) {
-          return;
+          return false;
         }
         if (userAssistantMessages.length > MAX_AUTO_MESSAGES) {
-          return;
+          return false;
         }
       }
 
@@ -215,7 +277,28 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
       }));
 
       try {
-        let candidate = await generateTitleWithAI(userAssistantMessages, fastModel);
+        const normalizedFastModel = fastModel?.trim() || "";
+        const normalizedActiveModel = activeModel?.trim() || "";
+
+        let llmError: unknown;
+        let candidate = "";
+
+        if (normalizedFastModel) {
+          try {
+            candidate = await generateTitleWithAI(userAssistantMessages, normalizedFastModel);
+          } catch (error) {
+            llmError = error;
+          }
+        }
+
+        if (!candidate && normalizedActiveModel && normalizedActiveModel !== normalizedFastModel) {
+          try {
+            candidate = await generateTitleWithAI(userAssistantMessages, normalizedActiveModel);
+          } catch (error) {
+            if (!llmError) llmError = error;
+          }
+        }
+
         if (!candidate) {
           candidate = buildFallbackTitle(userAssistantMessages);
         }
@@ -225,7 +308,10 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
               ...prev,
               [sessionId]: { status: "idle" },
             }));
-            return;
+            return false;
+          }
+          if (llmError instanceof Error) {
+            throw llmError;
           }
           throw new Error(t("chat.title.generateFailed"));
         }
@@ -243,6 +329,7 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
         if (options?.force) {
           appMessage?.success?.(t("chat.title.updated"));
         }
+        return true;
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : t("chat.title.generateFailed");
@@ -253,13 +340,15 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
         if (options?.force) {
           appMessage?.error?.(errorMessage);
         } else {
-          appMessage?.warning?.(errorMessage);
+          // Keep auto-generation failures quiet in UI; caller may retry later.
+          console.warn("[ChatTitleGeneration] Auto title generation failed:", errorMessage);
         }
+        throw error instanceof Error ? error : new Error(errorMessage);
       } finally {
         titleGenerationInFlightRef.current.delete(sessionId);
       }
     },
-    [appMessage, autoGenerateTitles, isDefaultTitle, fastModel, state, t],
+    [appMessage, autoGenerateTitles, isDefaultTitle, fastModel, activeModel, state, t],
   );
 
   return {
@@ -276,16 +365,6 @@ const MAX_TITLE_CHARS = 60;
 const MAX_TITLE_TOKENS = 20;
 const MAX_MESSAGES_FOR_TITLE = 8;
 const MAX_MESSAGE_CHARS = 220;
-
-const extractMessageText = (message: Message): string => {
-  if ("content" in message && typeof message.content === "string") {
-    return message.content.trim();
-  }
-  if ("displayText" in message && typeof message.displayText === "string") {
-    return message.displayText.trim();
-  }
-  return "";
-};
 
 const buildTitleContext = (messages: Message[]): string => {
   const slice = messages.slice(0, MAX_MESSAGES_FOR_TITLE);

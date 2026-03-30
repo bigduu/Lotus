@@ -8,6 +8,24 @@ describe("MessageInput", () => {
     hasMessages: false,
   };
 
+  it("keeps textarea text visible when input highlighting is active", () => {
+    render(
+      <MessageInput
+        value="/workflow review @src/main.ts and continue"
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        interaction={interaction}
+        allowImages={false}
+      />,
+    );
+
+    const input = screen.getByTestId("chat-input");
+    const inlineStyle = input.getAttribute("style") ?? "";
+
+    expect(inlineStyle).not.toContain("color: transparent");
+    expect(inlineStyle).not.toContain("-webkit-text-fill-color: transparent");
+  });
+
   it("allows sending long content when maxCharCount is not set", () => {
     const longContent = "a".repeat(9001);
     const onSubmit = vi.fn();

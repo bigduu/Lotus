@@ -4,6 +4,9 @@ import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import type { RenderableEntry } from "./useChatViewMessages";
 import { useScrollAnchorPersistence } from "./useScrollAnchorPersistence";
 
+const SCROLL_BOTTOM_EPSILON_PX = 2;
+const SCROLL_BOTTOM_MAX_FRAMES = 6;
+
 type InteractionState = {
   value: "IDLE" | "THINKING" | "AWAITING_APPROVAL";
   matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
@@ -63,27 +66,71 @@ export const useChatViewScroll = ({
       // Save scroll position (pass event to handler)
       handleScrollPersistence(e);
     },
-    [renderableMessages.length, handleScrollPersistence],
+    [messagesListRef, renderableMessages.length, handleScrollPersistence],
   );
 
   const scrollToBottom = useCallback(() => {
     const el = messagesListRef.current;
     if (!el) return;
     if (renderableMessages.length === 0) return;
-    requestAnimationFrame(() => {
-      // 直接滚动到容器底部，确保到达最底部
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    });
-  }, [renderableMessages.length]);
+
+    let frame = 0;
+    let lastKnownScrollHeight = -1;
+
+    const step = () => {
+      const scrollEl = messagesListRef.current;
+      if (!scrollEl) return;
+
+      const targetTop = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
+      const distanceFromBottom = Math.max(
+        0,
+        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight,
+      );
+      const heightChanged = scrollEl.scrollHeight !== lastKnownScrollHeight;
+      const shouldContinue =
+        distanceFromBottom > SCROLL_BOTTOM_EPSILON_PX || heightChanged || frame === 0;
+
+      if (shouldContinue) {
+        scrollEl.scrollTo({
+          top: targetTop,
+          behavior: frame === 0 ? "smooth" : "auto",
+        });
+      }
+
+      lastKnownScrollHeight = scrollEl.scrollHeight;
+      frame += 1;
+
+      if (frame < SCROLL_BOTTOM_MAX_FRAMES && shouldContinue) {
+        requestAnimationFrame(step);
+      }
+    };
+
+    requestAnimationFrame(step);
+  }, [messagesListRef, renderableMessages.length]);
 
   const scrollToTop = useCallback(() => {
     const el = messagesListRef.current;
     if (!el) return;
-    requestAnimationFrame(() => {
-      // 直接滚动到容器顶部
-      el.scrollTo({ top: 0, behavior: "smooth" });
-    });
-  }, []);
+
+    let frame = 0;
+
+    const step = () => {
+      const scrollEl = messagesListRef.current;
+      if (!scrollEl) return;
+
+      const shouldContinue = scrollEl.scrollTop > SCROLL_BOTTOM_EPSILON_PX || frame === 0;
+      if (shouldContinue) {
+        scrollEl.scrollTo({ top: 0, behavior: "auto" });
+      }
+
+      frame += 1;
+      if (frame < SCROLL_BOTTOM_MAX_FRAMES && shouldContinue) {
+        requestAnimationFrame(step);
+      }
+    };
+
+    requestAnimationFrame(step);
+  }, [messagesListRef]);
 
   const resetUserScroll = useCallback(() => {
     userHasScrolledUpRef.current = false;
@@ -146,7 +193,7 @@ export const useChatViewScroll = ({
     return () => {
       window.removeEventListener("navigate-to-message", handleMessageNavigation as EventListener);
     };
-  }, [renderableMessages]);
+  }, [messagesListRef, renderableMessages]);
 
   const previousStateRef = useRef(interactionState.value);
   useEffect(() => {
@@ -217,7 +264,7 @@ export const useChatViewScroll = ({
     });
 
     return () => cancelAnimationFrame(rafId);
-  }, [renderableMessages.length, currentSessionId]);
+  }, [messagesListRef, renderableMessages.length, currentSessionId]);
 
   // Reset first load flag when switching chats
   useEffect(() => {

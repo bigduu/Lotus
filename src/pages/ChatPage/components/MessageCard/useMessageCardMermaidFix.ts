@@ -14,14 +14,29 @@ const extractMermaidCode = (content: string) => {
 const replaceMermaidBlock = (content: string, originalChart: string, fixedChart: string) => {
   const normalizedOriginal = originalChart.trim();
   const normalizedFixed = extractMermaidCode(fixedChart);
+  const mermaidBlockPattern = /```mermaid\s*([\s\S]*?)```/gi;
   let replaced = false;
-  const updated = content.replace(/```mermaid\s*([\s\S]*?)```/gi, (match, block) => {
+  const updated = content.replace(mermaidBlockPattern, (match, block) => {
     if (replaced) return match;
     if (block.trim() !== normalizedOriginal) return match;
     replaced = true;
     return `\`\`\`mermaid\n${normalizedFixed}\n\`\`\``;
   });
-  return replaced ? updated : null;
+
+  if (replaced) {
+    return updated;
+  }
+
+  const fallbackMatch = content.match(mermaidBlockPattern);
+  if (!fallbackMatch) {
+    return null;
+  }
+
+  return content.replace(mermaidBlockPattern, (match) => {
+    if (replaced) return match;
+    replaced = true;
+    return `\`\`\`mermaid\n${normalizedFixed}\n\`\`\``;
+  });
 };
 
 const DERIVED_TEXT_MESSAGE_SUFFIX = "_text";

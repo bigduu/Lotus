@@ -39,6 +39,9 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
 }) => {
   const showHighlightOverlay =
     value.length > 0 && highlightSegments.some((segment) => segment.type !== "text");
+  const inputPadding = "6px 4px";
+  const inputLineHeight = 1.65;
+  const inputTextColor = disabled ? token.colorTextDisabled : token.colorText;
 
   return (
     <div
@@ -57,19 +60,20 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
             left: 0,
             right: 0,
             bottom: 0,
-            padding: "4px 2px",
+            padding: inputPadding,
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
             overflowWrap: "anywhere",
             overflow: "hidden",
             pointerEvents: "none",
-            color: token.colorText,
+            color: "transparent",
             fontSize: token.fontSize,
-            lineHeight: 1.5,
-            fontFamily: "inherit", // Ensure same font-family as TextArea
-            fontWeight: 400, // Match TextArea's default font-weight
-            letterSpacing: "normal", // Ensure consistent letter spacing
+            lineHeight: inputLineHeight,
+            fontFamily: "inherit",
+            fontWeight: 400,
+            letterSpacing: "normal",
             transform: "translate(0, 0)",
+            zIndex: 0,
           }}
         >
           {highlightSegments.map((segment, index) => {
@@ -77,15 +81,18 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
             if (segment.type === "workflow") {
               style = {
                 backgroundColor: token.colorPrimaryBg,
-                color: token.colorPrimary,
-                fontWeight: 400, // Must match TextArea's font-weight to prevent cursor misalignment
+                color: "transparent",
+                WebkitTextFillColor: "transparent",
+                fontWeight: 400,
                 textDecoration: "underline",
                 textDecorationStyle: "dotted",
+                textDecorationColor: token.colorPrimary,
               };
             } else if (segment.type === "file") {
               style = {
                 backgroundColor: token.colorSuccessBg,
-                color: token.colorSuccess,
+                color: "transparent",
+                WebkitTextFillColor: "transparent",
               };
             }
             return (
@@ -114,13 +121,14 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
           resize: "none",
           flex: 1,
           fontSize: token.fontSize,
-          padding: "6px 4px",
-          lineHeight: "1.65",
+          padding: inputPadding,
+          lineHeight: inputLineHeight,
           border: "none",
           outline: "none",
           background: "transparent",
-          color: showHighlightOverlay ? "transparent" : token.colorText,
-          caretColor: token.colorText,
+          color: inputTextColor,
+          WebkitTextFillColor: inputTextColor,
+          caretColor: inputTextColor,
           position: "relative",
           zIndex: 1,
           whiteSpace: "pre-wrap",

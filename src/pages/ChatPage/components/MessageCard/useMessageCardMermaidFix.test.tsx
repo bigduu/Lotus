@@ -153,20 +153,44 @@ describe("useMessageCardMermaidFix", () => {
     expect(mockPatchSessionMessage).not.toHaveBeenCalled();
   });
 
-  it("throws when original mermaid block cannot be matched", async () => {
+  it("falls back to replacing the first mermaid block when exact match fails", async () => {
     mockStoreState.currentSessionId = "session-1";
     mockStoreState.chats = [createChatWithAssistantMessage("```mermaid\ngraph TD\nX --> Y\n```")];
     mockCompletionsCreate.mockResolvedValueOnce({
       choices: [{ message: { content: "graph TD\nX --> Z" } }],
     });
+    mockPatchSessionMessage.mockResolvedValueOnce(undefined);
 
     const { result } = renderHook(() => useMessageCardMermaidFix("assistant-1"));
 
-    await expect(result.current("graph TD\nA -->")).rejects.toThrow(
-      "Unable to locate Mermaid block to update",
-    );
-    expect(mockPatchSessionMessage).not.toHaveBeenCalled();
-    expect(mockStoreState.updateSession).not.toHaveBeenCalled();
+    await result.current("graph TD\nA -->", "Parse error");
+
+    expect(mockPatchSessionMessage).toHaveBeenCalledWith("session-1", "assistant-1", {
+      content: "```mermaid\ngraph TD\nX --> Z\n```",
+    });
+    expect(mockStoreState.updateSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to replacing the first mermaid block when the stored block has been polluted", async () => {
+    mockStoreState.currentSessionId = "session-1";
+    mockStoreState.chats = [
+      createChatWithAssistantMessage(
+        "```mermaid\ngraph TD\nA[Start] --> B[Done]``Now I'm wondering if this should be simplified\n```",
+      ),
+    ];
+    mockCompletionsCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: "graph TD\nA[Start] --> B[Done]" } }],
+    });
+    mockPatchSessionMessage.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useMessageCardMermaidFix("assistant-1"));
+
+    await result.current("graph TD\nA[Start] --> B[Done]", "Parse error on line 6");
+
+    expect(mockPatchSessionMessage).toHaveBeenCalledWith("session-1", "assistant-1", {
+      content: "```mermaid\ngraph TD\nA[Start] --> B[Done]\n```",
+    });
+    expect(mockStoreState.updateSession).toHaveBeenCalledTimes(1);
   });
 
   it("uses explicit session id when provided", async () => {
