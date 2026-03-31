@@ -168,7 +168,6 @@ describe("QuestionDialog", () => {
     await waitFor(() => {
       expect(agentApiClient.post).toHaveBeenCalledWith("respond/test-session-1", {
         response: "A",
-        model: "gpt-5-mini",
         reasoning_effort: "medium",
       });
       expect(mockSetSessionProcessing).toHaveBeenCalledWith("test-session-1", true);
@@ -205,7 +204,6 @@ describe("QuestionDialog", () => {
     await waitFor(() => {
       expect(agentApiClient.post).toHaveBeenCalledWith("respond/test-session-1", {
         response: "A",
-        model: "gpt-5-mini",
         reasoning_effort: "medium",
       });
     });
@@ -353,7 +351,6 @@ describe("QuestionDialog", () => {
       // Should still call /respond
       expect(agentApiClient.post).toHaveBeenCalledWith("respond/test-session-1", {
         response: "A",
-        model: "gpt-5-mini",
         reasoning_effort: "medium",
       });
 

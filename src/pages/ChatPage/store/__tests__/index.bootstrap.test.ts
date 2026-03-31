@@ -118,6 +118,76 @@ describe("store/index bootstrap and scheduling", () => {
     expect(refreshSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshChats preserves newer local session model when remote summary is stale", async () => {
+    const { useAppStore, AgentClient } = await loadStoreContext();
+    const client = AgentClient.getInstance();
+    vi.spyOn(client, "listSessions").mockResolvedValue({
+      sessions: [
+        {
+          id: "session-1",
+          kind: "root",
+          title: "New Session",
+          pinned: false,
+          parent_session_id: null,
+          root_session_id: "session-1",
+          spawn_depth: 0,
+          model: "gpt-global-default",
+          reasoning_effort: "medium",
+          created_by_schedule_id: null,
+          created_at: "2026-03-31T15:00:00.000Z",
+          updated_at: "2026-03-31T15:00:00.000Z",
+          last_activity_at: "2026-03-31T15:00:00.000Z",
+          message_count: 0,
+          has_attachments: false,
+          is_running: false,
+          last_run_status: undefined,
+          last_run_error: undefined,
+          token_usage: undefined,
+        },
+      ],
+    });
+
+    useAppStore.setState({
+      chats: [
+        {
+          id: "session-1",
+          kind: "root",
+          rootSessionId: "session-1",
+          spawnDepth: 0,
+          createdByScheduleId: null,
+          isRunning: false,
+          updatedAt: "2026-03-31T15:00:01.500Z",
+          lastActivityAt: "2026-03-31T15:00:00.000Z",
+          messageCount: 0,
+          hasAttachments: false,
+          lastRunStatus: undefined,
+          lastRunError: undefined,
+          title: "New Session",
+          createdAt: Date.now(),
+          pinned: false,
+          messages: [],
+          config: {
+            systemPromptId: "general_assistant",
+            baseSystemPrompt: "",
+            lastUsedEnhancedPrompt: null,
+            model: "gpt-session-specific",
+            reasoningEffort: "high",
+            compressionEvents: [],
+          },
+          currentInteraction: null,
+        },
+      ],
+      currentSessionId: "session-1",
+    } as any);
+
+    await useAppStore.getState().refreshChats();
+
+    const chat = useAppStore.getState().chats.find((item) => item.id === "session-1");
+    expect(chat?.config.model).toBe("gpt-session-specific");
+    expect(chat?.config.reasoningEffort).toBe("high");
+    expect(chat?.updatedAt).toBe("2026-03-31T15:00:01.500Z");
+  });
+
   it("initializeStore applies stored proxy auth in auto mode and returns early when already initialized", async () => {
     const { initializeStore, useAppStore, serviceFactory, useBambooConfigStore } =
       await loadStoreContext();

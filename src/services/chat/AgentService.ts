@@ -143,7 +143,7 @@ export interface ChatRequest {
     size?: number;
     type?: string;
   }>;
-  model: string; // Required
+  model: string; // Required for chat/create compatibility; backend persists to session
 }
 
 export interface ChatResponse {
@@ -181,7 +181,7 @@ export interface ExecuteResponse {
 }
 
 export interface ExecuteRequest {
-  model: string;
+  model?: string;
   reasoning_effort?: ReasoningEffort;
   client_sync?: ExecuteClientSync;
 }
@@ -229,6 +229,8 @@ export interface SessionSummary {
   parent_session_id?: string | null;
   root_session_id: string;
   spawn_depth: number;
+  model: string;
+  reasoning_effort?: ReasoningEffort | null;
   created_by_schedule_id?: string | null;
   token_usage?: TokenBudgetUsage;
   created_at: string;
@@ -249,6 +251,7 @@ export interface CreateSessionRequest {
   title?: string;
   system_prompt?: string;
   model?: string;
+  reasoning_effort?: ReasoningEffort;
 }
 
 export interface CreateSessionResponse {
@@ -270,6 +273,9 @@ export interface SessionSystemPromptResponse {
 export interface PatchSessionRequest {
   title?: string;
   pinned?: boolean;
+  model?: string;
+  reasoning_effort?: ReasoningEffort;
+  clear_reasoning_effort?: boolean;
 }
 
 export type TruncateSessionMessagesRequest = {
@@ -422,11 +428,14 @@ export class AgentClient {
    */
   async execute(
     sessionId: string,
-    model: string,
+    model?: string,
     reasoningEffort?: ReasoningEffort,
     clientSync?: ExecuteClientSync,
   ): Promise<ExecuteResponse> {
-    const payload: ExecuteRequest = { model };
+    const payload: ExecuteRequest = {};
+    if (model) {
+      payload.model = model;
+    }
     if (reasoningEffort) {
       payload.reasoning_effort = reasoningEffort;
     }

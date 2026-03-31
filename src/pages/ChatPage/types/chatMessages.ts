@@ -199,6 +199,8 @@ export interface ChatItem {
     lastUsedEnhancedPrompt: string | null;
     agentRole?: AgentRole;
     workspacePath?: string;
+    model?: string;
+    reasoningEffort?: import("../services/AgentService").ReasoningEffort | null;
     tokenUsage?: TokenUsage;
     truncationOccurred?: boolean;
     segmentsRemoved?: number;

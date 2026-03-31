@@ -1,14 +1,18 @@
 import { useMemo } from "react";
 import { useProviderStore } from "../store/slices/providerSlice";
+import { selectSessionById, useAppStore } from "../store";
 
 /**
- * Hook to get the active model for the current provider
+ * Hook to get the active model for the current session.
  *
- * This is the single source of truth for getting the current model
- * in the application. It reads from the provider configuration, not
- * from a global model setting.
+ * Priority:
+ * 1. current session config model
+ * 2. current provider default model
  *
- * @returns The active model for the current provider, or undefined if not set
+ * This keeps session-level model selection authoritative while preserving
+ * provider defaults for brand-new or not-yet-persisted sessions.
+ *
+ * @returns The active model for the current session, or provider default fallback
  *
  * @example
  * ```ts
@@ -21,24 +25,28 @@ import { useProviderStore } from "../store/slices/providerSlice";
  * });
  * ```
  */
-export function useActiveModel(): string | undefined {
+export function useActiveModel(sessionId?: string | null): string | undefined {
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
+  const currentChat = useAppStore(selectSessionById(sessionId ?? null));
 
   const activeModel = useMemo(() => {
-    const config = providerConfig.providers[currentProvider];
+    const sessionModel = sessionId ? currentChat?.config?.model?.trim() : undefined;
+    if (sessionModel) {
+      return sessionModel;
+    }
 
+    const config = providerConfig.providers[currentProvider];
     if (!config) {
       return undefined;
     }
 
-    // Return the model if it exists
     if ("model" in config && config.model) {
       return config.model;
     }
 
     return undefined;
-  }, [currentProvider, providerConfig]);
+  }, [currentChat, currentProvider, providerConfig]);
 
   return activeModel;
 }
@@ -48,8 +56,8 @@ export function useActiveModel(): string | undefined {
  *
  * @returns Object containing activeModel, currentProvider, and providerConfig
  */
-export function useActiveModelInfo() {
-  const activeModel = useActiveModel();
+export function useActiveModelInfo(sessionId?: string | null) {
+  const activeModel = useActiveModel(sessionId);
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
 
@@ -71,8 +79,8 @@ export function useActiveModelInfo() {
  *
  * @returns The fast model for the current provider, or activeModel as fallback
  */
-export function useFastModel(): string | undefined {
-  const activeModel = useActiveModel();
+export function useFastModel(sessionId?: string | null): string | undefined {
+  const activeModel = useActiveModel(sessionId);
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
 
@@ -96,8 +104,8 @@ export function useFastModel(): string | undefined {
  *
  * @returns The vision model for the current provider, or activeModel as fallback
  */
-export function useVisionModel(): string | undefined {
-  const activeModel = useActiveModel();
+export function useVisionModel(sessionId?: string | null): string | undefined {
+  const activeModel = useActiveModel(sessionId);
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
 

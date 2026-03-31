@@ -64,7 +64,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   const setAgentAvailability = useAppStore((state) => state.setAgentAvailability);
   const checkAgentAvailability = useAppStore((state) => state.checkAgentAvailability);
   const startAgentHealthCheck = useAppStore((state) => state.startAgentHealthCheck);
-  const activeModel = useActiveModel();
+  const activeModel = useActiveModel(deps.sessionId);
   const currentProvider = useProviderStore((state) => state.currentProvider);
 
   // Fetch chat internally based on sessionId
@@ -151,7 +151,6 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
   const recoverAfterNeedSync = useCallback(
     async (
       sessionId: string,
-      model: string,
       executeSync: ExecuteResponse["sync"],
       reasoningEffort?: ReasoningEffort,
     ): Promise<ExecuteResponse | null> => {
@@ -199,18 +198,8 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
       deps.setSessionProcessing(sessionId, true);
       await new Promise((resolve) => setTimeout(resolve, 0));
       const retryResult = reasoningEffort
-        ? await agentClientRef.current.execute(
-            sessionId,
-            model,
-            reasoningEffort,
-            buildClientSync(sessionId),
-          )
-        : await agentClientRef.current.execute(
-            sessionId,
-            model,
-            undefined,
-            buildClientSync(sessionId),
-          );
+        ? await agentClientRef.current.execute(sessionId, undefined, reasoningEffort, buildClientSync(sessionId))
+        : await agentClientRef.current.execute(sessionId, undefined, undefined, buildClientSync(sessionId));
       applyExecuteSyncSnapshot(sessionId, retryResult);
       return retryResult;
     },
@@ -221,7 +210,6 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
     async (
       sessionId: string,
       executeResult: ExecuteResponse,
-      model: string,
       reasoningEffort?: ReasoningEffort,
     ) => {
       let resolvedExecuteResult = executeResult;
@@ -232,7 +220,6 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
       while (resolvedExecuteResult.sync?.need_sync && syncRecoveries < maxSyncRecoveries) {
         const recovered = await recoverAfterNeedSync(
           sessionId,
-          model,
           resolvedExecuteResult.sync,
           reasoningEffort,
         );
@@ -338,20 +325,10 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
 
         // Step 3: Trigger execution (idempotent)
         const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(
-              sessionId,
-              activeModel,
-              reasoningEffort,
-              buildClientSync(sessionId),
-            )
-          : await agentClientRef.current.execute(
-              sessionId,
-              activeModel,
-              undefined,
-              buildClientSync(sessionId),
-            );
+          ? await agentClientRef.current.execute(sessionId, undefined, reasoningEffort, buildClientSync(sessionId))
+          : await agentClientRef.current.execute(sessionId, undefined, undefined, buildClientSync(sessionId));
         debugLog("[Streaming]", "[Agent] Execute status:", executeResult.status);
-        await handleExecuteResult(sessionId, executeResult, activeModel, reasoningEffort);
+        await handleExecuteResult(sessionId, executeResult, reasoningEffort);
       } catch (error) {
         throw error;
       }
@@ -527,19 +504,9 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
         deps.setSessionProcessing(sessionId, true);
 
         const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(
-              sessionId,
-              activeModel,
-              reasoningEffort,
-              buildClientSync(sessionId),
-            )
-          : await agentClientRef.current.execute(
-              sessionId,
-              activeModel,
-              undefined,
-              buildClientSync(sessionId),
-            );
-        await handleExecuteResult(sessionId, executeResult, activeModel, reasoningEffort);
+          ? await agentClientRef.current.execute(sessionId, undefined, reasoningEffort, buildClientSync(sessionId))
+          : await agentClientRef.current.execute(sessionId, undefined, undefined, buildClientSync(sessionId));
+        await handleExecuteResult(sessionId, executeResult, reasoningEffort);
       } catch (error) {
         console.error("[useMessageStreaming] Retry failed:", error);
         const rawErrorMessage = error instanceof Error ? error.message : String(error ?? "");

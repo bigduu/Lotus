@@ -25,7 +25,7 @@ import { getInputContainerPlaceholder } from "./inputContainerPlaceholder";
 import { useActiveModel } from "../../hooks/useActiveModel";
 import { useProviderStore } from "../../store/slices/providerSlice";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
-import type { ReasoningEffort } from "../../services/AgentService";
+import { agentClient, type ReasoningEffort } from "../../services/AgentService";
 import {
   type ProviderType,
   OPENAI_MODELS,
@@ -33,7 +33,6 @@ import {
   GEMINI_MODELS,
   COPILOT_MODELS,
 } from "../../types/providerConfig";
-import { settingsService } from "@services/config/SettingsService";
 import { modelService } from "@services/chat/ModelService";
 import { agentApiClient } from "../../../../services/api";
 import type { ImageFile } from "../../utils/imageUtils";
@@ -153,7 +152,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const clearPendingQuestionRespondForSession = useAppStore(
     (state) => state.clearPendingQuestionRespondForSession,
   );
-  const activeModel = useActiveModel();
+  const activeModel = useActiveModel(sessionId);
 
   // Get input state from Zustand slice (persisted per session)
   const inputState = useAppStore((state) => (sessionId ? state.inputStates[sessionId] : undefined));
@@ -179,6 +178,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [sessionId],
   );
   const reasoningEffort: ReasoningEffort =
+    currentChat?.config?.reasoningEffort ??
     inputState?.reasoningEffort ??
     persistedReasoningEffort ??
     providerDefaultReasoningEffort ??
@@ -200,12 +200,30 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [sessionId, setReferenceText],
   );
   const setReasoningEffortPersisted = useCallback(
-    (nextEffort: ReasoningEffort) => {
-      if (sessionId) {
-        setInputReasoningEffort(sessionId, nextEffort);
+    async (nextEffort: ReasoningEffort) => {
+      if (!sessionId) {
+        return;
+      }
+
+      setInputReasoningEffort(sessionId, nextEffort);
+
+      if (!currentChat) {
+        return;
+      }
+
+      try {
+        await agentClient.patchSession(sessionId, { reasoning_effort: nextEffort });
+        updateSession(sessionId, {
+          config: {
+            ...currentChat.config,
+            reasoningEffort: nextEffort,
+          },
+        });
+      } catch (error) {
+        console.warn("[InputContainer] Failed to persist reasoning effort:", error);
       }
     },
-    [sessionId, setInputReasoningEffort],
+    [currentChat, sessionId, setInputReasoningEffort, updateSession],
   );
 
   const isProcessing = sessionId ? processingChats.has(sessionId) : false;
@@ -382,12 +400,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
 
       try {
-        const modelToUse = activeModel?.trim();
         const result = await agentApiClient.post<{ auto_resume_status?: string }>(
           `respond/${sessionId}`,
           {
             response: trimmed,
-            model: modelToUse || undefined,
             reasoning_effort: reasoningEffort,
           },
         );
@@ -416,7 +432,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     },
     [
       sessionId,
-      activeModel,
       reasoningEffort,
       messageApi,
       setContent,
@@ -567,13 +582,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         setIsModelOptionsLoading(true);
         setModelOptionsError(null);
 
-        const models =
-          provider === "copilot"
-            ? await modelService.getModels()
-            : await settingsService.fetchProviderModels(provider);
-        const options = models.map((model) => ({
-          value: model,
-          label: model,
+        const models = provider === "copilot" ? await modelService.getModels() : fallbackModelOptions;
+        const options = models.map((model: string | { value: string; label: string }) => ({
+          value: typeof model === "string" ? model : model.value,
+          label: typeof model === "string" ? model : model.label,
         }));
         setModelOptions(options);
         writeModelOptionsCache(provider, options);
@@ -611,18 +623,29 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       try {
         if (redirectToProviderSettingsIfNeeded()) return;
         setIsSavingModel(true);
-        const providerStore = useProviderStore.getState();
-        const nextProviders = { ...(providerStore.providerConfig.providers || {}) } as any;
-        nextProviders[currentProvider] = {
-          ...(nextProviders[currentProvider] || {}),
-          model: value,
-        };
 
-        await settingsService.saveProviderConfig({
-          provider: currentProvider,
-          providers: nextProviders,
+        if (!sessionId || !currentChat) {
+          if (sessionId) {
+            updateSession(sessionId, {
+              config: {
+                systemPromptId: currentChat?.config?.systemPromptId || "default",
+                baseSystemPrompt: currentChat?.config?.baseSystemPrompt || "",
+                lastUsedEnhancedPrompt: currentChat?.config?.lastUsedEnhancedPrompt ?? null,
+                ...(currentChat?.config || {}),
+                model: value,
+              },
+            });
+          }
+          return;
+        }
+
+        await agentClient.patchSession(sessionId, { model: value });
+        updateSession(sessionId, {
+          config: {
+            ...currentChat.config,
+            model: value,
+          },
         });
-        await providerStore.loadProviderConfig();
         messageApi.success(t("settings.providerTab.modelUpdated"));
       } catch (error) {
         messageApi.error(
@@ -634,12 +657,14 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     },
     [
       activeModel,
-      currentProvider,
+      currentChat,
       getErrorMessage,
       isSavingModel,
       messageApi,
       redirectToProviderSettingsIfNeeded,
+      sessionId,
       t,
+      updateSession,
     ],
   );
 

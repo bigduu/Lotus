@@ -24,6 +24,14 @@ const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant
 const DEFAULT_BASE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT?.content?.trim() || "";
 const FALLBACK_TOOL_NAME = "tool";
 
+const parseTimestampMs = (value?: string): number | null => {
+  if (typeof value !== "string" || !value.trim()) {
+    return null;
+  }
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
 export type DeleteMessageFailureReason =
   | "session_not_found"
   | "message_not_found"
@@ -158,6 +166,8 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
       systemPromptId: DEFAULT_SYSTEM_PROMPT_ID,
       baseSystemPrompt: DEFAULT_BASE_SYSTEM_PROMPT,
       lastUsedEnhancedPrompt: null,
+      model: s.model,
+      reasoningEffort: s.reasoning_effort ?? null,
       tokenUsage,
       truncationOccurred: s.token_usage?.truncation_occurred,
       segmentsRemoved: s.token_usage?.segments_removed,
@@ -480,12 +490,14 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const title = (chatData.title || i18n.t("chat.sidebar.newSession")).trim();
     const basePrompt = chatData.config?.baseSystemPrompt?.trim() || "";
     const activeModel = useProviderStore.getState().getActiveModel()?.trim();
-    const model = activeModel || undefined;
+    const model = chatData.config?.model?.trim() || activeModel || undefined;
+    const reasoningEffort = chatData.config?.reasoningEffort ?? undefined;
 
     const created = await agentClient.createSession({
       title,
       system_prompt: basePrompt || undefined,
       model,
+      reasoning_effort: reasoningEffort || undefined,
     });
 
     const newChat: ChatItem = {
@@ -493,6 +505,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       title,
       config: {
         ...chatData.config,
+        model: created.session.model,
+        reasoningEffort: created.session.reasoning_effort ?? null,
         // If the caller provided a base prompt, keep it; otherwise fall back.
         baseSystemPrompt: basePrompt || DEFAULT_BASE_SYSTEM_PROMPT,
       },
@@ -561,20 +575,46 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   updateSession: (sessionId, updates) => {
+    const hasSessionLevelConfigUpdate =
+      !!updates.config &&
+      (Object.prototype.hasOwnProperty.call(updates.config, "model") ||
+        Object.prototype.hasOwnProperty.call(updates.config, "reasoningEffort"));
+    const hasSessionLevelTopLevelUpdate =
+      typeof updates.title === "string" || typeof updates.pinned === "boolean";
+    const shouldBumpUpdatedAt = hasSessionLevelConfigUpdate || hasSessionLevelTopLevelUpdate;
+    const localUpdatedAt = shouldBumpUpdatedAt ? new Date().toISOString() : undefined;
+
     set((state) => {
       const chats = state.chats.map((chat) =>
-        chat.id === sessionId ? { ...chat, ...updates } : chat,
+        chat.id === sessionId
+          ? {
+              ...chat,
+              ...updates,
+              ...(localUpdatedAt ? { updatedAt: localUpdatedAt } : {}),
+            }
+          : chat,
       );
       return { ...state, chats };
     });
 
-    // Best-effort backend patch for title/pin updates.
-    const patch: Record<string, string | boolean> = {};
+    // Best-effort backend patch for session-level metadata updates.
+    const patch: Record<string, string | boolean | null> = {};
     if (typeof updates.title === "string") {
       patch.title = updates.title;
     }
     if (typeof updates.pinned === "boolean") {
       patch.pinned = updates.pinned;
+    }
+    if (updates.config && Object.prototype.hasOwnProperty.call(updates.config, "model")) {
+      patch.model = updates.config.model ?? null;
+    }
+    if (updates.config && Object.prototype.hasOwnProperty.call(updates.config, "reasoningEffort")) {
+      const reasoningEffort = updates.config.reasoningEffort;
+      if (reasoningEffort) {
+        patch.reasoning_effort = reasoningEffort;
+      } else {
+        patch.clear_reasoning_effort = true;
+      }
     }
     if (Object.keys(patch).length > 0) {
       agentClient.patchSession(sessionId, patch).catch((e) => {
@@ -717,7 +757,45 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       const prevById = new Map(state.chats.map((c) => [c.id, c]));
       const merged = next.map((c) => {
         const prev = prevById.get(c.id);
-        return prev ? { ...c, messages: prev.messages, config: prev.config } : c;
+        if (!prev) {
+          return c;
+        }
+
+        const prevUpdatedAtMs = parseTimestampMs(prev.updatedAt);
+        const remoteUpdatedAtMs = parseTimestampMs(c.updatedAt);
+        const preferLocalSessionFields =
+          prevUpdatedAtMs !== null &&
+          remoteUpdatedAtMs !== null &&
+          prevUpdatedAtMs > remoteUpdatedAtMs;
+
+        const prevConfig = prev.config || {};
+        const nextConfig = c.config || {};
+        const hasLocalModel = Object.prototype.hasOwnProperty.call(prevConfig, "model");
+        const hasLocalReasoning = Object.prototype.hasOwnProperty.call(prevConfig, "reasoningEffort");
+
+        return {
+          ...c,
+          title: preferLocalSessionFields ? prev.title : c.title,
+          pinned: preferLocalSessionFields ? prev.pinned : c.pinned,
+          updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
+          messages: prev.messages,
+          config: {
+            ...prevConfig,
+            ...nextConfig,
+            model: preferLocalSessionFields
+              ? hasLocalModel
+                ? prevConfig.model
+                : nextConfig.model
+              : nextConfig.model,
+            reasoningEffort: preferLocalSessionFields
+              ? hasLocalReasoning
+                ? prevConfig.reasoningEffort
+                : nextConfig.reasoningEffort
+              : nextConfig.reasoningEffort,
+            compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
+            syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
+          },
+        };
       });
       return { ...state, chats: merged };
     });

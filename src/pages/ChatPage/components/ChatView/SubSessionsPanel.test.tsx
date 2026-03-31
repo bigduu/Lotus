@@ -310,7 +310,7 @@ describe("SubSessionsPanel", () => {
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("child-session-1", {
       mode: "replace",
     });
-    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1", "test-model");
+    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
     expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", true);
     expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", false);
   });
@@ -344,7 +344,7 @@ describe("SubSessionsPanel", () => {
       });
     });
     expect(mockStoreState.loadChatHistory).not.toHaveBeenCalled();
-    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1", "test-model");
+    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
   });
 
   it("reloads history when error retry falls back to truncation", async () => {
@@ -378,7 +378,7 @@ describe("SubSessionsPanel", () => {
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("child-session-1", {
       mode: "replace",
     });
-    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1", "test-model");
+    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
   });
 
   it("sends a follow-up message to an existing child session", async () => {
@@ -434,7 +434,7 @@ describe("SubSessionsPanel", () => {
     );
   });
 
-  it("marks retry as error when no active model is configured", async () => {
+  it("retries child session even when no active provider model is configured", async () => {
     mockStoreState.subSessionsByParent = {
       [PARENT_SESSION_ID]: {
         "child-session-1": {
@@ -453,15 +453,10 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByText("Regenerate response"));
 
     await waitFor(() => {
-      expect(mockStoreState.upsertSubSessionProgress).toHaveBeenCalledWith(
-        PARENT_SESSION_ID,
-        "child-session-1",
-        expect.objectContaining({
-          status: "error",
-        }),
-      );
+      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
+        mode: "after_last_user",
+      });
     });
-    expect(mockAgentClient.truncateSessionMessages).not.toHaveBeenCalled();
-    expect(mockAgentClient.execute).not.toHaveBeenCalled();
+    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
   });
 });

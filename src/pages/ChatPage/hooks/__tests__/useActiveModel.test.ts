@@ -2,14 +2,26 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useActiveModel, useActiveModelInfo } from "../useActiveModel";
 import { useProviderStore } from "../../store/slices/providerSlice";
+import { useAppStore } from "../../store";
 
 vi.mock("../../store/slices/providerSlice", () => ({
   useProviderStore: vi.fn(),
 }));
 
+vi.mock("../../store", () => ({
+  useAppStore: vi.fn(),
+  selectSessionById:
+    (sessionId: string | null) =>
+    (state: { chats?: Array<{ id: string; config?: { model?: string } }> }) =>
+      state.chats?.find((chat) => chat.id === sessionId) ?? null,
+}));
+
 describe("useActiveModel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useAppStore).mockImplementation((selector: any) =>
+      typeof selector === "function" ? selector({ chats: [] }) : { chats: [] },
+    );
   });
 
   describe("useActiveModel", () => {
@@ -80,6 +92,54 @@ describe("useActiveModel", () => {
       const { result } = renderHook(() => useActiveModel());
 
       expect(result.current).toBeUndefined();
+    });
+
+    it("should prefer session model over provider default when sessionId is provided", () => {
+      vi.mocked(useProviderStore).mockImplementation((selector) =>
+        selector({
+          currentProvider: "openai",
+          providerConfig: {
+            providers: {
+              openai: {
+                model: "gpt-provider-default",
+                apiKey: "test-key",
+              },
+            },
+          },
+          isLoading: false,
+          error: null,
+          loadProviderConfig: vi.fn(),
+          saveProviderConfig: vi.fn(),
+          setCurrentProvider: vi.fn(),
+        }),
+      );
+      vi.mocked(useAppStore).mockImplementation((selector: any) =>
+        typeof selector === "function"
+          ? selector({
+              chats: [
+                {
+                  id: "session-1",
+                  config: {
+                    model: "gpt-session-specific",
+                  },
+                },
+              ],
+            })
+          : {
+              chats: [
+                {
+                  id: "session-1",
+                  config: {
+                    model: "gpt-session-specific",
+                  },
+                },
+              ],
+            },
+      );
+
+      const { result } = renderHook(() => useActiveModel("session-1"));
+
+      expect(result.current).toBe("gpt-session-specific");
     });
 
     it("should return undefined when model is empty string", () => {

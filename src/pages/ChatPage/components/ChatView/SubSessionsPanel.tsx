@@ -4,7 +4,6 @@ import { Button, Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "../../store";
-import { useActiveModel } from "../../hooks/useActiveModel";
 import { agentClient } from "../../services/AgentService";
 import { openSession } from "../../utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
@@ -82,7 +81,6 @@ type SubSessionRetryMode = "regenerate" | "error_retry";
 export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessionId }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const activeModel = useActiveModel();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(
     () => readCollapsedState(parentSessionId) ?? false,
   );
@@ -202,14 +200,6 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
 
   const runChildSession = useCallback(
     async (childSessionId: string, retryMode: SubSessionRetryMode = "regenerate") => {
-      if (!activeModel) {
-        upsertSubSessionProgress(parentSessionId, childSessionId, {
-          status: "error",
-          error: "No model configured. Please select a model first.",
-          lastEventAt: new Date().toISOString(),
-        });
-        return;
-      }
 
       setRetryingChildId(childSessionId);
       upsertSubSessionProgress(parentSessionId, childSessionId, {
@@ -228,7 +218,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           await loadChatHistory(childSessionId, { mode: "replace" });
         }
 
-        const executeResult = await agentClient.execute(childSessionId, activeModel);
+        const executeResult = await agentClient.execute(childSessionId);
         if (executeResult.status === "started" || executeResult.status === "already_running") {
           return;
         }
@@ -256,15 +246,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         setRetryingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [
-      activeModel,
-      loadChatHistory,
-      parentSessionId,
-      refreshChats,
-      setSessionProcessing,
-      toErrorMessage,
-      upsertSubSessionProgress,
-    ],
+    [loadChatHistory, parentSessionId, refreshChats, setSessionProcessing, toErrorMessage, upsertSubSessionProgress],
   );
 
   const continueChildSession = useCallback(

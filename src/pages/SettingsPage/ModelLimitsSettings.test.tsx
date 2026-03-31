@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ModelLimitsSettings from "./ModelLimitsSettings";
 
@@ -19,6 +19,8 @@ vi.mock("../../services/common/ServiceFactory", () => ({
 
 describe("ModelLimitsSettings", () => {
   beforeEach(() => {
+    // Guard against fake timer leakage from other test files during full-suite runs.
+    vi.useRealTimers();
     vi.clearAllMocks();
     localStorage.clear();
 
@@ -35,6 +37,10 @@ describe("ModelLimitsSettings", () => {
         },
       ],
     });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("loads backend defaults when config has no model_limits", async () => {

@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import { agentApiClient } from "../../services/api";
 import { useAppStore } from "../../pages/ChatPage/store";
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
-import { useActiveModel } from "../../pages/ChatPage/hooks/useActiveModel";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
 import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
@@ -72,7 +71,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const clearPendingQuestionRespondForSession = useAppStore(
     (state) => state.clearPendingQuestionRespondForSession,
   );
-  const activeModel = useActiveModel();
+  const currentChat = useAppStore((state) => state.chats.find((chat) => chat.id === sessionId) || null);
 
   // Resolve reasoning effort (same priority as InputContainer)
   const inputState = useAppStore((state) =>
@@ -89,6 +88,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     [sessionId],
   );
   const reasoningEffort: ReasoningEffort =
+    currentChat?.config?.reasoningEffort ??
     inputState?.reasoningEffort ??
     persistedReasoningEffort ??
     providerDefaultReasoningEffort ??
@@ -221,10 +221,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     setIsSubmitting(true);
 
     try {
-      const modelToUse = activeModel?.trim();
       const submitResult = await agentApiClient.post<RespondSubmitResult>(`respond/${sessionId}`, {
         response: selectedOption,
-        model: modelToUse || undefined,
         reasoning_effort: reasoningEffort,
       });
 
@@ -245,8 +243,6 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         if (sessionId) {
           setSessionProcessing(sessionId, true);
         }
-      } else if (resumeStatus === "invalid_model" || resumeStatus === "not_requested") {
-        message.error(t("components.questionDialog.noModelConfigured"));
       } else if (resumeStatus === "error") {
         console.error("[QuestionDialog] Failed to auto-resume agent execution");
       }

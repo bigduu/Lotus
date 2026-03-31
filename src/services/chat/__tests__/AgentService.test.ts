@@ -104,6 +104,38 @@ describe("AgentClient", () => {
     );
   });
 
+  it("patches session-scoped model and reasoning payload", async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({}));
+
+    const client = AgentClient.getInstance();
+
+    await client.patchSession("session-1", {
+      model: "gpt-session-specific",
+      reasoning_effort: "xhigh",
+      clear_reasoning_effort: true,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session-1"),
+      expect.objectContaining({
+        method: "PATCH",
+        body: expect.stringContaining('"model":"gpt-session-specific"'),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"reasoning_effort":"xhigh"'),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"clear_reasoning_effort":true'),
+      }),
+    );
+  });
+
   it("deletes a persisted message by ID", async () => {
     fetchMock.mockResolvedValue(mockFetchResponse({}));
 
@@ -265,13 +297,13 @@ describe("AgentClient", () => {
   });
 
   describe("Model Requirement", () => {
-    it("keeps model-related API types strict", () => {
+    it("keeps model-related API types aligned with session-driven execute", () => {
       expectTypeOf<ChatRequest["model"]>().toEqualTypeOf<string>();
-      expectTypeOf<Parameters<AgentClient["execute"]>[1]>().toEqualTypeOf<string>();
+      expectTypeOf<Parameters<AgentClient["execute"]>[1]>().toEqualTypeOf<string | undefined>();
       expectTypeOf<Parameters<AgentClient["sendMessage"]>[0]["model"]>().toEqualTypeOf<string>();
     });
 
-    it("execute method requires model parameter", async () => {
+    it("execute method allows omitting model for session-driven execution", async () => {
       fetchMock.mockResolvedValue(
         mockFetchResponse({
           session_id: "session-1",
@@ -282,10 +314,30 @@ describe("AgentClient", () => {
 
       const client = AgentClient.getInstance();
 
-      // Model parameter is required (not optional)
+      await client.execute("session-1");
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/execute/session-1"),
+        expect.objectContaining({
+          method: "POST",
+          body: "{}",
+        }),
+      );
+    });
+
+    it("execute still forwards compatibility model when explicitly provided", async () => {
+      fetchMock.mockResolvedValue(
+        mockFetchResponse({
+          session_id: "session-1",
+          status: "started",
+          events_url: "/events/session-1",
+        }),
+      );
+
+      const client = AgentClient.getInstance();
+
       await client.execute("session-1", "kimi-for-coding");
 
-      // Verify the request was made with model in body
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("/execute/session-1"),
         expect.objectContaining({
