@@ -116,7 +116,7 @@ export interface AssistantTextMessage extends BaseMessage {
     should_continue?: boolean;
     continue_reason?: string;
     continuation_count?: number;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -126,7 +126,7 @@ export interface AssistantToolCallMessage extends BaseMessage {
   toolCalls: {
     toolCallId: string;
     toolName: string;
-    parameters: Record<string, any>;
+    parameters: Record<string, unknown>;
     // Optional live output streamed during tool execution (e.g. Claude Code CLI).
     streamingOutput?: string;
   }[];
@@ -136,7 +136,7 @@ export interface AssistantToolCallMessage extends BaseMessage {
   metadata?: {
     elapsed_ms?: number;
     is_mutating?: boolean;
-    [key: string]: any;
+    [key: string]: unknown;
   };
 }
 
@@ -219,11 +219,11 @@ export interface ChatItem {
     pendingApproval?: {
       toolCallId: string;
       toolName: string;
-      parameters: Record<string, any>;
+      parameters: Record<string, unknown>;
     };
     error?: {
       message: string;
-      details?: any;
+      details?: unknown;
     };
   } | null;
 }

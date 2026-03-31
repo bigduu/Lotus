@@ -22,6 +22,6 @@ describe("SystemSettingsAppTab", () => {
       </AntdApp>,
     );
 
-    expect(screen.getByTestId("settings-app-version")).toHaveTextContent("2026.3.111");
+    expect(screen.getByTestId("settings-app-version")).toHaveTextContent("2026.4.1");
   });
 });

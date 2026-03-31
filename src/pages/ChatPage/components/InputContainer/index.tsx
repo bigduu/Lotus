@@ -28,6 +28,10 @@ import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { agentClient, type ReasoningEffort } from "../../services/AgentService";
 import {
   type ProviderType,
+  type OpenAIConfig,
+  type AnthropicConfig,
+  type GeminiConfig,
+  type CopilotConfig,
   OPENAI_MODELS,
   ANTHROPIC_MODELS,
   GEMINI_MODELS,
@@ -49,6 +53,7 @@ const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
 const MODEL_OPTIONS_CACHE_PREFIX = "chat-model-options-cache-v1";
 const MODEL_OPTIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];
+const EMPTY_ALLOWED_TOOLS: string[] = [];
 
 type ModelOption = { value: string; label: string };
 type ModelCachePayload = {
@@ -308,7 +313,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   const isToolSpecificMode = false;
   const isRestrictConversation = false;
-  const allowedTools: string[] = [];
+  const allowedTools = EMPTY_ALLOWED_TOOLS;
   const autoToolPrefix = undefined;
 
   const { recordEntry, navigate, acknowledgeManualInput } = useChatInputHistory(sessionId);
@@ -519,8 +524,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   const handleCloseReferencePreview = () => setReferenceTextPersisted(null);
 
-  const currentProviderSettings = useMemo(() => {
-    return (providerConfig.providers as Partial<Record<ProviderType, any>>)?.[currentProvider];
+  const currentProviderSettings = useMemo<
+    OpenAIConfig | AnthropicConfig | GeminiConfig | CopilotConfig | undefined
+  >(() => {
+    return providerConfig.providers[currentProvider];
   }, [providerConfig, currentProvider]);
 
   const isProviderConfigured = useMemo(() => {
@@ -530,6 +537,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
     if (currentProvider === "copilot") {
       return Object.keys(currentProviderSettings).length > 0;
+    }
+
+    if (!("api_key" in currentProviderSettings)) {
+      return false;
     }
 
     return (
@@ -595,7 +606,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         setIsModelOptionsLoading(false);
       }
     },
-    [getErrorMessage, modelOptions.length],
+    [fallbackModelOptions, getErrorMessage, modelOptions.length],
   );
 
   const handleModelDropdownVisibleChange = useCallback(

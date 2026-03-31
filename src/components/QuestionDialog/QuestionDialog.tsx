@@ -21,6 +21,7 @@ export interface PendingQuestion {
   tool_call_id?: string;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const formatPendingQuestionText = (raw?: string): string => {
   const normalized = (raw || "")
     .replace(/\\r\\n/g, "\n")
@@ -147,9 +148,12 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       clearPendingQuestionRespondForSession(sessionId);
     }
   }, [
+    pendingQuestion?.allow_custom,
+    pendingQuestion?.has_pending_question,
+    pendingQuestion?.options,
+    pendingQuestion?.question,
     pendingQuestion?.tool_call_id,
     sessionId,
-    pendingQuestion?.question,
     setPendingQuestionRespond,
     clearPendingQuestionRespondForSession,
   ]);

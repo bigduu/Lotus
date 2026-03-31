@@ -46,7 +46,7 @@ export function useActiveModel(sessionId?: string | null): string | undefined {
     }
 
     return undefined;
-  }, [currentChat, currentProvider, providerConfig]);
+  }, [currentChat, currentProvider, providerConfig, sessionId]);
 
   return activeModel;
 }
