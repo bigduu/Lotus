@@ -58,6 +58,8 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 }) => {
   const { role, id: messageId } = message;
   const { token } = useToken();
+  const isVdiSafeMode =
+    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { t } = useTranslation();
   const { message: appMessage } = AntApp.useApp();
   const screens = useBreakpoint();
@@ -290,8 +292,8 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                 : role === "assistant"
                   ? "var(--lotus-message-assistant-bg)"
                   : token.colorBgContainer,
-            backdropFilter: "blur(14px)",
-            WebkitBackdropFilter: "blur(14px)",
+            backdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
+            WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
             border:
               role === "user"
                 ? `1px solid var(--lotus-message-user-border)`
@@ -348,10 +350,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
       {/* Feedback buttons for assistant text messages */}
       {role === "assistant" && detectedMessageType === "text" && messageId && (
-        <MessageFeedback
-          messageId={messageId}
-          isVisible={isHovering}
-        />
+        <MessageFeedback messageId={messageId} isVisible={isHovering} />
       )}
     </Flex>
   );

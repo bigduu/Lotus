@@ -8,6 +8,7 @@ import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/sl
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
 import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
+import { buildPendingQuestionIdentity } from "../../pages/ChatPage/utils/pendingQuestionIdentity";
 import styles from "./QuestionDialog.module.css";
 
 const { Text } = Typography;
@@ -64,6 +65,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // questions later in the session; stopping polling would prevent the dialog
   // from ever appearing.
   const emptyCountRef = useRef(0);
+  const lastQuestionIdentityRef = useRef<string | null>(null);
   const onQuestionAppearedRef = useRef(onQuestionAppeared);
   onQuestionAppearedRef.current = onQuestionAppeared;
 
@@ -72,7 +74,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const clearPendingQuestionRespondForSession = useAppStore(
     (state) => state.clearPendingQuestionRespondForSession,
   );
-  const currentChat = useAppStore((state) => state.chats.find((chat) => chat.id === sessionId) || null);
+  const currentChat = useAppStore(
+    (state) => state.chats.find((chat) => chat.id === sessionId) || null,
+  );
 
   // Resolve reasoning effort (same priority as InputContainer)
   const inputState = useAppStore((state) =>
@@ -104,16 +108,37 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     try {
       const data = await agentApiClient.get<PendingQuestion>(`respond/${sessionId}/pending`);
       if (data.has_pending_question) {
-        setPendingQuestion(data);
+        setPendingQuestion((previous) => {
+          const nextIdentity = buildPendingQuestionIdentity({
+            sessionId,
+            question: data.question,
+            options: data.options,
+            allowCustom: data.allow_custom,
+            toolCallId: data.tool_call_id,
+          });
+          const previousIdentity = previous?.has_pending_question
+            ? buildPendingQuestionIdentity({
+                sessionId,
+                question: previous.question,
+                options: previous.options,
+                allowCustom: previous.allow_custom,
+                toolCallId: previous.tool_call_id,
+              })
+            : null;
+
+          return previousIdentity === nextIdentity ? (previous ?? data) : data;
+        });
         emptyCountRef.current = 0;
       } else {
         setPendingQuestion(null);
+        lastQuestionIdentityRef.current = null;
         emptyCountRef.current += 1;
       }
     } catch (err) {
       // Handle 404 - no pending question for this session
       if (err instanceof Error && err.message.includes("404")) {
         setPendingQuestion(null);
+        lastQuestionIdentityRef.current = null;
         emptyCountRef.current += 1;
         return;
       }
@@ -126,7 +151,10 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // Reset polling when session changes
   useEffect(() => {
     emptyCountRef.current = 0;
+    lastQuestionIdentityRef.current = null;
     setIsLoading(true);
+    setSelectedOption(null);
+    setCollapsed(false);
   }, [sessionId]);
 
   // When a new question appears, reset selection and activate respond mode
@@ -134,7 +162,15 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   // the respond API instead of being sent as a brand-new message.
   useEffect(() => {
     if (pendingQuestion?.has_pending_question) {
-      setSelectedOption(null);
+      const nextIdentity = buildPendingQuestionIdentity({
+        sessionId,
+        question: pendingQuestion?.question,
+        options: pendingQuestion?.options,
+        allowCustom: pendingQuestion?.allow_custom,
+        toolCallId: pendingQuestion?.tool_call_id,
+      });
+      const isSameQuestion = lastQuestionIdentityRef.current === nextIdentity;
+
       setPendingQuestionRespond({
         sessionId,
         question: pendingQuestion?.question || "",
@@ -142,9 +178,16 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         allowCustom: pendingQuestion?.allow_custom ?? true,
         toolCallId: pendingQuestion?.tool_call_id ?? null,
       });
-      setCollapsed(false);
-      onQuestionAppearedRef.current?.();
+
+      if (!isSameQuestion) {
+        setSelectedOption(null);
+        setCollapsed(false);
+        onQuestionAppearedRef.current?.();
+      }
+
+      lastQuestionIdentityRef.current = nextIdentity;
     } else {
+      lastQuestionIdentityRef.current = null;
       clearPendingQuestionRespondForSession(sessionId);
     }
   }, [

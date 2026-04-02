@@ -263,6 +263,7 @@ export interface SessionSystemPromptResponse {
   base_system_prompt: string;
   enhancement_prompt?: string;
   workspace_context?: string;
+  env_context?: string;
   skill_context?: string;
   tool_guide_context?: string;
   external_memory?: string;

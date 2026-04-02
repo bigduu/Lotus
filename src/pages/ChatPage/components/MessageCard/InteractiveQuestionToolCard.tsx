@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Space, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useTranslation } from "react-i18next";
@@ -6,6 +6,7 @@ import type { Components } from "react-markdown";
 import type { PluggableList } from "unified";
 
 import { useAppStore } from "../../store";
+import { buildPendingQuestionIdentity } from "../../utils/pendingQuestionIdentity";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 
 const { Text } = Typography;
@@ -34,7 +35,20 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
   rehypePlugins,
 }) => {
   const { t } = useTranslation();
-  const [resolvedExternally, setResolvedExternally] = useState(false);
+  const [resolvedQuestionIdentity, setResolvedQuestionIdentity] = useState<string | null>(null);
+
+  const questionIdentity = useMemo(
+    () =>
+      buildPendingQuestionIdentity({
+        sessionId,
+        question,
+        options,
+        allowCustom,
+        toolCallId,
+      }),
+    [sessionId, question, options, allowCustom, toolCallId],
+  );
+  const resolvedExternally = resolvedQuestionIdentity === questionIdentity;
 
   const setPendingQuestionRespond = useAppStore((state) => state.setPendingQuestionRespond);
   const clearPendingQuestionRespondForSession = useAppStore(
@@ -52,7 +66,7 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
       if (!sessionId || targetSessionId !== sessionId) {
         return;
       }
-      setResolvedExternally(true);
+      setResolvedQuestionIdentity(questionIdentity);
       clearPendingQuestionRespondForSession(sessionId);
     };
 
@@ -60,7 +74,7 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
     return () => {
       window.removeEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     };
-  }, [sessionId, clearPendingQuestionRespondForSession]);
+  }, [sessionId, questionIdentity, clearPendingQuestionRespondForSession]);
 
   useEffect(() => {
     if (!sessionId || resolvedExternally) {
@@ -74,20 +88,24 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
       allowCustom,
       toolCallId: toolCallId ?? null,
     });
-
-    return () => {
-      clearPendingQuestionRespondForSession(sessionId);
-    };
   }, [
     sessionId,
     resolvedExternally,
-    toolCallId,
+    questionIdentity,
     question,
     options,
     allowCustom,
+    toolCallId,
     setPendingQuestionRespond,
-    clearPendingQuestionRespondForSession,
   ]);
+
+  useEffect(() => {
+    return () => {
+      if (sessionId) {
+        clearPendingQuestionRespondForSession(sessionId);
+      }
+    };
+  }, [sessionId, clearPendingQuestionRespondForSession]);
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>
@@ -116,7 +134,10 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
 
       {resolvedExternally ? (
         <Text type="secondary">
-          {t("components.questionDialog.responseSubmittedContinue", "Response submitted. Continuing...")}
+          {t(
+            "components.questionDialog.responseSubmittedContinue",
+            "Response submitted. Continuing...",
+          )}
         </Text>
       ) : (
         <Text type="secondary">

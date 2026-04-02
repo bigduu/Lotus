@@ -1,10 +1,5 @@
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  App as AntApp,
-  Input,
-  Typography,
-  theme,
-} from "antd";
+import { App as AntApp, Input, Typography, theme } from "antd";
 import {
   ApartmentOutlined,
   ArrowRightOutlined,
@@ -50,8 +45,10 @@ type LauncherTemplate = {
 };
 
 export type EmptyTaskLauncherProps = {
-  sessionId: string;
+  sessionId?: string | null;
   embedded?: boolean;
+  hideHeader?: boolean;
+  layoutMode?: "default" | "staggered";
 };
 
 /* ---------- system prompts ---------- */
@@ -183,21 +180,27 @@ const resolveDefaultPromptConfig = (
 /* ---------- component ---------- */
 
 export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
-  sessionId,
+  sessionId = null,
   embedded = false,
+  hideHeader = false,
+  layoutMode = "default",
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { message } = AntApp.useApp();
-  const currentChat = useAppStore(selectSessionById(sessionId));
+  const currentSessionId = useAppStore((state) => sessionId ?? state.currentSessionId);
+  const currentChat = useAppStore(selectSessionById(currentSessionId));
   const addChat = useAppStore((state) => state.addChat);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const setInputContent = useAppStore((state) => state.setInputContent);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
+  const chats = useAppStore((state) => state.chats);
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const workspacePath = currentChat?.config.workspacePath;
+  const workspacePath =
+    currentChat?.config.workspacePath ??
+    chats.find((chat) => chat.config.workspacePath)?.config.workspacePath;
 
   /* ---- templates ---- */
 
@@ -376,10 +379,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
           "chat.emptyLauncher.actions.releaseNotes.description",
           "Create structured release notes from git history and code changes.",
         ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.releaseNotes.sessionTitle",
-          "Release Notes",
-        ),
+        sessionTitle: t("chat.emptyLauncher.actions.releaseNotes.sessionTitle", "Release Notes"),
         prefill: t(
           "chat.emptyLauncher.actions.releaseNotes.prefill",
           "Generate release notes for the latest changes in this workspace. Categorize into features, fixes, improvements, and breaking changes.",
@@ -412,10 +412,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
           "chat.emptyLauncher.actions.writeDocs.description",
           "Create or improve technical documentation from code and context.",
         ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.writeDocs.sessionTitle",
-          "Write Documentation",
-        ),
+        sessionTitle: t("chat.emptyLauncher.actions.writeDocs.sessionTitle", "Write Documentation"),
         prefill: t(
           "chat.emptyLauncher.actions.writeDocs.prefill",
           "Help me write technical documentation for this project. Analyze the code and produce clear, well-structured Markdown documentation.",
@@ -453,10 +450,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
           "chat.emptyLauncher.actions.sessionReview.description",
           "Inspect and analyze past sessions for patterns and insights.",
         ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.sessionReview.sessionTitle",
-          "Session Review",
-        ),
+        sessionTitle: t("chat.emptyLauncher.actions.sessionReview.sessionTitle", "Session Review"),
         prefill: t(
           "chat.emptyLauncher.actions.sessionReview.prefill",
           "Help me review my recent session history. Summarize key decisions, outcomes, and areas that need follow-up.",
@@ -580,26 +574,28 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
 
   return (
     <div
-      className={`lotus-empty-task-launcher ${embedded ? "is-embedded" : ""}`}
+      className={`lotus-empty-task-launcher ${embedded ? "is-embedded" : ""} ${hideHeader ? "is-headerless" : ""} ${layoutMode === "staggered" ? "is-staggered" : ""}`}
       style={rootStyle}
     >
-      <div className="lotus-empty-task-launcher__header">
-        <Typography.Title level={embedded ? 4 : 3} style={{ margin: 0 }}>
-          {t("chat.emptyLauncher.title", "Start with a task")}
-        </Typography.Title>
-        <Typography.Paragraph type="secondary" className="lotus-empty-task-launcher__subtitle">
-          {t(
-            "chat.emptyLauncher.subtitle",
-            "Create a focused session in this pane and prefill the first message before you send it.",
-          )}
-        </Typography.Paragraph>
-        <Typography.Text type="secondary" className="lotus-empty-task-launcher__hint">
-          {t(
-            "chat.emptyLauncher.hint",
-            "Nothing is sent automatically — you can edit the prompt first.",
-          )}
-        </Typography.Text>
-      </div>
+      {!hideHeader && (
+        <div className="lotus-empty-task-launcher__header">
+          <Typography.Title level={embedded ? 4 : 3} style={{ margin: 0 }}>
+            {t("chat.emptyLauncher.title", "Start with a task")}
+          </Typography.Title>
+          <Typography.Paragraph type="secondary" className="lotus-empty-task-launcher__subtitle">
+            {t(
+              "chat.emptyLauncher.subtitle",
+              "Create a focused session in this pane and prefill the first message before you send it.",
+            )}
+          </Typography.Paragraph>
+          <Typography.Text type="secondary" className="lotus-empty-task-launcher__hint">
+            {t(
+              "chat.emptyLauncher.hint",
+              "Nothing is sent automatically — you can edit the prompt first.",
+            )}
+          </Typography.Text>
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="lotus-empty-task-launcher__search">
@@ -650,7 +646,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
                       <div className="lotus-empty-task-card__body">
                         <div className="lotus-empty-task-card__titleRow">
                           <span className="lotus-empty-task-card__title">{template.title}</span>
-                          <ArrowRightOutlined className="lotus-empty-task-card__arrow" aria-hidden />
+                          <ArrowRightOutlined
+                            className="lotus-empty-task-card__arrow"
+                            aria-hidden
+                          />
                         </div>
                         <p className="lotus-empty-task-card__description">{template.description}</p>
                         {showWorkspaceBadge && (

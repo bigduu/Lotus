@@ -94,6 +94,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const textAreaRef = externalTextAreaRef || internalTextAreaRef; // Use external ref if provided
   const highlightOverlayRef = useRef<HTMLDivElement>(null);
   const { token } = theme.useToken();
+  const isVdiSafeMode =
+    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const [messageApi, contextHolder] = message.useMessage();
   const charCount = value.length;
   const hasCharLimit =
@@ -188,8 +190,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
           border: `1px solid ${isDragOver ? "var(--lotus-input-border-active)" : "var(--lotus-input-border)"}`,
           borderRadius: 26,
           background: isDragOver ? "var(--lotus-input-bg-active)" : "var(--lotus-input-bg)",
-          backdropFilter: "blur(18px)",
-          WebkitBackdropFilter: "blur(18px)",
+          backdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
+          WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
           boxShadow: "var(--lotus-input-shadow)",
           transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
           width: "100%",

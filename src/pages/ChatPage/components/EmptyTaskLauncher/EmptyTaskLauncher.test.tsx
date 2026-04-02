@@ -114,6 +114,23 @@ describe("EmptyTaskLauncher", () => {
     expect(screen.getByRole("button", { name: "Token usage investigation" })).toBeInTheDocument();
   });
 
+  it("renders starter cards without an explicit session for dashboard embedding", () => {
+    useAppStore.setState({
+      currentSessionId: null,
+      latestActiveSessionId: null,
+    } as any);
+
+    render(
+      <AntdApp>
+        <EmptyTaskLauncher embedded={true} />
+      </AntdApp>,
+    );
+
+    expect(screen.getByText("Start with a task")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Code review" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Write documentation" })).toBeInTheDocument();
+  });
+
   it("creates a code review session, assigns it to the active pane, prefills the input, and requests focus", async () => {
     const focusEvents: string[] = [];
     const handleFocusEvent = (event: Event) => {

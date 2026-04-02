@@ -1,6 +1,7 @@
 import { StateCreator } from "zustand";
 import type { AppState } from "../";
 import type { ReasoningEffort } from "../../services/AgentService";
+import { arePendingQuestionIdentityInputsEqual } from "../../utils/pendingQuestionIdentity";
 
 // Attachment type (same as in InputContainer)
 export interface Attachment {
@@ -218,13 +219,22 @@ export const createInputStateSlice: StateCreator<AppState, [], [], InputStateSli
   },
 
   // Set or clear pending question respond mode
-  setPendingQuestionRespond: (respond) => set({ pendingQuestionRespond: respond }),
+  setPendingQuestionRespond: (respond) =>
+    set((state) => {
+      if (arePendingQuestionIdentityInputsEqual(state.pendingQuestionRespond, respond)) {
+        return {};
+      }
+      return { pendingQuestionRespond: respond };
+    }),
 
   // Session-scoped clear for multi-pane safety:
   // avoid one pane clearing another pane's pending conclusion_with_options response state.
   clearPendingQuestionRespondForSession: (sessionId) =>
     set((state) => {
       if (state.pendingQuestionRespond?.sessionId !== sessionId) {
+        return {};
+      }
+      if (state.pendingQuestionRespond === null) {
         return {};
       }
       return { pendingQuestionRespond: null };

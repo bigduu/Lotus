@@ -13,6 +13,7 @@ import { getBackendBaseUrlSync } from "../shared/utils/backendBaseUrl";
 import i18n from "@shared/i18n";
 import { getAntdLocale } from "@shared/i18n/antdLocale";
 import { APP_LOCALE_STORAGE_KEY, type AppLocale, resolveInitialLocale } from "@shared/i18n/types";
+import { isVdiSafeModeEnabled } from "@shared/utils/vdiSafeMode";
 
 const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
 const LIGHT_THEME_TOKEN = {
@@ -193,6 +194,25 @@ function App() {
   useEffect(() => {
     document.body.setAttribute("data-theme", themeMode);
   }, [themeMode]);
+
+  useEffect(() => {
+    const sync = () => {
+      const enabled = isVdiSafeModeEnabled();
+      document.body.setAttribute("data-vdi-safe", enabled ? "true" : "false");
+      const rootElement = document.getElementById("root");
+      if (rootElement) {
+        rootElement.setAttribute("data-vdi-safe", enabled ? "true" : "false");
+      }
+    };
+
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener("lotus-vdi-safe-mode-change", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("lotus-vdi-safe-mode-change", sync);
+    };
+  }, []);
 
   useEffect(() => {
     const invoke = (window as { __TAURI_INTERNALS__?: { invoke?: unknown } }).__TAURI_INTERNALS__

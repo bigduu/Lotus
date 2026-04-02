@@ -593,7 +593,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         setIsModelOptionsLoading(true);
         setModelOptionsError(null);
 
-        const models = provider === "copilot" ? await modelService.getModels() : fallbackModelOptions;
+        const models =
+          provider === "copilot" ? await modelService.getModels() : fallbackModelOptions;
         const options = models.map((model: string | { value: string; label: string }) => ({
           value: typeof model === "string" ? model : model.value,
           label: typeof model === "string" ? model : model.label,
@@ -697,33 +698,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       : isRespondMode
         ? t("components.questionDialog.selectOptionWarning")
         : basePlaceholder;
-
-  const respondModeIndicator = useMemo(() => {
-    if (!isRespondMode) {
-      return null;
-    }
-
-    return (
-      <Tag color="processing" style={{ marginInlineEnd: 0 }}>
-        {t("chat.respond.modeLabel", "Tool response mode")}
-      </Tag>
-    );
-  }, [isRespondMode, t]);
-
-  const resolvedStatusIndicator = useMemo(() => {
-    if (!respondModeIndicator) {
-      return statusIndicator ?? null;
-    }
-    if (!statusIndicator) {
-      return respondModeIndicator;
-    }
-    return (
-      <Space size={6} align="center">
-        {respondModeIndicator}
-        {statusIndicator}
-      </Space>
-    );
-  }, [respondModeIndicator, statusIndicator]);
 
   const submitButtonLabel = isRespondMode
     ? t("chat.respond.submitToolResult", "Submit tool result")
@@ -974,8 +948,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         onSubmit={effectiveHandleSubmit}
         placeholder={placeholder}
         allowImages={true}
-        disabled={!activeModel || (isRespondMode && !respondAllowCustom && respondOptions.length > 0)}
-        statusIndicator={resolvedStatusIndicator}
+        disabled={
+          !activeModel || (isRespondMode && !respondAllowCustom && respondOptions.length > 0)
+        }
+        statusIndicator={statusIndicator}
         submitButtonLabel={submitButtonLabel}
         isWorkflowSelectorVisible={commandState.showCommandSelector}
         textAreaRef={textAreaRef}

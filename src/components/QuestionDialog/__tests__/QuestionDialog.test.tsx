@@ -209,6 +209,45 @@ describe("QuestionDialog", () => {
     });
   });
 
+  it("should preserve selected option and collapsed state when the same pending question is polled again", async () => {
+    vi.useFakeTimers();
+
+    const { agentApiClient } = await import("../../../services/api");
+    (agentApiClient.get as any).mockResolvedValue({
+      has_pending_question: true,
+      question: "Same question?",
+      options: ["A", "B"],
+      allow_custom: false,
+      tool_call_id: "tool-same",
+    });
+
+    await act(async () => {
+      render(<QuestionDialog {...defaultProps} />);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("Same question?")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("A"));
+    expect(screen.getByText("Confirm")).toBeInTheDocument();
+
+    const header = screen.getByText("Same question?").closest('[role="button"]') as HTMLElement;
+    expect(header).toBeTruthy();
+
+    fireEvent.click(header);
+    expect(screen.queryByText("A")).not.toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(screen.queryByText("A")).not.toBeInTheDocument();
+
+    fireEvent.click(header);
+    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(screen.getByText("Confirm")).toBeInTheDocument();
+  });
+
   it("should re-enable polling after response submission", async () => {
     const { agentApiClient } = await import("../../../services/api");
 
@@ -304,7 +343,6 @@ describe("QuestionDialog", () => {
 
     // Flush pending microtasks from async fetches.
     await act(async () => {
-      // eslint-disable-next-line @typescript-eslint/await-thenable
       await Promise.resolve();
     });
 
