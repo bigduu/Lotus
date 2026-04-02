@@ -13,6 +13,8 @@ interface SystemSettingsAppTabProps {
   onAutoTitleToggle: (checked: boolean) => void;
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
+  vdiSafeMode: boolean;
+  onVdiSafeModeToggle: (checked: boolean) => void;
   onClearLocalStorage: () => void;
   onResetApp: () => void;
   isResetting: boolean;
@@ -25,6 +27,8 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
   onAutoTitleToggle,
   themeMode,
   onThemeModeChange,
+  vdiSafeMode,
+  onVdiSafeModeToggle,
   onClearLocalStorage,
   onResetApp,
   isResetting,
@@ -71,6 +75,20 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
             }}
           />
         </Flex>
+        <Flex align="center" gap={token.marginSM}>
+          <Text strong>{t("settings.appTab.vdiSafeMode", "Graphics compatibility mode")}</Text>
+          <Switch
+            data-testid="vdi-safe-mode-toggle"
+            checked={vdiSafeMode}
+            onChange={onVdiSafeModeToggle}
+          />
+        </Flex>
+        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+          {t(
+            "settings.appTab.vdiSafeModeDesc",
+            "Disables blur and glass effects that can break dropdowns and hover overlays in some virtual desktop, remote, or graphics-constrained environments.",
+          )}
+        </Text>
         <Popconfirm
           title={t("settings.appTab.clearLocalStorageTitle")}
           description={t("settings.appTab.clearLocalStorageDescription")}

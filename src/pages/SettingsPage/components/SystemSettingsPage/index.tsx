@@ -21,6 +21,7 @@ import {
   isCopilotConclusionWithOptionsEnhancementEnabled,
   setCopilotConclusionWithOptionsEnhancementEnabled,
 } from "../../../../shared/utils/copilotConclusionWithOptionsEnhancementUtils";
+import { isVdiSafeModeEnabled, setVdiSafeModeEnabled } from "../../../../shared/utils/vdiSafeMode";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
@@ -83,6 +84,7 @@ const SystemSettingsPage = ({
     copilotConclusionWithOptionsEnhancementEnabled,
     setCopilotConclusionWithOptionsEnhancementEnabledState,
   ] = useState(isCopilotConclusionWithOptionsEnhancementEnabled());
+  const [vdiSafeMode, setVdiSafeModeState] = useState(isVdiSafeModeEnabled());
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const showCopilotConclusionWithOptionsEnhancement = currentProvider === "copilot";
   const activeTabKey = useSettingsViewStore((state) => state.activeTabKey);
@@ -184,6 +186,17 @@ const SystemSettingsPage = ({
     setCopilotConclusionWithOptionsEnhancementEnabled(checked);
   };
 
+  const handleVdiSafeModeToggle = (checked: boolean) => {
+    setVdiSafeModeState(checked);
+    setVdiSafeModeEnabled(checked);
+    window.dispatchEvent(new Event("lotus-vdi-safe-mode-change"));
+    msgApi.success(
+      checked
+        ? t("settings.appTab.vdiSafeModeEnabled", "Graphics compatibility mode enabled")
+        : t("settings.appTab.vdiSafeModeDisabled", "Graphics compatibility mode disabled"),
+    );
+  };
+
   useEffect(() => {
     setPromptEnhancement(getSystemPromptEnhancement());
     setMermaidEnhancementEnabledState(isMermaidEnhancementEnabled());
@@ -191,6 +204,7 @@ const SystemSettingsPage = ({
     setCopilotConclusionWithOptionsEnhancementEnabledState(
       isCopilotConclusionWithOptionsEnhancementEnabled(),
     );
+    setVdiSafeModeState(isVdiSafeModeEnabled());
   }, []);
 
   return (
@@ -351,6 +365,8 @@ const SystemSettingsPage = ({
                   onAutoTitleToggle={handleAutoTitleToggle}
                   themeMode={themeMode}
                   onThemeModeChange={onThemeModeChange}
+                  vdiSafeMode={vdiSafeMode}
+                  onVdiSafeModeToggle={handleVdiSafeModeToggle}
                   onClearLocalStorage={handleClearLocalStorage}
                   onResetApp={handleResetApp}
                   isResetting={isResetting}

@@ -14,6 +14,8 @@ describe("SystemSettingsAppTab", () => {
           onAutoTitleToggle={() => undefined}
           themeMode="light"
           onThemeModeChange={() => undefined}
+          vdiSafeMode={false}
+          onVdiSafeModeToggle={() => undefined}
           onClearLocalStorage={() => undefined}
           onResetApp={() => undefined}
           isResetting={false}
@@ -22,6 +24,7 @@ describe("SystemSettingsAppTab", () => {
       </AntdApp>,
     );
 
-    expect(screen.getByTestId("settings-app-version")).toHaveTextContent("2026.4.1");
+    expect(screen.getByTestId("settings-app-version")).toHaveTextContent("2026.4.2");
+    expect(screen.getByTestId("vdi-safe-mode-toggle")).toBeInTheDocument();
   });
 });

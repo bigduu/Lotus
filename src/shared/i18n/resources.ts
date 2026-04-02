@@ -442,6 +442,11 @@ export const resources = {
           switchOn: "ON",
           switchOff: "OFF",
           darkMode: "Dark Mode",
+          vdiSafeMode: "Graphics compatibility mode",
+          vdiSafeModeDesc:
+            "Disables blur and glass effects that can break dropdowns and hover overlays in some virtual desktop, remote, or graphics-constrained environments.",
+          vdiSafeModeEnabled: "Graphics compatibility mode enabled",
+          vdiSafeModeDisabled: "Graphics compatibility mode disabled",
           darkModeDark: "Dark",
           darkModeLight: "Light",
           language: "Language",

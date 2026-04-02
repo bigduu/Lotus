@@ -21,7 +21,10 @@ import { openSession } from "@pages/ChatPage/utils/openSession";
 import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/settingsViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";
 import { useThemeStore } from "@shared/store/themeStore";
-import { useExperienceModeStore, ADVANCED_ONLY_SETTINGS_TABS } from "@shared/store/experienceModeStore";
+import {
+  useExperienceModeStore,
+  ADVANCED_ONLY_SETTINGS_TABS,
+} from "@shared/store/experienceModeStore";
 import type { ChatItem } from "@pages/ChatPage/types/chatMessages";
 
 import "./index.css";
@@ -198,7 +201,11 @@ const buildSessionKeywords = (chat: ChatItem): string[] => {
   return keywords.filter(Boolean);
 };
 
-const getSessionSubtitle = (chat: ChatItem, childSessionLabel: string, rootSessionLabel: string) => {
+const getSessionSubtitle = (
+  chat: ChatItem,
+  childSessionLabel: string,
+  rootSessionLabel: string,
+) => {
   const segments: string[] = [];
   if (chat.kind === "child") {
     segments.push(childSessionLabel);
@@ -225,7 +232,9 @@ const filterActions = (actions: CommandPaletteAction[], query: string): CommandP
   }
 
   return actions.filter((action) => {
-    const haystack = [action.title, action.subtitle || "", ...action.keywords].join(" ").toLowerCase();
+    const haystack = [action.title, action.subtitle || "", ...action.keywords]
+      .join(" ")
+      .toLowerCase();
     return haystack.includes(normalized);
   });
 };
@@ -240,6 +249,8 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
 export const CommandPalette: React.FC = () => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
+  const isVdiSafeMode =
+    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { message } = AntdApp.useApp();
   const chats = useAppStore((state) => state.chats);
   const addChat = useAppStore((state) => state.addChat);
@@ -275,7 +286,8 @@ export const CommandPalette: React.FC = () => {
         baseSystemPrompt:
           selectedPrompt?.content ||
           (systemPrompts.length > 0
-            ? systemPrompts.find((p) => p.id === "general_assistant")?.content || systemPrompts[0].content
+            ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
+              systemPrompts[0].content
             : ""),
         lastUsedEnhancedPrompt: null,
       },
@@ -288,15 +300,13 @@ export const CommandPalette: React.FC = () => {
   }, [addChat, lastSelectedPromptId, systemPrompts, t]);
 
   const baseActions = useMemo<CommandPaletteAction[]>(() => {
-    const settingsActions: CommandPaletteAction[] = SETTINGS_ACTIONS
-      .filter((item) => {
-        // In simple mode, hide advanced-only settings tabs
-        if (experienceMode === "simple" && ADVANCED_ONLY_SETTINGS_TABS.has(item.tabKey)) {
-          return false;
-        }
-        return true;
-      })
-      .map((item) => ({
+    const settingsActions: CommandPaletteAction[] = SETTINGS_ACTIONS.filter((item) => {
+      // In simple mode, hide advanced-only settings tabs
+      if (experienceMode === "simple" && ADVANCED_ONLY_SETTINGS_TABS.has(item.tabKey)) {
+        return false;
+      }
+      return true;
+    }).map((item) => ({
       id: item.id,
       kind: "action",
       title: t(item.titleKey, item.fallbackTitle),
@@ -328,9 +338,10 @@ export const CommandPalette: React.FC = () => {
       {
         id: "toggle-theme",
         kind: "action",
-        title: themeMode === "dark"
-          ? t("commandPalette.actions.switchToLight", "Switch to Light Mode")
-          : t("commandPalette.actions.switchToDark", "Switch to Dark Mode"),
+        title:
+          themeMode === "dark"
+            ? t("commandPalette.actions.switchToLight", "Switch to Light Mode")
+            : t("commandPalette.actions.switchToDark", "Switch to Dark Mode"),
         subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
         keywords: ["theme", "dark", "light", "mode", "appearance", "toggle", "color"],
         icon: <BgColorsOutlined />,
@@ -373,9 +384,10 @@ export const CommandPalette: React.FC = () => {
       {
         id: "toggle-experience-mode",
         kind: "action",
-        title: experienceMode === "simple"
-          ? t("commandPalette.actions.switchToAdvanced", "Switch to Advanced Mode")
-          : t("commandPalette.actions.switchToSimple", "Switch to Simple Mode"),
+        title:
+          experienceMode === "simple"
+            ? t("commandPalette.actions.switchToAdvanced", "Switch to Advanced Mode")
+            : t("commandPalette.actions.switchToSimple", "Switch to Simple Mode"),
         subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
         keywords: ["mode", "simple", "advanced", "beginner", "expert", "experience", "complexity"],
         icon: <ExperimentOutlined />,
@@ -385,7 +397,17 @@ export const CommandPalette: React.FC = () => {
         },
       },
     ];
-  }, [createNewSession, openSettings, toggleTheme, themeMode, sidebarCollapsed, setSidebarCollapsed, experienceMode, toggleExperienceMode, t]);
+  }, [
+    createNewSession,
+    openSettings,
+    toggleTheme,
+    themeMode,
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    experienceMode,
+    toggleExperienceMode,
+    t,
+  ]);
 
   const sessionActions = useMemo<CommandPaletteAction[]>(() => {
     return chats.map((chat) => ({
@@ -412,12 +434,12 @@ export const CommandPalette: React.FC = () => {
     }));
   }, [chats, t]);
 
-  const actions = useMemo(
-    () => [...baseActions, ...sessionActions],
-    [baseActions, sessionActions],
-  );
+  const actions = useMemo(() => [...baseActions, ...sessionActions], [baseActions, sessionActions]);
 
-  const filteredActions = useMemo(() => filterActions(actions, query).slice(0, 40), [actions, query]);
+  const filteredActions = useMemo(
+    () => filterActions(actions, query).slice(0, 40),
+    [actions, query],
+  );
 
   useEffect(() => {
     setSelectedIndex((prev) => {
@@ -454,13 +476,20 @@ export const CommandPalette: React.FC = () => {
         return;
       }
 
-      if (isEditableTarget(event.target) && event.key !== "ArrowUp" && event.key !== "ArrowDown" && event.key !== "Enter") {
+      if (
+        isEditableTarget(event.target) &&
+        event.key !== "ArrowUp" &&
+        event.key !== "ArrowDown" &&
+        event.key !== "Enter"
+      ) {
         return;
       }
 
       if (event.key === "ArrowDown") {
         event.preventDefault();
-        setSelectedIndex((prev) => (filteredActions.length === 0 ? 0 : (prev + 1) % filteredActions.length));
+        setSelectedIndex((prev) =>
+          filteredActions.length === 0 ? 0 : (prev + 1) % filteredActions.length,
+        );
         return;
       }
 
@@ -508,7 +537,9 @@ export const CommandPalette: React.FC = () => {
   useEffect(() => {
     const container = listRef.current;
     if (!container) return;
-    const selectedElement = container.querySelector<HTMLElement>(`[data-command-index=\"${selectedIndex}\"]`);
+    const selectedElement = container.querySelector<HTMLElement>(
+      `[data-command-index=\"${selectedIndex}\"]`,
+    );
     selectedElement?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
@@ -529,15 +560,15 @@ export const CommandPalette: React.FC = () => {
           borderRadius: token.borderRadiusLG,
           overflow: "hidden",
           background: token.colorBgElevated,
-          backdropFilter: "blur(18px)",
-          WebkitBackdropFilter: "blur(18px)",
+          backdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
+          WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
         },
         body: {
           padding: 0,
         },
         mask: {
-          backdropFilter: "blur(6px)",
-          WebkitBackdropFilter: "blur(6px)",
+          backdropFilter: isVdiSafeMode ? "none" : "blur(6px)",
+          WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(6px)",
         },
       }}
     >
@@ -549,8 +580,14 @@ export const CommandPalette: React.FC = () => {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             variant="borderless"
-            placeholder={t("commandPalette.searchPlaceholder", "Search sessions, settings, and actions")}
-            aria-label={t("commandPalette.searchPlaceholder", "Search sessions, settings, and actions")}
+            placeholder={t(
+              "commandPalette.searchPlaceholder",
+              "Search sessions, settings, and actions",
+            )}
+            aria-label={t(
+              "commandPalette.searchPlaceholder",
+              "Search sessions, settings, and actions",
+            )}
             suffix={
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 ⌘K
