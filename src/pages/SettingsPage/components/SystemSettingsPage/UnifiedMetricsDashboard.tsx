@@ -66,6 +66,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
     chatSummary,
     forwardSummary,
     combinedSummary,
+    memorySummary,
     modelMetrics,
     sessions,
     sessionDetail,
@@ -215,6 +216,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
         chatSummary={chatSummary}
         forwardSummary={forwardSummary}
         combinedSummary={combinedSummary}
+        memorySummary={memorySummary}
         sessions={sessions}
         loading={isLoading}
       />

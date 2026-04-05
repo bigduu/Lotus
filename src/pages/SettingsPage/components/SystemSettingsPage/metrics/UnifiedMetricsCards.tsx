@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type {
   CombinedSummary,
+  MemoryMetricsSummary,
   MetricsSummary,
   SessionMetrics,
   ForwardMetricsSummary,
@@ -14,6 +15,7 @@ interface UnifiedMetricsCardsProps {
   chatSummary: MetricsSummary | null;
   forwardSummary: ForwardMetricsSummary | null;
   combinedSummary: CombinedSummary | null;
+  memorySummary: MemoryMetricsSummary | null;
   sessions: SessionMetrics[];
   loading: boolean;
 }
@@ -58,6 +60,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
   chatSummary,
   forwardSummary,
   combinedSummary,
+  memorySummary,
   sessions,
   loading,
 }) => {
@@ -135,8 +138,9 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
             precision={0}
             valueStyle={{
               color:
-                (chatSummary?.total_sync_mismatches ?? combinedSummary?.total_sync_mismatches ?? 0) >
-                0
+                (chatSummary?.total_sync_mismatches ??
+                  combinedSummary?.total_sync_mismatches ??
+                  0) > 0
                   ? "var(--lotus-chart-danger)"
                   : "var(--lotus-chart-secondary)",
             }}
@@ -194,6 +198,56 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
               0
             }
             precision={0}
+            valueStyle={{ color: "var(--lotus-chart-cyan)" }}
+          />
+        </Card>
+      </Col>
+
+      {/* Memory Metrics */}
+      <Col xs={24} sm={12} xl={6}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.unifiedMetricsCards.totalMemories")}
+            value={memorySummary?.total_memories ?? 0}
+            precision={0}
+            valueStyle={{ color: "var(--lotus-chart-primary)" }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} xl={6}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.unifiedMetricsCards.staleCandidates")}
+            value={memorySummary?.stale_candidate_count ?? 0}
+            precision={0}
+            valueStyle={{
+              color:
+                (memorySummary?.stale_candidate_count ?? 0) > 0
+                  ? "var(--lotus-chart-accent)"
+                  : "var(--lotus-chart-secondary)",
+            }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} xl={6}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.unifiedMetricsCards.memoryProjects")}
+            value={memorySummary?.project_count ?? 0}
+            precision={0}
+            valueStyle={{ color: "var(--lotus-chart-purple)" }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} xl={6}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.unifiedMetricsCards.lastReindex")}
+            value={
+              memorySummary?.last_reindex_at
+                ? new Date(memorySummary.last_reindex_at).toLocaleString()
+                : "-"
+            }
             valueStyle={{ color: "var(--lotus-chart-cyan)" }}
           />
         </Card>

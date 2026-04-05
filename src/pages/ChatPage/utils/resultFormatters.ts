@@ -32,6 +32,29 @@ export interface FileChangeResultPayload {
   diff: FileChangeDiff;
 }
 
+export interface MemoryInspectDataPayload {
+  scope: string;
+  project_key?: string;
+  total_memories: number;
+  by_type: Record<string, number>;
+  by_status: Record<string, number>;
+  recent_ids: string[];
+  view_files: string[];
+  index_files: string[];
+  state_files: string[];
+  stale_candidate_count: number;
+  last_reindex_at?: string;
+  last_dream_at?: string;
+  topic_paths: string[];
+}
+
+export interface MemoryInspectRebuildPayload {
+  action: "inspect" | "rebuild";
+  scope?: string;
+  project_key?: string;
+  data: MemoryInspectDataPayload;
+}
+
 export interface DiffStats {
   added: number;
   removed: number;
@@ -166,7 +189,9 @@ const parseMermaidPayload = (value: unknown): MermaidGraphPayload | undefined =>
   };
 };
 
-const parseConclusionWithOptionsConclusionPayload = (value: unknown): ConclusionWithOptionsConclusionPayload | undefined => {
+const parseConclusionWithOptionsConclusionPayload = (
+  value: unknown,
+): ConclusionWithOptionsConclusionPayload | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -227,11 +252,7 @@ export const parseInteractiveQuestionToolResultPayload = (
   }
 
   const status = normalizeOptionalText(parsed.status);
-  if (
-    status &&
-    status !== "awaiting_user_input" &&
-    status !== "awaiting_permission_approval"
-  ) {
+  if (status && status !== "awaiting_user_input" && status !== "awaiting_permission_approval") {
     return null;
   }
 
@@ -261,9 +282,10 @@ export const formatConclusionWithOptionsConclusionAsMarkdown = (
   }
   if (conclusion.next_steps.length > 0) {
     sections.push(
-      ["**Next steps**", ...conclusion.next_steps.map((step, index) => `${index + 1}. ${step}`)].join(
-        "\n",
-      ),
+      [
+        "**Next steps**",
+        ...conclusion.next_steps.map((step, index) => `${index + 1}. ${step}`),
+      ].join("\n"),
     );
   }
   if (conclusion.mermaid?.graph) {
@@ -362,6 +384,62 @@ export const parseFileChangeResultPayload = (content: string): FileChangeResultP
   } catch {
     return null;
   }
+};
+
+export const parseMemoryInspectRebuildPayload = (
+  content: string,
+): MemoryInspectRebuildPayload | null => {
+  const parsed = parseJsonRecord(content);
+  if (!parsed) {
+    return null;
+  }
+
+  const action = normalizeOptionalText(parsed.action);
+  if (action !== "inspect" && action !== "rebuild") {
+    return null;
+  }
+
+  const dataRaw = parsed.data;
+  if (!isRecord(dataRaw)) {
+    return null;
+  }
+
+  const scope = normalizeOptionalText(dataRaw.scope);
+  const totalMemories = toNumberValue(dataRaw.total_memories);
+  if (!scope || typeof totalMemories !== "number") {
+    return null;
+  }
+
+  const normalizeCountRecord = (value: unknown): Record<string, number> => {
+    if (!isRecord(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).filter(
+        (entry): entry is [string, number] =>
+          typeof entry[0] === "string" && typeof entry[1] === "number",
+      ),
+    );
+  };
+
+  return {
+    action,
+    scope: normalizeOptionalText(parsed.scope),
+    project_key: normalizeOptionalText(parsed.project_key),
+    data: {
+      scope,
+      project_key: normalizeOptionalText(dataRaw.project_key),
+      total_memories: totalMemories,
+      by_type: normalizeCountRecord(dataRaw.by_type),
+      by_status: normalizeCountRecord(dataRaw.by_status),
+      recent_ids: normalizeTextArray(dataRaw.recent_ids),
+      view_files: normalizeTextArray(dataRaw.view_files),
+      index_files: normalizeTextArray(dataRaw.index_files),
+      state_files: normalizeTextArray(dataRaw.state_files),
+      stale_candidate_count: toNumberValue(dataRaw.stale_candidate_count) ?? 0,
+      last_reindex_at: normalizeOptionalText(dataRaw.last_reindex_at),
+      last_dream_at: normalizeOptionalText(dataRaw.last_dream_at),
+      topic_paths: normalizeTextArray(dataRaw.topic_paths),
+    },
+  };
 };
 
 const isRemovedLine = (line: string): boolean => line.startsWith("-") && !line.startsWith("---");
@@ -603,6 +681,13 @@ export const createCompactPreview = (content: string): string => {
   if (fileChangePayload) {
     const target = fileChangePayload.file_path.split(/[\\/]/).pop() || fileChangePayload.file_path;
     const summary = `${fileChangePayload.operation}: ${target}`;
+    return summary.length <= maxLength ? summary : summary.substring(0, maxLength).trimEnd() + "…";
+  }
+
+  const memoryInspectPayload = parseMemoryInspectRebuildPayload(trimmed);
+  if (memoryInspectPayload) {
+    const scope = memoryInspectPayload.data.project_key || memoryInspectPayload.data.scope;
+    const summary = `Memory ${memoryInspectPayload.action}: ${scope} (${memoryInspectPayload.data.total_memories})`;
     return summary.length <= maxLength ? summary : summary.substring(0, maxLength).trimEnd() + "…";
   }
 

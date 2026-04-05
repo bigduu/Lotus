@@ -145,6 +145,59 @@ describe("MetricsService", () => {
     await expect(service.getSessionDetail("session-2")).rejects.toThrow("bad request");
   });
 
+  it("calls memory summary endpoint with optional scope params", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        total_memories: 7,
+        stale_candidate_count: 1,
+        project_count: 2,
+        by_type: { project: 4, reference: 3 },
+        by_status: { active: 7 },
+        by_scope: { global: 2, project: 5 },
+      }),
+    );
+
+    const service = new MetricsService();
+    const summary = await service.getMemorySummary({
+      scope: "project",
+      projectKey: "zenith",
+    });
+
+    expect(summary.total_memories).toBe(7);
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/metrics/memory/summary?scope=project&project_key=zenith",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("calls memory timeline endpoint with date and granularity params", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse([
+        {
+          label: "2026-04-01",
+          period_start: "2026-04-01",
+          period_end: "2026-04-01",
+          created_memories: 2,
+          updated_memories: 1,
+          total_memories: 9,
+        },
+      ]),
+    );
+
+    const service = new MetricsService();
+    const timeline = await service.getMemoryTimeline({
+      days: 7,
+      endDate: "2026-04-03",
+      granularity: "daily",
+    });
+
+    expect(timeline).toHaveLength(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/metrics/memory/timeline?days=7&end_date=2026-04-03&granularity=daily",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("calls v2 endpoints and omits empty query values", async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(
@@ -174,6 +227,39 @@ describe("MetricsService", () => {
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
       "http://127.0.0.1:9562/api/v1/metrics/v2/timeline?days=7&end_date=2026-02-10&granularity=daily",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+  it("calls usage breakdown endpoint with date range and model filters", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        total_sessions: 1,
+        total_tool_calls: 3,
+        core_tool_calls: 1,
+        skill_load_calls: 1,
+        mcp_calls: 1,
+        unique_skills: 1,
+        unique_mcp_servers: 1,
+        unique_mcp_tools: 1,
+        sessions_with_skill_loads: 1,
+        sessions_with_mcp_calls: 1,
+        top_core_tools: [],
+        top_skills: [],
+        top_mcp_servers: [],
+        top_mcp_tools: [],
+      }),
+    );
+
+    const service = new MetricsService();
+    const breakdown = await service.getUsageBreakdown({
+      startDate: "2026-04-01",
+      endDate: "2026-04-03",
+      model: "gpt-5",
+    });
+
+    expect(breakdown.total_tool_calls).toBe(3);
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:9562/api/v1/metrics/usage-breakdown?start_date=2026-04-01&end_date=2026-04-03&model=gpt-5",
       expect.objectContaining({ method: "GET" }),
     );
   });

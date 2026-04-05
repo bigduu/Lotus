@@ -12,6 +12,11 @@ export interface BambooSkillsConfig {
   disabled?: string[];
 }
 
+export interface BambooMemoryConfig {
+  background_model?: string;
+  auto_dream_enabled?: boolean;
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -21,6 +26,7 @@ export interface BambooConfig {
   headless_auth?: boolean;
   tools?: BambooToolsConfig;
   skills?: BambooSkillsConfig;
+  memory?: BambooMemoryConfig;
   [key: string]: unknown;
 }
 

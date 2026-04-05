@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from "react";
-import { Alert, Button, Collapse, Space, Tag, Tooltip, Typography, theme } from "antd";
+import { Alert, Button, Collapse, Divider, Space, Tag, Tooltip, Typography, theme } from "antd";
 import { RobotOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -10,12 +10,22 @@ import {
   getStatusColor,
   parseUnifiedDiffLines,
   parseFileChangeResultPayload,
+  parseMemoryInspectRebuildPayload,
   safeStringify,
 } from "../../utils/resultFormatters";
 import { ExecutionStatus } from "../../types/chat";
 import { copyText } from "@shared/utils/clipboard";
 
 const { Text } = Typography;
+
+const formatOptionalTimestamp = (value?: string): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+};
 
 export interface ToolResultCardProps {
   content: string;
@@ -53,6 +63,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
     [formatted.formattedText],
   );
   const fileChangePayload = useMemo(() => parseFileChangeResultPayload(content), [content]);
+  const memoryInspectPayload = useMemo(() => parseMemoryInspectRebuildPayload(content), [content]);
   const parsedDiffLines = useMemo(
     () => (fileChangePayload ? parseUnifiedDiffLines(fileChangePayload.diff.unified) : []),
     [fileChangePayload],
@@ -156,6 +167,189 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
 
                 {derivedIsLoading ? (
                   <Text type="secondary">{t("components.toolResult.waitingForResult")}</Text>
+                ) : memoryInspectPayload ? (
+                  <Space direction="vertical" style={{ width: "100%" }} size={10}>
+                    <Space wrap>
+                      <Tag color={memoryInspectPayload.action === "rebuild" ? "gold" : "blue"}>
+                        {t(`components.toolResult.memory.action.${memoryInspectPayload.action}`)}
+                      </Tag>
+                      <Tag>{memoryInspectPayload.data.scope}</Tag>
+                      {memoryInspectPayload.data.project_key ? (
+                        <Tag>{memoryInspectPayload.data.project_key}</Tag>
+                      ) : null}
+                      <Tag color="green">
+                        {t("components.toolResult.memory.totalMemories", {
+                          count: memoryInspectPayload.data.total_memories,
+                        })}
+                      </Tag>
+                      <Tag
+                        color={
+                          memoryInspectPayload.data.stale_candidate_count > 0 ? "orange" : "default"
+                        }
+                      >
+                        {t("components.toolResult.memory.staleCandidates", {
+                          count: memoryInspectPayload.data.stale_candidate_count,
+                        })}
+                      </Tag>
+                    </Space>
+
+                    <div>
+                      <Text strong style={{ fontSize: token.fontSizeSM }}>
+                        {t("components.toolResult.memory.coverage")}
+                      </Text>
+                      <div
+                        style={{
+                          marginTop: token.marginXS,
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: token.marginXS,
+                        }}
+                      >
+                        {Object.entries(memoryInspectPayload.data.by_type).map(([label, count]) => (
+                          <Tag key={`type-${label}`}>{`${label}: ${count}`}</Tag>
+                        ))}
+                        {Object.entries(memoryInspectPayload.data.by_status).map(
+                          ([label, count]) => (
+                            <Tag
+                              key={`status-${label}`}
+                              color="processing"
+                            >{`${label}: ${count}`}</Tag>
+                          ),
+                        )}
+                      </div>
+                    </div>
+
+                    <Divider style={{ margin: `${token.marginXS}px 0` }} />
+
+                    <div style={{ display: "grid", gap: token.marginXS }}>
+                      <Text style={{ fontSize: token.fontSizeSM }}>
+                        <Text strong>{t("components.toolResult.memory.viewsLabel")}</Text>{" "}
+                        {memoryInspectPayload.data.view_files.length}
+                      </Text>
+                      <Text style={{ fontSize: token.fontSizeSM }}>
+                        <Text strong>{t("components.toolResult.memory.indexesLabel")}</Text>{" "}
+                        {memoryInspectPayload.data.index_files.length}
+                      </Text>
+                      <Text style={{ fontSize: token.fontSizeSM }}>
+                        <Text strong>{t("components.toolResult.memory.stateFilesLabel")}</Text>{" "}
+                        {memoryInspectPayload.data.state_files.length}
+                      </Text>
+                      {memoryInspectPayload.data.last_reindex_at ? (
+                        <Text style={{ fontSize: token.fontSizeSM }}>
+                          <Text strong>{t("components.toolResult.memory.lastReindexLabel")}</Text>{" "}
+                          {formatOptionalTimestamp(memoryInspectPayload.data.last_reindex_at)}
+                        </Text>
+                      ) : null}
+                      {memoryInspectPayload.data.last_dream_at ? (
+                        <Text style={{ fontSize: token.fontSizeSM }}>
+                          <Text strong>{t("components.toolResult.memory.lastDreamLabel")}</Text>{" "}
+                          {formatOptionalTimestamp(memoryInspectPayload.data.last_dream_at)}
+                        </Text>
+                      ) : null}
+                    </div>
+
+                    {memoryInspectPayload.data.view_files.length > 0 ? (
+                      <div>
+                        <Text strong style={{ fontSize: token.fontSizeSM }}>
+                          {t("components.toolResult.memory.viewFiles")}
+                        </Text>
+                        <div
+                          style={{
+                            marginTop: token.marginXS,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: token.marginXS,
+                          }}
+                        >
+                          {memoryInspectPayload.data.view_files.map((item) => (
+                            <Tag key={`view-${item}`}>{item}</Tag>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {memoryInspectPayload.data.index_files.length > 0 ? (
+                      <div>
+                        <Text strong style={{ fontSize: token.fontSizeSM }}>
+                          {t("components.toolResult.memory.indexFiles")}
+                        </Text>
+                        <div
+                          style={{
+                            marginTop: token.marginXS,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: token.marginXS,
+                          }}
+                        >
+                          {memoryInspectPayload.data.index_files.map((item) => (
+                            <Tag key={`index-${item}`}>{item}</Tag>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {memoryInspectPayload.data.state_files.length > 0 ? (
+                      <div>
+                        <Text strong style={{ fontSize: token.fontSizeSM }}>
+                          {t("components.toolResult.memory.stateFiles")}
+                        </Text>
+                        <div
+                          style={{
+                            marginTop: token.marginXS,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: token.marginXS,
+                          }}
+                        >
+                          {memoryInspectPayload.data.state_files.map((item) => (
+                            <Tag key={`state-${item}`}>{item}</Tag>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {memoryInspectPayload.data.topic_paths.length > 0 ? (
+                      <div>
+                        <Text strong style={{ fontSize: token.fontSizeSM }}>
+                          {t("components.toolResult.memory.topicPaths")}
+                        </Text>
+                        <div
+                          style={{
+                            marginTop: token.marginXS,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: token.marginXS,
+                          }}
+                        >
+                          {memoryInspectPayload.data.topic_paths.map((item) => (
+                            <Tag key={`topic-${item}`}>{item}</Tag>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {memoryInspectPayload.data.recent_ids.length > 0 ? (
+                      <div>
+                        <Text strong style={{ fontSize: token.fontSizeSM }}>
+                          {t("components.toolResult.memory.recentMemories")}
+                        </Text>
+                        <div
+                          style={{
+                            marginTop: token.marginXS,
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: token.marginXS,
+                          }}
+                        >
+                          {memoryInspectPayload.data.recent_ids.map((item) => (
+                            <Tag key={`recent-${item}`} color="default">
+                              {item}
+                            </Tag>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </Space>
                 ) : fileChangePayload ? (
                   <Space direction="vertical" style={{ width: "100%" }} size={8}>
                     {fileChangePayload.message && (

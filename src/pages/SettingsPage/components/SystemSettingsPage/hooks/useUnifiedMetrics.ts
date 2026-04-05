@@ -7,6 +7,7 @@ import type {
   ForwardMetricsQuery,
   ForwardMetricsSummary,
   ForwardRequestMetrics,
+  MemoryMetricsSummary,
   MetricsGranularity,
   MetricsSummary,
   ModelMetrics,
@@ -85,6 +86,7 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
 
   // Unified metrics state
   const [combinedSummary, setCombinedSummary] = useState<CombinedSummary | null>(null);
+  const [memorySummary, setMemorySummary] = useState<MemoryMetricsSummary | null>(null);
   const [timeline, setTimeline] = useState<UnifiedTimelinePoint[]>([]);
 
   // Loading states
@@ -117,6 +119,7 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
         setChatSummary(unifiedSummary.chat);
         setForwardSummary(unifiedSummary.forward);
         setCombinedSummary(unifiedSummary.combined);
+        setMemorySummary(unifiedSummary.memory);
         setTimeline(timelineResponse);
 
         // Load detailed metrics in parallel
@@ -236,6 +239,7 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
 
     // Unified metrics
     combinedSummary,
+    memorySummary,
     timeline,
     totalTokens,
     totalRequests,

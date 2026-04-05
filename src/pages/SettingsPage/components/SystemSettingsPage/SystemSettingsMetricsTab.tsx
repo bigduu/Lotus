@@ -19,16 +19,8 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import type {
   DailyMetrics,
@@ -36,16 +28,21 @@ import type {
   PeriodMetrics,
   RoundMetrics,
 } from "../../../../services/metrics";
-import { useMetrics } from "./hooks/useMetrics";
 import { useForwardMetrics } from "./hooks/useForwardMetrics";
+import { useMetrics } from "./hooks/useMetrics";
+import { useMetricsUsage } from "./hooks/useMetricsUsage";
+import ForwardEndpointDistribution from "./metrics/ForwardEndpointDistribution";
+import ForwardMetricsCards from "./metrics/ForwardMetricsCards";
+import ForwardRequestTable from "./metrics/ForwardRequestTable";
+import MemoryMetricsCards from "./metrics/MemoryMetricsCards";
+import MemoryTrendChart from "./metrics/MemoryTrendChart";
 import MetricCards from "./metrics/MetricCards";
 import ModelDistribution from "./metrics/ModelDistribution";
 import SessionTable from "./metrics/SessionTable";
-import TokenChart from "./metrics/TokenChart";
-import ForwardMetricsCards from "./metrics/ForwardMetricsCards";
-import ForwardEndpointDistribution from "./metrics/ForwardEndpointDistribution";
-import ForwardRequestTable from "./metrics/ForwardRequestTable";
 import SyncMismatchBreakdownCard from "./metrics/SyncMismatchBreakdownCard";
+import TokenChart from "./metrics/TokenChart";
+import TopUsageBarCard from "./metrics/TopUsageBarCard";
+import UsageBreakdownCards from "./metrics/UsageBreakdownCards";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -111,6 +108,34 @@ const formatDuration = (durationMs?: number | null): string => {
   return `${seconds}s`;
 };
 
+const formatTimestamp = (value?: string | null): string => {
+  if (!value) {
+    return "-";
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+};
+
+const formatBreakdownText = (input?: Record<string, number> | null): string => {
+  const entries = Object.entries(input ?? {}).sort((left, right) => right[1] - left[1]);
+  if (entries.length === 0) {
+    return "-";
+  }
+
+  return entries
+    .slice(0, 6)
+    .map(([key, value]) => `${key}: ${value.toLocaleString()}`)
+    .join(" • ");
+};
+
+const responsiveGridStyle = (gap: number, minWidth = 320): CSSProperties => ({
+  width: "100%",
+  display: "grid",
+  gridTemplateColumns: `repeat(auto-fit, minmax(${minWidth}px, 1fr))`,
+  gap,
+});
+
 const SystemSettingsMetricsTab: React.FC = () => {
   const { t } = useTranslation();
   const { token } = useToken();
@@ -126,6 +151,8 @@ const SystemSettingsMetricsTab: React.FC = () => {
     modelMetrics,
     sessions,
     timeline,
+    memorySummary,
+    memoryTimeline,
     sessionDetail,
     isLoading,
     isRefreshing,
@@ -144,7 +171,6 @@ const SystemSettingsMetricsTab: React.FC = () => {
     },
   });
 
-  // Forward metrics
   const {
     summary: forwardSummary,
     endpointMetrics,
@@ -154,6 +180,21 @@ const SystemSettingsMetricsTab: React.FC = () => {
     error: forwardError,
     refresh: refreshForward,
   } = useForwardMetrics({
+    filters: {
+      startDate,
+      endDate,
+      days,
+      model: selectedModel,
+    },
+  });
+
+  const {
+    data: usageSummary,
+    isLoading: isUsageLoading,
+    isRefreshing: isUsageRefreshing,
+    error: usageError,
+    refresh: refreshUsage,
+  } = useMetricsUsage({
     filters: {
       startDate,
       endDate,
@@ -181,24 +222,6 @@ const SystemSettingsMetricsTab: React.FC = () => {
       })),
     [modelMetrics],
   );
-
-  const toolUsageData = useMemo(() => {
-    const counter = new Map<string, number>();
-
-    sessions.forEach((session) => {
-      Object.entries(session.tool_breakdown).forEach(([tool, count]) => {
-        counter.set(tool, (counter.get(tool) ?? 0) + count);
-      });
-    });
-
-    return Array.from(counter.entries())
-      .map(([tool, count]) => ({
-        tool,
-        count,
-      }))
-      .sort((left, right) => right.count - left.count)
-      .slice(0, 10);
-  }, [sessions]);
 
   const activityData = useMemo(() => {
     const points = timeline.map((item) => ({
@@ -270,7 +293,6 @@ const SystemSettingsMetricsTab: React.FC = () => {
     const totalForwardRequests = forwardSummary?.total_requests ?? 0;
     const totalForwardTokens = forwardSummary?.total_tokens.total_tokens ?? 0;
     const failedForwardRequests = forwardSummary?.failed_requests ?? 0;
-    const totalCombinedTokens = totalSessionTokens + totalForwardTokens;
     const streamedForwardRequests = forwardRequests.filter((request) => request.is_stream).length;
 
     const activeRate = totalSessions > 0 ? (activeSessions / totalSessions) * 100 : 0;
@@ -309,18 +331,6 @@ const SystemSettingsMetricsTab: React.FC = () => {
         : 1;
 
     return [
-      {
-        title: t("settings.metricsDashboard.compactStats.combinedTokens"),
-        value: totalCombinedTokens,
-      },
-      {
-        title: t("settings.metricsDashboard.compactStats.chatTokens"),
-        value: totalSessionTokens,
-      },
-      {
-        title: t("settings.metricsDashboard.compactStats.forwardTokens"),
-        value: totalForwardTokens,
-      },
       {
         title: t("settings.metricsDashboard.compactStats.avgTokensPerSession"),
         value: totalSessions > 0 ? Math.round(totalSessionTokens / totalSessions) : 0,
@@ -394,13 +404,121 @@ const SystemSettingsMetricsTab: React.FC = () => {
     t,
   ]);
 
+  const forwardPerformanceStats = useMemo(() => {
+    const totalForwardRequests = forwardSummary?.total_requests ?? 0;
+    const failedForwardRequests = forwardSummary?.failed_requests ?? 0;
+    const streamedForwardRequests = forwardRequests.filter((request) => request.is_stream).length;
+    const streamRate =
+      forwardRequests.length > 0 ? (streamedForwardRequests / forwardRequests.length) * 100 : 0;
+    const errorRate =
+      totalForwardRequests > 0 ? (failedForwardRequests / totalForwardRequests) * 100 : 0;
+
+    return [
+      {
+        title: t("settings.metricsDashboard.forward.performance.p95Latency", {
+          defaultValue: "P95 Latency",
+        }),
+        value: formatDuration(p95ForwardDuration),
+      },
+      {
+        title: t("settings.metricsDashboard.forward.performance.errorRate", {
+          defaultValue: "Error Rate",
+        }),
+        value: Number(errorRate.toFixed(1)),
+        suffix: "%",
+      },
+      {
+        title: t("settings.metricsDashboard.forward.performance.streamingRatio", {
+          defaultValue: "Streaming Ratio",
+        }),
+        value: Number(streamRate.toFixed(1)),
+        suffix: "%",
+      },
+      {
+        title: t("settings.metricsDashboard.forward.performance.endpointCoverage", {
+          defaultValue: "Endpoint Coverage",
+        }),
+        value: endpointMetrics.length,
+      },
+    ];
+  }, [endpointMetrics.length, forwardRequests, forwardSummary, p95ForwardDuration, t]);
+
+  const usageMixData = useMemo(
+    () =>
+      usageSummary
+        ? [
+            {
+              label: t("settings.metricsDashboard.skillsAndMcp.mix.coreTools", {
+                defaultValue: "Core Tools",
+              }),
+              count: usageSummary.core_tool_calls,
+            },
+            {
+              label: t("settings.metricsDashboard.skillsAndMcp.mix.skillLoads", {
+                defaultValue: "Skill Loads",
+              }),
+              count: usageSummary.skill_load_calls,
+            },
+            {
+              label: t("settings.metricsDashboard.skillsAndMcp.mix.mcpCalls", {
+                defaultValue: "MCP Calls",
+              }),
+              count: usageSummary.mcp_calls,
+            },
+          ].filter((item) => item.count > 0)
+        : [],
+    [t, usageSummary],
+  );
+
+  const topSkillData = useMemo(
+    () =>
+      (usageSummary?.top_skills ?? []).map((item) => ({
+        label: item.skill_id,
+        count: item.count,
+      })),
+    [usageSummary],
+  );
+
+  const topMcpServerData = useMemo(
+    () =>
+      (usageSummary?.top_mcp_servers ?? []).map((item) => ({
+        label: item.server_id,
+        count: item.count,
+        meta: t("settings.metricsDashboard.skillsAndMcp.meta.uniqueTools", {
+          defaultValue: "{{count}} tools",
+          count: item.unique_tools,
+        }),
+      })),
+    [t, usageSummary],
+  );
+
+  const topMcpToolData = useMemo(
+    () =>
+      (usageSummary?.top_mcp_tools ?? []).map((item) => ({
+        label: item.tool_name,
+        count: item.count,
+        meta: item.server_id,
+      })),
+    [usageSummary],
+  );
+
+  const topCoreToolData = useMemo(
+    () =>
+      (usageSummary?.top_core_tools ?? []).map((item) => ({
+        label: item.name,
+        count: item.count,
+      })),
+    [usageSummary],
+  );
+
   const selectedSession = sessionDetail?.session;
-  const isDashboardRefreshing = isRefreshing || isForwardRefreshing;
+  const isDashboardRefreshing = isRefreshing || isForwardRefreshing || isUsageRefreshing;
 
   return (
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
       {error ? <Alert type="error" showIcon message={error} /> : null}
       {forwardError ? <Alert type="error" showIcon message={forwardError} /> : null}
+      {usageError ? <Alert type="error" showIcon message={usageError} /> : null}
 
       <Card
         size="small"
@@ -412,6 +530,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
             onClick={() => {
               void refresh();
               void refreshForward();
+              void refreshUsage();
             }}
           >
             {t("settings.metricsDashboard.refresh")}
@@ -487,11 +606,9 @@ const SystemSettingsMetricsTab: React.FC = () => {
               children: (
                 <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
                   <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
-                  <SyncMismatchBreakdownCard
-                    breakdown={summary?.sync_mismatch_breakdown}
-                    loading={isLoading}
-                  />
                   <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
+                  <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
+                  <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
                   <Card
                     size="small"
                     className="lotus-metric-card"
@@ -543,60 +660,25 @@ const SystemSettingsMetricsTab: React.FC = () => {
               ),
             },
             {
-              key: "analysis",
-              label: t("settings.metricsDashboard.tabs.analysis"),
+              key: "chat",
+              label: t("settings.metricsDashboard.tabs.chat", { defaultValue: "Chat" }),
               children: (
                 <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                  <div
-                    style={{
-                      width: "100%",
-                      display: "grid",
-                      gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)",
-                      gap: token.marginSM,
-                    }}
-                  >
+                  <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
+                  <div style={responsiveGridStyle(token.marginSM, 360)}>
                     <TokenChart data={tokenChartData} loading={isLoading} />
                     <ModelDistribution data={modelMetrics} loading={isLoading} />
                   </div>
-
-                  <div
-                    style={{
-                      width: "100%",
-                      display: "grid",
-                      gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-                      gap: token.marginSM,
-                    }}
-                  >
-                    <Card size="small" title={t("settings.metricsDashboard.toolUsageTitle")}>
-                      {toolUsageData.length === 0 ? (
-                        <Text type="secondary">{t("settings.metricsDashboard.noToolUsage")}</Text>
-                      ) : (
-                        <div style={{ width: "100%", height: 240 }}>
-                          <ResponsiveContainer>
-                            <BarChart data={toolUsageData}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis
-                                dataKey="tool"
-                                interval={0}
-                                angle={-20}
-                                textAnchor="end"
-                                height={70}
-                              />
-                              <YAxis allowDecimals={false} />
-                              <RechartsTooltip />
-                              <Bar
-                                dataKey="count"
-                                fill="var(--lotus-chart-primary)"
-                                name={t("settings.metricsDashboard.calls")}
-                                radius={[6, 6, 0, 0]}
-                              />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                      )}
-                    </Card>
-
-                    <Card size="small" title={t("settings.metricsDashboard.activityHeatmapTitle")}>
+                  <div style={responsiveGridStyle(token.marginSM, 360)}>
+                    <SyncMismatchBreakdownCard
+                      breakdown={summary?.sync_mismatch_breakdown}
+                      loading={isLoading}
+                    />
+                    <Card
+                      size="small"
+                      className="lotus-metric-card"
+                      title={t("settings.metricsDashboard.activityHeatmapTitle")}
+                    >
                       {activityData.points.length === 0 ? (
                         <Text type="secondary">{t("settings.metricsDashboard.noActivity")}</Text>
                       ) : (
@@ -641,8 +723,187 @@ const SystemSettingsMetricsTab: React.FC = () => {
                       )}
                     </Card>
                   </div>
-
+                </Space>
+              ),
+            },
+            {
+              key: "skills-and-mcp",
+              label: t("settings.metricsDashboard.tabs.skillsAndMcp", {
+                defaultValue: "Skills & MCP",
+              }),
+              children: (
+                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                  <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
+                  <div style={responsiveGridStyle(token.marginSM, 360)}>
+                    <TopUsageBarCard
+                      title={t("settings.metricsDashboard.skillsAndMcp.usageMixTitle", {
+                        defaultValue: "Usage Mix",
+                      })}
+                      subtitle={t("settings.metricsDashboard.skillsAndMcp.usageMixSubtitle", {
+                        defaultValue: "Compare core tools, skill loads, and MCP calls in one view.",
+                      })}
+                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noUsageMix", {
+                        defaultValue: "No usage data available for this range.",
+                      })}
+                      data={usageMixData}
+                      loading={isUsageLoading}
+                      color="var(--lotus-chart-primary)"
+                    />
+                    <TopUsageBarCard
+                      title={t("settings.metricsDashboard.skillsAndMcp.topSkillsTitle", {
+                        defaultValue: "Top Skills",
+                      })}
+                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topSkillsSubtitle", {
+                        defaultValue: "Counted from load_skill calls during matching sessions.",
+                      })}
+                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noSkills", {
+                        defaultValue: "No skills were loaded in this range.",
+                      })}
+                      data={topSkillData}
+                      loading={isUsageLoading}
+                      color="var(--lotus-chart-purple)"
+                    />
+                    <TopUsageBarCard
+                      title={t("settings.metricsDashboard.skillsAndMcp.topMcpServersTitle", {
+                        defaultValue: "Top MCP Servers",
+                      })}
+                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpServersSubtitle", {
+                        defaultValue: "Server-level MCP call distribution.",
+                      })}
+                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpServers", {
+                        defaultValue: "No MCP activity recorded for this range.",
+                      })}
+                      data={topMcpServerData}
+                      loading={isUsageLoading}
+                      color="var(--lotus-chart-cyan)"
+                    />
+                    <TopUsageBarCard
+                      title={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsTitle", {
+                        defaultValue: "Top MCP Tools",
+                      })}
+                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsSubtitle", {
+                        defaultValue: "Most frequently called MCP tool aliases.",
+                      })}
+                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpTools", {
+                        defaultValue: "No MCP tools were called in this range.",
+                      })}
+                      data={topMcpToolData}
+                      loading={isUsageLoading}
+                      color="var(--lotus-chart-accent)"
+                    />
+                    <TopUsageBarCard
+                      title={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsTitle", {
+                        defaultValue: "Top Core Tools",
+                      })}
+                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsSubtitle", {
+                        defaultValue: "Canonicalized built-in and server tool usage ranking.",
+                      })}
+                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noCoreTools", {
+                        defaultValue: "No core tools were called in this range.",
+                      })}
+                      data={topCoreToolData}
+                      loading={isUsageLoading}
+                      color="var(--lotus-chart-secondary)"
+                    />
+                  </div>
+                </Space>
+              ),
+            },
+            {
+              key: "forward",
+              label: t("settings.metricsDashboard.tabs.forward", { defaultValue: "Forward" }),
+              children: (
+                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                  <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
+                  <Card
+                    size="small"
+                    className="lotus-metric-card"
+                    title={t("settings.metricsDashboard.forward.performanceTitle", {
+                      defaultValue: "Forward Performance",
+                    })}
+                  >
+                    <Row gutter={[token.marginSM, token.marginSM]}>
+                      {forwardPerformanceStats.map((metric) => (
+                        <Col key={metric.title} xs={24} sm={12} xl={6}>
+                          <div
+                            style={{
+                              borderRadius: token.borderRadiusSM,
+                              padding: token.paddingXS,
+                              background: isDark
+                                ? "rgba(255, 255, 255, 0.05)"
+                                : "rgba(255, 255, 255, 0.82)",
+                              border: isDark
+                                ? "1px solid rgba(255,255,255,0.08)"
+                                : "1px solid rgba(148,163,184,0.18)",
+                            }}
+                          >
+                            <Statistic
+                              title={metric.title}
+                              value={metric.value}
+                              suffix={metric.suffix}
+                              valueStyle={{ fontSize: token.fontSizeHeading4 }}
+                            />
+                          </div>
+                        </Col>
+                      ))}
+                    </Row>
+                  </Card>
                   <ForwardEndpointDistribution data={endpointMetrics} loading={isForwardLoading} />
+                </Space>
+              ),
+            },
+            {
+              key: "memory",
+              label: t("settings.metricsDashboard.tabs.memory", { defaultValue: "Memory" }),
+              children: (
+                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                  <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
+                  <MemoryTrendChart data={memoryTimeline} loading={isLoading} />
+                  <Card
+                    size="small"
+                    className="lotus-metric-card"
+                    title={t("settings.metricsDashboard.memory.breakdownTitle", {
+                      defaultValue: "Memory Breakdown",
+                    })}
+                  >
+                    <Descriptions size="small" bordered column={1}>
+                      <Descriptions.Item
+                        label={t("settings.metricsDashboard.memory.byType", {
+                          defaultValue: "By Type",
+                        })}
+                      >
+                        {formatBreakdownText(memorySummary?.by_type)}
+                      </Descriptions.Item>
+                      <Descriptions.Item
+                        label={t("settings.metricsDashboard.memory.byStatus", {
+                          defaultValue: "By Status",
+                        })}
+                      >
+                        {formatBreakdownText(memorySummary?.by_status)}
+                      </Descriptions.Item>
+                      <Descriptions.Item
+                        label={t("settings.metricsDashboard.memory.byScope", {
+                          defaultValue: "By Scope",
+                        })}
+                      >
+                        {formatBreakdownText(memorySummary?.by_scope)}
+                      </Descriptions.Item>
+                      <Descriptions.Item
+                        label={t("settings.metricsDashboard.memory.lastDream", {
+                          defaultValue: "Last Dream",
+                        })}
+                      >
+                        {formatTimestamp(memorySummary?.last_dream_at)}
+                      </Descriptions.Item>
+                      <Descriptions.Item
+                        label={t("settings.metricsDashboard.memory.lastReindex", {
+                          defaultValue: "Last Reindex",
+                        })}
+                      >
+                        {formatTimestamp(memorySummary?.last_reindex_at)}
+                      </Descriptions.Item>
+                    </Descriptions>
+                  </Card>
                 </Space>
               ),
             },

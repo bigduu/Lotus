@@ -17,7 +17,17 @@ import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
 import { ModelMappingCard } from "./ModelMappingCard";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
+import type { BambooConfig } from "../../../../services/common/ServiceFactory";
 import type { AppLocale } from "../../../../shared/i18n/types";
+
+interface ConfigFormState extends BambooConfig {
+  http_proxy: string;
+  https_proxy: string;
+  memory: {
+    auto_dream_enabled: boolean;
+    background_model: string;
+  };
+}
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -53,9 +63,13 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const [config, setConfig] = useState({
+  const [config, setConfig] = useState<ConfigFormState>({
     http_proxy: "",
     https_proxy: "",
+    memory: {
+      auto_dream_enabled: false,
+      background_model: "",
+    },
   });
   const [backendBaseUrl, setBackendBaseUrl] = useState(DEFAULT_BACKEND_BASE_URL);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
@@ -75,6 +89,10 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       setConfig({
         http_proxy: bambooConfig.http_proxy || "",
         https_proxy: bambooConfig.https_proxy || "",
+        memory: {
+          auto_dream_enabled: bambooConfig.memory?.auto_dream_enabled ?? false,
+          background_model: bambooConfig.memory?.background_model || "",
+        },
       });
       const nextDisabled = readDisabledTools(bambooConfig);
       setDisabledTools(nextDisabled);
@@ -99,6 +117,26 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
 
   const handleHttpsProxyChange = (value: string) => {
     setConfig((prev) => ({ ...prev, https_proxy: value }));
+  };
+
+  const handleAutoDreamToggle = (checked: boolean) => {
+    setConfig((prev) => ({
+      ...prev,
+      memory: {
+        ...prev.memory,
+        auto_dream_enabled: checked,
+      },
+    }));
+  };
+
+  const handleBackgroundModelChange = (value: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      memory: {
+        ...prev.memory,
+        background_model: value,
+      },
+    }));
   };
 
   const handleSaveConfig = async () => {
@@ -253,6 +291,64 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                     ]}
                     onChange={(value) => onLocaleChange(value as AppLocale)}
                   />
+                </Card>
+
+                <Card
+                  size="small"
+                  className="lotus-settings-card"
+                  title={<Text strong>{t("settings.configTab.memoryTitle")}</Text>}
+                >
+                  <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+                    <Text type="secondary">{t("settings.configTab.memoryDescription")}</Text>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: token.marginMD,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <Text strong>{t("settings.configTab.autoDreamEnabled")}</Text>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                            {t("settings.configTab.autoDreamEnabledHint")}
+                          </Text>
+                        </div>
+                      </div>
+                      <Switch
+                        data-testid="auto-dream-toggle"
+                        checked={config.memory.auto_dream_enabled}
+                        onChange={handleAutoDreamToggle}
+                      />
+                    </div>
+
+                    <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
+                      <Text strong>{t("settings.configTab.backgroundModel")}</Text>
+                      <Input
+                        data-testid="auto-dream-background-model-input"
+                        value={config.memory.background_model}
+                        onChange={(e) => handleBackgroundModelChange(e.target.value)}
+                        placeholder={t("settings.configTab.backgroundModelPlaceholder")}
+                      />
+                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                        {t("settings.configTab.backgroundModelHint")}
+                      </Text>
+                    </Space>
+
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <Button
+                        data-testid="save-memory-settings"
+                        type="primary"
+                        onClick={handleSaveConfig}
+                        loading={isLoading}
+                      >
+                        {t("settings.configTab.save")}
+                      </Button>
+                    </div>
+                  </Space>
                 </Card>
 
                 <Card

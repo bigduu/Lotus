@@ -263,9 +263,12 @@ export interface SessionSystemPromptResponse {
   base_system_prompt: string;
   enhancement_prompt?: string;
   workspace_context?: string;
+  instruction_context?: string;
   env_context?: string;
   skill_context?: string;
   tool_guide_context?: string;
+  dream_notebook?: string;
+  session_memory_note?: string;
   external_memory?: string;
   task_list?: string;
   effective_system_prompt: string;
@@ -325,15 +328,78 @@ export interface ScheduleRunConfig {
   auto_execute?: boolean;
 }
 
+export type ScheduleTrigger =
+  | {
+      type: "interval";
+      every_seconds: number;
+      anchor_at?: string | null;
+    }
+  | {
+      type: "daily";
+      hour: number;
+      minute: number;
+      second?: number;
+    }
+  | {
+      type: "weekly";
+      weekdays: Array<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun">;
+      hour: number;
+      minute: number;
+      second?: number;
+    }
+  | {
+      type: "monthly";
+      days: number[];
+      hour: number;
+      minute: number;
+      second?: number;
+    }
+  | {
+      type: "cron";
+      expr: string;
+    };
+
+export type MisfirePolicy =
+  | { type: "run_once" }
+  | { type: "skip" }
+  | { type: "catch_up_all" }
+  | {
+      type: "catch_up_window";
+      max_catch_up_runs: number;
+      max_lateness_seconds: number;
+    };
+
+export type OverlapPolicy = "allow" | "skip" | "queue_one";
+
+export interface ScheduleState {
+  next_fire_at?: string | null;
+  last_scheduled_at?: string | null;
+  last_started_at?: string | null;
+  last_finished_at?: string | null;
+  last_success_at?: string | null;
+  last_failure_at?: string | null;
+  queued_run_count: number;
+  running_run_count: number;
+  consecutive_failures: number;
+  total_run_count: number;
+  total_success_count: number;
+  total_failure_count: number;
+  total_missed_count: number;
+}
+
 export interface ScheduleEntry {
   id: string;
   name: string;
   enabled: boolean;
-  interval_seconds: number;
+  trigger: ScheduleTrigger;
+  timezone?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  misfire_policy: MisfirePolicy;
+  overlap_policy: OverlapPolicy;
   created_at: string;
   updated_at: string;
-  last_run_at?: string | null;
-  next_run_at: string;
+  state: ScheduleState;
   run_config: ScheduleRunConfig;
 }
 
@@ -343,7 +409,12 @@ export interface ListSchedulesResponse {
 
 export interface CreateScheduleRequest {
   name: string;
-  interval_seconds: number;
+  trigger: ScheduleTrigger;
+  timezone?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  misfire_policy?: MisfirePolicy;
+  overlap_policy?: OverlapPolicy;
   enabled?: boolean;
   run_config?: ScheduleRunConfig;
 }
@@ -351,13 +422,38 @@ export interface CreateScheduleRequest {
 export interface PatchScheduleRequest {
   name?: string;
   enabled?: boolean;
-  interval_seconds?: number;
+  trigger?: ScheduleTrigger;
+  timezone?: string | null;
+  start_at?: string | null;
+  end_at?: string | null;
+  misfire_policy?: MisfirePolicy;
+  overlap_policy?: OverlapPolicy;
   run_config?: ScheduleRunConfig;
+}
+
+export interface ScheduleRunRecord {
+  run_id: string;
+  schedule_id: string;
+  scheduled_for: string;
+  claimed_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  status: "queued" | "running" | "success" | "failed" | "skipped" | "missed" | "cancelled";
+  outcome_reason?: string | null;
+  session_id?: string | null;
+  dispatch_lag_ms?: number | null;
+  execution_duration_ms?: number | null;
+  was_catch_up: boolean;
 }
 
 export interface ListScheduleSessionsResponse {
   schedule_id: string;
   sessions: SessionSummary[];
+}
+
+export interface ListScheduleRunsResponse {
+  schedule_id: string;
+  runs: ScheduleRunRecord[];
 }
 
 // Event handlers type
@@ -585,6 +681,11 @@ export class AgentClient {
   async listScheduleSessions(scheduleId: string): Promise<ListScheduleSessionsResponse> {
     const encoded = encodeURIComponent(scheduleId);
     return agentApiClient.get<ListScheduleSessionsResponse>(`schedules/${encoded}/sessions`);
+  }
+
+  async listScheduleRuns(scheduleId: string): Promise<ListScheduleRunsResponse> {
+    const encoded = encodeURIComponent(scheduleId);
+    return agentApiClient.get<ListScheduleRunsResponse>(`schedules/${encoded}/runs`);
   }
 
   /**

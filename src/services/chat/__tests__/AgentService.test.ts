@@ -149,6 +149,34 @@ describe("AgentClient", () => {
     );
   });
 
+  it("gets a session system prompt snapshot with aligned fields", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        session_id: "session-1",
+        base_system_prompt: "Base prompt",
+        instruction_context: "Instruction context",
+        dream_notebook: "Dream note",
+        session_memory_note: "Session note",
+        effective_system_prompt: "Effective prompt",
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    const result = await client.getSessionSystemPrompt("session/with space");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session%2Fwith%20space/system-prompt"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result.instruction_context).toBe("Instruction context");
+    expect(result.dream_notebook).toBe("Dream note");
+    expect(result.session_memory_note).toBe("Session note");
+
+    expectTypeOf(result.instruction_context).toEqualTypeOf<string | undefined>();
+    expectTypeOf(result.dream_notebook).toEqualTypeOf<string | undefined>();
+    expectTypeOf(result.session_memory_note).toEqualTypeOf<string | undefined>();
+  });
+
   it("truncates session messages with mode payload", async () => {
     fetchMock.mockResolvedValue(
       mockFetchResponse({
@@ -218,7 +246,7 @@ describe("AgentClient", () => {
     );
   });
 
-  it("calls schedule CRUD endpoints", async () => {
+  it("calls schedule CRUD and run history endpoints", async () => {
     fetchMock
       .mockResolvedValueOnce(mockFetchResponse({ schedules: [] }))
       .mockResolvedValueOnce(mockFetchResponse({ id: "s1" }))
@@ -230,15 +258,25 @@ describe("AgentClient", () => {
           schedule_id: "s1",
           sessions: [],
         }),
+      )
+      .mockResolvedValueOnce(
+        mockFetchResponse({
+          schedule_id: "s1",
+          runs: [],
+        }),
       );
 
     const client = AgentClient.getInstance();
     await client.listSchedules();
-    await client.createSchedule({ name: "Daily", interval_seconds: 60 });
+    await client.createSchedule({
+      name: "Daily",
+      trigger: { type: "interval", every_seconds: 60 },
+    });
     await client.patchSchedule("sched/1", { enabled: true });
     await client.runScheduleNow("sched/1");
     await client.deleteSchedule("sched/1");
     await client.listScheduleSessions("sched/1");
+    await client.listScheduleRuns("sched/1");
 
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/schedules"),
@@ -248,7 +286,7 @@ describe("AgentClient", () => {
       expect.stringContaining("/schedules"),
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"name":"Daily"'),
+        body: expect.stringContaining('"trigger":{"type":"interval","every_seconds":60}'),
       }),
     );
     expect(fetchMock).toHaveBeenCalledWith(
@@ -267,6 +305,10 @@ describe("AgentClient", () => {
     );
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/schedules/sched%2F1/sessions"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/schedules/sched%2F1/runs"),
       expect.objectContaining({ method: "GET" }),
     );
   });

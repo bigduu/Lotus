@@ -2,6 +2,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { useAgentEventSubscription } from "../useAgentEventSubscription";
 import { AgentClient } from "../../services/chat/AgentService";
+import { streamingMessageBus } from "../../pages/ChatPage/utils/streamingMessageBus";
 
 // Type for mock selectors
 type MockSelector = (state: any) => any;
@@ -64,6 +65,10 @@ describe("useAgentEventSubscription", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+
+    streamingMessageBus.clear("session-1", "streaming-session-1");
+    streamingMessageBus.clear("session-1", "streaming-reasoning-session-1");
+    streamingMessageBus.clear("session-1", "streaming-status-session-1");
 
     mockSetSessionProcessing = vi.fn();
     mockAddMessage = vi.fn();
@@ -408,5 +413,138 @@ describe("useAgentEventSubscription", () => {
     unmount();
 
     // Cleanup is internal, hard to verify without access to abort controller
+  });
+
+  it("keeps context-compacting status during reasoning and clears it when answer tokens arrive", async () => {
+    let capturedHandlers: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      capturedHandlers = handlers;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+      expect(capturedHandlers).toEqual(
+        expect.objectContaining({
+          onContextCompressionStatus: expect.any(Function),
+          onReasoningToken: expect.any(Function),
+          onToken: expect.any(Function),
+        }),
+      );
+    });
+
+    act(() => {
+      capturedHandlers.onContextCompressionStatus?.("pre-turn", "started");
+    });
+
+    await waitFor(() => {
+      expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBe(
+        "context_compacting",
+      );
+    });
+
+    act(() => {
+      capturedHandlers.onReasoningToken?.("Analyzing...");
+    });
+
+    await waitFor(() => {
+      expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBe(
+        "context_compacting",
+      );
+    });
+
+    act(() => {
+      capturedHandlers.onToken?.("Done.");
+    });
+
+    await waitFor(() => {
+      expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBeNull();
+    });
+  });
+
+  it("publishes memory status while memory_note tool is running", async () => {
+    let capturedHandlers: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      capturedHandlers = handlers;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+      expect(capturedHandlers).toEqual(
+        expect.objectContaining({
+          onToolStart: expect.any(Function),
+          onToolComplete: expect.any(Function),
+        }),
+      );
+    });
+
+    act(() => {
+      capturedHandlers.onToolStart?.("call-memory", "memory_note", { action: "append" });
+    });
+
+    await waitFor(() => {
+      expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBe("memory_updating");
+    });
+
+    act(() => {
+      capturedHandlers.onToolComplete?.("call-memory", {
+        success: true,
+        result: "ok",
+        display_preference: "Default",
+      });
+    });
+
+    await waitFor(() => {
+      expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBeNull();
+    });
+  });
+
+  it("publishes memory status while session_note tool is running", async () => {
+    let capturedHandlers: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      capturedHandlers = handlers;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+      expect(capturedHandlers).toEqual(
+        expect.objectContaining({
+          onToolLifecycle: expect.any(Function),
+        }),
+      );
+    });
+
+    act(() => {
+      capturedHandlers.onToolStart?.("call-session-note", "session_note", { action: "append" });
+    });
+
+    await waitFor(() => {
+      expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBe("memory_updating");
+    });
+
+    act(() => {
+      capturedHandlers.onToolLifecycle?.("call-session-note", "session_note", "finished", 12, true);
+    });
+
+    await waitFor(() => {
+      expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBeNull();
+    });
   });
 });

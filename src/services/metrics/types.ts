@@ -107,6 +107,50 @@ export interface MetricsSessionQuery extends MetricsDateRange {
   limit?: number;
 }
 
+export interface MetricsUsageQuery extends MetricsDateRange {
+  model?: string;
+}
+
+export interface UsageCountItem {
+  name: string;
+  count: number;
+}
+
+export interface SkillUsageItem {
+  skill_id: string;
+  count: number;
+}
+
+export interface McpServerUsageItem {
+  server_id: string;
+  count: number;
+  unique_tools: number;
+}
+
+export interface McpToolUsageItem {
+  alias: string;
+  server_id: string;
+  tool_name: string;
+  count: number;
+}
+
+export interface MetricsUsageBreakdownResponse {
+  total_sessions: number;
+  total_tool_calls: number;
+  core_tool_calls: number;
+  skill_load_calls: number;
+  mcp_calls: number;
+  unique_skills: number;
+  unique_mcp_servers: number;
+  unique_mcp_tools: number;
+  sessions_with_skill_loads: number;
+  sessions_with_mcp_calls: number;
+  top_core_tools: UsageCountItem[];
+  top_skills: SkillUsageItem[];
+  top_mcp_servers: McpServerUsageItem[];
+  top_mcp_tools: McpToolUsageItem[];
+}
+
 export interface MetricsDailyQuery {
   days?: number;
   endDate?: string;
@@ -155,11 +199,33 @@ export interface ForwardMetricsQuery {
   limit?: number;
 }
 
+export interface MemoryMetricsQuery {
+  scope?: "global" | "project" | "session";
+  projectKey?: string;
+  days?: number;
+  endDate?: string;
+  granularity?: MetricsGranularity;
+}
+
+export interface MemoryMetricsSummary {
+  scope?: "global" | "project" | "session" | null;
+  project_key?: string | null;
+  total_memories: number;
+  stale_candidate_count: number;
+  project_count: number;
+  by_type: Record<string, number>;
+  by_status: Record<string, number>;
+  by_scope: Record<string, number>;
+  last_reindex_at?: string | null;
+  last_dream_at?: string | null;
+}
+
 // Unified API types (v2)
 export interface UnifiedSummary {
   chat: MetricsSummary;
   forward: ForwardMetricsSummary;
   combined: CombinedSummary;
+  memory: MemoryMetricsSummary;
 }
 
 export interface CombinedSummary {
@@ -170,6 +236,15 @@ export interface CombinedSummary {
   success_rate: number;
   prompt_cached_tool_outputs?: number;
   total_sync_mismatches?: number;
+}
+
+export interface MemoryTimelinePoint {
+  label: string;
+  period_start: string;
+  period_end: string;
+  created_memories: number;
+  updated_memories: number;
+  total_memories: number;
 }
 
 export interface UnifiedTimelinePoint {

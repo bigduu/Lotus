@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   metricsService,
   type DailyMetrics,
+  type MemoryMetricsSummary,
+  type MemoryTimelinePoint,
   type MetricsGranularity,
   type MetricsSummary,
   type ModelMetrics,
@@ -36,6 +38,12 @@ interface MetricsHookService {
     granularity?: MetricsGranularity;
   }) => Promise<DailyMetrics[] | PeriodMetrics[]>;
   getSessionDetail: (sessionId: string) => Promise<SessionDetail | null>;
+  getMemorySummary?: () => Promise<MemoryMetricsSummary>;
+  getMemoryTimeline?: (query?: {
+    days?: number;
+    endDate?: string;
+    granularity?: MetricsGranularity;
+  }) => Promise<MemoryTimelinePoint[]>;
 }
 
 export interface UseMetricsOptions {
@@ -89,6 +97,8 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics[]>([]);
   const [sessions, setSessions] = useState<SessionMetrics[]>([]);
   const [timeline, setTimeline] = useState<Array<DailyMetrics | PeriodMetrics>>([]);
+  const [memorySummary, setMemorySummary] = useState<MemoryMetricsSummary | null>(null);
+  const [memoryTimeline, setMemoryTimeline] = useState<MemoryTimelinePoint[]>([]);
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [isSessionDetailLoading, setIsSessionDetailLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -104,34 +114,56 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
       }
 
       try {
-        const [summaryResponse, modelResponse, sessionsResponse, dailyResponse] = await Promise.all(
-          [
-            service.getSummary({
-              startDate: resolvedRange.startDate,
-              endDate: resolvedRange.endDate,
-            }),
-            service.getByModel({
-              startDate: resolvedRange.startDate,
-              endDate: resolvedRange.endDate,
-            }),
-            service.getSessions({
-              startDate: resolvedRange.startDate,
-              endDate: resolvedRange.endDate,
-              model: normalizedFilters.model,
-              limit: normalizedFilters.sessionLimit,
-            }),
-            service.getDaily({
-              days: resolvedRange.days,
-              endDate: resolvedRange.endDate,
-              granularity: normalizedFilters.granularity,
-            }),
-          ],
-        );
+        const memorySummaryPromise = service.getMemorySummary
+          ? service.getMemorySummary().catch(() => null)
+          : Promise.resolve(null);
+        const memoryTimelinePromise = service.getMemoryTimeline
+          ? service
+              .getMemoryTimeline({
+                days: resolvedRange.days,
+                endDate: resolvedRange.endDate,
+                granularity: normalizedFilters.granularity,
+              })
+              .catch(() => [])
+          : Promise.resolve([]);
+
+        const [
+          summaryResponse,
+          modelResponse,
+          sessionsResponse,
+          dailyResponse,
+          memoryResponse,
+          memoryTimelineResponse,
+        ] = await Promise.all([
+          service.getSummary({
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
+          }),
+          service.getByModel({
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
+          }),
+          service.getSessions({
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
+            model: normalizedFilters.model,
+            limit: normalizedFilters.sessionLimit,
+          }),
+          service.getDaily({
+            days: resolvedRange.days,
+            endDate: resolvedRange.endDate,
+            granularity: normalizedFilters.granularity,
+          }),
+          memorySummaryPromise,
+          memoryTimelinePromise,
+        ]);
 
         setSummary(summaryResponse);
         setModelMetrics(modelResponse);
         setSessions(sessionsResponse);
         setTimeline(dailyResponse);
+        setMemorySummary(memoryResponse);
+        setMemoryTimeline(memoryTimelineResponse);
         setError(null);
       } catch (loadError) {
         setError(toErrorMessage(loadError, "Failed to load metrics"));
@@ -200,6 +232,8 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
     modelMetrics,
     sessions,
     timeline,
+    memorySummary,
+    memoryTimeline,
     sessionDetail,
     isLoading,
     isRefreshing,

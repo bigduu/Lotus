@@ -11,7 +11,10 @@ import { useAppStore } from "../pages/ChatPage/store";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
 import { message } from "antd";
-import { formatCompletionPolicyViolationMessage, isCompletionPolicyViolationError } from "../shared/utils/completionPolicyViolation";
+import {
+  formatCompletionPolicyViolationMessage,
+  isCompletionPolicyViolationError,
+} from "../shared/utils/completionPolicyViolation";
 
 type SubscriptionEntry = {
   sessionId: string;
@@ -38,6 +41,11 @@ const isTaskItemStatus = (status: AgentEvent["status"]): status is TaskListDelta
   status === "in_progress" ||
   status === "completed" ||
   status === "blocked";
+
+const isMemoryStatusTool = (toolName: string): boolean => {
+  const normalizedToolName = toolName.trim().toLowerCase();
+  return normalizedToolName === "memory_note" || normalizedToolName === "session_note";
+};
 
 export function useAgentEventSubscription() {
   const processingChats = useAppStore((state) => state.processingChats);
@@ -162,6 +170,27 @@ export function useAgentEventSubscription() {
         status: existingStatus ?? "",
       });
 
+      const setStreamingStatus = (nextStatus?: string | null) => {
+        const state = streamingStateBySessionRef.current.get(sessionId);
+        if (!state) return;
+
+        const normalized = (nextStatus ?? "").trim();
+        if (!normalized) {
+          if (!state.status) return;
+          state.status = "";
+          streamingMessageBus.clear(state.sessionId, state.statusMessageId);
+          return;
+        }
+
+        if (state.status === normalized) return;
+        state.status = normalized;
+        streamingMessageBus.publish({
+          sessionId: state.sessionId,
+          messageId: state.statusMessageId,
+          content: state.status,
+        });
+      };
+
       // Only publish an empty placeholder if we don't already have a draft.
       // If we do, keep it as-is so remounting the view doesn't "blink" to empty.
       if (existingDraft === null) {
@@ -195,10 +224,7 @@ export function useAgentEventSubscription() {
             onToken: (tokenContent: string) => {
               const state = streamingStateBySessionRef.current.get(sessionId);
               if (!state) return;
-              if (state.status) {
-                state.status = "";
-                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
-              }
+              setStreamingStatus(null);
               state.content += tokenContent;
               streamingMessageBus.publish({
                 sessionId: state.sessionId,
@@ -210,10 +236,6 @@ export function useAgentEventSubscription() {
             onReasoningToken: (tokenContent: string) => {
               const state = streamingStateBySessionRef.current.get(sessionId);
               if (!state) return;
-              if (state.status) {
-                state.status = "";
-                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
-              }
               state.reasoningContent += tokenContent;
               streamingMessageBus.publish({
                 sessionId: state.sessionId,
@@ -284,6 +306,12 @@ export function useAgentEventSubscription() {
 
               // Track tool name for later use in onToolComplete
               toolNamesByCallIdRef.current.set(toolCallId, toolName);
+              const normalizedToolName = toolName.trim().toLowerCase();
+              if (isMemoryStatusTool(toolName)) {
+                setStreamingStatus("memory_updating");
+              } else {
+                setStreamingStatus(`tool_running:${normalizedToolName || "tool"}`);
+              }
 
               const messageId = crypto.randomUUID();
               toolCallMessageIdByCallIdRef.current.set(toolCallId, messageId);
@@ -345,6 +373,7 @@ export function useAgentEventSubscription() {
               const toolName = toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
               toolNamesByCallIdRef.current.delete(toolCallId);
               toolCallMessageIdByCallIdRef.current.delete(toolCallId);
+              setStreamingStatus(null);
 
               const displayPreference =
                 (result?.display_preference as "Default" | "Collapsible" | "Hidden") || "Default";
@@ -368,6 +397,7 @@ export function useAgentEventSubscription() {
             onToolError: (toolCallId, error: string) => {
               toolNamesByCallIdRef.current.delete(toolCallId);
               toolCallMessageIdByCallIdRef.current.delete(toolCallId);
+              setStreamingStatus(null);
               void addMessage(sessionId, {
                 id: crypto.randomUUID(),
                 role: "assistant",
@@ -385,8 +415,17 @@ export function useAgentEventSubscription() {
             },
 
             onToolLifecycle: (toolCallId, _toolName, phase, elapsedMs, isMutating) => {
+              if (phase === "begin") {
+                const normalizedToolName = (_toolName || "").trim().toLowerCase();
+                if (isMemoryStatusTool(_toolName || "")) {
+                  setStreamingStatus("memory_updating");
+                } else {
+                  setStreamingStatus(`tool_running:${normalizedToolName || "tool"}`);
+                }
+              }
+
               // When a tool finishes, update its message card with timing metadata
-              if (phase === "finished" || phase === "error") {
+              if (phase === "finished" || phase === "error" || phase === "cancelled") {
                 const messageId = toolCallMessageIdByCallIdRef.current.get(toolCallId);
                 if (messageId) {
                   void updateMessage(sessionId, messageId, {
@@ -396,26 +435,24 @@ export function useAgentEventSubscription() {
                     },
                   });
                 }
+                setStreamingStatus(null);
               }
             },
 
             onContextCompressionStatus: (_phase, status) => {
-              const state = streamingStateBySessionRef.current.get(sessionId);
-              if (!state) return;
               if (status === "started") {
-                state.status = "context_compacting";
-                streamingMessageBus.publish({
-                  sessionId: state.sessionId,
-                  messageId: state.statusMessageId,
-                  content: state.status,
-                });
+                setStreamingStatus("context_compacting");
                 return;
               }
-
-              if (state.status) {
-                state.status = "";
+              if (status === "degraded_sections") {
+                setStreamingStatus("context_compaction_degraded");
+                return;
               }
-              streamingMessageBus.clear(state.sessionId, state.statusMessageId);
+              if (status === "failed") {
+                setStreamingStatus("context_compaction_failed");
+                return;
+              }
+              setStreamingStatus(null);
             },
 
             onTokenBudgetUpdated: (usage: TokenBudgetUsage) => {
@@ -455,11 +492,7 @@ export function useAgentEventSubscription() {
             },
 
             onContextSummarized: (summaryInfo: ContextSummaryInfo) => {
-              const state = streamingStateBySessionRef.current.get(sessionId);
-              if (state?.status) {
-                state.status = "";
-                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
-              }
+              setStreamingStatus(null);
               message.info(
                 `Conversation summarized: ${summaryInfo.messages_summarized} messages compressed, saved ${summaryInfo.tokens_saved.toLocaleString()} tokens`,
                 5,
@@ -640,11 +673,7 @@ export function useAgentEventSubscription() {
             },
 
             onError: async (errorMessage: string) => {
-              const state = streamingStateBySessionRef.current.get(sessionId);
-              if (state?.status) {
-                state.status = "";
-                streamingMessageBus.clear(state.sessionId, state.statusMessageId);
-              }
+              setStreamingStatus(null);
 
               const friendlyErrorMessage = isCompletionPolicyViolationError(errorMessage)
                 ? formatCompletionPolicyViolationMessage(errorMessage)

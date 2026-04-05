@@ -270,10 +270,32 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
     });
   }, [statusMessageId]);
 
-  const pendingStatusText =
-    statusContent === "context_compacting"
-      ? t("chat.messageCard.assistantCompactingContext")
-      : t("chat.messageCard.assistantThinking");
+  const pendingStatusText = useMemo(() => {
+    const normalizedStatus = statusContent.trim().toLowerCase();
+    if (!normalizedStatus) {
+      return t("chat.messageCard.assistantThinking");
+    }
+
+    if (normalizedStatus === "context_compacting") {
+      return t("chat.messageCard.assistantCompactingContext");
+    }
+    if (normalizedStatus === "context_compaction_degraded") {
+      return t("chat.messageCard.assistantCompactingContextDegraded");
+    }
+    if (normalizedStatus === "context_compaction_failed") {
+      return t("chat.messageCard.assistantCompactingContextFailed");
+    }
+    if (normalizedStatus === "memory_updating") {
+      return t("chat.messageCard.assistantUpdatingMemory");
+    }
+    if (normalizedStatus.startsWith("tool_running:")) {
+      const rawToolName = normalizedStatus.slice("tool_running:".length).trim() || "tool";
+      const displayToolName = rawToolName.replace(/[_-]+/g, " ");
+      return t("chat.messageCard.assistantRunningTool", { tool: displayToolName });
+    }
+
+    return t("chat.messageCard.assistantThinking");
+  }, [statusContent, t]);
 
   // 准备 Markdown 渲染配置
   // 流式阶段使用简化版配置（不渲染 Mermaid 图表，避免内容不完整导致的错误）
@@ -337,11 +359,13 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
             />
           ) : null}
 
-          {!content ? (
+          {!content || statusContent ? (
             <Text italic className="thinking-shimmer">
               {pendingStatusText}
             </Text>
-          ) : (
+          ) : null}
+
+          {content ? (
             <ReactMarkdown
               remarkPlugins={markdownPlugins}
               rehypePlugins={rehypePlugins}
@@ -349,7 +373,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
             >
               {content}
             </ReactMarkdown>
-          )}
+          ) : null}
           <span
             className="blinking-cursor"
             style={{

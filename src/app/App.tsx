@@ -129,11 +129,77 @@ const DARK_THEME_COMPONENT_TOKEN = {
   },
 } as const;
 
+const LIGHT_THEME_COMPATIBILITY_TOKEN = {
+  ...LIGHT_THEME_TOKEN,
+  colorBgElevated: "#ffffff",
+  colorBgSpotlight: "#0f172a",
+  colorFillTertiary: "#f3f7f6",
+} as const;
+
+const DARK_THEME_COMPATIBILITY_TOKEN = {
+  ...DARK_THEME_TOKEN,
+  colorBgElevated: "#0f1b18",
+  colorBgSpotlight: "#22332f",
+  colorFillTertiary: "#162622",
+} as const;
+
+const LIGHT_THEME_COMPATIBILITY_COMPONENT_TOKEN = {
+  ...LIGHT_THEME_COMPONENT_TOKEN,
+  Menu: {
+    popupBg: "#ffffff",
+    itemBg: "transparent",
+    itemHoverBg: "#f3f7f6",
+    itemActiveBg: "#eef7f5",
+    itemSelectedBg: "#e7f8f4",
+    subMenuItemBg: "#ffffff",
+    dangerItemActiveBg: "#fdecec",
+    dangerItemSelectedBg: "#fdecec",
+  },
+  Select: {
+    selectorBg: "#ffffff",
+    clearBg: "#ffffff",
+    optionActiveBg: "#f3f7f6",
+    optionSelectedBg: "#e7f8f4",
+  },
+  Modal: {
+    contentBg: "#ffffff",
+    headerBg: "#ffffff",
+    footerBg: "#ffffff",
+  },
+} as const;
+
+const DARK_THEME_COMPATIBILITY_COMPONENT_TOKEN = {
+  ...DARK_THEME_COMPONENT_TOKEN,
+  Menu: {
+    popupBg: "#0f1b18",
+    darkPopupBg: "#0f1b18",
+    itemBg: "transparent",
+    itemHoverBg: "#162622",
+    itemActiveBg: "#162622",
+    itemSelectedBg: "#12332d",
+    subMenuItemBg: "#0f1b18",
+    dangerItemActiveBg: "#3a161c",
+    dangerItemSelectedBg: "#3a161c",
+  },
+  Select: {
+    selectorBg: "#0f1b18",
+    clearBg: "#0f1b18",
+    optionActiveBg: "#162622",
+    optionSelectedBg: "#12332d",
+  },
+  Modal: {
+    contentBg: "#0f1b18",
+    headerBg: "#0f1b18",
+    footerBg: "#0f1b18",
+  },
+} as const;
+
 function App() {
   const { t } = useTranslation();
   const themeMode = useThemeStore((s) => s.themeMode);
   const setThemeMode = useThemeStore((s) => s.setThemeMode);
   const [appLocale, setAppLocale] = useState<AppLocale>(() => resolveInitialLocale());
+  const [isVdiSafeMode, setIsVdiSafeMode] = useState<boolean>(() => isVdiSafeModeEnabled());
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const [setupProbeNonce, setSetupProbeNonce] = useState(0);
@@ -198,6 +264,7 @@ function App() {
   useEffect(() => {
     const sync = () => {
       const enabled = isVdiSafeModeEnabled();
+      setIsVdiSafeMode(enabled);
       document.body.setAttribute("data-vdi-safe", enabled ? "true" : "false");
       const rootElement = document.getElementById("root");
       if (rootElement) {
@@ -264,13 +331,31 @@ function App() {
     <SetupPage />
   );
 
+  const resolvedThemeToken =
+    themeMode === "dark"
+      ? isVdiSafeMode
+        ? DARK_THEME_COMPATIBILITY_TOKEN
+        : DARK_THEME_TOKEN
+      : isVdiSafeMode
+        ? LIGHT_THEME_COMPATIBILITY_TOKEN
+        : LIGHT_THEME_TOKEN;
+
+  const resolvedThemeComponents =
+    themeMode === "dark"
+      ? isVdiSafeMode
+        ? DARK_THEME_COMPATIBILITY_COMPONENT_TOKEN
+        : DARK_THEME_COMPONENT_TOKEN
+      : isVdiSafeMode
+        ? LIGHT_THEME_COMPATIBILITY_COMPONENT_TOKEN
+        : LIGHT_THEME_COMPONENT_TOKEN;
+
   return (
     <AntdConfigProvider
       locale={getAntdLocale(appLocale)}
       theme={{
-        token: themeMode === "dark" ? DARK_THEME_TOKEN : LIGHT_THEME_TOKEN,
+        token: resolvedThemeToken,
         algorithm: themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
-        components: themeMode === "dark" ? DARK_THEME_COMPONENT_TOKEN : LIGHT_THEME_COMPONENT_TOKEN,
+        components: resolvedThemeComponents,
       }}
     >
       <AntdApp>

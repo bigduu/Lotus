@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Message, UserSystemPrompt } from "../../types/chat";
 import { SystemPromptService } from "../../services/SystemPromptService";
-import { AgentClient } from "../../services/AgentService";
+import { AgentClient, type SessionSystemPromptResponse } from "../../services/AgentService";
 
 type UseSystemPromptContentArgs = {
   currentChat: {
@@ -11,6 +11,61 @@ type UseSystemPromptContentArgs = {
   } | null;
   message: Message;
   systemPrompts: UserSystemPrompt[];
+};
+
+export type PromptSnapshotSectionKey =
+  | "base"
+  | "enhancement"
+  | "workspace"
+  | "instruction"
+  | "env"
+  | "skills"
+  | "toolGuide"
+  | "dream"
+  | "sessionMemory"
+  | "externalMemory"
+  | "taskList"
+  | "effective";
+
+export type PromptSnapshotSection = {
+  key: PromptSnapshotSectionKey;
+  content: string;
+};
+
+const normalizeSnapshotContent = (value?: string | null): string | null => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+};
+
+export const buildPromptSnapshotSections = (
+  snapshot: SessionSystemPromptResponse | null,
+): PromptSnapshotSection[] => {
+  if (!snapshot) {
+    return [];
+  }
+
+  const candidates: Array<[PromptSnapshotSectionKey, string | undefined]> = [
+    ["base", snapshot.base_system_prompt],
+    ["enhancement", snapshot.enhancement_prompt],
+    ["workspace", snapshot.workspace_context],
+    ["instruction", snapshot.instruction_context],
+    ["env", snapshot.env_context],
+    ["skills", snapshot.skill_context],
+    ["toolGuide", snapshot.tool_guide_context],
+    ["dream", snapshot.dream_notebook],
+    ["sessionMemory", snapshot.session_memory_note],
+    ["externalMemory", snapshot.external_memory],
+    ["taskList", snapshot.task_list],
+    ["effective", snapshot.effective_system_prompt],
+  ];
+
+  return candidates.flatMap(([key, content]) => {
+    const normalized = normalizeSnapshotContent(content);
+    return normalized ? [{ key, content: normalized }] : [];
+  });
 };
 
 export const useSystemPromptContent = ({
@@ -23,6 +78,7 @@ export const useSystemPromptContent = ({
     description?: string;
   } | null>(null);
   const [enhancedPrompt, setEnhancedPrompt] = useState<string | null>(null);
+  const [promptSnapshot, setPromptSnapshot] = useState<SessionSystemPromptResponse | null>(null);
   const [loadingEnhanced, setLoadingEnhanced] = useState(false);
   const [showEnhanced, setShowEnhanced] = useState(false);
 
@@ -38,6 +94,7 @@ export const useSystemPromptContent = ({
   useEffect(() => {
     if (message.role === "system") {
       setEnhancedPrompt(null);
+      setPromptSnapshot(null);
       setShowEnhanced(false);
     }
   }, [message.id, message.role, systemMessageContent]);
@@ -57,7 +114,6 @@ export const useSystemPromptContent = ({
 
   const lastPresetLoadKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    // Reset any previously fetched preset when switching chats/prompts.
     setPresetPrompt(null);
     lastPresetLoadKeyRef.current = null;
   }, [currentSessionId, systemPromptId]);
@@ -67,12 +123,10 @@ export const useSystemPromptContent = ({
       return;
     }
     const promptId = systemPromptId;
-    // If the user prompt already has content, prefer it and avoid preset fetching.
     if (userPrompt?.content) {
       return;
     }
 
-    // Avoid re-fetch loops when upstream dependencies are unstable (e.g. config objects).
     const loadKey = `${currentSessionId ?? "no-chat"}:${promptId}`;
     if (lastPresetLoadKeyRef.current === loadKey) {
       return;
@@ -117,6 +171,7 @@ export const useSystemPromptContent = ({
       if (currentSessionId) {
         try {
           const snapshot = await agentClient.getSessionSystemPrompt(currentSessionId);
+          setPromptSnapshot(snapshot);
           const effectivePrompt = snapshot.effective_system_prompt?.trim();
           if (effectivePrompt) {
             setEnhancedPrompt(effectivePrompt);
@@ -129,6 +184,7 @@ export const useSystemPromptContent = ({
       }
 
       if (hasPersistedSystemMessage) {
+        setPromptSnapshot(null);
         setEnhancedPrompt(systemMessageContent);
         setShowEnhanced(true);
         return;
@@ -170,15 +226,22 @@ export const useSystemPromptContent = ({
     systemMessageContent,
   ]);
 
+  const snapshotSections = useMemo(
+    () => buildPromptSnapshotSections(promptSnapshot),
+    [promptSnapshot],
+  );
+
   return {
     basePrompt,
     categoryDescription,
     enhancedPrompt,
     loadingEnhanced,
     loadEnhancedPrompt,
+    promptSnapshot,
     promptToDisplay,
     showEnhanced,
     setShowEnhanced,
+    snapshotSections,
     systemMessageContent,
   };
 };

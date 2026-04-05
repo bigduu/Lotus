@@ -11,6 +11,7 @@ import {
   parseInteractiveQuestionToolResultPayload,
   parseConclusionToolResultPayload,
   parseFileChangeResultPayload,
+  parseMemoryInspectRebuildPayload,
   parseUnifiedDiffLines,
   safeStringify,
   shouldCollapseContent,
@@ -623,6 +624,77 @@ describe("parseFileChangeResultPayload", () => {
   it("returns null for array at root level", () => {
     const payload = JSON.stringify([{ operation: "Edit", file_path: "/tmp/file.ts" }]);
     expect(parseFileChangeResultPayload(payload)).toBeNull();
+  });
+});
+
+describe("parseMemoryInspectRebuildPayload", () => {
+  it("parses inspect payloads with observability fields", () => {
+    const payload = JSON.stringify({
+      action: "inspect",
+      data: {
+        scope: "project",
+        project_key: "zenith-123",
+        total_memories: 4,
+        by_type: { project: 2, reference: 2 },
+        by_status: { active: 3, stale: 1 },
+        recent_ids: ["mem_1", "mem_2"],
+        view_files: ["dream.md"],
+        index_files: ["lexical.json", "stale_candidates.json"],
+        state_files: ["last_reindex.json"],
+        stale_candidate_count: 1,
+        last_reindex_at: "2026-04-03T13:00:00Z",
+        last_dream_at: "2026-04-03T13:10:00Z",
+        topic_paths: ["/tmp/memory/topic-a.md"],
+      },
+    });
+
+    expect(parseMemoryInspectRebuildPayload(payload)).toEqual({
+      action: "inspect",
+      scope: undefined,
+      project_key: undefined,
+      data: {
+        scope: "project",
+        project_key: "zenith-123",
+        total_memories: 4,
+        by_type: { project: 2, reference: 2 },
+        by_status: { active: 3, stale: 1 },
+        recent_ids: ["mem_1", "mem_2"],
+        view_files: ["dream.md"],
+        index_files: ["lexical.json", "stale_candidates.json"],
+        state_files: ["last_reindex.json"],
+        stale_candidate_count: 1,
+        last_reindex_at: "2026-04-03T13:00:00Z",
+        last_dream_at: "2026-04-03T13:10:00Z",
+        topic_paths: ["/tmp/memory/topic-a.md"],
+      },
+    });
+  });
+
+  it("creates compact previews for memory inspect or rebuild payloads", () => {
+    const payload = JSON.stringify({
+      action: "rebuild",
+      data: {
+        scope: "project",
+        project_key: "zenith-123",
+        total_memories: 7,
+        by_type: {},
+        by_status: {},
+        recent_ids: [],
+        view_files: [],
+        index_files: [],
+        state_files: [],
+        stale_candidate_count: 0,
+        topic_paths: [],
+      },
+    });
+
+    expect(createCompactPreview(payload)).toBe("Memory rebuild: zenith-123 (7)");
+  });
+
+  it("returns null for non-memory structured payloads", () => {
+    expect(
+      parseMemoryInspectRebuildPayload(JSON.stringify({ action: "query", data: {} })),
+    ).toBeNull();
   });
 });
 

@@ -19,6 +19,24 @@ describe("useMetrics", () => {
       getByModel: vi.fn().mockResolvedValue([]),
       getSessions: vi.fn().mockResolvedValue([]),
       getDaily: vi.fn().mockResolvedValue([]),
+      getMemorySummary: vi.fn().mockResolvedValue({
+        total_memories: 6,
+        stale_candidate_count: 1,
+        project_count: 2,
+        by_type: { project: 3, reference: 3 },
+        by_status: { active: 5, stale: 1 },
+        by_scope: { global: 2, project: 4 },
+      }),
+      getMemoryTimeline: vi.fn().mockResolvedValue([
+        {
+          label: "2026-04-01",
+          period_start: "2026-04-01",
+          period_end: "2026-04-01",
+          created_memories: 1,
+          updated_memories: 2,
+          total_memories: 6,
+        },
+      ]),
       getSessionDetail: vi.fn().mockResolvedValue(null),
     };
 
@@ -35,6 +53,8 @@ describe("useMetrics", () => {
 
     await waitFor(() => {
       expect(result.current.summary?.total_sessions).toBe(2);
+      expect(result.current.memorySummary?.total_memories).toBe(6);
+      expect(result.current.memoryTimeline).toHaveLength(1);
     });
 
     await act(async () => {

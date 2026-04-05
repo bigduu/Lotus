@@ -188,9 +188,10 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
       ? [
           <Dropdown
             key="more"
-            menu={{ items: menuItems }}
+            menu={{ items: menuItems, className: "lotus-sidebar-actions-menu" }}
             trigger={["click"]}
             placement="bottomRight"
+            overlayClassName="lotus-sidebar-actions-dropdown"
             open={dropdownOpen}
             onOpenChange={(open) => setDropdownOpen(open)}
           >

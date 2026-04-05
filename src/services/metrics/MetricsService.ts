@@ -5,9 +5,14 @@ import type {
   ForwardMetricsQuery,
   ForwardMetricsSummary,
   ForwardRequestMetrics,
+  MemoryMetricsQuery,
+  MemoryMetricsSummary,
+  MemoryTimelinePoint,
   MetricsDailyQuery,
   MetricsDateRange,
   MetricsSummary,
+  MetricsUsageBreakdownResponse,
+  MetricsUsageQuery,
   ModelMetrics,
   PeriodMetrics,
   SessionDetail,
@@ -73,6 +78,17 @@ export class MetricsService {
     }
   }
 
+  async getUsageBreakdown(query: MetricsUsageQuery = {}): Promise<MetricsUsageBreakdownResponse> {
+    const queryString = buildQueryString({
+      start_date: query.startDate,
+      end_date: query.endDate,
+      model: query.model,
+    });
+    return agentApiClient.get<MetricsUsageBreakdownResponse>(
+      `metrics/usage-breakdown${queryString}`,
+    );
+  }
+
   async getDaily(query: MetricsDailyQuery = {}): Promise<DailyOrPeriodMetrics> {
     const queryString = buildQueryString({
       days: query.days,
@@ -116,6 +132,25 @@ export class MetricsService {
       limit: query.limit,
     });
     return agentApiClient.get<ForwardRequestMetrics[]>(`metrics/forward/requests${queryString}`);
+  }
+
+  async getMemorySummary(query: MemoryMetricsQuery = {}): Promise<MemoryMetricsSummary> {
+    const queryString = buildQueryString({
+      scope: query.scope,
+      project_key: query.projectKey,
+    });
+    return agentApiClient.get<MemoryMetricsSummary>(`metrics/memory/summary${queryString}`);
+  }
+
+  async getMemoryTimeline(query: MemoryMetricsQuery = {}): Promise<MemoryTimelinePoint[]> {
+    const queryString = buildQueryString({
+      scope: query.scope,
+      project_key: query.projectKey,
+      days: query.days,
+      end_date: query.endDate,
+      granularity: query.granularity,
+    });
+    return agentApiClient.get<MemoryTimelinePoint[]>(`metrics/memory/timeline${queryString}`);
   }
 
   // Unified API methods (v2)
