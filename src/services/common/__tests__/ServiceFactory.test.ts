@@ -247,44 +247,6 @@ describe("ServiceFactory", () => {
     });
   });
 
-  describe("Anthropic Model Mapping", () => {
-    describe("getAnthropicModelMapping", () => {
-      it("should fetch model mapping", async () => {
-        const mockMapping = { mappings: { "claude-1": "claude-2" } };
-        vi.mocked(apiClient.get).mockResolvedValueOnce(mockMapping);
-
-        const result = await serviceFactory.getAnthropicModelMapping();
-
-        expect(result).toEqual(mockMapping);
-        expect(apiClient.get).toHaveBeenCalledWith("bamboo/anthropic-model-mapping");
-      });
-
-      it("should return empty mapping on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Mapping error"));
-
-        const result = await serviceFactory.getAnthropicModelMapping();
-
-        expect(result).toEqual({ mappings: {} });
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Failed to fetch Anthropic model mapping:",
-          expect.any(Error),
-        );
-      });
-    });
-
-    describe("setAnthropicModelMapping", () => {
-      it("should set model mapping", async () => {
-        const mapping = { mappings: { "claude-1": "claude-3" } };
-        vi.mocked(apiClient.post).mockResolvedValueOnce(mapping);
-
-        const result = await serviceFactory.setAnthropicModelMapping(mapping);
-
-        expect(result).toEqual(mapping);
-        expect(apiClient.post).toHaveBeenCalledWith("bamboo/anthropic-model-mapping", mapping);
-      });
-    });
-  });
-
   describe("Workflow Management", () => {
     describe("saveWorkflow", () => {
       it("should save workflow", async () => {
@@ -482,7 +444,6 @@ describe("ServiceFactory", () => {
 
   describe("Convenience Methods", () => {
     it("all convenience methods should delegate to utility service", async () => {
-      const utility = serviceFactory.getUtilityService();
       vi.mocked(apiClient.get).mockResolvedValue({ model: "test" });
       vi.mocked(apiClient.post).mockResolvedValue({ success: true });
       vi.mocked(apiClient.delete).mockResolvedValue({ success: true });

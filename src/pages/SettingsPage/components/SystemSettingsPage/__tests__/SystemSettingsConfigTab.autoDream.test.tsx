@@ -11,8 +11,6 @@ vi.mock("../../../../../services/common/ServiceFactory", () => ({
     getBambooTools: vi.fn(),
     validateBambooConfigPatch: vi.fn(),
     setBambooConfig: vi.fn(),
-    getAnthropicModelMapping: vi.fn(),
-    setAnthropicModelMapping: vi.fn(),
     getProxyAuthStatus: vi.fn(),
     setProxyAuth: vi.fn(),
     clearProxyAuth: vi.fn(),
@@ -23,7 +21,6 @@ const mockGetBambooConfig = vi.mocked(serviceFactory.getBambooConfig);
 const mockGetBambooTools = vi.mocked(serviceFactory.getBambooTools);
 const mockValidateBambooConfigPatch = vi.mocked(serviceFactory.validateBambooConfigPatch);
 const mockSetBambooConfig = vi.mocked(serviceFactory.setBambooConfig);
-const mockGetAnthropicModelMapping = vi.mocked(serviceFactory.getAnthropicModelMapping);
 const mockGetProxyAuthStatus = vi.mocked(serviceFactory.getProxyAuthStatus);
 
 describe("SystemSettingsConfigTab auto dream settings", () => {
@@ -43,7 +40,6 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
       },
     });
     mockGetBambooTools.mockResolvedValue({ tools: [] });
-    mockGetAnthropicModelMapping.mockResolvedValue({ mappings: {} });
     mockGetProxyAuthStatus.mockResolvedValue({ configured: false, username: null });
     mockValidateBambooConfigPatch.mockResolvedValue({ valid: true, errors: {} });
     mockSetBambooConfig.mockResolvedValue({});
