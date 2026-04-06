@@ -320,9 +320,7 @@ export const mapHistoryMessagesToUi = (
         }
         // Look up lifecycle metadata from the first tool call's result message.
         const firstCallId = toolCalls[0]?.id;
-        const lifecycleMetadata = firstCallId
-          ? metadataByToolCallId.get(firstCallId)
-          : undefined;
+        const lifecycleMetadata = firstCallId ? metadataByToolCallId.get(firstCallId) : undefined;
         const toolCallMsg: AssistantToolCallMessage = {
           role: "assistant",
           type: "tool_call",
@@ -753,6 +751,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const list = await agentClient.listSessions();
     const next = list.sessions.map(sessionSummaryToChatItem);
     set((state) => {
+      const nextProcessing = new Set(state.processingChats);
+      next.forEach((c) => {
+        if (c.isRunning) {
+          nextProcessing.add(c.id);
+        }
+      });
+
       // Preserve in-memory messages when possible.
       const prevById = new Map(state.chats.map((c) => [c.id, c]));
       const merged = next.map((c) => {
@@ -771,7 +776,21 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         const prevConfig = prev.config || {};
         const nextConfig = c.config || {};
         const hasLocalModel = Object.prototype.hasOwnProperty.call(prevConfig, "model");
-        const hasLocalReasoning = Object.prototype.hasOwnProperty.call(prevConfig, "reasoningEffort");
+        const hasLocalReasoning = Object.prototype.hasOwnProperty.call(
+          prevConfig,
+          "reasoningEffort",
+        );
+
+        // Ensure messageCount stays monotonic, as listSessions summary might briefly lag
+        const effectiveMessageCount = Math.max(prev.messageCount ?? 0, c.messageCount ?? 0);
+
+        // If the backend indicates there are more messages than we have in memory,
+        // we might be out of date. However, since the SSE event stream pushes messages
+        // into state.chats directly, we want to keep `prev.messages` here unless we
+        // explicitly do a full history reload. The actual history reload logic will fetch
+        // missing messages if `effectiveMessageCount` exceeds `prev.messages.length`.
+        // To trigger that, we just preserve what we have and let the view component
+        // detect `c.messageCount > c.messages.length` if it needs to trigger a history refetch.
 
         return {
           ...c,
@@ -779,6 +798,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           pinned: preferLocalSessionFields ? prev.pinned : c.pinned,
           updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
           messages: prev.messages,
+          messageCount: effectiveMessageCount,
           config: {
             ...prevConfig,
             ...nextConfig,
@@ -797,7 +817,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           },
         };
       });
-      return { ...state, chats: merged };
+      return { ...state, chats: merged, processingChats: nextProcessing };
     });
   },
 
@@ -817,11 +837,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const chats = list.sessions.map(sessionSummaryToChatItem);
     const currentSessionId = chats[0]?.id ?? null;
 
+    const runningSessions = chats.filter((c) => c.isRunning).map((c) => c.id);
+
     set({
       chats,
       latestActiveSessionId: currentSessionId,
       currentSessionId,
-      processingChats: new Set<string>(),
+      processingChats: new Set<string>(runningSessions),
       autoGenerateTitles,
     });
 

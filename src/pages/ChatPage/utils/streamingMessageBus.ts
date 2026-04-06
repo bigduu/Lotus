@@ -76,4 +76,10 @@ export const streamingMessageBus = {
     notifyMessage(messageId, null);
     updateListeners.forEach((listener) => listener({ sessionId, messageId, content: null }));
   },
+  forceFlush() {
+    if (rafHandle !== null) {
+      cancelAnimationFrame(rafHandle);
+      flushPending();
+    }
+  },
 };

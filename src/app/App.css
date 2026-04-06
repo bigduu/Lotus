@@ -707,6 +707,19 @@ body[data-theme="dark"] .lotus-secondary-button.lotus-secondary-button.ant-btn:f
   -webkit-backdrop-filter: blur(var(--lotus-blur-sm));
 }
 
+@media (max-width: 768px) {
+  .lotus-shell-main,
+  .lotus-shell-sidebar,
+  .lotus-settings-panel {
+    border-radius: 12px !important;
+  }
+
+  .ant-drawer .ant-drawer-content,
+  .ant-drawer .ant-drawer-body {
+    background: var(--lotus-sidebar-bg);
+  }
+}
+
 body[data-vdi-safe="true"]::before,
 body[data-vdi-safe="true"]::after {
   display: none;

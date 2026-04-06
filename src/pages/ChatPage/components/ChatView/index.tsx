@@ -44,6 +44,7 @@ import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "./events";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { useTranslation } from "react-i18next";
 import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
+import { useIsMobile } from "@shared/hooks/useMediaQuery";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -130,6 +131,20 @@ export const ChatView: React.FC<ChatViewProps> = ({
     }
     void loadChatHistory(sessionId);
   }, [sessionId, loadChatHistory]);
+
+  // Sync missing messages from backend summary counts (e.g. from other clients)
+  const currentMessageCount = currentChat?.messageCount ?? 0;
+  const currentMessagesLength = currentChat?.messages?.length ?? 0;
+
+  useEffect(() => {
+    if (!sessionId) return;
+
+    // effectiveMessageCount is maintained monotonically by chatSessionSlice
+    const messageCountDiff = currentMessageCount - currentMessagesLength;
+    if (messageCountDiff > 0) {
+      void loadChatHistory(sessionId, { mode: "monotonic" });
+    }
+  }, [sessionId, currentMessageCount, currentMessagesLength, loadChatHistory]);
 
   const isProcessing = sessionId ? processingChats.has(sessionId) : false;
 
@@ -292,6 +307,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const messagesListRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
   const screens = useBreakpoint();
+  const isMobile = useIsMobile();
   const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
@@ -318,7 +334,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
       basePadding = token.padding;
     }
 
-    if (!embedded && sidebarCollapsed) {
+    if (!embedded && sidebarCollapsed && !isMobile) {
       return basePadding + 18;
     }
     return basePadding;
@@ -342,7 +358,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   // In split-pane mode, the PaneShell shows floating split/close buttons at the top-right.
   // Reserve some horizontal space so token usage (also top-right) isn't covered on hover.
-  const paneActionOverlayRightPadding = embedded ? 190 : 0;
+  // On mobile widths this extra right padding causes cramped toolbars, so disable it.
+  const paneActionOverlayRightPadding = embedded && !screens.xs ? 190 : 0;
 
   const renderableMessagesWithDraft = useMemo<RenderableEntry[]>(() => {
     if (!workflowDraft?.content) {

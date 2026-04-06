@@ -41,6 +41,7 @@ import { modelService } from "@services/chat/ModelService";
 import { agentApiClient } from "../../../../services/api";
 import type { ImageFile } from "../../utils/imageUtils";
 import { CHAT_FOCUS_INPUT_EVENT, CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
+import { useIsMobile } from "@shared/hooks/useMediaQuery";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const CommandSelector = lazy(() => import("../CommandSelector"));
@@ -144,6 +145,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const { t } = useTranslation();
   const textAreaRef = useRef<TextAreaRef>(null); // Add ref for cursor position
   const { token } = useToken();
+  const isMobile = useIsMobile();
   const openSettings = useSettingsViewStore((state) => state.open);
   const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
   const activeSessionId = useAppStore((state) => state.currentSessionId);
@@ -741,8 +743,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         size="small"
         disabled={!activeModel || isStreaming}
         style={{
-          minWidth: 88,
-          padding: "0 12px",
+          minWidth: isMobile ? 74 : 88,
+          padding: isMobile ? "0 8px" : "0 12px",
           height: 36,
           borderRadius: 18,
           color: reasoningEffort === "medium" ? token.colorTextSecondary : token.colorPrimary,
@@ -789,8 +791,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
       }}
       style={{
-        minWidth: 146,
-        padding: "0 12px",
+        minWidth: isMobile ? 112 : 146,
+        padding: isMobile ? "0 8px" : "0 12px",
         height: 36,
         borderRadius: 18,
         color: modelOptionsError ? token.colorError : token.colorTextSecondary,
@@ -801,7 +803,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         {isModelOptionsLoading ? <LoadingOutlined /> : <RobotOutlined />}
         <span
           style={{
-            maxWidth: 128,
+            maxWidth: isMobile ? 84 : 128,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo } from "react";
-import { Button, Layout, theme } from "antd";
+import { Button, Layout, theme, Drawer } from "antd";
 import { MenuUnfoldOutlined } from "@ant-design/icons";
+import { useIsMobile } from "../shared/hooks/useMediaQuery";
 import { useTranslation } from "react-i18next";
 import { ChatSidebar } from "../pages/ChatPage/components/ChatSidebar";
 import { SystemSettingsPage } from "../pages/SettingsPage/components/SystemSettingsPage";
@@ -73,6 +74,9 @@ export const MainLayout: React.FC<{
   const collapsedToggleInsetLeftPx = 88;
   const collapsedToggleInsetTopPx = 10;
   const surfaceBorder = "none";
+
+  const isMobile = useIsMobile();
+  const mobileDrawerWidthPx = "min(86vw, 360px)";
 
   return (
     <>
@@ -158,49 +162,26 @@ export const MainLayout: React.FC<{
             <>
               <ChatAutoTitleEffect />
 
-              <ResizableSplit
-                layout="horizontal"
-                style={{
-                  flex: 1,
-                  minHeight: 0,
-                  height: "100%",
-                  background: "transparent",
-                }}
-                sizesPx={[sidebarCollapsed ? sidebarHiddenWidthPx : sidebarWidthPx, 0]}
-                minFirstPx={sidebarCollapsed ? sidebarHiddenWidthPx : sidebarMinWidthPx}
-                // Keep the same max behavior by clamping in the store setter.
-                // We still want the drag interaction to feel bounded though.
-                minSecondPx={320}
-                disabled={sidebarCollapsed}
-                handleSizePx={sidebarCollapsed ? 0 : 2}
-                onResizeEnd={([firstPx]) => {
-                  if (sidebarCollapsed) return;
-                  const clamped = Math.max(sidebarMinWidthPx, Math.min(sidebarMaxWidthPx, firstPx));
-                  setSidebarWidthPx(clamped);
-                }}
-                first={
-                  <div
-                    className="lotus-shell-panel lotus-shell-sidebar"
-                    style={{
-                      height: "100%",
-                      minHeight: 0,
-                      borderRadius: `${shellRadiusPx}px 0 0 ${shellRadiusPx}px`,
-                      border: surfaceBorder,
-                      overflow: "hidden",
-                      background: "var(--lotus-sidebar-bg)",
-                    }}
+              {isMobile ? (
+                <>
+                  <Drawer
+                    placement="left"
+                    closable={false}
+                    onClose={() => setSidebarCollapsed(true)}
+                    open={!sidebarCollapsed}
+                    width={mobileDrawerWidthPx}
+                    styles={{ body: { padding: 0, background: "var(--lotus-sidebar-bg)" } }}
                   >
                     <ChatSidebar />
-                  </div>
-                }
-                second={
+                  </Drawer>
                   <main
                     id="lotus-main-content"
                     className="lotus-shell-panel lotus-shell-main"
                     style={{
+                      flex: 1,
                       height: "100%",
                       minHeight: 0,
-                      borderRadius: `0 ${shellRadiusPx}px ${shellRadiusPx}px 0`,
+                      borderRadius: `${shellRadiusPx}px`,
                       border: surfaceBorder,
                       overflow: "hidden",
                       background: "var(--lotus-main-surface)",
@@ -219,8 +200,75 @@ export const MainLayout: React.FC<{
                       <MultiPaneChatView />
                     </Layout>
                   </main>
-                }
-              />
+                </>
+              ) : (
+                <ResizableSplit
+                  layout="horizontal"
+                  style={{
+                    flex: 1,
+                    minHeight: 0,
+                    height: "100%",
+                    background: "transparent",
+                  }}
+                  sizesPx={[sidebarCollapsed ? sidebarHiddenWidthPx : sidebarWidthPx, 0]}
+                  minFirstPx={sidebarCollapsed ? sidebarHiddenWidthPx : sidebarMinWidthPx}
+                  // Keep the same max behavior by clamping in the store setter.
+                  // We still want the drag interaction to feel bounded though.
+                  minSecondPx={320}
+                  disabled={sidebarCollapsed}
+                  handleSizePx={sidebarCollapsed ? 0 : 2}
+                  onResizeEnd={([firstPx]) => {
+                    if (sidebarCollapsed) return;
+                    const clamped = Math.max(
+                      sidebarMinWidthPx,
+                      Math.min(sidebarMaxWidthPx, firstPx),
+                    );
+                    setSidebarWidthPx(clamped);
+                  }}
+                  first={
+                    <div
+                      className="lotus-shell-panel lotus-shell-sidebar"
+                      style={{
+                        height: "100%",
+                        minHeight: 0,
+                        borderRadius: `${shellRadiusPx}px 0 0 ${shellRadiusPx}px`,
+                        border: surfaceBorder,
+                        overflow: "hidden",
+                        background: "var(--lotus-sidebar-bg)",
+                      }}
+                    >
+                      <ChatSidebar />
+                    </div>
+                  }
+                  second={
+                    <main
+                      id="lotus-main-content"
+                      className="lotus-shell-panel lotus-shell-main"
+                      style={{
+                        height: "100%",
+                        minHeight: 0,
+                        borderRadius: `0 ${shellRadiusPx}px ${shellRadiusPx}px 0`,
+                        border: surfaceBorder,
+                        overflow: "hidden",
+                        background: "var(--lotus-main-surface)",
+                        boxShadow: "var(--lotus-shadow-shell)",
+                      }}
+                    >
+                      <Layout
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          background: "transparent",
+                          minHeight: 0,
+                          height: "100%",
+                        }}
+                      >
+                        <MultiPaneChatView />
+                      </Layout>
+                    </main>
+                  }
+                />
+              )}
             </>
           )}
 
@@ -236,8 +284,8 @@ export const MainLayout: React.FC<{
               className="lotus-toolbar-icon lotus-floating-sidebar-toggle"
               style={{
                 position: "absolute",
-                top: collapsedToggleInsetTopPx,
-                left: collapsedToggleInsetLeftPx,
+                top: isMobile ? 8 : collapsedToggleInsetTopPx,
+                left: isMobile ? 8 : collapsedToggleInsetLeftPx,
                 zIndex: 40,
                 width: 36,
                 height: 36,

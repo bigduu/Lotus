@@ -35,7 +35,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
       <div
         style={{
           width: "100%",
-          maxWidth: showMessagesView ? "clamp(720px, 68vw, 1240px)" : maxWidth,
+          maxWidth: showMessagesView ? maxWidth : "min(100%, 920px)",
           margin: showMessagesView ? "0 auto" : undefined,
           position: "relative",
           paddingBottom: showMessagesView ? 12 : 0,

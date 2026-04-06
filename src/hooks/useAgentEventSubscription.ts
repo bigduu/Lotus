@@ -123,6 +123,9 @@ export function useAgentEventSubscription() {
       // Abort SSE
       existing.controller.abort();
 
+      // Force flush any pending streaming updates before cleaning up
+      streamingMessageBus.forceFlush();
+
       // Clear streaming placeholder only when we really want to discard the draft.
       // This lets us preserve in-memory draft content across view switches and
       // transient resubscribe cycles (e.g. network hiccups) without touching storage.
@@ -335,11 +338,16 @@ export function useAgentEventSubscription() {
 
             onToolToken: (toolCallId: string, tokenContent: string) => {
               const messageId = toolCallMessageIdByCallIdRef.current.get(toolCallId);
-              if (!messageId) return;
 
               const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
               if (!chat) return;
-              const msg = chat?.messages.find((m) => m.id === messageId);
+
+              // Fallback to checking the most recent message if messageId isn't found exactly
+              // (e.g. if the tool call was started by another client and we just connected)
+              const msg =
+                (messageId ? chat?.messages.find((m) => m.id === messageId) : null) ||
+                chat?.messages[chat.messages.length - 1];
+
               if (
                 !msg ||
                 !("type" in msg) ||
@@ -348,6 +356,13 @@ export function useAgentEventSubscription() {
                 !Array.isArray(msg.toolCalls)
               ) {
                 return;
+              }
+
+              // If we didn't track the tool name yet (e.g. we just connected), infer it from the message
+              const targetCall = msg.toolCalls.find((c) => c.toolCallId === toolCallId);
+              if (targetCall && !toolNamesByCallIdRef.current.has(toolCallId)) {
+                toolNamesByCallIdRef.current.set(toolCallId, targetCall.toolName);
+                toolCallMessageIdByCallIdRef.current.set(toolCallId, msg.id);
               }
 
               const updatedToolCalls = msg.toolCalls.map(
@@ -363,7 +378,7 @@ export function useAgentEventSubscription() {
                 },
               );
 
-              updateMessage(sessionId, messageId, {
+              updateMessage(sessionId, msg.id, {
                 toolCalls: updatedToolCalls,
               });
             },
@@ -373,7 +388,12 @@ export function useAgentEventSubscription() {
               const toolName = toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
               toolNamesByCallIdRef.current.delete(toolCallId);
               toolCallMessageIdByCallIdRef.current.delete(toolCallId);
-              setStreamingStatus(null);
+
+              const normalizedToolName = toolName.trim().toLowerCase();
+              const currentState = streamingStateBySessionRef.current.get(sessionId);
+              if (currentState?.status && currentState.status.includes(normalizedToolName)) {
+                setStreamingStatus(null);
+              }
 
               const displayPreference =
                 (result?.display_preference as "Default" | "Collapsible" | "Hidden") || "Default";
@@ -435,7 +455,13 @@ export function useAgentEventSubscription() {
                     },
                   });
                 }
-                setStreamingStatus(null);
+
+                // Only clear the streaming status if it's currently showing THIS tool
+                const normalizedToolName = (_toolName || "").trim().toLowerCase();
+                const currentState = streamingStateBySessionRef.current.get(sessionId);
+                if (currentState?.status && currentState.status.includes(normalizedToolName)) {
+                  setStreamingStatus(null);
+                }
               }
             },
 
@@ -551,6 +577,8 @@ export function useAgentEventSubscription() {
               const ownerController = controller;
 
               void (async () => {
+                streamingMessageBus.forceFlush();
+
                 // Detect if a *different* subscription took over for the same
                 // sessionId while we were waiting (e.g. loadChatHistory retries).
                 // When that happens the current ref entry will point to a

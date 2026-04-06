@@ -235,13 +235,22 @@ export const MessageInput: React.FC<MessageInputProps> = ({
             onScrollSync={syncOverlayScroll}
           />
 
-          <Flex align="center" justify="space-between" gap={token.marginSM}>
+          <Flex
+            align="center"
+            justify="space-between"
+            gap={token.marginSM}
+            wrap="wrap"
+            style={{
+              rowGap: token.marginXS,
+            }}
+          >
             <Flex
               align="center"
               gap={token.marginXS}
+              wrap="wrap"
               style={{
                 minWidth: 0,
-                flex: 1,
+                flex: "1 1 260px",
               }}
             >
               {/* Left side buttons */}

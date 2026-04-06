@@ -21,6 +21,7 @@ import { uiLayoutDebug } from "@shared/utils/debugFlags";
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "../ChatView/events";
 import { useTranslation } from "react-i18next";
+import { useMediaQuery } from "@shared/hooks/useMediaQuery";
 
 import "./styles.css";
 
@@ -48,6 +49,7 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const sessionId = leafSessionIds[leafId] ?? null;
   const leafCount = useMemo(() => getLeafIdsFromTree(tree).length, [tree]);
   const canSplit = leafCount < MAX_PANES;
+  const isMobile = useMediaQuery("(max-width: 768px)");
   const canClosePane = leafCount > 1;
   const canClearSession = Boolean(sessionId);
   const canClose = canClosePane || canClearSession;
@@ -80,7 +82,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
         baseSystemPrompt:
           selectedPrompt?.content ||
           (systemPrompts.length > 0
-            ? systemPrompts.find((p) => p.id === "general_assistant")?.content || systemPrompts[0].content
+            ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
+              systemPrompts[0].content
             : ""),
         lastUsedEnhancedPrompt: null,
       },
@@ -125,97 +128,99 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
         position: "relative",
       }}
     >
-      <div
-        className="chat-pane-actions"
-        style={{
-          background: token.colorBgElevated,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          borderRadius: 10,
-          padding: "2px 4px",
-        }}
-      >
-        <Flex gap={token.marginXS}>
-          <Button
-            size="small"
-            type="text"
-            icon={<BorderHorizontalOutlined />}
-            disabled={!canSplit}
-            title={t("chat.multiPane.splitHorizontal")}
-            aria-label={t("chat.multiPane.splitHorizontal")}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              uiLayoutDebug("pane split request", { leafId, layout: "horizontal" });
-              splitLeaf(leafId, "horizontal");
-              // New pane becomes active; keep global selection consistent.
-              const next = useUILayoutStore.getState();
-              const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
-              if (nextSessionId) selectSession(nextSessionId);
-            }}
-          />
+      {!isMobile && (
+        <div
+          className="chat-pane-actions"
+          style={{
+            background: token.colorBgElevated,
+            border: `1px solid ${token.colorBorderSecondary}`,
+            borderRadius: 10,
+            padding: "2px 4px",
+          }}
+        >
+          <Flex gap={token.marginXS}>
+            <Button
+              size="small"
+              type="text"
+              icon={<BorderHorizontalOutlined />}
+              disabled={!canSplit}
+              title={t("chat.multiPane.splitHorizontal")}
+              aria-label={t("chat.multiPane.splitHorizontal")}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                uiLayoutDebug("pane split request", { leafId, layout: "horizontal" });
+                splitLeaf(leafId, "horizontal");
+                // New pane becomes active; keep global selection consistent.
+                const next = useUILayoutStore.getState();
+                const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+                if (nextSessionId) selectSession(nextSessionId);
+              }}
+            />
 
-          <Button
-            size="small"
-            type="text"
-            icon={<BorderVerticleOutlined />}
-            disabled={!canSplit}
-            title={t("chat.multiPane.splitVertical")}
-            aria-label={t("chat.multiPane.splitVertical")}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              uiLayoutDebug("pane split request", { leafId, layout: "vertical" });
-              splitLeaf(leafId, "vertical");
-              const next = useUILayoutStore.getState();
-              const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
-              if (nextSessionId) selectSession(nextSessionId);
-            }}
-          />
+            <Button
+              size="small"
+              type="text"
+              icon={<BorderVerticleOutlined />}
+              disabled={!canSplit}
+              title={t("chat.multiPane.splitVertical")}
+              aria-label={t("chat.multiPane.splitVertical")}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                uiLayoutDebug("pane split request", { leafId, layout: "vertical" });
+                splitLeaf(leafId, "vertical");
+                const next = useUILayoutStore.getState();
+                const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+                if (nextSessionId) selectSession(nextSessionId);
+              }}
+            />
 
-          <Button
-            size="small"
-            type="text"
-            icon={<CheckSquareOutlined />}
-            disabled={!sessionId}
-            title={t("chat.multiPane.selectMessagesToExport")}
-            aria-label={t("chat.multiPane.selectMessagesToExport")}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!sessionId) return;
-              window.dispatchEvent(
-                new CustomEvent(CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT, {
-                  detail: { sessionId },
-                }),
-              );
-            }}
-          />
+            <Button
+              size="small"
+              type="text"
+              icon={<CheckSquareOutlined />}
+              disabled={!sessionId}
+              title={t("chat.multiPane.selectMessagesToExport")}
+              aria-label={t("chat.multiPane.selectMessagesToExport")}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (!sessionId) return;
+                window.dispatchEvent(
+                  new CustomEvent(CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT, {
+                    detail: { sessionId },
+                  }),
+                );
+              }}
+            />
 
-          <Button
-            size="small"
-            type="text"
-            danger
-            icon={<CloseOutlined />}
-            disabled={!canClose}
-            title={t("chat.multiPane.closePane")}
-            aria-label={t("chat.multiPane.closePane")}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              uiLayoutDebug("pane close request", { leafId });
-              if (canClosePane) {
-                closeLeaf(leafId);
-              } else {
-                // Keep the last pane, but allow users to close (clear) its active chat.
-                setLeafSessionId(leafId, null);
-              }
-              const next = useUILayoutStore.getState();
-              const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
-              selectSession(nextSessionId);
-            }}
-          />
-        </Flex>
-      </div>
+            <Button
+              size="small"
+              type="text"
+              danger
+              icon={<CloseOutlined />}
+              disabled={!canClose}
+              title={t("chat.multiPane.closePane")}
+              aria-label={t("chat.multiPane.closePane")}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                uiLayoutDebug("pane close request", { leafId });
+                if (canClosePane) {
+                  closeLeaf(leafId);
+                } else {
+                  // Keep the last pane, but allow users to close (clear) its active chat.
+                  setLeafSessionId(leafId, null);
+                }
+                const next = useUILayoutStore.getState();
+                const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+                selectSession(nextSessionId);
+              }}
+            />
+          </Flex>
+        </div>
+      )}
 
       {sessionId ? (
         <ErrorBoundary name="ChatView">
@@ -223,10 +228,7 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
         </ErrorBoundary>
       ) : (
         <ErrorBoundary name="HomeDashboard">
-          <HomeDashboard
-            onOpenSession={handleOpenSession}
-            onCreateSession={handleCreateSession}
-          />
+          <HomeDashboard onOpenSession={handleOpenSession} onCreateSession={handleCreateSession} />
         </ErrorBoundary>
       )}
     </div>

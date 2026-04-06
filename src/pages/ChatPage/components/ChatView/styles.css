@@ -119,6 +119,33 @@
   }
 }
 
+@media (max-width: 768px) {
+  .chat-view-messages-list.visible {
+    padding-bottom: 12px;
+  }
+
+  .chat-view-input-container-wrapper.messages-view {
+    padding-top: 4px;
+    padding-bottom: 8px;
+  }
+
+  .lotus-message-input-shell {
+    border-radius: 18px !important;
+  }
+
+  .message-input-send-button.message-input-send-button {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    border-radius: 22px !important;
+  }
+
+  .message-input-send-button.message-input-send-button:hover:not(:disabled),
+  .message-input-send-button.message-input-send-button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
 /* Sidebar Date Group Hover Effect — doubled selector for specificity */
 .chat-sidebar-date-group-header.chat-sidebar-date-group-header:hover {
   background: var(--lotus-item-hover-bg);
