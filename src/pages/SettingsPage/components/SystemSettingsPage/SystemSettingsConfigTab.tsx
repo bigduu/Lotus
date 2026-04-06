@@ -15,7 +15,7 @@ import {
 } from "antd";
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
-import { ModelMappingCard } from "./ModelMappingCard";
+import AccessPasswordCard from "./AccessPasswordCard";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
 import type { BambooConfig } from "../../../../services/common/ServiceFactory";
 import type { AppLocale } from "../../../../shared/i18n/types";
@@ -253,8 +253,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                   isLoading={isLoading}
                 />
 
-                <ModelMappingCard />
-
                 <Card
                   size="small"
                   className="lotus-settings-card"
@@ -387,6 +385,8 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                     </div>
                   </Space>
                 </Card>
+
+                <AccessPasswordCard msgApi={msgApi} />
               </Space>
             ),
           },

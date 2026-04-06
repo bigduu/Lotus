@@ -5,7 +5,7 @@
  * Eliminates duplicate fetch logic across services.
  *
  * Backend has two route prefixes:
- * - /v1/*       - Standard web_service routes (models, bamboo/*, workspace/*, mcp/*, claude/*)
+ * - /v1/*       - Standard web_service routes (models, bamboo/*, workspace/*, mcp/*)
  * - /api/v1/*   - Agent server routes (chat, stream, todo, respond, sessions, metrics)
  */
 import { getBackendBaseUrlSync } from "../../shared/utils/backendBaseUrl";
@@ -43,7 +43,7 @@ export class ApiClient {
   }
 
   private resolveBaseUrl(): string {
-    let normalized = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
+    const normalized = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
 
     // Default to /v1 (standard web_service routes)
     if (normalized.endsWith("/v1")) {
@@ -182,6 +182,7 @@ export class ApiClient {
             ...this.defaultHeaders,
             ...options?.headers,
           },
+          credentials: "include",
           signal: controller.signal,
         },
         3, // 3 retries
@@ -211,6 +212,7 @@ export class ApiClient {
             ...this.defaultHeaders,
             ...options?.headers,
           },
+          credentials: "include",
           body: data ? JSON.stringify(data) : undefined,
           signal: controller.signal,
         },
@@ -241,6 +243,7 @@ export class ApiClient {
             ...this.defaultHeaders,
             ...options?.headers,
           },
+          credentials: "include",
           body: data ? JSON.stringify(data) : undefined,
           signal: controller.signal,
         },
@@ -271,6 +274,7 @@ export class ApiClient {
             ...this.defaultHeaders,
             ...options?.headers,
           },
+          credentials: "include",
           body: data ? JSON.stringify(data) : undefined,
           signal: controller.signal,
         },
@@ -301,6 +305,7 @@ export class ApiClient {
             ...this.defaultHeaders,
             ...options?.headers,
           },
+          credentials: "include",
           signal: controller.signal,
         },
         3, // 3 retries
@@ -330,6 +335,7 @@ export class ApiClient {
             ...this.defaultHeaders,
             ...options?.headers,
           },
+          credentials: "include",
           signal: controller.signal,
         },
         3, // 3 retries
@@ -352,6 +358,7 @@ export class ApiClient {
         ...this.defaultHeaders,
         ...options?.headers,
       },
+      credentials: "include",
     });
 
     if (!response.ok) {

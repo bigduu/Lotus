@@ -7,6 +7,7 @@ import { MainLayout } from "./MainLayout";
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import { useThemeStore } from "@shared/store/themeStore";
 import { SetupPage } from "../pages/SetupPage";
+import { PasswordGatePage } from "../pages/PasswordGatePage";
 import { initializeStore } from "../pages/ChatPage/store";
 import { ServiceFactory } from "../services/common/ServiceFactory";
 import { getBackendBaseUrlSync } from "../shared/utils/backendBaseUrl";
@@ -203,6 +204,12 @@ function App() {
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
   const [backendStartupError, setBackendStartupError] = useState<string | null>(null);
   const [setupProbeNonce, setSetupProbeNonce] = useState(0);
+  const [accessStatus, setAccessStatus] = useState<{
+    password_enabled: boolean;
+    local_bypass: boolean;
+    requires_password: boolean;
+  } | null>(null);
+  const [isAccessVerified, setIsAccessVerified] = useState(false);
 
   // Save theme to localStorage when it changes
   useEffect(() => {
@@ -218,19 +225,29 @@ function App() {
     let cancelled = false;
     const startedAt = Date.now();
 
-    const checkSetupStatus = async () => {
+    const checkStartupState = async () => {
       try {
         const serviceFactory = ServiceFactory.getInstance();
+        const access = await serviceFactory.getAccessStatus();
+        if (cancelled) return;
+
+        setBackendStartupError(null);
+        setAccessStatus(access);
+
+        if (access.requires_password && !isAccessVerified) {
+          setIsSetupComplete(false);
+          return;
+        }
+
         const status = await serviceFactory.getSetupStatus();
         if (cancelled) return;
-        setBackendStartupError(null);
         setIsSetupComplete(status.is_complete);
       } catch (error) {
         if (cancelled) return;
 
         const elapsedMs = Date.now() - startedAt;
         // Give a local backend (embedded or Docker) time to come up before treating this
-        // as a real "setup incomplete" signal.
+        // as a real startup failure.
         const maxWaitMs = import.meta.env.MODE === "test" ? 250 : 20_000;
 
         if (elapsedMs >= maxWaitMs) {
@@ -238,24 +255,21 @@ function App() {
           const message =
             error instanceof Error && error.message.trim() ? error.message : "Unknown error";
           setBackendStartupError(t("app.backendNotReachable", { baseUrl, message }));
-          // Keep `isSetupComplete` as null so we don't incorrectly show SetupPage.
           return;
         }
 
-        // Retry with a small backoff. ApiClient already retries per request;
-        // this loop handles the "backend not listening yet" startup window.
         const delayMs = Math.min(500 + Math.floor(elapsedMs / 2), 2000);
         setTimeout(() => {
-          if (!cancelled) void checkSetupStatus();
+          if (!cancelled) void checkStartupState();
         }, delayMs);
       }
     };
 
-    void checkSetupStatus();
+    void checkStartupState();
     return () => {
       cancelled = true;
     };
-  }, [setupProbeNonce, t]);
+  }, [isAccessVerified, setupProbeNonce, t]);
 
   useEffect(() => {
     document.body.setAttribute("data-theme", themeMode);
@@ -299,6 +313,48 @@ function App() {
     }
   }, [isSetupComplete]);
 
+  if (accessStatus?.requires_password && !isAccessVerified) {
+    return (
+      <AntdConfigProvider
+        locale={getAntdLocale(appLocale)}
+        theme={{
+          token:
+            themeMode === "dark"
+              ? isVdiSafeMode
+                ? DARK_THEME_COMPATIBILITY_TOKEN
+                : DARK_THEME_TOKEN
+              : isVdiSafeMode
+                ? LIGHT_THEME_COMPATIBILITY_TOKEN
+                : LIGHT_THEME_TOKEN,
+          algorithm: themeMode === "dark" ? theme.darkAlgorithm : theme.defaultAlgorithm,
+          components:
+            themeMode === "dark"
+              ? isVdiSafeMode
+                ? DARK_THEME_COMPATIBILITY_COMPONENT_TOKEN
+                : DARK_THEME_COMPONENT_TOKEN
+              : isVdiSafeMode
+                ? LIGHT_THEME_COMPATIBILITY_COMPONENT_TOKEN
+                : LIGHT_THEME_COMPONENT_TOKEN,
+        }}
+      >
+        <AntdApp>
+          <ErrorBoundary name="PasswordGatePage">
+            <PasswordGatePage
+              verifyPassword={async (password) => {
+                await ServiceFactory.getInstance().verifyAccessPassword(password);
+              }}
+              onVerified={async () => {
+                setIsAccessVerified(true);
+                setBackendStartupError(null);
+                setSetupProbeNonce((v) => v + 1);
+              }}
+            />
+          </ErrorBoundary>
+        </AntdApp>
+      </AntdConfigProvider>
+    );
+  }
+
   if (isSetupComplete === null) {
     if (backendStartupError) {
       return (
@@ -308,6 +364,7 @@ function App() {
             type="primary"
             onClick={() => {
               setBackendStartupError(null);
+              setAccessStatus(null);
               setIsSetupComplete(null);
               setSetupProbeNonce((v) => v + 1);
             }}

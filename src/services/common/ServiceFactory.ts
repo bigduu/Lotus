@@ -40,13 +40,6 @@ export interface ModelLimitDefault {
 }
 
 /**
- * Anthropic model mapping configuration
- */
-export interface AnthropicModelMapping {
-  mappings: Record<string, string>;
-}
-
-/**
  * Generic API success response
  */
 export interface ApiSuccessResponse {
@@ -61,6 +54,22 @@ export interface BambooConfigValidationIssue {
 export interface ValidateBambooConfigResponse {
   valid: boolean;
   errors: Record<string, BambooConfigValidationIssue[]>;
+}
+
+export interface AccessStatusResponse {
+  password_enabled: boolean;
+  local_bypass: boolean;
+  requires_password: boolean;
+}
+
+export interface UpdateAccessPasswordRequest {
+  current_password?: string;
+  new_password: string;
+}
+
+export interface UpdateAccessPasswordResponse {
+  success: boolean;
+  password_enabled: boolean;
 }
 
 export interface UtilityService {
@@ -113,16 +122,6 @@ export interface UtilityService {
   clearProxyAuth(): Promise<ApiSuccessResponse>;
 
   /**
-   * Get Anthropic model mapping
-   */
-  getAnthropicModelMapping(): Promise<AnthropicModelMapping>;
-
-  /**
-   * Set Anthropic model mapping
-   */
-  setAnthropicModelMapping(mapping: AnthropicModelMapping): Promise<AnthropicModelMapping>;
-
-  /**
    * Reset Bamboo config (delete config.json)
    */
   resetBambooConfig(): Promise<ApiSuccessResponse>;
@@ -166,6 +165,13 @@ export interface UtilityService {
     message: string;
   }>;
   markSetupComplete(): Promise<ApiSuccessResponse>;
+
+  /**
+   * Access control / password gate
+   */
+  getAccessStatus(): Promise<AccessStatusResponse>;
+  verifyAccessPassword(password: string): Promise<ApiSuccessResponse>;
+  updateAccessPassword(payload: UpdateAccessPasswordRequest): Promise<UpdateAccessPasswordResponse>;
 }
 
 class HttpUtilityService implements Partial<UtilityService> {
@@ -234,19 +240,6 @@ class HttpUtilityService implements Partial<UtilityService> {
       username: "",
       password: "",
     });
-  }
-
-  async getAnthropicModelMapping(): Promise<AnthropicModelMapping> {
-    try {
-      return await apiClient.get<AnthropicModelMapping>("bamboo/anthropic-model-mapping");
-    } catch (error) {
-      console.error("Failed to fetch Anthropic model mapping:", error);
-      return { mappings: {} };
-    }
-  }
-
-  async setAnthropicModelMapping(mapping: AnthropicModelMapping): Promise<AnthropicModelMapping> {
-    return apiClient.post<AnthropicModelMapping>("bamboo/anthropic-model-mapping", mapping);
   }
 
   async resetBambooConfig(): Promise<ApiSuccessResponse> {
@@ -326,6 +319,20 @@ class HttpUtilityService implements Partial<UtilityService> {
   async resetSetupStatus(): Promise<void> {
     await apiClient.post<ApiSuccessResponse>("bamboo/setup/incomplete", {});
   }
+
+  async getAccessStatus(): Promise<AccessStatusResponse> {
+    return apiClient.get<AccessStatusResponse>("bamboo/access/status");
+  }
+
+  async verifyAccessPassword(password: string): Promise<ApiSuccessResponse> {
+    return apiClient.post<ApiSuccessResponse>("bamboo/access/verify", { password });
+  }
+
+  async updateAccessPassword(
+    payload: UpdateAccessPasswordRequest,
+  ): Promise<UpdateAccessPasswordResponse> {
+    return apiClient.post<UpdateAccessPasswordResponse>("bamboo/access/password", payload);
+  }
 }
 
 /**
@@ -363,9 +370,6 @@ export class ServiceFactory {
         this.httpUtilityService.setProxyAuth(auth),
       getProxyAuthStatus: () => this.httpUtilityService.getProxyAuthStatus(),
       clearProxyAuth: () => this.httpUtilityService.clearProxyAuth(),
-      getAnthropicModelMapping: () => this.httpUtilityService.getAnthropicModelMapping(),
-      setAnthropicModelMapping: (mapping: AnthropicModelMapping) =>
-        this.httpUtilityService.setAnthropicModelMapping(mapping),
       resetBambooConfig: () => this.httpUtilityService.resetBambooConfig(),
       resetSetupStatus: () => this.httpUtilityService.resetSetupStatus(),
       // Workflow management
@@ -380,6 +384,12 @@ export class ServiceFactory {
       // Setup status
       getSetupStatus: () => this.httpUtilityService.getSetupStatus(),
       markSetupComplete: () => this.httpUtilityService.markSetupComplete(),
+      // Access control
+      getAccessStatus: () => this.httpUtilityService.getAccessStatus(),
+      verifyAccessPassword: (password: string) =>
+        this.httpUtilityService.verifyAccessPassword(password),
+      updateAccessPassword: (payload: UpdateAccessPasswordRequest) =>
+        this.httpUtilityService.updateAccessPassword(payload),
     };
   }
 
@@ -421,14 +431,6 @@ export class ServiceFactory {
 
   async clearProxyAuth(): Promise<ApiSuccessResponse> {
     return this.getUtilityService().clearProxyAuth();
-  }
-
-  async getAnthropicModelMapping(): Promise<AnthropicModelMapping> {
-    return this.getUtilityService().getAnthropicModelMapping();
-  }
-
-  async setAnthropicModelMapping(mapping: AnthropicModelMapping): Promise<AnthropicModelMapping> {
-    return this.getUtilityService().setAnthropicModelMapping(mapping);
   }
 
   async resetBambooConfig(): Promise<ApiSuccessResponse> {
@@ -481,6 +483,20 @@ export class ServiceFactory {
 
   async markSetupComplete(): Promise<ApiSuccessResponse> {
     return this.getUtilityService().markSetupComplete();
+  }
+
+  async getAccessStatus(): Promise<AccessStatusResponse> {
+    return this.getUtilityService().getAccessStatus();
+  }
+
+  async verifyAccessPassword(password: string): Promise<ApiSuccessResponse> {
+    return this.getUtilityService().verifyAccessPassword(password);
+  }
+
+  async updateAccessPassword(
+    payload: UpdateAccessPasswordRequest,
+  ): Promise<UpdateAccessPasswordResponse> {
+    return this.getUtilityService().updateAccessPassword(payload);
   }
 }
 

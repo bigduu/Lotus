@@ -4,16 +4,141 @@ const FALLBACK_BACKEND_BASE_URL = "http://127.0.0.1:9562/v1";
 
 const DEFAULT_PORT = 9562;
 
+type LocationLike = Pick<Location, "protocol" | "hostname">;
+
 export const normalizeBackendBaseUrl = (value: string): string => value.trim().replace(/\/+$/, "");
 
-export const getDefaultBackendBaseUrl = (): string => {
+const getEnvBackendBaseUrl = (): string | null => {
   const processEnvUrl = (globalThis as unknown as { process?: { env?: Record<string, string> } })
     .process?.env?.VITE_BACKEND_BASE_URL;
   const envUrl = (import.meta.env.VITE_BACKEND_BASE_URL as string | undefined) ?? processEnvUrl;
-  if (envUrl) {
-    return normalizeBackendBaseUrl(envUrl);
+  return envUrl ? normalizeBackendBaseUrl(envUrl) : null;
+};
+
+const getCurrentLocation = (): LocationLike | null => {
+  const locationValue = globalThis.location as Partial<Location> | undefined;
+  if (!locationValue) {
+    return null;
   }
-  return FALLBACK_BACKEND_BASE_URL;
+
+  const protocol = typeof locationValue.protocol === "string" ? locationValue.protocol : "";
+  const hostname = typeof locationValue.hostname === "string" ? locationValue.hostname : "";
+  if (!protocol || !hostname) {
+    return null;
+  }
+
+  return { protocol, hostname };
+};
+
+const isLoopbackHostname = (hostname: string): boolean => {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1" || normalized === "::1";
+};
+
+const isHttpsPage = (locationLike: LocationLike | null = getCurrentLocation()): boolean =>
+  locationLike?.protocol.toLowerCase() === "https:";
+
+const isInsecureHttpUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(normalizeBackendBaseUrl(value));
+    return parsed.protocol.toLowerCase() === "http:";
+  } catch {
+    return false;
+  }
+};
+
+const isLoopbackBackendUrl = (value: string): boolean => {
+  try {
+    const parsed = new URL(normalizeBackendBaseUrl(value));
+    return isLoopbackHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+};
+
+const getSameOriginBackendBaseUrl = (
+  locationLike: LocationLike | null = getCurrentLocation(),
+): string | null => {
+  if (!locationLike) {
+    return null;
+  }
+
+  const protocol = locationLike.protocol.toLowerCase();
+  const hostname = locationLike.hostname.trim();
+  if (!hostname) {
+    return null;
+  }
+
+  if (protocol === "https:") {
+    return normalizeBackendBaseUrl(`https://${hostname}/v1`);
+  }
+
+  if (protocol === "http:") {
+    return normalizeBackendBaseUrl(`http://${hostname}/v1`);
+  }
+
+  return null;
+};
+
+const shouldIgnoreStoredOverride = (
+  storedValue: string,
+  locationLike: LocationLike | null = getCurrentLocation(),
+): boolean => {
+  if (!locationLike) {
+    return false;
+  }
+
+  const pageHostname = locationLike.hostname.trim();
+  if (!pageHostname) {
+    return false;
+  }
+
+  if (isHttpsPage(locationLike) && isInsecureHttpUrl(storedValue)) {
+    return true;
+  }
+
+  if (isLoopbackHostname(pageHostname)) {
+    return false;
+  }
+
+  return isLoopbackBackendUrl(storedValue);
+};
+
+const getHostDerivedBackendBaseUrl = (
+  locationLike: LocationLike | null = getCurrentLocation(),
+): string | null => {
+  if (!locationLike) {
+    return null;
+  }
+
+  const protocol = locationLike.protocol.toLowerCase();
+  if (protocol !== "http:" && protocol !== "https:") {
+    return null;
+  }
+
+  const hostname = locationLike.hostname.trim();
+  if (!hostname) {
+    return null;
+  }
+
+  if (protocol === "https:") {
+    return getSameOriginBackendBaseUrl(locationLike);
+  }
+
+  if (isLoopbackHostname(hostname)) {
+    return FALLBACK_BACKEND_BASE_URL;
+  }
+
+  return normalizeBackendBaseUrl(`http://${hostname}:${DEFAULT_PORT}/v1`);
+};
+
+export const getDefaultBackendBaseUrl = (): string => {
+  const envUrl = getEnvBackendBaseUrl();
+  if (envUrl) {
+    return envUrl;
+  }
+
+  return getHostDerivedBackendBaseUrl() ?? FALLBACK_BACKEND_BASE_URL;
 };
 
 /**
@@ -52,14 +177,16 @@ const checkBackendHealth = async (baseUrl: string): Promise<boolean> => {
 
 /**
  * Discover backend URL with health check
- * Tries configured port first, then default port
+ * Tries configured port first, then a same-origin or host-derived candidate, then loopback fallback
  */
 export const getBackendBaseUrl = async (): Promise<string> => {
+  const locationLike = getCurrentLocation();
+
   // Check if port is provided via environment/config (for Tauri sidecar mode)
   const configPort = (window as unknown as Record<string, unknown>).__BAMBOO_BACKEND_PORT__;
   if (configPort) {
     const configuredUrl = normalizeBackendBaseUrl(`http://127.0.0.1:${configPort}/v1`);
-    if (await checkBackendHealth(configuredUrl)) {
+    if (!isHttpsPage(locationLike) && (await checkBackendHealth(configuredUrl))) {
       return configuredUrl;
     }
     console.warn(
@@ -71,27 +198,48 @@ export const getBackendBaseUrl = async (): Promise<string> => {
   const stored = localStorage.getItem(BACKEND_BASE_URL_KEY);
   if (stored) {
     const normalized = normalizeBackendBaseUrl(stored);
-    // Validate the URL before returning
-    try {
-      new URL(normalized);
-      if (await checkBackendHealth(normalized)) {
-        return normalized;
-      }
-      console.warn("Backend not available at stored URL, trying discovery:", normalized);
-    } catch {
-      console.warn("Invalid stored backend URL, removing:", normalized);
+    if (shouldIgnoreStoredOverride(normalized, locationLike)) {
+      console.warn(
+        "Ignoring stored backend override because it is incompatible with the current page origin:",
+        normalized,
+      );
       localStorage.removeItem(BACKEND_BASE_URL_KEY);
+    } else {
+      // Validate the URL before returning
+      try {
+        new URL(normalized);
+        if (await checkBackendHealth(normalized)) {
+          return normalized;
+        }
+        console.warn("Backend not available at stored URL, trying discovery:", normalized);
+      } catch {
+        console.warn("Invalid stored backend URL, removing:", normalized);
+        localStorage.removeItem(BACKEND_BASE_URL_KEY);
+      }
     }
   }
 
-  // Try default port with health check
-  const defaultUrl = normalizeBackendBaseUrl(`http://127.0.0.1:${DEFAULT_PORT}/v1`);
-  if (await checkBackendHealth(defaultUrl)) {
-    return defaultUrl;
+  const envUrl = getEnvBackendBaseUrl();
+  if (envUrl) {
+    return envUrl;
   }
 
-  // Fall back to environment-based URL without health check (for development)
-  return getDefaultBackendBaseUrl();
+  const hostDerivedUrl = getHostDerivedBackendBaseUrl(locationLike);
+  if (hostDerivedUrl) {
+    if (await checkBackendHealth(hostDerivedUrl)) {
+      return hostDerivedUrl;
+    }
+  }
+
+  if (!isHttpsPage(locationLike)) {
+    // Try loopback fallback with health check only on non-HTTPS pages.
+    const defaultUrl = FALLBACK_BACKEND_BASE_URL;
+    if (await checkBackendHealth(defaultUrl)) {
+      return defaultUrl;
+    }
+  }
+
+  return hostDerivedUrl ?? FALLBACK_BACKEND_BASE_URL;
 };
 
 /**
@@ -99,15 +247,24 @@ export const getBackendBaseUrl = async (): Promise<string> => {
  * Does not perform health check - uses localStorage or default
  */
 export const getBackendBaseUrlSync = (): string => {
+  const locationLike = getCurrentLocation();
   const stored = localStorage.getItem(BACKEND_BASE_URL_KEY);
   if (stored) {
     const normalized = normalizeBackendBaseUrl(stored);
-    try {
-      new URL(normalized);
-      return normalized;
-    } catch {
-      console.warn("Invalid stored backend URL, using default:", normalized);
+    if (shouldIgnoreStoredOverride(normalized, locationLike)) {
+      console.warn(
+        "Ignoring stored backend override because it is incompatible with the current page origin:",
+        normalized,
+      );
       localStorage.removeItem(BACKEND_BASE_URL_KEY);
+    } else {
+      try {
+        new URL(normalized);
+        return normalized;
+      } catch {
+        console.warn("Invalid stored backend URL, using default:", normalized);
+        localStorage.removeItem(BACKEND_BASE_URL_KEY);
+      }
     }
   }
   return getDefaultBackendBaseUrl();

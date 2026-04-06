@@ -14,16 +14,26 @@ describe("backendBaseUrl", () => {
   let originalFetch: typeof fetch;
   let mockFetch: ReturnType<typeof vi.fn>;
 
+  const stubLocation = (protocol: string, hostname: string, href?: string) => {
+    vi.stubGlobal("location", {
+      protocol,
+      hostname,
+      href: href ?? `${protocol}//${hostname}/`,
+    } as Partial<Location>);
+  };
+
   beforeEach(() => {
     localStorage.clear();
     originalFetch = global.fetch;
     mockFetch = vi.fn();
     global.fetch = mockFetch;
     delete (window as any).__BAMBOO_BACKEND_PORT__;
+    stubLocation("http:", "localhost", "http://localhost:1420/");
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    vi.unstubAllGlobals();
   });
 
   it("normalizes by trimming and removing trailing slashes", () => {
@@ -42,10 +52,30 @@ describe("backendBaseUrl", () => {
     expect(normalizeBackendBaseUrl("   ")).toBe("");
   });
 
-  it("uses fallback default when no env and no override exists", () => {
+  it("uses loopback fallback default when no env and no override exists", () => {
     clearBackendBaseUrlOverride();
     expect(getDefaultBackendBaseUrl()).toBe("http://127.0.0.1:9562/v1");
     expect(getBackendBaseUrlSync()).toBe("http://127.0.0.1:9562/v1");
+  });
+
+  it("derives default backend URL from current http page hostname", () => {
+    stubLocation("http:", "mac.local", "http://mac.local:1420/chat");
+
+    expect(getDefaultBackendBaseUrl()).toBe("http://mac.local:9562/v1");
+    expect(getBackendBaseUrlSync()).toBe("http://mac.local:9562/v1");
+  });
+
+  it("derives default backend URL from current https page hostname as same-origin https /v1", () => {
+    stubLocation("https:", "bodhi.bigduu.com", "https://bodhi.bigduu.com/");
+
+    expect(getDefaultBackendBaseUrl()).toBe("https://bodhi.bigduu.com/v1");
+    expect(getBackendBaseUrlSync()).toBe("https://bodhi.bigduu.com/v1");
+  });
+
+  it("falls back for non-http(s) protocols", () => {
+    stubLocation("tauri:", "localhost", "tauri://localhost/");
+
+    expect(getDefaultBackendBaseUrl()).toBe("http://127.0.0.1:9562/v1");
   });
 
   it("uses env default when set (and normalizes it)", () => {
@@ -57,7 +87,11 @@ describe("backendBaseUrl", () => {
     try {
       expect(getDefaultBackendBaseUrl()).toBe("http://example.com/v1");
     } finally {
-      processRef.env.VITE_BACKEND_BASE_URL = original;
+      if (original === undefined) {
+        delete processRef.env.VITE_BACKEND_BASE_URL;
+      } else {
+        processRef.env.VITE_BACKEND_BASE_URL = original;
+      }
     }
   });
 
@@ -69,6 +103,22 @@ describe("backendBaseUrl", () => {
     expect(getBackendBaseUrlSync()).toBe("http://localhost:9562/v1");
 
     clearBackendBaseUrlOverride();
+    expect(hasBackendBaseUrlOverride()).toBe(false);
+  });
+
+  it("ignores an insecure http override when page is served over https", () => {
+    stubLocation("https:", "bodhi.bigduu.com", "https://bodhi.bigduu.com/");
+    setBackendBaseUrl("http://bodhi.bigduu.com:9562/v1");
+
+    expect(getBackendBaseUrlSync()).toBe("https://bodhi.bigduu.com/v1");
+    expect(hasBackendBaseUrlOverride()).toBe(false);
+  });
+
+  it("ignores a stored loopback override when page is served from a non-loopback host", () => {
+    stubLocation("http:", "mac.local", "http://mac.local:9562/");
+    setBackendBaseUrl("http://127.0.0.1:9562/v1");
+
+    expect(getBackendBaseUrlSync()).toBe("http://mac.local:9562/v1");
     expect(hasBackendBaseUrlOverride()).toBe(false);
   });
 
@@ -126,15 +176,69 @@ describe("backendBaseUrl", () => {
       expect(url).toBe("http://custom:9000/v1");
     });
 
-    it("returns default URL when health checks fail", async () => {
-      // All health checks fail - function should still return a URL
+    it("ignores a stored loopback override during async discovery when page is served remotely", async () => {
+      stubLocation("http:", "mac.local", "http://mac.local:9562/");
+      setBackendBaseUrl("http://127.0.0.1:9562/v1");
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const url = await getBackendBaseUrl();
+
+      expect(url).toBe("http://mac.local:9562/v1");
+      expect(hasBackendBaseUrlOverride()).toBe(false);
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "http://mac.local:9562/api/v1/health",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("prefers host-derived URL when current page host backend is healthy", async () => {
+      stubLocation("http:", "mac.local", "http://mac.local:1420/");
+
+      mockFetch.mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const url = await getBackendBaseUrl();
+
+      expect(url).toBe("http://mac.local:9562/v1");
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "http://mac.local:9562/api/v1/health",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("falls back to loopback when host-derived health checks fail", async () => {
+      stubLocation("http:", "mac.local", "http://mac.local:1420/");
+
+      mockFetch
+        .mockRejectedValueOnce(new Error("Host derived down"))
+        .mockResolvedValueOnce({ ok: true, status: 200 });
+
+      const url = await getBackendBaseUrl();
+
+      expect(url).toBe("http://127.0.0.1:9562/v1");
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        "http://mac.local:9562/api/v1/health",
+        expect.objectContaining({ method: "GET" }),
+      );
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        2,
+        "http://127.0.0.1:9562/api/v1/health",
+        expect.objectContaining({ method: "GET" }),
+      );
+    });
+
+    it("returns host-derived URL as final fallback when both health checks fail", async () => {
+      stubLocation("http:", "mac.local", "http://mac.local:1420/");
+      const processRef = (globalThis as any).process ?? { env: {} };
+      delete processRef.env.VITE_BACKEND_BASE_URL;
+      (globalThis as any).process = processRef;
       mockFetch.mockRejectedValue(new Error("Connection refused"));
 
       const url = await getBackendBaseUrl();
 
-      // Should return some URL (the default fallback)
-      expect(typeof url).toBe("string");
-      expect(url.length).toBeGreaterThan(0);
+      expect(url).toBe("http://mac.local:9562/v1");
     });
   });
 });

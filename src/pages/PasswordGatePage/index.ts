@@ -1,0 +1,1 @@
+export { PasswordGatePage } from "./PasswordGatePage";
