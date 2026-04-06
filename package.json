@@ -20,6 +20,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "build:bamboo-package": "npm run build && node ../bamboo/scripts/frontend-package.cjs stage:prebuilt",
     "preview": "vite preview",
     "rebrand:public": "node scripts/rebrand.cjs --target=public",
     "rebrand:internal": "node scripts/rebrand.cjs --target=internal",

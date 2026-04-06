@@ -71,7 +71,8 @@ export default defineConfig(async ({ command }) => ({
   server: {
     port: 1420,
     strictPort: true,
-    host: host || false,
+    host: host || "0.0.0.0",
+    allowedHosts: ["mac.local"],
     hmr: host
       ? {
           protocol: "ws",
