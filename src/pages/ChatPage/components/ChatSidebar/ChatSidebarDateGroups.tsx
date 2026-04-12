@@ -25,7 +25,9 @@ type ChatSidebarDateGroupsProps = {
   onUnpinChat: (sessionId: string) => void;
   onEditTitle: (sessionId: string, title: string) => void;
   onGenerateTitle: (sessionId: string) => void;
+  onRunProjectDream: (sessionId: string) => void;
   titleGenerationState: Record<string, { status: "loading" | "error" | "idle"; error?: string }>;
+  projectDreamState: Record<string, { status: "loading" | "idle" }>;
   token: GlobalToken;
   hasActiveFilters: boolean;
 };
@@ -46,7 +48,9 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   onUnpinChat,
   onEditTitle,
   onGenerateTitle,
+  onRunProjectDream,
   titleGenerationState,
+  projectDreamState,
   token,
   hasActiveFilters,
 }) => {
@@ -96,7 +100,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                   );
                   if (searchInput) {
                     const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                      window.HTMLInputElement.prototype, "value",
+                      window.HTMLInputElement.prototype,
+                      "value",
                     )?.set;
                     nativeInputValueSetter?.call(searchInput, "");
                     searchInput.dispatchEvent(new Event("input", { bubbles: true }));
@@ -264,7 +269,9 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                             onUnpin={onUnpinChat}
                             onEdit={onEditTitle}
                             onGenerateTitle={onGenerateTitle}
+                            onRunProjectDream={onRunProjectDream}
                             isGeneratingTitle={titleGenerationState[chat.id]?.status === "loading"}
+                            isRunningProjectDream={projectDreamState[chat.id]?.status === "loading"}
                             titleGenerationError={
                               titleGenerationState[chat.id]?.status === "error"
                                 ? titleGenerationState[chat.id]?.error
@@ -292,8 +299,12 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                                   onUnpin={onUnpinChat}
                                   onEdit={onEditTitle}
                                   onGenerateTitle={onGenerateTitle}
+                                  onRunProjectDream={onRunProjectDream}
                                   isGeneratingTitle={
                                     titleGenerationState[child.id]?.status === "loading"
+                                  }
+                                  isRunningProjectDream={
+                                    projectDreamState[child.id]?.status === "loading"
                                   }
                                   titleGenerationError={
                                     titleGenerationState[child.id]?.status === "error"

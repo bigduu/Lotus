@@ -4,7 +4,6 @@ import {
   workspaceValidator,
   useWorkspaceValidator,
   WorkspaceValidationResult,
-  WorkspaceValidator,
 } from "../workspaceValidator";
 
 // Mock fetch globally
@@ -60,14 +59,18 @@ describe("WorkspaceValidator", () => {
 
       const result = await workspaceValidator.validateWorkspace("/valid/workspace");
 
-      expect(fetch).toHaveBeenCalledWith("http://127.0.0.1:9562/v1/workspace/validate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ path: "/valid/workspace" }),
-        signal: expect.any(AbortSignal),
-      });
+      expect(fetch).toHaveBeenCalledWith(
+        "http://127.0.0.1:9562/v1/workspace/validate",
+        expect.objectContaining({
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ path: "/valid/workspace" }),
+          signal: expect.any(AbortSignal),
+        }),
+      );
 
       expect(result).toEqual(mockResult);
     });
@@ -167,18 +170,9 @@ describe("WorkspaceValidator", () => {
       const callback = vi.fn();
 
       // Multiple rapid calls
-      const cancel1 = workspaceValidator.validateWorkspaceDebounced(
-        "/debounced/workspace",
-        callback,
-      );
-      const cancel2 = workspaceValidator.validateWorkspaceDebounced(
-        "/debounced/workspace",
-        callback,
-      );
-      const cancel3 = workspaceValidator.validateWorkspaceDebounced(
-        "/debounced/workspace",
-        callback,
-      );
+      workspaceValidator.validateWorkspaceDebounced("/debounced/workspace", callback);
+      workspaceValidator.validateWorkspaceDebounced("/debounced/workspace", callback);
+      workspaceValidator.validateWorkspaceDebounced("/debounced/workspace", callback);
 
       // Wait for debounce
       await new Promise((resolve) => setTimeout(resolve, 350));

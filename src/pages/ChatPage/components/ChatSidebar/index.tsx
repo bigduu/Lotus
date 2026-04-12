@@ -32,12 +32,14 @@ export const ChatSidebar: React.FC = () => {
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
+    handleRunProjectDream,
     handleSearchQueryChange,
     handleStatusFilterChange,
     handleSystemPromptSelect,
     hasActiveFilters,
     isNewChatSelectorOpen,
     pinSession,
+    projectDreamState,
     searchQuery,
     selectSession,
     setCollapsed,
@@ -158,7 +160,9 @@ export const ChatSidebar: React.FC = () => {
           onUnpinChat={unpinSession}
           onEditTitle={handleEditTitle}
           onGenerateTitle={handleGenerateTitle}
+          onRunProjectDream={handleRunProjectDream}
           titleGenerationState={titleGenerationState}
+          projectDreamState={projectDreamState}
           token={token}
           hasActiveFilters={hasActiveFilters}
         />

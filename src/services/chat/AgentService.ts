@@ -282,6 +282,18 @@ export interface PatchSessionRequest {
   clear_reasoning_effort?: boolean;
 }
 
+export interface RunProjectDreamResponse {
+  success: boolean;
+  session_id: string;
+  project_key: string;
+  dream_generated: boolean;
+  used_model?: string;
+  session_count?: number;
+  note_path?: string;
+  notebook_chars?: number;
+  message?: string;
+}
+
 export type TruncateSessionMessagesRequest = {
   mode: "after_last_user" | "error_retry";
 };
@@ -580,6 +592,16 @@ export class AgentClient {
   async clearSession(sessionId: string): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     await agentApiClient.post(`sessions/${encodedSessionId}/clear`);
+  }
+
+  /**
+   * Manually trigger project-scoped Dream generation for a session.
+   */
+  async runProjectDream(sessionId: string): Promise<RunProjectDreamResponse> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    return agentApiClient.post<RunProjectDreamResponse>(
+      `sessions/${encodedSessionId}/project-dream/run`,
+    );
   }
 
   /**

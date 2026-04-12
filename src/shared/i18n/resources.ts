@@ -228,6 +228,11 @@ export const resources = {
           unpin: "Unpin",
           pin: "Pin",
           generateTitle: "Generate AI Title",
+          runProjectDream: "Run Project Dream",
+          runProjectDreamRunning: "Running Project Dream...",
+          runProjectDreamSuccess: "Project Dream updated",
+          runProjectDreamNoChange: "No Project Dream update was needed",
+          runProjectDreamFailed: "Failed to run Project Dream",
         },
         prompt: {
           selectorTitle: "Select System Prompt",
@@ -1959,6 +1964,11 @@ export const resources = {
           unpin: "取消置顶",
           pin: "置顶",
           generateTitle: "生成 AI 标题",
+          runProjectDream: "运行 Project Dream",
+          runProjectDreamRunning: "正在运行 Project Dream...",
+          runProjectDreamSuccess: "Project Dream 已更新",
+          runProjectDreamNoChange: "无需更新 Project Dream",
+          runProjectDreamFailed: "运行 Project Dream 失败",
         },
         prompt: {
           selectorTitle: "选择系统提示词",

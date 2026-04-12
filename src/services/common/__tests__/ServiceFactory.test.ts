@@ -418,8 +418,6 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("setProxyAuth");
       expect(utility).toHaveProperty("getProxyAuthStatus");
       expect(utility).toHaveProperty("clearProxyAuth");
-      expect(utility).toHaveProperty("getAnthropicModelMapping");
-      expect(utility).toHaveProperty("setAnthropicModelMapping");
       expect(utility).toHaveProperty("resetBambooConfig");
       expect(utility).toHaveProperty("resetSetupStatus");
       expect(utility).toHaveProperty("saveWorkflow");
@@ -429,6 +427,9 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("validateKeywordEntries");
       expect(utility).toHaveProperty("getSetupStatus");
       expect(utility).toHaveProperty("markSetupComplete");
+      expect(utility).toHaveProperty("getAccessStatus");
+      expect(utility).toHaveProperty("verifyAccessPassword");
+      expect(utility).toHaveProperty("updateAccessPassword");
     });
 
     it("should call underlying HttpUtilityService methods", async () => {

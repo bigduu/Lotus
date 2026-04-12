@@ -11,6 +11,7 @@ import {
   BulbOutlined,
   LoadingOutlined,
   MoreOutlined,
+  CloudSyncOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { ChatItem as ChatItemType } from "../../types/chat";
@@ -24,7 +25,9 @@ interface ChatItemProps {
   onUnpin: (sessionId: string) => void;
   onEdit?: (sessionId: string, newTitle: string) => void;
   onGenerateTitle?: (sessionId: string) => void;
+  onRunProjectDream?: (sessionId: string) => void;
   isGeneratingTitle?: boolean;
+  isRunningProjectDream?: boolean;
   titleGenerationError?: string;
 }
 
@@ -37,7 +40,9 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   onUnpin,
   onEdit,
   onGenerateTitle,
+  onRunProjectDream,
   isGeneratingTitle,
+  isRunningProjectDream,
   titleGenerationError,
 }) => {
   const { t } = useTranslation();
@@ -107,6 +112,20 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
             onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
               domEvent.stopPropagation();
               onGenerateTitle(chat.id);
+            },
+          },
+        ]
+      : []),
+    ...(onRunProjectDream
+      ? [
+          {
+            key: "run-project-dream",
+            icon: isRunningProjectDream ? <LoadingOutlined /> : <CloudSyncOutlined />,
+            label: t("chat.actions.runProjectDream"),
+            disabled: isRunningProjectDream,
+            onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
+              domEvent.stopPropagation();
+              onRunProjectDream(chat.id);
             },
           },
         ]
@@ -312,6 +331,7 @@ const arePropsEqual = (prevProps: ChatItemProps, nextProps: ChatItemProps): bool
     prevProps.chat.pinned === nextProps.chat.pinned &&
     prevProps.isSelected === nextProps.isSelected &&
     prevProps.isGeneratingTitle === nextProps.isGeneratingTitle &&
+    prevProps.isRunningProjectDream === nextProps.isRunningProjectDream &&
     prevProps.titleGenerationError === nextProps.titleGenerationError
   );
 };

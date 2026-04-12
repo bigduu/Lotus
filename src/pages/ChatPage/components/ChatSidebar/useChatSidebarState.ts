@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from "react";
-import { Modal } from "antd";
+import { App as AntdApp, Modal } from "antd";
 import { useTranslation } from "react-i18next";
+
+import { AgentClient } from "@services/chat/AgentService";
 
 import {
   getChatCountByDate,
@@ -32,11 +34,10 @@ const matchesSearchQuery = (chat: ChatItem, normalizedQuery: string): boolean =>
     chat.lastRunStatus || "",
     chat.lastRunError || "",
     // Include first user message content for lightweight content search
-    ...(chat.messages
+    ...chat.messages
       .filter((m) => m.role === "user" && "content" in m)
       .slice(0, 3)
-      .map((m) => ("content" in m ? (m as { content: string }).content : ""))
-    ),
+      .map((m) => ("content" in m ? (m as { content: string }).content : "")),
   ]
     .join(" ")
     .toLowerCase();
@@ -62,6 +63,7 @@ const matchesStatusFilter = (chat: ChatItem, filter: SidebarStatusFilter): boole
 
 export const useChatSidebarState = () => {
   const { t } = useTranslation();
+  const { message } = AntdApp.useApp();
   const chats = useAppStore((state) => state.chats);
   const currentSessionId = useAppStore((state) => state.currentSessionId);
   const deleteSession = useAppStore((state) => state.deleteSession);
@@ -70,6 +72,7 @@ export const useChatSidebarState = () => {
   const unpinSession = useAppStore((state) => state.unpinSession);
   const updateSession = useAppStore((state) => state.updateSession);
   const addChat = useAppStore((state) => state.addChat);
+  const refreshChats = useAppStore((state) => state.refreshChats);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
 
@@ -124,6 +127,9 @@ export const useChatSidebarState = () => {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set(["Today"]));
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SidebarStatusFilter>("all");
+  const [projectDreamState, setProjectDreamState] = useState<
+    Record<string, { status: "loading" | "idle" }>
+  >({});
 
   const currentChat = useAppStore(selectSessionById(currentSessionId));
 
@@ -184,7 +190,8 @@ export const useChatSidebarState = () => {
 
     return rootSessions.filter((rootChat) => {
       const rootMatches =
-        matchesSearchQuery(rootChat, normalizedSearchQuery) && matchesStatusFilter(rootChat, statusFilter);
+        matchesSearchQuery(rootChat, normalizedSearchQuery) &&
+        matchesStatusFilter(rootChat, statusFilter);
       if (rootMatches) return true;
 
       const childSessions = allChildrenByRoot[rootChat.id] || [];
@@ -297,6 +304,51 @@ export const useChatSidebarState = () => {
     }
   };
 
+  const handleRunProjectDream = useCallback(
+    async (sessionId: string) => {
+      if (projectDreamState[sessionId]?.status === "loading") {
+        return;
+      }
+
+      setProjectDreamState((prev) => ({
+        ...prev,
+        [sessionId]: { status: "loading" },
+      }));
+
+      const hide = message.loading(t("chat.actions.runProjectDreamRunning"), 0);
+      try {
+        const response = await AgentClient.getInstance().runProjectDream(sessionId);
+        hide();
+
+        if (response.dream_generated) {
+          message.success(t("chat.actions.runProjectDreamSuccess"));
+        } else {
+          message.info(response.message || t("chat.actions.runProjectDreamNoChange"));
+        }
+
+        try {
+          await refreshChats();
+        } catch (refreshError) {
+          console.warn("Failed to refresh chats after project dream run:", refreshError);
+        }
+      } catch (error) {
+        hide();
+        const errorMessage =
+          error instanceof Error && error.message
+            ? error.message
+            : t("chat.actions.runProjectDreamFailed");
+        message.error(errorMessage);
+        console.error("Failed to run project dream:", error);
+      } finally {
+        setProjectDreamState((prev) => ({
+          ...prev,
+          [sessionId]: { status: "idle" },
+        }));
+      }
+    },
+    [message, projectDreamState, refreshChats, t],
+  );
+
   const handleDeleteByDate = (dateKey: string) => {
     const sessionIds = getSessionIdsByDate(groupedChatsByDate, dateKey);
     const chatCount = getChatCountByDate(groupedChatsByDate, dateKey);
@@ -377,7 +429,14 @@ export const useChatSidebarState = () => {
     }
 
     return next;
-  }, [chats, childrenByRoot, currentSessionId, expandedRoots, filteredRootSessions, hasActiveFilters]);
+  }, [
+    chats,
+    childrenByRoot,
+    currentSessionId,
+    expandedRoots,
+    filteredRootSessions,
+    hasActiveFilters,
+  ]);
 
   const toggleRootExpanded = useCallback((rootId: string) => {
     setExpandedRoots((prev) => {
@@ -406,11 +465,13 @@ export const useChatSidebarState = () => {
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
+    handleRunProjectDream,
     handleSearchQueryChange,
     handleStatusFilterChange,
     handleSystemPromptSelect,
     isNewChatSelectorOpen,
     pinSession: handlePinChat,
+    projectDreamState,
     searchQuery,
     selectSession,
     setCollapsed: setSidebarCollapsed,

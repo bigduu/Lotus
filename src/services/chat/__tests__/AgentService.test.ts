@@ -177,6 +177,28 @@ describe("AgentClient", () => {
     expectTypeOf(result.session_memory_note).toEqualTypeOf<string | undefined>();
   });
 
+  it("runs project dream for a backend session", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        success: true,
+        session_id: "session-1",
+        project_key: "project-1",
+        dream_generated: true,
+        used_model: "fast-model",
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    const result = await client.runProjectDream("session/with space");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/session%2Fwith%20space/project-dream/run"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(result.dream_generated).toBe(true);
+    expectTypeOf(result.project_key).toEqualTypeOf<string>();
+  });
+
   it("truncates session messages with mode payload", async () => {
     fetchMock.mockResolvedValue(
       mockFetchResponse({

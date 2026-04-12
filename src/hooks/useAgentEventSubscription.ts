@@ -391,7 +391,10 @@ export function useAgentEventSubscription() {
 
               const normalizedToolName = toolName.trim().toLowerCase();
               const currentState = streamingStateBySessionRef.current.get(sessionId);
-              if (currentState?.status && currentState.status.includes(normalizedToolName)) {
+              const shouldClearStatus = isMemoryStatusTool(toolName)
+                ? currentState?.status === "memory_updating"
+                : Boolean(currentState?.status && currentState.status.includes(normalizedToolName));
+              if (shouldClearStatus) {
                 setStreamingStatus(null);
               }
 
@@ -459,7 +462,12 @@ export function useAgentEventSubscription() {
                 // Only clear the streaming status if it's currently showing THIS tool
                 const normalizedToolName = (_toolName || "").trim().toLowerCase();
                 const currentState = streamingStateBySessionRef.current.get(sessionId);
-                if (currentState?.status && currentState.status.includes(normalizedToolName)) {
+                const shouldClearStatus = isMemoryStatusTool(_toolName || "")
+                  ? currentState?.status === "memory_updating"
+                  : Boolean(
+                      currentState?.status && currentState.status.includes(normalizedToolName),
+                    );
+                if (shouldClearStatus) {
                   setStreamingStatus(null);
                 }
               }

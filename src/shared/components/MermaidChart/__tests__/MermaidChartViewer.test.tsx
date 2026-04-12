@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import React from "react";
 import i18n from "@shared/i18n";
@@ -298,9 +298,11 @@ describe("MermaidChartViewer", () => {
 
     it("should disable export button when exporting", async () => {
       const mockSaveBinaryFile = vi.mocked(FileOperationsService.saveBinaryFile);
-      mockSaveBinaryFile.mockImplementation(
-        () => new Promise((resolve) => setTimeout(resolve, 100)),
-      );
+      let resolveSave!: (value: { success: boolean; filename: string }) => void;
+      const savePromise = new Promise<{ success: boolean; filename: string }>((resolve) => {
+        resolveSave = resolve;
+      });
+      mockSaveBinaryFile.mockReturnValue(savePromise as ReturnType<typeof mockSaveBinaryFile>);
 
       render(<MermaidChartViewer {...defaultProps} />);
 
@@ -310,6 +312,12 @@ describe("MermaidChartViewer", () => {
       // Button should be disabled while exporting
       await waitFor(() => {
         expect(exportButton).toBeDisabled();
+      });
+
+      resolveSave({ success: true, filename: "test.svg" });
+
+      await waitFor(() => {
+        expect(exportButton).not.toBeDisabled();
       });
     });
 
@@ -465,9 +473,11 @@ describe("MermaidChartViewer", () => {
 
     it("should prevent multiple simultaneous exports", async () => {
       const mockSaveBinaryFile = vi.mocked(FileOperationsService.saveBinaryFile);
-      mockSaveBinaryFile.mockImplementation(
-        () => new Promise((resolve) => setTimeout(resolve, 100)),
-      );
+      let resolveSave!: (value: { success: boolean; filename: string }) => void;
+      const savePromise = new Promise<{ success: boolean; filename: string }>((resolve) => {
+        resolveSave = resolve;
+      });
+      mockSaveBinaryFile.mockReturnValue(savePromise as ReturnType<typeof mockSaveBinaryFile>);
 
       render(<MermaidChartViewer {...defaultProps} />);
 
@@ -478,6 +488,12 @@ describe("MermaidChartViewer", () => {
 
       await waitFor(() => {
         expect(mockSaveBinaryFile).toHaveBeenCalledTimes(1);
+      });
+
+      resolveSave({ success: true, filename: "test.svg" });
+
+      await waitFor(() => {
+        expect(exportButton).not.toBeDisabled();
       });
     });
   });
