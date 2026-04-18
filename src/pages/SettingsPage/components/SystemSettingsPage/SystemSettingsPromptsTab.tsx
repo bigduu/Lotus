@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from "react";
-import { Button, Card, Collapse, Flex, Input, Space, Spin, Switch, Typography, theme } from "antd";
+import { Card, Collapse, Flex, Input, Space, Spin, Switch, Typography, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import MermaidSettingsTab from "./MermaidSettingsTab";
 import { getCopilotConclusionWithOptionsEnhancementUserFacingText } from "../../../../shared/utils/copilotConclusionWithOptionsEnhancementUtils";
@@ -78,7 +79,7 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
             onChange={(event) => onPromptEnhancementChange(event.target.value)}
           />
           <Flex justify="flex-end">
-            <Button type="primary" onClick={onSaveEnhancement}>
+            <Button variant="default" onClick={onSaveEnhancement}>
               {t("settings.promptsTab.saveEnhancement")}
             </Button>
           </Flex>

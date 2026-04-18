@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Card, Flex, Input, List, Space, Typography, message, theme } from "antd";
+import { Card, Flex, Input, List, Space, Typography, message, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import {
   DeleteOutlined,
   EditOutlined,
@@ -148,7 +149,7 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
             </Button>
             <Button
               data-testid="save-workflow"
-              type="primary"
+              variant="default"
               icon={<SaveOutlined />}
               onClick={handleSave}
               loading={isSaving}
@@ -182,16 +183,14 @@ const SystemSettingsWorkflowsTab: React.FC = () => {
                     <Button
                       data-testid={`delete-workflow-${workflow.name}`}
                       key="delete"
-                      type="text"
-                      danger
-                      size="small"
+                      size="sm"
                       icon={<DeleteOutlined />}
                       onClick={(e) => {
                         e.stopPropagation();
                         handleDelete(workflow);
                       }}
                       aria-label={t("settings.workflowsTab.delete")}
-                    />,
+                      variant="destructive" />,
                   ]}
                 >
                   <Space direction="vertical" size={0}>

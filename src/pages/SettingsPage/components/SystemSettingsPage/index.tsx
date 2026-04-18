@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Button, Flex, Layout, Tabs, Typography, message, theme } from "antd";
+import { Flex, Layout, Tabs, Typography, message, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import type { TabsProps } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

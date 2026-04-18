@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
-  Button,
   Card,
   Form,
   Input,
@@ -13,6 +12,7 @@ import {
   Typography,
   message,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import { DeleteOutlined, EditOutlined, LockOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import {
@@ -188,8 +188,8 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       render: (_: unknown, record: EnvVarResponse) => (
         <Space size="small">
           <Button
-            type="text"
-            size="small"
+            variant="ghost"
+            size="sm"
             icon={<EditOutlined />}
             onClick={() => openEditModal(record)}
             aria-label={t("settings.envVars.edit", "Edit")}
@@ -201,12 +201,10 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             cancelText={t("settings.envVars.no", "No")}
           >
             <Button
-              type="text"
-              size="small"
-              danger
+              size="sm"
               icon={<DeleteOutlined />}
               aria-label={t("settings.envVars.delete", "Delete")}
-            />
+              variant="destructive" />
           </Popconfirm>
         </Space>
       ),
@@ -221,7 +219,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         className="lotus-settings-card"
         title={t("settings.envVars.title", "Environment Variables")}
         extra={
-          <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
+          <Button variant="default" icon={<PlusOutlined />} onClick={openAddModal}>
             {t("settings.envVars.addButton", "Add Variable")}
           </Button>
         }
@@ -245,7 +243,6 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           }}
         />
       </Card>
-
       {/* ── Add / Edit Modal ─────────────────────────────────────── */}
       <Modal
         title={

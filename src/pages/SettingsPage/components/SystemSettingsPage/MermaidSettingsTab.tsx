@@ -5,7 +5,6 @@ import {
   InputNumber,
   Switch,
   Select,
-  Button,
   Divider,
   Space,
   Typography,
@@ -13,6 +12,7 @@ import {
   Col,
   Tooltip,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import { RestOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { theme } from "antd";
 import { useTranslation } from "react-i18next";

@@ -1,17 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
-import {
-  Alert,
-  Button,
-  Card,
-  Divider,
-  Space,
-  Spin,
-  Tag,
-  Tooltip,
-  Typography,
-  Flex,
-  theme,
-} from "antd";
+import { Alert, Card, Divider, Space, Spin, Tag, Tooltip, Typography, Flex, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import {
   ApiOutlined,
   CopyOutlined,
@@ -155,8 +144,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
             >
               {isCollapsible && (
                 <Button
-                  type="text"
-                  size="small"
+                  variant="ghost"
+                  size="sm"
                   icon={expanded ? <CompressOutlined /> : <ExpandAltOutlined />}
                   onClick={() => setExpanded((prev) => !prev)}
                 />
@@ -164,8 +153,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
             </Tooltip>
             <Tooltip title={t("components.workflowResult.copyResult")}>
               <Button
-                type="text"
-                size="small"
+                variant="ghost"
+                size="sm"
                 icon={<CopyOutlined />}
                 onClick={handleCopyContent}
                 aria-label={t("components.workflowResult.copyContent")}
@@ -174,8 +163,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
             {onRetry && (
               <Tooltip title={t("components.workflowResult.retryWorkflow")}>
                 <Button
-                  type="text"
-                  size="small"
+                  variant="ghost"
+                  size="sm"
                   icon={<ReloadOutlined />}
                   onClick={onRetry}
                   aria-label={t("components.workflowResult.retryWorkflow")}
@@ -246,8 +235,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                 <Text strong>{t("common.parameters")}</Text>
                 <Tooltip title={t("components.workflowResult.copyParameters")}>
                   <Button
-                    type="text"
-                    size="small"
+                    variant="ghost"
+                    size="sm"
                     icon={<CopyOutlined />}
                     onClick={handleCopyParameters}
                     aria-label={t("components.workflowResult.copyParameters")}

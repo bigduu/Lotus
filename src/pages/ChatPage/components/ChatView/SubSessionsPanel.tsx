@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
-import { Button, Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
+import { Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "../../store";
@@ -357,8 +358,8 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       }
       extra={
         <Button
-          type="text"
-          size="small"
+          variant="ghost"
+          size="sm"
           icon={isCollapsed ? <DownOutlined /> : <UpOutlined />}
           onClick={toggleCollapsed}
           data-testid="sub-sessions-toggle"
@@ -448,10 +449,9 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                     </Text>
                   ) : null}
                 </Flex>
-
                 <Flex gap={8}>
                   <Button
-                    size="small"
+                    size="sm"
                     disabled={isBusy}
                     onClick={() => {
                       openSession(it.childSessionId);
@@ -461,7 +461,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                     {t("chat.subSessions.open")}
                   </Button>
                   <Button
-                    size="small"
+                    size="sm"
                     loading={isContinuing}
                     disabled={isDeleting || isRetrying || isRunning}
                     data-testid={`sub-session-continue-${it.childSessionId}`}
@@ -491,7 +491,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                     disabled={isDeleting || isRunning || isContinuing}
                   >
                     <Button
-                      size="small"
+                      size="sm"
                       loading={isRetrying}
                       disabled={isDeleting || isRunning || isContinuing}
                       data-testid={`sub-session-retry-${it.childSessionId}`}
@@ -501,7 +501,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                   </Dropdown>
                   {typeof it.pinned === "boolean" ? (
                     <Button
-                      size="small"
+                      size="sm"
                       disabled={isBusy}
                       onClick={() => {
                         if (it.pinned) unpinSession(it.childSessionId);
@@ -512,14 +512,14 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                     </Button>
                   ) : null}
                   <Button
-                    danger
-                    size="small"
+                    size="sm"
                     loading={isDeleting}
                     disabled={isRetrying}
                     data-testid={`sub-session-delete-${it.childSessionId}`}
                     onClick={() => {
                       void removeChildSession(it.childSessionId);
                     }}
+                    variant="destructive"
                   >
                     {t("common.delete")}
                   </Button>

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo } from "react";
-import { Button, Layout, theme, Drawer } from "antd";
+import { Layout, theme, Drawer } from "antd";
+import { Button } from "@/components/ui/button";
 import { MenuUnfoldOutlined } from "@ant-design/icons";
 import { useIsMobile } from "../shared/hooks/useMediaQuery";
 import { useTranslation } from "react-i18next";
@@ -275,8 +276,8 @@ export const MainLayout: React.FC<{
           {!settingsOpen && sidebarCollapsed ? (
             <Button
               data-testid="show-sidebar"
-              type="text"
-              size="small"
+              variant="ghost"
+              size="sm"
               icon={<MenuUnfoldOutlined />}
               onClick={() => setSidebarCollapsed(false)}
               title={t("layout.showSidebar")}

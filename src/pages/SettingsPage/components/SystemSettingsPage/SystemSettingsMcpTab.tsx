@@ -1,7 +1,6 @@
 import { CopyOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
 import {
   Alert,
-  Button,
   Card,
   Modal,
   Radio,
@@ -13,6 +12,7 @@ import {
   message,
   theme,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -358,9 +358,7 @@ const SystemSettingsMcpTab: React.FC = () => {
   return (
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
       {contextHolder}
-
       {error ? <Alert type="error" showIcon message={error} /> : null}
-
       <Card size="small" title={t("settings.mcpTab.overviewTitle")}>
         <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.mcpTab.overviewDescription")}</Text>
@@ -404,13 +402,12 @@ const SystemSettingsMcpTab: React.FC = () => {
           </Space>
         </Space>
       </Card>
-
       <Card
         size="small"
         title={t("settings.mcpTab.serversTitle")}
         extra={
           <Space>
-            <Button type="primary" onClick={openCreateServerModal}>
+            <Button variant="default" onClick={openCreateServerModal}>
               {t("settings.mcpTab.addServer")}
             </Button>
             <Button
@@ -444,13 +441,11 @@ const SystemSettingsMcpTab: React.FC = () => {
           isServerActionLoading={isServerActionLoading}
         />
       </Card>
-
       <McpToolList
         server={selectedServer}
         tools={selectedServerTools}
         loading={isSelectedServerToolsLoading}
       />
-
       <McpServerFormModal
         open={isServerModalOpen}
         mode={serverModalMode}
@@ -463,7 +458,6 @@ const SystemSettingsMcpTab: React.FC = () => {
         }}
         onSubmit={(config) => void handleSubmitServer(config)}
       />
-
       <Modal
         open={isImportOpen}
         title={t("settings.mcpTab.importModalTitle")}

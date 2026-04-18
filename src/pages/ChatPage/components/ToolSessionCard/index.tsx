@@ -1,15 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
-import {
-  Collapse,
-  Space,
-  Typography,
-  theme,
-  Badge,
-  CollapseProps,
-  Tag,
-  Button,
-  Tooltip,
-} from "antd";
+import { Collapse, Space, Typography, theme, Badge, CollapseProps, Tag, Tooltip } from "antd";
+import { Button } from "@/components/ui/button";
 import type { GlobalToken } from "antd/es/theme/interface";
 import {
   ToolOutlined,
@@ -472,9 +463,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                   }
                 >
                   <Button
-                    type="text"
-                    size="small"
-                    danger
+                    size="sm"
                     icon={<DeleteOutlined />}
                     aria-label={t("components.toolSession.deleteMessage")}
                     data-testid={`delete-tool-message-${getToolItemTestId(item)}`}
@@ -485,7 +474,7 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
                       if (deletableMessageIds.length === 0) return;
                       void onDeleteMessageIds(deletableMessageIds);
                     }}
-                  />
+                    variant="destructive" />
                 </Tooltip>
               )}
             </div>

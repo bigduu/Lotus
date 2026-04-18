@@ -1,5 +1,6 @@
 import React from "react";
-import { Button, Flex, Tooltip, theme, Grid } from "antd";
+import { Flex, Tooltip, theme, Grid } from "antd";
+import { Button } from "@/components/ui/button";
 import { CopyOutlined, BookOutlined } from "@ant-design/icons";
 
 const { useToken } = theme;
@@ -37,8 +38,8 @@ export const ActionButtonGroup: React.FC<ActionButtonGroupProps> = ({
   const { token } = useToken();
   const screens = useBreakpoint();
 
-  const getActionButtonSize = (): "small" | "middle" | "large" => {
-    return screens.xs ? "small" : "small";
+  const getActionButtonSize = (): "sm" | "default" | "lg" => {
+    return screens.xs ? "sm" : "sm";
   };
 
   return (
@@ -67,7 +68,7 @@ export const ActionButtonGroup: React.FC<ActionButtonGroupProps> = ({
             data-testid={(button as any)["data-testid"] || button.key}
             icon={button.icon}
             size={getActionButtonSize()}
-            type="text"
+            variant="ghost"
             onClick={button.onClick}
             disabled={button.disabled}
             style={{

@@ -1,17 +1,6 @@
 import React, { memo, useState } from "react";
-import {
-  Card,
-  Steps,
-  Button,
-  Typography,
-  Tag,
-  Space,
-  Collapse,
-  Flex,
-  List,
-  Input,
-  theme,
-} from "antd";
+import { Card, Steps, Typography, Tag, Space, Collapse, Flex, List, Input, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,
@@ -84,7 +73,6 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
         </Title>
         <Paragraph style={{ fontSize: 15, marginBottom: 0 }}>{plan.goal}</Paragraph>
       </Flex>
-
       {/* Steps Section */}
       <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Title level={5} style={{ marginBottom: token.marginMD }}>
@@ -125,7 +113,6 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
           }))}
         />
       </Flex>
-
       {/* Metadata Section */}
       <Space direction="vertical" style={{ width: "100%", marginBottom: token.marginLG }}>
         <Flex align="center" gap={token.marginXS} wrap="wrap">
@@ -150,7 +137,6 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
           </Flex>
         )}
       </Space>
-
       {/* Risks Section */}
       {plan.risks && plan.risks.length > 0 && (
         <Collapse
@@ -184,26 +170,24 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
           ]}
         />
       )}
-
       {/* Action Buttons */}
       <Space style={{ width: "100%", justifyContent: "flex-end" }}>
         {!refineMode ? (
           <>
             <Button onClick={() => setRefineMode(true)}>{t("components.plan.refinePlan")}</Button>
-            <Button type="primary" icon={<ThunderboltOutlined />} onClick={onExecute}>
+            <Button variant="default" icon={<ThunderboltOutlined />} onClick={onExecute}>
               {t("components.plan.executePlan")}
             </Button>
           </>
         ) : (
           <>
             <Button onClick={() => setRefineMode(false)}>{t("common.cancel")}</Button>
-            <Button type="primary" onClick={handleRefine} disabled={!feedback.trim()}>
+            <Button variant="default" onClick={handleRefine} disabled={!feedback.trim()}>
               {t("components.plan.sendFeedback")}
             </Button>
           </>
         )}
       </Space>
-
       {/* Refinement Input */}
       {refineMode && (
         <Flex vertical style={{ marginTop: token.marginMD }}>

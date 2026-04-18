@@ -4,7 +4,6 @@ import {
   Form,
   Select,
   Input,
-  Button,
   Card,
   message,
   Space,
@@ -17,6 +16,7 @@ import {
   Tooltip,
   theme,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import {
   SaveOutlined,
   KeyOutlined,
@@ -812,8 +812,8 @@ export const ProviderSettings: React.FC = () => {
     <Space direction="vertical" size={4}>
       <Space size="small">
         <Button
-          type="link"
-          size="small"
+          variant="link"
+          size="sm"
           onClick={() => handleFetchModelsWithSave(provider, { force: true })}
           loading={fetchingModels}
           style={{ padding: 0 }}
@@ -844,7 +844,7 @@ export const ProviderSettings: React.FC = () => {
             <Text type="danger">{t("settings.providerTab.fetchModelsFailedShort")}</Text>
           </Tooltip>
           <Button
-            size="small"
+            size="sm"
             onClick={() => handleFetchModelsWithSave(provider, { force: true })}
             loading={fetchingModels}
           >
@@ -1155,7 +1155,6 @@ export const ProviderSettings: React.FC = () => {
               type="info"
               showIcon
             />
-
             <Card
               size="small"
               style={{ marginTop: 16, marginBottom: 16 }}
@@ -1183,16 +1182,16 @@ export const ProviderSettings: React.FC = () => {
               <Space>
                 {copilotAuthStatus?.authenticated ? (
                   <Button
-                    danger
                     icon={<LogoutOutlined />}
                     onClick={handleCopilotLogout}
                     loading={authenticatingCopilot}
+                    variant="destructive"
                   >
                     {t("settings.providerTab.logoutCopilot")}
                   </Button>
                 ) : (
                   <Button
-                    type="primary"
+                    variant="default"
                     icon={<LoginOutlined />}
                     onClick={handleCopilotAuthenticate}
                     loading={authenticatingCopilot}
@@ -1205,7 +1204,6 @@ export const ProviderSettings: React.FC = () => {
                 </Button>
               </Space>
             </Card>
-
             <Form.Item
               name={["providers", "copilot", "headless_auth"]}
               label={t("settings.providerTab.headlessAuth")}
@@ -1214,7 +1212,6 @@ export const ProviderSettings: React.FC = () => {
             >
               <Switch />
             </Form.Item>
-
             <Form.Item
               name={["providers", "copilot", "model"]}
               label={t("settings.providerTab.defaultModel")}
@@ -1253,7 +1250,6 @@ export const ProviderSettings: React.FC = () => {
                 ))}
               </Select>
             </Form.Item>
-
             <Form.Item
               name={["providers", "copilot", "responses_only_models"]}
               label={t("settings.providerTab.responsesOnlyModelsOptional")}
@@ -1265,11 +1261,9 @@ export const ProviderSettings: React.FC = () => {
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
-
             <Divider dashed />
             {renderRoleModelFields("copilot", COPILOT_MODELS)}
             {renderRequestOverridesEditor("copilot")}
-
             <Paragraph type="secondary">
               {t("settings.providerTab.copilotUsageTitle")}
               <ul style={{ marginTop: 8, marginBottom: 0 }}>
@@ -1300,9 +1294,7 @@ export const ProviderSettings: React.FC = () => {
       }
     >
       <Paragraph type="secondary">{t("settings.providerTab.description")}</Paragraph>
-
       <Divider />
-
       <Form
         form={form}
         layout="vertical"
@@ -1337,17 +1329,16 @@ export const ProviderSettings: React.FC = () => {
         <Space size="middle">
           <Button
             data-testid="save-api-settings"
-            type="primary"
-            htmlType="submit"
+            variant="default"
+            type="submit"
             icon={<SaveOutlined />}
             loading={loading || applyingConfig}
-            size="large"
+            size="lg"
           >
             {t("settings.providerTab.saveAndApply")}
           </Button>
         </Space>
       </Form>
-
       {/* Device Code Modal for Copilot Authentication */}
       <DeviceCodeModal
         open={isDeviceCodeModalVisible}

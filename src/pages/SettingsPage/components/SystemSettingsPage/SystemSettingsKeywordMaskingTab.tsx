@@ -1,17 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  Button,
-  Card,
-  Flex,
-  Input,
-  List,
-  Select,
-  Space,
-  Switch,
-  Typography,
-  message,
-  theme,
-} from "antd";
+import { Card, Flex, Input, List, Select, Space, Switch, Typography, message, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { ServiceFactory } from "../../../../services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
@@ -215,7 +204,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       extra={
         <Button
           data-testid="add-keyword"
-          type="primary"
+          variant="default"
           icon={<PlusOutlined />}
           onClick={handleAddEntry}
           loading={loading}
@@ -245,7 +234,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                       <Button
                         data-testid="save-keyword"
                         key="save"
-                        type="primary"
+                        variant="default"
                         icon={<SaveOutlined />}
                         onClick={handleSaveEdit}
                         aria-label={t("settings.keywordMaskingTab.save")}
@@ -264,10 +253,10 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                       <Button
                         data-testid={`delete-keyword-${index}`}
                         key="delete"
-                        danger
                         icon={<DeleteOutlined />}
                         onClick={() => handleDeleteEntry(index)}
                         aria-label={t("settings.keywordMaskingTab.delete")}
+                        variant="destructive"
                       />,
                     ]
               }
@@ -275,7 +264,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
               <Flex vertical style={{ width: "100%" }} gap={8}>
                 {editingIndex === index ? (
                   // Edit mode
-                  <>
+                  (<>
                     <Input
                       data-testid="keyword-pattern-input"
                       placeholder={t("settings.keywordMaskingTab.patternPlaceholder")}
@@ -334,10 +323,10 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                       />
                       {preview.error && <Text type="danger">{preview.error}</Text>}
                     </Flex>
-                  </>
+                  </>)
                 ) : (
                   // View mode
-                  <Flex justify="space-between" align="center">
+                  (<Flex justify="space-between" align="center">
                     <Flex vertical gap={4}>
                       <Text strong>
                         {item.pattern || t("settings.keywordMaskingTab.emptyPattern")}
@@ -360,7 +349,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
                       onChange={(checked) => handleToggleEnabled(index, checked)}
                       size="small"
                     />
-                  </Flex>
+                  </Flex>)
                 )}
               </Flex>
             </List.Item>

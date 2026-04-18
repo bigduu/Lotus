@@ -2,7 +2,6 @@ import { useThemeStore } from "@shared/store/themeStore";
 import { ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
-  Button,
   Card,
   Col,
   DatePicker,
@@ -17,6 +16,7 @@ import {
   Typography,
   theme,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";

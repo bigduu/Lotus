@@ -1,5 +1,6 @@
 import React, { memo, useState, useCallback } from "react";
-import { List, Button, Input, Tag, Dropdown, theme } from "antd";
+import { List, Input, Tag, Dropdown, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import type { MenuProps } from "antd";
 import {
   DeleteOutlined,
@@ -188,16 +189,16 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     ? [
         <Button
           key="save"
-          type="text"
-          size="small"
+          variant="ghost"
+          size="sm"
           icon={<CheckOutlined style={{ color: token.colorSuccess }} />}
           onClick={handleSave}
           aria-label={t("common.save")}
         />,
         <Button
           key="cancel"
-          type="text"
-          size="small"
+          variant="ghost"
+          size="sm"
           icon={<CloseOutlined style={{ color: token.colorError }} />}
           onClick={handleCancel}
           aria-label={t("common.cancel")}
@@ -215,8 +216,8 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
             onOpenChange={(open) => setDropdownOpen(open)}
           >
             <Button
-              type="text"
-              size="small"
+              variant="ghost"
+              size="sm"
               icon={<MoreOutlined />}
               aria-label={t("common.moreActions", "More actions")}
               onClick={(e) => e.stopPropagation()}

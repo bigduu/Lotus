@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
-import { Collapse, Space, Button, Typography, theme, Tooltip, Tag } from "antd";
+import { Collapse, Space, Typography, theme, Tooltip, Tag } from "antd";
+import { Button } from "@/components/ui/button";
 import { ToolOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -320,8 +321,8 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                   </Text>
                   <Tooltip title={t("components.toolCall.copyParameters")}>
                     <Button
-                      type="text"
-                      size="small"
+                      variant="ghost"
+                      size="sm"
                       icon={<CopyOutlined />}
                       aria-label={t("components.toolCall.copyParameters")}
                       onClick={(e) => {

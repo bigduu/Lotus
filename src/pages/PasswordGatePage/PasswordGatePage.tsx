@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Card, Input, Space, Typography } from "antd";
+import { Alert, Card, Input, Space, Typography } from "antd";
+
+import { Button } from "@/components/ui/button";
 
 const { Title, Text } = Typography;
 
@@ -77,7 +79,7 @@ export const PasswordGatePage = ({ onVerified, verifyPassword }: PasswordGatePag
             />
           </Space>
 
-          <Button type="primary" block loading={isSubmitting} onClick={() => void handleSubmit()}>
+          <Button variant="default" block loading={isSubmitting} onClick={() => void handleSubmit()}>
             {t("app.passwordGate.submit", "验证并进入")}
           </Button>
         </Space>

@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Button, Flex } from "antd";
+import { Flex } from "antd";
+import { Button } from "@/components/ui/button";
 import { FileTextOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -46,11 +47,11 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
             onChange={onFileInputChange}
           />
           <Button
-            type="text"
+            variant="ghost"
             icon={<PlusOutlined />}
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isStreaming}
-            size="small"
+            size="sm"
             style={{
               minWidth: 36,
               padding: "0 8px",
@@ -63,14 +64,13 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
           />
         </>
       )}
-
       {onFileReferenceButtonClick && (
         <Button
-          type="text"
+          variant="ghost"
           icon={<FileTextOutlined />}
           onClick={onFileReferenceButtonClick}
           disabled={disabled || isStreaming}
-          size="small"
+          size="sm"
           style={{
             minWidth: 36,
             padding: "0 8px",
@@ -82,7 +82,6 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
           aria-label={t("chat.input.referenceWorkspaceFiles")}
         />
       )}
-
       {extraControl}
     </Flex>
   );

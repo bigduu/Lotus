@@ -1,5 +1,6 @@
 import { CodeOutlined, FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Form, Input, Modal, Radio, Select, Space, Switch, Typography } from "antd";
+import { Alert, Form, Input, Modal, Radio, Select, Space, Switch, Typography } from "antd";
+import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -489,7 +490,6 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
           </Radio.Button>
         </Radio.Group>
       </div>
-
       {editorMode === "json" && jsonError && (
         <Alert
           type="error"
@@ -501,7 +501,6 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
           onClose={() => setJsonError(null)}
         />
       )}
-
       {editorMode === "json" ? (
         <TextArea
           value={jsonValue}
@@ -606,7 +605,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       <Button
                         icon={<PlusOutlined />}
                         onClick={() => add({ key: "", value: "" })}
-                        type="dashed"
+                        variant="outline"
                       >
                         {t("settings.mcpServerForm.addEnv")}
                       </Button>
@@ -630,15 +629,13 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                           <Input placeholder="/Users/me/workspace" autoComplete="off" />
                         </Form.Item>
                         <Button
-                          danger
-                          type="text"
                           icon={<MinusCircleOutlined />}
                           onClick={() => remove(field.name)}
                           aria-label={t(
                             "settings.mcpServerForm.removeEnv",
                             "Remove environment variable",
                           )}
-                        />
+                          variant="destructive" />
                       </Space>
                     ))}
                   </Space>
@@ -683,7 +680,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       <Button
                         icon={<PlusOutlined />}
                         onClick={() => add({ name: "", value: "" })}
-                        type="dashed"
+                        variant="outline"
                       >
                         {t("settings.mcpServerForm.addHeader")}
                       </Button>
@@ -707,12 +704,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                           <Input placeholder="Bearer token" autoComplete="off" />
                         </Form.Item>
                         <Button
-                          danger
-                          type="text"
                           icon={<MinusCircleOutlined />}
                           onClick={() => remove(field.name)}
                           aria-label={t("settings.mcpServerForm.removeHeader", "Remove header")}
-                        />
+                          variant="destructive" />
                       </Space>
                     ))}
                   </Space>

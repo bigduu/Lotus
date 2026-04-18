@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Button, Empty, Flex, List, Space, Spin, Typography } from "antd";
+import { Empty, Flex, List, Space, Spin, Typography } from "antd";
+import { Button } from "@/components/ui/button";
 import { FolderOutlined, HistoryOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { WorkspaceInfo } from "../../services/RecentWorkspacesManager";
@@ -31,7 +32,6 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
         <HistoryOutlined />
         <Text strong>{t("chat.workspace.recentTitle")}</Text>
       </Space>
-
       {isLoading ? (
         <Flex justify="center" style={{ padding: token.paddingSM }}>
           <Spin size="small" />
@@ -50,7 +50,7 @@ const WorkspacePickerRecentList: React.FC<WorkspacePickerRecentListProps> = ({
           renderItem={(workspace) => (
             <List.Item style={{ padding: 0 }}>
               <Button
-                type="text"
+                variant="ghost"
                 onClick={() => onSelect(workspace.path)}
                 style={{
                   width: "100%",

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Button,
   Card,
   Flex,
   Form,
@@ -15,6 +14,7 @@ import {
   Typography,
   message,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
 
@@ -808,7 +808,7 @@ export default function SystemSettingsSchedulesTab() {
             <Flex vertical gap={8}>
               <Flex gap={8} wrap="wrap">
                 <Button
-                  size="small"
+                  size="sm"
                   onClick={() => {
                     setEditModal({ open: true, schedule: row, saving: false });
                     editForm.setFieldsValue(scheduleToFormValues(row));
@@ -817,7 +817,7 @@ export default function SystemSettingsSchedulesTab() {
                   {t("settings.schedulesTab.actions.edit")}
                 </Button>
                 <Button
-                  size="small"
+                  size="sm"
                   onClick={async () => {
                     try {
                       await agentClient.runScheduleNow(row.id);
@@ -832,7 +832,7 @@ export default function SystemSettingsSchedulesTab() {
                   {t("settings.schedulesTab.actions.runNow")}
                 </Button>
                 <Button
-                  size="small"
+                  size="sm"
                   onClick={async () => {
                     setSessionsModal((s) => ({
                       ...s,
@@ -864,7 +864,7 @@ export default function SystemSettingsSchedulesTab() {
                   {t("settings.schedulesTab.actions.sessions")}
                 </Button>
                 <Button
-                  size="small"
+                  size="sm"
                   onClick={async () => {
                     setRunsModal((s) => ({
                       ...s,
@@ -892,8 +892,7 @@ export default function SystemSettingsSchedulesTab() {
                   {t("settings.schedulesTab.actions.runs")}
                 </Button>
                 <Button
-                  danger
-                  size="small"
+                  size="sm"
                   onClick={async () => {
                     try {
                       await agentClient.deleteSchedule(row.id);
@@ -904,6 +903,7 @@ export default function SystemSettingsSchedulesTab() {
                       msgApi.error(t("settings.schedulesTab.deleteFailed"));
                     }
                   }}
+                  variant="destructive"
                 >
                   {t("settings.schedulesTab.actions.delete")}
                 </Button>
@@ -929,7 +929,6 @@ export default function SystemSettingsSchedulesTab() {
   return (
     <Flex vertical gap={16}>
       {contextHolder}
-
       <Card title={t("settings.schedulesTab.createTitle")} className="lotus-settings-card">
         <Form<ScheduleFormValues>
           form={form}
@@ -1002,12 +1001,11 @@ export default function SystemSettingsSchedulesTab() {
         >
           {renderTriggerFields(createTriggerType, createMisfireType)}
 
-          <Button type="primary" htmlType="submit">
+          <Button variant="default" type="submit">
             {t("settings.schedulesTab.actions.create")}
           </Button>
         </Form>
       </Card>
-
       <Card
         title={t("settings.schedulesTab.listTitle")}
         className="lotus-settings-card"
@@ -1026,7 +1024,6 @@ export default function SystemSettingsSchedulesTab() {
           scroll={{ x: 1500 }}
         />
       </Card>
-
       <Modal
         title={t("settings.schedulesTab.scheduleSessionsTitle")}
         open={sessionsModal.open}
@@ -1051,7 +1048,7 @@ export default function SystemSettingsSchedulesTab() {
                     </Text>
                   </Flex>
                   <Button
-                    size="small"
+                    size="sm"
                     onClick={() => {
                       void openSession(s.id, {
                         forceRefreshIndex: true,
@@ -1070,7 +1067,6 @@ export default function SystemSettingsSchedulesTab() {
           </Flex>
         )}
       </Modal>
-
       <Modal
         title={t("settings.schedulesTab.scheduleRunsTitle")}
         open={runsModal.open}
@@ -1128,7 +1124,6 @@ export default function SystemSettingsSchedulesTab() {
           />
         )}
       </Modal>
-
       <Modal
         title={t("settings.schedulesTab.editTitle")}
         open={editModal.open}

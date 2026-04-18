@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   App as AntApp,
-  Button,
   FloatButton,
   Grid,
   Layout,
@@ -12,6 +11,7 @@ import {
   Tooltip,
   Typography,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import {
   CheckSquareOutlined,
   CloseOutlined,
@@ -719,7 +719,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   <Button
                     aria-label={t("chat.selectionToolbar.selectMessages")}
                     icon={<CheckSquareOutlined />}
-                    size="small"
+                    size="sm"
                     onClick={handleToggleSelectionMode}
                   />
                 </Tooltip>
@@ -733,14 +733,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   })}
                 </Text>
                 <Space size={token.marginXS} wrap>
-                  <Button size="small" onClick={handleSelectAllMessages}>
+                  <Button size="sm" onClick={handleSelectAllMessages}>
                     {t("chat.selectionToolbar.selectAll")}
                   </Button>
-                  <Button size="small" onClick={handleClearSelectedMessages}>
+                  <Button size="sm" onClick={handleClearSelectedMessages}>
                     {t("chat.selectionToolbar.clear")}
                   </Button>
                   <Button
-                    size="small"
+                    size="sm"
                     icon={<DownloadOutlined />}
                     onClick={() => {
                       void handleExportSelectedMessages("markdown");
@@ -750,8 +750,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
                     {t("chat.selectionToolbar.exportMarkdown")}
                   </Button>
                   <Button
-                    size="small"
-                    type="primary"
+                    size="sm"
+                    variant="default"
                     icon={<DownloadOutlined />}
                     onClick={() => {
                       void handleExportSelectedMessages("pdf");
@@ -760,7 +760,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
                   >
                     {t("chat.selectionToolbar.exportPdf")}
                   </Button>
-                  <Button size="small" icon={<CloseOutlined />} onClick={handleToggleSelectionMode}>
+                  <Button size="sm" icon={<CloseOutlined />} onClick={handleToggleSelectionMode}>
                     {t("chat.selectionToolbar.done")}
                   </Button>
                 </Space>

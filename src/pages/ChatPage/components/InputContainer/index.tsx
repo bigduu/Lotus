@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState, lazy, Suspense, useRef, useCallback } from "react";
-import { App as AntApp, Space, theme, Tag, Alert, Spin, Dropdown, Button } from "antd";
+import { App as AntApp, Space, theme, Tag, Alert, Spin, Dropdown } from "antd";
+import { Button } from "@/components/ui/button";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import {
   ToolOutlined,
@@ -739,8 +740,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }}
     >
       <Button
-        type="text"
-        size="small"
+        variant="ghost"
+        size="sm"
         disabled={!activeModel || isStreaming}
         style={{
           minWidth: isMobile ? 74 : 88,
@@ -782,8 +783,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   const modelButton = (
     <Button
-      type="text"
-      size="small"
+      variant="ghost"
+      size="sm"
       disabled={isStreaming || isSavingModel}
       onClick={() => {
         if (!isProviderConfigured) {
@@ -881,7 +882,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           style={{ marginBottom: token.marginSM }}
         />
       )}
-
       {isToolSpecificMode && (
         <Alert
           type={isRestrictConversation ? "warning" : "info"}
@@ -915,7 +915,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           }
         />
       )}
-
       {referenceText && <InputPreview text={referenceText} onClose={handleCloseReferencePreview} />}
       {attachments.length > 0 && (
         <Suspense fallback={<Spin size="small" />}>
@@ -932,7 +931,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             {respondOptions.map((option) => (
               <Button
                 key={option}
-                size="small"
+                size="sm"
                 onClick={() => {
                   void handleRespondSubmit(option);
                 }}
@@ -990,7 +989,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           onHistoryNavigate: handleHistoryNavigate,
         }}
       />
-
       <Suspense fallback={null}>
         <CommandSelector
           visible={commandState.showCommandSelector}
@@ -1000,7 +998,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           searchText={commandState.commandSearchText}
         />
       </Suspense>
-
       {fileReferenceState.showFileSelector && (
         <Suspense fallback={<Spin size="small" />}>
           <FileReferenceSelector
@@ -1018,7 +1015,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           />
         </Suspense>
       )}
-
       <Suspense fallback={null}>
         <WorkspacePathModal
           open={fileReferenceState.isWorkspaceModalVisible}

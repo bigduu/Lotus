@@ -5,13 +5,13 @@ import {
   Breadcrumb,
   Spin,
   message,
-  Button,
   Space,
   Card,
   Empty,
   Typography,
   theme,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import { FolderOutlined, HomeOutlined, ArrowLeftOutlined, CheckOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { workspaceApiService, BrowseFolderResponse } from "../../services/WorkspaceApiService";
@@ -110,22 +110,22 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
     >
       <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         <Space>
-          <Button icon={<HomeOutlined />} onClick={handleGoHome} size="small">
+          <Button icon={<HomeOutlined />} onClick={handleGoHome} size="sm">
             {t("common.home")}
           </Button>
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={handleGoBack}
             disabled={!parentPath}
-            size="small"
+            size="sm"
           >
             {t("common.parentDirectory")}
           </Button>
           <Button
-            type="primary"
+            variant="default"
             icon={<CheckOutlined />}
             onClick={handleSelectCurrent}
-            size="small"
+            size="sm"
           >
             {t("chat.folderBrowser.selectCurrent")}
           </Button>
@@ -135,8 +135,8 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
           {getPathSegments().map((segment, index) => (
             <Breadcrumb.Item key={index}>
               <Button
-                type="link"
-                size="small"
+                variant="link"
+                size="sm"
                 onClick={() => handleBreadcrumbClick(index)}
                 style={{ padding: 0 }}
               >
@@ -166,7 +166,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
               renderItem={(folder) => (
                 <List.Item style={{ padding: 0 }}>
                   <Button
-                    type="text"
+                    variant="ghost"
                     icon={<FolderOutlined />}
                     onClick={() => handleFolderClick(folder)}
                     style={{

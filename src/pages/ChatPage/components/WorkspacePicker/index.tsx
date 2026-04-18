@@ -1,5 +1,6 @@
 import React from "react";
-import { Button, Divider, Input, Space, Typography, theme } from "antd";
+import { Divider, Input, Space, Typography, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import { FolderOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { WorkspaceValidationResult } from "../../utils/workspaceValidator";
@@ -91,16 +92,14 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
               icon={<FolderOutlined />}
               onClick={handleBrowseClick}
               disabled={disabled}
-              type="text"
-              size="middle"
+              variant="ghost"
+              size="default"
               style={{ display: "inline-flex", alignItems: "center" }}
             />
           ) : undefined
         }
       />
-
       <WorkspacePickerValidationStatus result={validationStatus.result} token={token} />
-
       {(showRecentWorkspaces || showSuggestions) && (
         <>
           <Divider style={{ margin: "16px 0 12px 0" }} />
@@ -120,7 +119,6 @@ const WorkspacePicker: React.FC<WorkspacePickerProps> = ({
           />
         </>
       )}
-
       <FolderBrowser
         visible={folderBrowserVisible}
         onClose={() => setFolderBrowserVisible(false)}

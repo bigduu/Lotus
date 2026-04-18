@@ -1,5 +1,6 @@
 import React, { memo, useState } from "react";
-import { Card, Button, Typography, Space, Radio, Alert, Tag, Flex, Input, theme } from "antd";
+import { Card, Typography, Space, Radio, Alert, Tag, Flex, Input, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import {
   QuestionCircleOutlined,
   CheckCircleOutlined,
@@ -118,7 +119,6 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           {question.question}
         </Title>
       </Flex>
-
       {/* Context */}
       {question.context && (
         <Alert
@@ -129,7 +129,6 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           style={{ marginBottom: token.marginLG }}
         />
       )}
-
       {/* Options */}
       <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Text strong style={{ display: "block", marginBottom: token.marginSM }}>
@@ -179,7 +178,6 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           </Space>
         </Radio.Group>
       </Flex>
-
       {/* Custom Answer Input (if allowed) */}
       {question.allow_custom && (
         <Flex vertical style={{ marginBottom: token.marginMD }}>
@@ -200,11 +198,10 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           />
         </Flex>
       )}
-
       {/* Submit Button */}
       <Flex justify="flex-end">
         <Button
-          type="primary"
+          variant="default"
           icon={<CheckCircleOutlined />}
           onClick={handleSubmit}
           loading={loading}

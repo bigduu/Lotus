@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Button, Flex, Tooltip, Typography } from "antd";
+import { Flex, Tooltip, Typography } from "antd";
+import { Button } from "@/components/ui/button";
 import { PlusOutlined, SettingOutlined, SunOutlined, MoonOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "@shared/store/themeStore";
@@ -45,12 +46,12 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
     >
       <Button
         data-testid="new-chat"
-        type="primary"
+        variant="default"
         icon={<PlusOutlined />}
         onClick={onNewChat}
         block={!collapsed}
         shape="default"
-        size={collapsed ? "large" : screens.xs ? "small" : "middle"}
+        size={collapsed ? "lg" : screens.xs ? "sm" : "default"}
         title={newChatLabel}
         aria-label={newChatLabel}
         className="lotus-primary-cta"
@@ -63,7 +64,6 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
       >
         {!collapsed && newChatLabel}
       </Button>
-
       <Flex gap={8} align="center">
         <Button
           data-testid="open-settings"
@@ -71,7 +71,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
           onClick={onOpenSettings}
           block={!collapsed}
           shape="default"
-          size={collapsed ? "large" : screens.xs ? "small" : "middle"}
+          size={collapsed ? "lg" : screens.xs ? "sm" : "default"}
           title={settingsLabel}
           aria-label={settingsLabel}
           className="lotus-secondary-button"
@@ -89,7 +89,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
           <Tooltip title={themeLabel} placement="top">
             <Button
               data-testid="toggle-theme"
-              type="text"
+              variant="ghost"
               icon={themeMode === "dark" ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggleTheme}
               aria-label={themeLabel}
@@ -104,7 +104,6 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
           </Tooltip>
         )}
       </Flex>
-
       {!collapsed && (
         <Text
           type="secondary"

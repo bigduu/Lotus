@@ -1,7 +1,6 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
-  Button,
   Card,
   DatePicker,
   Descriptions,
@@ -14,6 +13,7 @@ import {
   Typography,
   theme,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

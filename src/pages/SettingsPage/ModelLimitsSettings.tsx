@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Table, Input, InputNumber, Button, Space, Card, Typography, Divider, message } from "antd";
+import { Table, Input, InputNumber, Space, Card, Typography, Divider, message } from "antd";
+import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { SaveOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -469,7 +470,7 @@ export const ModelLimitsSettings: React.FC = () => {
         key: "actions",
         width: 100,
         render: (_value, _record, index) => (
-          <Button danger size="small" onClick={() => removeConfigRow(index)}>
+          <Button size="sm" onClick={() => removeConfigRow(index)} variant="destructive">
             {t("settings.modelLimits.actions.remove")}
           </Button>
         ),
@@ -508,7 +509,7 @@ export const ModelLimitsSettings: React.FC = () => {
         <Space>
           <Button onClick={addConfigRow}>{t("settings.modelLimits.actions.addRow")}</Button>
           <Button
-            type="primary"
+            variant="default"
             icon={<SaveOutlined />}
             onClick={() => void saveSettings()}
             loading={loading}

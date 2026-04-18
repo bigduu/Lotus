@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { Button, Flex, Grid, Input, Segmented, theme } from "antd";
+import { Flex, Grid, Input, Segmented, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import { MenuFoldOutlined, SearchOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -89,15 +90,14 @@ export const ChatSidebar: React.FC = () => {
         }}
       >
         <Button
-          type="text"
+          variant="ghost"
           icon={<MenuFoldOutlined />}
           onClick={() => setCollapsed(true)}
-          size={screens.xs ? "small" : "middle"}
+          size={screens.xs ? "sm" : "default"}
           className="lotus-toolbar-icon"
           aria-label={t("chat.sidebar.collapse", "Collapse sidebar")}
         />
       </Flex>
-
       <Flex
         vertical
         gap="small"
@@ -132,7 +132,6 @@ export const ChatSidebar: React.FC = () => {
           ]}
         />
       </Flex>
-
       <Flex
         vertical
         role="list"
@@ -167,7 +166,6 @@ export const ChatSidebar: React.FC = () => {
           hasActiveFilters={hasActiveFilters}
         />
       </Flex>
-
       <ChatSidebarFooter
         collapsed={false}
         onNewChat={handleNewChat}
@@ -175,7 +173,6 @@ export const ChatSidebar: React.FC = () => {
         screens={screens}
         token={token}
       />
-
       <SystemPromptSelector
         open={isNewChatSelectorOpen}
         onClose={handleNewChatSelectorClose}

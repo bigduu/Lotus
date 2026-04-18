@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Button, Card, Input, Space, Typography, Alert, theme } from "antd";
+import { Card, Input, Space, Typography, Alert, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { useBambooConfigStore } from "../../../../shared/stores/bambooConfigStore";
 
@@ -126,7 +127,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
               <Button
                 onClick={handleClearProxyAuth}
                 loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
-                danger
+                variant="destructive"
               >
                 {t("settings.networkCard.clearCredentials")}
               </Button>
@@ -154,7 +155,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
                 }
               />
               <Button
-                type="primary"
+                variant="default"
                 onClick={handleApplyProxyAuth}
                 loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
                 disabled={!proxyAuthForm.username.trim()}
@@ -188,7 +189,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
           </Button>
           <Button
             data-testid="save-proxy-settings"
-            type="primary"
+            variant="default"
             onClick={() =>
               Promise.resolve(onSave()).finally(() => loadProxyAuthStatus({ force: true }))
             }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Card, Checkbox, Input, Spin, Steps } from "antd";
+import { Alert, Card, Checkbox, Input, Spin, Steps } from "antd";
+import { Button } from "@/components/ui/button";
 import type { CheckboxChangeEvent } from "antd/es/checkbox";
 import { ServiceFactory } from "../../services/common/ServiceFactory";
 
@@ -199,7 +200,7 @@ export const SetupPage = () => {
               style={{ marginBottom: 16 }}
             />
             <div className="setup-page__actions">
-              <Button data-testid="setup-next" type="primary" onClick={() => setCurrentStep(1)}>
+              <Button data-testid="setup-next" variant="default" onClick={() => setCurrentStep(1)}>
                 {t("setup.button.next")}
               </Button>
               <Button
@@ -321,7 +322,7 @@ export const SetupPage = () => {
               <Button
                 data-testid="setup-complete"
                 onClick={() => void handleSaveProxyConfig()}
-                type="primary"
+                variant="default"
                 loading={isSaving}
               >
                 {t("setup.button.completeSetup")}

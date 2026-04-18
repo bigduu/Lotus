@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { Button, Flex, theme } from "antd";
+import { Flex, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import {
   BorderHorizontalOutlined,
   BorderVerticleOutlined,
@@ -140,8 +141,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
         >
           <Flex gap={token.marginXS}>
             <Button
-              size="small"
-              type="text"
+              size="sm"
+              variant="ghost"
               icon={<BorderHorizontalOutlined />}
               disabled={!canSplit}
               title={t("chat.multiPane.splitHorizontal")}
@@ -159,8 +160,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             />
 
             <Button
-              size="small"
-              type="text"
+              size="sm"
+              variant="ghost"
               icon={<BorderVerticleOutlined />}
               disabled={!canSplit}
               title={t("chat.multiPane.splitVertical")}
@@ -177,8 +178,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             />
 
             <Button
-              size="small"
-              type="text"
+              size="sm"
+              variant="ghost"
               icon={<CheckSquareOutlined />}
               disabled={!sessionId}
               title={t("chat.multiPane.selectMessagesToExport")}
@@ -196,9 +197,7 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             />
 
             <Button
-              size="small"
-              type="text"
-              danger
+              size="sm"
               icon={<CloseOutlined />}
               disabled={!canClose}
               title={t("chat.multiPane.closePane")}
@@ -217,11 +216,10 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
                 const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
                 selectSession(nextSessionId);
               }}
-            />
+              variant="destructive" />
           </Flex>
         </div>
       )}
-
       {sessionId ? (
         <ErrorBoundary name="ChatView">
           <ChatView sessionId={sessionId} embedded={true} />

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { App as AntApp } from "antd";
-import { Button, Card, Flex, Switch, Typography } from "antd";
+import { Card, Flex, Switch, Typography } from "antd";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 
 import { AgentClient } from "../../../ChatPage/services/AgentService";
@@ -53,7 +54,6 @@ export default function SystemSettingsSessionsTab() {
             </Text>
             <Flex gap={8} wrap="wrap" style={{ marginTop: 8 }}>
               <Button
-                danger
                 loading={busy}
                 onClick={() => {
                   modal.confirm({
@@ -72,6 +72,7 @@ export default function SystemSettingsSessionsTab() {
                     },
                   });
                 }}
+                variant="destructive"
               >
                 {t("settings.sessionsTab.clearMessages")}
               </Button>
@@ -81,7 +82,6 @@ export default function SystemSettingsSessionsTab() {
           <Text type="secondary">{t("settings.sessionsTab.noActiveSession")}</Text>
         )}
       </Card>
-
       <Card size="small" title={t("settings.sessionsTab.bulkCleanupTitle")}>
         <Flex align="center" gap={8} style={{ marginBottom: 12 }}>
           <Text>{t("settings.sessionsTab.keepPinned")}</Text>
@@ -90,7 +90,6 @@ export default function SystemSettingsSessionsTab() {
 
         <Flex gap={8} wrap="wrap">
           <Button
-            danger
             loading={busy}
             onClick={() => {
               modal.confirm({
@@ -110,12 +109,12 @@ export default function SystemSettingsSessionsTab() {
                 },
               });
             }}
+            variant="destructive"
           >
             {t("settings.sessionsTab.deleteAll")}
           </Button>
 
           <Button
-            danger
             loading={busy}
             onClick={() => {
               modal.confirm({
@@ -135,12 +134,12 @@ export default function SystemSettingsSessionsTab() {
                 },
               });
             }}
+            variant="destructive"
           >
             {t("settings.sessionsTab.deleteEmpty")}
           </Button>
 
           <Button
-            danger
             loading={busy}
             onClick={() => {
               modal.confirm({
@@ -160,18 +159,16 @@ export default function SystemSettingsSessionsTab() {
                 },
               });
             }}
+            variant="destructive"
           >
             {t("settings.sessionsTab.deleteChildren")}
           </Button>
         </Flex>
       </Card>
-
       <Card size="small" title={t("settings.sessionsTab.devResetTitle")}>
         <Text type="secondary">{t("settings.sessionsTab.devResetDescription")}</Text>
         <Flex style={{ marginTop: 12 }}>
           <Button
-            danger
-            type="primary"
             loading={busy}
             onClick={() => {
               modal.confirm({
@@ -189,7 +186,7 @@ export default function SystemSettingsSessionsTab() {
                 },
               });
             }}
-          >
+            variant="destructive">
             {t("settings.sessionsTab.devResetAction")}
           </Button>
         </Flex>

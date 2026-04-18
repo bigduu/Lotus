@@ -4,7 +4,6 @@ import {
   Space,
   Typography,
   Input,
-  Button,
   theme,
   Alert,
   Select,
@@ -13,6 +12,7 @@ import {
   Switch,
   Tabs,
 } from "antd";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
 import AccessPasswordCard from "./AccessPasswordCard";
@@ -339,7 +339,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <Button
                         data-testid="save-memory-settings"
-                        type="primary"
+                        variant="default"
                         onClick={handleSaveConfig}
                         loading={isLoading}
                       >
@@ -377,7 +377,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                       </Button>
                       <Button
                         data-testid="save-api-settings"
-                        type="primary"
+                        variant="default"
                         onClick={handleSaveBackendUrl}
                       >
                         {t("settings.configTab.save")}
@@ -431,7 +431,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                       {t("settings.configTab.reloadTools")}
                     </Button>
                     <Button
-                      type="primary"
+                      variant="default"
                       onClick={handleSaveTools}
                       loading={isToolsBusy}
                       disabled={!hasToolChanges}

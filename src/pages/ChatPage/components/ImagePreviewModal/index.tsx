@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Modal, Button, Space, Typography, theme, Carousel } from "antd";
+import { Modal, Space, Typography, theme, Carousel } from "antd";
+import { Button } from "@/components/ui/button";
 import { LeftOutlined, RightOutlined, DownloadOutlined, CloseOutlined } from "@ant-design/icons";
 import { ImageFile, formatFileSize } from "../../utils/imageUtils";
 
@@ -110,7 +111,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           </Space>
         </div>
       </div>
-
       {/* Image Display */}
       <div
         style={{
@@ -170,7 +170,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
         {images.length > 1 && (
           <>
             <Button
-              type="primary"
+              variant="default"
               shape="circle"
               icon={<LeftOutlined />}
               onClick={goToPrevious}
@@ -183,7 +183,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               }}
             />
             <Button
-              type="primary"
+              variant="default"
               shape="circle"
               icon={<RightOutlined />}
               onClick={goToNext}
@@ -198,7 +198,6 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
           </>
         )}
       </div>
-
       {/* Thumbnail strip for multiple images */}
       {images.length > 1 && (
         <div

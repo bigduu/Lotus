@@ -1,5 +1,6 @@
 import React from "react";
-import { Button, Card, Flex, Popconfirm, Space, Switch, Typography, theme, Divider } from "antd";
+import { Card, Flex, Popconfirm, Space, Switch, Typography, theme, Divider } from "antd";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { DeleteOutlined, WarningOutlined, RedoOutlined } from "@ant-design/icons";
 import { APP_VERSION } from "@shared/constants/appVersion";
@@ -97,7 +98,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
           cancelText={t("settings.appTab.cancel")}
           placement="top"
         >
-          <Button danger block icon={<DeleteOutlined />}>
+          <Button block icon={<DeleteOutlined />} variant="destructive">
             {t("settings.appTab.clearLocalStorageButton")}
           </Button>
         </Popconfirm>
@@ -136,12 +137,10 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
         >
           <Button
             data-testid="reset-to-defaults"
-            danger
             block
-            type="primary"
             icon={<RedoOutlined />}
             loading={isResetting}
-          >
+            variant="destructive">
             {t("settings.appTab.resetButton")}
           </Button>
         </Popconfirm>

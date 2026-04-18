@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { App as AntdApp, Button, ConfigProvider as AntdConfigProvider, theme } from "antd";
+import { App as AntdApp, ConfigProvider as AntdConfigProvider, theme } from "antd";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import "./App.css";
 import "@shared/i18n";
@@ -361,7 +362,7 @@ function App() {
         <div style={{ padding: 40, textAlign: "center" }}>
           <div style={{ marginBottom: 12 }}>{backendStartupError}</div>
           <Button
-            type="primary"
+            variant="default"
             onClick={() => {
               setBackendStartupError(null);
               setAccessStatus(null);

@@ -1,5 +1,6 @@
 import React from "react";
-import { Modal, Button, Space, Alert, Card, Tag, Typography } from "antd";
+import { Modal, Space, Alert, Card, Tag, Typography } from "antd";
+import { Button } from "@/components/ui/button";
 import { CheckCircleOutlined, ClockCircleOutlined, CopyOutlined } from "@ant-design/icons";
 import type { GlobalToken } from "antd/es/theme/interface";
 import { useTranslation } from "react-i18next";
@@ -47,7 +48,7 @@ export const DeviceCodeModal: React.FC<DeviceCodeModalProps> = ({
         <Button key="cancel" onClick={onCancel}>
           {t("settings.providerTab.cancel")}
         </Button>,
-        <Button key="complete" type="primary" onClick={onComplete} loading={completingAuth}>
+        <Button key="complete" variant="default" onClick={onComplete} loading={completingAuth}>
           {t("settings.providerTab.completedAuthorization")}
         </Button>,
       ]}
@@ -103,7 +104,7 @@ export const DeviceCodeModal: React.FC<DeviceCodeModalProps> = ({
                 <Button
                   icon={copiedUserCode ? <CheckCircleOutlined /> : <CopyOutlined />}
                   onClick={onCopyCode}
-                  type={copiedUserCode ? "default" : "primary"}
+                  variant={copiedUserCode ? "outline" : "default"}
                 >
                   {copiedUserCode
                     ? t("settings.providerTab.copied")
