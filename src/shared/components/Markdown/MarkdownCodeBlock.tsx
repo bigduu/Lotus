@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useState } from "react";
-import { Card, message } from "antd";
+import { message } from "antd";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

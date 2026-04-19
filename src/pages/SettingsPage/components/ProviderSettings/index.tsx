@@ -4,7 +4,6 @@ import {
   Form,
   Select,
   Input,
-  Card,
   message,
   Divider,
   Alert,
@@ -14,6 +13,7 @@ import {
   Tooltip,
   theme,
 } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";

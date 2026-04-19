@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Switch, Tag, theme } from "antd";
+import { Switch, Tag, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { useTranslation } from "react-i18next";

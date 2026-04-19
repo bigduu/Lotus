@@ -1,7 +1,8 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useState } from "react";
 import { useAppStore } from "../../pages/ChatPage/store";
-import { Card, List, Tag, Progress, Badge, Tooltip, Alert, theme } from "antd";
+import { List, Tag, Progress, Badge, Tooltip, Alert, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import {

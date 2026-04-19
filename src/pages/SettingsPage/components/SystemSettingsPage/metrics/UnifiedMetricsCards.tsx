@@ -1,4 +1,5 @@
-import { Card, Col, Row, Skeleton, Statistic, theme } from "antd";
+import { Col, Row, Skeleton, Statistic, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { useTranslation } from "react-i18next";
 
 import type {

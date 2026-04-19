@@ -1,7 +1,6 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
-  Card,
   DatePicker,
   Descriptions,
   Modal,
@@ -11,6 +10,7 @@ import {
   Tabs,
   theme,
 } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";

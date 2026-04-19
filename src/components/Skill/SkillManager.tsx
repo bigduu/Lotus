@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Card, Input, List, message, Spin, Empty, Row } from "antd";
+import { Input, List, message, Spin, Empty, Row } from "antd";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

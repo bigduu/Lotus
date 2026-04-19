@@ -1,5 +1,6 @@
 import React, { memo } from "react";
-import { Card, Tag, theme, Tooltip } from "antd";
+import { Tag, theme, Tooltip } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";

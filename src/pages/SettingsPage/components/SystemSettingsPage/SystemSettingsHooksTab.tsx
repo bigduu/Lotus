@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Select, Switch, message, theme } from "antd";
+import { Select, Switch, message, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";

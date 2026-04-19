@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Descriptions, theme, Tag } from "antd";
+import { Descriptions, theme, Tag } from "antd";
+import { Card } from "@/components/ui/card";
 import { Flex } from "@/components/ui/flex";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";

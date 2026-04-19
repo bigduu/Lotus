@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Card, Input } from "antd";
+import { Alert, Input } from "antd";
+
+import { Card } from "@/components/ui/card";
 
 import { Space } from "@/components/ui/space";
 

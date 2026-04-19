@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Collapse, Image, theme } from "antd";
+import { Collapse, Image, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { EyeOutlined } from "@ant-design/icons";

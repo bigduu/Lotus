@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Modal, List, Breadcrumb, Spin, message, Card, Empty, theme } from "antd";
+import { Modal, List, Breadcrumb, Spin, message, Empty, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";

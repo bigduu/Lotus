@@ -10,6 +10,7 @@
 const MAPPINGS = {
   Space: "@/components/ui/space",
   Flex: "@/components/ui/flex",
+  Card: "@/components/ui/card",
 };
 
 module.exports = function transformer(file, api) {

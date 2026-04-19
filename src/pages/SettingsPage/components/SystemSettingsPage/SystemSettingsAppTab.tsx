@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Popconfirm, Switch, theme, Divider } from "antd";
+import { Popconfirm, Switch, theme, Divider } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";

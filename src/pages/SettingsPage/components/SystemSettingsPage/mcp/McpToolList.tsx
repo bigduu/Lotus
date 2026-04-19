@@ -1,4 +1,5 @@
-import { Card, Collapse, Empty, List } from "antd";
+import { Collapse, Empty, List } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import type { McpServer, McpToolInfo } from "../../../../../services/mcp";

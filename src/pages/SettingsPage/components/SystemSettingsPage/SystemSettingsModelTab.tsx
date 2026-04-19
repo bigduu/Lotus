@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Input, Select, Spin, theme } from "antd";
+import { Input, Select, Spin, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";

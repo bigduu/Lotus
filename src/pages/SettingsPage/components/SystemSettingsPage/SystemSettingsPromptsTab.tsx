@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from "react";
-import { Card, Collapse, Input, Spin, Switch, theme } from "antd";
+import { Collapse, Input, Spin, Switch, theme } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";

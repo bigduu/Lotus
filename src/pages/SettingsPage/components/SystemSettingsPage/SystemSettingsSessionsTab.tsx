@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { App as AntApp } from "antd";
-import { Card, Switch } from "antd";
+import { Switch } from "antd";
+import { Card } from "@/components/ui/card";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";

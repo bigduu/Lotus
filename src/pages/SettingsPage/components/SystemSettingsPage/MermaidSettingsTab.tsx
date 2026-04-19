@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Form, InputNumber, Switch, Select, Divider, Row, Col, Tooltip } from "antd";
+import { Form, InputNumber, Switch, Select, Divider, Row, Col, Tooltip } from "antd";
+import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";

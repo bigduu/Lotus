@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Card, Checkbox, Input, Spin, Steps } from "antd";
+import { Alert, Checkbox, Input, Spin, Steps } from "antd";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import type { CheckboxChangeEvent } from "antd/es/checkbox";
 import { ServiceFactory } from "../../services/common/ServiceFactory";
