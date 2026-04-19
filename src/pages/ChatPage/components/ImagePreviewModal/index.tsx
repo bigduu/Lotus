@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Modal, Space, Typography, theme, Carousel } from "antd";
+import { Modal, Space, theme, Carousel } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { LeftOutlined, RightOutlined, DownloadOutlined, CloseOutlined } from "@ant-design/icons";
 import { ImageFile, formatFileSize } from "../../utils/imageUtils";

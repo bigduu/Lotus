@@ -1,16 +1,6 @@
 import React, { useState, useEffect } from "react";
-import {
-  Modal,
-  List,
-  Breadcrumb,
-  Spin,
-  message,
-  Space,
-  Card,
-  Empty,
-  Typography,
-  theme,
-} from "antd";
+import { Modal, List, Breadcrumb, Spin, message, Space, Card, Empty, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { FolderOutlined, HomeOutlined, ArrowLeftOutlined, CheckOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

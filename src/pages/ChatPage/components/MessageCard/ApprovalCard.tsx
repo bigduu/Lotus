@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Typography, Space, Descriptions, theme, Tag, Flex } from "antd";
+import { Card, Space, Descriptions, theme, Tag, Flex } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { CheckOutlined, CloseOutlined, ToolOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

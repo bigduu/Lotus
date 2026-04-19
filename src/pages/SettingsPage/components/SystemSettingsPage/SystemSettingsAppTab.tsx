@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Flex, Popconfirm, Space, Switch, Typography, theme, Divider } from "antd";
+import { Card, Flex, Popconfirm, Space, Switch, theme, Divider } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { DeleteOutlined, WarningOutlined, RedoOutlined } from "@ant-design/icons";

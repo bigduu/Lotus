@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Flex, Input, List, Select, Space, Switch, Typography, message, theme } from "antd";
+import { Card, Flex, Input, List, Select, Space, Switch, message, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import { ServiceFactory } from "../../../../services/common/ServiceFactory";

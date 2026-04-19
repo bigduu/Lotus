@@ -1,17 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
-import {
-  Card,
-  Space,
-  Typography,
-  Input,
-  theme,
-  Alert,
-  Select,
-  List,
-  Spin,
-  Switch,
-  Tabs,
-} from "antd";
+import { Card, Space, Input, theme, Alert, Select, List, Spin, Switch, Tabs } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";

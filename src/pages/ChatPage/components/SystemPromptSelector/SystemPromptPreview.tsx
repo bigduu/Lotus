@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Card, Typography } from "antd";
+import { Card } from "antd";
+import { Typography } from "@/components/ui/typography";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";

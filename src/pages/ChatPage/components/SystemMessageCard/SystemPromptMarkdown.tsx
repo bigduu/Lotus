@@ -1,6 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { memo } from "react";
-import { Typography } from "antd";
+import { Typography } from "@/components/ui/typography";
 import ReactMarkdown from "react-markdown";
 
 const { Text, Paragraph } = Typography;

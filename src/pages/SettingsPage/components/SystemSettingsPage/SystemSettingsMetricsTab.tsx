@@ -13,9 +13,9 @@ import {
   Statistic,
   Table,
   Tabs,
-  Typography,
   theme,
 } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";

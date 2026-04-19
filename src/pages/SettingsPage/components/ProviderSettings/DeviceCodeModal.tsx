@@ -1,5 +1,6 @@
 import React from "react";
-import { Modal, Space, Alert, Card, Tag, Typography } from "antd";
+import { Modal, Space, Alert, Card, Tag } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { CheckCircleOutlined, ClockCircleOutlined, CopyOutlined } from "@ant-design/icons";
 import type { GlobalToken } from "antd/es/theme/interface";

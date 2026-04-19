@@ -1,5 +1,6 @@
 import React, { memo } from "react";
-import { Space, Typography, Alert, Tag, Collapse } from "antd";
+import { Space, Alert, Tag, Collapse } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { SettingOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";

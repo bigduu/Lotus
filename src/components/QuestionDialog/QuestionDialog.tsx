@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Radio, Space, Typography, message, theme } from "antd";
+import { Radio, Space, message, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

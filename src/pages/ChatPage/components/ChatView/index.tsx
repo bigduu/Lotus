@@ -1,16 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  App as AntApp,
-  FloatButton,
-  Grid,
-  Layout,
-  theme,
-  Flex,
-  Space,
-  Tag,
-  Tooltip,
-  Typography,
-} from "antd";
+import { App as AntApp, FloatButton, Grid, Layout, theme, Flex, Space, Tag, Tooltip } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import {
   CheckSquareOutlined,

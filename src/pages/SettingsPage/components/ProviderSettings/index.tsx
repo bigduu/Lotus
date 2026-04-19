@@ -8,7 +8,6 @@ import {
   message,
   Space,
   Divider,
-  Typography,
   Alert,
   Tag,
   Spin,
@@ -16,6 +15,7 @@ import {
   Tooltip,
   theme,
 } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import {
   SaveOutlined,

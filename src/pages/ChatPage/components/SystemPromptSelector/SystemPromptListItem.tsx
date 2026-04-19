@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
-import { List, Radio, Space, Tag, Typography } from "antd";
+import { List, Radio, Space, Tag } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { CopyOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

@@ -1,5 +1,6 @@
 import React from "react";
-import { Typography, theme, Space, Tag, Tooltip } from "antd";
+import { theme, Space, Tag, Tooltip } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { CloseOutlined, FileTextOutlined } from "@ant-design/icons";
 import { ProcessedFile } from "../../utils/fileUtils";

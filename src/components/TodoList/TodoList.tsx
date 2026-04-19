@@ -1,7 +1,8 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useState } from "react";
 import { useAppStore } from "../../pages/ChatPage/store";
-import { Card, List, Tag, Progress, Badge, Tooltip, Space, Typography, Alert, theme } from "antd";
+import { Card, List, Tag, Progress, Badge, Tooltip, Space, Alert, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import {
   CheckCircleOutlined,
   SyncOutlined,

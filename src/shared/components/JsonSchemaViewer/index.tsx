@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { Descriptions, Table, Typography, theme } from "antd";
+import { Descriptions, Table, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { useTranslation } from "react-i18next";
 
 import { safeStringify } from "../../../pages/ChatPage/utils/resultFormatters";

@@ -1,17 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  Card,
-  Form,
-  Input,
-  Modal,
-  Popconfirm,
-  Space,
-  Switch,
-  Table,
-  Tag,
-  Typography,
-  message,
-} from "antd";
+import { Card, Form, Input, Modal, Popconfirm, Space, Switch, Table, Tag, message } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { DeleteOutlined, EditOutlined, LockOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

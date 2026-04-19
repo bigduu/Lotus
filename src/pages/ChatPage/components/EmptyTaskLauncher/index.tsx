@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
-import { App as AntApp, Input, Typography, theme } from "antd";
+import { App as AntApp, Input, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import {
   ApartmentOutlined,
   ArrowRightOutlined,
@@ -552,7 +553,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
 
   const rootStyle = useMemo(
     () =>
-      ({
+      (({
         ["--lotus-empty-launcher-border" as string]: token.colorBorderSecondary,
         ["--lotus-empty-launcher-border-hover" as string]: token.colorPrimaryBorder,
         ["--lotus-empty-launcher-bg" as string]: token.colorBgElevated,
@@ -565,8 +566,8 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
         ["--lotus-empty-launcher-category-border" as string]: token.colorBorderSecondary,
         ["--lotus-empty-launcher-search-bg" as string]: token.colorBgContainer,
         ["--lotus-empty-launcher-badge-bg" as string]: token.colorPrimaryBg,
-        ["--lotus-empty-launcher-badge-text" as string]: token.colorPrimary,
-      }) as React.CSSProperties,
+        ["--lotus-empty-launcher-badge-text" as string]: token.colorPrimary
+      }) as React.CSSProperties),
     [token],
   );
 

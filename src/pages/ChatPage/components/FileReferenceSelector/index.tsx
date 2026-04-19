@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Card, List, Typography, Space, Empty, Spin, theme, Alert } from "antd";
+import { Card, List, Space, Empty, Spin, theme, Alert } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { FileTextOutlined, FolderOutlined, ReloadOutlined } from "@ant-design/icons";
 import { WorkspaceFileEntry } from "../../types/workspace";

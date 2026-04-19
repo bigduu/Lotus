@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from "react";
-import { Card, Collapse, Divider, Flex, Space, Typography, theme } from "antd";
+import { Card, Collapse, Divider, Flex, Space, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { CopyOutlined, EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

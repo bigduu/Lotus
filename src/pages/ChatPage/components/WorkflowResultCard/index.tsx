@@ -1,5 +1,6 @@
 import React, { memo, useMemo, useState } from "react";
-import { Alert, Card, Divider, Space, Spin, Tag, Tooltip, Typography, Flex, theme } from "antd";
+import { Alert, Card, Divider, Space, Spin, Tag, Tooltip, Flex, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import {
   ApiOutlined,

@@ -11,9 +11,9 @@ import {
   Table,
   Tag,
   Tooltip,
-  Typography,
   message,
 } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";

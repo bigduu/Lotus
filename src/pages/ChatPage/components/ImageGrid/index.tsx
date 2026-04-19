@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Collapse, Flex, Image, theme, Typography } from "antd";
+import { Card, Collapse, Flex, Image, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { MessageImage } from "../../types/chat";

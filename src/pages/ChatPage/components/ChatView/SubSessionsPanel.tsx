@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
-import { Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
+import { Card, Dropdown, Flex, Tag, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 

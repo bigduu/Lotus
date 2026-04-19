@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Card, Input, Space, Typography, Alert, theme } from "antd";
+import { Card, Input, Space, Alert, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { useBambooConfigStore } from "../../../../shared/stores/bambooConfigStore";

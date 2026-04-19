@@ -1,5 +1,6 @@
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
-import { Typography, theme } from "antd";
+import { theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { ReloadOutlined, BugOutlined } from "@ant-design/icons";
 

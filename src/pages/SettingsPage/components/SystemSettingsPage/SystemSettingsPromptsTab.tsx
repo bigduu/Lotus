@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from "react";
-import { Card, Collapse, Flex, Input, Space, Spin, Switch, Typography, theme } from "antd";
+import { Card, Collapse, Flex, Input, Space, Spin, Switch, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import MermaidSettingsTab from "./MermaidSettingsTab";

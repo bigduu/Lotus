@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Card, Form, Input, Space, Typography, theme } from "antd";
+import { Alert, Card, Form, Input, Space, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";

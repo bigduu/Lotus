@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Space, Switch, Tag, Typography, theme } from "antd";
+import { Card, Space, Switch, Tag, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { useTranslation } from "react-i18next";
 import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
 

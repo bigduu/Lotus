@@ -1,17 +1,6 @@
 import { CopyOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
-import {
-  Alert,
-  Card,
-  Modal,
-  Radio,
-  Space,
-  Tag,
-  Input,
-  Tooltip,
-  Typography,
-  message,
-  theme,
-} from "antd";
+import { Alert, Card, Modal, Radio, Space, Tag, Input, Tooltip, message, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

@@ -1,5 +1,6 @@
 import React, { memo, useState } from "react";
-import { Card, Typography, Space, Radio, Alert, Tag, Flex, Input, theme } from "antd";
+import { Card, Space, Radio, Alert, Tag, Flex, Input, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import {
   QuestionCircleOutlined,

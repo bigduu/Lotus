@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Flex, Input, Select, Space, Spin, Typography, theme } from "antd";
+import { Card, Flex, Input, Select, Space, Spin, theme } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 

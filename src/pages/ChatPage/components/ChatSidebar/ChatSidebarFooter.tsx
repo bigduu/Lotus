@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Flex, Tooltip, Typography } from "antd";
+import { Flex, Tooltip } from "antd";
+import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { PlusOutlined, SettingOutlined, SunOutlined, MoonOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
