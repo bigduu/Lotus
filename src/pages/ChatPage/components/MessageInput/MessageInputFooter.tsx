@@ -1,6 +1,9 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Flex, Space, Spin } from "antd";
+import { Spin } from "antd";
+
+import { Space } from "@/components/ui/space";
+import { Flex } from "@/components/ui/flex";
 
 import { Typography } from "@/components/ui/typography";
 

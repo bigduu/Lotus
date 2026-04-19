@@ -1,6 +1,8 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Empty, Flex, List, Space, Spin } from "antd";
+import { Empty, List, Spin } from "antd";
+import { Space } from "@/components/ui/space";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { FolderOutlined, HistoryOutlined, HomeOutlined } from "@ant-design/icons";

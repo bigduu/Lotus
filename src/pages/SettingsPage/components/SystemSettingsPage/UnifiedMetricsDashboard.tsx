@@ -7,11 +7,11 @@ import {
   Modal,
   Select,
   Skeleton,
-  Space,
   Table,
   Tabs,
   theme,
 } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";

@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
-import { Flex, Tag, Tooltip, theme } from "antd";
+import { Tag, Tooltip, theme } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import {
   CheckCircleOutlined,

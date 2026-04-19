@@ -1,6 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Flex } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Button } from "@/components/ui/button";
 import { FileTextOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

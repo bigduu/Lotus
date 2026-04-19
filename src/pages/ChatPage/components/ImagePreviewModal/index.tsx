@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Modal, Space, theme, Carousel } from "antd";
+import { Modal, theme, Carousel } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { LeftOutlined, RightOutlined, DownloadOutlined, CloseOutlined } from "@ant-design/icons";

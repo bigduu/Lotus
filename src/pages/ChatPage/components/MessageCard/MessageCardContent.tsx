@@ -1,5 +1,6 @@
 import React, { memo } from "react";
-import { Space, Alert, Tag, Collapse } from "antd";
+import { Alert, Tag, Collapse } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { SettingOutlined } from "@ant-design/icons";

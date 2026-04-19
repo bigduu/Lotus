@@ -1,6 +1,8 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useEffect, useState, memo, useMemo } from "react";
-import { Card, Collapse, Flex, Space, theme } from "antd";
+import { Card, Collapse, theme } from "antd";
+import { Space } from "@/components/ui/space";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import ReactMarkdown from "react-markdown";
 import type { Components } from "react-markdown";

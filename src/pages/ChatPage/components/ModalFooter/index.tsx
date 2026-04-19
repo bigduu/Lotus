@@ -1,5 +1,5 @@
 import React from "react";
-import { Space } from "antd";
+import { Space } from "@/components/ui/space";
 
 import { Button } from "@/components/ui/button";
 

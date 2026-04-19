@@ -1,5 +1,6 @@
 import React from "react";
-import { Flex, Tooltip, theme, Grid } from "antd";
+import { Tooltip, theme, Grid } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Button } from "@/components/ui/button";
 import { CopyOutlined, BookOutlined } from "@ant-design/icons";
 

@@ -1,5 +1,6 @@
 import React from "react";
-import { Card, Form, InputNumber, Switch, Select, Divider, Space, Row, Col, Tooltip } from "antd";
+import { Card, Form, InputNumber, Switch, Select, Divider, Row, Col, Tooltip } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { RestOutlined, InfoCircleOutlined } from "@ant-design/icons";

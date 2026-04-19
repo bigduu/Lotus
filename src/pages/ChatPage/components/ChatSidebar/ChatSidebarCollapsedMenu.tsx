@@ -1,6 +1,8 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
-import { Avatar, Flex } from "antd";
+import { Avatar } from "antd";
+
+import { Flex } from "@/components/ui/flex";
 
 import type { ChatItem } from "../../types/chat";
 

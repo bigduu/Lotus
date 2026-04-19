@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Empty, Modal, Space, message, theme } from "antd";
+import { Empty, Modal, message, theme } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { ToolOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Flex, Layout, Tabs, message, theme } from "antd";
+import { Layout, Tabs, message, theme } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import type { TabsProps } from "antd";

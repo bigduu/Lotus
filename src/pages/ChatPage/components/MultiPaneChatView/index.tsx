@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { Flex, theme } from "antd";
+import { theme } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Button } from "@/components/ui/button";
 import {
   BorderHorizontalOutlined,

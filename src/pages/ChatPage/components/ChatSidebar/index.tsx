@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { Flex, Grid, Input, Segmented, theme } from "antd";
+import { Grid, Input, Segmented, theme } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Button } from "@/components/ui/button";
 import { MenuFoldOutlined, SearchOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";

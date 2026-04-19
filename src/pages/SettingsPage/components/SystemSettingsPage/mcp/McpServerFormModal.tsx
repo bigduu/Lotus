@@ -1,5 +1,6 @@
 import { CodeOutlined, FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, Form, Input, Modal, Radio, Select, Space, Switch } from "antd";
+import { Alert, Form, Input, Modal, Radio, Select, Switch } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";

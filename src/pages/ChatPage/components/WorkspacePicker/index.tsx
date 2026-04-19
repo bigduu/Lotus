@@ -1,5 +1,6 @@
 import React from "react";
-import { Divider, Input, Space, theme } from "antd";
+import { Divider, Input, theme } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { FolderOutlined } from "@ant-design/icons";

@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useMemo, useState } from "react";
-import { Collapse, Space, theme, Badge, CollapseProps, Tag, Tooltip } from "antd";
+import { Collapse, theme, Badge, CollapseProps, Tag, Tooltip } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import type { GlobalToken } from "antd/es/theme/interface";

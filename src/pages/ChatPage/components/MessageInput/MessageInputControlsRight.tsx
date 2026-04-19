@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Dropdown, Flex } from "antd";
+import { Dropdown } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Button } from "@/components/ui/button";
 import {
   ArrowUpOutlined,

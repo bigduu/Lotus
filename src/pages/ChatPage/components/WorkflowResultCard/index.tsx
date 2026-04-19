@@ -1,5 +1,7 @@
 import React, { memo, useMemo, useState } from "react";
-import { Alert, Card, Divider, Space, Spin, Tag, Tooltip, Flex, theme } from "antd";
+import { Alert, Card, Divider, Spin, Tag, Tooltip, theme } from "antd";
+import { Flex } from "@/components/ui/flex";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import {

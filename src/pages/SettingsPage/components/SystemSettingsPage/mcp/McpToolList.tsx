@@ -1,4 +1,5 @@
-import { Card, Collapse, Empty, List, Space } from "antd";
+import { Card, Collapse, Empty, List } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import type { McpServer, McpToolInfo } from "../../../../../services/mcp";
 import JsonSchemaViewer from "../../../../../shared/components/JsonSchemaViewer";

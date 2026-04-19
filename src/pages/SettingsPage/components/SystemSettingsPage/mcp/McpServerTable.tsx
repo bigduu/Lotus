@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Popconfirm, Space, Table, Tag, Tooltip, theme } from "antd";
+import { Popconfirm, Table, Tag, Tooltip, theme } from "antd";
+import { Space } from "@/components/ui/space";
 import { Button } from "@/components/ui/button";
 import type { TableProps } from "antd";
 import { ServerStatus, type McpServer } from "@services/mcp";

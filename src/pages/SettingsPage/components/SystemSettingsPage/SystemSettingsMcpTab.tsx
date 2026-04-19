@@ -1,5 +1,6 @@
 import { CopyOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Card, Modal, Radio, Space, Tag, Input, Tooltip, message, theme } from "antd";
+import { Alert, Card, Modal, Radio, Tag, Input, Tooltip, message, theme } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useMemo, useState } from "react";

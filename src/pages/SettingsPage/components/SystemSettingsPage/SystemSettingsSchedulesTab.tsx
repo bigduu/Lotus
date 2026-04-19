@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Card,
-  Flex,
   Form,
   Input,
   InputNumber,
@@ -13,6 +12,7 @@ import {
   Tooltip,
   message,
 } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";

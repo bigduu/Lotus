@@ -1,5 +1,7 @@
 import React from "react";
-import { Card, Flex, List, Progress, Space, Tag, theme } from "antd";
+import { Card, List, Progress, Tag, theme } from "antd";
+import { Space } from "@/components/ui/space";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import {
   CheckCircleOutlined,

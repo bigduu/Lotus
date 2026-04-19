@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { App as AntApp } from "antd";
-import { Card, Flex, Switch } from "antd";
+import { Card, Switch } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";

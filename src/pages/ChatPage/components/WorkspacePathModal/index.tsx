@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Modal, Space, Alert, message } from "antd";
+import { Modal, Alert, message } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { useTranslation } from "react-i18next";
 import WorkspacePicker from "../WorkspacePicker";

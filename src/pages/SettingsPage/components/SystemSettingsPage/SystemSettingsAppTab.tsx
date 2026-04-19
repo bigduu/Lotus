@@ -1,5 +1,7 @@
 import React from "react";
-import { Card, Flex, Popconfirm, Space, Switch, theme, Divider } from "antd";
+import { Card, Popconfirm, Switch, theme, Divider } from "antd";
+import { Space } from "@/components/ui/space";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";

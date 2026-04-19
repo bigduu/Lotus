@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Card, Flex, Input, List, Select, Space, Switch, message, theme } from "antd";
+import { Card, Input, List, Select, Switch, message, theme } from "antd";
+import { Space } from "@/components/ui/space";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";

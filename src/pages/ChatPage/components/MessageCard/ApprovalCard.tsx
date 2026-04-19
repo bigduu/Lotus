@@ -1,5 +1,7 @@
 import React from "react";
-import { Card, Space, Descriptions, theme, Tag, Flex } from "antd";
+import { Card, Descriptions, theme, Tag } from "antd";
+import { Flex } from "@/components/ui/flex";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import { CheckOutlined, CloseOutlined, ToolOutlined } from "@ant-design/icons";

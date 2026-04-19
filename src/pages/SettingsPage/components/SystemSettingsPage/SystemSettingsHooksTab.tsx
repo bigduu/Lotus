@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Card, Flex, Select, Switch, message, theme } from "antd";
+import { Card, Select, Switch, message, theme } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";

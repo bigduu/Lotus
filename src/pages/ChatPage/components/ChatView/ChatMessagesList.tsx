@@ -1,5 +1,6 @@
 import React, { useCallback, useRef } from "react";
-import { Checkbox, Flex, Layout, Tag } from "antd";
+import { Checkbox, Layout, Tag } from "antd";
+import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";
 import { InboxOutlined } from "@ant-design/icons";
 import { useVirtualizer } from "@tanstack/react-virtual";

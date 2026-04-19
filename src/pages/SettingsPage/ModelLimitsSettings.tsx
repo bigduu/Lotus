@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Table, Input, InputNumber, Space, Card, Divider, message } from "antd";
+import { Table, Input, InputNumber, Card, Divider, message } from "antd";
+import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
