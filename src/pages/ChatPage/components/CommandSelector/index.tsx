@@ -1,5 +1,6 @@
 import React from "react";
-import { Spin, Tag, theme } from "antd";
+import { Spin, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { FolderOutlined, ThunderboltOutlined, ApiOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useCommandSelectorState } from "./useCommandSelectorState";

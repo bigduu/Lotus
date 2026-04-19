@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from "react";
-import { Tag, Tooltip } from "antd";
+import { Tooltip } from "antd";
+import { Tag } from "@/components/ui/tag";
 import {
   DislikeOutlined,
   DislikeFilled,

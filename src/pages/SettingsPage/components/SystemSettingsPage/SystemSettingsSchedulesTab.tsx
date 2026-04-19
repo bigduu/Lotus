@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Form,
-  Input,
-  InputNumber,
-  Modal,
-  Select,
-  Switch,
-  Table,
-  Tag,
-  Tooltip,
-  message,
-} from "antd";
+import { Form, Input, InputNumber, Modal, Select, Switch, Table, Tooltip, message } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";

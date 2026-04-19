@@ -1,18 +1,7 @@
 import { debugLog } from "@shared/utils/debugFlags";
 import React, { useCallback, useEffect, useState } from "react";
-import {
-  Form,
-  Select,
-  Input,
-  message,
-  Divider,
-  Alert,
-  Tag,
-  Spin,
-  Switch,
-  Tooltip,
-  theme,
-} from "antd";
+import { Form, Select, Input, message, Divider, Alert, Spin, Switch, Tooltip, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";

@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from "react";
-import { Tag, theme } from "antd";
+import { theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import {
   ClockCircleOutlined,
   DashboardOutlined,

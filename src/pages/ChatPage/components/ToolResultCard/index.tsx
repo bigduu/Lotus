@@ -1,5 +1,6 @@
 import React, { memo, useMemo } from "react";
-import { Alert, Collapse, Divider, Tag, Tooltip, theme } from "antd";
+import { Alert, Collapse, Divider, Tooltip, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";

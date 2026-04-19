@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App as AntApp, FloatButton, Grid, Layout, theme, Tag, Tooltip } from "antd";
+import { App as AntApp, FloatButton, Grid, Layout, theme, Tooltip } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Space } from "@/components/ui/space";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";

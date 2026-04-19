@@ -1,5 +1,6 @@
 import { CopyOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Modal, Radio, Tag, Input, Tooltip, message, theme } from "antd";
+import { Alert, Modal, Radio, Input, Tooltip, message, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Popconfirm, Table, Tag, Tooltip, theme } from "antd";
+import { Popconfirm, Table, Tooltip, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Space } from "@/components/ui/space";
 import { Button } from "@/components/ui/button";
 import type { TableProps } from "antd";

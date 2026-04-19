@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
-import { Dropdown, Tag, theme } from "antd";
+import { Dropdown, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import { Flex } from "@/components/ui/flex";
 import { Typography } from "@/components/ui/typography";

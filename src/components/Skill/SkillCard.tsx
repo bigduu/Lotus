@@ -1,5 +1,6 @@
 import React from "react";
-import { Switch, Tag, theme } from "antd";
+import { Switch, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";

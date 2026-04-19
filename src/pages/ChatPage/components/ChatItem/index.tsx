@@ -1,5 +1,6 @@
 import React, { memo, useState, useCallback } from "react";
-import { List, Input, Tag, Dropdown, theme } from "antd";
+import { List, Input, Dropdown, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Button } from "@/components/ui/button";
 import type { MenuProps } from "antd";
 import {

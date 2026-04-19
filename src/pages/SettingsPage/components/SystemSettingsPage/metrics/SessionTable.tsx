@@ -1,4 +1,5 @@
-import { Table, Tag, Tooltip } from "antd";
+import { Table, Tooltip } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";

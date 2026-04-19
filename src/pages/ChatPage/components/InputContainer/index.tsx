@@ -1,5 +1,6 @@
 import React, { useMemo, useEffect, useState, lazy, Suspense, useRef, useCallback } from "react";
-import { App as AntApp, theme, Tag, Alert, Spin, Dropdown } from "antd";
+import { App as AntApp, theme, Alert, Spin, Dropdown } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Space } from "@/components/ui/space";
 import { Button } from "@/components/ui/button";
 import type { TextAreaRef } from "antd/es/input/TextArea";

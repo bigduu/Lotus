@@ -1,5 +1,6 @@
 import React from "react";
-import { theme, Tag, Tooltip } from "antd";
+import { theme, Tooltip } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";
 import { Button } from "@/components/ui/button";

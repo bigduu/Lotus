@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Form, Input, Modal, Popconfirm, Switch, Table, Tag, message } from "antd";
+import { Form, Input, Modal, Popconfirm, Switch, Table, message } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import { Space } from "@/components/ui/space";
 import { Typography } from "@/components/ui/typography";

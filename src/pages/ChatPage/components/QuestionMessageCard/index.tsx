@@ -1,5 +1,6 @@
 import React, { memo, useState } from "react";
-import { Radio, Alert, Tag, Input, theme } from "antd";
+import { Radio, Alert, Input, theme } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Card } from "@/components/ui/card";
 import { Flex } from "@/components/ui/flex";
 import { Space } from "@/components/ui/space";

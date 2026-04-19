@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { List, Modal, Form, Input, Popconfirm, message, Tag } from "antd";
+import { List, Modal, Form, Input, Popconfirm, message } from "antd";
+import { Tag } from "@/components/ui/tag";
 import { Button } from "@/components/ui/button";
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
