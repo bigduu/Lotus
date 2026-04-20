@@ -1,6 +1,4 @@
-import { Badge, Table } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Typography } from "@/components/ui/typography";
+import { Badge, Table, Tag, Typography } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
 

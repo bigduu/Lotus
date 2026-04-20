@@ -1,6 +1,4 @@
-import { Table, Tooltip } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Button } from "@/components/ui/button";
+import { Button, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
 
@@ -133,7 +131,7 @@ const SessionTable: React.FC<SessionTableProps> = ({ sessions, loading, onSelect
       width: 120,
       render: (_, record) => (
         <Button
-          variant="link"
+          type="link"
           onClick={() => {
             onSelectSession(record.session_id);
           }}

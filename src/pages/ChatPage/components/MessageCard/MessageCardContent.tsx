@@ -1,9 +1,5 @@
 import React, { memo } from "react";
-import { Alert, Collapse } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Space, Typography, Button, Alert, Tag, Collapse } from "antd";
 import { SettingOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
 import { useTranslation } from "react-i18next";
@@ -236,7 +232,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
           showIcon
         />
         <Button
-          variant="default"
+          type="primary"
           icon={<SettingOutlined />}
           onClick={() => {
             // Navigate to settings - assuming there's a way to do this

@@ -1,8 +1,5 @@
 import { useMemo } from "react";
-import { Popconfirm, Table, Tooltip, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Space } from "@/components/ui/space";
-import { Button } from "@/components/ui/button";
+import { Button, Popconfirm, Space, Table, Tag, Tooltip, theme } from "antd";
 import type { TableProps } from "antd";
 import { ServerStatus, type McpServer } from "@services/mcp";
 import type { McpServerAction } from "../hooks/useMcpSettings";
@@ -143,7 +140,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
           return (
             <Space size={token.marginXS}>
               <Button
-                size="sm"
+                size="small"
                 onClick={(e) => {
                   e.stopPropagation();
                   onEditServer?.(record);
@@ -164,17 +161,18 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                 }}
               >
                 <Button
-                  size="sm"
+                  size="small"
+                  danger
                   loading={isServerActionLoading?.(record.id, "delete")}
                   onClick={(e) => e.stopPropagation()}
-                  variant="destructive"
                 >
                   {t("settings.mcpServerTable.actions.delete")}
                 </Button>
               </Popconfirm>
+
               {isConnected ? (
                 <Button
-                  size="sm"
+                  size="small"
                   onClick={(e) => {
                     e.stopPropagation();
                     onDisconnectServer?.(record);
@@ -185,8 +183,8 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                 </Button>
               ) : (
                 <Button
-                  size="sm"
-                  variant="default"
+                  size="small"
+                  type="primary"
                   ghost
                   onClick={(e) => {
                     e.stopPropagation();
@@ -197,8 +195,9 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                   {t("settings.mcpServerTable.actions.connect")}
                 </Button>
               )}
+
               <Button
-                size="sm"
+                size="small"
                 onClick={(e) => {
                   e.stopPropagation();
                   onRefreshTools?.(record);

@@ -1,11 +1,5 @@
 import React from "react";
-import { Descriptions, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
-import { Flex } from "@/components/ui/flex";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Card, Button, Typography, Space, Descriptions, theme, Tag, Flex } from "antd";
 import { CheckOutlined, CloseOutlined, ToolOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -106,7 +100,7 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
 
         <Space style={{ width: "100%", justifyContent: "center" }}>
           <Button
-            variant="default"
+            type="primary"
             icon={<CheckOutlined />}
             onClick={onApprove}
             disabled={
@@ -120,12 +114,12 @@ const ApprovalCard: React.FC<ApprovalCardProps> = ({
             {t("common.approve")}
           </Button>
           <Button
+            danger
             icon={<CloseOutlined />}
             onClick={onReject}
             disabled={
               disabled || data.approval_status === "approved" || data.approval_status === "rejected"
             }
-            variant="destructive"
           >
             {t("common.reject")}
           </Button>

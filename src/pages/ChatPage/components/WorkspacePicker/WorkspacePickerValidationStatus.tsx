@@ -1,8 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Alert } from "antd";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
+import { Alert, Space, Typography } from "antd";
 import { useTranslation } from "react-i18next";
 import type { WorkspaceValidationResult } from "../../utils/workspaceValidator";
 

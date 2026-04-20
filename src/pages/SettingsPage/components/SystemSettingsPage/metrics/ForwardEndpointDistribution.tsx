@@ -1,5 +1,4 @@
-import { theme } from "antd";
-import { Card } from "@/components/ui/card";
+import { Card, theme } from "antd";
 import {
   Bar,
   BarChart,

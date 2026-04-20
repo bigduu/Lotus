@@ -1,19 +1,19 @@
 import { ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
+  Button,
+  Card,
   DatePicker,
   Descriptions,
   Modal,
   Select,
   Skeleton,
+  Space,
   Table,
   Tabs,
+  Typography,
   theme,
 } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";

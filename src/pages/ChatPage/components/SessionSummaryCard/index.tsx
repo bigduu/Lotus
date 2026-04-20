@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { theme, Tooltip } from "antd";
-import { Tag } from "@/components/ui/tag";
+import { Tag, theme, Tooltip } from "antd";
 import {
   ClockCircleOutlined,
   CodeOutlined,

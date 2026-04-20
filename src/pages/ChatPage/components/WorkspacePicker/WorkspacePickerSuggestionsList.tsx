@@ -1,10 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Empty, List, Spin } from "antd";
-import { Space } from "@/components/ui/space";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Button, Empty, Flex, List, Space, Spin, Typography } from "antd";
 import { FolderOutlined, HistoryOutlined, HomeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { PathSuggestion } from "../../services/WorkspaceApiService";
@@ -50,6 +46,7 @@ const WorkspacePickerSuggestionsList: React.FC<WorkspacePickerSuggestionsListPro
         <FolderOutlined />
         <Text strong>{t("chat.workspace.suggestedTitle")}</Text>
       </Space>
+
       {isLoading ? (
         <Flex justify="center" style={{ padding: token.paddingSM }}>
           <Spin size="small" />
@@ -68,7 +65,7 @@ const WorkspacePickerSuggestionsList: React.FC<WorkspacePickerSuggestionsListPro
           renderItem={(suggestion) => (
             <List.Item style={{ padding: 0 }}>
               <Button
-                variant="ghost"
+                type="text"
                 onClick={() => onSelect(suggestion.path)}
                 style={{
                   width: "100%",

@@ -1,10 +1,18 @@
 import { CopyOutlined, ReloadOutlined, UploadOutlined } from "@ant-design/icons";
-import { Alert, Modal, Radio, Input, Tooltip, message, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import {
+  Alert,
+  Button,
+  Card,
+  Modal,
+  Radio,
+  Space,
+  Tag,
+  Input,
+  Tooltip,
+  Typography,
+  message,
+  theme,
+} from "antd";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -350,7 +358,9 @@ const SystemSettingsMcpTab: React.FC = () => {
   return (
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
       {contextHolder}
+
       {error ? <Alert type="error" showIcon message={error} /> : null}
+
       <Card size="small" title={t("settings.mcpTab.overviewTitle")}>
         <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.mcpTab.overviewDescription")}</Text>
@@ -394,12 +404,13 @@ const SystemSettingsMcpTab: React.FC = () => {
           </Space>
         </Space>
       </Card>
+
       <Card
         size="small"
         title={t("settings.mcpTab.serversTitle")}
         extra={
           <Space>
-            <Button variant="default" onClick={openCreateServerModal}>
+            <Button type="primary" onClick={openCreateServerModal}>
               {t("settings.mcpTab.addServer")}
             </Button>
             <Button
@@ -433,11 +444,13 @@ const SystemSettingsMcpTab: React.FC = () => {
           isServerActionLoading={isServerActionLoading}
         />
       </Card>
+
       <McpToolList
         server={selectedServer}
         tools={selectedServerTools}
         loading={isSelectedServerToolsLoading}
       />
+
       <McpServerFormModal
         open={isServerModalOpen}
         mode={serverModalMode}
@@ -450,6 +463,7 @@ const SystemSettingsMcpTab: React.FC = () => {
         }}
         onSubmit={(config) => void handleSubmitServer(config)}
       />
+
       <Modal
         open={isImportOpen}
         title={t("settings.mcpTab.importModalTitle")}

@@ -1,6 +1,5 @@
 import React from "react";
-import { Progress, Tooltip } from "antd";
-import { Space } from "@/components/ui/space";
+import { Progress, Tooltip, Space } from "antd";
 import { useTranslation } from "react-i18next";
 import {
   TokenUsage,

@@ -1,9 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Form, Input, theme } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Alert, Button, Card, Form, Input, Space, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
 
@@ -203,7 +199,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
             <Input.Password autoComplete="new-password" />
           </Form.Item>
 
-          <Button variant="default" loading={isSaving} onClick={() => void handleSubmit()}>
+          <Button type="primary" loading={isSaving} onClick={() => void handleSubmit()}>
             {passwordEnabled
               ? t("settings.configTab.accessPassword.updateAction", "更新访问密码")
               : t("settings.configTab.accessPassword.enableAction", "启用访问密码")}

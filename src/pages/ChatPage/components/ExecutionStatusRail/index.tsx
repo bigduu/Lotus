@@ -1,8 +1,5 @@
 import React, { useMemo } from "react";
-import { Tooltip, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
+import { Flex, Tag, Tooltip, Typography, theme } from "antd";
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,

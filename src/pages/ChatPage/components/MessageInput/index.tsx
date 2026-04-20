@@ -1,6 +1,5 @@
 import React, { useRef, useMemo } from "react";
-import { message, theme } from "antd";
-import { Flex } from "@/components/ui/flex";
+import { Flex, message, theme } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { useTranslation } from "react-i18next";
 import { ImageFile } from "../../utils/imageUtils";

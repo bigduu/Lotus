@@ -1,6 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "antd";
 import { WarningOutlined, BulbOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -118,7 +118,7 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
             width: "100%",
           }}
         >
-          <Button size="sm" variant="default" onClick={onFix} loading={isFixing}>
+          <Button size="small" type="primary" onClick={onFix} loading={isFixing}>
             {t("components.mermaid.fixMermaid")}
           </Button>
           {fixError && (

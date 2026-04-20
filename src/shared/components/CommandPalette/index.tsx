@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App as AntdApp, Input, Modal, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Typography } from "@/components/ui/typography";
+import { App as AntdApp, Input, Modal, Tag, Typography, theme } from "antd";
 import type { InputRef } from "antd";
 import {
   AppstoreOutlined,

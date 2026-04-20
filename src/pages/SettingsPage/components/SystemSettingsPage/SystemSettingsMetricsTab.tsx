@@ -2,21 +2,21 @@ import { useThemeStore } from "@shared/store/themeStore";
 import { ReloadOutlined } from "@ant-design/icons";
 import {
   Alert,
+  Button,
+  Card,
   Col,
   DatePicker,
   Descriptions,
   Modal,
   Row,
   Select,
+  Space,
   Statistic,
   Table,
   Tabs,
+  Typography,
   theme,
 } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
 import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import type { CSSProperties } from "react";

@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo } from "react";
-import { Alert, Select } from "antd";
-import { Space } from "@/components/ui/space";
+import { Alert, Select, Space } from "antd";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../pages/ChatPage/store";
 import { useBambooConfigStore } from "../../shared/stores/bambooConfigStore";

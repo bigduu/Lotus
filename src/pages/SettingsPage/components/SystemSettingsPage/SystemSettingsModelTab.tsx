@@ -1,10 +1,5 @@
 import React from "react";
-import { Input, Select, Spin, theme } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Button, Card, Flex, Input, Select, Space, Spin, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
@@ -83,7 +78,7 @@ const SystemSettingsModelTab: React.FC<SystemSettingsModelTabProps> = ({
             </Button>
             <Button
               data-testid="save-general-settings"
-              variant="default"
+              type="primary"
               onClick={onSaveBackendBaseUrl}
             >
               {t("settings.modelTab.save")}

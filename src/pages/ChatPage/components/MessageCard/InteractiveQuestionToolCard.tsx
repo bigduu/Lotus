@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
+import { Space, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";

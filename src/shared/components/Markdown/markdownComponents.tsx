@@ -1,6 +1,5 @@
 import type { GlobalToken } from "antd/es/theme/interface";
-import { Card } from "@/components/ui/card";
-import { Typography } from "@/components/ui/typography";
+import { Card, Typography } from "antd";
 import type { Components } from "react-markdown";
 import { renderCodeBlock, type MermaidRenderMode } from "./MarkdownCodeBlock";
 import { openExternalLink } from "../../utils/openExternalLink";

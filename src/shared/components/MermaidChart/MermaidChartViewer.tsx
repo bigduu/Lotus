@@ -1,8 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useCallback, useState } from "react";
 import { DownloadOutlined } from "@ant-design/icons";
-import { App as AntApp, Tooltip } from "antd";
-import { Button } from "@/components/ui/button";
+import { App as AntApp, Button, Tooltip } from "antd";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { useTranslation } from "react-i18next";
 import { FileOperationsService } from "@shared/services/FileOperationsService";
@@ -171,24 +170,24 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                 }}
               >
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  size="small"
+                  type="text"
                   onClick={() => zoomIn()}
                   style={{ fontSize: 12, padding: "2px 6px" }}
                 >
                   +
                 </Button>
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  size="small"
+                  type="text"
                   onClick={() => zoomOut()}
                   style={{ fontSize: 12, padding: "2px 6px" }}
                 >
                   -
                 </Button>
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  size="small"
+                  type="text"
                   onClick={() => resetTransform()}
                   style={{ fontSize: 10, padding: "2px 6px" }}
                 >
@@ -196,8 +195,8 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                 </Button>
                 <Tooltip title={t("components.mermaid.exportSvg")}>
                   <Button
-                    size="sm"
-                    variant="ghost"
+                    size="small"
+                    type="text"
                     icon={<DownloadOutlined />}
                     aria-label="Download chart"
                     disabled={exportDisabled}

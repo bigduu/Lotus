@@ -1,9 +1,6 @@
 import { debugLog } from "@shared/utils/debugFlags";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
-import { App as AntApp, Dropdown, Grid, theme } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Flex } from "@/components/ui/flex";
+import { App as AntApp, Card, Dropdown, Flex, Grid, Space, theme } from "antd";
 import rehypeSanitize from "rehype-sanitize";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";

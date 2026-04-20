@@ -1,7 +1,5 @@
 import React, { useMemo } from "react";
-import { Tooltip, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Flex } from "@/components/ui/flex";
+import { Flex, Tag, Tooltip, theme } from "antd";
 import {
   CodeOutlined,
   FileOutlined,

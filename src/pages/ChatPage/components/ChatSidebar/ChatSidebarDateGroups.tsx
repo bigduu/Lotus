@@ -1,9 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
-import { Empty, List } from "antd";
-import { Space } from "@/components/ui/space";
-import { Flex } from "@/components/ui/flex";
-import { Button } from "@/components/ui/button";
+import { Button, Empty, Flex, List, Space } from "antd";
 import { DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -94,8 +91,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             </span>
             {hasActiveFilters && (
               <Button
-                size="sm"
-                variant="link"
+                size="small"
+                type="link"
                 onClick={() => {
                   // Clear search by triggering sidebar search clear event
                   const searchInput = document.querySelector<HTMLInputElement>(
@@ -215,8 +212,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               </Flex>
 
               <Button
-                variant="ghost"
-                size="sm"
+                type="text"
+                size="small"
                 icon={<DeleteOutlined />}
                 className="chat-sidebar-date-group-delete"
                 style={{
@@ -230,6 +227,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 }}
               />
             </Flex>
+
             {isExpanded ? (
               <div style={{ marginTop: 4 }}>
                 <List
@@ -241,8 +239,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       <Flex align="center" gap={6}>
                         {childrenByRoot[chat.id]?.length ? (
                           <Button
-                            size="sm"
-                            variant="ghost"
+                            size="small"
+                            type="text"
                             style={{ padding: 0, width: 22 }}
                             aria-label={
                               expandedRootIds.has(chat.id)

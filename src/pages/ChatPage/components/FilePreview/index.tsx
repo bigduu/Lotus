@@ -1,9 +1,5 @@
 import React from "react";
-import { theme, Tooltip } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Typography, Button, theme, Space, Tag, Tooltip } from "antd";
 import { CloseOutlined, FileTextOutlined } from "@ant-design/icons";
 import { ProcessedFile } from "../../utils/fileUtils";
 
@@ -71,8 +67,8 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) =
 
         {onClear ? (
           <Button
-            variant="ghost"
-            size="sm"
+            type="text"
+            size="small"
             icon={<CloseOutlined />}
             onClick={onClear}
             style={{

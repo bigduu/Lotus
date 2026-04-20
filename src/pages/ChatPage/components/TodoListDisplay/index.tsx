@@ -1,10 +1,5 @@
 import React from "react";
-import { List, Progress, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
+import { Card, Flex, List, Progress, Space, Tag, Typography, theme } from "antd";
 import {
   CheckCircleOutlined,
   ClockCircleOutlined,

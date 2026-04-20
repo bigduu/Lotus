@@ -1,11 +1,17 @@
 import React, { memo, useMemo, useState } from "react";
-import { Alert, Divider, Spin, Tooltip, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
-import { Flex } from "@/components/ui/flex";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import {
+  Alert,
+  Button,
+  Card,
+  Divider,
+  Space,
+  Spin,
+  Tag,
+  Tooltip,
+  Typography,
+  Flex,
+  theme,
+} from "antd";
 import {
   ApiOutlined,
   CopyOutlined,
@@ -149,8 +155,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
             >
               {isCollapsible && (
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  type="text"
+                  size="small"
                   icon={expanded ? <CompressOutlined /> : <ExpandAltOutlined />}
                   onClick={() => setExpanded((prev) => !prev)}
                 />
@@ -158,8 +164,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
             </Tooltip>
             <Tooltip title={t("components.workflowResult.copyResult")}>
               <Button
-                variant="ghost"
-                size="sm"
+                type="text"
+                size="small"
                 icon={<CopyOutlined />}
                 onClick={handleCopyContent}
                 aria-label={t("components.workflowResult.copyContent")}
@@ -168,8 +174,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
             {onRetry && (
               <Tooltip title={t("components.workflowResult.retryWorkflow")}>
                 <Button
-                  variant="ghost"
-                  size="sm"
+                  type="text"
+                  size="small"
                   icon={<ReloadOutlined />}
                   onClick={onRetry}
                   aria-label={t("components.workflowResult.retryWorkflow")}
@@ -240,8 +246,8 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                 <Text strong>{t("common.parameters")}</Text>
                 <Tooltip title={t("components.workflowResult.copyParameters")}>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    type="text"
+                    size="small"
                     icon={<CopyOutlined />}
                     onClick={handleCopyParameters}
                     aria-label={t("components.workflowResult.copyParameters")}

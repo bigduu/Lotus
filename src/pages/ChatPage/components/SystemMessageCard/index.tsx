@@ -1,10 +1,5 @@
 import React, { memo, useCallback } from "react";
-import { Collapse, Divider, theme } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Button, Card, Collapse, Divider, Flex, Space, Typography, theme } from "antd";
 import { CopyOutlined, EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -88,8 +83,8 @@ const SystemMessageCardComponent: React.FC<SystemMessageCardProps> = ({ currentC
           <Space>
             {basePrompt && !showEnhanced ? (
               <Button
-                variant="ghost"
-                size="sm"
+                type="text"
+                size="small"
                 icon={<EyeOutlined />}
                 onClick={loadEnhancedPrompt}
                 loading={loadingEnhanced}
@@ -98,13 +93,13 @@ const SystemMessageCardComponent: React.FC<SystemMessageCardProps> = ({ currentC
               </Button>
             ) : null}
             {basePrompt && showEnhanced ? (
-              <Button variant="ghost" size="sm" onClick={() => setShowEnhanced(false)}>
+              <Button type="text" size="small" onClick={() => setShowEnhanced(false)}>
                 {t("chat.prompt.systemCard.viewBase")}
               </Button>
             ) : null}
             <Button
-              variant="ghost"
-              size="sm"
+              type="text"
+              size="small"
               icon={<CopyOutlined />}
               onClick={() => copyToClipboard(promptToDisplay)}
             >

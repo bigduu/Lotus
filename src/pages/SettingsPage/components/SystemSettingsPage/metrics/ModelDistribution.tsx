@@ -1,6 +1,4 @@
-import { Empty, Skeleton } from "antd";
-import { Card } from "@/components/ui/card";
-import { Typography } from "@/components/ui/typography";
+import { Card, Empty, Skeleton, Typography } from "antd";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useTranslation } from "react-i18next";
 

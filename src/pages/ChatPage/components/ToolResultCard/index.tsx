@@ -1,9 +1,5 @@
 import React, { memo, useMemo } from "react";
-import { Alert, Collapse, Divider, Tooltip, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Alert, Button, Collapse, Divider, Space, Tag, Tooltip, Typography, theme } from "antd";
 import { RobotOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
@@ -152,8 +148,8 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               <div style={{ position: "relative" }}>
                 <Tooltip title={t("components.toolResult.copyResult")}>
                   <Button
-                    variant="ghost"
-                    size="sm"
+                    type="text"
+                    size="small"
                     icon={<CopyOutlined />}
                     aria-label={t("components.toolResult.copyResult")}
                     onClick={(e) => {

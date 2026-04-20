@@ -1,7 +1,5 @@
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
-import { theme } from "antd";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Button, Typography, theme } from "antd";
 import { ReloadOutlined, BugOutlined } from "@ant-design/icons";
 
 const { Text, Paragraph } = Typography;
@@ -99,16 +97,19 @@ const DefaultErrorFallback: React.FC<{
           color: token.colorWarning,
         }}
       />
+
       <Text strong style={{ fontSize: 16 }}>
         Something went wrong
       </Text>
+
       <Text type="secondary" style={{ maxWidth: 420 }}>
         An unexpected error occurred in this section. You can try again or reload the page if the
         issue persists.
       </Text>
+
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
         <Button
-          variant="default"
+          type="primary"
           icon={<ReloadOutlined />}
           onClick={onReset}
           aria-label="Retry rendering this section"
@@ -117,8 +118,8 @@ const DefaultErrorFallback: React.FC<{
         </Button>
 
         <Button
-          variant="ghost"
-          size="sm"
+          type="text"
+          size="small"
           onClick={() => setShowDetails((v) => !v)}
           aria-expanded={showDetails}
           aria-label="Toggle error details"
@@ -126,6 +127,7 @@ const DefaultErrorFallback: React.FC<{
           {showDetails ? "Hide Details" : "Show Details"}
         </Button>
       </div>
+
       {showDetails && (
         <Paragraph
           code

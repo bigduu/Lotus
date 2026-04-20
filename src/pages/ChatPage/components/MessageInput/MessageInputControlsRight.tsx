@@ -1,8 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Dropdown } from "antd";
-import { Flex } from "@/components/ui/flex";
-import { Button } from "@/components/ui/button";
+import { Button, Dropdown, Flex } from "antd";
 import {
   ArrowUpOutlined,
   ExclamationCircleOutlined,
@@ -59,6 +57,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
       }}
     >
       {statusIndicator ? <span style={{ flex: "0 0 auto" }}>{statusIndicator}</span> : null}
+
       {allowRetry && hasMessages && (
         <Dropdown
           trigger={["click"]}
@@ -81,12 +80,12 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         >
           <Button
             data-testid="regenerate-button"
-            variant="ghost"
+            type="text"
             icon={<SyncOutlined spin={isStreaming} />}
             disabled={retryDisabled}
             title={t("chat.actions.retryOptions")}
             aria-label={t("chat.actions.retryOptions")}
-            size="sm"
+            size="small"
             className="lotus-secondary-button"
             style={{
               minWidth: 38,
@@ -99,13 +98,16 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
           />
         </Dropdown>
       )}
+
       <Button
         data-testid={isStreaming ? "cancel-button" : "send-button"}
+        type="primary"
         icon={isStreaming ? <StopOutlined /> : <ArrowUpOutlined />}
         onClick={isStreaming ? onCancel : onSubmit}
         loading={isStreaming && !onCancel}
         disabled={isStreaming ? !onCancel || disabled : canSend || disabled || isOverCharLimit}
-        size="sm"
+        size="small"
+        danger={isStreaming}
         className={
           isStreaming ? "message-input-send-button" : "message-input-send-button lotus-primary-cta"
         }
@@ -128,7 +130,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         }}
         title={isStreaming ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
         aria-label={isStreaming ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
-        variant="destructive" />
+      />
     </Flex>
   );
 };

@@ -1,9 +1,18 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Input, theme, Alert, Select, List, Spin, Switch, Tabs } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import {
+  Card,
+  Space,
+  Typography,
+  Input,
+  Button,
+  theme,
+  Alert,
+  Select,
+  List,
+  Spin,
+  Switch,
+  Tabs,
+} from "antd";
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
 import AccessPasswordCard from "./AccessPasswordCard";
@@ -330,7 +339,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <Button
                         data-testid="save-memory-settings"
-                        variant="default"
+                        type="primary"
                         onClick={handleSaveConfig}
                         loading={isLoading}
                       >
@@ -368,7 +377,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                       </Button>
                       <Button
                         data-testid="save-api-settings"
-                        variant="default"
+                        type="primary"
                         onClick={handleSaveBackendUrl}
                       >
                         {t("settings.configTab.save")}
@@ -422,7 +431,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                       {t("settings.configTab.reloadTools")}
                     </Button>
                     <Button
-                      variant="default"
+                      type="primary"
                       onClick={handleSaveTools}
                       loading={isToolsBusy}
                       disabled={!hasToolChanges}

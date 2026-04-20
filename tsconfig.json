@@ -17,7 +17,6 @@
     /* Path aliases */
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
       "@services/*": ["src/services/*"],
       "@shared/*": ["src/shared/*"],
       "@pages/*": ["src/pages/*"],

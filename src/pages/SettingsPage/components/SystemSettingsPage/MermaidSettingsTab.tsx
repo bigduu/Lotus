@@ -1,9 +1,18 @@
 import React from "react";
-import { Form, InputNumber, Switch, Select, Divider, Row, Col, Tooltip } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import {
+  Card,
+  Form,
+  InputNumber,
+  Switch,
+  Select,
+  Button,
+  Divider,
+  Space,
+  Typography,
+  Row,
+  Col,
+  Tooltip,
+} from "antd";
 import { RestOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { theme } from "antd";
 import { useTranslation } from "react-i18next";

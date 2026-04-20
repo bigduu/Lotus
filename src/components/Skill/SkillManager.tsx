@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Input, List, message, Spin, Empty, Row } from "antd";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, Input, List, message, Spin, Empty, Row, Button } from "antd";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { skillService } from "../../services/skill/SkillService";
@@ -172,7 +170,7 @@ export const SkillManager = () => {
               icon={<ReloadOutlined spin={isLoadingSkills} />}
               onClick={handleRefresh}
               loading={isLoadingSkills}
-              size="sm"
+              size="small"
             >
               {t("components.skillManager.refresh")}
             </Button>

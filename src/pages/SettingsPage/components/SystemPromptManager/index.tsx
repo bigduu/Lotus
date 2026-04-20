@@ -1,7 +1,5 @@
 import { useState } from "react";
-import { List, Modal, Form, Input, Popconfirm, message } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Button } from "@/components/ui/button";
+import { Button, List, Modal, Form, Input, Popconfirm, message, Tag } from "antd";
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../ChatPage/store";
@@ -82,7 +80,7 @@ const SystemPromptManager = () => {
         }}
       >
         <h2>{t("settings.systemPromptManager.title")}</h2>
-        <Button variant="default" icon={<PlusOutlined />} onClick={() => showModal()}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal()}>
           {t("settings.systemPromptManager.addButton")}
         </Button>
       </div>
@@ -93,7 +91,7 @@ const SystemPromptManager = () => {
           <List.Item
             actions={[
               item.isDefault ? null : (
-                <Button variant="ghost" icon={<EditOutlined />} onClick={() => showModal(item)} />
+                <Button type="text" icon={<EditOutlined />} onClick={() => showModal(item)} />
               ),
               item.isDefault ? null : (
                 <Popconfirm
@@ -103,9 +101,11 @@ const SystemPromptManager = () => {
                   cancelText={t("common.no")}
                 >
                   <Button
+                    type="text"
+                    danger
                     icon={<DeleteOutlined />}
                     aria-label={t("common.delete")}
-                    variant="destructive" />
+                  />
                 </Popconfirm>
               ),
             ]}

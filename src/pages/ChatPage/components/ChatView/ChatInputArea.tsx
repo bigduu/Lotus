@@ -1,5 +1,5 @@
 import React from "react";
-import { Flex } from "@/components/ui/flex";
+import { Flex } from "antd";
 
 import { InputContainer } from "../InputContainer";
 import type { WorkflowDraft } from "../InputContainer";

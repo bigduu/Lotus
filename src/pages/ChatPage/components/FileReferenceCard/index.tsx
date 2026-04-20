@@ -1,10 +1,5 @@
 import React, { memo } from "react";
-import { theme, Tooltip } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
+import { Card, Flex, Space, Tag, Typography, theme, Tooltip } from "antd";
 import { FileTextOutlined, FolderOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;

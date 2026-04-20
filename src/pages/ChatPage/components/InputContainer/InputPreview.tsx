@@ -1,8 +1,5 @@
 import React from "react";
-import { theme } from "antd";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Typography, Space, Button, theme } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
@@ -53,8 +50,8 @@ const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
           </Text>
         </div>
         <Button
-          variant="ghost"
-          size="sm"
+          type="text"
+          size="small"
           icon={<CloseOutlined />}
           onClick={onClose}
           style={{

@@ -1,11 +1,5 @@
 import React, { memo, useState } from "react";
-import { Radio, Alert, Input, theme } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
-import { Flex } from "@/components/ui/flex";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Card, Button, Typography, Space, Radio, Alert, Tag, Flex, Input, theme } from "antd";
 import {
   QuestionCircleOutlined,
   CheckCircleOutlined,
@@ -124,6 +118,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           {question.question}
         </Title>
       </Flex>
+
       {/* Context */}
       {question.context && (
         <Alert
@@ -134,6 +129,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           style={{ marginBottom: token.marginLG }}
         />
       )}
+
       {/* Options */}
       <Flex vertical style={{ marginBottom: token.marginLG }}>
         <Text strong style={{ display: "block", marginBottom: token.marginSM }}>
@@ -183,6 +179,7 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           </Space>
         </Radio.Group>
       </Flex>
+
       {/* Custom Answer Input (if allowed) */}
       {question.allow_custom && (
         <Flex vertical style={{ marginBottom: token.marginMD }}>
@@ -203,10 +200,11 @@ const QuestionMessageCardComponent: React.FC<QuestionMessageCardProps> = ({
           />
         </Flex>
       )}
+
       {/* Submit Button */}
       <Flex justify="flex-end">
         <Button
-          variant="default"
+          type="primary"
           icon={<CheckCircleOutlined />}
           onClick={handleSubmit}
           loading={loading}

@@ -1,9 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { List, Empty, Spin, theme, Alert } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Card, List, Typography, Space, Button, Empty, Spin, theme, Alert } from "antd";
 import { FileTextOutlined, FolderOutlined, ReloadOutlined } from "@ant-design/icons";
 import { WorkspaceFileEntry } from "../../types/workspace";
 
@@ -128,15 +124,15 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
           <Space size={token.marginXS}>
             {onChangeWorkspace && (
               <Button
-                variant="ghost"
-                size="sm"
+                type="text"
+                size="small"
                 icon={<ReloadOutlined />}
                 onClick={onChangeWorkspace}
               >
                 Set Workspace
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={onCancel}>
+            <Button type="text" size="small" onClick={onCancel}>
               Close
             </Button>
           </Space>

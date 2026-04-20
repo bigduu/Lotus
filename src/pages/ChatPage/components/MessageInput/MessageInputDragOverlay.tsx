@@ -1,7 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
+import { Space, Typography } from "antd";
 import { PictureOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;

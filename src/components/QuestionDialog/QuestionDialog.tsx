@@ -1,8 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from "react";
-import { Radio, message, theme } from "antd";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Button, Radio, Space, Typography, message, theme } from "antd";
 import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { agentApiClient } from "../../services/api";
@@ -348,13 +345,14 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
           </Text>
         </span>
         <Button
-          variant="ghost"
-          size="sm"
+          type="text"
+          size="small"
           icon={collapsed ? <DownOutlined /> : <UpOutlined />}
           className={styles.collapseBtn}
           tabIndex={-1}
         />
       </div>
+
       {/* Collapsible body */}
       {!collapsed && (
         <div className={styles.questionBody}>
@@ -394,7 +392,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
           {/* Submit button inline */}
           {selectedOption && selectedOption !== "custom" && (
             <div className={styles.questionFooter}>
-              <Button variant="default" size="sm" onClick={handleSubmit} loading={isSubmitting}>
+              <Button type="primary" size="small" onClick={handleSubmit} loading={isSubmitting}>
                 {t("components.questionDialog.confirm")}
               </Button>
             </div>

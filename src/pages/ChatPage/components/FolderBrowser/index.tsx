@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from "react";
-import { Modal, List, Breadcrumb, Spin, message, Empty, theme } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import {
+  Modal,
+  List,
+  Breadcrumb,
+  Spin,
+  message,
+  Button,
+  Space,
+  Card,
+  Empty,
+  Typography,
+  theme,
+} from "antd";
 import { FolderOutlined, HomeOutlined, ArrowLeftOutlined, CheckOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { workspaceApiService, BrowseFolderResponse } from "../../services/WorkspaceApiService";
@@ -102,22 +110,22 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
     >
       <Space direction="vertical" size="middle" style={{ width: "100%" }}>
         <Space>
-          <Button icon={<HomeOutlined />} onClick={handleGoHome} size="sm">
+          <Button icon={<HomeOutlined />} onClick={handleGoHome} size="small">
             {t("common.home")}
           </Button>
           <Button
             icon={<ArrowLeftOutlined />}
             onClick={handleGoBack}
             disabled={!parentPath}
-            size="sm"
+            size="small"
           >
             {t("common.parentDirectory")}
           </Button>
           <Button
-            variant="default"
+            type="primary"
             icon={<CheckOutlined />}
             onClick={handleSelectCurrent}
-            size="sm"
+            size="small"
           >
             {t("chat.folderBrowser.selectCurrent")}
           </Button>
@@ -127,8 +135,8 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
           {getPathSegments().map((segment, index) => (
             <Breadcrumb.Item key={index}>
               <Button
-                variant="link"
-                size="sm"
+                type="link"
+                size="small"
                 onClick={() => handleBreadcrumbClick(index)}
                 style={{ padding: 0 }}
               >
@@ -158,7 +166,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
               renderItem={(folder) => (
                 <List.Item style={{ padding: 0 }}>
                   <Button
-                    variant="ghost"
+                    type="text"
                     icon={<FolderOutlined />}
                     onClick={() => handleFolderClick(folder)}
                     style={{

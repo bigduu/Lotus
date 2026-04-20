@@ -1,8 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useState } from "react";
-import { message } from "antd";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, Card, message } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import LazyMermaidChart from "../MermaidChart/LazyMermaidChart";
@@ -65,10 +63,11 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
       >
         {codeString}
       </SyntaxHighlighter>
+
       {isHovered && (
         <Button
-          variant="ghost"
-          size="sm"
+          type="text"
+          size="small"
           icon={<CopyOutlined />}
           onClick={handleCopy}
           aria-label="Copy code"
@@ -138,8 +137,8 @@ const FallbackCodeBlock: React.FC<{
         <code style={{ color: token.colorText }}>{codeString}</code>
       </pre>
       <Button
-        variant="ghost"
-        size="sm"
+        type="text"
+        size="small"
         icon={<CopyOutlined />}
         aria-label="Copy code"
         className="fallback-copy-btn"

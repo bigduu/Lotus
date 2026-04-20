@@ -1,8 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { theme } from "antd";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
+import { Card, Space, Typography, theme } from "antd";
 import { DiffOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { parseUnifiedDiffLines, type DiffLine } from "../../utils/resultFormatters";
 

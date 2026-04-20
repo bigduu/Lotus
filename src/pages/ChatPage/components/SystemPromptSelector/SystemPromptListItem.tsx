@@ -1,10 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
-import { List, Radio } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Button, List, Radio, Space, Tag, Typography } from "antd";
 import { CopyOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -100,8 +96,8 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
 
           <Space size="small">
             <Button
-              variant="ghost"
-              size="sm"
+              type="text"
+              size="small"
               icon={isExpanded ? <EyeInvisibleOutlined /> : <EyeOutlined />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -113,8 +109,8 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
                 : t("chat.systemPromptSelector.preview")}
             </Button>
             <Button
-              variant="ghost"
-              size="sm"
+              type="text"
+              size="small"
               icon={<CopyOutlined />}
               onClick={(event) => onCopy(event, prompt)}
             >

@@ -1,7 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
+import { Flex, Typography } from "antd";
 const { Text } = Typography;
 
 interface MessageCardHeaderProps {

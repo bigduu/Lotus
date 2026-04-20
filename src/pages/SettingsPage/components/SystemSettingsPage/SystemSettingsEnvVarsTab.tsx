@@ -1,10 +1,18 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Form, Input, Modal, Popconfirm, Switch, Table, message } from "antd";
-import { Tag } from "@/components/ui/tag";
-import { Card } from "@/components/ui/card";
-import { Space } from "@/components/ui/space";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import {
+  Button,
+  Card,
+  Form,
+  Input,
+  Modal,
+  Popconfirm,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Typography,
+  message,
+} from "antd";
 import { DeleteOutlined, EditOutlined, LockOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import {
@@ -180,8 +188,8 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       render: (_: unknown, record: EnvVarResponse) => (
         <Space size="small">
           <Button
-            variant="ghost"
-            size="sm"
+            type="text"
+            size="small"
             icon={<EditOutlined />}
             onClick={() => openEditModal(record)}
             aria-label={t("settings.envVars.edit", "Edit")}
@@ -193,10 +201,12 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             cancelText={t("settings.envVars.no", "No")}
           >
             <Button
-              size="sm"
+              type="text"
+              size="small"
+              danger
               icon={<DeleteOutlined />}
               aria-label={t("settings.envVars.delete", "Delete")}
-              variant="destructive" />
+            />
           </Popconfirm>
         </Space>
       ),
@@ -211,7 +221,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         className="lotus-settings-card"
         title={t("settings.envVars.title", "Environment Variables")}
         extra={
-          <Button variant="default" icon={<PlusOutlined />} onClick={openAddModal}>
+          <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
             {t("settings.envVars.addButton", "Add Variable")}
           </Button>
         }
@@ -235,6 +245,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           }}
         />
       </Card>
+
       {/* ── Add / Edit Modal ─────────────────────────────────────── */}
       <Modal
         title={

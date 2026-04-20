@@ -1,8 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Flex } from "@/components/ui/flex";
-import { Typography } from "@/components/ui/typography";
-import { Button } from "@/components/ui/button";
+import { Button, Flex, Typography } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { ImageFile } from "../../utils/imageUtils";
@@ -74,8 +72,8 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
           </Text>
         )}
         <Button
-          variant="ghost"
-          size="sm"
+          type="text"
+          size="small"
           icon={<CloseOutlined />}
           onClick={onClear}
           style={{
