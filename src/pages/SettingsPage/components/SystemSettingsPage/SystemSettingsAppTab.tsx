@@ -1,8 +1,14 @@
 import React from "react";
 import { Button, Card, Flex, Popconfirm, Space, Switch, Typography, theme, Divider } from "antd";
 import { useTranslation } from "react-i18next";
-import { DeleteOutlined, WarningOutlined, RedoOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  WarningOutlined,
+  RedoOutlined,
+  QuestionCircleOutlined,
+} from "@ant-design/icons";
 import { APP_VERSION } from "@shared/constants/appVersion";
+import { resetOnboarding } from "@shared/components/FeatureGuide";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -89,6 +95,16 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
             "Disables blur and glass effects that can break dropdowns and hover overlays in some virtual desktop, remote, or graphics-constrained environments.",
           )}
         </Text>
+        <Button
+          block
+          icon={<QuestionCircleOutlined />}
+          onClick={() => {
+            resetOnboarding();
+            window.location.reload();
+          }}
+        >
+          {t("settings.appTab.resetStepReplayGuide")}
+        </Button>
         <Popconfirm
           title={t("settings.appTab.clearLocalStorageTitle")}
           description={t("settings.appTab.clearLocalStorageDescription")}

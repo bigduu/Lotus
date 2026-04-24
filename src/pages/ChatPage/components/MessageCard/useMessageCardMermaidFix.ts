@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
 import { useFastModel } from "../../hooks/useActiveModel";
+import { useFastModelRef } from "../../hooks/useActiveModelRef";
 import { agentClient } from "../../services/AgentService";
 import type { AssistantTextMessage, Message } from "../../types/chat";
 
@@ -149,6 +150,8 @@ const fixMermaidWithAI = async (chart: string, model?: string | null, renderErro
 export const useMessageCardMermaidFix = (messageId: string, sessionId?: string | null) => {
   // Use fast/cheap model for mermaid fix (lightweight syntax repair task)
   const fastModel = useFastModel();
+  const fastModelRef = useFastModelRef();
+  const effectiveFastModel = fastModelRef?.model ?? fastModel;
 
   return useCallback(
     async (chart: string, renderError?: string) => {
@@ -165,7 +168,7 @@ export const useMessageCardMermaidFix = (messageId: string, sessionId?: string |
         throw new Error("Mermaid fix is only available for assistant text messages");
       }
 
-      const fixedChart = await fixMermaidWithAI(chart, fastModel, renderError);
+      const fixedChart = await fixMermaidWithAI(chart, effectiveFastModel, renderError);
       if (!fixedChart) throw new Error("AI did not return a Mermaid fix");
 
       const updatedContent = replaceMermaidBlock(msg.content, chart, fixedChart);
@@ -229,6 +232,6 @@ export const useMessageCardMermaidFix = (messageId: string, sessionId?: string |
 
       latestState.updateSession(targetSessionId, { messages: updatedMessages });
     },
-    [messageId, sessionId, fastModel],
+    [messageId, sessionId, effectiveFastModel],
   );
 };

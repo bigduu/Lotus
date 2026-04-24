@@ -4,6 +4,7 @@ import { useAppStore } from "../../store";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import type { UseChatState } from "./types";
 import { AgentClient } from "../../services/AgentService";
+import { useProviderStore } from "../../store/slices/providerSlice";
 
 /**
  * Hook for chat CRUD operations
@@ -49,6 +50,9 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
                 systemPrompts[0].content
               : ""),
           lastUsedEnhancedPrompt: null,
+          ...(useProviderStore.getState().isProviderModelRefEnabled()
+            ? { model_ref: useProviderStore.getState().selectedModelRef }
+            : {}),
         },
         currentInteraction: null,
         ...options,

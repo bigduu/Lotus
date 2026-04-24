@@ -162,7 +162,7 @@ export const HomeDashboard: React.FC<{
           </div>
         </div>
 
-        <div className="lotus-home-launcher-shell">
+        <div className="lotus-home-launcher-shell" data-tour-id="task-templates">
           <EmptyTaskLauncher embedded={true} layoutMode="staggered" />
         </div>
 

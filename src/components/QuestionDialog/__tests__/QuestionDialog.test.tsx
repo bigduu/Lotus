@@ -16,6 +16,10 @@ vi.mock("../../../services/api", () => ({
   },
 }));
 
+vi.mock("../../../pages/ChatPage/hooks/useActiveModelRef", () => ({
+  useActiveModelRef: vi.fn(() => null),
+}));
+
 describe("QuestionDialog", () => {
   const mockSetSessionProcessing = vi.fn();
   const mockIsSessionProcessing = vi.fn();

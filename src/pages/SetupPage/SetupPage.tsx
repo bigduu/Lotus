@@ -1,355 +1,46 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Card, Checkbox, Input, Spin, Steps } from "antd";
-import type { CheckboxChangeEvent } from "antd/es/checkbox";
+import { Alert, Button, Card, Typography } from "antd";
+import { SettingOutlined, RocketOutlined } from "@ant-design/icons";
 import { ServiceFactory } from "../../services/common/ServiceFactory";
 
 import "./SetupPage.css";
 
-interface SetupConfig {
-  httpProxy: string;
-  httpsProxy: string;
-  proxyUsername: string;
-  proxyPassword: string;
-  rememberProxyAuth: boolean;
-}
+const OPEN_PROVIDER_FLAG = "bodhi_open_provider_on_entry";
 
-interface ProxyDetectionState {
-  needsProxy: boolean;
-  message: string;
-}
-
-const DEFAULT_CONFIG: SetupConfig = {
-  httpProxy: "",
-  httpsProxy: "",
-  proxyUsername: "",
-  proxyPassword: "",
-  rememberProxyAuth: true,
-};
-
-const parseString = (value: unknown): string => (typeof value === "string" ? value : "");
+const { Title, Paragraph } = Typography;
 
 export const SetupPage = () => {
   const { t } = useTranslation();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [config, setConfig] = useState<SetupConfig>(DEFAULT_CONFIG);
-  const [needsProxy, setNeedsProxy] = useState(false);
-  const [isDetecting, setIsDetecting] = useState(false);
-  const [detectionResult, setDetectionResult] = useState<ProxyDetectionState | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  useEffect(() => {
-    const checkInitialConfig = async () => {
-      let hasExistingProxy = false;
-
-      try {
-        const serviceFactory = ServiceFactory.getInstance();
-
-        const existingConfig = await serviceFactory.getBambooConfig();
-        const httpProxy = parseString(existingConfig.http_proxy);
-        const httpsProxy = parseString(existingConfig.https_proxy);
-
-        // We can only prefill username (never the password).
-        const authStatus = await serviceFactory.getProxyAuthStatus();
-        const username = parseString(authStatus.username);
-
-        setConfig({
-          httpProxy,
-          httpsProxy,
-          proxyUsername: username,
-          proxyPassword: "",
-          rememberProxyAuth: DEFAULT_CONFIG.rememberProxyAuth,
-        });
-
-        hasExistingProxy = httpProxy.trim().length > 0 || httpsProxy.trim().length > 0;
-        setNeedsProxy(hasExistingProxy);
-      } catch (error) {
-        console.error("Failed to check config:", error);
-        setNeedsProxy(false);
-      }
-
-      setIsDetecting(true);
-      try {
-        const serviceFactory = ServiceFactory.getInstance();
-        const status = await serviceFactory.getSetupStatus();
-        setDetectionResult({
-          needsProxy: status.has_proxy_env,
-          message: status.message,
-        });
-        setNeedsProxy(hasExistingProxy || status.has_proxy_env);
-      } catch (error) {
-        console.error("Failed to check setup status:", error);
-        setDetectionResult({
-          needsProxy: true,
-          message: t("setup.error.loadStatusFailed"),
-        });
-      } finally {
-        setIsDetecting(false);
-      }
-    };
-
-    void checkInitialConfig();
-  }, []);
-
-  const hasProxy = config.httpProxy.trim().length > 0 || config.httpsProxy.trim().length > 0;
-  const shouldShowAuthFields = hasProxy || needsProxy;
-
-  const updateConfig = (partial: Partial<SetupConfig>) => {
-    setConfig((prev) => ({ ...prev, ...partial }));
-  };
-
-  const handleSaveProxyConfig = async () => {
-    const httpProxy = config.httpProxy.trim();
-    const httpsProxy = config.httpsProxy.trim();
-    const hasProxy = Boolean(httpProxy || httpsProxy);
-    const username = config.proxyUsername.trim();
-    const hasAuth = Boolean(username);
-
+  const completeSetup = async (openProviderOnEntry: boolean) => {
     try {
       setErrorMessage(null);
       setIsSaving(true);
-
-      if (hasProxy) {
-        const serviceFactory = ServiceFactory.getInstance();
-
-        // Friendly frontend validation: only validate the proxy domain (setup page does not
-        // configure providers).
-        const validation = await serviceFactory.validateBambooConfigPatch({
-          http_proxy: httpProxy,
-          https_proxy: httpsProxy,
-        });
-        if (!validation.valid) {
-          const proxyIssue = validation.errors?.proxy?.[0];
-          const issue =
-            proxyIssue ??
-            Object.values(validation.errors || {})
-              .flat()
-              .filter(Boolean)[0];
-          setErrorMessage(issue?.message || t("setup.error.invalidProxy"));
-          return;
-        }
-
-        if (config.rememberProxyAuth && !hasAuth && config.proxyPassword.trim()) {
-          setErrorMessage(t("setup.error.credentialsUsername"));
-          return;
-        }
-
-        await serviceFactory.setBambooConfig({
-          http_proxy: httpProxy,
-          https_proxy: httpsProxy,
-        });
-
-        if (config.rememberProxyAuth && hasAuth) {
-          await serviceFactory.setProxyAuth({
-            username,
-            password: config.proxyPassword || "",
-          });
-        } else {
-          // Clear any previously-stored proxy auth to avoid stale credentials.
-          await serviceFactory.clearProxyAuth();
-        }
-      }
-
       const serviceFactory = ServiceFactory.getInstance();
       await serviceFactory.markSetupComplete();
+      if (openProviderOnEntry) {
+        localStorage.setItem(OPEN_PROVIDER_FLAG, "true");
+      }
       setIsComplete(true);
     } catch (error) {
       console.error("Failed to complete setup:", error);
-      const message =
-        error instanceof Error && error.message.trim()
-          ? error.message
-          : hasProxy
-            ? t("setup.error.saveProxyFailed")
-            : t("setup.error.completeFailed");
-      setErrorMessage(message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleSkipSetup = async () => {
-    try {
-      setErrorMessage(null);
-      setIsSaving(true);
-      const serviceFactory = ServiceFactory.getInstance();
-      await serviceFactory.markSetupComplete();
-      setIsComplete(true);
-    } catch (error) {
-      console.error("Failed to mark setup complete:", error);
       setErrorMessage(t("setup.error.completeFailed"));
     } finally {
       setIsSaving(false);
     }
   };
 
-  const steps = useMemo(
-    () => [
-      {
-        title: t("setup.steps.welcome"),
-        content: (
-          <div>
-            <h1>{t("setup.welcome.heading")}</h1>
-            <p>{t("setup.welcome.description")}</p>
-            <Alert
-              message={t("setup.welcome.skipInfo")}
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
-            <div className="setup-page__actions">
-              <Button data-testid="setup-next" type="primary" onClick={() => setCurrentStep(1)}>
-                {t("setup.button.next")}
-              </Button>
-              <Button
-                data-testid="setup-skip"
-                onClick={() => void handleSkipSetup()}
-                loading={isSaving}
-              >
-                {t("setup.button.skipForNow")}
-              </Button>
-            </div>
-          </div>
-        ),
-      },
-      {
-        title: t("setup.steps.proxy"),
-        content: (
-          <div>
-            <h2>{t("setup.proxy.title")}</h2>
-            <Alert message={t("setup.proxy.info")} type="info" showIcon />
-            <Alert
-              message={t("setup.proxy.providerInfo")}
-              type="info"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-
-            {isDetecting ? (
-              <div style={{ marginTop: 16 }}>
-                <Spin tip={t("setup.proxy.detecting")} />
-              </div>
-            ) : null}
-
-            {detectionResult ? (
-              <Alert
-                message={detectionResult.message}
-                type={detectionResult.needsProxy ? "warning" : "success"}
-                showIcon
-                style={{ marginTop: 16 }}
-              />
-            ) : null}
-
-            {!isDetecting && !detectionResult && !needsProxy ? (
-              <Alert
-                message={t("setup.proxy.noProxyDetected")}
-                type="success"
-                showIcon
-                style={{ marginTop: 16 }}
-              />
-            ) : null}
-
-            {errorMessage ? (
-              <Alert message={errorMessage} type="error" showIcon style={{ marginTop: 16 }} />
-            ) : null}
-
-            <div style={{ marginTop: 16 }}>
-              <label htmlFor="setup-http-proxy">{t("setup.proxy.httpProxyLabel")}</label>
-              <Input
-                id="setup-http-proxy"
-                value={config.httpProxy}
-                onChange={(event) => updateConfig({ httpProxy: event.target.value })}
-                placeholder={t("setup.proxy.httpProxyPlaceholder")}
-              />
-            </div>
-
-            <div style={{ marginTop: 16 }}>
-              <label htmlFor="setup-https-proxy">{t("setup.proxy.httpsProxyLabel")}</label>
-              <Input
-                id="setup-https-proxy"
-                value={config.httpsProxy}
-                onChange={(event) => updateConfig({ httpsProxy: event.target.value })}
-                placeholder={t("setup.proxy.httpsProxyPlaceholder")}
-              />
-            </div>
-
-            {shouldShowAuthFields ? (
-              <>
-                <div style={{ marginTop: 16 }}>
-                  <label htmlFor="setup-proxy-username">{t("setup.proxy.usernameLabel")}</label>
-                  <Input
-                    id="setup-proxy-username"
-                    value={config.proxyUsername}
-                    onChange={(event) => updateConfig({ proxyUsername: event.target.value })}
-                  />
-                </div>
-
-                <div style={{ marginTop: 16 }}>
-                  <label htmlFor="setup-proxy-password">{t("setup.proxy.passwordLabel")}</label>
-                  <Input.Password
-                    id="setup-proxy-password"
-                    value={config.proxyPassword}
-                    onChange={(event) => updateConfig({ proxyPassword: event.target.value })}
-                  />
-                </div>
-
-                <div style={{ marginTop: 16 }}>
-                  <Checkbox
-                    checked={config.rememberProxyAuth}
-                    onChange={(event: CheckboxChangeEvent) =>
-                      updateConfig({ rememberProxyAuth: event.target.checked })
-                    }
-                  >
-                    {t("setup.proxy.rememberCredentials")}
-                  </Checkbox>
-                </div>
-              </>
-            ) : null}
-
-            <div className="setup-page__actions" style={{ marginTop: 24 }}>
-              <Button data-testid="setup-back" onClick={() => setCurrentStep(0)}>
-                {t("setup.button.back")}
-              </Button>
-              <Button
-                data-testid="setup-skip"
-                onClick={() => void handleSkipSetup()}
-                loading={isSaving}
-              >
-                {t("setup.button.skipForNow")}
-              </Button>
-              <Button
-                data-testid="setup-complete"
-                onClick={() => void handleSaveProxyConfig()}
-                type="primary"
-                loading={isSaving}
-              >
-                {t("setup.button.completeSetup")}
-              </Button>
-            </div>
-          </div>
-        ),
-      },
-    ],
-    [
-      config,
-      detectionResult,
-      errorMessage,
-      isDetecting,
-      isSaving,
-      needsProxy,
-      shouldShowAuthFields,
-      t,
-    ],
-  );
-
   if (isComplete) {
     return (
       <div data-testid="setup-complete" className="setup-complete">
-        <h1>{t("setup.complete.title")}</h1>
-        <p>{t("setup.complete.restartMessage")}</p>
+        <Title level={2}>{t("setup.complete.title")}</Title>
+        <Paragraph>{t("setup.complete.restartMessage")}</Paragraph>
         <Button data-testid="setup-restart" onClick={() => window.location.reload()}>
-          {t("setup.button.restart")}
+          {t("setup.complete.restartMessage")}
         </Button>
       </div>
     );
@@ -357,9 +48,54 @@ export const SetupPage = () => {
 
   return (
     <div className="setup-page">
-      <Card style={{ maxWidth: 600, margin: "40px auto" }}>
-        <Steps current={currentStep} items={steps.map((step) => ({ title: step.title }))} />
-        <div style={{ marginTop: 24 }}>{steps[currentStep].content}</div>
+      <Card className="setup-page__card">
+        <div className="setup-page__hero">
+          <div className="setup-page__hero-icon">
+            <RocketOutlined />
+          </div>
+          <Title level={2} style={{ marginTop: 0 }}>
+            {t("setup.welcome.heading")}
+          </Title>
+          <Paragraph type="secondary">{t("setup.welcome.description")}</Paragraph>
+        </div>
+
+        <Alert
+          message={t("setup.welcome.providerHint")}
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+
+        <Alert
+          message={t("setup.welcome.proxyHint")}
+          type="info"
+          showIcon
+          style={{ marginBottom: 24 }}
+        />
+
+        {errorMessage ? (
+          <Alert message={errorMessage} type="error" showIcon style={{ marginBottom: 16 }} />
+        ) : null}
+
+        <div className="setup-page__actions">
+          <Button
+            data-testid="setup-configure-provider"
+            icon={<SettingOutlined />}
+            onClick={() => void completeSetup(true)}
+            loading={isSaving}
+          >
+            {t("setup.button.configureProvider")}
+          </Button>
+          <Button
+            data-testid="setup-get-started"
+            type="primary"
+            icon={<RocketOutlined />}
+            onClick={() => void completeSetup(false)}
+            loading={isSaving}
+          >
+            {t("setup.button.getStarted")}
+          </Button>
+        </div>
       </Card>
     </div>
   );

@@ -4,6 +4,7 @@ import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { agentApiClient } from "../../services/api";
 import { useAppStore } from "../../pages/ChatPage/store";
+import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef";
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
 import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
@@ -77,6 +78,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const currentChat = useAppStore(
     (state) => state.chats.find((chat) => chat.id === sessionId) || null,
   );
+  const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
 
   // Resolve reasoning effort (same priority as InputContainer)
   const inputState = useAppStore((state) =>
@@ -268,9 +270,16 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     setIsSubmitting(true);
 
     try {
+      const modelRefPayload: Record<string, unknown> = {};
+      if (useProviderStore.getState().isProviderModelRefEnabled() && activeModelRef) {
+        modelRefPayload.model_ref = activeModelRef;
+        modelRefPayload.provider = activeModelRef.provider;
+      }
+
       const submitResult = await agentApiClient.post<RespondSubmitResult>(`respond/${sessionId}`, {
         response: selectedOption,
         reasoning_effort: reasoningEffort,
+        ...modelRefPayload,
       });
 
       message.success(t("components.questionDialog.responseSubmitted"));

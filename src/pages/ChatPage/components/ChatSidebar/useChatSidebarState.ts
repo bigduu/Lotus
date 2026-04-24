@@ -16,6 +16,7 @@ import { useChatTitleGeneration } from "../../hooks/useChatManager/useChatTitleG
 import { selectSessionById, useAppStore } from "../../store";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
+import { useProviderStore } from "../../store/slices/providerSlice";
 import { openSession } from "../../utils/openSession";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
@@ -108,6 +109,9 @@ export const useChatSidebarState = () => {
                 systemPrompts[0].content
               : ""),
           lastUsedEnhancedPrompt: null,
+          ...(useProviderStore.getState().isProviderModelRefEnabled()
+            ? { model_ref: useProviderStore.getState().selectedModelRef }
+            : {}),
         },
         currentInteraction: null,
         ...options,

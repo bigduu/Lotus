@@ -1,12 +1,31 @@
 .setup-page {
   min-height: 100vh;
-  background: var(--lotus-main-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 20px;
+}
+
+.setup-page__card {
+  max-width: 520px;
+  width: 100%;
+}
+
+.setup-page__hero {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.setup-page__hero-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: #0d9488;
 }
 
 .setup-page__actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  justify-content: center;
 }
 
 .setup-complete {

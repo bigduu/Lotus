@@ -6,6 +6,7 @@ import { getOpenAIClient } from "../../services/openaiClient";
 import type { Message } from "../../types/chat";
 import type { UseChatState } from "./types";
 import { useActiveModel, useFastModel } from "../useActiveModel";
+import { useFastModelRef } from "../useActiveModelRef";
 import i18n from "../../../../shared/i18n";
 
 const PROMPT_TEMPLATE_MARKER = "__BODHI_PROMPT_TITLE__";
@@ -208,6 +209,7 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
   const autoGenerateTitles = useAppStore((state) => state.autoGenerateTitles);
   // Use fast/cheap model for title generation (lightweight task, max 20 tokens)
   const fastModel = useFastModel();
+  const fastModelRef = useFastModelRef();
   const activeModel = useActiveModel();
   const setAutoGenerateTitlesPreference = useAppStore(
     (state) => state.setAutoGenerateTitlesPreference,
@@ -277,7 +279,8 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
       }));
 
       try {
-        const normalizedFastModel = fastModel?.trim() || "";
+        const effectiveFastModel = fastModelRef?.model ?? fastModel;
+        const normalizedFastModel = effectiveFastModel?.trim() || "";
         const normalizedActiveModel = activeModel?.trim() || "";
 
         let llmError: unknown;
@@ -348,7 +351,16 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
         titleGenerationInFlightRef.current.delete(sessionId);
       }
     },
-    [appMessage, autoGenerateTitles, isDefaultTitle, fastModel, activeModel, state, t],
+    [
+      appMessage,
+      autoGenerateTitles,
+      isDefaultTitle,
+      fastModel,
+      fastModelRef,
+      activeModel,
+      state,
+      t,
+    ],
   );
 
   return {

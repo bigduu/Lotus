@@ -20,6 +20,9 @@ import { ResizableSplit } from "../shared/components/ResizableSplit";
 import type { AppLocale } from "../shared/i18n/types";
 import { detectOS } from "../shared/utils/osInfoUtils";
 import { CommandPalette } from "@shared/components/CommandPalette";
+import { FeatureGuide } from "@shared/components/FeatureGuide";
+
+const OPEN_PROVIDER_FLAG = "bodhi_open_provider_on_entry";
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
@@ -39,6 +42,14 @@ export const MainLayout: React.FC<{
   useEffect(() => {
     loadProviderConfig();
   }, [loadProviderConfig]);
+
+  // Auto-open Settings to Provider tab if user clicked "Configure Provider" during setup.
+  useEffect(() => {
+    if (localStorage.getItem(OPEN_PROVIDER_FLAG) === "true") {
+      localStorage.removeItem(OPEN_PROVIDER_FLAG);
+      useSettingsViewStore.getState().open("chat", "provider");
+    }
+  }, []);
 
   // Maintain a single persistent subscription to agent events.
   useAgentEventSubscription();
@@ -108,6 +119,7 @@ export const MainLayout: React.FC<{
         {t("app.skipToContent", "Skip to main content")}
       </a>
       <CommandPalette />
+      <FeatureGuide disabled={settingsOpen} />
       <Layout
         style={{
           minHeight: "100vh",

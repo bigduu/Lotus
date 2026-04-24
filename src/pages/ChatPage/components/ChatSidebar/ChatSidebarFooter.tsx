@@ -45,6 +45,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
     >
       <Button
         data-testid="new-chat"
+        data-tour-id="new-session"
         type="primary"
         icon={<PlusOutlined />}
         onClick={onNewChat}
@@ -67,6 +68,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
       <Flex gap={8} align="center">
         <Button
           data-testid="open-settings"
+          data-tour-id="open-settings"
           icon={<SettingOutlined />}
           onClick={onOpenSettings}
           block={!collapsed}

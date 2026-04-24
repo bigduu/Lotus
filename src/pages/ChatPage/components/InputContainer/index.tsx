@@ -23,7 +23,9 @@ import { useInputContainerSubmit } from "./useInputContainerSubmit";
 import { useInputContainerHistory } from "./useInputContainerHistory";
 import { getInputContainerPlaceholder } from "./inputContainerPlaceholder";
 import { useActiveModel } from "../../hooks/useActiveModel";
+import { useActiveModelRef } from "../../hooks/useActiveModelRef";
 import { useProviderStore } from "../../store/slices/providerSlice";
+import { ProviderModelPicker } from "../ProviderModelPicker";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { agentClient, type ReasoningEffort } from "../../services/AgentService";
 import {
@@ -160,6 +162,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     (state) => state.clearPendingQuestionRespondForSession,
   );
   const activeModel = useActiveModel(sessionId);
+  const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
+  const isFlagOn = useProviderStore((s) => s.isProviderModelRefEnabled);
 
   // Get input state from Zustand slice (persisted per session)
   const inputState = useAppStore((state) => (sessionId ? state.inputStates[sessionId] : undefined));
@@ -407,12 +411,18 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
 
       try {
+        const respondPayload: Record<string, unknown> = {
+          response: trimmed,
+          reasoning_effort: reasoningEffort,
+        };
+        if (isFlagOn() && activeModelRef) {
+          respondPayload.model_ref = activeModelRef;
+          respondPayload.provider = activeModelRef.provider;
+        }
+
         const result = await agentApiClient.post<{ auto_resume_status?: string }>(
           `respond/${sessionId}`,
-          {
-            response: trimmed,
-            reasoning_effort: reasoningEffort,
-          },
+          respondPayload,
         );
 
         messageApi.success(t("components.questionDialog.responseSubmittedContinue"));
@@ -440,6 +450,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [
       sessionId,
       reasoningEffort,
+      activeModelRef,
+      isFlagOn,
       messageApi,
       setContent,
       clearPendingQuestionRespondForSession,
@@ -575,6 +587,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       anthropic: [...ANTHROPIC_MODELS],
       gemini: [...GEMINI_MODELS],
       copilot: [...COPILOT_MODELS],
+      bodhi: [],
     };
     return byProvider[currentProvider] || [];
   }, [currentProvider]);
@@ -680,6 +693,23 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       t,
       updateSession,
     ],
+  );
+
+  const handleModelRefChange = useCallback(
+    (ref: { provider: string; model: string }) => {
+      useProviderStore.getState().setSelectedModelRef(ref);
+      if (sessionId && currentChat?.config) {
+        updateSession(sessionId, {
+          config: {
+            systemPromptId: currentChat.config.systemPromptId,
+            baseSystemPrompt: currentChat.config.baseSystemPrompt,
+            lastUsedEnhancedPrompt: currentChat.config.lastUsedEnhancedPrompt,
+            model_ref: ref,
+          },
+        });
+      }
+    },
+    [currentChat?.config, sessionId, updateSession],
   );
 
   const basePlaceholder = useMemo(() => {
@@ -816,7 +846,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     </Button>
   );
 
-  const modelControl = isProviderConfigured ? (
+  const modelControl = isFlagOn() ? (
+    <ProviderModelPicker
+      value={activeModelRef}
+      onChange={handleModelRefChange}
+      disabled={isStreaming || isSavingModel}
+    />
+  ) : isProviderConfigured ? (
     <Dropdown
       trigger={["click"]}
       placement="topLeft"

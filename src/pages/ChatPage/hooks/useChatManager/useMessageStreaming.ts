@@ -15,8 +15,12 @@ import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { useAppStore } from "../../store";
 import { getSystemPromptEnhancementText } from "@shared/utils/systemPromptEnhancement";
 import { isCopilotConclusionWithOptionsEnhancementEnabled } from "@shared/utils/copilotConclusionWithOptionsEnhancementUtils";
-import { formatCompletionPolicyViolationMessage, isCompletionPolicyViolationError } from "@shared/utils/completionPolicyViolation";
+import {
+  formatCompletionPolicyViolationMessage,
+  isCompletionPolicyViolationError,
+} from "@shared/utils/completionPolicyViolation";
 import { useActiveModel } from "../useActiveModel";
+import { useActiveModelRef } from "../useActiveModelRef";
 import { useProviderStore } from "../../store/slices/providerSlice";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
 
@@ -71,6 +75,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   const currentChat = useAppStore((state) =>
     deps.sessionId ? state.chats.find((chat) => chat.id === deps.sessionId) || null : null,
   );
+  const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
 
   useEffect(() => {
     startAgentHealthCheck();
@@ -89,7 +94,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
     }
   }, [currentChat?.id]);
 
-const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
+  const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
     const storeState = useAppStore.getState() as Partial<{
       chats: ChatItem[];
       pendingQuestionRespond: {
@@ -102,7 +107,8 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
     const pendingRespond = storeState.pendingQuestionRespond;
     const pendingForSession = pendingRespond?.sessionId === sessionId ? pendingRespond : null;
     const syncCursor = chat?.config?.syncCursor;
-    const hasPendingQuestion = Boolean(pendingForSession) || Boolean(syncCursor?.hasPendingQuestion);
+    const hasPendingQuestion =
+      Boolean(pendingForSession) || Boolean(syncCursor?.hasPendingQuestion);
     const pendingQuestionToolCallId =
       pendingForSession?.toolCallId ?? syncCursor?.pendingQuestionToolCallId ?? null;
 
@@ -139,14 +145,20 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
     [deps],
   );
 
-  const getPendingQuestion = useCallback(async (sessionId: string): Promise<PendingQuestionResponse> => {
-    try {
-      return await agentApiClient.get<PendingQuestionResponse>(`respond/${sessionId}/pending`);
-    } catch (error) {
-      console.warn(`[useMessageStreaming] Failed to fetch pending question for ${sessionId}:`, error);
-      return { has_pending_question: false };
-    }
-  }, []);
+  const getPendingQuestion = useCallback(
+    async (sessionId: string): Promise<PendingQuestionResponse> => {
+      try {
+        return await agentApiClient.get<PendingQuestionResponse>(`respond/${sessionId}/pending`);
+      } catch (error) {
+        console.warn(
+          `[useMessageStreaming] Failed to fetch pending question for ${sessionId}:`,
+          error,
+        );
+        return { has_pending_question: false };
+      }
+    },
+    [],
+  );
 
   const recoverAfterNeedSync = useCallback(
     async (
@@ -198,12 +210,24 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
       deps.setSessionProcessing(sessionId, true);
       await new Promise((resolve) => setTimeout(resolve, 0));
       const retryResult = reasoningEffort
-        ? await agentClientRef.current.execute(sessionId, undefined, reasoningEffort, buildClientSync(sessionId))
-        : await agentClientRef.current.execute(sessionId, undefined, undefined, buildClientSync(sessionId));
+        ? await agentClientRef.current.execute(
+            sessionId,
+            undefined,
+            reasoningEffort,
+            buildClientSync(sessionId),
+            activeModelRef ?? undefined,
+          )
+        : await agentClientRef.current.execute(
+            sessionId,
+            undefined,
+            undefined,
+            buildClientSync(sessionId),
+            activeModelRef ?? undefined,
+          );
       applyExecuteSyncSnapshot(sessionId, retryResult);
       return retryResult;
     },
-    [applyExecuteSyncSnapshot, buildClientSync, deps, getPendingQuestion],
+    [activeModelRef, applyExecuteSyncSnapshot, buildClientSync, deps, getPendingQuestion],
   );
 
   const handleExecuteResult = useCallback(
@@ -284,17 +308,15 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
           isCopilotConclusionWithOptionsEnhancementEnabled();
         // Normalize workspace path: remove trailing slashes, handle cross-platform
         const rawWorkspacePath = currentChat?.config?.workspacePath || "";
-        const workspacePath = rawWorkspacePath
-          .trim()
-          .replace(/\/+$/, "")
-          .replace(/\\+$/, "");
+        const workspacePath = rawWorkspacePath.trim().replace(/\/+$/, "").replace(/\\+$/, "");
 
         // Step 1: Send message to Agent
         const response = await agentClientRef.current.sendMessage({
           message: content,
           session_id: sessionId,
           enhance_prompt: enhancePrompt || undefined,
-          copilot_conclusion_with_options_enhancement_enabled: copilotConclusionWithOptionsEnhancementEnabled,
+          copilot_conclusion_with_options_enhancement_enabled:
+            copilotConclusionWithOptionsEnhancementEnabled,
           workspace_path: workspacePath || undefined,
           selected_skill_ids:
             selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
@@ -307,6 +329,9 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
               type: img.type,
             })),
           model: activeModel,
+          ...(activeModelRef
+            ? { model_ref: activeModelRef, provider: activeModelRef.provider }
+            : {}),
         });
 
         const { session_id } = response;
@@ -325,15 +350,36 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
 
         // Step 3: Trigger execution (idempotent)
         const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(sessionId, undefined, reasoningEffort, buildClientSync(sessionId))
-          : await agentClientRef.current.execute(sessionId, undefined, undefined, buildClientSync(sessionId));
+          ? await agentClientRef.current.execute(
+              sessionId,
+              undefined,
+              reasoningEffort,
+              buildClientSync(sessionId),
+              activeModelRef ?? undefined,
+            )
+          : await agentClientRef.current.execute(
+              sessionId,
+              undefined,
+              undefined,
+              buildClientSync(sessionId),
+              activeModelRef ?? undefined,
+            );
         debugLog("[Streaming]", "[Agent] Execute status:", executeResult.status);
         await handleExecuteResult(sessionId, executeResult, reasoningEffort);
       } catch (error) {
         throw error;
       }
     },
-    [activeModel, buildClientSync, currentChat, currentProvider, deps, handleExecuteResult, t],
+    [
+      activeModel,
+      activeModelRef,
+      buildClientSync,
+      currentChat,
+      currentProvider,
+      deps,
+      handleExecuteResult,
+      t,
+    ],
   );
 
   const sendMessage = useCallback(
@@ -504,8 +550,20 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
         deps.setSessionProcessing(sessionId, true);
 
         const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(sessionId, undefined, reasoningEffort, buildClientSync(sessionId))
-          : await agentClientRef.current.execute(sessionId, undefined, undefined, buildClientSync(sessionId));
+          ? await agentClientRef.current.execute(
+              sessionId,
+              undefined,
+              reasoningEffort,
+              buildClientSync(sessionId),
+              activeModelRef ?? undefined,
+            )
+          : await agentClientRef.current.execute(
+              sessionId,
+              undefined,
+              undefined,
+              buildClientSync(sessionId),
+              activeModelRef ?? undefined,
+            );
         await handleExecuteResult(sessionId, executeResult, reasoningEffort);
       } catch (error) {
         console.error("[useMessageStreaming] Retry failed:", error);
@@ -522,6 +580,7 @@ const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
     },
     [
       activeModel,
+      activeModelRef,
       agentAvailable,
       appMessage,
       buildClientSync,

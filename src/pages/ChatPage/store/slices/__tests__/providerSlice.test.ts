@@ -371,4 +371,73 @@ describe("providerSlice", () => {
       expect(useProviderStore.getState().getActiveModel()).toBe("gpt-4-turbo");
     });
   });
+
+  describe("isProviderModelRefEnabled", () => {
+    it("should always return true (catalog mode is always enabled)", () => {
+      useProviderStore.setState({
+        providerConfig: { provider: "copilot", providers: {} },
+      });
+      expect(useProviderStore.getState().isProviderModelRefEnabled()).toBe(true);
+    });
+  });
+
+  describe("setSelectedModelRef", () => {
+    it("should set selected model ref", () => {
+      const ref = { provider: "openai", model: "gpt-4o" };
+      useProviderStore.getState().setSelectedModelRef(ref);
+      expect(useProviderStore.getState().selectedModelRef).toEqual(ref);
+    });
+
+    it("should clear selected model ref with null", () => {
+      useProviderStore.getState().setSelectedModelRef({ provider: "openai", model: "gpt-4o" });
+      useProviderStore.getState().setSelectedModelRef(null);
+      expect(useProviderStore.getState().selectedModelRef).toBeNull();
+    });
+  });
+
+  describe("getFastModelRef", () => {
+    it("should return fast model ref", () => {
+      useProviderStore.setState({
+        currentProvider: "openai",
+        providerConfig: {
+          provider: "openai",
+          providers: { openai: { api_key: "k", model: "gpt-4o", fast_model: "gpt-4o-mini" } },
+        },
+      });
+      expect(useProviderStore.getState().getFastModelRef()).toEqual({
+        provider: "openai",
+        model: "gpt-4o-mini",
+      });
+    });
+
+    it("should fallback to active model when no fast_model", () => {
+      useProviderStore.setState({
+        currentProvider: "anthropic",
+        providerConfig: {
+          provider: "anthropic",
+          providers: { anthropic: { api_key: "k", model: "claude-3" } },
+        },
+      });
+      expect(useProviderStore.getState().getFastModelRef()).toEqual({
+        provider: "anthropic",
+        model: "claude-3",
+      });
+    });
+  });
+
+  describe("getVisionModelRef", () => {
+    it("should return vision model ref", () => {
+      useProviderStore.setState({
+        currentProvider: "openai",
+        providerConfig: {
+          provider: "openai",
+          providers: { openai: { api_key: "k", model: "gpt-4o", vision_model: "gpt-4o-vision" } },
+        },
+      });
+      expect(useProviderStore.getState().getVisionModelRef()).toEqual({
+        provider: "openai",
+        model: "gpt-4o-vision",
+      });
+    });
+  });
 });

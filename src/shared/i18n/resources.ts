@@ -72,50 +72,53 @@ export const resources = {
       },
       setup: {
         welcome: {
-          title: "Welcome",
           heading: "Welcome to Bodhi",
-          description: "Let's set up your environment before entering the main app.",
-          skipInfo: "You can skip setup now and configure proxy settings later in System Settings.",
-        },
-        steps: {
-          welcome: "Welcome",
-          proxy: "Proxy Configuration",
-        },
-        proxy: {
-          title: "Proxy Configuration",
-          info: "If you're behind a corporate proxy, configure it below.",
-          providerInfo:
-            "Provider configuration is done later in Provider Settings. This setup step only stores network/proxy settings.",
-          detecting: "Detecting network environment...",
-          noProxyDetected:
-            "No existing proxy was detected. You can leave these fields empty if your network does not require a proxy.",
-          httpProxyLabel: "HTTP Proxy URL:",
-          httpsProxyLabel: "HTTPS Proxy URL:",
-          httpProxyPlaceholder: "http://proxy.company.com:8080",
-          httpsProxyPlaceholder: "http://proxy.company.com:8080",
-          usernameLabel: "Username",
-          passwordLabel: "Password",
-          rememberCredentials: "Remember credentials (encrypted)",
-        },
-        complete: {
-          title: "Setup Complete!",
-          restartMessage: "Please restart the application to apply all settings.",
+          description:
+            "Bodhi is your AI-powered development assistant. Get started by configuring an AI provider, or jump right in.",
+          providerHint:
+            "To start chatting, you'll need to configure an AI provider (e.g. OpenAI, Anthropic) with an API key.",
+          proxyHint:
+            "Behind a corporate proxy? You can configure proxy settings later in System Settings > Network.",
         },
         button: {
-          next: "Next",
-          skipForNow: "Skip for now",
-          back: "Back",
-          completeSetup: "Complete Setup",
-          restart: "Restart",
+          getStarted: "Get Started",
+          configureProvider: "Configure Provider",
+        },
+        complete: {
+          title: "All Set!",
+          restartMessage: "Reloading the application...",
         },
         error: {
-          loadStatusFailed:
-            "Unable to load setup status. You can continue with manual proxy configuration.",
-          invalidProxy: "Proxy settings are invalid.",
-          credentialsUsername:
-            "To store proxy credentials, please enter a username or uncheck 'Remember credentials'.",
-          saveProxyFailed: "Failed to save proxy configuration. Please try again.",
           completeFailed: "Failed to complete setup. Please try again.",
+        },
+      },
+      onboarding: {
+        welcome: {
+          title: "Welcome to Bodhi!",
+          description:
+            "Bodhi is your AI-powered development assistant. Let's take a quick look around.",
+        },
+        newSession: {
+          title: "New Session",
+          description: "Click here to start a new chat session with the AI assistant.",
+        },
+        taskTemplates: {
+          title: "Task Templates",
+          description:
+            "Pick from pre-built templates like Code Review, Bug Investigation, Refactor, and more to jump-start your work.",
+        },
+        modelPicker: {
+          title: "Model Selection",
+          description: "Switch between AI models and providers anytime from here.",
+        },
+        sidebar: {
+          title: "Session Sidebar",
+          description: "Search, filter, pin, and switch between your conversations.",
+        },
+        settings: {
+          title: "Settings",
+          description:
+            "Configure AI providers, proxy settings, model mappings, MCP servers, and more.",
         },
       },
       chat: {
@@ -521,6 +524,7 @@ export const resources = {
           resetStepClearStorage: "Clear all local storage data",
           resetStepResetConfig: "Reset config.json to default",
           resetStepSetupFlow: "Trigger the initial setup flow on next launch",
+          resetStepReplayGuide: "Replay feature guide",
           resetStepReload: "Reload the application",
           resetConfirm: "Yes, reset everything",
           resetButton: "Reset Application (All Data)",
@@ -606,6 +610,8 @@ export const resources = {
         },
         networkCard: {
           title: "Network Settings",
+          guideTip:
+            "If you're behind a corporate proxy, configure your HTTP/HTTPS proxy and credentials here.",
           httpProxy: "HTTP Proxy",
           httpsProxy: "HTTPS Proxy",
           proxyPlaceholder: "http://proxy.example.com:8080",
@@ -1208,6 +1214,20 @@ export const resources = {
             gemini: "Gemini",
             copilot: "Copilot",
           },
+          providerModelRef: "Provider Model Catalog",
+          providerModelRefHelp:
+            "Use catalog-based model selection from the backend. When enabled, the model picker shows available models from the provider catalog instead of manually configured models.",
+          catalogModeInfo: "Models are sourced from the provider catalog.",
+          fetchAllModels: "Fetch All Models",
+          fetchingAllModels: "Fetching models...",
+          fetchModelsSuccess: "Successfully fetched models for {{count}} providers",
+          fetchModelsPartialSuccess: "Fetched models for {{success}} of {{total}} providers",
+          providerNotConfigured: "Not Configured",
+          capabilityVision: "Vision",
+          capabilityTools: "Tools",
+          capabilityReasoning: "Reasoning",
+          refreshCatalog: "Refresh Catalog",
+          noCatalogModels: "No models found. Click 'Fetch All Models' to load.",
         },
         mcpTab: {
           status: {
@@ -1813,46 +1833,48 @@ export const resources = {
       },
       setup: {
         welcome: {
-          title: "欢迎",
           heading: "欢迎使用 Bodhi",
-          description: "让我们在进入主应用之前先设置您的环境。",
-          skipInfo: "您现在可以跳过设置，稍后在系统设置中配置代理设置。",
-        },
-        steps: {
-          welcome: "欢迎",
-          proxy: "代理配置",
-        },
-        proxy: {
-          title: "代理配置",
-          info: "如果您在公司代理后面，请在下面配置。",
-          providerInfo: "提供商配置稍后在提供商设置中完成。此设置步骤仅存储网络/代理设置。",
-          detecting: "正在检测网络环境...",
-          noProxyDetected: "未检测到现有代理。如果您的网络不需要代理，可以将这些字段留空。",
-          httpProxyLabel: "HTTP 代理 URL：",
-          httpsProxyLabel: "HTTPS 代理 URL：",
-          httpProxyPlaceholder: "http://proxy.company.com:8080",
-          httpsProxyPlaceholder: "http://proxy.company.com:8080",
-          usernameLabel: "用户名",
-          passwordLabel: "密码",
-          rememberCredentials: "记住凭据（加密）",
-        },
-        complete: {
-          title: "设置完成！",
-          restartMessage: "请重启应用程序以应用所有设置。",
+          description: "Bodhi 是您的 AI 驱动开发助手。配置一个 AI 提供商即可开始，或直接进入应用。",
+          providerHint:
+            "要开始对话，您需要配置一个 AI 提供商（如 OpenAI、Anthropic）并提供 API 密钥。",
+          proxyHint: "在公司代理后面？您可以稍后在系统设置 > 网络中配置代理。",
         },
         button: {
-          next: "下一步",
-          skipForNow: "暂时跳过",
-          back: "返回",
-          completeSetup: "完成设置",
-          restart: "重启",
+          getStarted: "开始使用",
+          configureProvider: "配置 Provider",
+        },
+        complete: {
+          title: "一切就绪！",
+          restartMessage: "正在重新加载应用...",
         },
         error: {
-          loadStatusFailed: "无法加载设置状态。您可以继续进行手动代理配置。",
-          invalidProxy: "代理设置无效。",
-          credentialsUsername: "要存储代理凭据，请输入用户名或取消选中「记住凭据」。",
-          saveProxyFailed: "保存代理配置失败。请重试。",
-          completeFailed: "完成设置失败。请重试。",
+          completeFailed: "完成设置失败，请重试。",
+        },
+      },
+      onboarding: {
+        welcome: {
+          title: "欢迎使用 Bodhi！",
+          description: "Bodhi 是您的 AI 驱动开发助手。让我们快速了解一下界面。",
+        },
+        newSession: {
+          title: "新建会话",
+          description: "点击这里开始一个与 AI 助手的新对话。",
+        },
+        taskTemplates: {
+          title: "任务模板",
+          description: "从预置模板中选择，如代码审查、Bug 调查、重构等，快速启动工作。",
+        },
+        modelPicker: {
+          title: "模型选择",
+          description: "随时在此切换 AI 模型和提供商。",
+        },
+        sidebar: {
+          title: "会话侧边栏",
+          description: "在此管理您的会话——搜索、过滤、置顶和切换对话。",
+        },
+        settings: {
+          title: "设置",
+          description: "配置 AI 提供商、代理设置、模型映射、MCP 服务器等。",
         },
       },
       chat: {
@@ -2243,6 +2265,7 @@ export const resources = {
           resetStepClearStorage: "清空所有本地存储数据",
           resetStepResetConfig: "将 config.json 重置为默认值",
           resetStepSetupFlow: "下次启动时触发初始化流程",
+          resetStepReplayGuide: "重播功能引导",
           resetStepReload: "重新加载应用",
           resetConfirm: "确认，重置全部",
           resetButton: "重置应用（清空全部数据）",
@@ -2323,6 +2346,7 @@ export const resources = {
         },
         networkCard: {
           title: "网络设置",
+          guideTip: "如果您在公司代理后面，可以在此配置 HTTP/HTTPS 代理和凭据。",
           httpProxy: "HTTP 代理",
           httpsProxy: "HTTPS 代理",
           proxyPlaceholder: "http://proxy.example.com:8080",
@@ -2845,6 +2869,20 @@ export const resources = {
             gemini: "Gemini",
             copilot: "Copilot",
           },
+          providerModelRef: "提供商模型目录",
+          providerModelRefHelp:
+            "使用后端提供的模型目录进行模型选择。启用后，模型选择器将显示提供商目录中的可用模型，而非手动配置的模型。",
+          catalogModeInfo: "模型来自提供商目录。",
+          fetchAllModels: "获取所有模型",
+          fetchingAllModels: "正在获取模型...",
+          fetchModelsSuccess: "成功获取 {{count}} 个提供商的模型",
+          fetchModelsPartialSuccess: "已获取 {{success}}/{{total}} 个提供商的模型",
+          providerNotConfigured: "未配置",
+          capabilityVision: "视觉",
+          capabilityTools: "工具",
+          capabilityReasoning: "推理",
+          refreshCatalog: "刷新目录",
+          noCatalogModels: "未发现模型，点击“获取所有模型”加载。",
         },
         mcpTab: {
           status: {

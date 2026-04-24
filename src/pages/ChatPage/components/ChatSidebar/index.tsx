@@ -67,6 +67,7 @@ export const ChatSidebar: React.FC = () => {
 
   return (
     <nav
+      data-tour-id="sidebar"
       aria-label={t("chat.sidebar.title", "Chat sidebar")}
       style={{
         width: "100%",

@@ -42,7 +42,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
   // Load proxy auth status (and allow manual refresh via Save/Reload buttons).
   useEffect(() => {
     void loadProxyAuthStatus();
-  }, []);
+  }, [loadProxyAuthStatus]);
 
   const handleApplyProxyAuth = async () => {
     const username = proxyAuthForm.username.trim();
@@ -82,6 +82,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
       className="lotus-settings-card"
     >
       <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+        <Alert message={t("settings.networkCard.guideTip")} type="info" showIcon />
         {/* HTTP Proxy */}
         <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.networkCard.httpProxy")}</Text>
