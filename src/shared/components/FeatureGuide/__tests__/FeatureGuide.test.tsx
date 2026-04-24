@@ -1,12 +1,12 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FeatureGuide } from "../FeatureGuide";
 import {
-  FeatureGuide,
   isOnboardingComplete,
   markOnboardingComplete,
   resetOnboarding,
-} from "../FeatureGuide";
+} from "../onboardingStorage";
 
 const STORAGE_KEY = "bodhi_onboarding_complete";
 
