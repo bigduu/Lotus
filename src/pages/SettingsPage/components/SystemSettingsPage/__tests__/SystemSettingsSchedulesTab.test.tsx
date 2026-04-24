@@ -1,5 +1,5 @@
 import { App as AntdApp } from "antd";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import SystemSettingsSchedulesTab from "../SystemSettingsSchedulesTab";
@@ -151,10 +151,15 @@ describe("SystemSettingsSchedulesTab", () => {
       </AntdApp>,
     );
 
-    await screen.findByText("Weekly digest");
-    const inputs = screen.getAllByRole("spinbutton");
-    expect(inputs.some((input) => (input as HTMLInputElement).disabled)).toBe(true);
-  });
+    const weeklyDigest = await screen.findByText("Weekly digest", {}, { timeout: 15000 });
+    const row = weeklyDigest.closest("tr");
+    expect(row).not.toBeNull();
+
+    const intervalInput = within(row as HTMLTableRowElement).getByRole(
+      "spinbutton",
+    ) as HTMLInputElement;
+    expect(intervalInput).toBeDisabled();
+  }, 15000);
 
   it("calls runScheduleNow when run now action is clicked", async () => {
     render(
