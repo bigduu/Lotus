@@ -144,6 +144,8 @@ export interface ChatRequest {
     type?: string;
   }>;
   model: string; // Required for chat/create compatibility; backend persists to session
+  model_ref?: { provider: string; model: string };
+  provider?: string;
 }
 
 export interface ChatResponse {
@@ -182,6 +184,8 @@ export interface ExecuteResponse {
 
 export interface ExecuteRequest {
   model?: string;
+  model_ref?: { provider: string; model: string };
+  provider?: string;
   reasoning_effort?: ReasoningEffort;
   client_sync?: ExecuteClientSync;
 }
@@ -230,6 +234,7 @@ export interface SessionSummary {
   root_session_id: string;
   spawn_depth: number;
   model: string;
+  model_ref?: { provider: string; model: string } | null;
   reasoning_effort?: ReasoningEffort | null;
   created_by_schedule_id?: string | null;
   token_usage?: TokenBudgetUsage;
@@ -251,6 +256,8 @@ export interface CreateSessionRequest {
   title?: string;
   system_prompt?: string;
   model?: string;
+  model_ref?: { provider: string; model: string };
+  provider?: string;
   reasoning_effort?: ReasoningEffort;
 }
 
@@ -540,6 +547,7 @@ export class AgentClient {
     model?: string,
     reasoningEffort?: ReasoningEffort,
     clientSync?: ExecuteClientSync,
+    modelRef?: { provider: string; model: string },
   ): Promise<ExecuteResponse> {
     const payload: ExecuteRequest = {};
     if (model) {
@@ -550,6 +558,10 @@ export class AgentClient {
     }
     if (clientSync) {
       payload.client_sync = clientSync;
+    }
+    if (modelRef) {
+      payload.model_ref = modelRef;
+      payload.provider = modelRef.provider;
     }
     return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, payload);
   }

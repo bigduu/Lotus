@@ -6,6 +6,22 @@
 
 import { apiClient } from "../api";
 import type { ProviderConfig } from "../../pages/ChatPage/types/providerConfig";
+import type {
+  ProviderCatalog,
+  ProviderModelDescriptor,
+} from "../../pages/ChatPage/types/providerModelRef";
+
+// ── Fetch Models response types ─────────────────────────────────
+
+export interface ProviderFetchResult {
+  provider: string;
+  models?: ProviderModelDescriptor[];
+  error?: string;
+}
+
+export interface FetchModelsResponse {
+  fetched: ProviderFetchResult[];
+}
 
 // ── Env Vars types ──────────────────────────────────────────────
 
@@ -135,6 +151,24 @@ export class SettingsService {
       },
     );
     return response.models;
+  }
+
+  /**
+   * Fetch the full provider catalog (used by ProviderModelPicker).
+   */
+  async getProviderCatalog(): Promise<ProviderCatalog> {
+    return apiClient.get<ProviderCatalog>("/bamboo/provider-catalog");
+  }
+
+  /**
+   * Fetch model lists from one or all providers via the catalog.
+   *
+   * If `provider` is specified, fetches models for that single provider.
+   * If omitted, fetches models from all configured providers.
+   */
+  async fetchCatalogModels(provider?: string): Promise<FetchModelsResponse> {
+    const body = provider ? { provider } : {};
+    return apiClient.post<FetchModelsResponse>("/bamboo/provider-catalog/fetch-models", body);
   }
 
   // ── Env Vars ────────────────────────────────────────────────────
