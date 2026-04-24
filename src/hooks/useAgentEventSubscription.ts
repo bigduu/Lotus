@@ -585,6 +585,9 @@ export function useAgentEventSubscription() {
               const ownerController = controller;
 
               void (async () => {
+                // Clear any lingering status so the UI doesn't stay in "thinking" state
+                // while we finalize the response.
+                setStreamingStatus(null);
                 streamingMessageBus.forceFlush();
 
                 // Detect if a *different* subscription took over for the same
