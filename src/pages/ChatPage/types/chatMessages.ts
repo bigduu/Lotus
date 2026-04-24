@@ -1,5 +1,6 @@
 import type { TaskListMsg } from "./todoList";
 import type { TokenUsage } from "./tokenBudget";
+import type { ProviderModelRef } from "./providerModelRef";
 
 export type AgentRole = "planner" | "actor";
 
@@ -200,6 +201,7 @@ export interface ChatItem {
     agentRole?: AgentRole;
     workspacePath?: string;
     model?: string;
+    model_ref?: ProviderModelRef | null;
     reasoningEffort?: import("../services/AgentService").ReasoningEffort | null;
     tokenUsage?: TokenUsage;
     truncationOccurred?: boolean;

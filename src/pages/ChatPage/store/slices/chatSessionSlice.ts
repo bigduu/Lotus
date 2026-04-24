@@ -167,6 +167,7 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
       baseSystemPrompt: DEFAULT_BASE_SYSTEM_PROMPT,
       lastUsedEnhancedPrompt: null,
       model: s.model,
+      model_ref: s.model_ref ?? null,
       reasoningEffort: s.reasoning_effort ?? null,
       tokenUsage,
       truncationOccurred: s.token_usage?.truncation_occurred,
@@ -491,10 +492,29 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const model = chatData.config?.model?.trim() || activeModel || undefined;
     const reasoningEffort = chatData.config?.reasoningEffort ?? undefined;
 
+    // Resolve model_ref when feature flag is ON
+    let modelRef: { provider: string; model: string } | undefined;
+    let providerValue: string | undefined;
+    if (useProviderStore.getState().isProviderModelRefEnabled()) {
+      const ref = useProviderStore.getState().selectedModelRef;
+      if (ref) {
+        modelRef = ref;
+        providerValue = ref.provider;
+      } else {
+        const m = useProviderStore.getState().getActiveModel();
+        if (m) {
+          modelRef = { provider: useProviderStore.getState().currentProvider, model: m };
+          providerValue = useProviderStore.getState().currentProvider;
+        }
+      }
+    }
+
     const created = await agentClient.createSession({
       title,
       system_prompt: basePrompt || undefined,
       model,
+      model_ref: modelRef,
+      provider: providerValue,
       reasoning_effort: reasoningEffort || undefined,
     });
 
@@ -504,6 +524,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       config: {
         ...chatData.config,
         model: created.session.model,
+        model_ref: created.session.model_ref ?? null,
         reasoningEffort: created.session.reasoning_effort ?? null,
         // If the caller provided a base prompt, keep it; otherwise fall back.
         baseSystemPrompt: basePrompt || DEFAULT_BASE_SYSTEM_PROMPT,
@@ -596,7 +617,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     });
 
     // Best-effort backend patch for session-level metadata updates.
-    const patch: Record<string, string | boolean | null> = {};
+    const patch: Record<string, unknown> = {};
     if (typeof updates.title === "string") {
       patch.title = updates.title;
     }
@@ -605,6 +626,14 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     }
     if (updates.config && Object.prototype.hasOwnProperty.call(updates.config, "model")) {
       patch.model = updates.config.model ?? null;
+    }
+    if (updates.config && Object.prototype.hasOwnProperty.call(updates.config, "model_ref")) {
+      if (useProviderStore.getState().isProviderModelRefEnabled()) {
+        patch.model_ref = updates.config.model_ref ?? null;
+        if (updates.config.model_ref) {
+          patch.provider = updates.config.model_ref.provider;
+        }
+      }
     }
     if (updates.config && Object.prototype.hasOwnProperty.call(updates.config, "reasoningEffort")) {
       const reasoningEffort = updates.config.reasoningEffort;
@@ -776,6 +805,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         const prevConfig = prev.config || {};
         const nextConfig = c.config || {};
         const hasLocalModel = Object.prototype.hasOwnProperty.call(prevConfig, "model");
+        const hasLocalModelRef = Object.prototype.hasOwnProperty.call(prevConfig, "model_ref");
         const hasLocalReasoning = Object.prototype.hasOwnProperty.call(
           prevConfig,
           "reasoningEffort",
@@ -807,6 +837,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
                 ? prevConfig.model
                 : nextConfig.model
               : nextConfig.model,
+            model_ref: preferLocalSessionFields
+              ? hasLocalModelRef
+                ? prevConfig.model_ref
+                : nextConfig.model_ref
+              : nextConfig.model_ref,
             reasoningEffort: preferLocalSessionFields
               ? hasLocalReasoning
                 ? prevConfig.reasoningEffort

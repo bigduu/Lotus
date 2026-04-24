@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { settingsService } from "@services/config/SettingsService";
 import type { ProviderConfig, ProviderType } from "../../types/providerConfig";
+import type {
+  ProviderModelRef,
+  ProviderCatalog,
+  ProviderModelDescriptor,
+} from "../../types/providerModelRef";
 
 /**
  * Provider State
@@ -21,10 +26,22 @@ interface ProviderState {
   // Error state
   error: string | null;
 
+  // ProviderModelRef system
+  /** User-selected model ref (set via ProviderModelPicker) */
+  selectedModelRef: ProviderModelRef | null;
+  /** Cached provider catalog for model picker */
+  catalog: ProviderCatalog | null;
+  /** Whether a catalog fetch is in progress */
+  isCatalogFetching: boolean;
+
   // Actions
   loadProviderConfig: () => Promise<void>;
   setCurrentProvider: (provider: ProviderType) => void;
   updateProviderConfig: (config: Partial<ProviderConfig>) => void;
+  setSelectedModelRef: (ref: ProviderModelRef | null) => void;
+  loadCatalog: () => Promise<void>;
+  /** Fetch models from one or all providers, then reload catalog. */
+  fetchCatalogModels: (provider?: string) => Promise<void>;
 
   // Getters
   getActiveModel: () => string | undefined;
@@ -32,6 +49,14 @@ interface ProviderState {
   getFastModel: () => string | undefined;
   /** Get vision-capable model for current provider. Falls back to active model. */
   getVisionModel: () => string | undefined;
+  /** Always returns true — catalog mode is always enabled. */
+  isProviderModelRefEnabled: () => boolean;
+  /** Get fast model as ProviderModelRef. */
+  getFastModelRef: () => ProviderModelRef | null;
+  /** Get vision model as ProviderModelRef. */
+  getVisionModelRef: () => ProviderModelRef | null;
+  /** Get models from catalog filtered by provider name. */
+  getModelsForProvider: (providerName: string) => ProviderModelDescriptor[];
 }
 
 export const useProviderStore = create<ProviderState>((set, get) => ({
@@ -43,6 +68,9 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   },
   isLoading: false,
   error: null,
+  selectedModelRef: null,
+  catalog: null,
+  isCatalogFetching: false,
 
   // Load provider configuration from backend
   loadProviderConfig: async () => {
@@ -123,5 +151,68 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
 
     // Fallback to active model
     return state.getActiveModel();
+  },
+
+  // Feature flag check — always enabled now
+  isProviderModelRefEnabled: () => true,
+
+  // Set selected model ref
+  setSelectedModelRef: (ref) => {
+    set({ selectedModelRef: ref });
+  },
+
+  // Load provider catalog from backend
+  loadCatalog: async () => {
+    try {
+      const catalog = await settingsService.getProviderCatalog();
+      set({ catalog });
+    } catch {
+      // Catalog is optional; ignore errors
+    }
+  },
+
+  // Fetch models from providers and reload catalog
+  fetchCatalogModels: async (provider?: string) => {
+    set({ isCatalogFetching: true });
+    try {
+      await settingsService.fetchCatalogModels(provider);
+      await get().loadCatalog();
+    } catch {
+      // Best-effort; catalog may still be stale
+    } finally {
+      set({ isCatalogFetching: false });
+    }
+  },
+
+  // Get fast model as ProviderModelRef
+  getFastModelRef: () => {
+    const state = get();
+
+    const providerConfig = state.providerConfig.providers[state.currentProvider];
+    if (providerConfig && "fast_model" in providerConfig && providerConfig.fast_model) {
+      return { provider: state.currentProvider, model: providerConfig.fast_model };
+    }
+
+    const active = state.getActiveModel();
+    return active ? { provider: state.currentProvider, model: active } : null;
+  },
+
+  // Get vision model as ProviderModelRef
+  getVisionModelRef: () => {
+    const state = get();
+
+    const providerConfig = state.providerConfig.providers[state.currentProvider];
+    if (providerConfig && "vision_model" in providerConfig && providerConfig.vision_model) {
+      return { provider: state.currentProvider, model: providerConfig.vision_model };
+    }
+
+    const active = state.getActiveModel();
+    return active ? { provider: state.currentProvider, model: active } : null;
+  },
+
+  getModelsForProvider: (providerName: string) => {
+    const { catalog } = get();
+    if (!catalog?.models) return [];
+    return catalog.models.filter((m) => m.reference.provider === providerName);
   },
 }));

@@ -11,6 +11,10 @@ export interface ProviderConfig {
     anthropic?: AnthropicConfig;
     gemini?: GeminiConfig;
     copilot?: CopilotConfig;
+    bodhi?: BodhiConfig;
+  };
+  features?: {
+    provider_model_ref?: boolean;
   };
 }
 
@@ -116,13 +120,23 @@ export interface CopilotConfig {
   request_overrides?: RequestOverridesConfig;
 }
 
-export type ProviderType = "copilot" | "openai" | "anthropic" | "gemini";
+export interface BodhiConfig {
+  api_key?: string;
+  base_url?: string;
+  /** Which upstream provider to route through bodhi ("openai", "anthropic", "gemini"). */
+  target_provider?: string;
+  reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max";
+  request_overrides?: RequestOverridesConfig;
+}
+
+export type ProviderType = "copilot" | "openai" | "anthropic" | "gemini" | "bodhi";
 
 export const PROVIDER_LABELS: Record<ProviderType, string> = {
   copilot: "GitHub Copilot",
   openai: "OpenAI",
   anthropic: "Anthropic",
   gemini: "Google Gemini",
+  bodhi: "Bodhi",
 };
 
 export const OPENAI_MODELS = [
