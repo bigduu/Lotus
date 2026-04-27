@@ -21,5 +21,5 @@ export const setTaskEnhancementEnabled = (enabled: boolean): void => {
 };
 
 export const getTaskEnhancementPrompt = (): string => {
-  return `\n\n## Task Management Rules\n\nUse the Task tool for non-trivial or multi-step tasks.\nTask updates are shared across the current root session and all child sessions.\nKeep exactly one item in \`in_progress\` state whenever possible.\nUpdate Task immediately when a step starts or completes; do not batch status updates.\nDo not use Markdown checkbox lists as a substitute for Task.\nSkip Task only for simple one-step requests.\nUse SubSession only when the user explicitly requests delegated/parallel sub-session work.\n`;
+  return `\n\n## Task Management Rules\n\nUse the Task tool for non-trivial or multi-step tasks.\nTask updates are shared across the current root session and all child sessions.\nKeep exactly one item in \`in_progress\` state whenever possible.\nUpdate Task immediately when a step starts or completes; do not batch status updates.\nWhen marking a task as completed, always fill in the \`summary\` field with a concise description of what was accomplished.\nDo not use Markdown checkbox lists as a substitute for Task.\nSkip Task only for simple one-step requests.\nUse SubSession only when the user explicitly requests delegated/parallel sub-session work.\n`;
 };

@@ -26,27 +26,24 @@ import { selectSessionById, useAppStore } from "../store";
  * ```
  */
 export function useActiveModel(sessionId?: string | null): string | undefined {
-  const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
   const currentChat = useAppStore(selectSessionById(sessionId ?? null));
 
   const activeModel = useMemo(() => {
+    const sessionModelRef = sessionId ? currentChat?.config?.model_ref : undefined;
+    const sessionModelRefModel = sessionModelRef?.model?.trim();
+    if (sessionModelRefModel) {
+      return sessionModelRefModel;
+    }
+
     const sessionModel = sessionId ? currentChat?.config?.model?.trim() : undefined;
-    if (sessionModel) {
+    if (sessionModel && sessionModel !== "unknown") {
       return sessionModel;
     }
 
-    const config = providerConfig.providers[currentProvider];
-    if (!config) {
-      return undefined;
-    }
-
-    if ("model" in config && config.model) {
-      return config.model;
-    }
-
-    return undefined;
-  }, [currentChat, currentProvider, providerConfig, sessionId]);
+    const defaultModel = providerConfig.defaults?.chat?.model?.trim();
+    return defaultModel || undefined;
+  }, [currentChat, providerConfig, sessionId]);
 
   return activeModel;
 }
@@ -81,19 +78,12 @@ export function useActiveModelInfo(sessionId?: string | null) {
  */
 export function useFastModel(sessionId?: string | null): string | undefined {
   const activeModel = useActiveModel(sessionId);
-  const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
 
   return useMemo(() => {
-    const config = providerConfig.providers[currentProvider];
-
-    if (config && "fast_model" in config && config.fast_model) {
-      return config.fast_model;
-    }
-
-    // Fallback to active model
-    return activeModel;
-  }, [currentProvider, providerConfig, activeModel]);
+    const defaultModel = providerConfig.defaults?.fast?.model?.trim();
+    return defaultModel || activeModel;
+  }, [providerConfig, activeModel]);
 }
 
 /**
@@ -106,17 +96,10 @@ export function useFastModel(sessionId?: string | null): string | undefined {
  */
 export function useVisionModel(sessionId?: string | null): string | undefined {
   const activeModel = useActiveModel(sessionId);
-  const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
 
   return useMemo(() => {
-    const config = providerConfig.providers[currentProvider];
-
-    if (config && "vision_model" in config && config.vision_model) {
-      return config.vision_model;
-    }
-
-    // Fallback to active model
-    return activeModel;
-  }, [currentProvider, providerConfig, activeModel]);
+    const defaultModel = providerConfig.defaults?.vision?.model?.trim();
+    return defaultModel || activeModel;
+  }, [providerConfig, activeModel]);
 }

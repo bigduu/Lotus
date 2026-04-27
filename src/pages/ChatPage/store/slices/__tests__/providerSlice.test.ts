@@ -1,22 +1,31 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { act } from "@testing-library/react";
 import { useProviderStore } from "../providerSlice";
 import { settingsService } from "@services/config/SettingsService";
 import type { ProviderConfig } from "../../../types/providerConfig";
+import type { ProviderModelRef } from "../../../types/providerModelRef";
 
-// Mock settingsService
 vi.mock("@services/config/SettingsService", () => ({
   settingsService: {
     getProviderConfig: vi.fn(),
   },
 }));
 
+const modelRef = (provider: string, model: string): ProviderModelRef => ({ provider, model });
+
+const defaults = (
+  provider: string,
+  model: string,
+  extra: Partial<NonNullable<ProviderConfig["defaults"]>> = {},
+): NonNullable<ProviderConfig["defaults"]> => ({
+  chat: modelRef(provider, model),
+  ...extra,
+});
+
 describe("providerSlice", () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset store to initial state
     useProviderStore.setState({
       currentProvider: "copilot",
       providerConfig: {
@@ -25,6 +34,9 @@ describe("providerSlice", () => {
       },
       isLoading: false,
       error: null,
+      selectedModelRef: null,
+      catalog: null,
+      isCatalogFetching: false,
     });
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
   });
@@ -50,10 +62,10 @@ describe("providerSlice", () => {
     it("should load provider config successfully", async () => {
       const mockConfig: ProviderConfig = {
         provider: "anthropic",
+        defaults: defaults("anthropic", "claude-3"),
         providers: {
           anthropic: {
             api_key: "test-key",
-            model: "claude-3",
           },
         },
       };
@@ -85,15 +97,10 @@ describe("providerSlice", () => {
           ),
       );
 
-      const promise = act(async () => {
-        return useProviderStore.getState().loadProviderConfig();
-      });
+      const promise = act(async () => useProviderStore.getState().loadProviderConfig());
 
-      // Check loading state immediately
       expect(useProviderStore.getState().isLoading).toBe(true);
-
       await promise;
-
       expect(useProviderStore.getState().isLoading).toBe(false);
     });
 
@@ -124,15 +131,14 @@ describe("providerSlice", () => {
     });
 
     it("should clear error on successful load", async () => {
-      // First, set an error
       useProviderStore.setState({ error: "Previous error" });
 
       const mockConfig: ProviderConfig = {
         provider: "openai",
+        defaults: defaults("openai", "gpt-4"),
         providers: {
           openai: {
             api_key: "key",
-            model: "gpt-4",
           },
         },
       };
@@ -142,17 +148,16 @@ describe("providerSlice", () => {
         await useProviderStore.getState().loadProviderConfig();
       });
 
-      const state = useProviderStore.getState();
-      expect(state.error).toBeNull();
+      expect(useProviderStore.getState().error).toBeNull();
     });
 
     it("should update currentProvider from config", async () => {
       const mockConfig: ProviderConfig = {
         provider: "openai",
+        defaults: defaults("openai", "gpt-4o"),
         providers: {
           openai: {
             api_key: "test",
-            model: "gpt-4o",
           },
         },
       };
@@ -184,7 +189,6 @@ describe("providerSlice", () => {
     });
 
     it("should update to copilot provider", () => {
-      // First change to something else
       useProviderStore.setState({ currentProvider: "anthropic" });
 
       act(() => {
@@ -196,12 +200,13 @@ describe("providerSlice", () => {
   });
 
   describe("updateProviderConfig", () => {
-    it("should merge partial config", () => {
+    it("should merge partial config and preserve defaults", () => {
       const initialConfig: ProviderConfig = {
         provider: "copilot",
+        defaults: defaults("copilot", "gpt-4"),
         providers: {
           copilot: {
-            model: "gpt-4",
+            headless_auth: true,
           },
         },
       };
@@ -215,8 +220,9 @@ describe("providerSlice", () => {
 
       const state = useProviderStore.getState();
       expect(state.providerConfig.provider).toBe("anthropic");
+      expect(state.providerConfig.defaults).toEqual(defaults("copilot", "gpt-4"));
       expect(state.providerConfig.providers).toEqual({
-        copilot: { model: "gpt-4" },
+        copilot: { headless_auth: true },
       });
     });
 
@@ -226,17 +232,14 @@ describe("providerSlice", () => {
           providers: {
             openai: {
               api_key: "new-key",
-              model: "gpt-4o",
             },
           },
         });
       });
 
-      const state = useProviderStore.getState();
-      expect(state.providerConfig.providers).toEqual({
+      expect(useProviderStore.getState().providerConfig.providers).toEqual({
         openai: {
           api_key: "new-key",
-          model: "gpt-4o",
         },
       });
     });
@@ -244,10 +247,10 @@ describe("providerSlice", () => {
     it("should preserve existing config when updating", () => {
       const initialConfig: ProviderConfig = {
         provider: "anthropic",
+        defaults: defaults("anthropic", "claude-3"),
         providers: {
           anthropic: {
             api_key: "key1",
-            model: "claude-3",
           },
         },
       };
@@ -261,23 +264,23 @@ describe("providerSlice", () => {
 
       const state = useProviderStore.getState();
       expect(state.providerConfig.provider).toBe("openai");
+      expect(state.providerConfig.defaults).toEqual(defaults("anthropic", "claude-3"));
       expect(state.providerConfig.providers).toEqual({
         anthropic: {
           api_key: "key1",
-          model: "claude-3",
         },
       });
     });
   });
 
   describe("getActiveModel", () => {
-    it("should return model for current provider", () => {
+    it("should return default chat model", () => {
       const config: ProviderConfig = {
         provider: "anthropic",
+        defaults: defaults("anthropic", "claude-3-opus"),
         providers: {
           anthropic: {
             api_key: "test",
-            model: "claude-3-opus",
           },
         },
       };
@@ -286,11 +289,10 @@ describe("providerSlice", () => {
         providerConfig: config,
       });
 
-      const model = useProviderStore.getState().getActiveModel();
-      expect(model).toBe("claude-3-opus");
+      expect(useProviderStore.getState().getActiveModel()).toBe("claude-3-opus");
     });
 
-    it("should return undefined when provider config missing", () => {
+    it("should return undefined when defaults are missing", () => {
       useProviderStore.setState({
         currentProvider: "anthropic",
         providerConfig: {
@@ -299,35 +301,19 @@ describe("providerSlice", () => {
         },
       });
 
-      const model = useProviderStore.getState().getActiveModel();
-      expect(model).toBeUndefined();
+      expect(useProviderStore.getState().getActiveModel()).toBeUndefined();
     });
 
-    it("should return undefined when model not in config", () => {
+    it("should read defaults even when currentProvider differs", () => {
       const config: ProviderConfig = {
         provider: "copilot",
+        defaults: defaults("anthropic", "claude-3-sonnet"),
         providers: {
-          copilot: {
-            // No model field
+          anthropic: {
+            api_key: "key",
           },
-        },
-      };
-      useProviderStore.setState({
-        currentProvider: "copilot",
-        providerConfig: config,
-      });
-
-      const model = useProviderStore.getState().getActiveModel();
-      expect(model).toBeUndefined();
-    });
-
-    it("should return undefined when model is empty string", () => {
-      const config: ProviderConfig = {
-        provider: "openai",
-        providers: {
           openai: {
-            api_key: "test",
-            model: "",
+            api_key: "key",
           },
         },
       };
@@ -336,39 +322,7 @@ describe("providerSlice", () => {
         providerConfig: config,
       });
 
-      const model = useProviderStore.getState().getActiveModel();
-      // Empty string is falsy, so returns undefined
-      expect(model).toBeUndefined();
-    });
-
-    it("should return model for different providers", () => {
-      const config: ProviderConfig = {
-        provider: "copilot",
-        providers: {
-          copilot: {
-            model: "gpt-4o",
-          },
-          anthropic: {
-            api_key: "key",
-            model: "claude-3-sonnet",
-          },
-          openai: {
-            api_key: "key",
-            model: "gpt-4-turbo",
-          },
-        },
-      };
-      useProviderStore.setState({ providerConfig: config });
-
-      act(() => {
-        useProviderStore.getState().setCurrentProvider("anthropic");
-      });
       expect(useProviderStore.getState().getActiveModel()).toBe("claude-3-sonnet");
-
-      act(() => {
-        useProviderStore.getState().setCurrentProvider("openai");
-      });
-      expect(useProviderStore.getState().getActiveModel()).toBe("gpt-4-turbo");
     });
   });
 
@@ -401,7 +355,10 @@ describe("providerSlice", () => {
         currentProvider: "openai",
         providerConfig: {
           provider: "openai",
-          providers: { openai: { api_key: "k", model: "gpt-4o", fast_model: "gpt-4o-mini" } },
+          defaults: defaults("openai", "gpt-4o", {
+            fast: modelRef("openai", "gpt-4o-mini"),
+          }),
+          providers: { openai: { api_key: "k" } },
         },
       });
       expect(useProviderStore.getState().getFastModelRef()).toEqual({
@@ -410,12 +367,13 @@ describe("providerSlice", () => {
       });
     });
 
-    it("should fallback to active model when no fast_model", () => {
+    it("should fallback to active model when no fast model is configured", () => {
       useProviderStore.setState({
         currentProvider: "anthropic",
         providerConfig: {
           provider: "anthropic",
-          providers: { anthropic: { api_key: "k", model: "claude-3" } },
+          defaults: defaults("anthropic", "claude-3"),
+          providers: { anthropic: { api_key: "k" } },
         },
       });
       expect(useProviderStore.getState().getFastModelRef()).toEqual({
@@ -431,12 +389,30 @@ describe("providerSlice", () => {
         currentProvider: "openai",
         providerConfig: {
           provider: "openai",
-          providers: { openai: { api_key: "k", model: "gpt-4o", vision_model: "gpt-4o-vision" } },
+          defaults: defaults("openai", "gpt-4o", {
+            vision: modelRef("openai", "gpt-4o-vision"),
+          }),
+          providers: { openai: { api_key: "k" } },
         },
       });
       expect(useProviderStore.getState().getVisionModelRef()).toEqual({
         provider: "openai",
         model: "gpt-4o-vision",
+      });
+    });
+
+    it("should fallback to chat model when no vision model is configured", () => {
+      useProviderStore.setState({
+        currentProvider: "openai",
+        providerConfig: {
+          provider: "openai",
+          defaults: defaults("openai", "gpt-4o"),
+          providers: { openai: { api_key: "k" } },
+        },
+      });
+      expect(useProviderStore.getState().getVisionModelRef()).toEqual({
+        provider: "openai",
+        model: "gpt-4o",
       });
     });
   });

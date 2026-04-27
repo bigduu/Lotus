@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Modal, Typography, Space, Alert, message } from "antd";
+import { App as AntApp, Modal, Typography, Space, Alert } from "antd";
 import { useTranslation } from "react-i18next";
 import WorkspacePicker from "../WorkspacePicker";
 import { recentWorkspacesManager } from "../../services/RecentWorkspacesManager";
@@ -23,6 +23,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
   onCancel,
 }) => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const [path, setPath] = useState(initialPath);
   const [validationResult, setValidationResult] = useState<WorkspaceValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);

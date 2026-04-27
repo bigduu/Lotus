@@ -1,4 +1,3 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useActiveModel, useActiveModelInfo } from "../useActiveModel";
 import { useProviderStore } from "../../store/slices/providerSlice";
@@ -16,6 +15,19 @@ vi.mock("../../store", () => ({
       state.chats?.find((chat) => chat.id === sessionId) ?? null,
 }));
 
+const baseStoreState = {
+  currentProvider: "openai",
+  providerConfig: {
+    provider: "openai",
+    providers: {},
+  },
+  isLoading: false,
+  error: null,
+  loadProviderConfig: vi.fn(),
+  saveProviderConfig: vi.fn(),
+  setCurrentProvider: vi.fn(),
+};
+
 describe("useActiveModel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -25,92 +37,176 @@ describe("useActiveModel", () => {
   });
 
   describe("useActiveModel", () => {
-    it("should return undefined when no provider is configured", () => {
+    it("should return undefined when no provider defaults are configured", () => {
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
-          currentProvider: "openai",
+          ...baseStoreState,
           providerConfig: {
+            provider: "openai",
             providers: {},
           },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
         }),
       );
 
       const { result } = renderHook(() => useActiveModel());
-
       expect(result.current).toBeUndefined();
     });
 
-    it("should return model when provider config has model", () => {
+    it("should return model when defaults.chat is configured", () => {
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
-          currentProvider: "openai",
+          ...baseStoreState,
           providerConfig: {
+            provider: "openai",
+            defaults: {
+              chat: { provider: "openai", model: "gpt-4" },
+            },
             providers: {
               openai: {
-                model: "gpt-4",
-                apiKey: "test-key",
+                api_key: "test-key",
               },
             },
           },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
         }),
       );
 
       const { result } = renderHook(() => useActiveModel());
-
       expect(result.current).toBe("gpt-4");
     });
 
-    it("should return undefined when provider config exists but has no model", () => {
+    it("should return undefined when defaults.chat is missing", () => {
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
+          ...baseStoreState,
           currentProvider: "anthropic",
           providerConfig: {
+            provider: "anthropic",
             providers: {
               anthropic: {
-                apiKey: "test-key",
+                api_key: "test-key",
               },
             },
           },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
         }),
       );
 
       const { result } = renderHook(() => useActiveModel());
-
       expect(result.current).toBeUndefined();
     });
 
-    it("should prefer session model over provider default when sessionId is provided", () => {
+    it("should prefer session model_ref over session model and defaults.chat when sessionId is provided", () => {
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
-          currentProvider: "openai",
+          ...baseStoreState,
           providerConfig: {
+            provider: "openai",
+            defaults: {
+              chat: { provider: "openai", model: "gpt-provider-default" },
+            },
             providers: {
               openai: {
-                model: "gpt-provider-default",
-                apiKey: "test-key",
+                api_key: "test-key",
               },
             },
           },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
+        }),
+      );
+      vi.mocked(useAppStore).mockImplementation((selector: any) =>
+        typeof selector === "function"
+          ? selector({
+              chats: [
+                {
+                  id: "session-1",
+                  config: {
+                    model: "gpt-session-legacy",
+                    model_ref: {
+                      provider: "anthropic",
+                      model: "claude-session-ref",
+                    },
+                  },
+                },
+              ],
+            })
+          : {
+              chats: [
+                {
+                  id: "session-1",
+                  config: {
+                    model: "gpt-session-legacy",
+                    model_ref: {
+                      provider: "anthropic",
+                      model: "claude-session-ref",
+                    },
+                  },
+                },
+              ],
+            },
+      );
+
+      const { result } = renderHook(() => useActiveModel("session-1"));
+      expect(result.current).toBe("claude-session-ref");
+    });
+
+    it("should fall back to defaults.chat when legacy session model is unknown", () => {
+      vi.mocked(useProviderStore).mockImplementation((selector) =>
+        selector({
+          ...baseStoreState,
+          providerConfig: {
+            provider: "openai",
+            defaults: {
+              chat: { provider: "openai", model: "gpt-provider-default" },
+            },
+            providers: {
+              openai: {
+                api_key: "test-key",
+              },
+            },
+          },
+        }),
+      );
+      vi.mocked(useAppStore).mockImplementation((selector: any) =>
+        typeof selector === "function"
+          ? selector({
+              chats: [
+                {
+                  id: "session-1",
+                  config: {
+                    model: "unknown",
+                  },
+                },
+              ],
+            })
+          : {
+              chats: [
+                {
+                  id: "session-1",
+                  config: {
+                    model: "unknown",
+                  },
+                },
+              ],
+            },
+      );
+
+      const { result } = renderHook(() => useActiveModel("session-1"));
+      expect(result.current).toBe("gpt-provider-default");
+    });
+
+    it("should prefer session model over defaults.chat when sessionId is provided", () => {
+      vi.mocked(useProviderStore).mockImplementation((selector) =>
+        selector({
+          ...baseStoreState,
+          providerConfig: {
+            provider: "openai",
+            defaults: {
+              chat: { provider: "openai", model: "gpt-provider-default" },
+            },
+            providers: {
+              openai: {
+                api_key: "test-key",
+              },
+            },
+          },
         }),
       );
       vi.mocked(useAppStore).mockImplementation((selector: any) =>
@@ -138,100 +234,60 @@ describe("useActiveModel", () => {
       );
 
       const { result } = renderHook(() => useActiveModel("session-1"));
-
       expect(result.current).toBe("gpt-session-specific");
     });
 
-    it("should return undefined when model is empty string", () => {
+    it("should return undefined when defaults.chat.model is empty string", () => {
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
-          currentProvider: "openai",
+          ...baseStoreState,
           providerConfig: {
+            provider: "openai",
+            defaults: {
+              chat: { provider: "openai", model: "" },
+            },
             providers: {
               openai: {
-                model: "",
-                apiKey: "test-key",
+                api_key: "test-key",
               },
             },
           },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
         }),
       );
 
       const { result } = renderHook(() => useActiveModel());
-
       expect(result.current).toBeUndefined();
     });
 
-    it("should update when currentProvider changes", () => {
+    it("should update when providerConfig defaults change", () => {
       const storeState = {
-        currentProvider: "openai",
+        ...baseStoreState,
         providerConfig: {
+          provider: "openai",
+          defaults: {
+            chat: { provider: "openai", model: "gpt-3.5-turbo" },
+          },
           providers: {
             openai: {
-              model: "gpt-4",
-              apiKey: "key1",
-            },
-            anthropic: {
-              model: "claude-3",
-              apiKey: "key2",
+              api_key: "key1",
             },
           },
         },
-        isLoading: false,
-        error: null,
-        loadProviderConfig: vi.fn(),
-        saveProviderConfig: vi.fn(),
-        setCurrentProvider: vi.fn(),
       };
 
-      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
+      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState as any));
 
       const { result, rerender } = renderHook(() => useActiveModel());
-
-      expect(result.current).toBe("gpt-4");
-
-      // Change provider
-      storeState.currentProvider = "anthropic";
-      rerender();
-
-      expect(result.current).toBe("claude-3");
-    });
-
-    it("should update when providerConfig changes", () => {
-      const storeState = {
-        currentProvider: "openai",
-        providerConfig: {
-          providers: {
-            openai: {
-              model: "gpt-3.5-turbo",
-              apiKey: "key1",
-            },
-          },
-        },
-        isLoading: false,
-        error: null,
-        loadProviderConfig: vi.fn(),
-        saveProviderConfig: vi.fn(),
-        setCurrentProvider: vi.fn(),
-      };
-
-      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
-
-      const { result, rerender } = renderHook(() => useActiveModel());
-
       expect(result.current).toBe("gpt-3.5-turbo");
 
-      // Update model
       storeState.providerConfig = {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "openai", model: "gpt-4-turbo" },
+        },
         providers: {
           openai: {
-            model: "gpt-4-turbo",
-            apiKey: "key1",
+            api_key: "key1",
           },
         },
       };
@@ -240,149 +296,126 @@ describe("useActiveModel", () => {
       expect(result.current).toBe("gpt-4-turbo");
     });
 
-    it("should handle providers without model property", () => {
+    it("should work when defaults.chat provider differs from currentProvider", () => {
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
-          currentProvider: "custom",
+          ...baseStoreState,
+          currentProvider: "openai",
           providerConfig: {
+            provider: "openai",
+            defaults: {
+              chat: { provider: "anthropic", model: "claude-3-sonnet" },
+            },
             providers: {
-              custom: {
-                apiKey: "test-key",
-                baseUrl: "http://localhost:3000",
+              openai: {
+                api_key: "key1",
+              },
+              anthropic: {
+                api_key: "key2",
               },
             },
           },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
         }),
       );
 
       const { result } = renderHook(() => useActiveModel());
-
-      expect(result.current).toBeUndefined();
+      expect(result.current).toBe("claude-3-sonnet");
     });
 
     it("should handle multiple selector calls correctly", () => {
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
-          currentProvider: "openai",
+          ...baseStoreState,
           providerConfig: {
+            provider: "openai",
+            defaults: {
+              chat: { provider: "openai", model: "gpt-4" },
+            },
             providers: {
               openai: {
-                model: "gpt-4",
-                apiKey: "test-key",
+                api_key: "test-key",
               },
             },
           },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
         }),
       );
 
       const { result } = renderHook(() => useActiveModel());
-
-      // Should call selector twice (once for currentProvider, once for providerConfig)
-      expect(useProviderStore).toHaveBeenCalledTimes(2);
       expect(result.current).toBe("gpt-4");
+      expect(useProviderStore).toHaveBeenCalledTimes(1);
     });
   });
 
   describe("useActiveModelInfo", () => {
     it("should return active model info", () => {
-      vi.mocked(useProviderStore).mockImplementation((selector) =>
-        selector({
-          currentProvider: "openai",
-          providerConfig: {
-            providers: {
-              openai: {
-                model: "gpt-4",
-                apiKey: "test-key",
-              },
-            },
-          },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
-        }),
-      );
-
-      const { result } = renderHook(() => useActiveModelInfo());
-
-      expect(result.current.activeModel).toBe("gpt-4");
-      expect(result.current.currentProvider).toBe("openai");
-      expect(result.current.providerConfig).toEqual({
+      const providerConfig = {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "openai", model: "gpt-4" },
+        },
         providers: {
           openai: {
-            model: "gpt-4",
-            apiKey: "test-key",
+            api_key: "test-key",
           },
         },
-      });
-    });
-
-    it("should return undefined activeModel when no model configured", () => {
+      };
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
-          currentProvider: "anthropic",
-          providerConfig: {
-            providers: {
-              anthropic: {
-                apiKey: "test-key",
-              },
-            },
-          },
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
+          ...baseStoreState,
+          currentProvider: "openai",
+          providerConfig,
         }),
       );
 
       const { result } = renderHook(() => useActiveModelInfo());
+      expect(result.current.activeModel).toBe("gpt-4");
+      expect(result.current.currentProvider).toBe("openai");
+      expect(result.current.providerConfig).toEqual(providerConfig);
+    });
 
+    it("should return undefined activeModel when no defaults are configured", () => {
+      vi.mocked(useProviderStore).mockImplementation((selector) =>
+        selector({
+          ...baseStoreState,
+          currentProvider: "anthropic",
+          providerConfig: {
+            provider: "anthropic",
+            providers: {
+              anthropic: {
+                api_key: "test-key",
+              },
+            },
+          },
+        }),
+      );
+
+      const { result } = renderHook(() => useActiveModelInfo());
       expect(result.current.activeModel).toBeUndefined();
       expect(result.current.currentProvider).toBe("anthropic");
     });
 
-    it("should update all values when provider changes", () => {
+    it("should update all values when currentProvider changes", () => {
       const storeState = {
+        ...baseStoreState,
         currentProvider: "openai",
         providerConfig: {
+          provider: "openai",
+          defaults: {
+            chat: { provider: "anthropic", model: "claude-3" },
+          },
           providers: {
-            openai: {
-              model: "gpt-4",
-              apiKey: "key1",
-            },
-            anthropic: {
-              model: "claude-3",
-              apiKey: "key2",
-            },
+            openai: { api_key: "key1" },
+            anthropic: { api_key: "key2" },
           },
         },
-        isLoading: false,
-        error: null,
-        loadProviderConfig: vi.fn(),
-        saveProviderConfig: vi.fn(),
-        setCurrentProvider: vi.fn(),
       };
 
-      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
+      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState as any));
 
       const { result, rerender } = renderHook(() => useActiveModelInfo());
-
-      expect(result.current.activeModel).toBe("gpt-4");
+      expect(result.current.activeModel).toBe("claude-3");
       expect(result.current.currentProvider).toBe("openai");
 
-      // Change provider
       storeState.currentProvider = "anthropic";
       rerender();
 
@@ -392,77 +425,69 @@ describe("useActiveModel", () => {
 
     it("should create stable object reference when values don't change", () => {
       const providerConfig = {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "openai", model: "gpt-4" },
+        },
         providers: {
           openai: {
-            model: "gpt-4",
-            apiKey: "test-key",
+            api_key: "test-key",
           },
         },
       };
 
       vi.mocked(useProviderStore).mockImplementation((selector) =>
         selector({
+          ...baseStoreState,
           currentProvider: "openai",
           providerConfig,
-          isLoading: false,
-          error: null,
-          loadProviderConfig: vi.fn(),
-          saveProviderConfig: vi.fn(),
-          setCurrentProvider: vi.fn(),
         }),
       );
 
       const { result, rerender } = renderHook(() => useActiveModelInfo());
-
       const firstResult = result.current;
-
-      // Rerender with same object reference (should be memoized)
       rerender();
 
-      // Note: Even though we're using the same providerConfig object,
-      // the selector might be called multiple times, so we just verify
-      // that the values are stable
       expect(result.current.activeModel).toBe(firstResult.activeModel);
       expect(result.current.currentProvider).toBe(firstResult.currentProvider);
     });
 
     it("should create new object when values change", () => {
       const storeState = {
+        ...baseStoreState,
         currentProvider: "openai",
         providerConfig: {
+          provider: "openai",
+          defaults: {
+            chat: { provider: "openai", model: "gpt-4" },
+          },
           providers: {
             openai: {
-              model: "gpt-4",
-              apiKey: "test-key",
+              api_key: "test-key",
             },
           },
         },
-        isLoading: false,
-        error: null,
-        loadProviderConfig: vi.fn(),
-        saveProviderConfig: vi.fn(),
-        setCurrentProvider: vi.fn(),
       };
 
-      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState));
+      vi.mocked(useProviderStore).mockImplementation((selector) => selector(storeState as any));
 
       const { result, rerender } = renderHook(() => useActiveModelInfo());
-
       const firstResult = result.current;
 
-      // Change provider
       storeState.currentProvider = "anthropic";
       storeState.providerConfig = {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "anthropic", model: "claude-3" },
+        },
         providers: {
           anthropic: {
-            model: "claude-3",
-            apiKey: "key2",
+            api_key: "key2",
           },
         },
       };
       rerender();
 
-      // Should return new object reference
       expect(result.current).not.toBe(firstResult);
       expect(result.current.activeModel).toBe("claude-3");
     });

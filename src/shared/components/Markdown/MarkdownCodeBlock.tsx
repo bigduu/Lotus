@@ -1,6 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useState } from "react";
-import { Button, Card, message } from "antd";
+import { App as AntApp, Button, Card } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import LazyMermaidChart from "../MermaidChart/LazyMermaidChart";
@@ -19,6 +19,7 @@ interface CodeBlockWithCopyProps {
 // eslint-disable-next-line react-refresh/only-export-components -- utility component intentionally colocated with render helper
 const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeString, token }) => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const [isHovered, setIsHovered] = useState(false);
 
   const handleCopy = async () => {
@@ -104,6 +105,7 @@ const FallbackCodeBlock: React.FC<{
   token: GlobalToken;
 }> = ({ codeString, token }) => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
 
   return (
     <Card

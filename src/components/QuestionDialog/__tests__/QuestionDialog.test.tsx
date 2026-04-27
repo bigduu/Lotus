@@ -20,11 +20,44 @@ vi.mock("../../../pages/ChatPage/hooks/useActiveModelRef", () => ({
   useActiveModelRef: vi.fn(() => null),
 }));
 
+vi.mock("antd", async () => {
+  const actual = await vi.importActual<typeof import("antd")>("antd");
+  const message = {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+    loading: vi.fn(),
+  };
+  const notification = {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  };
+  const modal = {
+    confirm: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+  };
+  return {
+    ...actual,
+    message,
+    notification,
+    App: Object.assign(actual.App, {
+      useApp: () => ({ message, notification, modal }),
+    }),
+  };
+});
+
 describe("QuestionDialog", () => {
   const mockSetSessionProcessing = vi.fn();
   const mockIsSessionProcessing = vi.fn();
   const mockSetPendingQuestionRespond = vi.fn();
   const mockClearPendingQuestionRespondForSession = vi.fn();
+  const mockClearPendingQuestionForSession = vi.fn();
   const defaultProps = {
     sessionId: "test-session-1",
   };
@@ -46,28 +79,24 @@ describe("QuestionDialog", () => {
     } as any);
 
     (useAppStore as any).mockImplementation((selector: (state: any) => any) => {
-      if (typeof selector === "function") {
-        return selector({
-          setSessionProcessing: mockSetSessionProcessing,
-          isSessionProcessing: mockIsSessionProcessing,
-          setPendingQuestionRespond: mockSetPendingQuestionRespond,
-          clearPendingQuestionRespondForSession: mockClearPendingQuestionRespondForSession,
-          chats: [],
-          inputStates: {},
-          // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
-          // (it may auto-default to models[0] elsewhere).
-          selectedModel: "gpt-5-ultra-expensive",
-        });
-      }
-      return {
+      const state = {
         setSessionProcessing: mockSetSessionProcessing,
         isSessionProcessing: mockIsSessionProcessing,
         setPendingQuestionRespond: mockSetPendingQuestionRespond,
         clearPendingQuestionRespondForSession: mockClearPendingQuestionRespondForSession,
+        clearPendingQuestionForSession: mockClearPendingQuestionForSession,
         chats: [],
         inputStates: {},
+        currentSessionId: "test-session-1",
+        pendingQuestionsBySession: {},
+        // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
+        // (it may auto-default to models[0] elsewhere).
         selectedModel: "gpt-5-ultra-expensive",
       };
+      if (typeof selector === "function") {
+        return selector(state);
+      }
+      return state;
     });
   });
 
@@ -317,40 +346,37 @@ describe("QuestionDialog", () => {
     );
   });
 
-  it("should keep polling and eventually show a question after empty responses", async () => {
+  it("should use adaptive backoff for idle sessions", async () => {
     vi.useFakeTimers();
 
     const { agentApiClient } = await import("../../../services/api");
-    let callCount = 0;
-    (agentApiClient.get as any).mockImplementation(() => {
-      callCount += 1;
-      // First few polls: nothing pending
-      if (callCount <= 4) {
-        return Promise.resolve({ has_pending_question: false });
-      }
-      return Promise.resolve({
-        has_pending_question: true,
-        question: "Late question?",
-        options: ["A"],
-        allow_custom: false,
-      });
-    });
+    (agentApiClient.get as any).mockResolvedValue({ has_pending_question: false });
 
+    render(<QuestionDialog {...defaultProps} />);
+
+    // Flush initial mount effect: first call at t=0
     await act(async () => {
-      render(<QuestionDialog {...defaultProps} />);
+      await vi.advanceTimersByTimeAsync(0);
     });
+    expect(agentApiClient.get).toHaveBeenCalledTimes(1);
 
-    // Advance enough time for multiple 15s polls to happen.
+    // After first empty response, next poll should be at 30s (backoff level 0)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(agentApiClient.get).toHaveBeenCalledTimes(2);
+
+    // After second empty response, next poll should be at 60s (backoff level 1)
     await act(async () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
+    expect(agentApiClient.get).toHaveBeenCalledTimes(3);
 
-    // Flush pending microtasks from async fetches.
+    // After more empty responses, next poll should still be at 60s (backoff level 1)
     await act(async () => {
-      await Promise.resolve();
+      await vi.advanceTimersByTimeAsync(60_000);
     });
-
-    expect(screen.getByText("Late question?")).toBeInTheDocument();
+    expect(agentApiClient.get).toHaveBeenCalledTimes(4);
   });
 
   it("should handle auto-resume error status gracefully", async () => {

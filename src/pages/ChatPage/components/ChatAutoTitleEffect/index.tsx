@@ -7,7 +7,8 @@ const AUTO_TITLE_RETRY_COOLDOWN_MS = 15_000;
 export const ChatAutoTitleEffect: React.FC = () => {
   const chats = useAppStore((state) => state.chats);
   const updateSession = useAppStore((state) => state.updateSession);
-  const { generateChatTitle } = useChatTitleGeneration({ chats, updateSession });
+  const persistSessionTitle = useAppStore((state) => state.persistSessionTitle);
+  const { generateChatTitle } = useChatTitleGeneration({ chats, updateSession, persistSessionTitle });
 
   // Track last processed message ID per chat
   const lastAutoTitleMessageIdsRef = useRef<Map<string, string>>(new Map());

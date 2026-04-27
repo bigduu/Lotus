@@ -405,6 +405,14 @@ export const mapHistoryMessagesToUi = (
   return out;
 };
 
+export interface PendingQuestionState {
+  sessionId: string;
+  question: string;
+  options: string[];
+  allowCustom: boolean;
+  toolCallId: string | null;
+}
+
 export interface ChatSlice {
   // State (backend session list)
   chats: ChatItem[];
@@ -436,6 +444,13 @@ export interface ChatSlice {
   deleteSession: (sessionId: string) => Promise<void>;
   deleteSessions: (sessionIds: string[]) => Promise<void>;
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
+  /**
+   * Persist a session title to the backend.
+   * Locally updates the title first, then awaits the PATCH call.
+   * On backend failure the local title is rolled back to the previous value
+   * and the error is re-thrown so callers can decide how to handle it.
+   */
+  persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   pinSession: (sessionId: string) => void;
   unpinSession: (sessionId: string) => void;
 
@@ -474,6 +489,131 @@ export interface ChatSlice {
   setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
   isSessionProcessing: (sessionId: string) => boolean;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
+
+  // Pending questions by session (event-driven from SSE)
+  pendingQuestionsBySession: Record<string, PendingQuestionState>;
+  setPendingQuestionForSession: (state: PendingQuestionState) => void;
+  clearPendingQuestionForSession: (sessionId: string) => void;
+}
+
+// === REFRESH CHATS DEDUPLICATION ===
+const REFRESH_CHATS_THROTTLE_MS = 750;
+
+interface RefreshChatsState {
+  inFlight: Promise<void> | null;
+  timer: ReturnType<typeof setTimeout> | null;
+  trailingPromise: Promise<void> | null;
+  trailingResolve: (() => void) | null;
+  trailingReject: ((error: unknown) => void) | null;
+}
+
+const refreshChatsState: RefreshChatsState = {
+  inFlight: null,
+  timer: null,
+  trailingPromise: null,
+  trailingResolve: null,
+  trailingReject: null,
+};
+
+/**
+ * Apply a fetched session list to the store.
+ * Preserves in-memory messages and merges local state.
+ */
+function applySessionsList(
+  sessions: SessionSummary[],
+  set: Parameters<typeof createChatSlice>[0],
+): void {
+  const next = sessions.map(sessionSummaryToChatItem);
+
+  set((state) => {
+    const nextProcessing = new Set(state.processingChats);
+    next.forEach((c) => {
+      if (c.isRunning) {
+        nextProcessing.add(c.id);
+      }
+    });
+
+    // Preserve in-memory messages when possible.
+    const prevById = new Map(state.chats.map((c) => [c.id, c]));
+    const merged = next.map((c) => {
+      const prev = prevById.get(c.id);
+      if (!prev) {
+        return c;
+      }
+
+      const prevUpdatedAtMs = parseTimestampMs(prev.updatedAt);
+      const remoteUpdatedAtMs = parseTimestampMs(c.updatedAt);
+      const preferLocalSessionFields =
+        prevUpdatedAtMs !== null &&
+        remoteUpdatedAtMs !== null &&
+        prevUpdatedAtMs > remoteUpdatedAtMs;
+
+      const prevConfig = prev.config || {};
+      const nextConfig = c.config || {};
+      const hasLocalModel = Object.prototype.hasOwnProperty.call(prevConfig, "model");
+      const hasLocalModelRef = Object.prototype.hasOwnProperty.call(prevConfig, "model_ref");
+      const hasLocalReasoning = Object.prototype.hasOwnProperty.call(
+        prevConfig,
+        "reasoningEffort",
+      );
+
+      // Ensure messageCount stays monotonic, as listSessions summary might briefly lag
+      const effectiveMessageCount = Math.max(prev.messageCount ?? 0, c.messageCount ?? 0);
+
+      return {
+        ...c,
+        title: preferLocalSessionFields ? prev.title : c.title,
+        pinned: preferLocalSessionFields ? prev.pinned : c.pinned,
+        updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
+        messages: prev.messages,
+        messageCount: effectiveMessageCount,
+        config: {
+          ...prevConfig,
+          ...nextConfig,
+          model: preferLocalSessionFields
+            ? hasLocalModel
+              ? prevConfig.model
+              : nextConfig.model
+            : nextConfig.model,
+          model_ref: preferLocalSessionFields
+            ? hasLocalModelRef
+              ? prevConfig.model_ref
+              : nextConfig.model_ref
+            : nextConfig.model_ref,
+          reasoningEffort: preferLocalSessionFields
+            ? hasLocalReasoning
+              ? prevConfig.reasoningEffort
+              : nextConfig.reasoningEffort
+            : nextConfig.reasoningEffort,
+          compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
+          syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
+        },
+      };
+    });
+    return { ...state, chats: merged, processingChats: nextProcessing };
+  });
+}
+
+async function executeRefreshChats(
+  set: Parameters<typeof createChatSlice>[0],
+): Promise<void> {
+  if (refreshChatsState.inFlight) {
+    return refreshChatsState.inFlight;
+  }
+
+  refreshChatsState.inFlight = (async () => {
+    try {
+      const list = await agentClient.listSessions();
+      applySessionsList(list.sessions, set);
+    } catch (error) {
+      console.error("[ChatSlice] Failed to refresh sessions:", error);
+      throw error;
+    }
+  })().finally(() => {
+    refreshChatsState.inFlight = null;
+  });
+
+  return refreshChatsState.inFlight;
 }
 
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
@@ -484,6 +624,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   autoGenerateTitles: true,
   isUpdatingAutoTitlePreference: false,
   subSessionsByParent: {},
+  pendingQuestionsBySession: {},
 
   addChat: async (chatData) => {
     const title = (chatData.title || i18n.t("chat.sidebar.newSession")).trim();
@@ -493,18 +634,28 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const reasoningEffort = chatData.config?.reasoningEffort ?? undefined;
 
     // Resolve model_ref when feature flag is ON
+    // Always use provider defaults for new sessions, not the global selectedModelRef.
+    // selectedModelRef is session-scoped user selection and should not leak into new sessions.
     let modelRef: { provider: string; model: string } | undefined;
     let providerValue: string | undefined;
     if (useProviderStore.getState().isProviderModelRefEnabled()) {
-      const ref = useProviderStore.getState().selectedModelRef;
-      if (ref) {
-        modelRef = ref;
-        providerValue = ref.provider;
+      // Prefer caller-provided model_ref (e.g. from EmptyTaskLauncher with explicit config)
+      const callerModelRef = chatData.config?.model_ref;
+      if (callerModelRef?.provider?.trim() && callerModelRef?.model?.trim()) {
+        modelRef = callerModelRef;
+        providerValue = callerModelRef.provider;
       } else {
-        const m = useProviderStore.getState().getActiveModel();
-        if (m) {
-          modelRef = { provider: useProviderStore.getState().currentProvider, model: m };
-          providerValue = useProviderStore.getState().currentProvider;
+        // Fall back to provider defaults (settings default model)
+        const defaultChat = useProviderStore.getState().providerConfig.defaults?.chat;
+        if (defaultChat?.provider?.trim() && defaultChat?.model?.trim()) {
+          modelRef = defaultChat;
+          providerValue = defaultChat.provider;
+        } else {
+          const m = useProviderStore.getState().getActiveModel();
+          if (m) {
+            modelRef = { provider: useProviderStore.getState().currentProvider, model: m };
+            providerValue = useProviderStore.getState().currentProvider;
+          }
         }
       }
     }
@@ -650,6 +801,37 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     }
   },
 
+  persistSessionTitle: async (sessionId, title) => {
+    // Capture previous title for rollback.
+    const previousTitle = get().chats.find((c) => c.id === sessionId)?.title;
+
+    // Optimistic local update.
+    set((state) => ({
+      ...state,
+      chats: state.chats.map((chat) =>
+        chat.id === sessionId
+          ? { ...chat, title, updatedAt: new Date().toISOString() }
+          : chat,
+      ),
+    }));
+
+    try {
+      await agentClient.patchSession(sessionId, { title });
+    } catch (e) {
+      // Roll back to previous title on failure.
+      if (typeof previousTitle === "string") {
+        set((state) => ({
+          ...state,
+          chats: state.chats.map((chat) =>
+            chat.id === sessionId ? { ...chat, title: previousTitle } : chat,
+          ),
+        }));
+      }
+      console.warn(`[ChatSlice] persistSessionTitle failed for ${sessionId}:`, e);
+      throw e;
+    }
+  },
+
   pinSession: (sessionId) => {
     get().updateSession(sessionId, { pinned: true });
   },
@@ -777,83 +959,40 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   refreshChats: async () => {
-    const list = await agentClient.listSessions();
-    const next = list.sessions.map(sessionSummaryToChatItem);
-    set((state) => {
-      const nextProcessing = new Set(state.processingChats);
-      next.forEach((c) => {
-        if (c.isRunning) {
-          nextProcessing.add(c.id);
-        }
-      });
+    // If a request is already in flight, wait for it
+    if (refreshChatsState.inFlight) {
+      return refreshChatsState.inFlight;
+    }
 
-      // Preserve in-memory messages when possible.
-      const prevById = new Map(state.chats.map((c) => [c.id, c]));
-      const merged = next.map((c) => {
-        const prev = prevById.get(c.id);
-        if (!prev) {
-          return c;
-        }
+    // If we're within the throttle window, queue a trailing call
+    if (refreshChatsState.timer) {
+      if (!refreshChatsState.trailingPromise) {
+        refreshChatsState.trailingPromise = new Promise<void>((resolve, reject) => {
+          refreshChatsState.trailingResolve = resolve;
+          refreshChatsState.trailingReject = reject;
+        });
+      }
+      return refreshChatsState.trailingPromise;
+    }
 
-        const prevUpdatedAtMs = parseTimestampMs(prev.updatedAt);
-        const remoteUpdatedAtMs = parseTimestampMs(c.updatedAt);
-        const preferLocalSessionFields =
-          prevUpdatedAtMs !== null &&
-          remoteUpdatedAtMs !== null &&
-          prevUpdatedAtMs > remoteUpdatedAtMs;
+    // Start throttle window. The timer callback is responsible for flushing
+    // any trailing call that arrives while this window is active.
+    refreshChatsState.timer = setTimeout(() => {
+      refreshChatsState.timer = null;
 
-        const prevConfig = prev.config || {};
-        const nextConfig = c.config || {};
-        const hasLocalModel = Object.prototype.hasOwnProperty.call(prevConfig, "model");
-        const hasLocalModelRef = Object.prototype.hasOwnProperty.call(prevConfig, "model_ref");
-        const hasLocalReasoning = Object.prototype.hasOwnProperty.call(
-          prevConfig,
-          "reasoningEffort",
-        );
+      if (refreshChatsState.trailingPromise) {
+        const resolve = refreshChatsState.trailingResolve;
+        const reject = refreshChatsState.trailingReject;
+        refreshChatsState.trailingPromise = null;
+        refreshChatsState.trailingResolve = null;
+        refreshChatsState.trailingReject = null;
 
-        // Ensure messageCount stays monotonic, as listSessions summary might briefly lag
-        const effectiveMessageCount = Math.max(prev.messageCount ?? 0, c.messageCount ?? 0);
+        void executeRefreshChats(set).then(resolve, reject);
+      }
+    }, REFRESH_CHATS_THROTTLE_MS);
 
-        // If the backend indicates there are more messages than we have in memory,
-        // we might be out of date. However, since the SSE event stream pushes messages
-        // into state.chats directly, we want to keep `prev.messages` here unless we
-        // explicitly do a full history reload. The actual history reload logic will fetch
-        // missing messages if `effectiveMessageCount` exceeds `prev.messages.length`.
-        // To trigger that, we just preserve what we have and let the view component
-        // detect `c.messageCount > c.messages.length` if it needs to trigger a history refetch.
-
-        return {
-          ...c,
-          title: preferLocalSessionFields ? prev.title : c.title,
-          pinned: preferLocalSessionFields ? prev.pinned : c.pinned,
-          updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
-          messages: prev.messages,
-          messageCount: effectiveMessageCount,
-          config: {
-            ...prevConfig,
-            ...nextConfig,
-            model: preferLocalSessionFields
-              ? hasLocalModel
-                ? prevConfig.model
-                : nextConfig.model
-              : nextConfig.model,
-            model_ref: preferLocalSessionFields
-              ? hasLocalModelRef
-                ? prevConfig.model_ref
-                : nextConfig.model_ref
-              : nextConfig.model_ref,
-            reasoningEffort: preferLocalSessionFields
-              ? hasLocalReasoning
-                ? prevConfig.reasoningEffort
-                : nextConfig.reasoningEffort
-              : nextConfig.reasoningEffort,
-            compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
-            syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
-          },
-        };
-      });
-      return { ...state, chats: merged, processingChats: nextProcessing };
-    });
+    // Execute immediately
+    return executeRefreshChats(set);
   },
 
   loadChats: async () => {
@@ -863,8 +1002,14 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
     let list = await agentClient.listSessions();
     if (!list.sessions || list.sessions.length === 0) {
+      // Use provider defaults when creating the initial session on startup
+      const defaultModel = useProviderStore.getState().getActiveModel()?.trim();
+      const defaultModelRef = useProviderStore.getState().providerConfig.defaults?.chat;
       const created = await agentClient.createSession({
         title: i18n.t("chat.sidebar.newSession"),
+        model: defaultModel,
+        model_ref: defaultModelRef,
+        provider: defaultModelRef?.provider,
       });
       list = { sessions: [created.session] };
     }
@@ -1034,5 +1179,22 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     } finally {
       set({ isUpdatingAutoTitlePreference: false });
     }
+  },
+
+  setPendingQuestionForSession: (state) => {
+    set((prev) => ({
+      pendingQuestionsBySession: {
+        ...prev.pendingQuestionsBySession,
+        [state.sessionId]: state,
+      },
+    }));
+  },
+
+  clearPendingQuestionForSession: (sessionId) => {
+    set((prev) => {
+      const next = { ...prev.pendingQuestionsBySession };
+      delete next[sessionId];
+      return { pendingQuestionsBySession: next };
+    });
   },
 });

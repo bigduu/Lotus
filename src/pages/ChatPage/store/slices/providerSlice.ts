@@ -64,6 +64,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   currentProvider: "copilot",
   providerConfig: {
     provider: "copilot",
+    defaults: undefined,
     providers: {},
   },
   isLoading: false,
@@ -78,8 +79,21 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
     try {
       const config = await settingsService.getProviderConfig();
 
-      // Backend handles migration from old config format
-      // No need for frontend migration anymore
+      // Build defaults from providers.{provider}.model if defaults is missing
+      // (backward compatibility with backend that stores model in providers).
+      if (!config.defaults?.chat?.model && config.provider && config.providers) {
+        const providerName = config.provider;
+        const providerCfg = config.providers[providerName as keyof typeof config.providers];
+        const legacyModel = (providerCfg as Record<string, unknown> | undefined)?.model as string | undefined;
+        if (legacyModel) {
+          config.defaults = {
+            chat: {
+              provider: providerName,
+              model: legacyModel,
+            },
+          };
+        }
+      }
 
       set({
         providerConfig: config,
@@ -113,44 +127,22 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   // Get the active model for current provider
   getActiveModel: () => {
     const state = get();
-    const providerConfig = state.providerConfig.providers[state.currentProvider];
-
-    if (!providerConfig) {
-      return undefined;
-    }
-
-    // Return the model if it exists
-    if ("model" in providerConfig && providerConfig.model) {
-      return providerConfig.model;
-    }
-
-    return undefined;
+    const model = state.providerConfig.defaults?.chat?.model?.trim();
+    return model || undefined;
   },
 
   // Get fast/cheap model for current provider (falls back to active model)
   getFastModel: () => {
     const state = get();
-    const providerConfig = state.providerConfig.providers[state.currentProvider];
-
-    if (providerConfig && "fast_model" in providerConfig && providerConfig.fast_model) {
-      return providerConfig.fast_model;
-    }
-
-    // Fallback to active model
-    return state.getActiveModel();
+    const model = state.providerConfig.defaults?.fast?.model?.trim();
+    return model || state.getActiveModel();
   },
 
   // Get vision-capable model for current provider (falls back to active model)
   getVisionModel: () => {
     const state = get();
-    const providerConfig = state.providerConfig.providers[state.currentProvider];
-
-    if (providerConfig && "vision_model" in providerConfig && providerConfig.vision_model) {
-      return providerConfig.vision_model;
-    }
-
-    // Fallback to active model
-    return state.getActiveModel();
+    const model = state.providerConfig.defaults?.vision?.model?.trim();
+    return model || state.getActiveModel();
   },
 
   // Feature flag check — always enabled now
@@ -187,27 +179,19 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   // Get fast model as ProviderModelRef
   getFastModelRef: () => {
     const state = get();
-
-    const providerConfig = state.providerConfig.providers[state.currentProvider];
-    if (providerConfig && "fast_model" in providerConfig && providerConfig.fast_model) {
-      return { provider: state.currentProvider, model: providerConfig.fast_model };
-    }
-
-    const active = state.getActiveModel();
-    return active ? { provider: state.currentProvider, model: active } : null;
+    const fast = state.providerConfig.defaults?.fast;
+    if (fast?.model?.trim()) return fast;
+    const chat = state.providerConfig.defaults?.chat;
+    return chat?.model?.trim() ? chat : null;
   },
 
   // Get vision model as ProviderModelRef
   getVisionModelRef: () => {
     const state = get();
-
-    const providerConfig = state.providerConfig.providers[state.currentProvider];
-    if (providerConfig && "vision_model" in providerConfig && providerConfig.vision_model) {
-      return { provider: state.currentProvider, model: providerConfig.vision_model };
-    }
-
-    const active = state.getActiveModel();
-    return active ? { provider: state.currentProvider, model: active } : null;
+    const vision = state.providerConfig.defaults?.vision;
+    if (vision?.model?.trim()) return vision;
+    const chat = state.providerConfig.defaults?.chat;
+    return chat?.model?.trim() ? chat : null;
   },
 
   getModelsForProvider: (providerName: string) => {

@@ -10,7 +10,7 @@ import {
 import { useAppStore } from "../pages/ChatPage/store";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
-import { message } from "antd";
+import { App as AntApp } from "antd";
 import {
   formatCompletionPolicyViolationMessage,
   isCompletionPolicyViolationError,
@@ -20,6 +20,16 @@ type SubscriptionEntry = {
   sessionId: string;
   controller: AbortController;
 };
+
+// === DEV-ONLY SSE DIAGNOSTICS ===
+// Enable with: localStorage.setItem('lotus_debug_sse', '1')
+
+function debugSse(...args: unknown[]): void {
+  if (!import.meta.env.DEV) return;
+  if (typeof localStorage === "undefined") return;
+  if (localStorage.getItem("lotus_debug_sse") !== "1") return;
+  console.debug("[SSE]", ...args);
+}
 
 const isAbortError = (err: unknown) => {
   const e = err as { name?: string; code?: number };
@@ -48,6 +58,7 @@ const isMemoryStatusTool = (toolName: string): boolean => {
 };
 
 export function useAgentEventSubscription() {
+  const { message } = AntApp.useApp();
   const processingChats = useAppStore((state) => state.processingChats);
 
   // Stable store actions
@@ -61,7 +72,10 @@ export function useAgentEventSubscription() {
   const updateTaskListDelta = useAppStore((state) => state.updateTaskListDelta);
   const setEvaluationState = useAppStore((state) => state.setEvaluationState);
   const upsertSubSessionProgress = useAppStore((state) => state.upsertSubSessionProgress);
+  const persistSessionTitle = useAppStore((state) => state.persistSessionTitle);
   const refreshChats = useAppStore((state) => state.refreshChats);
+  const setPendingQuestionForSession = useAppStore((state) => state.setPendingQuestionForSession);
+  const clearPendingQuestionForSession = useAppStore((state) => state.clearPendingQuestionForSession);
 
   const agentClientRef = useRef(new AgentClient());
 
@@ -112,6 +126,7 @@ export function useAgentEventSubscription() {
 
   const cleanupChat = useCallback(
     (sessionId: string, opts?: { clearDraft?: boolean }) => {
+      debugSse("cleanupChat", sessionId, opts);
       clearReconnect(sessionId);
       pendingSessionIdsRef.current.delete(sessionId);
 
@@ -148,6 +163,7 @@ export function useAgentEventSubscription() {
 
   const startSubscription = useCallback(
     (sessionId: string) => {
+      debugSse("startSubscription", sessionId);
       // If a reconnect was scheduled, starting a new subscription supersedes it.
       clearReconnect(sessionId);
 
@@ -204,6 +220,7 @@ export function useAgentEventSubscription() {
         const prev = reconnectStateBySessionRef.current.get(sessionId);
         const attempt = prev?.attempt ?? 0;
         const delayMs = Math.min(5000, 250 * Math.pow(2, attempt));
+        debugSse("scheduleReconnect", sessionId, "delay:", delayMs, "attempt:", attempt);
 
         cleanupChat(sessionId, { clearDraft: false });
         const timer = setTimeout(() => {
@@ -218,6 +235,42 @@ export function useAgentEventSubscription() {
           attempt: attempt + 1,
           timer,
         });
+      };
+
+      let terminalEventSeen = false;
+
+      const hasBackgroundChildren = () => {
+        const bg = backgroundChildrenByParentRef.current.get(sessionId);
+        return (bg?.children.size ?? 0) > 0;
+      };
+
+      const shouldSkipReconnectAfterTerminal = () => terminalEventSeen && !hasBackgroundChildren();
+
+      const finalizeParentCompletion = () => {
+        const bg =
+          backgroundChildrenByParentRef.current.get(sessionId) ??
+          ({ children: new Set<string>(), parentDone: false } as const);
+        const children = new Set(bg.children);
+        backgroundChildrenByParentRef.current.set(sessionId, {
+          children,
+          parentDone: true,
+        });
+
+        if (children.size === 0) {
+          cleanupChat(sessionId, { clearDraft: true });
+          setSessionProcessing(sessionId, false);
+          return;
+        }
+
+        // Parent is done, but child sessions may still forward progress into this stream.
+        // Clear the parent draft while keeping the SSE subscription alive for child events.
+        const entry = subscriptionsBySessionRef.current.get(sessionId);
+        if (entry) {
+          streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
+          streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
+          streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
+          streamingStateBySessionRef.current.delete(entry.sessionId);
+        }
       };
 
       agentClientRef.current
@@ -533,6 +586,14 @@ export function useAgentEventSubscription() {
               );
             },
 
+            onContextPressureNotification: (_percent, level, msg) => {
+              if (level === "critical") {
+                message.error(msg, 6);
+              } else {
+                message.warning(msg, 5);
+              }
+            },
+
             onTaskListUpdated: (taskList: TaskList) => {
               if (taskList.session_id) {
                 setTaskList(taskList.session_id, taskList);
@@ -577,6 +638,8 @@ export function useAgentEventSubscription() {
             },
 
             onComplete: () => {
+              terminalEventSeen = true;
+
               // Capture the controller that owns THIS execution run.  The async
               // body below may outlive this subscription (e.g. loadChatHistory
               // retries take ~2s).  If the user responds to conclusion_with_options and a *new*
@@ -584,21 +647,24 @@ export function useAgentEventSubscription() {
               // must NOT clean up the new one.
               const ownerController = controller;
 
+              // Detect if a *different* subscription took over for the same
+              // sessionId while we were waiting (e.g. loadChatHistory retries).
+              // When that happens the current ref entry will point to a
+              // different controller, meaning our cleanup would kill the live
+              // successor.
+              const isSuperseded = () => {
+                const cur = subscriptionsBySessionRef.current.get(sessionId);
+                return cur != null && cur.controller !== ownerController;
+              };
+
               void (async () => {
                 // Clear any lingering status so the UI doesn't stay in "thinking" state
                 // while we finalize the response.
                 setStreamingStatus(null);
                 streamingMessageBus.forceFlush();
 
-                // Detect if a *different* subscription took over for the same
-                // sessionId while we were waiting (e.g. loadChatHistory retries).
-                // When that happens the current ref entry will point to a
-                // different controller, meaning our cleanup would kill the live
-                // successor.
-                const isSuperseded = () => {
-                  const cur = subscriptionsBySessionRef.current.get(sessionId);
-                  return cur != null && cur.controller !== ownerController;
-                };
+                // Clear any pending question state for this session
+                clearPendingQuestionForSession(sessionId);
 
                 // If a newer run already owns this session, skip all completion
                 // side effects to avoid overwriting in-flight UI state.
@@ -687,57 +753,45 @@ export function useAgentEventSubscription() {
 
                 // Mark parent completed. If there are background children, keep the SSE
                 // subscription alive to forward sub-session progress.
-                const bg =
-                  backgroundChildrenByParentRef.current.get(sessionId) ??
-                  ({ children: new Set<string>(), parentDone: false } as const);
-                backgroundChildrenByParentRef.current.set(sessionId, {
-                  children: new Set(bg.children),
-                  parentDone: true,
-                });
-
-                if (bg.children.size === 0) {
-                  cleanupChat(sessionId, { clearDraft: true });
-                  setSessionProcessing(sessionId, false);
-                } else {
-                  // Clear the draft but keep subscription.
-                  const entry = subscriptionsBySessionRef.current.get(sessionId);
-                  if (entry) {
-                    streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
-                    streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
-                    streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
-                    streamingStateBySessionRef.current.delete(entry.sessionId);
-                  }
+                finalizeParentCompletion();
+              })().catch((error) => {
+                // Completion cleanup must be best-effort but never leave the UI stuck in
+                // processing/thinking if a follow-up sync request fails (for example due to CORS
+                // or a transient network error after the backend already emitted `complete`).
+                console.warn(
+                  `[useAgentEventSubscription] Completion finalization failed for session ${sessionId}:`,
+                  error,
+                );
+                if (!isSuperseded()) {
+                  finalizeParentCompletion();
                 }
-              })();
+              });
             },
 
             onError: async (errorMessage: string) => {
+              terminalEventSeen = true;
               setStreamingStatus(null);
 
-              const friendlyErrorMessage = isCompletionPolicyViolationError(errorMessage)
-                ? formatCompletionPolicyViolationMessage(errorMessage)
-                : errorMessage;
+              try {
+                const friendlyErrorMessage = isCompletionPolicyViolationError(errorMessage)
+                  ? formatCompletionPolicyViolationMessage(errorMessage)
+                  : errorMessage;
 
-              await addMessage(sessionId, {
-                id: `error-${Date.now()}`,
-                role: "assistant",
-                type: "text",
-                content: `❌ **Error**: ${friendlyErrorMessage}`,
-                createdAt: new Date().toISOString(),
-                finishReason: "error",
-              });
-
-              const bg =
-                backgroundChildrenByParentRef.current.get(sessionId) ??
-                ({ children: new Set<string>(), parentDone: false } as const);
-              backgroundChildrenByParentRef.current.set(sessionId, {
-                children: new Set(bg.children),
-                parentDone: true,
-              });
-
-              if (bg.children.size === 0) {
-                cleanupChat(sessionId, { clearDraft: true });
-                setSessionProcessing(sessionId, false);
+                await addMessage(sessionId, {
+                  id: `error-${Date.now()}`,
+                  role: "assistant",
+                  type: "text",
+                  content: `❌ **Error**: ${friendlyErrorMessage}`,
+                  createdAt: new Date().toISOString(),
+                  finishReason: "error",
+                });
+              } catch (error) {
+                console.warn(
+                  `[useAgentEventSubscription] Failed to append error message for session ${sessionId}:`,
+                  error,
+                );
+              } finally {
+                finalizeParentCompletion();
               }
             },
 
@@ -762,6 +816,17 @@ export function useAgentEventSubscription() {
                 status: "pending",
                 lastEventAt: new Date().toISOString(),
               });
+
+              // Persist child session title to backend so it survives refresh.
+              // Fire-and-forget to avoid blocking the SSE event loop.
+              if (title && title.trim()) {
+                persistSessionTitle(childSessionId, title).catch((e) => {
+                  console.warn(
+                    `[useAgentEventSubscription] Failed to persist sub-session title for ${childSessionId}:`,
+                    e,
+                  );
+                });
+              }
 
               // Ensure the child session appears in the session list.
               void refreshChats();
@@ -863,13 +928,32 @@ export function useAgentEventSubscription() {
 
               void refreshChats();
             },
+
+            onNeedClarification: (event) => {
+              const targetSessionId = event.session_id || sessionId;
+              setPendingQuestionForSession({
+                sessionId: targetSessionId,
+                question: event.question || "",
+                options: event.options || [],
+                allowCustom: event.allow_custom ?? true,
+                toolCallId: event.tool_call_id ?? null,
+              });
+            },
           },
           controller,
         )
         .then(() => {
-          // Stream ended without throwing. Backend SSE should be long-lived; treat this as a
-          // disconnect and attempt to resubscribe (unless we were explicitly aborted).
-          if (controller.signal.aborted) return;
+          debugSse(
+            "streamEnded",
+            sessionId,
+            "aborted:",
+            controller.signal.aborted,
+            "terminal:",
+            terminalEventSeen,
+          );
+          // Stream ended without throwing. Backend live SSE should be long-lived, but
+          // one-shot terminal streams intentionally close after emitting complete/error.
+          if (controller.signal.aborted || shouldSkipReconnectAfterTerminal()) return;
 
           // If a newer subscription already replaced this one (e.g. user
           // responded to conclusion_with_options quickly), don't interfere with it.
@@ -886,12 +970,15 @@ export function useAgentEventSubscription() {
           scheduleReconnect();
         })
         .catch((err) => {
+          debugSse("streamError", sessionId, err);
           // If we explicitly aborted, do nothing (normal cleanup path).
           if (controller.signal.aborted) return;
 
           // Some runtimes surface network disconnects as AbortError even when we didn't abort.
           // In that case, attempt to resubscribe instead of tearing down processing state.
           if (isAbortError(err)) {
+            if (shouldSkipReconnectAfterTerminal()) return;
+
             const stillProcessing = useAppStore.getState().processingChats.has(sessionId);
             if (!stillProcessing) {
               cleanupChat(sessionId, { clearDraft: true });
@@ -902,6 +989,8 @@ export function useAgentEventSubscription() {
             return;
           }
 
+          if (shouldSkipReconnectAfterTerminal()) return;
+
           console.error("[useAgentEventSubscription] Subscription error:", err);
           cleanupChat(sessionId, { clearDraft: true });
           setSessionProcessing(sessionId, false);
@@ -911,6 +1000,7 @@ export function useAgentEventSubscription() {
       addMessage,
       cleanupChat,
       clearReconnect,
+      persistSessionTitle,
       refreshChats,
       setEvaluationState,
       setSessionProcessing,
@@ -939,6 +1029,7 @@ export function useAgentEventSubscription() {
       // the subscription entry lingers but the SSE reader has already finished.
       // In that case we must restart so events from the next execution run are captured.
       if (existing?.sessionId === normalizedSessionId && !existing.controller.signal.aborted) {
+        debugSse("skipExistingSubscription", normalizedSessionId, "controllerAlive:", true);
         return;
       }
 

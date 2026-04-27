@@ -11,6 +11,7 @@ export interface TaskItem {
   depends_on: string[];
   notes: string;
   tool_calls_count?: number; // NEW: number of tool calls
+  summary?: string; // Concise summary of what was accomplished (for completed tasks)
 }
 
 // Task list

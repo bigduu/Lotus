@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  App as AntApp,
   Button,
   Card,
   Flex,
@@ -9,7 +10,6 @@ import {
   Space,
   Switch,
   Typography,
-  message,
   theme,
 } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
@@ -80,6 +80,7 @@ const applyPreviewMasking = (
 
 const SystemSettingsKeywordMaskingTab: React.FC = () => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const { token } = useToken();
   const [entries, setEntries] = useState<KeywordEntry[]>([]);
   const [loading, setLoading] = useState(false);

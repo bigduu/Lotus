@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Card, Input, List, message, Spin, Empty, Row, Button } from "antd";
+import { App as AntApp, Card, Input, List, Spin, Empty, Row, Button } from "antd";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { skillService } from "../../services/skill/SkillService";
@@ -12,6 +12,7 @@ const REFRESH_INTERVAL = 30000;
 
 export const SkillManager = () => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const bambooConfig = useBambooConfigStore((state) => state.config);
   const loadConfig = useBambooConfigStore((state) => state.loadConfig);
   const saveConfig = useBambooConfigStore((state) => state.saveConfig);

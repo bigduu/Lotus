@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, List, Modal, Form, Input, Popconfirm, message, Tag } from "antd";
+import { App as AntApp, Button, List, Modal, Form, Input, Popconfirm, Tag } from "antd";
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../ChatPage/store";
@@ -7,6 +7,7 @@ import { UserSystemPrompt } from "../../../ChatPage/types/chat";
 
 const SystemPromptManager = () => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const systemPrompts = useAppStore((state) => state.systemPrompts);
   const addSystemPrompt = useAppStore((state) => state.addSystemPrompt);
   const updateSystemPrompt = useAppStore((state) => state.updateSystemPrompt);
@@ -131,6 +132,7 @@ const SystemPromptManager = () => {
         onOk={handleOk}
         onCancel={handleCancel}
         width="60%"
+        forceRender
       >
         <Form form={form} layout="vertical" name="system_prompt_form">
           <Form.Item

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { message } from "antd";
+import { App as AntApp } from "antd";
 import { workspaceValidator, type WorkspaceValidationResult } from "../../utils/workspaceValidator";
 import {
   recentWorkspacesManager,
@@ -27,6 +27,7 @@ export const useWorkspacePickerState = ({
   showSuggestions,
   onValidationChange,
 }: UseWorkspacePickerStateProps) => {
+  const { message } = AntApp.useApp();
   const [path, setPath] = useState(value);
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>({
     isValidating: false,

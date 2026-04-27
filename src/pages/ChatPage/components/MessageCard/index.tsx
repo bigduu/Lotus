@@ -311,8 +311,10 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
             transform: isHovering ? "translateY(-2px) scale(1.002)" : "none",
             overflow: "hidden",
           }}
-          bodyStyle={{
-            padding: token.paddingMD,
+          styles={{
+            body: {
+              padding: token.paddingMD,
+            },
           }}
           onMouseEnter={() => setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}

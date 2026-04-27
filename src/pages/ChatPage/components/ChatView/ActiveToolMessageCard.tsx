@@ -175,7 +175,7 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
           background: token.colorBgContainer,
           boxShadow: token.boxShadowSecondary,
         }}
-        bodyStyle={{ padding: `${token.paddingXS}px ${token.paddingSM}px` }}
+        styles={{ body: { padding: `${token.paddingXS}px ${token.paddingSM}px` } }}
       >
         <Space direction="vertical" style={{ width: "100%" }} size={6}>
           <div

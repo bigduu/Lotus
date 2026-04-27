@@ -610,6 +610,39 @@ describe("AgentClient", () => {
     expect(onError).toHaveBeenCalledWith("Unknown error");
   });
 
+  it("dispatches context_pressure_notification events", () => {
+    const client = AgentClient.getInstance();
+    const onContextPressureNotification = vi.fn();
+
+    (client as any).handleEvent(
+      {
+        type: "context_pressure_notification",
+        percent: 75.5,
+        level: "warning",
+        message: "Context window filling up (~75%). Consider using compact_context.",
+      },
+      { onContextPressureNotification },
+    );
+
+    expect(onContextPressureNotification).toHaveBeenCalledWith(
+      75.5,
+      "warning",
+      "Context window filling up (~75%). Consider using compact_context.",
+    );
+  });
+
+  it("ignores context_pressure_notification without percent or level", () => {
+    const client = AgentClient.getInstance();
+    const onContextPressureNotification = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "context_pressure_notification", message: "missing fields" },
+      { onContextPressureNotification },
+    );
+
+    expect(onContextPressureNotification).not.toHaveBeenCalled();
+  });
+
   it("handles unknown event types", () => {
     const client = AgentClient.getInstance();
     const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

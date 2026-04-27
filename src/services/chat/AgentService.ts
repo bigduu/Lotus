@@ -23,11 +23,13 @@ export type AgentEventType =
   | "token_budget_updated"
   | "context_compression_status"
   | "context_summarized"
+  | "context_pressure_notification"
   | "tool_lifecycle"
   | "sub_session_started"
   | "sub_session_event"
   | "sub_session_heartbeat"
   | "sub_session_completed"
+  | "need_clarification"
   | "complete"
   | "error";
 
@@ -127,6 +129,13 @@ export interface AgentEvent {
   title?: string;
   event?: AgentEvent;
   timestamp?: string;
+  // ContextPressureNotification events
+  percent?: number;
+  level?: string;
+  // NeedClarification events
+  question?: string;
+  options?: string[];
+  allow_custom?: boolean;
 }
 
 export interface ChatRequest {
@@ -285,6 +294,8 @@ export interface PatchSessionRequest {
   title?: string;
   pinned?: boolean;
   model?: string;
+  provider?: string;
+  model_ref?: { provider: string; model: string } | null;
   reasoning_effort?: ReasoningEffort;
   clear_reasoning_effort?: boolean;
 }
@@ -491,6 +502,7 @@ export interface AgentEventHandlers {
   onTokenBudgetUpdated?: (usage: TokenBudgetUsage) => void;
   onContextCompressionStatus?: (phase: string, status: string) => void;
   onContextSummarized?: (summaryInfo: ContextSummaryInfo) => void;
+  onContextPressureNotification?: (percent: number, level: string, message: string) => void;
   onToolLifecycle?: (
     toolCallId: string,
     toolName: string,
@@ -516,6 +528,7 @@ export interface AgentEventHandlers {
     status: string,
     error?: string,
   ) => void;
+  onNeedClarification?: (event: AgentEvent) => void;
 }
 
 /**
@@ -937,6 +950,11 @@ export class AgentClient {
           handlers.onContextSummarized?.(event.summary_info);
         }
         break;
+      case "context_pressure_notification":
+        if (typeof event.percent === "number" && typeof event.level === "string") {
+          handlers.onContextPressureNotification?.(event.percent, event.level, event.message || "");
+        }
+        break;
       case "sub_session_started":
         if (event.parent_session_id && event.child_session_id) {
           handlers.onSubSessionStarted?.(
@@ -973,6 +991,9 @@ export class AgentClient {
             event.error,
           );
         }
+        break;
+      case "need_clarification":
+        handlers.onNeedClarification?.(event);
         break;
       case "complete":
         handlers.onComplete?.(event.usage);

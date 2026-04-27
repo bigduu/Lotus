@@ -8,6 +8,7 @@ export interface TaskItem {
   status: TaskItemStatus;
   order: number;
   metadata?: Record<string, any>;
+  summary?: string;
   created_at: string;
   updated_at: string;
 }
