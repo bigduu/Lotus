@@ -158,6 +158,7 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     hasAttachments: s.has_attachments,
     lastRunStatus: s.last_run_status,
     lastRunError: s.last_run_error,
+    subagentType: s.subagent_type ?? null,
     title: s.title || i18n.t("chat.session.defaultTitle"),
     createdAt: createdAtMs,
     pinned: s.pinned,
@@ -552,10 +553,7 @@ function applySessionsList(
       const nextConfig = c.config || {};
       const hasLocalModel = Object.prototype.hasOwnProperty.call(prevConfig, "model");
       const hasLocalModelRef = Object.prototype.hasOwnProperty.call(prevConfig, "model_ref");
-      const hasLocalReasoning = Object.prototype.hasOwnProperty.call(
-        prevConfig,
-        "reasoningEffort",
-      );
+      const hasLocalReasoning = Object.prototype.hasOwnProperty.call(prevConfig, "reasoningEffort");
 
       // Ensure messageCount stays monotonic, as listSessions summary might briefly lag
       const effectiveMessageCount = Math.max(prev.messageCount ?? 0, c.messageCount ?? 0);
@@ -594,9 +592,7 @@ function applySessionsList(
   });
 }
 
-async function executeRefreshChats(
-  set: Parameters<typeof createChatSlice>[0],
-): Promise<void> {
+async function executeRefreshChats(set: Parameters<typeof createChatSlice>[0]): Promise<void> {
   if (refreshChatsState.inFlight) {
     return refreshChatsState.inFlight;
   }
@@ -809,9 +805,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     set((state) => ({
       ...state,
       chats: state.chats.map((chat) =>
-        chat.id === sessionId
-          ? { ...chat, title, updatedAt: new Date().toISOString() }
-          : chat,
+        chat.id === sessionId ? { ...chat, title, updatedAt: new Date().toISOString() } : chat,
       ),
     }));
 

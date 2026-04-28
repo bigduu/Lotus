@@ -6,6 +6,8 @@ import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../store";
 import { openSession } from "../../utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
+import { useSubagentProfiles } from "../../../../hooks/useSubagentProfiles";
+import type { SubagentProfile } from "../../../../services/subagent/types";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -44,6 +46,43 @@ const deriveFallbackStatus = (
     return "pending";
   }
   return "pending";
+};
+
+/**
+ * Render a small Tag showing the subagent profile (role) of a child session.
+ *
+ * Resolution order:
+ *   1. If `subagentType` is null/empty → render nothing (legacy/root sessions
+ *      that pre-date subagent profiles or are not children).
+ *   2. If the catalogue has a matching profile → use its `display_name`,
+ *      `ui.icon` and `ui.color` for nice presentation.
+ *   3. Otherwise → fall back to rendering the raw id (catalogue may still
+ *      be loading, or backend supplied an id we don't know about).
+ */
+const renderSubagentTypeTag = (
+  subagentType: string | null | undefined,
+  byId: Map<string, SubagentProfile>,
+): React.ReactNode => {
+  const id = subagentType?.trim();
+  if (!id) return null;
+
+  const profile = byId.get(id);
+  const label = profile?.display_name?.trim() || id;
+  const icon = profile?.ui?.icon?.trim();
+  // AntD Tag accepts the raw color name strings (e.g. "blue", "purple").
+  // If the profile didn't supply one, omit the color prop entirely so the
+  // tag renders in the default neutral palette.
+  const color = profile?.ui?.color?.trim() || undefined;
+
+  return (
+    <Tag
+      color={color}
+      style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
+      data-testid={`sub-session-role-tag-${id}`}
+    >
+      {icon ? `${icon} ${label}` : label}
+    </Tag>
+  );
 };
 
 const getSubSessionsCollapseStorageKey = (parentSessionId: string) =>
@@ -97,6 +136,11 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
   const upsertSubSessionProgress = useAppStore((s) => s.upsertSubSessionProgress);
   const clearSubSessionProgress = useAppStore((s) => s.clearSubSessionProgress);
 
+  // Lazy-loaded subagent profile catalogue. Used to resolve a child's
+  // `subagent_type` id (e.g. "plan") into a display name + ui hints
+  // (icon/color). Failures are silent — we just fall back to the raw id.
+  const { byId: subagentProfilesById } = useSubagentProfiles();
+
   // In-memory progress (lost on restart).
   const progressItems = useMemo(() => {
     const map = subSessionsByParent[parentSessionId] || {};
@@ -133,6 +177,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       messageCount?: number;
       lastRunStatus?: string;
       lastRunError?: string;
+      subagentType?: string | null;
     }> = [];
 
     for (const child of persistedChildren) {
@@ -151,6 +196,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         messageCount: child.messageCount,
         lastRunStatus: child.lastRunStatus,
         lastRunError: child.lastRunError,
+        subagentType: child.subagentType ?? null,
       });
       progressById.delete(child.id);
     }
@@ -242,7 +288,14 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         setRetryingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [loadChatHistory, parentSessionId, refreshChats, setSessionProcessing, toErrorMessage, upsertSubSessionProgress],
+    [
+      loadChatHistory,
+      parentSessionId,
+      refreshChats,
+      setSessionProcessing,
+      toErrorMessage,
+      upsertSubSessionProgress,
+    ],
   );
 
   const continueChildSession = useCallback(
@@ -433,6 +486,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                         Pinned
                       </Tag>
                     ) : null}
+                    {renderSubagentTypeTag(it.subagentType, subagentProfilesById)}
                   </Flex>
 
                   <Text type="secondary" style={{ fontSize: 12, marginTop: 2 }}>
@@ -542,9 +596,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           {t("chat.subSessions.hiddenHint", { count: mergedItems.length })}
         </Text>
       )}
-      {!isCollapsed && mergedItems.length > 1 && (
-        <SubSessionsSummaryFooter items={mergedItems} />
-      )}
+      {!isCollapsed && mergedItems.length > 1 && <SubSessionsSummaryFooter items={mergedItems} />}
     </Card>
   );
 };
@@ -570,10 +622,7 @@ const SubSessionsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> 
   if (counts.error > 0) parts.push(`${counts.error} failed`);
   if (parts.length === 0) return null;
   return (
-    <Text
-      type="secondary"
-      style={{ fontSize: 11, marginTop: token.marginXS, display: "block" }}
-    >
+    <Text type="secondary" style={{ fontSize: 11, marginTop: token.marginXS, display: "block" }}>
       {parts.join(" · ")}
     </Text>
   );

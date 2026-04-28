@@ -255,6 +255,14 @@ export interface SessionSummary {
   is_running: boolean;
   last_run_status?: string;
   last_run_error?: string;
+  /**
+   * SubAgent profile id for child sessions (e.g. "general-purpose", "plan").
+   * Mirrored from the child session's metadata into the global SessionIndexEntry,
+   * so this lightweight list endpoint can surface the role without loading
+   * each session.json. Always undefined for root sessions and for legacy
+   * children created before subagent profiles were introduced.
+   */
+  subagent_type?: string | null;
 }
 
 export interface ListSessionsResponse {
