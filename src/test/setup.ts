@@ -3,7 +3,7 @@
  * Configures global mocks and test utilities
  */
 
-import { vi } from "vitest";
+import { vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
 const createMemoryStorage = (): Storage => {
@@ -28,8 +28,30 @@ const createMemoryStorage = (): Storage => {
 };
 
 // Some environments predefine a non-WebStorage `localStorage`.
-globalThis.localStorage = createMemoryStorage();
-globalThis.sessionStorage = createMemoryStorage();
+const memoryLocalStorage = createMemoryStorage();
+const memorySessionStorage = createMemoryStorage();
+
+function installMemoryStorage(): void {
+  Object.defineProperty(globalThis, "localStorage", {
+    value: memoryLocalStorage,
+    writable: true,
+    configurable: true,
+  });
+
+  Object.defineProperty(globalThis, "sessionStorage", {
+    value: memorySessionStorage,
+    writable: true,
+    configurable: true,
+  });
+}
+
+installMemoryStorage();
+
+// Re-install before every test in case jsdom or other setup overrides it.
+beforeEach(() => {
+  installMemoryStorage();
+});
+
 await import("@shared/i18n");
 
 // Always mock fetch to prevent network calls in tests
