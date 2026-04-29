@@ -93,7 +93,24 @@ describe("ProviderSettings", () => {
 
     render(<ProviderSettings />);
 
+    // Wait for the config to load and form to populate before clicking save.
+    // The save button is always rendered (not gated by configLoaded), but the
+    // form values are set asynchronously by loadConfig.  On CI the async
+    // effects can be slow enough that clicking immediately races with
+    // loadConfig, causing the save to fail with "Please select a model".
     const saveButton = await screen.findByTestId("save-api-settings");
+    await waitFor(() => {
+      // loadConfig completes when the GET /bamboo/settings/provider fetch has
+      // been called at least once.  Waiting for this ensures the form values
+      // (especially defaults.chat) are populated before we click save.
+      expect(
+        (fetch as any).mock.calls.some(
+          (call: any[]) =>
+            call[0].includes("/bamboo/settings/provider") &&
+            ((call[1]?.method || "GET") as string).toUpperCase() === "GET",
+        ),
+      ).toBe(true);
+    });
     fireEvent.click(saveButton);
 
     await waitFor(() => {
@@ -113,7 +130,7 @@ describe("ProviderSettings", () => {
       provider: "openai",
       model: "gpt-4.1",
     });
-  });
+  }, 15000);
 
   it("clears selectedModelRef and syncs current session when defaults change", async () => {
     let providerGetCount = 0;
