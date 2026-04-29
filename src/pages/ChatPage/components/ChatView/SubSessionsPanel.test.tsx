@@ -78,7 +78,7 @@ describe("SubSessionsPanel", () => {
     });
     mockToolService.executeTool.mockReset();
     mockToolService.executeTool.mockResolvedValue({
-      tool_name: "sub_session_manager",
+      tool_name: "SubSession",
       success: true,
       result: JSON.stringify({
         child_session_id: "child-session-1",
@@ -285,7 +285,7 @@ describe("SubSessionsPanel", () => {
     expect(screen.getByText("pending")).toBeInTheDocument();
   });
 
-  it("retries existing child session in place", async () => {
+  it("retries existing child session in place through SubSession", async () => {
     mockStoreState.subSessionsByParent = {
       [PARENT_SESSION_ID]: {
         "child-session-1": {
@@ -303,25 +303,26 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByText("Regenerate response"));
 
     await waitFor(() => {
-      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
-        mode: "after_last_user",
+      expect(mockToolService.executeTool).toHaveBeenCalledWith({
+        tool_name: "SubSession",
+        session_id: PARENT_SESSION_ID,
+        parameters: [
+          { name: "action", value: "run" },
+          { name: "child_session_id", value: "child-session-1" },
+          { name: "reset_to_last_user", value: "true" },
+        ],
       });
     });
+    expect(mockAgentClient.truncateSessionMessages).not.toHaveBeenCalled();
+    expect(mockAgentClient.execute).not.toHaveBeenCalled();
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("child-session-1", {
       mode: "replace",
     });
-    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
     expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", true);
-    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", false);
+    expect(mockStoreState.refreshChats).toHaveBeenCalled();
   });
 
-  it("retries failed request while preserving history", async () => {
-    mockAgentClient.truncateSessionMessages.mockResolvedValueOnce({
-      success: true,
-      session_id: "child-session-1",
-      messages_removed: 0,
-      message_count: 6,
-    });
+  it("retries failed request through SubSession without resetting to last user", async () => {
     mockStoreState.subSessionsByParent = {
       [PARENT_SESSION_ID]: {
         "child-session-1": {
@@ -339,46 +340,18 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByText("Retry failed request"));
 
     await waitFor(() => {
-      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
-        mode: "error_retry",
+      expect(mockToolService.executeTool).toHaveBeenCalledWith({
+        tool_name: "SubSession",
+        session_id: PARENT_SESSION_ID,
+        parameters: [
+          { name: "action", value: "run" },
+          { name: "child_session_id", value: "child-session-1" },
+          { name: "reset_to_last_user", value: "false" },
+        ],
       });
     });
-    expect(mockStoreState.loadChatHistory).not.toHaveBeenCalled();
-    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
-  });
-
-  it("reloads history when error retry falls back to truncation", async () => {
-    mockAgentClient.truncateSessionMessages.mockResolvedValueOnce({
-      success: true,
-      session_id: "child-session-1",
-      messages_removed: 2,
-      message_count: 4,
-    });
-    mockStoreState.subSessionsByParent = {
-      [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Child Session 1",
-          status: "error",
-        },
-      },
-    };
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
-
-    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
-    await waitFor(() => {
-      expect(screen.getByText("Retry failed request")).toBeInTheDocument();
-    });
-    fireEvent.click(screen.getByText("Retry failed request"));
-
-    await waitFor(() => {
-      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
-        mode: "error_retry",
-      });
-    });
-    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("child-session-1", {
-      mode: "replace",
-    });
-    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
+    expect(mockAgentClient.truncateSessionMessages).not.toHaveBeenCalled();
+    expect(mockAgentClient.execute).not.toHaveBeenCalled();
   });
 
   it("sends a follow-up message to an existing child session", async () => {
@@ -400,7 +373,7 @@ describe("SubSessionsPanel", () => {
 
     await waitFor(() => {
       expect(mockToolService.executeTool).toHaveBeenCalledWith({
-        tool_name: "sub_session_manager",
+        tool_name: "SubSession",
         session_id: PARENT_SESSION_ID,
         parameters: [
           { name: "action", value: "send_message" },
@@ -420,21 +393,86 @@ describe("SubSessionsPanel", () => {
     promptSpy.mockRestore();
   });
 
-  it("deletes existing child session", async () => {
+  it("deletes existing child session through SubSession", async () => {
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     fireEvent.click(screen.getByTestId("sub-session-delete-child-session-1"));
 
     await waitFor(() => {
-      expect(mockStoreState.deleteSession).toHaveBeenCalledWith("child-session-1");
+      expect(mockToolService.executeTool).toHaveBeenCalledWith({
+        tool_name: "SubSession",
+        session_id: PARENT_SESSION_ID,
+        parameters: [
+          { name: "action", value: "delete" },
+          { name: "child_session_id", value: "child-session-1" },
+        ],
+      });
     });
+    expect(mockStoreState.deleteSession).not.toHaveBeenCalled();
     expect(mockStoreState.clearSubSessionProgress).toHaveBeenCalledWith(
       PARENT_SESSION_ID,
       "child-session-1",
     );
+    expect(mockStoreState.refreshChats).toHaveBeenCalled();
   });
 
-  it("retries child session even when no active provider model is configured", async () => {
+  it("prefers persisted child.title over stale progress title", () => {
+    // Simulate: progress has a stale generic title, but child.title was
+    // persisted to the backend (e.g. via persistSessionTitle).
+    mockStoreState.subSessionsByParent = {
+      [PARENT_SESSION_ID]: {
+        "child-session-1": {
+          title: "Stale Progress Title",
+          status: "completed",
+        },
+      },
+    };
+    mockStoreState.chats = [
+      {
+        id: "child-session-1",
+        kind: "child",
+        parentSessionId: PARENT_SESSION_ID,
+        title: "Persisted Real Title",
+        updatedAt: "2026-03-12T00:00:00Z",
+        pinned: false,
+      },
+    ];
+
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    // The persisted title should be displayed, not the stale progress title.
+    expect(screen.getByText("Persisted Real Title")).toBeInTheDocument();
+    expect(screen.queryByText("Stale Progress Title")).not.toBeInTheDocument();
+  });
+
+  it("falls back to progress title when child.title is missing", () => {
+    mockStoreState.subSessionsByParent = {
+      [PARENT_SESSION_ID]: {
+        "child-session-1": {
+          title: "Progress Title",
+          status: "running",
+        },
+      },
+    };
+    // child session has no persisted title (empty string / undefined).
+    mockStoreState.chats = [
+      {
+        id: "child-session-1",
+        kind: "child",
+        parentSessionId: PARENT_SESSION_ID,
+        title: "",
+        updatedAt: "2026-03-12T00:00:00Z",
+        pinned: false,
+      },
+    ];
+
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    // Falls back to progress title when persisted title is empty.
+    expect(screen.getByText("Progress Title")).toBeInTheDocument();
+  });
+
+  it("retries child session through SubSession even when no active provider model is configured", async () => {
     mockStoreState.subSessionsByParent = {
       [PARENT_SESSION_ID]: {
         "child-session-1": {
@@ -453,10 +491,17 @@ describe("SubSessionsPanel", () => {
     fireEvent.click(screen.getByText("Regenerate response"));
 
     await waitFor(() => {
-      expect(mockAgentClient.truncateSessionMessages).toHaveBeenCalledWith("child-session-1", {
-        mode: "after_last_user",
+      expect(mockToolService.executeTool).toHaveBeenCalledWith({
+        tool_name: "SubSession",
+        session_id: PARENT_SESSION_ID,
+        parameters: [
+          { name: "action", value: "run" },
+          { name: "child_session_id", value: "child-session-1" },
+          { name: "reset_to_last_user", value: "true" },
+        ],
       });
     });
-    expect(mockAgentClient.execute).toHaveBeenCalledWith("child-session-1");
+    expect(mockAgentClient.truncateSessionMessages).not.toHaveBeenCalled();
+    expect(mockAgentClient.execute).not.toHaveBeenCalled();
   });
 });

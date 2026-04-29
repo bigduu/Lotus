@@ -16,7 +16,6 @@ import { useChatTitleGeneration } from "../../hooks/useChatManager/useChatTitleG
 import { selectSessionById, useAppStore } from "../../store";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
-import { useProviderStore } from "../../store/slices/providerSlice";
 import { openSession } from "../../utils/openSession";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
@@ -72,6 +71,7 @@ export const useChatSidebarState = () => {
   const pinSession = useAppStore((state) => state.pinSession);
   const unpinSession = useAppStore((state) => state.unpinSession);
   const updateSession = useAppStore((state) => state.updateSession);
+  const persistSessionTitle = useAppStore((state) => state.persistSessionTitle);
   const addChat = useAppStore((state) => state.addChat);
   const refreshChats = useAppStore((state) => state.refreshChats);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
@@ -84,6 +84,7 @@ export const useChatSidebarState = () => {
   const { generateChatTitle, titleGenerationState } = useChatTitleGeneration({
     chats,
     updateSession,
+    persistSessionTitle,
   });
 
   const createNewChat = useCallback(
@@ -109,9 +110,8 @@ export const useChatSidebarState = () => {
                 systemPrompts[0].content
               : ""),
           lastUsedEnhancedPrompt: null,
-          ...(useProviderStore.getState().isProviderModelRefEnabled()
-            ? { model_ref: useProviderStore.getState().selectedModelRef }
-            : {}),
+          // Do NOT pass model_ref here — let addChat resolve it from provider defaults.
+          // selectedModelRef is session-scoped and should not leak into new sessions.
         },
         currentInteraction: null,
         ...options,

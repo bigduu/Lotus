@@ -17,8 +17,7 @@ export function useActiveModelRef(
 ): ProviderModelRef | null {
   const isProviderModelRefEnabled = useProviderStore((s) => s.isProviderModelRefEnabled);
   const selectedModelRef = useProviderStore((s) => s.selectedModelRef);
-  const currentProvider = useProviderStore((s) => s.currentProvider);
-  const getActiveModel = useProviderStore((s) => s.getActiveModel);
+  const providerDefaults = useProviderStore((s) => s.providerConfig.defaults);
 
   return useMemo(() => {
     if (!isProviderModelRefEnabled()) {
@@ -35,20 +34,9 @@ export function useActiveModelRef(
       return selectedModelRef;
     }
 
-    // 3. Construct from current provider + active model
-    const model = getActiveModel();
-    if (model) {
-      return { provider: currentProvider, model };
-    }
-
-    return null;
-  }, [
-    sessionModelRef,
-    selectedModelRef,
-    currentProvider,
-    isProviderModelRefEnabled,
-    getActiveModel,
-  ]);
+    // 3. Unified provider defaults
+    return providerDefaults?.chat?.model?.trim() ? providerDefaults.chat : null;
+  }, [sessionModelRef, selectedModelRef, providerDefaults, isProviderModelRefEnabled]);
 }
 
 /** Returns the fast/cheap model as ProviderModelRef when the flag is ON. */

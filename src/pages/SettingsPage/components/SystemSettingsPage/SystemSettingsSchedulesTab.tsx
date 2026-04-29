@@ -1136,6 +1136,7 @@ export default function SystemSettingsSchedulesTab() {
         okText={t("settings.schedulesTab.actions.save")}
         confirmLoading={editModal.saving}
         onOk={() => editForm.submit()}
+        forceRender
       >
         <Form<ScheduleFormValues>
           form={editForm}

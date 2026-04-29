@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react";
 import {
+  App as AntApp,
   Modal,
   List,
   Breadcrumb,
   Spin,
-  message,
   Button,
   Space,
   Card,
@@ -29,6 +29,7 @@ interface FolderBrowserProps {
 
 export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, onSelect }) => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const { token } = theme.useToken();
   const { Text } = Typography;
   const [loading, setLoading] = useState(false);

@@ -30,6 +30,7 @@ export interface UseChatState {
   pinSession: (sessionId: string) => void;
   unpinSession: (sessionId: string) => void;
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
+  persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   loadChats: () => Promise<void>;
   setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
 }
@@ -45,6 +46,7 @@ export function useChatState(): UseChatState {
     deleteSessions,
     deleteMessage,
     updateSession,
+    persistSessionTitle,
     pinSession,
     unpinSession,
     loadChats,
@@ -61,6 +63,7 @@ export function useChatState(): UseChatState {
       deleteSessions: state.deleteSessions,
       deleteMessage: state.deleteMessage,
       updateSession: state.updateSession,
+      persistSessionTitle: state.persistSessionTitle,
       pinSession: state.pinSession,
       unpinSession: state.unpinSession,
       loadChats: state.loadChats,
@@ -101,6 +104,7 @@ export function useChatState(): UseChatState {
     pinSession,
     unpinSession,
     updateSession,
+    persistSessionTitle,
     loadChats,
     setSessionProcessing,
   };

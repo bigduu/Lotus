@@ -4,9 +4,10 @@ import { Button, Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "../../store";
-import { agentClient } from "../../services/AgentService";
 import { openSession } from "../../utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
+import { useSubagentProfiles } from "../../../../hooks/useSubagentProfiles";
+import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -95,9 +96,13 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
   const setSessionProcessing = useAppStore((s) => s.setSessionProcessing);
   const pinSession = useAppStore((s) => s.pinSession);
   const unpinSession = useAppStore((s) => s.unpinSession);
-  const deleteSession = useAppStore((s) => s.deleteSession);
   const upsertSubSessionProgress = useAppStore((s) => s.upsertSubSessionProgress);
   const clearSubSessionProgress = useAppStore((s) => s.clearSubSessionProgress);
+
+  // Lazy-loaded subagent profile catalogue. Used to resolve a child's
+  // `subagent_type` id (e.g. "plan") into a display name + ui hints
+  // (icon/color). Failures are silent — we just fall back to the raw id.
+  const { byId: subagentProfilesById } = useSubagentProfiles();
 
   // In-memory progress (lost on restart).
   const progressItems = useMemo(() => {
@@ -135,13 +140,14 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       messageCount?: number;
       lastRunStatus?: string;
       lastRunError?: string;
+      subagentType?: string | null;
     }> = [];
 
     for (const child of persistedChildren) {
       const p = progressById.get(child.id);
       out.push({
         childSessionId: child.id,
-        title: p?.title || child.title,
+        title: child.title || p?.title,
         status: normalizeSubSessionStatus(deriveFallbackStatus(child, p?.status)),
         error: p?.error || child.lastRunError,
         lastHeartbeatAt: p?.lastHeartbeatAt,
@@ -153,6 +159,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         messageCount: child.messageCount,
         lastRunStatus: child.lastRunStatus,
         lastRunError: child.lastRunError,
+        subagentType: child.subagentType ?? null,
       });
       progressById.delete(child.id);
     }
@@ -200,7 +207,6 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
 
   const runChildSession = useCallback(
     async (childSessionId: string, retryMode: SubSessionRetryMode = "regenerate") => {
-
       setRetryingChildId(childSessionId);
       upsertSubSessionProgress(parentSessionId, childSessionId, {
         status: "running",
@@ -210,31 +216,30 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       setSessionProcessing(childSessionId, true);
 
       try {
-        const truncateMode = retryMode === "error_retry" ? "error_retry" : "after_last_user";
-        const truncateResult = await agentClient.truncateSessionMessages(childSessionId, {
-          mode: truncateMode,
+        const executeResult = await toolService.executeTool({
+          tool_name: "SubSession",
+          session_id: parentSessionId,
+          parameters: [
+            { name: "action", value: "run" },
+            { name: "child_session_id", value: childSessionId },
+            {
+              name: "reset_to_last_user",
+              value: retryMode === "error_retry" ? "false" : "true",
+            },
+          ],
         });
-        if (retryMode === "regenerate" || (truncateResult.messages_removed ?? 0) > 0) {
-          await loadChatHistory(childSessionId, { mode: "replace" });
+
+        if (!executeResult.success) {
+          throw new Error(executeResult.result || "Failed to run child session");
         }
 
-        const executeResult = await agentClient.execute(childSessionId);
-        if (executeResult.status === "started" || executeResult.status === "already_running") {
-          return;
-        }
-
-        if (executeResult.status === "completed") {
-          setSessionProcessing(childSessionId, false);
-          upsertSubSessionProgress(parentSessionId, childSessionId, {
-            status: "completed",
-            error: undefined,
-            lastEventAt: new Date().toISOString(),
-          });
-          await refreshChats();
-          return;
-        }
-
-        throw new Error(`Execute failed: ${executeResult.status}`);
+        upsertSubSessionProgress(parentSessionId, childSessionId, {
+          status: "running",
+          error: undefined,
+          lastEventAt: new Date().toISOString(),
+        });
+        await loadChatHistory(childSessionId, { mode: "replace" });
+        await refreshChats();
       } catch (error) {
         setSessionProcessing(childSessionId, false);
         upsertSubSessionProgress(parentSessionId, childSessionId, {
@@ -246,7 +251,14 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         setRetryingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [loadChatHistory, parentSessionId, refreshChats, setSessionProcessing, toErrorMessage, upsertSubSessionProgress],
+    [
+      loadChatHistory,
+      parentSessionId,
+      refreshChats,
+      setSessionProcessing,
+      toErrorMessage,
+      upsertSubSessionProgress,
+    ],
   );
 
   const continueChildSession = useCallback(
@@ -280,7 +292,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
 
       try {
         const executeResult = await toolService.executeTool({
-          tool_name: "sub_session_manager",
+          tool_name: "SubSession",
           session_id: parentSessionId,
           parameters: [
             { name: "action", value: "send_message" },
@@ -333,13 +345,26 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
     async (childSessionId: string) => {
       setDeletingChildId(childSessionId);
       try {
-        await deleteSession(childSessionId);
+        const deleteResult = await toolService.executeTool({
+          tool_name: "SubSession",
+          session_id: parentSessionId,
+          parameters: [
+            { name: "action", value: "delete" },
+            { name: "child_session_id", value: childSessionId },
+          ],
+        });
+
+        if (!deleteResult.success) {
+          throw new Error(deleteResult.result || "Failed to delete child session");
+        }
+
         clearSubSessionProgress(parentSessionId, childSessionId);
+        await refreshChats();
       } finally {
         setDeletingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [clearSubSessionProgress, deleteSession, parentSessionId],
+    [clearSubSessionProgress, parentSessionId, refreshChats],
   );
 
   if (mergedItems.length === 0) return null;
@@ -424,6 +449,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                         Pinned
                       </Tag>
                     ) : null}
+                    {renderSubagentTypeTag(it.subagentType, subagentProfilesById)}
                   </Flex>
 
                   <Text type="secondary" style={{ fontSize: 12, marginTop: 2 }}>
@@ -533,9 +559,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           {t("chat.subSessions.hiddenHint", { count: mergedItems.length })}
         </Text>
       )}
-      {!isCollapsed && mergedItems.length > 1 && (
-        <SubSessionsSummaryFooter items={mergedItems} />
-      )}
+      {!isCollapsed && mergedItems.length > 1 && <SubSessionsSummaryFooter items={mergedItems} />}
     </Card>
   );
 };
@@ -561,10 +585,7 @@ const SubSessionsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> 
   if (counts.error > 0) parts.push(`${counts.error} failed`);
   if (parts.length === 0) return null;
   return (
-    <Text
-      type="secondary"
-      style={{ fontSize: 11, marginTop: token.marginXS, display: "block" }}
-    >
+    <Text type="secondary" style={{ fontSize: 11, marginTop: token.marginXS, display: "block" }}>
       {parts.join(" · ")}
     </Text>
   );

@@ -10,6 +10,57 @@
  */
 import { getBackendBaseUrlSync } from "../../shared/utils/backendBaseUrl";
 
+// === DEV-ONLY API REQUEST INSTRUMENTATION ===
+// Enable with: localStorage.setItem('lotus_debug_api_requests', '1')
+
+const AGENT_ENDPOINT_PATTERNS = [
+  /\/api\/v1\/respond\/[^/]+\/pending/,
+  /\/api\/v1\/sessions\/?$/,
+  /\/api\/v1\/events\/[^/]+/,
+];
+
+function shouldLogApiRequest(): boolean {
+  return (
+    import.meta.env.DEV &&
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("lotus_debug_api_requests") === "1"
+  );
+}
+
+function isAgentEndpoint(url: string): boolean {
+  try {
+    const pathname = new URL(url, typeof window !== "undefined" ? window.location.origin : "http://localhost").pathname;
+    return AGENT_ENDPOINT_PATTERNS.some((pattern) => pattern.test(pathname));
+  } catch {
+    return false;
+  }
+}
+
+let requestCounters: Record<string, number> = {};
+
+function logApiRequest(method: string, url: string): void {
+  if (!shouldLogApiRequest()) return;
+  if (!isAgentEndpoint(url)) return;
+
+  const key = `${method} ${new URL(url, typeof window !== "undefined" ? window.location.origin : "http://localhost").pathname}`;
+  requestCounters[key] = (requestCounters[key] || 0) + 1;
+
+  console.debug(
+    `[ApiClient] ${method} ${key} (total: ${requestCounters[key]})`
+  );
+}
+
+// Expose for manual testing
+if (import.meta.env.DEV && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__lotusApiCounters = () => {
+    console.table(requestCounters);
+    return { ...requestCounters };
+  };
+  (window as unknown as Record<string, unknown>).__lotusResetApiCounters = () => {
+    requestCounters = {};
+  };
+}
+
 export interface ApiClientConfig {
   baseUrl?: string;
   defaultHeaders?: Record<string, string>;
@@ -168,6 +219,7 @@ export class ApiClient {
    */
   async get<T>(path: string, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
+    logApiRequest("GET", url);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -198,6 +250,7 @@ export class ApiClient {
    */
   async post<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
+    logApiRequest("POST", url);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -260,6 +313,7 @@ export class ApiClient {
    */
   async patch<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
+    logApiRequest("PATCH", url);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -291,6 +345,7 @@ export class ApiClient {
    */
   async delete<T>(path: string, options?: RequestInit): Promise<T> {
     const url = this.buildUrl(path);
+    logApiRequest("DELETE", url);
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
@@ -352,6 +407,7 @@ export class ApiClient {
    */
   async fetchRaw(path: string, options?: RequestInit): Promise<Response> {
     const url = this.buildUrl(path);
+    logApiRequest("GET", url);
     const response = await fetch(url, {
       ...options,
       headers: {

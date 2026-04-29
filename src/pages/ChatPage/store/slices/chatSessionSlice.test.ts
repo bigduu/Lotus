@@ -649,8 +649,11 @@ describe("chatSessionSlice session model propagation", () => {
       currentProvider: "copilot",
       providerConfig: {
         provider: "copilot",
+        defaults: {
+          chat: { provider: "copilot", model: "gpt-5.2" },
+        },
         providers: {
-          copilot: { model: "gpt-5.2" },
+          copilot: {},
         },
       },
     });
@@ -673,6 +676,248 @@ describe("chatSessionSlice session model propagation", () => {
     expect(createSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         model: undefined,
+      }),
+    );
+  });
+
+  it("uses provider defaults for model_ref even when selectedModelRef is set", async () => {
+    const store = createTestStore();
+    useProviderStore.setState({
+      currentProvider: "copilot",
+      providerConfig: {
+        provider: "copilot",
+        defaults: {
+          chat: { provider: "copilot", model: "gpt-5.2" },
+        },
+        providers: {
+          copilot: {},
+        },
+      },
+      selectedModelRef: { provider: "anthropic", model: "claude-3-sonnet" },
+    });
+
+    const { id: _id, ...chatData } = createChat("temp-chat");
+    await store.getState().addChat(chatData);
+
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gpt-5.2",
+        model_ref: { provider: "copilot", model: "gpt-5.2" },
+        provider: "copilot",
+      }),
+    );
+  });
+
+  it("uses caller-provided model_ref when explicitly passed", async () => {
+    const store = createTestStore();
+    useProviderStore.setState({
+      currentProvider: "copilot",
+      providerConfig: {
+        provider: "copilot",
+        defaults: {
+          chat: { provider: "copilot", model: "gpt-5.2" },
+        },
+        providers: {
+          copilot: {},
+        },
+      },
+    });
+
+    const { id: _id, ...chatData } = createChat("temp-chat");
+    chatData.config = {
+      ...chatData.config,
+      model_ref: { provider: "openai", model: "gpt-4o" },
+    };
+    await store.getState().addChat(chatData);
+
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "gpt-5.2",
+        model_ref: { provider: "openai", model: "gpt-4o" },
+        provider: "openai",
+      }),
+    );
+  });
+
+  it("falls back to getActiveModel when provider defaults are incomplete", async () => {
+    const store = createTestStore();
+    useProviderStore.setState({
+      currentProvider: "copilot",
+      providerConfig: {
+        provider: "copilot",
+        defaults: {
+          chat: { provider: "", model: "" },
+        },
+        providers: {
+          copilot: {},
+        },
+      },
+      selectedModelRef: { provider: "anthropic", model: "claude-3-sonnet" },
+    });
+
+    const { id: _id, ...chatData } = createChat("temp-chat");
+    await store.getState().addChat(chatData);
+
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: undefined,
+        model_ref: undefined,
+        provider: undefined,
+      }),
+    );
+  });
+
+  it("updateSession patches model_ref to backend before updating local state", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+    chat.config = {
+      ...chat.config,
+      model: "gpt-4o",
+      model_ref: { provider: "openai", model: "gpt-4o" },
+    };
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    patchSessionMock.mockReset();
+    patchSessionMock.mockResolvedValue(undefined);
+
+    // Simulate user switching model in InputContainer.
+    const newModelRef = { provider: "anthropic", model: "claude-3-sonnet" };
+    await store.getState().updateSession("session-1", {
+      config: {
+        ...chat.config,
+        model: newModelRef.model,
+        model_ref: newModelRef,
+      },
+    });
+
+    // Backend patch must include the new model_ref.
+    expect(patchSessionMock).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({
+        model: "claude-3-sonnet",
+        model_ref: { provider: "anthropic", model: "claude-3-sonnet" },
+        provider: "anthropic",
+      }),
+    );
+
+    // Local state must reflect the new model.
+    const updatedChat = store.getState().chats.find((c) => c.id === "session-1");
+    expect(updatedChat?.config?.model).toBe("claude-3-sonnet");
+    expect(updatedChat?.config?.model_ref).toEqual(newModelRef);
+  });
+
+describe("chatSessionSlice persistSessionTitle", () => {
+  beforeEach(() => {
+    patchSessionMock.mockReset();
+    patchSessionMock.mockResolvedValue(undefined);
+  });
+
+  it("optimistically updates title and awaits PATCH call", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    await store.getState().persistSessionTitle("session-1", "My New Title");
+
+    // Local state must be updated immediately.
+    expect(store.getState().chats[0]?.title).toBe("My New Title");
+
+    // Backend must be called with the new title.
+    expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "My New Title" });
+  });
+
+  it("rolls back title when PATCH fails", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    patchSessionMock.mockRejectedValueOnce(new Error("network error"));
+
+    await expect(
+      store.getState().persistSessionTitle("session-1", "Broken Title"),
+    ).rejects.toThrow("network error");
+
+    // Title must be rolled back to the original.
+    expect(store.getState().chats[0]?.title).toBe("Chat session-1");
+    expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "Broken Title" });
+  });
+
+  it("re-throws the error when PATCH fails", async () => {
+    const store = createTestStore();
+    const chat = createChat("session-1");
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    patchSessionMock.mockRejectedValueOnce(new Error("server unreachable"));
+
+    await expect(
+      store.getState().persistSessionTitle("session-1", "Test"),
+    ).rejects.toThrow("server unreachable");
+  });
+});
+
+  it("updateSession does not patch model_ref when feature flag is off", async () => {
+    const store = createTestStore();
+    useProviderStore.setState({
+      currentProvider: "copilot",
+      providerConfig: {
+        provider: "copilot",
+        providers: {},
+      },
+      // Simulate feature flag off by overriding isProviderModelRefEnabled.
+    });
+
+    const chat = createChat("session-1");
+    chat.config = {
+      ...chat.config,
+      model: "gpt-4o",
+    };
+
+    store.setState((state) => ({
+      ...state,
+      chats: [chat],
+      currentSessionId: chat.id,
+      latestActiveSessionId: chat.id,
+    }));
+
+    patchSessionMock.mockReset();
+    patchSessionMock.mockResolvedValue(undefined);
+
+    // When feature flag is off, updateSession should still patch model but not model_ref.
+    await store.getState().updateSession("session-1", {
+      config: {
+        ...chat.config,
+        model: "gpt-3.5-turbo",
+      },
+    });
+
+    expect(patchSessionMock).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({
+        model: "gpt-3.5-turbo",
       }),
     );
   });

@@ -132,6 +132,11 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({ taskList }) =>
                       {item.metadata.error}
                     </Text>
                   ) : null}
+                  {item.status === "completed" && item.summary ? (
+                    <Text type="success" style={{ fontSize: 12 }}>
+                      {item.summary}
+                    </Text>
+                  ) : null}
                 </Flex>
               </List.Item>
             );

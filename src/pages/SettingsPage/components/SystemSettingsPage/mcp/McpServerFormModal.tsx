@@ -471,6 +471,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       }}
       okText={t("settings.mcpServerForm.save")}
       destroyOnClose
+      forceRender
       confirmLoading={confirmLoading}
       width={720}
     >

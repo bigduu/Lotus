@@ -14,14 +14,33 @@ vi.mock("../../../services/skill/SkillService", () => ({
 
 vi.mock("antd", async () => {
   const actual = await vi.importActual<typeof import("antd")>("antd");
+  const message = {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    loading: vi.fn(),
+  };
+  const notification = {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+  };
+  const modal = {
+    confirm: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+  };
   return {
     ...actual,
-    message: {
-      success: vi.fn(),
-      error: vi.fn(),
-      info: vi.fn(),
-      warning: vi.fn(),
-    },
+    message,
+    notification,
+    App: Object.assign(actual.App, {
+      useApp: () => ({ message, notification, modal }),
+    }),
   };
 });
 

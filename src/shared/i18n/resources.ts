@@ -1153,6 +1153,9 @@ export const resources = {
           fastModel: "Fast Model (Optional)",
           fastModelHelp:
             "Cheaper/faster model for lightweight tasks like title generation, mermaid fix, and summarization. Uses default model when not set.",
+          subSessionModel: "Sub Session Model (Optional)",
+          subSessionModelHelp:
+            "Default model for new Sub Sessions. Uses Fast Model when not set, then falls back to the default model.",
           visionModel: "Vision Model (Optional)",
           visionModelHelp:
             "Vision-capable model for image understanding. When hooks.image_fallback.mode is set to 'vision', this model describes images as text so text-only models can understand them. Uses default model when not set.",
@@ -2811,6 +2814,9 @@ export const resources = {
           fastModel: "快速模型（可选）",
           fastModelHelp:
             "用于标题生成、Mermaid 修复、摘要等轻量任务的低成本/快速模型。未设置时使用默认模型。",
+          subSessionModel: "Sub Session 模型（可选）",
+          subSessionModelHelp:
+            "新建 Sub Session 时默认使用的模型。未设置时使用快速模型，再回退到默认模型。",
           visionModel: "视觉模型（可选）",
           visionModelHelp:
             "用于图片理解的视觉模型。当 hooks.image_fallback.mode 设为 'vision' 时，此模型会将图片描述为文本，让纯文本模型也能理解图片内容。未设置时使用默认模型。",

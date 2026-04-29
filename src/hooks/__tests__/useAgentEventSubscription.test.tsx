@@ -50,9 +50,12 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   clearEvaluationState: vi.fn(),
   upsertSubSessionProgress: vi.fn(),
   clearSubSessionProgress: vi.fn(),
+  persistSessionTitle: vi.fn(),
   refreshChats: vi.fn(),
   loadChatHistory: vi.fn(),
   subSessionsByParent: {},
+  setPendingQuestionForSession: vi.fn(),
+  clearPendingQuestionForSession: vi.fn(),
   ...overrides,
 });
 
@@ -193,6 +196,73 @@ describe("useAgentEventSubscription", () => {
         }),
       );
     });
+  });
+
+  it("clears processing when completion history sync fails", async () => {
+    let completeHandler: any;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+    });
+
+    const historyError = new Error("Fetch API cannot load due to access control checks");
+    mockState.loadChatHistory = vi.fn().mockRejectedValue(historyError);
+    mockState.processingChats = new Set(["session-1"]);
+    mockStore.getState.mockReturnValue(mockState);
+
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      completeHandler?.();
+    });
+
+    await waitFor(() => {
+      expect(mockState.loadChatHistory).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          mode: "monotonic",
+          waitForAssistant: true,
+        }),
+      );
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+    });
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Completion finalization failed"),
+      historyError,
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("does not reconnect when a one-shot terminal complete stream closes", async () => {
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      handlers.onComplete?.();
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockSetSessionProcessing.mockImplementation((sessionId: string, isProcessing: boolean) => {
+      if (!isProcessing) {
+        mockState.processingChats.delete(sessionId);
+      }
+    });
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+    });
+
+    await new Promise((r) => setTimeout(r, 350));
+
+    expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
   });
 
   it("shows a friendly completion policy violation message", async () => {

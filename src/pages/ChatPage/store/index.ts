@@ -12,6 +12,7 @@ import { AgentClient } from "../services/AgentService";
 import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
 import { useBambooConfigStore } from "../../../shared/stores/bambooConfigStore";
+import { useProviderStore } from "./slices/providerSlice";
 import type { ChatItem, Message } from "../types/chat";
 
 const DEFAULT_PROXY_AUTH_MODE = "auto";
@@ -233,8 +234,16 @@ const initializeStore = async (force: boolean = false) => {
 
   if (import.meta.env.MODE !== "test") {
     useAppStore.getState().startAgentHealthCheck();
-    useAppStore.getState().startSessionsIndexSync();
+    // NOTE: startSessionsIndexSync is no longer auto-started. The session list
+    // is now updated on-demand (startup, user actions, sub-session events) rather
+    // than polling every 2 seconds. If you need the old behavior temporarily,
+    // call useAppStore.getState().startSessionsIndexSync() manually.
+    // useAppStore.getState().startSessionsIndexSync();
   }
+
+  // Load provider config first so defaults (including default model) are available
+  // before any session operations that may depend on them.
+  await useProviderStore.getState().loadProviderConfig();
 
   // Load chats as early as possible so the UI always has an active chat.
   // This prevents the controlled message input from appearing "read-only"

@@ -1,6 +1,6 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useEffect } from "react";
 import { Dropdown, Button, Space, Tag } from "antd";
-import { DownOutlined, ReloadOutlined } from "@ant-design/icons";
+import { DownOutlined } from "@ant-design/icons";
 import { useProviderStore } from "../../store/slices/providerSlice";
 import type { ProviderModelRef } from "../../types/providerModelRef";
 import type { MenuProps } from "antd";
@@ -11,11 +11,16 @@ export function ProviderModelPicker({
   disabled,
 }: {
   value?: ProviderModelRef | null;
-  onChange: (ref: ProviderModelRef) => void;
+  onChange: (ref: ProviderModelRef) => void | Promise<void>;
   disabled?: boolean;
 }) {
   const catalog = useProviderStore((s) => s.catalog);
-  const isFetching = useProviderStore((s) => s.isCatalogFetching);
+
+  useEffect(() => {
+    if (!catalog) {
+      void useProviderStore.getState().loadCatalog();
+    }
+  }, [catalog]);
 
   const menuItems = useMemo(() => {
     if (!catalog?.models) return [];
@@ -71,10 +76,6 @@ export function ProviderModelPicker({
     [onChange],
   );
 
-  const handleFetchModels = useCallback(async () => {
-    await useProviderStore.getState().fetchCatalogModels();
-  }, []);
-
   return (
     <Space size={4} data-tour-id="model-picker">
       <Dropdown
@@ -112,15 +113,6 @@ export function ProviderModelPicker({
           </Space>
         </Button>
       </Dropdown>
-      <Button
-        type="text"
-        size="small"
-        icon={<ReloadOutlined spin={isFetching} />}
-        onClick={handleFetchModels}
-        disabled={isFetching}
-        style={{ height: 36, borderRadius: 18 }}
-        title="Fetch all provider models"
-      />
     </Space>
   );
 }

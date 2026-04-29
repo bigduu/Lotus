@@ -190,6 +190,14 @@ export interface ChatItem {
   hasAttachments?: boolean;
   lastRunStatus?: string;
   lastRunError?: string;
+  /**
+   * SubAgent profile id for child sessions ("general-purpose", "plan", ...).
+   * Mirrored from `session.metadata["subagent_type"]` into the backend
+   * SessionIndexEntry; surfaced to the frontend via the lightweight
+   * `GET /v1/sessions` API. Always undefined for root sessions and for
+   * legacy children created before subagent profiles were introduced.
+   */
+  subagentType?: string | null;
   title: string;
   createdAt: number;
   pinned?: boolean;

@@ -200,7 +200,9 @@ export interface UseChatTitleGeneration {
   isDefaultTitle: (title: string | undefined | null) => boolean;
 }
 
-type ChatTitleState = Pick<UseChatState, "chats" | "updateSession">;
+type ChatTitleState = Pick<UseChatState, "chats" | "updateSession"> & {
+  persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
+};
 
 export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGeneration {
   const { message: appMessage } = AntApp.useApp();
@@ -319,7 +321,9 @@ export function useChatTitleGeneration(state: ChatTitleState): UseChatTitleGener
           throw new Error(t("chat.title.generateFailed"));
         }
 
-        state.updateSession(sessionId, { title: candidate });
+        // Persist title to backend; on failure the async action rolls back
+        // the local state and re-throws, so we surface the error below.
+        await state.persistSessionTitle(sessionId, candidate);
         if (!isAuto || candidate.toLowerCase() !== "new chat") {
           autoTitleGeneratedRef.current.add(sessionId);
         }

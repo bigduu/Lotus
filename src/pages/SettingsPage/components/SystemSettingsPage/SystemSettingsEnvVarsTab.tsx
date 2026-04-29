@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  App as AntApp,
   Button,
   Card,
   Form,
@@ -11,7 +12,6 @@ import {
   Table,
   Tag,
   Typography,
-  message,
 } from "antd";
 import { DeleteOutlined, EditOutlined, LockOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -34,6 +34,7 @@ const ENV_VAR_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
  */
 const SystemSettingsEnvVarsTab: React.FC = () => {
   const { t } = useTranslation();
+  const { message } = AntApp.useApp();
   const [entries, setEntries] = useState<EnvVarResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);

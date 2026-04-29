@@ -30,7 +30,7 @@ export const SystemPromptPreview: React.FC<SystemPromptPreviewProps> = ({
         backgroundColor: token.colorBgLayout,
         borderColor: token.colorBorderSecondary,
       }}
-      bodyStyle={{ padding: token.paddingMD }}
+      styles={{ body: { padding: token.paddingMD } }}
       onClick={onClick}
     >
       <div

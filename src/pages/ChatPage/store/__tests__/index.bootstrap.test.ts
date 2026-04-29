@@ -431,7 +431,9 @@ describe("store/index bootstrap and scheduling", () => {
     await initializeStore(true);
 
     expect(startAgentHealthCheckSpy).toHaveBeenCalledTimes(1);
-    expect(startSessionsIndexSyncSpy).toHaveBeenCalledTimes(1);
+    // startSessionsIndexSync is no longer auto-started to eliminate the 2-second
+    // fixed /sessions polling. Session list updates are now event-driven.
+    expect(startSessionsIndexSyncSpy).toHaveBeenCalledTimes(0);
     expect(loadChatsSpy).toHaveBeenCalledTimes(1);
     expect(fetchModelsSpy).toHaveBeenCalledTimes(1);
     expect(loadSystemPromptsSpy).toHaveBeenCalledTimes(1);

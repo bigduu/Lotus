@@ -109,10 +109,12 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
           border: `1px solid ${token.colorBorderSecondary}`,
           boxShadow: token.boxShadowSecondary,
         }}
-        bodyStyle={{
-          padding: token.paddingXS,
-          maxHeight: 240,
-          overflowY: "auto",
+        styles={{
+          body: {
+            padding: token.paddingXS,
+            maxHeight: 240,
+            overflowY: "auto",
+          },
         }}
         title={
           <Space align="center" size={token.marginXS}>

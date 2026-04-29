@@ -161,6 +161,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const clearPendingQuestionRespondForSession = useAppStore(
     (state) => state.clearPendingQuestionRespondForSession,
   );
+  const clearPendingQuestionForSession = useAppStore(
+    (state) => state.clearPendingQuestionForSession,
+  );
   const activeModel = useActiveModel(sessionId);
   const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
   const isFlagOn = useProviderStore((s) => s.isProviderModelRefEnabled);
@@ -427,6 +430,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
         messageApi.success(t("components.questionDialog.responseSubmittedContinue"));
         setContent("");
+        clearPendingQuestionForSession(sessionId);
         clearPendingQuestionRespondForSession(sessionId);
         if (typeof window !== "undefined") {
           window.dispatchEvent(
@@ -454,6 +458,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       isFlagOn,
       messageApi,
       setContent,
+      clearPendingQuestionForSession,
       clearPendingQuestionRespondForSession,
       setSessionProcessing,
       t,
@@ -696,20 +701,45 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   );
 
   const handleModelRefChange = useCallback(
-    (ref: { provider: string; model: string }) => {
-      useProviderStore.getState().setSelectedModelRef(ref);
-      if (sessionId && currentChat?.config) {
+    async (ref: { provider: string; model: string }) => {
+      if (!sessionId || !currentChat?.config) {
+        useProviderStore.getState().setSelectedModelRef(ref);
+        return;
+      }
+
+      // Prevent concurrent model changes.
+      if (isSavingModel) return;
+
+      try {
+        setIsSavingModel(true);
+
+        // 1. Persist to backend first (await so restart can't race).
+        await agentClient.patchSession(sessionId, {
+          model: ref.model,
+          model_ref: ref,
+          provider: ref.provider,
+        });
+
+        // 2. Update local state only after backend confirms.
+        useProviderStore.getState().setSelectedModelRef(ref);
         updateSession(sessionId, {
           config: {
-            systemPromptId: currentChat.config.systemPromptId,
-            baseSystemPrompt: currentChat.config.baseSystemPrompt,
-            lastUsedEnhancedPrompt: currentChat.config.lastUsedEnhancedPrompt,
+            ...currentChat.config,
+            model: ref.model,
             model_ref: ref,
           },
         });
+
+        messageApi.success(t("settings.providerTab.modelUpdated"));
+      } catch (error) {
+        messageApi.error(
+          `${t("settings.providerTab.updateModelErrorPrefix")}: ${getErrorMessage(error)}`,
+        );
+      } finally {
+        setIsSavingModel(false);
       }
     },
-    [currentChat?.config, sessionId, updateSession],
+    [currentChat?.config, getErrorMessage, isSavingModel, messageApi, sessionId, t, updateSession],
   );
 
   const basePlaceholder = useMemo(() => {

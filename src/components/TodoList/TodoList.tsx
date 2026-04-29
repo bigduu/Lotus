@@ -28,6 +28,7 @@ export interface TaskItem {
   depends_on: string[];
   notes: string;
   tool_calls_count?: number;
+  summary?: string;
 }
 
 export interface TaskListData {
@@ -322,6 +323,24 @@ export const TodoList: React.FC<TaskListPanelProps> = ({ sessionId, initialColla
                             )}
                           </Space>
                         </div>
+
+                        {/* Summary (for completed tasks) */}
+                        {item.status === "completed" && item.summary && (
+                          <Text
+                            type="secondary"
+                            style={{
+                              display: "block",
+                              marginTop: 6,
+                              fontSize: 12,
+                              padding: "4px 8px",
+                              backgroundColor: token.colorSuccessBg,
+                              borderRadius: 4,
+                              color: token.colorSuccess,
+                            }}
+                          >
+                            {item.summary}
+                          </Text>
+                        )}
 
                         {/* Notes */}
                         {item.notes && (

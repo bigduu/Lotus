@@ -134,7 +134,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
         borderColor: token.colorBorderSecondary,
         backgroundColor: token.colorBgContainer,
       }}
-      bodyStyle={{ padding: token.paddingMD }}
+      styles={{ body: { padding: token.paddingMD } }}
     >
       <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
         <Flex align="center" justify="space-between">

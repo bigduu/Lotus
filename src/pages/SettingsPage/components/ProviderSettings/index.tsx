@@ -1,13 +1,13 @@
 import { debugLog } from "@shared/utils/debugFlags";
 import React, { useCallback, useEffect, useState } from "react";
 import {
+  App as AntApp,
   Form,
   Select,
   Input,
   Button,
   Card,
   Collapse,
-  message,
   Space,
   Divider,
   Typography,
@@ -37,16 +37,17 @@ import {
 import type {
   ProviderConfig,
   ProviderType,
-  CopilotConfig,
+  DefaultsConfig,
 } from "../../../ChatPage/types/providerConfig";
 import { PROVIDER_LABELS } from "../../../ChatPage/types/providerConfig";
+import type { ProviderModelRef } from "../../../ChatPage/types/providerModelRef";
 import {
   ServiceFactory,
   type BambooConfigValidationIssue,
 } from "../../../../services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
 import { useTranslation } from "react-i18next";
-import { CatalogModelSelect } from "./CatalogModelSelect";
+import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelPicker";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
 
 const { Password } = Input;
@@ -64,7 +65,17 @@ type EditableProviders = {
   [K in ModelProvider]?: EditableProviderConfig<K>;
 };
 
-type EditableProviderRecord = Record<ModelProvider, EditableProviderConfig | undefined>;
+type EditableDefaults = DefaultsConfig & {
+  chat: ProviderModelRef;
+  fast?: ProviderModelRef;
+  sub_session?: ProviderModelRef;
+  vision?: ProviderModelRef;
+};
+
+type ProviderSettingsFormValues = ProviderConfig & {
+  providers: EditableProviders;
+  defaults?: EditableDefaults;
+};
 
 const MODEL_PROVIDERS = [
   "openai",
@@ -73,6 +84,17 @@ const MODEL_PROVIDERS = [
   "copilot",
   "bodhi",
 ] as const satisfies readonly ModelProvider[];
+
+const ProviderModelRefField: React.FC<{
+  value?: ProviderModelRef;
+  onChange?: (value?: ProviderModelRef) => void;
+}> = () => null;
+
+const isCompleteProviderModelRef = (value: unknown): value is ProviderModelRef => {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ProviderModelRef>;
+  return Boolean(candidate.provider?.trim() && candidate.model?.trim());
+};
 
 const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
   <Space direction="vertical" size={4}>
@@ -86,6 +108,7 @@ const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
 export const ProviderSettings: React.FC = () => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
+  const { message } = AntApp.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [applyingConfig, setApplyingConfig] = useState(false);
@@ -139,20 +162,30 @@ export const ProviderSettings: React.FC = () => {
     try {
       setLoading(true);
       const response = await settingsService.getProviderConfig();
+
+      // Build defaults from providers.{provider}.model if defaults is missing
+      // (backward compatibility with backend that stores model in providers).
+      let defaults = response.defaults;
+      if (!defaults?.chat?.model && response.provider && response.providers) {
+        const providerName = response.provider as ModelProvider;
+        const providerCfg = response.providers[providerName];
+        const legacyModel = (providerCfg as { model?: string } | undefined)?.model;
+        if (legacyModel) {
+          defaults = {
+            chat: {
+              provider: providerName,
+              model: legacyModel,
+            },
+          };
+        }
+      }
+
       const config: ProviderConfig = {
         provider: response.provider,
+        defaults,
         providers: response.providers || {},
         features: response.features,
       };
-
-      if (config.provider === "copilot") {
-        const copilot = (config.providers.copilot ?? {}) as CopilotConfig & {
-          request_overrides_json?: string;
-        };
-        if (!copilot.model) {
-          config.providers.copilot = { ...copilot, model: "gpt-4o" };
-        }
-      }
 
       debugLog("[Provider]", "Loaded provider config:", config);
       const providersWithEditorFields: EditableProviders = {
@@ -174,6 +207,7 @@ export const ProviderSettings: React.FC = () => {
       form.setFieldsValue({
         ...config,
         providers: providersWithEditorFields,
+        defaults: config.defaults,
       });
       setConfigLoaded(true);
     } catch (error) {
@@ -320,7 +354,7 @@ export const ProviderSettings: React.FC = () => {
     form.setFields([
       { name: ["provider"], errors: [] },
       { name: ["providers", provider, "api_key"], errors: [] },
-      { name: ["providers", provider, "model"], errors: [] },
+      { name: ["defaults", "chat"], errors: [] },
     ]);
   };
 
@@ -354,7 +388,7 @@ export const ProviderSettings: React.FC = () => {
     if (fields.length) form.setFields(fields);
   };
 
-  const validateProviderPatch = async (values: ProviderConfig) => {
+  const validateProviderPatch = async (values: ProviderSettingsFormValues) => {
     const provider = (values.provider || currentProvider) as ProviderType;
     clearProviderValidationErrors(provider);
     try {
@@ -362,6 +396,7 @@ export const ProviderSettings: React.FC = () => {
       const result = await serviceFactory.validateBambooConfigPatch({
         provider: values.provider,
         providers: values.providers || {},
+        defaults: values.defaults,
       });
       if (result.valid) return { valid: true };
       const providerIssues = result.errors?.provider || [];
@@ -378,16 +413,26 @@ export const ProviderSettings: React.FC = () => {
   };
 
   const handleSave = async (
-    values: ProviderConfig,
+    values: ProviderSettingsFormValues,
     options?: { showMessage?: boolean; throwOnError?: boolean },
   ) => {
     try {
       setLoading(true);
-      const normalizedValues: ProviderConfig = {
+      const normalizedValues: ProviderSettingsFormValues = {
         provider: values.provider,
+        defaults: values.defaults,
         providers: { ...(values.providers || {}) },
         features: values.features,
       };
+      const defaultChat = normalizedValues.defaults?.chat;
+      if (!isCompleteProviderModelRef(defaultChat)) {
+        const messageText = t("settings.providerTab.selectModelRequired");
+        form.setFields([{ name: ["defaults", "chat"], errors: [messageText] }]);
+        if (options?.showMessage !== false) message.error(messageText);
+        if (options?.throwOnError) throw new Error(messageText);
+        return;
+      }
+
       const editableProviders = normalizedValues.providers as EditableProviders;
       for (const p of MODEL_PROVIDERS) {
         const providerCfg = editableProviders[p];
@@ -413,9 +458,23 @@ export const ProviderSettings: React.FC = () => {
         delete providerCfg.request_overrides_json;
       }
 
+      // Sync defaults.chat to providers.{provider}.model for backward compatibility
+      // with the backend which reads model from providers.{provider}.model.
+      const providersWithModel = { ...(normalizedValues.providers || {}) };
+      const activeProvider = normalizedValues.provider as ModelProvider;
+      const defaultChatModel = normalizedValues.defaults?.chat;
+      if (defaultChatModel?.model && activeProvider) {
+        const providerCfg = providersWithModel[activeProvider] || {};
+        providersWithModel[activeProvider] = {
+          ...providerCfg,
+          model: defaultChatModel.model,
+        } as any;
+      }
+
       const payload = {
         provider: normalizedValues.provider,
-        providers: normalizedValues.providers || {},
+        defaults: normalizedValues.defaults,
+        providers: providersWithModel,
         features: normalizedValues.features,
       };
 
@@ -454,7 +513,54 @@ export const ProviderSettings: React.FC = () => {
     try {
       setApplyingConfig(true);
       const { useProviderStore } = await import("../../../ChatPage/store/slices/providerSlice");
+      const { useAppStore } = await import("../../../ChatPage/store");
+
+      const previousDefaultsChat = useProviderStore.getState().providerConfig.defaults?.chat;
       await useProviderStore.getState().loadProviderConfig();
+      const nextDefaultsChat = useProviderStore.getState().providerConfig.defaults?.chat;
+
+      useProviderStore.getState().setSelectedModelRef(null);
+
+      const currentSessionId = useAppStore.getState().currentSessionId;
+      const currentChat = currentSessionId
+        ? useAppStore.getState().chats.find((chat) => chat.id === currentSessionId) || null
+        : null;
+
+      const previousDefaultKey = previousDefaultsChat
+        ? `${previousDefaultsChat.provider}/${previousDefaultsChat.model}`
+        : null;
+      const nextDefaultKey = nextDefaultsChat
+        ? `${nextDefaultsChat.provider}/${nextDefaultsChat.model}`
+        : null;
+      const currentSessionModelRefKey = currentChat?.config?.model_ref
+        ? `${currentChat.config.model_ref.provider}/${currentChat.config.model_ref.model}`
+        : null;
+      const currentSessionModel = currentChat?.config?.model?.trim() || null;
+
+      const shouldSyncCurrentSessionToDefaults = Boolean(
+        currentSessionId &&
+          currentChat?.config &&
+          nextDefaultsChat &&
+          nextDefaultKey !== previousDefaultKey &&
+          (!currentSessionModelRefKey || currentSessionModelRefKey === previousDefaultKey) &&
+          (!currentSessionModel || currentSessionModel === previousDefaultsChat?.model),
+      );
+
+      if (
+        shouldSyncCurrentSessionToDefaults &&
+        currentSessionId &&
+        currentChat?.config &&
+        nextDefaultsChat
+      ) {
+        useAppStore.getState().updateSession(currentSessionId, {
+          config: {
+            ...currentChat.config,
+            model: nextDefaultsChat.model,
+            model_ref: nextDefaultsChat,
+          },
+        });
+      }
+
       if (options?.showMessage !== false) {
         message.success(t("settings.providerTab.applyConfigSuccess"));
       }
@@ -474,65 +580,36 @@ export const ProviderSettings: React.FC = () => {
     }
   };
 
-  const handleSaveAndApply = async (values: ProviderConfig) => {
+  const handleSaveAndApply = async (_values: ProviderSettingsFormValues) => {
     try {
-      await handleSave(values, { throwOnError: true });
+      const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
+      await handleSave(currentValues, { throwOnError: true });
       await handleApply({ throwOnError: true });
     } catch {
       // Errors already shown
     }
   };
 
-  // ── Auto-save model changes ──────────────────────────
+  // ── Auto-save model preference changes ──────────────────────────
 
-  const handleModelChange = async (provider: ModelProvider, value: string | undefined) => {
-    if (!value) return;
-    if (modelAutoSaveStatus === "saving") return;
-    setModelAutoSaveStatus("saving");
-    setModelAutoSaveError(null);
-    try {
-      const currentValues = form.getFieldsValue(true) as ProviderConfig & {
-        providers: EditableProviders;
-      };
-      const providers = (currentValues.providers || {}) as EditableProviders;
-      const providerRecord = providers as EditableProviderRecord;
-      providerRecord[provider] = { ...(providerRecord[provider] ?? {}), model: value };
-      currentValues.providers = providers;
-      await handleSave(currentValues, { showMessage: false, throwOnError: true });
-      await handleApply({ showMessage: false, throwOnError: true });
-      setModelAutoSaveStatus("success");
-      message.success(t("settings.providerTab.modelUpdated"));
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      setModelAutoSaveStatus("error");
-      setModelAutoSaveError(errorMessage);
-      message.error(
-        errorMessage
-          ? `${t("settings.providerTab.updateModelErrorPrefix")}: ${errorMessage}`
-          : t("settings.providerTab.updateModelFailed"),
-      );
-    }
-  };
-
-  const handleRoleModelChange = async (
-    provider: ModelProvider,
-    field: "fast_model" | "vision_model",
-    value: string | undefined,
+  const handleDefaultsModelChange = async (
+    field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_session" | "vision">,
+    value: ProviderModelRef | undefined,
   ) => {
+    if (field === "chat" && !value) return;
     if (modelAutoSaveStatus === "saving") return;
     setModelAutoSaveStatus("saving");
     setModelAutoSaveError(null);
     try {
-      const currentValues = form.getFieldsValue(true) as ProviderConfig & {
-        providers: EditableProviders;
+      const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
+      const currentDefaults = currentValues.defaults;
+      if (!currentDefaults?.chat) {
+        throw new Error(t("settings.providerTab.selectModelRequired"));
+      }
+      currentValues.defaults = {
+        ...currentDefaults,
+        [field]: value,
       };
-      const providers = (currentValues.providers || {}) as EditableProviders;
-      const providerRecord = providers as EditableProviderRecord;
-      providerRecord[provider] = {
-        ...(providerRecord[provider] ?? {}),
-        [field]: value || undefined,
-      };
-      currentValues.providers = providers;
       await handleSave(currentValues, { showMessage: false, throwOnError: true });
       await handleApply({ showMessage: false, throwOnError: true });
       setModelAutoSaveStatus("success");
@@ -561,36 +638,74 @@ export const ProviderSettings: React.FC = () => {
     [form, copilotAuthStatus],
   );
 
-  // ── Render per-provider fields ───────────────────────
+  // ── Unified model preferences ───────────────────────
 
-  const renderRoleModelFields = (provider: ModelProvider) => (
-    <>
-      <Form.Item
-        name={["providers", provider, "fast_model"]}
-        label={t("settings.providerTab.fastModel")}
-        extra={<Text type="secondary">{t("settings.providerTab.fastModelHelp")}</Text>}
-      >
-        <CatalogModelSelect
-          provider={provider}
+  const renderModelPreferences = () => {
+    const renderPicker = (
+      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_session" | "vision">,
+    ) => {
+      const value = form.getFieldValue(["defaults", field]) as ProviderModelRef | undefined;
+      return (
+        <ProviderModelPicker
+          value={value}
           disabled={modelAutoSaveStatus === "saving"}
-          placeholder={t("settings.providerTab.sameAsDefault")}
-          onChange={(value) => handleRoleModelChange(provider, "fast_model", value)}
+          onChange={(ref) => {
+            form.setFieldValue(["defaults", field], ref);
+            void handleDefaultsModelChange(field, ref);
+          }}
         />
-      </Form.Item>
-      <Form.Item
-        name={["providers", provider, "vision_model"]}
-        label={t("settings.providerTab.visionModel")}
-        extra={<Text type="secondary">{t("settings.providerTab.visionModelHelp")}</Text>}
+      );
+    };
+
+    return (
+      <Card
+        size="small"
+        title={t("settings.providerTab.modelPreferences", "模型偏好")}
+        style={{ marginBottom: 16 }}
       >
-        <CatalogModelSelect
-          provider={provider}
-          disabled={modelAutoSaveStatus === "saving"}
-          placeholder={t("settings.providerTab.sameAsDefault")}
-          onChange={(value) => handleRoleModelChange(provider, "vision_model", value)}
-        />
-      </Form.Item>
-    </>
-  );
+        <Form.Item name={["defaults", "chat"]} noStyle preserve>
+          <ProviderModelRefField />
+        </Form.Item>
+        <Form.Item name={["defaults", "fast"]} noStyle preserve>
+          <ProviderModelRefField />
+        </Form.Item>
+        <Form.Item name={["defaults", "sub_session"]} noStyle preserve>
+          <ProviderModelRefField />
+        </Form.Item>
+        <Form.Item name={["defaults", "vision"]} noStyle preserve>
+          <ProviderModelRefField />
+        </Form.Item>
+        <Space direction="vertical" size={16} style={{ width: "100%" }}>
+          <div>
+            <Text strong>{t("settings.providerTab.defaultModel")}</Text>
+            <div style={{ marginTop: 8 }}>{renderPicker("chat")}</div>
+          </div>
+          <div>
+            <Text strong>{t("settings.providerTab.fastModel")}</Text>
+            <div style={{ marginTop: 8 }}>{renderPicker("fast")}</div>
+            <Text type="secondary">{t("settings.providerTab.fastModelHelp")}</Text>
+          </div>
+          <div>
+            <Text strong>
+              {t("settings.providerTab.subSessionModel", "Sub Session Model (Optional)")}
+            </Text>
+            <div style={{ marginTop: 8 }}>{renderPicker("sub_session")}</div>
+            <Text type="secondary">
+              {t(
+                "settings.providerTab.subSessionModelHelp",
+                "Default model for new Sub Sessions. Uses Fast Model when not set.",
+              )}
+            </Text>
+          </div>
+          <div>
+            <Text strong>{t("settings.providerTab.visionModel")}</Text>
+            <div style={{ marginTop: 8 }}>{renderPicker("vision")}</div>
+            <Text type="secondary">{t("settings.providerTab.visionModelHelp")}</Text>
+          </div>
+        </Space>
+      </Card>
+    );
+  };
 
   const renderRequestOverridesEditor = (provider: ModelProvider) => {
     const envNames = envVarEntries.map((entry) => entry.name);
@@ -666,18 +781,6 @@ export const ProviderSettings: React.FC = () => {
               <Input placeholder="https://api.openai.com/v1" />
             </Form.Item>
             <Form.Item
-              name={["providers", "openai", "model"]}
-              label={t("settings.providerTab.defaultModel")}
-              rules={[{ required: true, message: t("settings.providerTab.selectModelRequired") }]}
-            >
-              <CatalogModelSelect
-                provider="openai"
-                disabled={modelAutoSaveStatus === "saving"}
-                placeholder={t("settings.providerTab.selectModel")}
-                onChange={(value) => handleModelChange("openai", value)}
-              />
-            </Form.Item>
-            <Form.Item
               name={["providers", "openai", "responses_only_models"]}
               label={t("settings.providerTab.responsesOnlyModelsOptional")}
               extra={renderResponsesOnlyModelsHelp(t)}
@@ -689,7 +792,6 @@ export const ProviderSettings: React.FC = () => {
               />
             </Form.Item>
             <Divider dashed />
-            {renderRoleModelFields("openai")}
             {renderRequestOverridesEditor("openai")}
           </>
         );
@@ -714,18 +816,6 @@ export const ProviderSettings: React.FC = () => {
               <Input placeholder="https://api.anthropic.com/v1" />
             </Form.Item>
             <Form.Item
-              name={["providers", "anthropic", "model"]}
-              label={t("settings.providerTab.defaultModel")}
-              rules={[{ required: true, message: t("settings.providerTab.selectModelRequired") }]}
-            >
-              <CatalogModelSelect
-                provider="anthropic"
-                disabled={modelAutoSaveStatus === "saving"}
-                placeholder={t("settings.providerTab.selectModel")}
-                onChange={(value) => handleModelChange("anthropic", value)}
-              />
-            </Form.Item>
-            <Form.Item
               name={["providers", "anthropic", "max_tokens"]}
               label={t("settings.providerTab.maxTokensOptional")}
               extra={t("settings.providerTab.maxTokensHelp")}
@@ -733,7 +823,6 @@ export const ProviderSettings: React.FC = () => {
               <Input type="number" placeholder="4096" min={1} max={100000} />
             </Form.Item>
             <Divider dashed />
-            {renderRoleModelFields("anthropic")}
             {renderRequestOverridesEditor("anthropic")}
           </>
         );
@@ -755,20 +844,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input placeholder="https://generativelanguage.googleapis.com/v1beta" />
             </Form.Item>
-            <Form.Item
-              name={["providers", "gemini", "model"]}
-              label={t("settings.providerTab.defaultModel")}
-              rules={[{ required: true, message: t("settings.providerTab.selectModelRequired") }]}
-            >
-              <CatalogModelSelect
-                provider="gemini"
-                disabled={modelAutoSaveStatus === "saving"}
-                placeholder={t("settings.providerTab.selectModel")}
-                onChange={(value) => handleModelChange("gemini", value)}
-              />
-            </Form.Item>
             <Divider dashed />
-            {renderRoleModelFields("gemini")}
             {renderRequestOverridesEditor("gemini")}
           </>
         );
@@ -835,19 +911,6 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
 
             <Form.Item
-              name={["providers", "copilot", "model"]}
-              label={t("settings.providerTab.defaultModel")}
-              rules={[{ required: true, message: t("settings.providerTab.selectModelRequired") }]}
-            >
-              <CatalogModelSelect
-                provider="copilot"
-                disabled={modelAutoSaveStatus === "saving"}
-                placeholder={t("settings.providerTab.selectModel")}
-                onChange={(value) => handleModelChange("copilot", value)}
-              />
-            </Form.Item>
-
-            <Form.Item
               name={["providers", "copilot", "responses_only_models"]}
               label={t("settings.providerTab.responsesOnlyModelsOptional")}
               extra={renderResponsesOnlyModelsHelp(t)}
@@ -860,7 +923,6 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
 
             <Divider dashed />
-            {renderRoleModelFields("copilot")}
             {renderRequestOverridesEditor("copilot")}
 
             <Paragraph type="secondary">
@@ -1007,18 +1069,19 @@ export const ProviderSettings: React.FC = () => {
           )}
         </div>
 
+        {renderModelPreferences()}
+
         {/* All providers in collapsible panels */}
         <Collapse
           defaultActiveKey={MODEL_PROVIDERS.filter((p) => isProviderConfigured(p))}
           ghost
           style={{ marginBottom: 16 }}
-        >
-          {MODEL_PROVIDERS.map((provider) => (
-            <Collapse.Panel key={provider} header={renderPanelHeader(provider)}>
-              {renderProviderPanel(provider)}
-            </Collapse.Panel>
-          ))}
-        </Collapse>
+          items={MODEL_PROVIDERS.map((provider) => ({
+            key: provider,
+            label: renderPanelHeader(provider),
+            children: renderProviderPanel(provider),
+          }))}
+        />
 
         <Divider />
 
