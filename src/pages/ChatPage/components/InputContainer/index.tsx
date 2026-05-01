@@ -41,6 +41,7 @@ import {
 } from "../../types/providerConfig";
 import { modelService } from "@services/chat/ModelService";
 import { agentApiClient } from "../../../../services/api";
+import { StorageManager } from "../../../../services/storage/StorageManager";
 import type { ImageFile } from "../../utils/imageUtils";
 import { CHAT_FOCUS_INPUT_EVENT, CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 import { useIsMobile } from "@shared/hooks/useMediaQuery";
@@ -67,7 +68,8 @@ type ModelCachePayload = {
 const getModelOptionsCacheKey = (provider: ProviderType) =>
   `${MODEL_OPTIONS_CACHE_PREFIX}:${provider}`;
 
-const readModelOptionsCache = (provider: ProviderType): ModelOption[] | null => {
+// Keep localStorage helpers for backward compatibility during migration
+const readModelOptionsCacheFromLocalStorage = (provider: ProviderType): ModelOption[] | null => {
   if (typeof window === "undefined") return null;
   try {
     const raw = localStorage.getItem(getModelOptionsCacheKey(provider));
@@ -89,7 +91,10 @@ const readModelOptionsCache = (provider: ProviderType): ModelOption[] | null => 
   }
 };
 
-const writeModelOptionsCache = (provider: ProviderType, options: ModelOption[]): void => {
+const writeModelOptionsCacheToLocalStorage = (
+  provider: ProviderType,
+  options: ModelOption[],
+): void => {
   if (typeof window === "undefined") return;
   try {
     const payload: ModelCachePayload = {
@@ -100,6 +105,41 @@ const writeModelOptionsCache = (provider: ProviderType, options: ModelOption[]):
   } catch {
     // Ignore cache write failures.
   }
+};
+
+const readModelOptionsCache = async (provider: ProviderType): Promise<ModelOption[] | null> => {
+  const manager = StorageManager.getInstance();
+  try {
+    const cached = await manager.loadModelOptionsCache(provider);
+    if (cached) {
+      if (Date.now() - cached.timestamp > MODEL_OPTIONS_CACHE_TTL_MS) return null;
+      return cached.options.filter(
+        (item) =>
+          item &&
+          typeof item.value === "string" &&
+          item.value.trim().length > 0 &&
+          typeof item.label === "string",
+      );
+    }
+  } catch {
+    // Fall through to localStorage
+  }
+  // Fallback to localStorage during migration
+  return readModelOptionsCacheFromLocalStorage(provider);
+};
+
+const writeModelOptionsCache = async (
+  provider: ProviderType,
+  options: ModelOption[],
+): Promise<void> => {
+  const manager = StorageManager.getInstance();
+  try {
+    await manager.saveModelOptionsCache(provider, options, Date.now());
+  } catch {
+    // Ignore IndexedDB write failures
+  }
+  // Also keep writing to localStorage for backward compatibility
+  writeModelOptionsCacheToLocalStorage(provider, options);
 };
 
 type ChatSendMessageEventDetail = {
@@ -576,9 +616,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   }, [isProviderConfigured, messageApi, openSettings]);
 
   useEffect(() => {
-    const cached = readModelOptionsCache(currentProvider);
-    setModelOptions(cached ?? []);
-    setModelOptionsError(null);
+    void (async () => {
+      const cached = await readModelOptionsCache(currentProvider);
+      setModelOptions(cached ?? []);
+      setModelOptionsError(null);
+    })();
   }, [currentProvider]);
 
   const getErrorMessage = useCallback((error: unknown) => {
@@ -620,7 +662,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           label: typeof model === "string" ? model : model.label,
         }));
         setModelOptions(options);
-        writeModelOptionsCache(provider, options);
+        await writeModelOptionsCache(provider, options);
       } catch (error) {
         setModelOptionsError(getErrorMessage(error));
       } finally {

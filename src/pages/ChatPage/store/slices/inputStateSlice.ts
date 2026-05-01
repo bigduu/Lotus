@@ -2,6 +2,7 @@ import { StateCreator } from "zustand";
 import type { AppState } from "../";
 import type { ReasoningEffort } from "../../services/AgentService";
 import { arePendingQuestionIdentityInputsEqual } from "../../utils/pendingQuestionIdentity";
+import { StorageManager } from "../../../../services/storage/StorageManager";
 
 // Attachment type (same as in InputContainer)
 export interface Attachment {
@@ -202,6 +203,11 @@ export const createInputStateSlice: StateCreator<AppState, [], [], InputStateSli
     bySession[sessionId] = reasoningEffort;
     writeReasoningBySession(bySession);
     writeLastUsedReasoningEffort(reasoningEffort);
+
+    // Also persist to IndexedDB as incremental migration
+    const manager = StorageManager.getInstance();
+    manager.saveInputReasoning(sessionId, reasoningEffort).catch(() => {});
+    manager.saveLastUsedReasoningEffort(reasoningEffort).catch(() => {});
   },
 
   // Clear all input state for a chat

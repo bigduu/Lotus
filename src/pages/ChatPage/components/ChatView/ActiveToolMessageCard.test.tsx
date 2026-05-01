@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ActiveToolMessageCard, type SessionDiffSummary } from "./ActiveToolMessageCard";
+import { storageDb } from "../../../../services/storage/StorageDb";
 
 const SESSION_ID = "chat-diff-test";
 const STORAGE_KEY = `chat-session-diff-collapse:${SESSION_ID}`;
@@ -45,11 +46,13 @@ const createSummary = (files?: SessionDiffSummary["files"]): SessionDiffSummary 
 });
 
 describe("ActiveToolMessageCard", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     localStorage.clear();
+    await storageDb.delete();
+    await storageDb.open();
   });
 
-  it("persists session-level collapse state by session id", () => {
+  it("persists session-level collapse state by session id", async () => {
     const summary = createSummary();
 
     const { unmount } = render(
@@ -60,9 +63,15 @@ describe("ActiveToolMessageCard", () => {
 
     fireEvent.click(screen.getByTestId("session-diff-toggle"));
 
-    expect(screen.queryByTestId("session-diff-file-list")).not.toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")).toMatchObject({
-      isExpanded: false,
+    // Wait for the async persistence to complete
+    await waitFor(() => {
+      expect(screen.queryByTestId("session-diff-file-list")).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")).toMatchObject({
+        isExpanded: false,
+      });
     });
 
     unmount();
@@ -72,7 +81,7 @@ describe("ActiveToolMessageCard", () => {
     expect(screen.queryByTestId("session-diff-file-list")).not.toBeInTheDocument();
   });
 
-  it("persists file-level expansion and renders styled diff lines", () => {
+  it("persists file-level expansion and renders styled diff lines", async () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
@@ -104,10 +113,15 @@ describe("ActiveToolMessageCard", () => {
 
     fireEvent.click(screen.getByTestId("session-diff-file-header"));
 
-    expect(screen.queryByTestId("session-diff-file-panel")).not.toBeInTheDocument();
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")).toMatchObject({
-      isExpanded: true,
-      expandedFiles: [],
+    await waitFor(() => {
+      expect(screen.queryByTestId("session-diff-file-panel")).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")).toMatchObject({
+        isExpanded: true,
+        expandedFiles: [],
+      });
     });
   });
 

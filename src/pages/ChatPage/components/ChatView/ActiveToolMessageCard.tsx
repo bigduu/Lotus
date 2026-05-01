@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Card, Space, Typography, theme } from "antd";
 import { DiffOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { parseUnifiedDiffLines, type DiffLine } from "../../utils/resultFormatters";
+import { StorageManager } from "../../../../services/storage/StorageManager";
 
 const { Text } = Typography;
 
@@ -61,12 +62,17 @@ const readPersistedCollapseState = (sessionId?: string | null): PersistedCollaps
   }
 };
 
-const writePersistedCollapseState = (
+const writePersistedCollapseState = async (
   sessionId: string | null | undefined,
   state: PersistedCollapseState,
-): void => {
+): Promise<void> => {
   if (typeof window === "undefined") return;
 
+  // Write to IndexedDB
+  const manager = StorageManager.getInstance();
+  await manager.saveDiffCollapse(sessionId ?? "default", state);
+
+  // Also write to localStorage as fallback
   try {
     window.localStorage.setItem(getCollapseStorageKey(sessionId), JSON.stringify(state));
   } catch {
@@ -124,13 +130,27 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
     const persisted = readPersistedCollapseState(sessionId);
     setIsExpanded(persisted?.isExpanded ?? true);
     setExpandedFiles(new Set(persisted?.expandedFiles ?? []));
+
+    // Also try to load from IndexedDB (async) and update if different
+    const manager = StorageManager.getInstance();
+    manager
+      .loadDiffCollapse(sessionId ?? "default")
+      .then((idbState) => {
+        if (idbState) {
+          setIsExpanded(idbState.isExpanded);
+          setExpandedFiles(new Set(idbState.expandedFiles));
+        }
+      })
+      .catch(() => {
+        // Ignore IndexedDB errors, localStorage already handled above
+      });
   }, [sessionId]);
 
   useEffect(() => {
     writePersistedCollapseState(sessionId, {
       isExpanded,
       expandedFiles: Array.from(expandedFiles),
-    });
+    }).catch(() => {});
   }, [sessionId, isExpanded, expandedFiles]);
 
   useEffect(() => {

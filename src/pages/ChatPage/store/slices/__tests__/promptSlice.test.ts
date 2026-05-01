@@ -1,32 +1,9 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { UserSystemPrompt } from "../../../types/chat";
 
-// Mock localStorage
-const localStorageMock = (() => {
-  let store: Record<string, string> = {};
-  return {
-    getItem: vi.fn((key: string) => store[key] || null),
-    setItem: vi.fn((key: string, value: string) => {
-      store[key] = value;
-    }),
-    removeItem: vi.fn((key: string) => {
-      delete store[key];
-    }),
-    clear: vi.fn(() => {
-      store = {};
-    }),
-  };
-})();
-
-Object.defineProperty(global, "localStorage", {
-  value: localStorageMock,
-});
-
-// We need to import the functions to test them
-// Since they're not exported, we'll test the slice behavior instead
 describe("promptSlice - ID Generation", () => {
   beforeEach(() => {
-    localStorageMock.clear();
+    window.localStorage.clear();
     vi.clearAllMocks();
   });
 

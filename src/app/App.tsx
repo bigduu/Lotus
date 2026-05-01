@@ -15,6 +15,8 @@ import i18n from "@shared/i18n";
 import { getAntdLocale } from "@shared/i18n/antdLocale";
 import { APP_LOCALE_STORAGE_KEY, type AppLocale, resolveInitialLocale } from "@shared/i18n/types";
 import { isVdiSafeModeEnabled } from "@shared/utils/vdiSafeMode";
+import { StorageManager } from "../services/storage/StorageManager";
+import { migrateFromLocalStorage } from "../services/storage/migrateFromLocalStorage";
 
 const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
 const LIGHT_THEME_TOKEN = {
@@ -312,6 +314,38 @@ function App() {
       initializeStore();
     }
   }, [isSetupComplete]);
+
+  // Cleanup stale IndexedDB data on startup and periodically
+  useEffect(() => {
+    const manager = StorageManager.getInstance();
+
+    // 启动时清理过期数据（30天）
+    manager.cleanupStaleData(30).catch((err) => {
+      console.warn("[App] Failed to cleanup stale storage data:", err);
+    });
+
+    // 每24小时清理一次
+    const interval = setInterval(
+      () => {
+        manager.cleanupStaleData(30).catch(() => {});
+      },
+      24 * 60 * 60 * 1000,
+    );
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Migrate localStorage data to IndexedDB
+  useEffect(() => {
+    // 延迟执行迁移，避免阻塞启动
+    const timeout = setTimeout(() => {
+      migrateFromLocalStorage().catch((err) => {
+        console.warn("[App] Storage migration failed:", err);
+      });
+    }, 5000); // 启动后5秒执行
+
+    return () => clearTimeout(timeout);
+  }, []);
 
   if (accessStatus?.requires_password && !isAccessVerified) {
     return (

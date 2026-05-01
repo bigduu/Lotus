@@ -162,7 +162,7 @@ export function useScrollAnchorPersistence(args: {
   }, [idToIndex, messagesListRef, renderableMessages]);
 
   const flushSave = useCallback(
-    (sessionId: string) => {
+    async (sessionId: string) => {
       if (isRestoringRef.current) return;
       const anchor = computeAnchorNow();
       if (!anchor) return;
@@ -176,7 +176,7 @@ export function useScrollAnchorPersistence(args: {
         return;
       }
 
-      saveScrollAnchor(sessionId, anchor);
+      await saveScrollAnchor(sessionId, anchor);
       lastSavedRef.current = anchor;
     },
     [computeAnchorNow],
@@ -191,7 +191,7 @@ export function useScrollAnchorPersistence(args: {
 
       const sessionIdAtSchedule = currentSessionId;
       saveTimeoutRef.current = setTimeout(() => {
-        flushSave(sessionIdAtSchedule);
+        flushSave(sessionIdAtSchedule).catch(() => {});
       }, SAVE_DEBOUNCE_MS);
     },
     [currentSessionId, flushSave],
@@ -206,7 +206,7 @@ export function useScrollAnchorPersistence(args: {
         clearTimeout(saveTimeoutRef.current);
         saveTimeoutRef.current = null;
       }
-      flushSave(sessionIdAtRender);
+      flushSave(sessionIdAtRender).catch(() => {});
     };
   }, [currentSessionId, flushSave]);
 
@@ -219,56 +219,58 @@ export function useScrollAnchorPersistence(args: {
 
     if (restoredChatsRef.current.has(currentSessionId)) return;
 
-    const saved = loadScrollAnchor(currentSessionId);
-    if (!saved) {
-      restoredChatsRef.current.add(currentSessionId);
-      return;
-    }
+    let cancelled = false;
 
-    const byId = idToIndex.get(saved.anchorId);
-    const index =
-      typeof byId === "number" ? byId : resolveIndexFromDeletedAnchor(saved, renderableMessages);
+    loadScrollAnchor(currentSessionId).then((saved) => {
+      if (cancelled || !saved) {
+        if (!cancelled) restoredChatsRef.current.add(currentSessionId);
+        return;
+      }
 
-    if (index == null) {
-      restoredChatsRef.current.add(currentSessionId);
-      return;
-    }
+      const byId = idToIndex.get(saved.anchorId);
+      const index =
+        typeof byId === "number" ? byId : resolveIndexFromDeletedAnchor(saved, renderableMessages);
 
-    // cancel any pending save during restore
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current);
-      saveTimeoutRef.current = null;
-    }
+      if (index == null) {
+        restoredChatsRef.current.add(currentSessionId);
+        return;
+      }
 
-    const token = ++restoreTokenRef.current;
-    isRestoringRef.current = true;
-    userInteractedRef.current = false;
+      // cancel any pending save during restore
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+        saveTimeoutRef.current = null;
+      }
 
-    el.style.overflowAnchor = "none";
+      const token = ++restoreTokenRef.current;
+      isRestoringRef.current = true;
+      userInteractedRef.current = false;
 
-    const isCancelled = () => restoreTokenRef.current !== token || userInteractedRef.current;
+      el.style.overflowAnchor = "none";
 
-    restoreScrollAnchorUntilStable({
-      scrollEl: el,
-      getAnchorElement: () =>
-        getEntryElementById(el, saved.anchorId) ?? getEntryElementByIndex(el, index),
-      offsetPx: saved.offsetPx,
-      isCancelled,
-    }).finally(() => {
-      if (restoreTokenRef.current !== token) return;
+      const isCancelled = () => restoreTokenRef.current !== token || userInteractedRef.current;
 
-      isRestoringRef.current = false;
-      restoredChatsRef.current.add(currentSessionId);
+      restoreScrollAnchorUntilStable({
+        scrollEl: el,
+        getAnchorElement: () =>
+          getEntryElementById(el, saved.anchorId) ?? getEntryElementByIndex(el, index),
+        offsetPx: saved.offsetPx,
+        isCancelled,
+      }).finally(() => {
+        if (restoreTokenRef.current !== token) return;
 
-      el.style.overflowAnchor = "";
+        isRestoringRef.current = false;
+        restoredChatsRef.current.add(currentSessionId);
 
-      // Persist the final stabilized anchor
-      flushSave(currentSessionId);
+        el.style.overflowAnchor = "";
+
+        // Persist the final stabilized anchor
+        flushSave(currentSessionId).catch(() => {});
+      });
     });
 
     return () => {
-      // cancel restore loop
-      if (restoreTokenRef.current === token) restoreTokenRef.current++;
+      cancelled = true;
     };
   }, [
     currentSessionId,
