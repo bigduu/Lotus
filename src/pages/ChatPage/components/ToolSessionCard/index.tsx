@@ -1,31 +1,12 @@
-import React, { memo, useEffect, useMemo, useState } from "react";
-import {
-  Collapse,
-  Space,
-  Typography,
-  theme,
-  Badge,
-  CollapseProps,
-  Tag,
-  Button,
-  Tooltip,
-} from "antd";
-import type { GlobalToken } from "antd/es/theme/interface";
-import {
-  ToolOutlined,
-  DownOutlined,
-  RightOutlined,
-  CheckCircleOutlined,
-  LoadingOutlined,
-  ExclamationCircleOutlined,
-  DeleteOutlined,
-} from "@ant-design/icons";
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
+import { Space, Typography, theme, Badge, Button, Tooltip } from "antd";
+import { ToolOutlined, DownOutlined, RightOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import ToolCallCard from "../ToolCallCard";
-import ToolResultCard from "../ToolResultCard";
 import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../../types/chat";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
-import { getFileChangeDiffStats, parseFileChangeResultPayload } from "../../utils/resultFormatters";
+import { getFileChangeDiffStats } from "../../utils/resultFormatters";
+import { StorageManager } from "../../../../services/storage/StorageManager";
+import ToolStepsCard from "../ToolStepsCard";
 
 const { Text } = Typography;
 
@@ -41,6 +22,12 @@ export interface ToolSessionCardProps {
   sessionId: string;
   createdAt: string;
   defaultExpanded?: boolean;
+  /**
+   * When this prop transitions from `false` → `true` (i.e. a newer message
+   * arrived after this tool session), automatically collapse the group once.
+   * Subsequent manual user toggles are preserved.
+   */
+  autoCollapseWhenStale?: boolean;
   onDeleteMessageIds?: (messageIds: string[]) => void | Promise<void>;
 }
 
@@ -71,24 +58,25 @@ const readPersistedToolSessionState = (
 
     const isExpanded =
       "isExpanded" in parsed && typeof parsed.isExpanded === "boolean" ? parsed.isExpanded : true;
-    const expandedTools =
-      "expandedTools" in parsed && Array.isArray(parsed.expandedTools)
-        ? parsed.expandedTools.filter((item): item is string => typeof item === "string")
-        : [];
 
-    return { isExpanded, expandedTools };
+    return { isExpanded, expandedTools: [] };
   } catch {
     return null;
   }
 };
 
-const writePersistedToolSessionState = (
+const writePersistedToolSessionState = async (
   sessionId: string,
   toolSessionId: string,
   state: PersistedToolSessionState,
-): void => {
+): Promise<void> => {
   if (typeof window === "undefined") return;
 
+  // Write to IndexedDB
+  const manager = StorageManager.getInstance();
+  await manager.saveToolSessionCollapse(sessionId, toolSessionId, state);
+
+  // Also write to localStorage as fallback
   try {
     window.localStorage.setItem(
       getToolSessionCollapseStorageKey(sessionId, toolSessionId),
@@ -98,26 +86,6 @@ const writePersistedToolSessionState = (
     // Best-effort only.
   }
 };
-
-interface ToolItemStatus {
-  icon: React.ReactNode;
-  color: string;
-  text: string;
-}
-
-const getToolItemKey = (item: ToolSessionItem): string => {
-  const toolCallId = item.call.toolCalls?.[0]?.toolCallId || "tool-call-missing";
-  const messageScopeId =
-    item.callMessageId ||
-    item.call.id ||
-    item.resultMessageId ||
-    item.result?.id ||
-    "tool-message-missing";
-  return `${messageScopeId}:${toolCallId}`;
-};
-
-const getToolItemTestId = (item: ToolSessionItem): string =>
-  item.call.toolCalls?.[0]?.toolCallId || item.call.id;
 
 const SYNTHETIC_TOOL_CALL_PREFIX = "synthetic-tool-call:";
 
@@ -143,74 +111,24 @@ const getDeletableMessageIds = (item: ToolSessionItem): string[] => {
   return Array.from(ids);
 };
 
-function getToolStatus(
-  item: ToolSessionItem,
-  token: GlobalToken,
-  t: (key: string, options?: Record<string, unknown>) => string,
-): ToolItemStatus {
-  if (!item.result) {
-    return {
-      icon: <LoadingOutlined spin style={{ color: token.colorPrimary }} />,
-      color: token.colorPrimary,
-      text: t("components.toolSession.running"),
-    };
-  }
-
-  if (item.result.isError) {
-    return {
-      icon: <ExclamationCircleOutlined style={{ color: token.colorError }} />,
-      color: token.colorError,
-      text: t("components.toolSession.error"),
-    };
-  }
-
-  return {
-    icon: <CheckCircleOutlined style={{ color: token.colorSuccess }} />,
-    color: token.colorSuccess,
-    text: t("components.toolSession.done"),
-  };
-}
-
-function generateToolIntent(toolName: string, params: Record<string, unknown>): string {
-  const mcpParts = parseMcpToolAlias(toolName);
-  if (mcpParts) {
-    return `MCP ${mcpParts.serverId}: ${mcpParts.toolName}`;
-  }
-
-  const truncate = (value: unknown, maxLen: number) => {
-    const str = typeof value === "string" ? value : String(value ?? "");
-    if (!str || str.length <= maxLen) return str;
-    return str.substring(0, maxLen).trimEnd() + "…";
-  };
-
-  const nameMap: Record<string, (p: typeof params) => string> = {
-    file_read: (p) => `Reading: ${truncate(p.path || p.file_path || "file", 35)}`,
-    file_write: (p) => `Writing: ${truncate(p.path || p.file_path || "file", 35)}`,
-    file_edit: (p) => `Editing: ${truncate(p.path || p.file_path || "file", 35)}`,
-    bash: (p) => `Executing: ${truncate(p.command, 35)}`,
-    grep: (p) => `Searching: "${truncate(p.pattern, 25)}"`,
-    glob: (p) => `Finding: "${p.pattern}"`,
-    conclusion: (p) => `Conclusion: ${truncate(p.conclusion || p.title || "", 28)}`,
-    read: (p) => `Reading: ${p.file_path || "file"}`,
-    write: (p) => `Writing: ${p.file_path || "file"}`,
-    edit: (p) => `Editing: ${p.file_path || "file"}`,
-    search: (p) => `Searching: "${truncate(p.query || p.pattern, 25)}"`,
-    default: () => `${toolName}`,
-  };
-
-  const generator = nameMap[toolName] || nameMap["default"];
-  return generator(params);
-}
+/** Collect all deletable message IDs across all tools in the session. */
+const getAllDeletableMessageIds = (tools: ToolSessionItem[]): string[] => {
+  const ids = new Set<string>();
+  tools.forEach((item) => {
+    getDeletableMessageIds(item).forEach((id) => ids.add(id));
+  });
+  return Array.from(ids);
+};
 
 const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
   tools,
   sessionId,
   defaultExpanded = false,
+  autoCollapseWhenStale = false,
   onDeleteMessageIds,
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
-  const isSingleToolSession = tools.length === 1;
   const toolSessionStorageId = useMemo(() => {
     const firstTool = tools[0];
     const firstCall = firstTool?.call?.toolCalls?.[0];
@@ -222,10 +140,6 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
       "tool-message-missing";
     return `${messageScopeId}:${firstCall?.toolCallId || "tool-call-missing"}`;
   }, [tools]);
-  const defaultExpandedToolKey = useMemo(() => {
-    const first = tools[0];
-    return first ? getToolItemKey(first) : null;
-  }, [tools]);
 
   const [isExpanded, setIsExpanded] = useState<boolean>(() => {
     const persisted = readPersistedToolSessionState(sessionId, toolSessionStorageId);
@@ -233,55 +147,45 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
     return defaultExpanded;
   });
 
-  const [expandedTools, setExpandedTools] = useState<Set<string>>(() => {
-    const persisted = readPersistedToolSessionState(sessionId, toolSessionStorageId);
-    if (persisted) {
-      return new Set(persisted.expandedTools);
-    }
-    return new Set(defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : []);
-  });
-
   useEffect(() => {
     const persisted = readPersistedToolSessionState(sessionId, toolSessionStorageId);
     if (persisted) {
       setIsExpanded(persisted.isExpanded);
-      setExpandedTools(new Set(persisted.expandedTools));
-      return;
+    } else {
+      setIsExpanded(defaultExpanded);
     }
 
-    setIsExpanded(defaultExpanded);
-    setExpandedTools(
-      new Set(defaultExpanded && defaultExpandedToolKey ? [defaultExpandedToolKey] : []),
-    );
-  }, [defaultExpanded, defaultExpandedToolKey, sessionId, toolSessionStorageId]);
-
-  useEffect(() => {
-    const validToolKeys = new Set(tools.map((item) => getToolItemKey(item)));
-    setExpandedTools((previous) => {
-      const next = new Set<string>();
-      let changed = false;
-
-      previous.forEach((key) => {
-        if (validToolKeys.has(key)) {
-          next.add(key);
-        } else {
-          changed = true;
+    // Also try to load from IndexedDB (async) and update if different
+    const manager = StorageManager.getInstance();
+    manager
+      .loadToolSessionCollapse(sessionId, toolSessionStorageId)
+      .then((idbState) => {
+        if (idbState) {
+          setIsExpanded(idbState.isExpanded);
         }
+      })
+      .catch(() => {
+        // Ignore IndexedDB errors, localStorage already handled above
       });
-
-      if (!changed && next.size === previous.size) {
-        return previous;
-      }
-      return next;
-    });
-  }, [tools]);
+  }, [defaultExpanded, sessionId, toolSessionStorageId]);
 
   useEffect(() => {
     writePersistedToolSessionState(sessionId, toolSessionStorageId, {
       isExpanded,
-      expandedTools: Array.from(expandedTools),
-    });
-  }, [sessionId, toolSessionStorageId, isExpanded, expandedTools]);
+      expandedTools: [],
+    }).catch(() => {});
+  }, [sessionId, toolSessionStorageId, isExpanded]);
+
+  // Auto-collapse when this tool group goes stale (a newer message arrived).
+  // Fires only on the false → true transition, so a manually re-expanded
+  // group stays open afterwards until the next "stale" trigger.
+  const prevStaleRef = useRef<boolean>(autoCollapseWhenStale);
+  useEffect(() => {
+    if (!prevStaleRef.current && autoCollapseWhenStale) {
+      setIsExpanded(false);
+    }
+    prevStaleRef.current = autoCollapseWhenStale;
+  }, [autoCollapseWhenStale]);
 
   const { completedCount, pendingCount, hasErrors } = useMemo(() => {
     let completed = 0;
@@ -351,218 +255,56 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
   }, [tools]);
 
   const headerTitle = useMemo(() => {
-    if (tools.length !== 1) {
+    const names = tools
+      .map((item) => {
+        const call = item.call?.toolCalls?.[0];
+        if (!call) return null;
+        const mcpParts = parseMcpToolAlias(call.toolName);
+        return mcpParts ? mcpParts.toolName : call.toolName || null;
+      })
+      .filter((n): n is string => Boolean(n));
+
+    if (names.length === 0) {
       return t("components.toolSession.title");
     }
-
-    const call = tools[0]?.call?.toolCalls?.[0];
-    if (!call) {
-      return t("components.toolSession.title");
+    if (names.length === 1) {
+      return names[0];
     }
-
-    const mcpParts = parseMcpToolAlias(call.toolName);
-    if (mcpParts) {
-      return `MCP ${mcpParts.serverId}: ${mcpParts.toolName}`;
+    // Dedupe consecutive duplicates for compactness, then summarize.
+    const deduped = names.filter((name, index) => index === 0 || name !== names[index - 1]);
+    const MAX_SHOWN = 3;
+    if (deduped.length <= MAX_SHOWN) {
+      return deduped.join(" → ");
     }
-
-    return call.toolName || t("components.toolSession.title");
+    return `${deduped.slice(0, MAX_SHOWN).join(" → ")} +${deduped.length - MAX_SHOWN}`;
   }, [tools, t]);
 
-  const collapseItems: CollapseProps["items"] = useMemo(() => {
-    return tools
-      .map((item, index) => {
-        const toolCall = item.call.toolCalls[0];
-        if (!toolCall) return null;
+  const allDeletableIds = useMemo(() => getAllDeletableMessageIds(tools), [tools]);
 
-        const status = getToolStatus(item, token, t);
-        const intent = generateToolIntent(toolCall.toolName, toolCall.parameters);
-        const mcpParts = parseMcpToolAlias(toolCall.toolName);
-        const toolDiffStats = item.result
-          ? getFileChangeDiffStats(item.result.result.result)
-          : null;
-        const fileChangePayload = item.result
-          ? parseFileChangeResultPayload(item.result.result.result)
-          : null;
-        const deletableMessageIds = getDeletableMessageIds(item);
+  const stepsBody = <ToolStepsCard tools={tools} defaultExpanded={true} hideHeader={true} />;
 
-        return {
-          key: getToolItemKey(item),
-          label: (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: token.marginSM,
-                width: "100%",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: token.fontSizeSM,
-                  color: token.colorTextTertiary,
-                  minWidth: 20,
-                }}
-              >
-                {index + 1}.
-              </span>
-              <span style={{ flexShrink: 0 }}>{status.icon}</span>
-              {mcpParts ? (
-                <Space size="small" wrap={false}>
-                  <Tag color="purple" style={{ marginInlineEnd: 0 }}>
-                    MCP
-                  </Tag>
-                  <Text strong style={{ fontSize: token.fontSizeSM }}>
-                    {mcpParts.toolName}
-                  </Text>
-                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                    <Text code style={{ fontSize: token.fontSizeSM }}>
-                      {mcpParts.serverId}
-                    </Text>
-                  </Text>
-                </Space>
-              ) : (
-                <Text strong style={{ fontSize: token.fontSizeSM, flexShrink: 0 }}>
-                  {toolCall.toolName}
-                </Text>
-              )}
-              <Text
-                type="secondary"
-                ellipsis
-                style={{ flex: 1, minWidth: 0, fontSize: token.fontSizeSM }}
-              >
-                {intent}
-              </Text>
-              {fileChangePayload && (
-                <Text
-                  type="secondary"
-                  ellipsis
-                  style={{ maxWidth: 180, fontSize: token.fontSizeSM }}
-                >
-                  {fileChangePayload.file_path.split(/[\\/]/).pop() || fileChangePayload.file_path}
-                </Text>
-              )}
-              {toolDiffStats && (
-                <Space size={4} style={{ marginLeft: token.marginXS }}>
-                  <Text
-                    style={{
-                      color: token.colorSuccess,
-                      fontSize: token.fontSizeSM,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    }}
-                  >
-                    +{toolDiffStats.added}
-                  </Text>
-                  <Text
-                    style={{
-                      color: token.colorError,
-                      fontSize: token.fontSizeSM,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                    }}
-                  >
-                    -{toolDiffStats.removed}
-                  </Text>
-                </Space>
-              )}
-              {onDeleteMessageIds && (
-                <Tooltip
-                  title={
-                    deletableMessageIds.length > 0
-                      ? t("components.toolSession.deleteMessage")
-                      : t("components.toolSession.noPersistedMessage")
-                  }
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    aria-label={t("components.toolSession.deleteMessage")}
-                    data-testid={`delete-tool-message-${getToolItemTestId(item)}`}
-                    disabled={deletableMessageIds.length === 0}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      if (deletableMessageIds.length === 0) return;
-                      void onDeleteMessageIds(deletableMessageIds);
-                    }}
-                  />
-                </Tooltip>
-              )}
-            </div>
-          ),
-          children: (
-            <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>
-              <ToolCallCard
-                toolName={toolCall.toolName}
-                parameters={toolCall.parameters}
-                toolCallId={toolCall.toolCallId}
-                streamingOutput={toolCall.streamingOutput}
-                defaultExpanded={false}
-              />
-              {item.result && item.result.result.display_preference !== "Hidden" && (
-                <ToolResultCard
-                  content={item.result.result.result}
-                  toolName={toolCall.toolName}
-                  status={item.result.isError ? "error" : "success"}
-                  timestamp={item.result.createdAt}
-                  defaultCollapsed={false}
-                />
-              )}
-            </Space>
-          ),
-          style: {
-            borderBottom:
-              index < tools.length - 1 ? `1px solid ${token.colorBorderSecondary}` : undefined,
-          },
-        };
-      })
-      .filter((item): item is NonNullable<typeof item> => item !== null);
-  }, [onDeleteMessageIds, t, token, tools]);
-
-  const toolsList = (
-    <div style={{ padding: token.paddingSM }}>
-      <Collapse
-        ghost
-        activeKey={Array.from(expandedTools)}
-        onChange={(keys) => {
-          // keys 是 string | string[]
-          const newExpandedKeys = new Set<string>(Array.isArray(keys) ? keys : keys ? [keys] : []);
-          setExpandedTools(newExpandedKeys);
-        }}
-        items={collapseItems}
-      />
-    </div>
-  );
-
+  // Inline (no card chrome): tool sessions blend into the conversation rather
+  // than appearing as another bordered message card.
   const cardContainerStyle: React.CSSProperties = {
-    backgroundColor: token.colorBgElevated,
-    border: `1px solid ${token.colorBorder}`,
-    borderRadius: token.borderRadiusLG,
-    overflow: "hidden",
+    background: "transparent",
   };
-
-  if (isSingleToolSession) {
-    return (
-      <div style={{ width: "100%" }}>
-        <div style={cardContainerStyle}>{toolsList}</div>
-      </div>
-    );
-  }
 
   return (
     <div style={cardContainerStyle}>
-      {/* Session Header */}
+      {/* Session Header — lightweight inline strip, no outer border */}
       <div
         style={{
-          padding: `${token.paddingSM}px ${token.paddingMD}px`,
-          backgroundColor: token.colorBgContainer,
-          borderBottom: isExpanded ? `1px solid ${token.colorBorder}` : undefined,
+          padding: `${token.paddingXS}px 0`,
+          backgroundColor: "transparent",
+          borderBottom: "none",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
           gap: token.marginSM,
+          transition: "border-color 240ms ease, background-color 240ms ease",
         }}
         onClick={() => setIsExpanded(!isExpanded)}
+        data-testid="tool-session-card-header"
       >
         <ToolOutlined style={{ color: token.colorPrimary }} />
         <Text strong style={{ flex: 1 }}>
@@ -594,6 +336,31 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
           {sessionStatus.text}
         </Text>
+        {onDeleteMessageIds && (
+          <Tooltip
+            title={
+              allDeletableIds.length > 0
+                ? t("components.toolSession.deleteMessage")
+                : t("components.toolSession.noPersistedMessage")
+            }
+          >
+            <Button
+              type="text"
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              aria-label={t("components.toolSession.deleteMessage")}
+              data-testid={`delete-tool-session`}
+              disabled={allDeletableIds.length === 0}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (allDeletableIds.length === 0) return;
+                void onDeleteMessageIds(allDeletableIds);
+              }}
+            />
+          </Tooltip>
+        )}
         <div style={{ marginLeft: token.marginXS }}>
           {isExpanded ? (
             <DownOutlined style={{ color: token.colorTextSecondary }} />
@@ -603,8 +370,8 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
         </div>
       </div>
 
-      {/* Tools List */}
-      {isExpanded && toolsList}
+      {/* Steps body */}
+      {isExpanded && stepsBody}
     </div>
   );
 };

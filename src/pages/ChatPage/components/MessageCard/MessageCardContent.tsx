@@ -12,7 +12,8 @@ import {
   type Message,
 } from "../../types/chat";
 import ToolResultCard from "../ToolResultCard";
-import ToolCallCard, { type ToolCallCardProps } from "../ToolCallCard";
+import { type ToolCallCardProps } from "../ToolCallCard";
+import ToolStepsCard from "../ToolStepsCard";
 import WorkflowResultCard from "../WorkflowResultCard";
 import InteractiveQuestionToolCard from "./InteractiveQuestionToolCard";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
@@ -132,7 +133,9 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
           options={interactiveQuestionPayload.options}
           allowCustom={interactiveQuestionPayload.allow_custom}
           toolCallId={message.toolCallId}
-          conclusionMarkdown={formatConclusionWithOptionsConclusionAsMarkdown(interactiveQuestionPayload.conclusion)}
+          conclusionMarkdown={formatConclusionWithOptionsConclusionAsMarkdown(
+            interactiveQuestionPayload.conclusion,
+          )}
           markdownComponents={markdownComponents}
           markdownPlugins={markdownPlugins}
           rehypePlugins={rehypePlugins}
@@ -197,19 +200,11 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     }
 
     return (
-      <Space direction="vertical" style={{ width: "100%" }}>
-        {visibleToolCalls.map((call) => (
-          <ToolCallCard
-            key={call.toolCallId}
-            toolName={call.toolName}
-            parameters={call.parameters}
-            toolCallId={call.toolCallId}
-            streamingOutput={call.streamingOutput}
-            defaultExpanded={false}
-            metadata={message.metadata as ToolCallCardProps["metadata"]}
-          />
-        ))}
-      </Space>
+      <ToolStepsCard
+        toolCalls={visibleToolCalls}
+        metadata={message.metadata as ToolCallCardProps["metadata"]}
+        defaultExpanded={false}
+      />
     );
   }
 

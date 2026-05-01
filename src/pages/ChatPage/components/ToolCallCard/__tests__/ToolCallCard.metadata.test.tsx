@@ -62,9 +62,7 @@ vi.mock("antd", () => ({
 
 // Mock syntax highlighter
 vi.mock("react-syntax-highlighter", () => ({
-  Prism: vi.fn(({ children }: any) => (
-    <pre data-testid="syntax-highlighter">{children}</pre>
-  )),
+  Prism: vi.fn(({ children }: any) => <pre data-testid="syntax-highlighter">{children}</pre>),
 }));
 vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
   oneDark: {},
@@ -83,13 +81,19 @@ vi.mock("react-i18next", () => ({
 }));
 
 // Mock mcpAlias utility
-vi.mock("../../utils/mcpAlias", () => ({
+vi.mock("../../../utils/mcpAlias", () => ({
   parseMcpToolAlias: () => null,
 }));
 
 // Mock resultFormatters
-vi.mock("../../utils/resultFormatters", () => ({
+vi.mock("../../../utils/resultFormatters", () => ({
   safeStringify: (obj: unknown, indent?: number) => JSON.stringify(obj, null, indent),
+}));
+
+// Mock toolIntent — the function was extracted but we still mock via the new path
+vi.mock("../../../utils/toolIntent", () => ({
+  generateIntentDescription: (_toolName: string, _params: Record<string, unknown>) =>
+    `Calling ${_toolName}`,
 }));
 
 import { ToolCallCard } from "../index";
@@ -104,12 +108,7 @@ describe("ToolCallCard — metadata badges", () => {
   };
 
   it("renders elapsed_ms badge in milliseconds when < 1000ms", () => {
-    render(
-      <ToolCallCard
-        {...baseProps}
-        metadata={{ elapsed_ms: 150, is_mutating: false }}
-      />,
-    );
+    render(<ToolCallCard {...baseProps} metadata={{ elapsed_ms: 150, is_mutating: false }} />);
 
     // Find the tag with elapsed time text
     const tags = screen.getAllByTestId("tag");
@@ -120,12 +119,7 @@ describe("ToolCallCard — metadata badges", () => {
   });
 
   it("renders elapsed_ms badge in seconds when >= 1000ms", () => {
-    render(
-      <ToolCallCard
-        {...baseProps}
-        metadata={{ elapsed_ms: 5200, is_mutating: true }}
-      />,
-    );
+    render(<ToolCallCard {...baseProps} metadata={{ elapsed_ms: 5200, is_mutating: true }} />);
 
     const tags = screen.getAllByTestId("tag");
     const elapsedTag = tags.find((t) => t.textContent === "5.2s");
@@ -178,12 +172,7 @@ describe("ToolCallCard — metadata badges", () => {
   });
 
   it("does not render elapsed badge when elapsed_ms is null", () => {
-    render(
-      <ToolCallCard
-        {...baseProps}
-        metadata={{ is_mutating: false }}
-      />,
-    );
+    render(<ToolCallCard {...baseProps} metadata={{ is_mutating: false }} />);
 
     const tags = screen.queryAllByTestId("tag");
     const timingTags = tags.filter(
@@ -193,12 +182,7 @@ describe("ToolCallCard — metadata badges", () => {
   });
 
   it("wraps elapsed badge in tooltip with mutating description", () => {
-    render(
-      <ToolCallCard
-        {...baseProps}
-        metadata={{ elapsed_ms: 300, is_mutating: true }}
-      />,
-    );
+    render(<ToolCallCard {...baseProps} metadata={{ elapsed_ms: 300, is_mutating: true }} />);
 
     const tooltips = screen.getAllByTestId("tooltip");
     const mutatingTooltip = tooltips.find(
@@ -208,12 +192,7 @@ describe("ToolCallCard — metadata badges", () => {
   });
 
   it("wraps elapsed badge in tooltip with read-only description", () => {
-    render(
-      <ToolCallCard
-        {...baseProps}
-        metadata={{ elapsed_ms: 50, is_mutating: false }}
-      />,
-    );
+    render(<ToolCallCard {...baseProps} metadata={{ elapsed_ms: 50, is_mutating: false }} />);
 
     const tooltips = screen.getAllByTestId("tooltip");
     const readOnlyTooltip = tooltips.find(
@@ -223,12 +202,7 @@ describe("ToolCallCard — metadata badges", () => {
   });
 
   it("renders exactly 1000ms as 1.0s", () => {
-    render(
-      <ToolCallCard
-        {...baseProps}
-        metadata={{ elapsed_ms: 1000, is_mutating: false }}
-      />,
-    );
+    render(<ToolCallCard {...baseProps} metadata={{ elapsed_ms: 1000, is_mutating: false }} />);
 
     const tags = screen.getAllByTestId("tag");
     const elapsedTag = tags.find((t) => t.textContent === "1.0s");

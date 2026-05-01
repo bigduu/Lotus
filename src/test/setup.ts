@@ -2,9 +2,11 @@
  * Vitest Setup File
  * Configures global mocks and test utilities
  */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import "fake-indexeddb/auto";
 
 const createMemoryStorage = (): Storage => {
   const store = new Map<string, string>();

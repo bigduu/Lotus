@@ -198,7 +198,13 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
           callMessageId: message.id,
         };
         enqueuePendingItem(callId, item);
-        result.push([item]);
+        // Merge into the last ToolSessionItem[] if it exists; otherwise start a new one.
+        const lastResult = result[result.length - 1];
+        if (Array.isArray(lastResult)) {
+          lastResult.push(item);
+        } else {
+          result.push([item]);
+        }
       });
       continue;
     }
@@ -241,7 +247,13 @@ function groupToolMessages(messages: Message[]): Array<Message | ToolSessionItem
           result: message,
           resultMessageId: message.id,
         };
-        result.push([orphanItem]);
+        // Try to merge into the last ToolSessionItem[] if it exists.
+        const lastResult = result[result.length - 1];
+        if (Array.isArray(lastResult)) {
+          lastResult.push(orphanItem);
+        } else {
+          result.push([orphanItem]);
+        }
       }
       continue;
     }

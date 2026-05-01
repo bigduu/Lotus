@@ -123,8 +123,9 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     );
   };
 
-  const renderEntry = (entry: RenderableEntry) => {
+  const renderEntry = (entry: RenderableEntry, indexInList?: number) => {
     const convertedEntry = convertRenderableEntry(entry);
+    const isLastEntry = indexInList === undefined || indexInList === renderableMessages.length - 1;
 
     if (convertedEntry.type === "compression_divider") {
       const timeLabel = getCompressionTimeLabel(convertedEntry.createdAt);
@@ -175,7 +176,8 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
               tools={convertedEntry.tools}
               sessionId={convertedEntry.sessionId}
               createdAt={convertedEntry.createdAt}
-              defaultExpanded={false}
+              defaultExpanded={isLastEntry}
+              autoCollapseWhenStale={!isLastEntry}
               onDeleteMessageIds={currentSessionId ? handleDeleteToolMessages : undefined}
             />
           </div>
@@ -274,7 +276,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <div className="messageEnter">{renderEntry(entry)}</div>
+                  <div className="messageEnter">{renderEntry(entry, virtualItem.index)}</div>
                 </div>
               );
             })}
@@ -288,11 +290,11 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
               width: "100%",
             }}
           >
-            {renderableMessages.map((entry) => {
+            {renderableMessages.map((entry, idx) => {
               const key = entryKey(entry);
               return (
                 <div key={key} data-chat-entry-id={key} className="messageEnter">
-                  {renderEntry(entry)}
+                  {renderEntry(entry, idx)}
                 </div>
               );
             })}

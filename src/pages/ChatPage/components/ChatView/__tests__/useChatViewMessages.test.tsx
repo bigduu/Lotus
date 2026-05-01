@@ -77,6 +77,15 @@ const buildToolResultMessage = (
   },
 });
 
+const buildTextMessage = (id: string, createdAt: string, content: string): Message =>
+  ({
+    id,
+    createdAt,
+    role: "assistant",
+    type: "text",
+    content,
+  }) as Message;
+
 const getToolSessionEntries = (
   entries: RenderableEntry[],
 ): Extract<RenderableEntry, { type: "tool_session" }>[] =>
@@ -86,7 +95,7 @@ const getToolSessionEntries = (
   );
 
 describe("useChatViewMessages tool session keys", () => {
-  it("generates unique tool_session ids for multiple calls in one tool_call message", () => {
+  it("merges multiple tool calls from one message into a single tool_session entry", () => {
     const chat = buildChat();
     const messages: Message[] = [
       buildToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", ["call-1", "call-2"]),
@@ -94,10 +103,10 @@ describe("useChatViewMessages tool session keys", () => {
 
     const { result } = renderHook(() => useChatViewMessages(chat, messages));
     const toolEntries = getToolSessionEntries(result.current.renderableMessages);
-    const entryIds = toolEntries.map((entry) => entry.id);
 
-    expect(toolEntries).toHaveLength(2);
-    expect(new Set(entryIds).size).toBe(2);
+    // Both calls should be merged into a single tool_session entry
+    expect(toolEntries).toHaveLength(1);
+    expect(toolEntries[0].tools).toHaveLength(2);
   });
 
   it("pairs results in order when toolCallId is reused before results arrive", () => {
@@ -112,9 +121,11 @@ describe("useChatViewMessages tool session keys", () => {
     const { result } = renderHook(() => useChatViewMessages(chat, messages));
     const toolEntries = getToolSessionEntries(result.current.renderableMessages);
 
-    expect(toolEntries).toHaveLength(2);
+    // Adjacent tool calls should be merged into one entry
+    expect(toolEntries).toHaveLength(1);
+    expect(toolEntries[0].tools).toHaveLength(2);
     expect(toolEntries[0].tools[0].resultMessageId).toBe("result-1");
-    expect(toolEntries[1].tools[0].resultMessageId).toBe("result-2");
+    expect(toolEntries[0].tools[1].resultMessageId).toBe("result-2");
   });
 
   it("renders conclusion as result message only (no empty tool_call card)", () => {
@@ -148,9 +159,11 @@ describe("useChatViewMessages tool session keys", () => {
   it("keeps conclusion_with_options as regular message entries so interactive cards can render", () => {
     const chat = buildChat();
     const callId = "ask-1";
-    const toolCallMessage = buildNamedToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", [
-      { toolCallId: callId, toolName: "conclusion_with_options" },
-    ]);
+    const toolCallMessage = buildNamedToolCallMessage(
+      "assistant-call",
+      "2026-03-24T00:00:00.000Z",
+      [{ toolCallId: callId, toolName: "conclusion_with_options" }],
+    );
     const toolResultMessage = buildToolResultMessage(
       "result-ask",
       "2026-03-24T00:00:01.000Z",
@@ -170,7 +183,9 @@ describe("useChatViewMessages tool session keys", () => {
       "conclusion_with_options",
     );
 
-    const { result } = renderHook(() => useChatViewMessages(chat, [toolCallMessage, toolResultMessage]));
+    const { result } = renderHook(() =>
+      useChatViewMessages(chat, [toolCallMessage, toolResultMessage]),
+    );
     const renderable = result.current.renderableMessages;
     const toolEntries = getToolSessionEntries(renderable);
     const messageEntries = renderable.filter((entry) => !("type" in entry));
@@ -179,5 +194,96 @@ describe("useChatViewMessages tool session keys", () => {
     expect(messageEntries.map((entry) => entry.message.type)).toEqual(["tool_call", "tool_result"]);
     expect(messageEntries[0].message.id).toContain(callId);
     expect(messageEntries[1].message.id).toBe("result-ask");
+  });
+
+  describe("adjacent tool call merging", () => {
+    it("merges 3 consecutive tool_call messages into 1 tool_session entry with 3 tools", () => {
+      const chat = buildChat();
+      const messages: Message[] = [
+        buildToolCallMessage("assistant-call-1", "2026-03-24T00:00:00.000Z", ["call-1"]),
+        buildToolCallMessage("assistant-call-2", "2026-03-24T00:00:01.000Z", ["call-2"]),
+        buildToolCallMessage("assistant-call-3", "2026-03-24T00:00:02.000Z", ["call-3"]),
+      ];
+
+      const { result } = renderHook(() => useChatViewMessages(chat, messages));
+      const toolEntries = getToolSessionEntries(result.current.renderableMessages);
+
+      expect(toolEntries).toHaveLength(1);
+      expect(toolEntries[0].tools).toHaveLength(3);
+    });
+
+    it("splits into 2 tool_sessions when an assistant text message interrupts", () => {
+      const chat = buildChat();
+      const messages: Message[] = [
+        buildToolCallMessage("assistant-call-1", "2026-03-24T00:00:00.000Z", ["call-1"]),
+        buildTextMessage("text-msg", "2026-03-24T00:00:01.000Z", "thinking..."),
+        buildToolCallMessage("assistant-call-2", "2026-03-24T00:00:02.000Z", ["call-2"]),
+      ];
+
+      const { result } = renderHook(() => useChatViewMessages(chat, messages));
+      const toolEntries = getToolSessionEntries(result.current.renderableMessages);
+
+      expect(toolEntries).toHaveLength(2);
+      expect(toolEntries[0].tools).toHaveLength(1);
+      expect(toolEntries[1].tools).toHaveLength(1);
+    });
+
+    it("merges calls from the same tool_call message into one session", () => {
+      const chat = buildChat();
+      const messages: Message[] = [
+        buildToolCallMessage("assistant-call", "2026-03-24T00:00:00.000Z", [
+          "call-a",
+          "call-b",
+          "call-c",
+        ]),
+      ];
+
+      const { result } = renderHook(() => useChatViewMessages(chat, messages));
+      const toolEntries = getToolSessionEntries(result.current.renderableMessages);
+
+      expect(toolEntries).toHaveLength(1);
+      expect(toolEntries[0].tools).toHaveLength(3);
+    });
+
+    it("merges calls from consecutive tool_call messages even with different message ids", () => {
+      const chat = buildChat();
+      const messages: Message[] = [
+        buildToolCallMessage("msg-1", "2026-03-24T00:00:00.000Z", ["call-1"]),
+        buildToolCallMessage("msg-2", "2026-03-24T00:00:01.000Z", ["call-2"]),
+        buildToolCallMessage("msg-3", "2026-03-24T00:00:02.000Z", ["call-3"]),
+        buildToolResultMessage("result-1", "2026-03-24T00:00:03.000Z", "call-1", "done-1"),
+        buildToolResultMessage("result-2", "2026-03-24T00:00:04.000Z", "call-2", "done-2"),
+        buildToolResultMessage("result-3", "2026-03-24T00:00:05.000Z", "call-3", "done-3"),
+      ];
+
+      const { result } = renderHook(() => useChatViewMessages(chat, messages));
+      const toolEntries = getToolSessionEntries(result.current.renderableMessages);
+
+      expect(toolEntries).toHaveLength(1);
+      expect(toolEntries[0].tools).toHaveLength(3);
+      // All results should be paired
+      expect(toolEntries[0].tools[0].result?.result?.result).toBe("done-1");
+      expect(toolEntries[0].tools[1].result?.result?.result).toBe("done-2");
+      expect(toolEntries[0].tools[2].result?.result?.result).toBe("done-3");
+    });
+
+    it("conclusion_with_options passthrough interrupts merging", () => {
+      const chat = buildChat();
+      const messages: Message[] = [
+        buildToolCallMessage("assistant-call-1", "2026-03-24T00:00:00.000Z", ["call-1"]),
+        buildNamedToolCallMessage("assistant-call-2", "2026-03-24T00:00:01.000Z", [
+          { toolCallId: "ask-1", toolName: "conclusion_with_options" },
+        ]),
+        buildToolCallMessage("assistant-call-3", "2026-03-24T00:00:02.000Z", ["call-3"]),
+      ];
+
+      const { result } = renderHook(() => useChatViewMessages(chat, messages));
+      const toolEntries = getToolSessionEntries(result.current.renderableMessages);
+
+      // call-1 and call-3 are separated by the passthrough conclusion_with_options
+      expect(toolEntries).toHaveLength(2);
+      expect(toolEntries[0].tools).toHaveLength(1);
+      expect(toolEntries[1].tools).toHaveLength(1);
+    });
   });
 });
