@@ -104,6 +104,27 @@ describe("store/index bootstrap and scheduling", () => {
     expect(warnSpy).toHaveBeenCalledWith("[AppStore] refreshChats failed:", expect.any(Error));
   });
 
+  it("refreshChatsNow forces one follow-up refresh after an in-flight refresh settles", async () => {
+    const { useAppStore, AgentClient } = await loadStoreContext();
+    const client = AgentClient.getInstance();
+    const first = createDeferred<any>();
+
+    const listSessionsSpy = vi
+      .spyOn(client, "listSessions")
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce({ sessions: [] } as any);
+
+    const inFlight = useAppStore.getState().refreshChats();
+    const forced = useAppStore.getState().refreshChatsNow();
+
+    expect(listSessionsSpy).toHaveBeenCalledTimes(1);
+
+    first.resolve({ sessions: [] } as any);
+    await Promise.all([inFlight, forced]);
+
+    expect(listSessionsSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("startSessionsIndexSync schedules one timer and triggers immediate refresh", async () => {
     vi.useFakeTimers();
     const { useAppStore } = await loadStoreContext();
@@ -114,7 +135,7 @@ describe("store/index bootstrap and scheduling", () => {
     useAppStore.getState().startSessionsIndexSync();
     expect(refreshSpy).toHaveBeenCalledTimes(1);
 
-    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(refreshSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -431,9 +452,8 @@ describe("store/index bootstrap and scheduling", () => {
     await initializeStore(true);
 
     expect(startAgentHealthCheckSpy).toHaveBeenCalledTimes(1);
-    // startSessionsIndexSync is no longer auto-started to eliminate the 2-second
-    // fixed /sessions polling. Session list updates are now event-driven.
-    expect(startSessionsIndexSyncSpy).toHaveBeenCalledTimes(0);
+    // A low-frequency self-healing session index sync now complements event-driven updates.
+    expect(startSessionsIndexSyncSpy).toHaveBeenCalledTimes(1);
     expect(loadChatsSpy).toHaveBeenCalledTimes(1);
     expect(fetchModelsSpy).toHaveBeenCalledTimes(1);
     expect(loadSystemPromptsSpy).toHaveBeenCalledTimes(1);

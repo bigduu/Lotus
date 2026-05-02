@@ -70,6 +70,18 @@ export interface TaskList {
   items: TaskItem[];
   created_at: string;
   updated_at: string;
+  version?: number;
+}
+
+interface TaskListSnapshotResponse {
+  session_id: string;
+  title: string | null;
+  items: TaskItem[];
+  progress: {
+    completed: number;
+    total: number;
+    percentage: number;
+  };
 }
 
 export interface TaskListDelta {
@@ -592,6 +604,31 @@ export class AgentClient {
    */
   async listSessions(): Promise<ListSessionsResponse> {
     return agentApiClient.get<ListSessionsResponse>("sessions");
+  }
+
+  /**
+   * Get the current shared task list snapshot for a session.
+   *
+   * Child sessions resolve to the root/shared task list server-side.
+   * Returns null when no task list currently exists.
+   */
+  async getTaskList(sessionId: string): Promise<TaskList | null> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const snapshot = await agentApiClient.get<TaskListSnapshotResponse>(`task/${encodedSessionId}`);
+
+    const hasTaskList = typeof snapshot.title === "string" || snapshot.items.length > 0;
+    if (!hasTaskList) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    return {
+      session_id: snapshot.session_id,
+      title: snapshot.title ?? "Task List",
+      items: snapshot.items,
+      created_at: now,
+      updated_at: now,
+    };
   }
 
   /**

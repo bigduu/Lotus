@@ -344,9 +344,9 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         // Refresh from persisted history once so execute uses a server-confirmed cursor
         await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
-        // Step 2: Activate processing/subscription before execute so early events are not missed.
+        // Step 2: Ensure processing is active before execute (idempotent — caller
+        // normally sets this earlier, but this guards other entry points).
         deps.setSessionProcessing(sessionId, true);
-        await new Promise((resolve) => setTimeout(resolve, 0));
 
         // Step 3: Trigger execution (idempotent)
         const executeResult = reasoningEffort
@@ -447,6 +447,15 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       };
 
       await deps.addMessage(sessionId, userMessage);
+
+      // Set processing state immediately so the UI shows the spinner while the
+      // outbound network request is still in flight.  Previously this was done
+      // inside sendWithAgent *after* sendMessage + loadChatHistory had already
+      // completed, causing a perceptible delay before the UI responded.
+      deps.setSessionProcessing(sessionId, true);
+      // Yield so React can flush the processing-state render before we block
+      // the microtask queue with network I/O.
+      await new Promise((resolve) => setTimeout(resolve, 0));
 
       try {
         debugLog("[Streaming]", "[useChatStreaming] Using Agent Server");

@@ -166,7 +166,7 @@ describe("QuestionDialog", () => {
     });
   });
 
-  it("should submit response with model and mark session processing when auto-resume starts", async () => {
+  it("should submit response with model and mark session processing immediately, keeping it on when auto-resume starts", async () => {
     const { agentApiClient } = await import("../../../services/api");
     (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
@@ -203,7 +203,17 @@ describe("QuestionDialog", () => {
         response: "A",
         reasoning_effort: "medium",
       });
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("test-session-1", true);
+      // Processing should be set to true BEFORE the POST (immediate feedback),
+      // and remain true because auto_resume_status is "started".
+      const processingCalls = mockSetSessionProcessing.mock.calls.filter(
+        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
+      );
+      expect(processingCalls.length).toBeGreaterThanOrEqual(1);
+      // No setSessionProcessing(sessionId, false) should have been called
+      const clearCalls = mockSetSessionProcessing.mock.calls.filter(
+        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
+      );
+      expect(clearCalls).toHaveLength(0);
     });
   });
 
@@ -379,7 +389,7 @@ describe("QuestionDialog", () => {
     expect(agentApiClient.get).toHaveBeenCalledTimes(4);
   });
 
-  it("should handle auto-resume error status gracefully", async () => {
+  it("should handle auto-resume error status gracefully and clear processing", async () => {
     const { agentApiClient } = await import("../../../services/api");
     (agentApiClient.get as any).mockResolvedValue({
       has_pending_question: true,
@@ -427,6 +437,16 @@ describe("QuestionDialog", () => {
         "[QuestionDialog] Failed to auto-resume agent execution",
       );
     });
+
+    // Processing was set to true before POST, but should be cleared on error status
+    const processingTrueCalls = mockSetSessionProcessing.mock.calls.filter(
+      (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
+    );
+    const processingFalseCalls = mockSetSessionProcessing.mock.calls.filter(
+      (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
+    );
+    expect(processingTrueCalls.length).toBeGreaterThanOrEqual(1);
+    expect(processingFalseCalls.length).toBeGreaterThanOrEqual(1);
 
     consoleSpy.mockRestore();
   });
@@ -500,5 +520,88 @@ describe("QuestionDialog", () => {
     fireEvent.click(optionA);
 
     expect(mockSetPendingQuestionRespond).not.toHaveBeenCalledWith(null);
+  });
+
+  it("should clear processing when respond POST fails", async () => {
+    const { agentApiClient } = await import("../../../services/api");
+    (agentApiClient.get as any).mockResolvedValue({
+      has_pending_question: true,
+      question: "Test?",
+      options: ["A"],
+      allow_custom: false,
+      tool_call_id: "tool-1",
+    });
+
+    (agentApiClient.post as any).mockRejectedValueOnce(new Error("Network error"));
+
+    await act(async () => {
+      render(<QuestionDialog {...defaultProps} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test?")).toBeInTheDocument();
+    });
+
+    const optionA = screen.getByText("A");
+    fireEvent.click(optionA);
+
+    const submitButton = screen.getByText("Confirm");
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
+
+    await waitFor(() => {
+      // Processing was set to true before POST, but should be cleared on error
+      const processingTrueCalls = mockSetSessionProcessing.mock.calls.filter(
+        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
+      );
+      const processingFalseCalls = mockSetSessionProcessing.mock.calls.filter(
+        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
+      );
+      expect(processingTrueCalls.length).toBeGreaterThanOrEqual(1);
+      expect(processingFalseCalls.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it("should clear processing when auto_resume_status is missing", async () => {
+    const { agentApiClient } = await import("../../../services/api");
+    (agentApiClient.get as any).mockResolvedValue({
+      has_pending_question: true,
+      question: "Test?",
+      options: ["A"],
+      allow_custom: false,
+      tool_call_id: "tool-1",
+    });
+
+    // Return a response with no auto_resume_status
+    (agentApiClient.post as any).mockResolvedValueOnce({});
+
+    await act(async () => {
+      render(<QuestionDialog {...defaultProps} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test?")).toBeInTheDocument();
+    });
+
+    const optionA = screen.getByText("A");
+    fireEvent.click(optionA);
+
+    const submitButton = screen.getByText("Confirm");
+    await act(async () => {
+      fireEvent.click(submitButton);
+    });
+
+    await waitFor(() => {
+      // Processing was set to true before POST, but should be cleared when no resume status
+      const processingTrueCalls = mockSetSessionProcessing.mock.calls.filter(
+        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
+      );
+      const processingFalseCalls = mockSetSessionProcessing.mock.calls.filter(
+        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
+      );
+      expect(processingTrueCalls.length).toBeGreaterThanOrEqual(1);
+      expect(processingFalseCalls.length).toBeGreaterThanOrEqual(1);
+    });
   });
 });

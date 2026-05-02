@@ -100,6 +100,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const currentChat = useAppStore(selectSessionById(sessionId));
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
+  const loadTaskList = useAppStore((state) => state.loadTaskList);
   const processingChats = useAppStore((state) => state.processingChats);
   const tokenUsages = useAppStore((state) => state.tokenUsages);
   const truncationOccurred = useAppStore((state) => state.truncationOccurred);
@@ -115,6 +116,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const hasTaskList = useAppStore((state) =>
     sharedTaskSessionId ? Boolean(state.taskLists[sharedTaskSessionId]) : false,
   );
+  const shouldShowTaskPanel = useMemo(() => {
+    if (!sessionId || !currentChat) return false;
+    if (hasTaskList) return true;
+    if (currentChat.kind === "child") return true;
+    if (currentChat.isRunning) return true;
+    return false;
+  }, [currentChat, hasTaskList, sessionId]);
   const hasSubSessions = useAppStore((state) => {
     if (!sessionId) return false;
     const progressMap = state.subSessionsByParent[sessionId];
@@ -145,6 +153,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
       void loadChatHistory(sessionId, { mode: "monotonic" });
     }
   }, [sessionId, currentMessageCount, currentMessagesLength, loadChatHistory]);
+
+  useEffect(() => {
+    if (!sharedTaskSessionId || hasTaskList) return;
+    if (!shouldShowTaskPanel) return;
+    void loadTaskList(sharedTaskSessionId).catch((error) => {
+      console.warn(`[ChatView] Failed to load task list for ${sharedTaskSessionId}:`, error);
+    });
+  }, [sharedTaskSessionId, hasTaskList, shouldShowTaskPanel, loadTaskList]);
 
   const isProcessing = sessionId ? processingChats.has(sessionId) : false;
 
@@ -668,8 +684,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         )}
 
-        {/* TaskList - show when there is an active agent session */}
-        {sessionId && hasTaskList && (
+        {/* TaskList - show when there is an active or task-capable session */}
+        {sessionId && shouldShowTaskPanel && (
           <div
             style={{
               paddingTop: getContainerPadding(),

@@ -15,6 +15,42 @@ describe("AgentClient", () => {
     vi.restoreAllMocks();
   });
 
+  it("gets a task list snapshot for a session", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        session_id: "session-1",
+        title: "Task List",
+        items: [
+          {
+            id: "task-1",
+            description: "Do the thing",
+            status: "in_progress",
+            depends_on: [],
+            notes: "",
+          },
+        ],
+        progress: {
+          completed: 0,
+          total: 1,
+          percentage: 0,
+        },
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    const result = await client.getTaskList("session-1");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/task/session-1"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result).toMatchObject({
+      session_id: "session-1",
+      title: "Task List",
+      items: [expect.objectContaining({ id: "task-1", status: "in_progress" })],
+    });
+  });
+
   it("deletes a backend session by ID", async () => {
     fetchMock.mockResolvedValue(mockFetchResponse({}));
 

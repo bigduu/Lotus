@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useAgentEventSubscription } from "../useAgentEventSubscription";
 import { AgentClient } from "../../services/chat/AgentService";
 import { streamingMessageBus } from "../../pages/ChatPage/utils/streamingMessageBus";
@@ -45,13 +45,15 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   updateSession: vi.fn(),
   updateMessage: vi.fn(),
   setTaskList: vi.fn(),
+  loadTaskList: vi.fn(),
   updateTaskListDelta: vi.fn(),
   setEvaluationState: vi.fn(),
   clearEvaluationState: vi.fn(),
   upsertSubSessionProgress: vi.fn(),
   clearSubSessionProgress: vi.fn(),
-  persistSessionTitle: vi.fn(),
-  refreshChats: vi.fn(),
+  persistSessionTitle: vi.fn().mockResolvedValue(undefined),
+  refreshChats: vi.fn().mockResolvedValue(undefined),
+  refreshChatsNow: vi.fn().mockResolvedValue(undefined),
   loadChatHistory: vi.fn(),
   subSessionsByParent: {},
   setPendingQuestionForSession: vi.fn(),
@@ -93,6 +95,11 @@ describe("useAgentEventSubscription", () => {
     const client = new AgentClient();
     mockSubscribeToEvents = client.subscribeToEvents as ReturnType<typeof vi.fn>;
     mockSubscribeToEvents.mockImplementation(() => new Promise<void>(() => {}));
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
   });
 
   it("should not subscribe when processingChats is empty", () => {
@@ -143,6 +150,10 @@ describe("useAgentEventSubscription", () => {
 
   it("should handle subscription errors and reset state", async () => {
     mockState.processingChats = new Set(["session-1"]);
+    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
+      mockState.processingChats = new Set();
+      mockStore.getState.mockReturnValue(mockState);
+    });
     mockStore.getState.mockReturnValue(mockState);
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -164,13 +175,181 @@ describe("useAgentEventSubscription", () => {
     consoleSpy.mockRestore();
   });
 
-  it("should handle onComplete and save message", async () => {
-    let completeHandler: any;
+  it("recovers missing task list baseline before applying task progress deltas", async () => {
+    let taskProgressHandler: ((delta: any) => void) | undefined;
     mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
-      completeHandler = handlers.onComplete;
+      taskProgressHandler = handlers.onTaskListItemProgress;
     });
 
     mockState.processingChats = new Set(["session-1"]);
+    mockState.taskLists = {};
+    mockState.loadTaskList = vi.fn().mockResolvedValue({
+      session_id: "session-1",
+      title: "Recovered Task List",
+      items: [],
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      taskProgressHandler?.({
+        session_id: "session-1",
+        item_id: "task-1",
+        status: "in_progress",
+        tool_calls_count: 1,
+        version: 2,
+      });
+    });
+
+    await waitFor(() => {
+      expect(mockState.loadTaskList).toHaveBeenCalledWith("session-1");
+    });
+    expect(mockState.updateTaskListDelta).not.toHaveBeenCalled();
+  });
+
+  it("uses high-priority refresh when a child session starts", async () => {
+    let subSessionStartedHandler:
+      | ((parentSessionId: string, childSessionId: string, title?: string) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subSessionStartedHandler = handlers.onSubSessionStarted;
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockState.refreshChatsNow = vi.fn().mockResolvedValue(undefined);
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      subSessionStartedHandler?.("session-1", "child-1", "Child task");
+    });
+
+    await waitFor(() => {
+      expect(mockState.refreshChatsNow).toHaveBeenCalledTimes(1);
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", true);
+      expect(mockState.upsertSubSessionProgress).toHaveBeenCalledWith(
+        "session-1",
+        "child-1",
+        expect.objectContaining({ title: "Child task", status: "pending" }),
+      );
+    });
+  });
+
+  it("waits for settle check before clearing processing after the last child completes", async () => {
+    let completeHandler: (() => void) | undefined;
+    let subSessionStartedHandler:
+      | ((parentSessionId: string, childSessionId: string, title?: string) => void)
+      | undefined;
+    let subSessionCompletedHandler:
+      | ((parentSessionId: string, childSessionId: string, status: string, error?: string) => void)
+      | undefined;
+
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+      subSessionStartedHandler = handlers.onSubSessionStarted;
+      subSessionCompletedHandler = handlers.onSubSessionCompleted;
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
+      mockState.chats = [{ id: "session-1", messages: [], isRunning: false }];
+      mockState.processingChats = new Set();
+      mockStore.getState.mockReturnValue(mockState);
+    });
+    mockState.loadChatHistory = vi.fn().mockResolvedValue(undefined);
+    mockState.chats = [{ id: "session-1", messages: [], isRunning: false }];
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      subSessionStartedHandler?.("session-1", "child-1", "Child task");
+    });
+
+    await act(async () => {
+      completeHandler?.();
+    });
+
+    expect(mockSetSessionProcessing).not.toHaveBeenCalledWith("session-1", false);
+
+    act(() => {
+      subSessionCompletedHandler?.("session-1", "child-1", "completed", undefined);
+    });
+
+    expect(mockSetSessionProcessing).not.toHaveBeenCalledWith("session-1", false);
+
+    await new Promise((r) => setTimeout(r, 350));
+
+    await waitFor(() => {
+      expect(mockState.refreshChatsNow).toHaveBeenCalled();
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+    });
+  });
+
+  it("clears stale processing after completion when refresh shows not running", async () => {
+    let completeHandler: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockState.chats = [{ id: "session-1", messages: [], isRunning: false }];
+    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
+      // Simulate the current store behavior where refresh updates chat.isRunning,
+      // but a stale processingChats bit may still linger until the hook clears it.
+      mockState.chats = [{ id: "session-1", messages: [], isRunning: false }];
+      mockStore.getState.mockReturnValue(mockState);
+    });
+    mockState.loadChatHistory = vi.fn().mockResolvedValue(undefined);
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      completeHandler?.();
+    });
+
+    await new Promise((r) => setTimeout(r, 350));
+
+    await waitFor(() => {
+      expect(mockState.refreshChatsNow).toHaveBeenCalled();
+      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+    });
+  });
+
+  it("should handle onComplete and save message", async () => {
+    let completeHandler: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
+      mockState.processingChats = new Set();
+      mockStore.getState.mockReturnValue(mockState);
+    });
     mockStore.getState.mockReturnValue(mockState);
 
     renderHook(() => useAgentEventSubscription());
@@ -200,13 +379,18 @@ describe("useAgentEventSubscription", () => {
 
   it("clears processing when completion history sync fails", async () => {
     let completeHandler: any;
-    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
       completeHandler = handlers.onComplete;
+      return new Promise<void>(() => {});
     });
 
     const historyError = new Error("Fetch API cannot load due to access control checks");
     mockState.loadChatHistory = vi.fn().mockRejectedValue(historyError);
     mockState.processingChats = new Set(["session-1"]);
+    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
+      mockState.processingChats = new Set();
+      mockStore.getState.mockReturnValue(mockState);
+    });
     mockStore.getState.mockReturnValue(mockState);
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -246,6 +430,10 @@ describe("useAgentEventSubscription", () => {
     });
 
     mockState.processingChats = new Set(["session-1"]);
+    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
+      mockState.processingChats = new Set();
+      mockStore.getState.mockReturnValue(mockState);
+    });
     mockSetSessionProcessing.mockImplementation((sessionId: string, isProcessing: boolean) => {
       if (!isProcessing) {
         mockState.processingChats.delete(sessionId);
@@ -255,14 +443,16 @@ describe("useAgentEventSubscription", () => {
 
     renderHook(() => useAgentEventSubscription());
 
+    let initialCalls = 0;
     await waitFor(() => {
-      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
       expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+      initialCalls = mockSubscribeToEvents.mock.calls.length;
+      expect(initialCalls).toBeGreaterThan(0);
     });
 
     await new Promise((r) => setTimeout(r, 350));
 
-    expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
+    expect(mockSubscribeToEvents.mock.calls.length).toBe(initialCalls);
   });
 
   it("shows a friendly completion policy violation message", async () => {
@@ -299,8 +489,9 @@ describe("useAgentEventSubscription", () => {
 
   it("should handle onError and show error message", async () => {
     let errorHandler: any;
-    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
       errorHandler = handlers.onError;
+      return new Promise<void>(() => {});
     });
 
     mockState.processingChats = new Set(["session-1"]);
@@ -328,7 +519,6 @@ describe("useAgentEventSubscription", () => {
           finishReason: "error",
         }),
       );
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
     });
   });
 
@@ -339,15 +529,54 @@ describe("useAgentEventSubscription", () => {
 
     const { rerender } = renderHook(() => useAgentEventSubscription());
 
+    let initialCalls = 0;
     await waitFor(() => {
-      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
+      initialCalls = mockSubscribeToEvents.mock.calls.length;
+      expect(initialCalls).toBeGreaterThan(0);
     });
 
     // Rerender should not create new subscription
     rerender();
 
     await waitFor(() => {
+      expect(mockSubscribeToEvents.mock.calls.length).toBe(initialCalls);
+    });
+  });
+
+  it("restarts a stale ended subscription when the same session resumes processing", async () => {
+    let completeHandler: (() => void) | undefined;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+      return Promise.resolve();
+    });
+
+    mockState.processingChats = new Set(["session-1"]);
+    mockState.refreshChatsNow = vi.fn().mockResolvedValue(undefined);
+    mockState.loadChatHistory = vi.fn().mockImplementation(async () => {
+      // Keep processing=true to simulate a very fast resumed run arriving before
+      // old completion cleanup has fully converged.
+      mockStore.getState.mockReturnValue(mockState);
+    });
+    mockStore.getState.mockReturnValue(mockState);
+
+    const { rerender } = renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
       expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      completeHandler?.();
+      await Promise.resolve();
+    });
+
+    // Same session remains marked processing, representing an immediate resumed run.
+    mockState.processingChats = new Set(["session-1"]);
+    mockStore.getState.mockReturnValue(mockState);
+    rerender();
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
   });
 

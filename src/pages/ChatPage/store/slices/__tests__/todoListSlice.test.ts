@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { AgentClient } from "../../../services/AgentService";
 import { createTaskListSlice, type TaskList, type TaskListSlice } from "../todoListSlice";
 import { createSliceHarness } from "./sliceHarness";
 
@@ -53,6 +54,20 @@ describe("taskListSlice", () => {
       version: 99,
     });
     expect(harness.getState().taskLists.missing).toBeUndefined();
+  });
+
+  it("loads task list snapshot from backend and stores it", async () => {
+    const getTaskListSpy = vi
+      .spyOn(AgentClient.getInstance(), "getTaskList")
+      .mockResolvedValue(makeTaskList(7));
+    const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+
+    const taskList = await harness.getState().loadTaskList("session-1");
+
+    expect(getTaskListSpy).toHaveBeenCalledWith("session-1");
+    expect(taskList?.title).toBe("Test task");
+    expect(harness.getState().taskLists["session-1"]?.title).toBe("Test task");
+    expect(harness.getState().taskListVersions["session-1"]).toBe(7);
   });
 
   it("applies newer deltas, updates active item, and clears state", () => {

@@ -462,6 +462,7 @@ export interface ChatSlice {
 
   loadChats: () => Promise<void>;
   refreshChats: () => Promise<void>;
+  refreshChatsNow: () => Promise<void>;
   loadChatHistory: (
     sessionId: string,
     options?: {
@@ -502,6 +503,7 @@ const REFRESH_CHATS_THROTTLE_MS = 750;
 
 interface RefreshChatsState {
   inFlight: Promise<void> | null;
+  forcedPromise: Promise<void> | null;
   timer: ReturnType<typeof setTimeout> | null;
   trailingPromise: Promise<void> | null;
   trailingResolve: (() => void) | null;
@@ -510,11 +512,50 @@ interface RefreshChatsState {
 
 const refreshChatsState: RefreshChatsState = {
   inFlight: null,
+  forcedPromise: null,
   timer: null,
   trailingPromise: null,
   trailingResolve: null,
   trailingReject: null,
 };
+
+function consumeTrailingRefreshCallbacks(): {
+  resolve: (() => void) | null;
+  reject: ((error: unknown) => void) | null;
+} {
+  const callbacks = {
+    resolve: refreshChatsState.trailingResolve,
+    reject: refreshChatsState.trailingReject,
+  };
+  refreshChatsState.trailingPromise = null;
+  refreshChatsState.trailingResolve = null;
+  refreshChatsState.trailingReject = null;
+  return callbacks;
+}
+
+function settleTrailingRefreshCallbacks(
+  promise: Promise<void>,
+  callbacks: { resolve: (() => void) | null; reject: ((error: unknown) => void) | null },
+): void {
+  if (!callbacks.resolve && !callbacks.reject) {
+    return;
+  }
+  void promise.then(
+    () => callbacks.resolve?.(),
+    (error) => callbacks.reject?.(error),
+  );
+}
+
+function clearRefreshChatsThrottleWindow(): {
+  resolve: (() => void) | null;
+  reject: ((error: unknown) => void) | null;
+} {
+  if (refreshChatsState.timer) {
+    clearTimeout(refreshChatsState.timer);
+    refreshChatsState.timer = null;
+  }
+  return consumeTrailingRefreshCallbacks();
+}
 
 /**
  * Apply a fetched session list to the store.
@@ -610,6 +651,23 @@ async function executeRefreshChats(set: Parameters<typeof createChatSlice>[0]): 
   });
 
   return refreshChatsState.inFlight;
+}
+
+function executeForcedRefreshChats(set: Parameters<typeof createChatSlice>[0]): Promise<void> {
+  if (refreshChatsState.forcedPromise) {
+    return refreshChatsState.forcedPromise;
+  }
+
+  refreshChatsState.forcedPromise = (async () => {
+    if (refreshChatsState.inFlight) {
+      await refreshChatsState.inFlight;
+    }
+    await executeRefreshChats(set);
+  })().finally(() => {
+    refreshChatsState.forcedPromise = null;
+  });
+
+  return refreshChatsState.forcedPromise;
 }
 
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
@@ -975,18 +1033,22 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       refreshChatsState.timer = null;
 
       if (refreshChatsState.trailingPromise) {
-        const resolve = refreshChatsState.trailingResolve;
-        const reject = refreshChatsState.trailingReject;
-        refreshChatsState.trailingPromise = null;
-        refreshChatsState.trailingResolve = null;
-        refreshChatsState.trailingReject = null;
-
-        void executeRefreshChats(set).then(resolve, reject);
+        const callbacks = consumeTrailingRefreshCallbacks();
+        settleTrailingRefreshCallbacks(executeRefreshChats(set), callbacks);
       }
     }, REFRESH_CHATS_THROTTLE_MS);
 
     // Execute immediately
     return executeRefreshChats(set);
+  },
+
+  refreshChatsNow: async () => {
+    const trailingCallbacks = clearRefreshChatsThrottleWindow();
+    const refreshPromise = refreshChatsState.inFlight
+      ? executeForcedRefreshChats(set)
+      : executeRefreshChats(set);
+    settleTrailingRefreshCallbacks(refreshPromise, trailingCallbacks);
+    return refreshPromise;
   },
 
   loadChats: async () => {

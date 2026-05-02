@@ -1,5 +1,7 @@
 import { StateCreator } from "zustand";
 
+import { AgentClient } from "../../services/AgentService";
+
 // Task item status
 export type TaskItemStatus = "pending" | "in_progress" | "completed" | "blocked";
 
@@ -61,6 +63,8 @@ export interface EvaluationState {
 export interface TaskListActions {
   // Set full task list (from TaskListUpdated event)
   setTaskList: (sessionId: string, taskList: TaskList) => void;
+  // Load the current task list snapshot from backend (best effort)
+  loadTaskList: (sessionId: string) => Promise<TaskList | null>;
   // Update from delta (from TaskListItemProgress event)
   updateTaskListDelta: (sessionId: string, delta: TaskListDelta) => void;
   // Clear task list for a session
@@ -74,6 +78,8 @@ export interface TaskListActions {
 }
 
 export type TaskListSlice = TaskListState & TaskListActions;
+
+const agentClient = AgentClient.getInstance();
 
 export const createTaskListSlice: StateCreator<TaskListSlice, [], [], TaskListSlice> = (
   set,
@@ -97,6 +103,15 @@ export const createTaskListSlice: StateCreator<TaskListSlice, [], [], TaskListSl
         [sessionId]: taskList.version || 0,
       },
     })),
+
+  loadTaskList: async (sessionId) => {
+    const taskList = await agentClient.getTaskList(sessionId);
+    if (!taskList) {
+      return null;
+    }
+    get().setTaskList(taskList.session_id || sessionId, taskList);
+    return taskList;
+  },
 
   // Update from delta (from TaskListItemProgress event)
   updateTaskListDelta: (sessionId, delta) =>

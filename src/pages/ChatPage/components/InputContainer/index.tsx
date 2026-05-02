@@ -453,6 +453,14 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         return;
       }
 
+      // Set processing state immediately so the UI shows feedback while the
+      // outbound respond request is still in-flight.  This mirrors the send-path
+      // fix that sets processing before the network call.
+      setSessionProcessing(sessionId, true);
+      // Yield so React can flush the processing-state render before we block
+      // the microtask queue with network I/O.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
       try {
         const respondPayload: Record<string, unknown> = {
           response: trimmed,
@@ -480,15 +488,20 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           );
         }
 
+        // Processing was already set to true before the POST.  If the server
+        // did NOT start/resume execution, clear processing to avoid a stuck
+        // spinner.
         const resumeStatus = result?.auto_resume_status;
-        if (resumeStatus && ["started", "already_running"].includes(resumeStatus)) {
-          setSessionProcessing(sessionId, true);
+        if (!resumeStatus || !["started", "already_running"].includes(resumeStatus)) {
+          setSessionProcessing(sessionId, false);
         }
       } catch (err) {
         console.error("[InputContainer] Failed to submit respond:", err);
         messageApi.error(
           err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
         );
+        // Clear processing on error to avoid stuck spinner.
+        setSessionProcessing(sessionId, false);
       }
     },
     [

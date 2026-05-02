@@ -18,7 +18,7 @@ import type { ChatItem, Message } from "../types/chat";
 const DEFAULT_PROXY_AUTH_MODE = "auto";
 const REQUIRED_PROXY_AUTH_MODE = "required";
 const AGENT_HEALTH_CHECK_INTERVAL_MS = 10000;
-const SESSION_INDEX_SYNC_INTERVAL_MS = 2000;
+const SESSION_INDEX_SYNC_INTERVAL_MS = 15000;
 
 type AgentAvailabilitySlice = {
   agentAvailability: boolean | null;
@@ -234,11 +234,11 @@ const initializeStore = async (force: boolean = false) => {
 
   if (import.meta.env.MODE !== "test") {
     useAppStore.getState().startAgentHealthCheck();
-    // NOTE: startSessionsIndexSync is no longer auto-started. The session list
-    // is now updated on-demand (startup, user actions, sub-session events) rather
-    // than polling every 2 seconds. If you need the old behavior temporarily,
-    // call useAppStore.getState().startSessionsIndexSync() manually.
-    // useAppStore.getState().startSessionsIndexSync();
+    // Keep a low-frequency self-healing session-index sync running alongside
+    // event-driven updates. This is intentionally much less frequent than the
+    // old 2-second polling loop, but it helps recover from missed SSE windows,
+    // reconnect gaps, and late task/sub-session state propagation.
+    useAppStore.getState().startSessionsIndexSync();
   }
 
   // Load provider config first so defaults (including default model) are available

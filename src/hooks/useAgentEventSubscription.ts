@@ -19,6 +19,19 @@ import {
 type SubscriptionEntry = {
   sessionId: string;
   controller: AbortController;
+  /**
+   * Local frontend generation for this session's SSE stream.
+   * We intentionally keep this client-local because the backend does not yet
+   * expose a reliable per-execution run identity for every root/resume path.
+   */
+  generation: number;
+  /**
+   * True once the underlying SSE reader has ended/resolved, even if async
+   * completion cleanup is still in-flight. This lets a newer execution for the
+   * same session replace the stale entry immediately instead of waiting for the
+   * old cleanup path to finish.
+   */
+  streamEnded: boolean;
 };
 
 // === DEV-ONLY SSE DIAGNOSTICS ===
@@ -28,7 +41,7 @@ function debugSse(...args: unknown[]): void {
   if (!import.meta.env.DEV) return;
   if (typeof localStorage === "undefined") return;
   if (localStorage.getItem("lotus_debug_sse") !== "1") return;
-  console.debug("[SSE]", ...args);
+  console.warn("[SSE]", ...args);
 }
 
 const isAbortError = (err: unknown) => {
@@ -69,15 +82,21 @@ export function useAgentEventSubscription() {
   const updateSession = useAppStore((state) => state.updateSession);
   const updateMessage = useAppStore((state) => state.updateMessage);
   const setTaskList = useAppStore((state) => state.setTaskList);
+  const loadTaskList = useAppStore((state) => state.loadTaskList);
   const updateTaskListDelta = useAppStore((state) => state.updateTaskListDelta);
   const setEvaluationState = useAppStore((state) => state.setEvaluationState);
   const upsertSubSessionProgress = useAppStore((state) => state.upsertSubSessionProgress);
   const persistSessionTitle = useAppStore((state) => state.persistSessionTitle);
-  const refreshChats = useAppStore((state) => state.refreshChats);
+  const refreshChatsNow = useAppStore((state) => state.refreshChatsNow);
   const setPendingQuestionForSession = useAppStore((state) => state.setPendingQuestionForSession);
-  const clearPendingQuestionForSession = useAppStore((state) => state.clearPendingQuestionForSession);
+  const clearPendingQuestionForSession = useAppStore(
+    (state) => state.clearPendingQuestionForSession,
+  );
 
   const agentClientRef = useRef(new AgentClient());
+  const taskBaselineRecoveryRef = useRef<Set<string>>(new Set());
+  const parentSettleTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const subscriptionGenerationBySessionRef = useRef<Map<string, number>>(new Map());
 
   // sessionId -> subscription
   const subscriptionsBySessionRef = useRef<Map<string, SubscriptionEntry>>(new Map());
@@ -124,10 +143,19 @@ export function useAgentEventSubscription() {
     reconnectStateBySessionRef.current.delete(sessionId);
   }, []);
 
+  const clearParentSettleTimer = useCallback((sessionId: string) => {
+    const timer = parentSettleTimersRef.current.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      parentSettleTimersRef.current.delete(sessionId);
+    }
+  }, []);
+
   const cleanupChat = useCallback(
     (sessionId: string, opts?: { clearDraft?: boolean }) => {
       debugSse("cleanupChat", sessionId, opts);
       clearReconnect(sessionId);
+      clearParentSettleTimer(sessionId);
       pendingSessionIdsRef.current.delete(sessionId);
 
       const existing = subscriptionsBySessionRef.current.get(sessionId);
@@ -158,12 +186,36 @@ export function useAgentEventSubscription() {
         streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
       }
     },
-    [clearReconnect],
+    [clearParentSettleTimer, clearReconnect],
+  );
+
+  const ensureTaskListBaseline = useCallback(
+    async (sessionId: string) => {
+      const normalizedSessionId = sessionId.trim();
+      if (!normalizedSessionId) return;
+      if (taskBaselineRecoveryRef.current.has(normalizedSessionId)) return;
+      if (useAppStore.getState().taskLists[normalizedSessionId]) return;
+
+      taskBaselineRecoveryRef.current.add(normalizedSessionId);
+      try {
+        await loadTaskList(normalizedSessionId);
+      } catch (error) {
+        console.warn(
+          `[useAgentEventSubscription] Failed to recover task list baseline for ${normalizedSessionId}:`,
+          error,
+        );
+      } finally {
+        taskBaselineRecoveryRef.current.delete(normalizedSessionId);
+      }
+    },
+    [loadTaskList],
   );
 
   const startSubscription = useCallback(
     (sessionId: string) => {
-      debugSse("startSubscription", sessionId);
+      const generation = (subscriptionGenerationBySessionRef.current.get(sessionId) ?? 0) + 1;
+      subscriptionGenerationBySessionRef.current.set(sessionId, generation);
+      debugSse("startSubscription", sessionId, "generation:", generation);
       // If a reconnect was scheduled, starting a new subscription supersedes it.
       clearReconnect(sessionId);
 
@@ -171,6 +223,8 @@ export function useAgentEventSubscription() {
       subscriptionsBySessionRef.current.set(sessionId, {
         sessionId,
         controller,
+        generation,
+        streamEnded: false,
       });
 
       const messageId = `streaming-${sessionId}`;
@@ -238,6 +292,23 @@ export function useAgentEventSubscription() {
       };
 
       let terminalEventSeen = false;
+      const PARENT_SETTLE_DELAY_MS = 250;
+
+      const markStreamEnded = () => {
+        const current = subscriptionsBySessionRef.current.get(sessionId);
+        if (!current || current.controller !== controller || current.streamEnded) {
+          return;
+        }
+        current.streamEnded = true;
+        debugSse(
+          "markStreamEnded",
+          sessionId,
+          "generation:",
+          current.generation,
+          "terminal:",
+          terminalEventSeen,
+        );
+      };
 
       const hasBackgroundChildren = () => {
         const bg = backgroundChildrenByParentRef.current.get(sessionId);
@@ -245,6 +316,68 @@ export function useAgentEventSubscription() {
       };
 
       const shouldSkipReconnectAfterTerminal = () => terminalEventSeen && !hasBackgroundChildren();
+
+      const clearParentDraft = () => {
+        const entry = subscriptionsBySessionRef.current.get(sessionId);
+        if (entry) {
+          streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
+          streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
+          streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
+          streamingStateBySessionRef.current.delete(entry.sessionId);
+        }
+      };
+
+      const settleParentCompletion = async () => {
+        clearParentSettleTimer(sessionId);
+
+        try {
+          await refreshChatsNow();
+        } catch (error) {
+          console.warn(
+            `[useAgentEventSubscription] High-priority refresh failed while settling parent ${sessionId}:`,
+            error,
+          );
+        }
+
+        const currentBg =
+          backgroundChildrenByParentRef.current.get(sessionId) ??
+          ({ children: new Set<string>(), parentDone: false } as const);
+        if (!currentBg.parentDone || currentBg.children.size > 0) {
+          return;
+        }
+
+        const currentSub = subscriptionsBySessionRef.current.get(sessionId);
+        if (
+          currentSub &&
+          (currentSub.controller !== controller || currentSub.generation !== generation)
+        ) {
+          return;
+        }
+
+        const state = useAppStore.getState();
+        const chat = state.chats.find((c) => c.id === sessionId);
+        // IMPORTANT: do not treat processingChats.has(sessionId) as evidence that the
+        // backend is still running here. This settle path exists specifically to clear
+        // stale local processing bits after a terminal event. If we consult the old bit,
+        // we can self-sustain a stuck "running" UI even when refresh says isRunning=false.
+        const stillRunning = Boolean(chat?.isRunning);
+        if (stillRunning) {
+          setSessionProcessing(sessionId, true);
+          return;
+        }
+
+        cleanupChat(sessionId, { clearDraft: true });
+        setSessionProcessing(sessionId, false);
+      };
+
+      const scheduleParentSettleCheck = () => {
+        clearParentSettleTimer(sessionId);
+        const timer = setTimeout(() => {
+          parentSettleTimersRef.current.delete(sessionId);
+          void settleParentCompletion();
+        }, PARENT_SETTLE_DELAY_MS);
+        parentSettleTimersRef.current.set(sessionId, timer);
+      };
 
       const finalizeParentCompletion = () => {
         const bg =
@@ -257,20 +390,13 @@ export function useAgentEventSubscription() {
         });
 
         if (children.size === 0) {
-          cleanupChat(sessionId, { clearDraft: true });
-          setSessionProcessing(sessionId, false);
+          scheduleParentSettleCheck();
           return;
         }
 
         // Parent is done, but child sessions may still forward progress into this stream.
         // Clear the parent draft while keeping the SSE subscription alive for child events.
-        const entry = subscriptionsBySessionRef.current.get(sessionId);
-        if (entry) {
-          streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
-          streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
-          streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
-          streamingStateBySessionRef.current.delete(entry.sessionId);
-        }
+        clearParentDraft();
       };
 
       agentClientRef.current
@@ -602,6 +728,10 @@ export function useAgentEventSubscription() {
 
             onTaskListItemProgress: (delta: TaskListDelta) => {
               if (delta.session_id) {
+                if (!useAppStore.getState().taskLists[delta.session_id]) {
+                  void ensureTaskListBaseline(delta.session_id);
+                  return;
+                }
                 updateTaskListDelta(delta.session_id, delta);
               }
             },
@@ -654,7 +784,10 @@ export function useAgentEventSubscription() {
               // successor.
               const isSuperseded = () => {
                 const cur = subscriptionsBySessionRef.current.get(sessionId);
-                return cur != null && cur.controller !== ownerController;
+                return (
+                  cur != null &&
+                  (cur.controller !== ownerController || cur.generation !== generation)
+                );
               };
 
               void (async () => {
@@ -828,8 +961,8 @@ export function useAgentEventSubscription() {
                 });
               }
 
-              // Ensure the child session appears in the session list.
-              void refreshChats();
+              // Ensure the child session appears in the session list immediately.
+              void refreshChatsNow();
             },
 
             onSubSessionEvent: (parentSessionId, childSessionId, evt: AgentEvent) => {
@@ -846,6 +979,10 @@ export function useAgentEventSubscription() {
                   typeof evt.tool_calls_count === "number" &&
                   typeof evt.version === "number"
                 ) {
+                  if (!useAppStore.getState().taskLists[sharedSessionId]) {
+                    void ensureTaskListBaseline(sharedSessionId);
+                    return;
+                  }
                   updateTaskListDelta(sharedSessionId, {
                     session_id: sharedSessionId,
                     item_id: evt.item_id,
@@ -920,13 +1057,13 @@ export function useAgentEventSubscription() {
                 lastEventAt: new Date().toISOString(),
               });
 
-              // If parent already completed and no more background children, stop subscription.
+              // If parent already completed and no more background children, wait briefly
+              // for any backend auto-resume/root-resume handoff before tearing down the stream.
               if (bg.parentDone && children.size === 0) {
-                cleanupChat(sessionId, { clearDraft: true });
-                setSessionProcessing(sessionId, false);
+                scheduleParentSettleCheck();
               }
 
-              void refreshChats();
+              void refreshChatsNow();
             },
 
             onNeedClarification: (event) => {
@@ -943,9 +1080,12 @@ export function useAgentEventSubscription() {
           controller,
         )
         .then(() => {
+          markStreamEnded();
           debugSse(
             "streamEnded",
             sessionId,
+            "generation:",
+            generation,
             "aborted:",
             controller.signal.aborted,
             "terminal:",
@@ -958,7 +1098,11 @@ export function useAgentEventSubscription() {
           // If a newer subscription already replaced this one (e.g. user
           // responded to conclusion_with_options quickly), don't interfere with it.
           const currentSub = subscriptionsBySessionRef.current.get(sessionId);
-          if (currentSub && currentSub.controller !== controller) return;
+          if (
+            currentSub &&
+            (currentSub.controller !== controller || currentSub.generation !== generation)
+          )
+            return;
 
           const stillProcessing = useAppStore.getState().processingChats.has(sessionId);
           if (!stillProcessing) {
@@ -970,7 +1114,8 @@ export function useAgentEventSubscription() {
           scheduleReconnect();
         })
         .catch((err) => {
-          debugSse("streamError", sessionId, err);
+          markStreamEnded();
+          debugSse("streamError", sessionId, "generation:", generation, err);
           // If we explicitly aborted, do nothing (normal cleanup path).
           if (controller.signal.aborted) return;
 
@@ -999,10 +1144,15 @@ export function useAgentEventSubscription() {
     [
       addMessage,
       cleanupChat,
+      clearParentSettleTimer,
+      clearPendingQuestionForSession,
       clearReconnect,
+      ensureTaskListBaseline,
+      message,
       persistSessionTitle,
-      refreshChats,
+      refreshChatsNow,
       setEvaluationState,
+      setPendingQuestionForSession,
       setSessionProcessing,
       setTaskList,
       setTruncationInfo,
@@ -1024,18 +1174,41 @@ export function useAgentEventSubscription() {
       pendingSessionIdsRef.current.delete(normalizedSessionId);
 
       const existing = subscriptionsBySessionRef.current.get(normalizedSessionId);
-      // Only skip if the existing subscription is still alive (controller not aborted).
-      // When onComplete is still running its async cleanup (loadChatHistory with retries),
-      // the subscription entry lingers but the SSE reader has already finished.
-      // In that case we must restart so events from the next execution run are captured.
-      if (existing?.sessionId === normalizedSessionId && !existing.controller.signal.aborted) {
-        debugSse("skipExistingSubscription", normalizedSessionId, "controllerAlive:", true);
+      // Only skip if the existing subscription is truly live.
+      // A controller can still be "not aborted" even after the SSE reader already ended,
+      // while old onComplete/onError cleanup is still in flight. That stale entry must not
+      // block the next execution generation for the same session.
+      if (
+        existing?.sessionId === normalizedSessionId &&
+        !existing.controller.signal.aborted &&
+        !existing.streamEnded
+      ) {
+        debugSse(
+          "skipExistingSubscription",
+          normalizedSessionId,
+          "generation:",
+          existing.generation,
+          "streamEnded:",
+          existing.streamEnded,
+        );
         return;
       }
 
       // If we need to restart the SSE connection (e.g. sessionId changed or stale entry),
       // keep any existing draft in-memory so the UI doesn't lose what it already rendered.
-      if (existing) cleanupChat(normalizedSessionId, { clearDraft: false });
+      if (existing) {
+        debugSse(
+          "restartStaleSubscription",
+          normalizedSessionId,
+          "generation:",
+          existing.generation,
+          "aborted:",
+          existing.controller.signal.aborted,
+          "streamEnded:",
+          existing.streamEnded,
+        );
+        cleanupChat(normalizedSessionId, { clearDraft: false });
+      }
       startSubscription(normalizedSessionId);
     },
     [cleanupChat, startSubscription],

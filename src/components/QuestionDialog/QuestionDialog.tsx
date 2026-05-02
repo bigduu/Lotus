@@ -294,7 +294,13 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     if (level === 0) return 30000; // First few empty responses: 30s
     if (level === 1) return 60000; // After more empties: 60s
     return 120000; // Sustained idle: 2 minutes
-  }, [eventPendingQuestion, pendingQuestion?.has_pending_question, isSessionProcessing, isCurrentSession, isDocumentVisible]);
+  }, [
+    eventPendingQuestion,
+    pendingQuestion?.has_pending_question,
+    isSessionProcessing,
+    isCurrentSession,
+    isDocumentVisible,
+  ]);
 
   // Timeout-based adaptive polling (replaces fixed interval)
   useEffect(() => {
@@ -380,6 +386,14 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
 
     setIsSubmitting(true);
 
+    // Set processing state immediately so the UI shows feedback while the
+    // outbound respond request is still in-flight.  This mirrors the send-path
+    // and InputContainer respond-path fixes.
+    setSessionProcessing(sessionId, true);
+    // Yield so React can flush the processing-state render before we block
+    // the microtask queue with network I/O.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     try {
       const modelRefPayload: Record<string, unknown> = {};
       if (useProviderStore.getState().isProviderModelRefEnabled() && activeModelRef) {
@@ -407,13 +421,15 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         );
       }
 
+      // Processing was already set to true before the POST.  If the server
+      // did NOT start/resume execution, clear processing to avoid a stuck
+      // spinner.
       const resumeStatus = submitResult?.auto_resume_status;
-      if (["started", "already_running"].includes(resumeStatus || "")) {
-        if (sessionId) {
-          setSessionProcessing(sessionId, true);
-        }
-      } else if (resumeStatus === "error") {
+      if (resumeStatus === "error") {
         console.error("[QuestionDialog] Failed to auto-resume agent execution");
+        setSessionProcessing(sessionId, false);
+      } else if (!resumeStatus || !["started", "already_running"].includes(resumeStatus)) {
+        setSessionProcessing(sessionId, false);
       }
 
       // Notify parent (optional)
@@ -423,6 +439,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       message.error(
         err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
       );
+      // Clear processing on error to avoid stuck spinner.
+      setSessionProcessing(sessionId, false);
     } finally {
       setIsSubmitting(false);
     }

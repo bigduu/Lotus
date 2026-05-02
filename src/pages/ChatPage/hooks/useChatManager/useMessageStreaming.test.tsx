@@ -27,15 +27,13 @@ const mockStoreState = {
   loadChatHistory: vi.fn(),
   setPendingQuestionRespond: vi.fn(),
   clearPendingQuestionRespondForSession: vi.fn(),
-  pendingQuestionRespond: null as
-    | {
-        sessionId: string;
-        question: string;
-        options: string[];
-        allowCustom: boolean;
-        toolCallId?: string | null;
-      }
-    | null,
+  pendingQuestionRespond: null as {
+    sessionId: string;
+    question: string;
+    options: string[];
+    allowCustom: boolean;
+    toolCallId?: string | null;
+  } | null,
   chats: [] as any[],
 };
 
@@ -323,7 +321,7 @@ describe("useMessageStreaming", () => {
     );
   });
 
-  it("sets processing true before execute so early events are not missed", async () => {
+  it("sets processing true before sendMessage network call so UI responds immediately", async () => {
     mockStoreState.agentAvailability = true;
 
     const order: string[] = [];
@@ -360,7 +358,10 @@ describe("useMessageStreaming", () => {
 
     const deps = {
       sessionId: "chat-1",
-      addMessage: vi.fn(async () => undefined),
+      addMessage: vi.fn(async () => {
+        order.push("addMessage");
+        return undefined;
+      }),
       setSessionProcessing: vi.fn((sessionId: string, isProcessing: boolean) => {
         order.push(`processing:${sessionId}:${String(isProcessing)}`);
       }),
@@ -373,8 +374,58 @@ describe("useMessageStreaming", () => {
       await result.current.sendMessage("hello");
     });
 
-    // The key safety property: subscribe early so first execution events are not missed.
-    expect(order).toEqual(["chat", "processing:chat-1:true", "execute"]);
+    // The key timing property: processing=true fires right after addMessage
+    // but BEFORE the outbound sendMessage network call, so the UI spinner
+    // appears immediately while the request is still in flight.
+    // A second idempotent processing=true fires inside sendWithAgent before
+    // execute, guarding other entry points.
+    expect(order).toEqual([
+      "addMessage",
+      "processing:chat-1:true",
+      "chat",
+      "processing:chat-1:true",
+      "execute",
+    ]);
+  });
+
+  it("clears processing on send-path error even when processing was set early", async () => {
+    mockStoreState.agentAvailability = true;
+    mockAgentSendMessage.mockRejectedValueOnce(new Error("network failure"));
+
+    const mockChat = {
+      id: "chat-1",
+      title: "Test Chat",
+      createdAt: Date.now(),
+      messages: [],
+      config: {
+        systemPromptId: "general_assistant",
+        baseSystemPrompt: "",
+        lastUsedEnhancedPrompt: null,
+      },
+      currentInteraction: {
+        machineState: "idle",
+        streamingMessageId: null,
+        streamingContent: null,
+      },
+    };
+    mockStoreState.chats = [mockChat];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      setSessionProcessing: vi.fn(),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("hello");
+    });
+
+    // Processing was set to true early and must be cleared on error
+    expect(deps.setSessionProcessing).toHaveBeenCalledWith("chat-1", true);
+    expect(deps.setSessionProcessing).toHaveBeenLastCalledWith("chat-1", false);
   });
 
   it("does not reload history on error retry when server preserves full history", async () => {
