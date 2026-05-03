@@ -5,7 +5,6 @@ import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
 import type { PluggableList } from "unified";
 
-import { useAppStore } from "../../store";
 import { buildPendingQuestionIdentity } from "../../utils/pendingQuestionIdentity";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 
@@ -50,9 +49,6 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
   );
   const resolvedExternally = resolvedQuestionIdentity === questionIdentity;
 
-  const enterRespondMode = useAppStore((state) => state.enterRespondMode);
-  const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
-
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
@@ -65,36 +61,13 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
         return;
       }
       setResolvedQuestionIdentity(questionIdentity);
-      clearPendingQuestion(sessionId);
     };
 
     window.addEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     return () => {
       window.removeEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     };
-  }, [sessionId, questionIdentity, clearPendingQuestion]);
-
-  useEffect(() => {
-    if (!sessionId || resolvedExternally) {
-      return;
-    }
-
-    enterRespondMode(sessionId, {
-      question,
-      options,
-      allowCustom,
-      toolCallId: toolCallId ?? null,
-    });
-  }, [
-    sessionId,
-    resolvedExternally,
-    questionIdentity,
-    question,
-    options,
-    allowCustom,
-    toolCallId,
-    enterRespondMode,
-  ]);
+  }, [sessionId, questionIdentity]);
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>

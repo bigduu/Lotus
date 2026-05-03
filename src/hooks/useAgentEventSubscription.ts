@@ -9,11 +9,10 @@ import {
 } from "../services/chat/AgentService";
 import {
   useAppStore,
-  selectIsBusy,
+  selectShouldObserve,
   selectGeneration,
   selectChildren,
 } from "../pages/ChatPage/store";
-import { isBusyPhase } from "../pages/ChatPage/store/slices/executionStateSlice";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
 import { App as AntApp } from "antd";
@@ -94,7 +93,7 @@ export function useAgentEventSubscription() {
   const applyChildProgress = useAppStore((state) => state.applyChildProgress);
   const persistSessionTitle = useAppStore((state) => state.persistSessionTitle);
   const refreshChatsNow = useAppStore((state) => state.refreshChatsNow);
-  const setPendingQuestionFromSse = useAppStore((state) => state.setPendingQuestionFromSse);
+  const setPendingQuestion = useAppStore((state) => state.setPendingQuestion);
   const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
 
   const agentClientRef = useRef(new AgentClient());
@@ -281,8 +280,8 @@ export function useAgentEventSubscription() {
         cleanupChat(sessionId, { clearDraft: false });
         const timer = setTimeout(() => {
           reconnectStateBySessionRef.current.delete(sessionId);
-          // selectIsBusy = any active execution; triggers reconnect while session is alive
-          if (!selectIsBusy(sessionId)(useAppStore.getState())) return;
+          // selectShouldObserve = any active execution; triggers reconnect while session is alive
+          if (!selectShouldObserve(sessionId)(useAppStore.getState())) return;
           const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
           const sid = chat?.id?.trim();
           if (!sid) return;
@@ -359,7 +358,7 @@ export function useAgentEventSubscription() {
 
         const state = useAppStore.getState();
         const chat = state.chats.find((c) => c.id === sessionId);
-        // IMPORTANT: do not treat selectIsBusy(sessionId) as evidence that the
+        // IMPORTANT: do not treat selectShouldObserve(sessionId) as evidence that the
         // backend is still running here. This settle path exists specifically to clear
         // stale local processing bits after a terminal event.
         const stillRunning = Boolean(chat?.isRunning);
@@ -1128,7 +1127,7 @@ export function useAgentEventSubscription() {
 
             onNeedClarification: (event) => {
               const targetSessionId = event.session_id || sessionId;
-              setPendingQuestionFromSse(targetSessionId, {
+              setPendingQuestion(targetSessionId, {
                 question: event.question || "",
                 options: event.options || [],
                 allowCustom: event.allow_custom ?? true,
@@ -1175,8 +1174,8 @@ export function useAgentEventSubscription() {
           )
             return;
 
-          // selectIsBusy = any active execution; keep processing state while session is alive
-          const stillBusy = selectIsBusy(sessionId)(useAppStore.getState());
+          // selectShouldObserve = any active execution; keep processing state while session is alive
+          const stillBusy = selectShouldObserve(sessionId)(useAppStore.getState());
           if (!stillBusy) {
             cleanupChat(sessionId, { clearDraft: true });
             return;
@@ -1196,8 +1195,8 @@ export function useAgentEventSubscription() {
           if (isAbortError(err)) {
             if (shouldSkipReconnectAfterTerminal()) return;
 
-            // selectIsBusy = any active execution; attempt reconnect while session is alive
-            const stillBusy = selectIsBusy(sessionId)(useAppStore.getState());
+            // selectShouldObserve = any active execution; attempt reconnect while session is alive
+            const stillBusy = selectShouldObserve(sessionId)(useAppStore.getState());
             if (!stillBusy) {
               cleanupChat(sessionId, { clearDraft: true });
               return;
@@ -1212,8 +1211,8 @@ export function useAgentEventSubscription() {
           console.error("[useAgentEventSubscription] Subscription error:", err);
           cleanupChat(sessionId, { clearDraft: true });
           const currentGen = selectGeneration(sessionId)(useAppStore.getState());
-          // selectIsBusy = any active execution; only emit error if session is still alive
-          const currentBusy = selectIsBusy(sessionId)(useAppStore.getState());
+          // selectShouldObserve = any active execution; only emit error if session is still alive
+          const currentBusy = selectShouldObserve(sessionId)(useAppStore.getState());
           if (currentGen === generation && currentBusy) {
             applyAgentEvent(
               sessionId,
@@ -1234,7 +1233,7 @@ export function useAgentEventSubscription() {
       persistSessionTitle,
       refreshChatsNow,
       setEvaluationState,
-      setPendingQuestionFromSse,
+      setPendingQuestion,
       applyAgentEvent,
       setTaskList,
       setTruncationInfo,
@@ -1299,9 +1298,10 @@ export function useAgentEventSubscription() {
   // Effect A: reconcile active subscriptions when busy sessions change (NO global cleanup return)
   const executionBySession = useAppStore((state) => state.executionBySession);
   useEffect(() => {
+    const state = { executionBySession };
     const busySessionIds = new Set(
       Object.entries(executionBySession)
-        .filter(([, entry]) => isBusyPhase(entry.phase))
+        .filter(([id]) => selectShouldObserve(id)(state))
         .map(([id]) => id),
     );
 
@@ -1331,8 +1331,7 @@ export function useAgentEventSubscription() {
         if (pendingSessionIdsRef.current.size === 0) return;
 
         for (const sessionId of Array.from(pendingSessionIdsRef.current)) {
-          const entry = useAppStore.getState().executionBySession[sessionId];
-          if (!isBusyPhase(entry?.phase)) {
+          if (!selectShouldObserve(sessionId)(useAppStore.getState())) {
             pendingSessionIdsRef.current.delete(sessionId);
             continue;
           }

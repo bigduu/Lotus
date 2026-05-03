@@ -19,23 +19,14 @@ import { useChatHistory } from "./useChatHistory";
  * Uses Agent Server endpoints (localhost:9562).
  */
 export const useChatManager = () => {
-  // Phase 1: State and derived values
   const state = useChatState();
-
-  // Phase 2: Title generation
   const titleGeneration = useChatTitleGeneration(state);
-
-  // Phase 3: Chat operations (CRUD)
   const operations = useChatOperations(state);
-
-  // Phase 4: Message streaming (Agent Server)
   const streaming = useMessageStreaming({
     sessionId: state.currentSessionId,
     addMessage: state.addMessage,
     updateSession: state.updateSession,
   });
-
-  // Phase 5: Chat history management
   const history = useChatHistory(state, {
     onRetry: streaming.sendMessage,
   });

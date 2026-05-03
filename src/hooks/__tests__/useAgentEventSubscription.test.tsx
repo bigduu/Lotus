@@ -15,7 +15,7 @@ vi.mock("../../pages/ChatPage/store", () => {
     setState: vi.fn(),
     destroy: vi.fn(),
   });
-  const selectIsBusy = (sessionId: string | null) => (state: any) => {
+  const selectShouldObserve = (sessionId: string | null) => (state: any) => {
     const entry = state.executionBySession?.[sessionId!];
     if (entry) {
       const phase = entry.phase;
@@ -31,7 +31,7 @@ vi.mock("../../pages/ChatPage/store", () => {
   const selectChildren = (sessionId: string | null) => (state: any) => {
     return state.executionBySession?.[sessionId!]?.children?.byId ?? {};
   };
-  return { useAppStore: mockStore, selectIsBusy, selectGeneration, selectChildren };
+  return { useAppStore: mockStore, selectShouldObserve, selectGeneration, selectChildren };
 });
 
 vi.mock("../../services/chat/AgentService", () => {
@@ -71,7 +71,7 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   refreshChats: vi.fn().mockResolvedValue(undefined),
   refreshChatsNow: vi.fn().mockResolvedValue(undefined),
   loadChatHistory: vi.fn(),
-  setPendingQuestionFromSse: vi.fn(),
+  setPendingQuestion: vi.fn(),
   clearPendingQuestion: vi.fn(),
   ...overrides,
 });

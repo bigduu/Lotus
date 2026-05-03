@@ -25,7 +25,7 @@ const mockStoreState = {
   checkAgentAvailability: vi.fn<() => Promise<boolean>>(),
   setAgentAvailability: vi.fn(),
   loadChatHistory: vi.fn(),
-  enterRespondMode: vi.fn(),
+  setPendingQuestion: vi.fn(),
   clearPendingQuestion: vi.fn(),
   executionBySession: {} as Record<string, any>,
   chats: [] as any[],
@@ -112,7 +112,7 @@ describe("useMessageStreaming", () => {
     mockStoreState.checkAgentAvailability.mockReset();
     mockStoreState.setAgentAvailability.mockReset();
     mockStoreState.loadChatHistory.mockReset();
-    mockStoreState.enterRespondMode.mockReset();
+    mockStoreState.setPendingQuestion.mockReset();
     mockStoreState.clearPendingQuestion.mockReset();
     mockStoreState.executionBySession = {};
     mockStoreState.chats = [];

@@ -579,7 +579,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     map = applyExecutionEvent(
       map,
       {
-        type: "setPendingQuestionFromSse",
+        type: "setPendingQuestion",
         sessionId: SESSION,
         payload: {
           question: "Which?",

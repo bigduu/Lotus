@@ -177,9 +177,8 @@ export type ExecutionAction =
       patch: Partial<ChildProgress>;
     }
   | { type: "clearChildProgress"; sessionId: string; childId: string }
-  | { type: "setPendingQuestionFromSse"; sessionId: string; payload: PendingQuestionPayload }
+  | { type: "setPendingQuestion"; sessionId: string; payload: PendingQuestionPayload }
   | { type: "clearPendingQuestion"; sessionId: string }
-  | { type: "enterRespondMode"; sessionId: string; payload: PendingQuestionPayload }
   | { type: "resetSession"; sessionId: string }
   | {
       type: "applyRunningSnapshot";
@@ -1073,7 +1072,7 @@ export const applyExecutionEvent = (
       }
       return writeEntry(map, action.sessionId, next);
     }
-    case "setPendingQuestionFromSse": {
+    case "setPendingQuestion": {
       const entry = ensureEntry(map, action.sessionId);
       const receivedAt = now();
       const next: SessionExecutionState = {
@@ -1100,17 +1099,6 @@ export const applyExecutionEvent = (
           ...entry.interaction,
           pendingQuestion: null,
           respondMode: null,
-        },
-      };
-      return writeEntry(map, action.sessionId, next);
-    }
-    case "enterRespondMode": {
-      const entry = ensureEntry(map, action.sessionId);
-      const next: SessionExecutionState = {
-        ...entry,
-        interaction: {
-          ...entry.interaction,
-          respondMode: { ...action.payload, sessionId: action.sessionId },
         },
       };
       return writeEntry(map, action.sessionId, next);
@@ -1177,9 +1165,8 @@ export interface ExecutionStateSlice {
   beginSettle: (sessionId: string, generation: number) => void;
   applyChildProgress: (sessionId: string, childId: string, patch: Partial<ChildProgress>) => void;
   clearChildProgress: (sessionId: string, childId: string) => void;
-  setPendingQuestionFromSse: (sessionId: string, payload: PendingQuestionPayload) => void;
+  setPendingQuestion: (sessionId: string, payload: PendingQuestionPayload) => void;
   clearPendingQuestion: (sessionId: string) => void;
-  enterRespondMode: (sessionId: string, payload: PendingQuestionPayload) => void;
   resetSession: (sessionId: string) => void;
   applyRunningSnapshot: (
     sessions: Array<{
@@ -1365,11 +1352,11 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
     });
   },
 
-  setPendingQuestionFromSse: (sessionId, payload) => {
+  setPendingQuestion: (sessionId, payload) => {
     set((state) => {
       const next = applyExecutionEvent(
         state.executionBySession,
-        { type: "setPendingQuestionFromSse", sessionId, payload },
+        { type: "setPendingQuestion", sessionId, payload },
         sliceNow,
       );
       if (next === state.executionBySession) return {};
@@ -1382,18 +1369,6 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
       const next = applyExecutionEvent(
         state.executionBySession,
         { type: "clearPendingQuestion", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return {};
-      return { executionBySession: next };
-    });
-  },
-
-  enterRespondMode: (sessionId, payload) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "enterRespondMode", sessionId, payload },
         sliceNow,
       );
       if (next === state.executionBySession) return {};

@@ -59,7 +59,7 @@ vi.mock("antd", async () => {
 describe("QuestionDialog", () => {
   const mockMarkRespondStart = vi.fn();
   const mockMarkSettleTimeout = vi.fn();
-  const mockEnterRespondMode = vi.fn();
+  const mockSetPendingQuestion = vi.fn();
   const mockClearPendingQuestion = vi.fn();
   const defaultProps = {
     sessionId: "test-session-1",
@@ -84,7 +84,7 @@ describe("QuestionDialog", () => {
       const state = {
         markRespondStart: mockMarkRespondStart,
         markSettleTimeout: mockMarkSettleTimeout,
-        enterRespondMode: mockEnterRespondMode,
+        setPendingQuestion: mockSetPendingQuestion,
         clearPendingQuestion: mockClearPendingQuestion,
         chats: [],
         inputStates: {},
@@ -487,8 +487,8 @@ describe("QuestionDialog", () => {
     const customOption = screen.getByText("Other (type below)");
     fireEvent.click(customOption);
 
-    // Verify that enterRespondMode was called with the correct payload
-    expect(mockEnterRespondMode).toHaveBeenCalledWith("test-session-1", {
+    // Verify that setPendingQuestion was called with the correct payload
+    expect(mockSetPendingQuestion).toHaveBeenCalledWith("test-session-1", {
       question: "Test?",
       options: ["A"],
       allowCustom: true,
@@ -506,7 +506,7 @@ describe("QuestionDialog", () => {
     const optionA = screen.getByText("A");
     fireEvent.click(optionA);
 
-    expect(mockEnterRespondMode).not.toHaveBeenCalledWith(null);
+    expect(mockSetPendingQuestion).not.toHaveBeenCalledWith(null);
   });
 
   it("should clear processing when respond POST fails", async () => {

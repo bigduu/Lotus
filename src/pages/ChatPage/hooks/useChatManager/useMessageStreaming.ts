@@ -168,11 +168,11 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
       const pending = await getPendingQuestion(sessionId);
-      const enterRespondMode = useAppStore.getState().enterRespondMode;
+      const setPendingQuestion = useAppStore.getState().setPendingQuestion;
       const clearPendingQuestion = useAppStore.getState().clearPendingQuestion;
 
       if (pending.has_pending_question) {
-        enterRespondMode(sessionId, {
+        setPendingQuestion(sessionId, {
           question: pending.question || "",
           options: pending.options || [],
           allowCustom: pending.allow_custom ?? true,

@@ -79,7 +79,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
 
   const markRespondStart = useAppStore((state) => state.markRespondStart);
   const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
-  const enterRespondMode = useAppStore((state) => state.enterRespondMode);
+  const setPendingQuestion = useAppStore((state) => state.setPendingQuestion);
   const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
   const currentChat = useAppStore(
     (state) => state.chats.find((chat) => chat.id === sessionId) || null,
@@ -233,7 +233,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       });
       const isSameQuestion = lastQuestionIdentityRef.current === nextIdentity;
 
-      enterRespondMode(sessionId, {
+      setPendingQuestion(sessionId, {
         question: pendingQuestion?.question || "",
         options: pendingQuestion?.options || [],
         allowCustom: pendingQuestion?.allow_custom ?? true,
@@ -258,7 +258,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     pendingQuestion?.question,
     pendingQuestion?.tool_call_id,
     sessionId,
-    enterRespondMode,
+    setPendingQuestion,
     clearPendingQuestion,
   ]);
 
@@ -349,14 +349,13 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       setPolledQuestion(null);
       setSelectedOption(null);
       emptyCountRef.current = 0;
-      clearPendingQuestion(sessionId);
     };
 
     window.addEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     return () => {
       window.removeEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     };
-  }, [sessionId, clearPendingQuestion]);
+  }, [sessionId]);
 
   // Update selected option. Respond mode stays active for the entire
   // duration of the pending question (set in the effect above), so we
