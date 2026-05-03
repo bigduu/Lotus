@@ -514,7 +514,6 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
             lastUsedEnhancedPrompt: null,
             ...(workspacePath ? { workspacePath } : {}),
           },
-          currentInteraction: null,
         });
 
         assignSessionToActiveLeaf(newSessionId);

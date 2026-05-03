@@ -64,7 +64,6 @@ const createChat = (id: string): ChatItem => ({
     baseSystemPrompt: "Base prompt",
     lastUsedEnhancedPrompt: null,
   },
-  currentInteraction: null,
 });
 
 const createUserMessage = (id: string) =>
@@ -812,72 +811,72 @@ describe("chatSessionSlice session model propagation", () => {
     expect(updatedChat?.config?.model_ref).toEqual(newModelRef);
   });
 
-describe("chatSessionSlice persistSessionTitle", () => {
-  beforeEach(() => {
-    patchSessionMock.mockReset();
-    patchSessionMock.mockResolvedValue(undefined);
+  describe("chatSessionSlice persistSessionTitle", () => {
+    beforeEach(() => {
+      patchSessionMock.mockReset();
+      patchSessionMock.mockResolvedValue(undefined);
+    });
+
+    it("optimistically updates title and awaits PATCH call", async () => {
+      const store = createTestStore();
+      const chat = createChat("session-1");
+
+      store.setState((state) => ({
+        ...state,
+        chats: [chat],
+        currentSessionId: chat.id,
+        latestActiveSessionId: chat.id,
+      }));
+
+      await store.getState().persistSessionTitle("session-1", "My New Title");
+
+      // Local state must be updated immediately.
+      expect(store.getState().chats[0]?.title).toBe("My New Title");
+
+      // Backend must be called with the new title.
+      expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "My New Title" });
+    });
+
+    it("rolls back title when PATCH fails", async () => {
+      const store = createTestStore();
+      const chat = createChat("session-1");
+
+      store.setState((state) => ({
+        ...state,
+        chats: [chat],
+        currentSessionId: chat.id,
+        latestActiveSessionId: chat.id,
+      }));
+
+      patchSessionMock.mockRejectedValueOnce(new Error("network error"));
+
+      await expect(
+        store.getState().persistSessionTitle("session-1", "Broken Title"),
+      ).rejects.toThrow("network error");
+
+      // Title must be rolled back to the original.
+      expect(store.getState().chats[0]?.title).toBe("Chat session-1");
+      expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "Broken Title" });
+    });
+
+    it("re-throws the error when PATCH fails", async () => {
+      const store = createTestStore();
+      const chat = createChat("session-1");
+
+      store.setState((state) => ({
+        ...state,
+        chats: [chat],
+        currentSessionId: chat.id,
+        latestActiveSessionId: chat.id,
+      }));
+
+      patchSessionMock.mockRejectedValueOnce(new Error("server unreachable"));
+
+      await expect(store.getState().persistSessionTitle("session-1", "Test")).rejects.toThrow(
+        "server unreachable",
+      );
+    });
   });
-
-  it("optimistically updates title and awaits PATCH call", async () => {
-    const store = createTestStore();
-    const chat = createChat("session-1");
-
-    store.setState((state) => ({
-      ...state,
-      chats: [chat],
-      currentSessionId: chat.id,
-      latestActiveSessionId: chat.id,
-    }));
-
-    await store.getState().persistSessionTitle("session-1", "My New Title");
-
-    // Local state must be updated immediately.
-    expect(store.getState().chats[0]?.title).toBe("My New Title");
-
-    // Backend must be called with the new title.
-    expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "My New Title" });
-  });
-
-  it("rolls back title when PATCH fails", async () => {
-    const store = createTestStore();
-    const chat = createChat("session-1");
-
-    store.setState((state) => ({
-      ...state,
-      chats: [chat],
-      currentSessionId: chat.id,
-      latestActiveSessionId: chat.id,
-    }));
-
-    patchSessionMock.mockRejectedValueOnce(new Error("network error"));
-
-    await expect(
-      store.getState().persistSessionTitle("session-1", "Broken Title"),
-    ).rejects.toThrow("network error");
-
-    // Title must be rolled back to the original.
-    expect(store.getState().chats[0]?.title).toBe("Chat session-1");
-    expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "Broken Title" });
-  });
-
-  it("re-throws the error when PATCH fails", async () => {
-    const store = createTestStore();
-    const chat = createChat("session-1");
-
-    store.setState((state) => ({
-      ...state,
-      chats: [chat],
-      currentSessionId: chat.id,
-      latestActiveSessionId: chat.id,
-    }));
-
-    patchSessionMock.mockRejectedValueOnce(new Error("server unreachable"));
-
-    await expect(
-      store.getState().persistSessionTitle("session-1", "Test"),
-    ).rejects.toThrow("server unreachable");
-  });
-});
 
   it("updateSession does not patch model_ref when feature flag is off", async () => {
     const store = createTestStore();

@@ -57,15 +57,11 @@ describe("useChatViewScroll", () => {
     } as unknown as HTMLDivElement;
 
     const messagesListRef = { current: element };
-    const interactionState = {
-      value: "IDLE" as const,
-      matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => stateName === "IDLE",
-    };
 
     const { result } = renderHook(() =>
       useChatViewScroll({
         currentSessionId: "session-1",
-        interactionState,
+        isThinking: false,
         messagesListRef,
         renderableMessages: [{ message: { id: "m1", createdAt: new Date().toISOString() } } as any],
       }),
@@ -121,15 +117,11 @@ describe("useChatViewScroll", () => {
     } as unknown as HTMLDivElement;
 
     const messagesListRef = { current: element };
-    const interactionState = {
-      value: "IDLE" as const,
-      matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => stateName === "IDLE",
-    };
 
     const { result } = renderHook(() =>
       useChatViewScroll({
         currentSessionId: "session-1",
-        interactionState,
+        isThinking: false,
         messagesListRef,
         renderableMessages: [{ message: { id: "m1", createdAt: new Date().toISOString() } } as any],
       }),

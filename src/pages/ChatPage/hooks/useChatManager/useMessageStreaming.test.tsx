@@ -25,16 +25,14 @@ const mockStoreState = {
   checkAgentAvailability: vi.fn<() => Promise<boolean>>(),
   setAgentAvailability: vi.fn(),
   loadChatHistory: vi.fn(),
-  setPendingQuestionRespond: vi.fn(),
-  clearPendingQuestionRespondForSession: vi.fn(),
-  pendingQuestionRespond: null as {
-    sessionId: string;
-    question: string;
-    options: string[];
-    allowCustom: boolean;
-    toolCallId?: string | null;
-  } | null,
+  enterRespondMode: vi.fn(),
+  clearPendingQuestion: vi.fn(),
+  executionBySession: {} as Record<string, any>,
   chats: [] as any[],
+  markOptimisticStart: vi.fn(),
+  markRetryStart: vi.fn(),
+  markSettleTimeout: vi.fn(),
+  beginSettle: vi.fn(),
 };
 
 const mockActiveModel = "gpt-5";
@@ -80,23 +78,17 @@ vi.mock("../../store", () => {
     selector(mockStoreState);
   (
     useAppStore as typeof useAppStore & {
-      getState: () => {
-        loadChatHistory: typeof mockStoreState.loadChatHistory;
-        chats: typeof mockStoreState.chats;
-        pendingQuestionRespond: typeof mockStoreState.pendingQuestionRespond;
-        setPendingQuestionRespond: typeof mockStoreState.setPendingQuestionRespond;
-        clearPendingQuestionRespondForSession: typeof mockStoreState.clearPendingQuestionRespondForSession;
-      };
+      getState: () => typeof mockStoreState;
     }
-  ).getState = () => ({
-    loadChatHistory: mockStoreState.loadChatHistory,
-    chats: mockStoreState.chats,
-    pendingQuestionRespond: mockStoreState.pendingQuestionRespond,
-    setPendingQuestionRespond: mockStoreState.setPendingQuestionRespond,
-    clearPendingQuestionRespondForSession: mockStoreState.clearPendingQuestionRespondForSession,
-  });
+  ).getState = () => mockStoreState;
 
-  return { useAppStore };
+  const selectRespondMode = (sessionId: string | null) => (state: typeof mockStoreState) =>
+    state.executionBySession?.[sessionId ?? ""]?.interaction?.respondMode ?? null;
+
+  const selectGeneration = (sessionId: string | null) => (state: typeof mockStoreState) =>
+    state.executionBySession?.[sessionId ?? ""]?.generation ?? 0;
+
+  return { useAppStore, selectRespondMode, selectGeneration };
 });
 
 import { useMessageStreaming } from "./useMessageStreaming";
@@ -120,17 +112,20 @@ describe("useMessageStreaming", () => {
     mockStoreState.checkAgentAvailability.mockReset();
     mockStoreState.setAgentAvailability.mockReset();
     mockStoreState.loadChatHistory.mockReset();
-    mockStoreState.setPendingQuestionRespond.mockReset();
-    mockStoreState.clearPendingQuestionRespondForSession.mockReset();
-    mockStoreState.pendingQuestionRespond = null;
+    mockStoreState.enterRespondMode.mockReset();
+    mockStoreState.clearPendingQuestion.mockReset();
+    mockStoreState.executionBySession = {};
     mockStoreState.chats = [];
+    mockStoreState.markOptimisticStart.mockReset();
+    mockStoreState.markRetryStart.mockReset();
+    mockStoreState.markSettleTimeout.mockReset();
+    mockStoreState.beginSettle.mockReset();
   });
 
   it("starts global health-check polling once on mount", async () => {
     const deps = {
       sessionId: null,
       addMessage: vi.fn(),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -166,7 +161,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -207,7 +201,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -251,7 +244,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -303,7 +295,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -362,9 +353,6 @@ describe("useMessageStreaming", () => {
         order.push("addMessage");
         return undefined;
       }),
-      setSessionProcessing: vi.fn((sessionId: string, isProcessing: boolean) => {
-        order.push(`processing:${sessionId}:${String(isProcessing)}`);
-      }),
       updateSession: vi.fn(),
     };
 
@@ -374,18 +362,11 @@ describe("useMessageStreaming", () => {
       await result.current.sendMessage("hello");
     });
 
-    // The key timing property: processing=true fires right after addMessage
-    // but BEFORE the outbound sendMessage network call, so the UI spinner
-    // appears immediately while the request is still in flight.
-    // A second idempotent processing=true fires inside sendWithAgent before
-    // execute, guarding other entry points.
-    expect(order).toEqual([
-      "addMessage",
-      "processing:chat-1:true",
-      "chat",
-      "processing:chat-1:true",
-      "execute",
-    ]);
+    // Phase 3: markOptimisticStart fires right after addMessage but BEFORE the
+    // outbound network call, so the UI spinner appears immediately. The redundant
+    // second call inside sendWithAgent was removed.
+    expect(order).toEqual(["addMessage", "chat", "execute"]);
+    expect(mockStoreState.markOptimisticStart).toHaveBeenCalledWith("chat-1");
   });
 
   it("clears processing on send-path error even when processing was set early", async () => {
@@ -413,7 +394,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -423,9 +403,10 @@ describe("useMessageStreaming", () => {
       await result.current.sendMessage("hello");
     });
 
-    // Processing was set to true early and must be cleared on error
-    expect(deps.setSessionProcessing).toHaveBeenCalledWith("chat-1", true);
-    expect(deps.setSessionProcessing).toHaveBeenLastCalledWith("chat-1", false);
+    // Phase 3: optimistic start is emitted before the network call; on error
+    // markSettleTimeout clears the stale starting state.
+    expect(mockStoreState.markOptimisticStart).toHaveBeenCalledWith("chat-1");
+    expect(mockStoreState.markSettleTimeout).toHaveBeenCalledWith("chat-1");
   });
 
   it("does not reload history on error retry when server preserves full history", async () => {
@@ -463,7 +444,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -514,7 +494,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -613,7 +592,6 @@ describe("useMessageStreaming", () => {
     const deps = {
       sessionId: "chat-1",
       addMessage: vi.fn(async () => undefined),
-      setSessionProcessing: vi.fn(),
       updateSession: vi.fn(),
     };
 
@@ -626,6 +604,7 @@ describe("useMessageStreaming", () => {
     expect(mockAgentExecute).toHaveBeenCalledTimes(3);
     expect(mockAgentApiGet).toHaveBeenCalledTimes(2);
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledTimes(3);
-    expect(deps.setSessionProcessing).toHaveBeenLastCalledWith("chat-1", false);
+    // Phase 3: after max sync recoveries, markSettleTimeout clears the state.
+    expect(mockStoreState.markSettleTimeout).toHaveBeenCalledWith("chat-1");
   });
 });

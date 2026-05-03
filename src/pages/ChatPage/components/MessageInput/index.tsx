@@ -25,6 +25,8 @@ import type { MessageRetryMode } from "./types";
 
 export interface MessageInputInteractionControls {
   isStreaming: boolean;
+  /** Whether the send button should show as a cancel button. Defaults to isStreaming. */
+  canCancel?: boolean;
   hasMessages: boolean;
   allowRetry?: boolean;
   onRetry?: (mode: MessageRetryMode) => void;
@@ -83,6 +85,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const { t } = useTranslation();
   const {
     isStreaming,
+    canCancel,
     hasMessages,
     allowRetry = true,
     onRetry,
@@ -271,6 +274,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               allowRetry={allowRetry}
               hasMessages={hasMessages}
               isStreaming={isStreaming}
+              canCancel={canCancel}
               disabled={disabled}
               onRetry={handleRetry}
               onCancel={onCancel}

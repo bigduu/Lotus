@@ -30,6 +30,7 @@ export type AgentEventType =
   | "sub_session_heartbeat"
   | "sub_session_completed"
   | "need_clarification"
+  | "execution_started"
   | "complete"
   | "error";
 
@@ -148,6 +149,9 @@ export interface AgentEvent {
   question?: string;
   options?: string[];
   allow_custom?: boolean;
+  // ExecutionStarted event
+  run_id?: string;
+  started_at?: string;
 }
 
 export interface ChatRequest {
@@ -201,6 +205,8 @@ export interface ExecuteResponse {
   status: "started" | "already_running" | "completed" | "error" | "cancelled";
   events_url: string;
   sync?: ExecuteSyncInfo;
+  /** Phase 5A — unique run identifier for correlating SSE events across reconnects. */
+  run_id?: string;
 }
 
 export interface ExecuteRequest {
@@ -275,6 +281,28 @@ export interface SessionSummary {
    * children created before subagent profiles were introduced.
    */
   subagent_type?: string | null;
+  /** Whether the session currently has a pending question awaiting user response. */
+  has_pending_question?: boolean;
+  /** Number of child sessions currently running under this session. */
+  running_child_count?: number;
+  /** The current run_id if this session is actively executing (Phase 5A). */
+  current_run_id?: string | null;
+}
+
+export interface RunningSessionEntry {
+  session_id: string;
+  run_id: string;
+  started_at: string;
+  round_count: number;
+  last_tool_name?: string | null;
+  last_tool_phase?: string | null;
+  last_event_at?: string | null;
+  last_critical_events: AgentEvent[];
+  running_child_session_ids: string[];
+}
+
+export interface RunningSessionsResponse {
+  sessions: RunningSessionEntry[];
 }
 
 export interface ListSessionsResponse {
@@ -549,6 +577,7 @@ export interface AgentEventHandlers {
     error?: string,
   ) => void;
   onNeedClarification?: (event: AgentEvent) => void;
+  onExecutionStarted?: (runId: string, startedAt?: string) => void;
 }
 
 /**
@@ -745,6 +774,14 @@ export class AgentClient {
    */
   async devResetSessions(): Promise<void> {
     await agentApiClient.post("dev/reset");
+  }
+
+  /**
+   * Get a snapshot of all currently-running sessions.
+   * Used by the frontend on boot/reconnect to replay active run state.
+   */
+  async getRunningSessions(): Promise<RunningSessionsResponse> {
+    return agentApiClient.get<RunningSessionsResponse>("runs/active");
   }
 
   async listSchedules(): Promise<ListSchedulesResponse> {
@@ -1036,6 +1073,9 @@ export class AgentClient {
             event.error,
           );
         }
+        break;
+      case "execution_started":
+        handlers.onExecutionStarted?.(event.run_id || "", event.started_at);
         break;
       case "need_clarification":
         handlers.onNeedClarification?.(event);

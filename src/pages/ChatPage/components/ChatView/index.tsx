@@ -21,7 +21,7 @@ import {
   UpOutlined,
 } from "@ant-design/icons";
 
-import { selectSessionById, useAppStore } from "../../store";
+import { selectChildren, selectIsBusy, selectSessionById, useAppStore } from "../../store";
 import { isAssistantToolResultMessage, type Message } from "../../types/chat";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessagesList } from "./ChatMessagesList";
@@ -101,7 +101,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
   const loadTaskList = useAppStore((state) => state.loadTaskList);
-  const processingChats = useAppStore((state) => state.processingChats);
   const tokenUsages = useAppStore((state) => state.tokenUsages);
   const truncationOccurred = useAppStore((state) => state.truncationOccurred);
   const segmentsRemoved = useAppStore((state) => state.segmentsRemoved);
@@ -116,17 +115,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const hasTaskList = useAppStore((state) =>
     sharedTaskSessionId ? Boolean(state.taskLists[sharedTaskSessionId]) : false,
   );
+  // selectIsBusy = any active execution (including waiting states)
+  const isBusy = useAppStore(selectIsBusy(sessionId));
   const shouldShowTaskPanel = useMemo(() => {
     if (!sessionId || !currentChat) return false;
     if (hasTaskList) return true;
     if (currentChat.kind === "child") return true;
-    if (currentChat.isRunning) return true;
+    if (isBusy) return true;
     return false;
-  }, [currentChat, hasTaskList, sessionId]);
+  }, [currentChat, hasTaskList, sessionId, isBusy]);
   const hasSubSessions = useAppStore((state) => {
     if (!sessionId) return false;
-    const progressMap = state.subSessionsByParent[sessionId];
-    if (progressMap && Object.keys(progressMap).length > 0) return true;
+    const children = selectChildren(sessionId)(state);
+    if (Object.keys(children).length > 0) return true;
     return state.chats.some((c) => c.kind === "child" && c.parentSessionId === sessionId);
   });
 
@@ -162,7 +163,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     });
   }, [sharedTaskSessionId, hasTaskList, shouldShowTaskPanel, loadTaskList]);
 
-  const isProcessing = sessionId ? processingChats.has(sessionId) : false;
+  const isProcessing = isBusy;
 
   const sessionDiffSummary = useMemo<SessionDiffSummary | null>(() => {
     if (!currentMessages || currentMessages.length === 0) {
@@ -232,18 +233,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     };
   }, [currentMessages]);
 
-  const interactionState = useMemo(() => {
-    const value: "IDLE" | "THINKING" | "AWAITING_APPROVAL" = isProcessing ? "THINKING" : "IDLE";
-    return {
-      value,
-      context: {
-        streamingContent: null,
-        toolCallRequest: null,
-        parsedParameters: null,
-      },
-      matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => stateName === value,
-    };
-  }, [isProcessing]);
+  const isThinking = isProcessing;
 
   const formatDeleteFailureMessage = useCallback(
     (result: DeleteMessageResult) => {
@@ -577,7 +567,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     showScrollToTop,
   } = useChatViewScroll({
     currentSessionId: sessionId,
-    interactionState,
+    isThinking,
     messagesListRef,
     renderableMessages: renderableMessagesWithDraft,
   });
@@ -799,7 +789,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           showMessagesView={Boolean(showMessagesView)}
           screens={screens}
           workflowDraftId={workflowDraft?.id}
-          interactionState={interactionState}
+          isThinking={isThinking}
           padding={getContainerPadding()}
           selectionMode={selectionMode}
           selectedMessageIds={selectedMessageIds}

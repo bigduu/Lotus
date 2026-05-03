@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { selectCurrentChat, useAppStore } from "../../store";
+import { selectCurrentChat, selectIsBusy, useAppStore } from "../../store";
 import type { ChatItem, Message } from "../../types/chat";
 import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
 
@@ -32,7 +32,6 @@ export interface UseChatState {
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
   persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   loadChats: () => Promise<void>;
-  setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
 }
 
 export function useChatState(): UseChatState {
@@ -50,8 +49,6 @@ export function useChatState(): UseChatState {
     pinSession,
     unpinSession,
     loadChats,
-    processingChats,
-    setSessionProcessing,
   } = useAppStore(
     useShallow((state) => ({
       chats: state.chats,
@@ -67,13 +64,11 @@ export function useChatState(): UseChatState {
       pinSession: state.pinSession,
       unpinSession: state.unpinSession,
       loadChats: state.loadChats,
-      processingChats: state.processingChats,
-      setSessionProcessing: state.setSessionProcessing,
     })),
   );
 
-  // Derived processing state for current chat
-  const isProcessing = currentSessionId ? processingChats.has(currentSessionId) : false;
+  // Derived processing state for current chat (any active execution)
+  const isProcessing = useAppStore(selectIsBusy(currentSessionId));
 
   // --- DERIVED STATE ---
   const baseMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
@@ -106,6 +101,5 @@ export function useChatState(): UseChatState {
     updateSession,
     persistSessionTitle,
     loadChats,
-    setSessionProcessing,
   };
 }

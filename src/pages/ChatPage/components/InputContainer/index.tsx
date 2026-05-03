@@ -13,7 +13,13 @@ import { useTranslation } from "react-i18next";
 import { MessageInput } from "../MessageInput";
 import InputPreview from "./InputPreview";
 import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
-import { selectSessionById, useAppStore } from "../../store";
+import {
+  selectSessionById,
+  selectIsInputLocked,
+  selectCanCancel,
+  selectRespondMode,
+  useAppStore,
+} from "../../store";
 import { readPersistedInputReasoningEffort } from "../../store/slices/inputStateSlice";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
@@ -195,15 +201,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const currentMessages = currentChat?.messages || [];
   const addMessage = useAppStore((state) => state.addMessage);
   const updateSession = useAppStore((state) => state.updateSession);
-  const processingChats = useAppStore((state) => state.processingChats);
-  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
-  const pendingQuestionRespond = useAppStore((state) => state.pendingQuestionRespond);
-  const clearPendingQuestionRespondForSession = useAppStore(
-    (state) => state.clearPendingQuestionRespondForSession,
-  );
-  const clearPendingQuestionForSession = useAppStore(
-    (state) => state.clearPendingQuestionForSession,
-  );
+  const isInputLocked = useAppStore(selectIsInputLocked(sessionId));
+  const canCancel = useAppStore(selectCanCancel(sessionId));
+  const markRespondStart = useAppStore((state) => state.markRespondStart);
+  const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
+  const respondMode = useAppStore(selectRespondMode(sessionId));
+  const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
   const activeModel = useActiveModel(sessionId);
   const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
   const isFlagOn = useProviderStore((s) => s.isProviderModelRefEnabled);
@@ -280,7 +283,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [currentChat, sessionId, setInputReasoningEffort, updateSession],
   );
 
-  const isProcessing = sessionId ? processingChats.has(sessionId) : false;
+  const isProcessing = isInputLocked;
 
   const {
     sendMessage,
@@ -289,7 +292,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   } = useMessageStreaming({
     sessionId,
     addMessage,
-    setSessionProcessing,
     updateSession,
   });
 
@@ -419,10 +421,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   // Respond mode: when QuestionDialog activates "Other (custom input)",
   // InputContainer submits to the respond API instead of sending a new message.
-  const currentPendingRespond =
-    pendingQuestionRespond && pendingQuestionRespond.sessionId === sessionId
-      ? pendingQuestionRespond
-      : null;
+  const currentPendingRespond = respondMode;
   const isRespondMode = Boolean(currentPendingRespond);
   const respondOptions = currentPendingRespond?.options || [];
   const respondAllowCustom = currentPendingRespond?.allowCustom ?? true;
@@ -431,8 +430,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     if (!targetSessionId) {
       return false;
     }
-    const latestPendingRespond = useAppStore.getState().pendingQuestionRespond;
-    return latestPendingRespond?.sessionId === targetSessionId;
+    const latestRespondMode = selectRespondMode(targetSessionId)(useAppStore.getState());
+    return Boolean(latestRespondMode);
   }, []);
 
   const handleRespondSubmit = useCallback(
@@ -440,9 +439,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       const trimmed = responseText.trim();
       if (!trimmed || !sessionId) return;
 
-      const latestPendingRespond = useAppStore.getState().pendingQuestionRespond;
-      const currentRespondPayload =
-        latestPendingRespond?.sessionId === sessionId ? latestPendingRespond : null;
+      const latestRespondMode = selectRespondMode(sessionId)(useAppStore.getState());
+      const currentRespondPayload = latestRespondMode;
       if (
         currentRespondPayload &&
         !currentRespondPayload.allowCustom &&
@@ -456,7 +454,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       // Set processing state immediately so the UI shows feedback while the
       // outbound respond request is still in-flight.  This mirrors the send-path
       // fix that sets processing before the network call.
-      setSessionProcessing(sessionId, true);
+      markRespondStart(sessionId, currentPendingRespond?.toolCallId ?? null);
       // Yield so React can flush the processing-state render before we block
       // the microtask queue with network I/O.
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -478,8 +476,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
         messageApi.success(t("components.questionDialog.responseSubmittedContinue"));
         setContent("");
-        clearPendingQuestionForSession(sessionId);
-        clearPendingQuestionRespondForSession(sessionId);
+        clearPendingQuestion(sessionId);
         if (typeof window !== "undefined") {
           window.dispatchEvent(
             new CustomEvent(CHAT_PENDING_QUESTION_RESOLVED_EVENT, {
@@ -493,7 +490,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         // spinner.
         const resumeStatus = result?.auto_resume_status;
         if (!resumeStatus || !["started", "already_running"].includes(resumeStatus)) {
-          setSessionProcessing(sessionId, false);
+          markSettleTimeout(sessionId);
         }
       } catch (err) {
         console.error("[InputContainer] Failed to submit respond:", err);
@@ -501,7 +498,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
         );
         // Clear processing on error to avoid stuck spinner.
-        setSessionProcessing(sessionId, false);
+        markSettleTimeout(sessionId);
       }
     },
     [
@@ -511,9 +508,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       isFlagOn,
       messageApi,
       setContent,
-      clearPendingQuestionForSession,
-      clearPendingQuestionRespondForSession,
-      setSessionProcessing,
+      clearPendingQuestion,
+      markRespondStart,
+      markSettleTimeout,
+      currentPendingRespond?.toolCallId,
       t,
     ],
   );
@@ -840,7 +838,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     <Dropdown
       trigger={["click"]}
       placement="topLeft"
-      disabled={!activeModel || isStreaming}
+      disabled={!activeModel || isInputLocked}
       menu={{
         selectable: true,
         selectedKeys: [reasoningEffort],
@@ -955,7 +953,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         },
       }}
       onOpenChange={handleModelDropdownVisibleChange}
-      disabled={isStreaming || isSavingModel}
+      disabled={isInputLocked || isSavingModel}
     >
       {modelButton}
     </Dropdown>
@@ -1057,7 +1055,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
                 onClick={() => {
                   void handleRespondSubmit(option);
                 }}
-                disabled={isStreaming}
+                disabled={isInputLocked}
               >
                 {option}
               </Button>
@@ -1104,6 +1102,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
         interaction={{
           isStreaming,
+          canCancel,
           hasMessages: currentMessages.some((m) => m.role === "user"),
           allowRetry: true,
           onRetry: retryLastMessage,

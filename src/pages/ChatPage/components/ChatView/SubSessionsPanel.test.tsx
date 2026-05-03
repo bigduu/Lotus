@@ -7,16 +7,18 @@ const PARENT_SESSION_ID = "parent-session-1";
 const COLLAPSE_STORAGE_KEY = `chat-session-sub-sessions-collapsed:${PARENT_SESSION_ID}`;
 
 const mockStoreState: any = {
-  subSessionsByParent: {},
+  executionBySession: {},
   chats: [],
   loadChatHistory: vi.fn(),
   refreshChats: vi.fn(),
-  setSessionProcessing: vi.fn(),
+  markOptimisticStart: vi.fn(),
+  markRetryStart: vi.fn(),
+  markSettleTimeout: vi.fn(),
   pinSession: vi.fn(),
   unpinSession: vi.fn(),
   deleteSession: vi.fn(),
-  upsertSubSessionProgress: vi.fn(),
-  clearSubSessionProgress: vi.fn(),
+  applyChildProgress: vi.fn(),
+  clearChildProgress: vi.fn(),
 };
 
 const { mockAgentClient, mockUseActiveModel, mockToolService } = vi.hoisted(() => ({
@@ -32,6 +34,10 @@ const { mockAgentClient, mockUseActiveModel, mockToolService } = vi.hoisted(() =
 
 vi.mock("../../store", () => ({
   useAppStore: (selector: (state: typeof mockStoreState) => unknown) => selector(mockStoreState),
+  selectChildren: (sessionId: string | null) => (state: typeof mockStoreState) => {
+    const entry = state.executionBySession?.[sessionId ?? ""];
+    return entry?.children?.byId ?? {};
+  },
 }));
 
 vi.mock("../../utils/openSession", () => ({
@@ -55,12 +61,14 @@ describe("SubSessionsPanel", () => {
     localStorage.clear();
     mockStoreState.loadChatHistory.mockReset();
     mockStoreState.refreshChats.mockReset();
-    mockStoreState.setSessionProcessing.mockReset();
+    mockStoreState.markOptimisticStart.mockReset();
+    mockStoreState.markRetryStart.mockReset();
+    mockStoreState.markSettleTimeout.mockReset();
     mockStoreState.pinSession.mockReset();
     mockStoreState.unpinSession.mockReset();
     mockStoreState.deleteSession.mockReset();
-    mockStoreState.upsertSubSessionProgress.mockReset();
-    mockStoreState.clearSubSessionProgress.mockReset();
+    mockStoreState.applyChildProgress.mockReset();
+    mockStoreState.clearChildProgress.mockReset();
     mockStoreState.deleteSession.mockResolvedValue(undefined);
 
     mockAgentClient.truncateSessionMessages.mockReset();
@@ -89,13 +97,43 @@ describe("SubSessionsPanel", () => {
     mockUseActiveModel.mockReset();
     mockUseActiveModel.mockReturnValue("test-model");
 
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Child Session 1",
-          status: "running",
-          outputPreview: "Working...",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-1": {
+              title: "Child Session 1",
+              status: "running",
+              outputPreview: "Working...",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     mockStoreState.chats = [
@@ -111,7 +149,7 @@ describe("SubSessionsPanel", () => {
   });
 
   const setChildrenCount = (count: number) => {
-    const progressEntries = Array.from({ length: count }).map((_, i) => {
+    const childEntries = Array.from({ length: count }).map((_, i) => {
       const id = `child-session-${i + 1}`;
       return [
         id,
@@ -123,8 +161,38 @@ describe("SubSessionsPanel", () => {
       ] as const;
     });
 
-    mockStoreState.subSessionsByParent = {
-      [PARENT_SESSION_ID]: Object.fromEntries(progressEntries),
+    mockStoreState.executionBySession = {
+      [PARENT_SESSION_ID]: {
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: Object.fromEntries(childEntries),
+          runningCount: count,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
     };
     mockStoreState.chats = Array.from({ length: count }).map((_, i) => ({
       id: `child-session-${i + 1}`,
@@ -190,7 +258,36 @@ describe("SubSessionsPanel", () => {
   });
 
   it("renders nothing when no child sessions exist", () => {
-    mockStoreState.subSessionsByParent = {};
+    mockStoreState.executionBySession = {
+      [PARENT_SESSION_ID]: {
+        sessionId: PARENT_SESSION_ID,
+        phase: "idle",
+        confidence: "optimistic",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: false,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStoreState.chats = [];
 
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
@@ -199,7 +296,36 @@ describe("SubSessionsPanel", () => {
   });
 
   it("falls back to running status from persisted child session when progress entry is missing", () => {
-    mockStoreState.subSessionsByParent = {};
+    mockStoreState.executionBySession = {
+      [PARENT_SESSION_ID]: {
+        sessionId: PARENT_SESSION_ID,
+        phase: "running_children",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStoreState.chats = [
       {
         id: "child-session-running",
@@ -220,7 +346,36 @@ describe("SubSessionsPanel", () => {
   });
 
   it("falls back to persisted terminal status when progress entry is missing", () => {
-    mockStoreState.subSessionsByParent = {};
+    mockStoreState.executionBySession = {
+      [PARENT_SESSION_ID]: {
+        sessionId: PARENT_SESSION_ID,
+        phase: "completed",
+        confidence: "summary",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: false,
+          lastRunStatus: "completed",
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStoreState.chats = [
       {
         id: "child-session-completed",
@@ -241,12 +396,42 @@ describe("SubSessionsPanel", () => {
   });
 
   it("normalizes already_running into running", () => {
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-2": {
-          title: "Child Session 2",
-          status: "already_running",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-2": {
+              title: "Child Session 2",
+              status: "already_running",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     mockStoreState.chats = [
@@ -266,7 +451,36 @@ describe("SubSessionsPanel", () => {
   });
 
   it("shows pending instead of unknown when no runtime hints are available", () => {
-    mockStoreState.subSessionsByParent = {};
+    mockStoreState.executionBySession = {
+      [PARENT_SESSION_ID]: {
+        sessionId: PARENT_SESSION_ID,
+        phase: "idle",
+        confidence: "optimistic",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: false,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStoreState.chats = [
       {
         id: "child-session-3",
@@ -286,12 +500,42 @@ describe("SubSessionsPanel", () => {
   });
 
   it("retries existing child session in place through SubSession", async () => {
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Child Session 1",
-          status: "pending",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-1": {
+              title: "Child Session 1",
+              status: "pending",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
@@ -318,17 +562,47 @@ describe("SubSessionsPanel", () => {
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("child-session-1", {
       mode: "replace",
     });
-    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", true);
+    expect(mockStoreState.markRetryStart).toHaveBeenCalledWith("child-session-1");
     expect(mockStoreState.refreshChats).toHaveBeenCalled();
   });
 
   it("retries failed request through SubSession without resetting to last user", async () => {
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Child Session 1",
-          status: "error",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-1": {
+              title: "Child Session 1",
+              status: "error",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
@@ -355,12 +629,42 @@ describe("SubSessionsPanel", () => {
   });
 
   it("sends a follow-up message to an existing child session", async () => {
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Child Session 1",
-          status: "pending",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-1": {
+              title: "Child Session 1",
+              status: "pending",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     const promptSpy = vi
@@ -387,7 +691,7 @@ describe("SubSessionsPanel", () => {
       });
     });
 
-    expect(mockStoreState.setSessionProcessing).toHaveBeenCalledWith("child-session-1", true);
+    expect(mockStoreState.markOptimisticStart).toHaveBeenCalledWith("child-session-1");
     expect(mockStoreState.refreshChats).toHaveBeenCalled();
 
     promptSpy.mockRestore();
@@ -409,7 +713,7 @@ describe("SubSessionsPanel", () => {
       });
     });
     expect(mockStoreState.deleteSession).not.toHaveBeenCalled();
-    expect(mockStoreState.clearSubSessionProgress).toHaveBeenCalledWith(
+    expect(mockStoreState.clearChildProgress).toHaveBeenCalledWith(
       PARENT_SESSION_ID,
       "child-session-1",
     );
@@ -419,12 +723,42 @@ describe("SubSessionsPanel", () => {
   it("prefers persisted child.title over stale progress title", () => {
     // Simulate: progress has a stale generic title, but child.title was
     // persisted to the backend (e.g. via persistSessionTitle).
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Stale Progress Title",
-          status: "completed",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-1": {
+              title: "Stale Progress Title",
+              status: "completed",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     mockStoreState.chats = [
@@ -446,12 +780,42 @@ describe("SubSessionsPanel", () => {
   });
 
   it("falls back to progress title when child.title is missing", () => {
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Progress Title",
-          status: "running",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-1": {
+              title: "Progress Title",
+              status: "running",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     // child session has no persisted title (empty string / undefined).
@@ -473,12 +837,42 @@ describe("SubSessionsPanel", () => {
   });
 
   it("retries child session through SubSession even when no active provider model is configured", async () => {
-    mockStoreState.subSessionsByParent = {
+    mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
-        "child-session-1": {
-          title: "Child Session 1",
-          status: "pending",
+        sessionId: PARENT_SESSION_ID,
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
         },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: {
+            "child-session-1": {
+              title: "Child Session 1",
+              status: "pending",
+            },
+          },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
       },
     };
     mockUseActiveModel.mockReturnValue(undefined);

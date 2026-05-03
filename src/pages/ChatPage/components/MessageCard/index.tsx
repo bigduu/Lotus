@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { ImageGrid } from "../ImageGrid";
 import { ActionButtonGroup, createCopyButton, createReferenceButton } from "../ActionButtonGroup";
-import { useAppStore } from "../../store";
+import { selectIsBusy, useAppStore } from "../../store";
 import { agentClient } from "../../services/AgentService";
 import { isTaskListMessage, isUserFileReferenceMessage, type Message } from "../../types/chat";
 import PlanMessageCard from "../PlanMessageCard";
@@ -68,10 +68,8 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   const refreshChats = useAppStore((state) => state.refreshChats);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState<boolean>(false);
-  // Select only the boolean we need, not the whole Set
-  const isProcessing = useAppStore((state) => {
-    return sessionId ? state.processingChats.has(sessionId) : false;
-  });
+  // selectIsBusy = any active execution; disables card actions while running
+  const isProcessing = useAppStore(selectIsBusy(sessionId));
 
   const sendMessage = useCallback(
     (content: string) => {

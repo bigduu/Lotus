@@ -53,13 +53,13 @@ const ensureSessionVisibleAndLoaded = async (sessionId: string, options?: OpenSe
   // Optionally enable SSE subscription when the backend runner is active.
   // This is best-effort and won't start execution.
   if (options?.forceSubscribe) {
-    store.setSessionProcessing(sessionId, true);
+    store.markForceSubscribe(sessionId);
     return;
   }
 
   const shouldSubscribeIfRunning = options?.subscribeIfRunning ?? true;
   if (shouldSubscribeIfRunning && chat.isRunning) {
-    store.setSessionProcessing(sessionId, true);
+    store.markForceSubscribe(sessionId);
   }
 };
 

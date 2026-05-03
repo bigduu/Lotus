@@ -11,7 +11,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { useAppStore } from "../../store";
+import { selectIsBusy, useAppStore } from "../../store";
 import type { ChatItem } from "../../types/chatMessages";
 import EmptyTaskLauncher from "../EmptyTaskLauncher";
 
@@ -42,8 +42,8 @@ const formatRelativeTime = (dateStr: string | undefined): string => {
   }
 };
 
-const getSessionStatusClass = (chat: ChatItem): string => {
-  if (chat.isRunning) return "is-running";
+const getSessionStatusClass = (chat: ChatItem, isRunning: boolean): string => {
+  if (isRunning) return "is-running";
   if (chat.lastRunStatus === "error") return "is-error";
   if (chat.pinned) return "is-pinned";
   return "is-idle";
@@ -56,13 +56,15 @@ const SessionRow: React.FC<{
   onOpen: (id: string) => void;
   textSecondary: string;
 }> = ({ chat, onOpen, textSecondary }) => {
+  // selectIsBusy = any active execution for "Running" badge
+  const isRunning = useAppStore(selectIsBusy(chat.id));
   const workspace = chat.config.workspacePath
     ? chat.config.workspacePath.split("/").pop() || chat.config.workspacePath
     : null;
 
   return (
     <button type="button" className="lotus-home-session-item" onClick={() => onOpen(chat.id)}>
-      <span className={`lotus-home-session-status ${getSessionStatusClass(chat)}`} />
+      <span className={`lotus-home-session-status ${getSessionStatusClass(chat, isRunning)}`} />
       <span className="lotus-home-session-content">
         <span className="lotus-home-session-title">{chat.title}</span>
         <span className="lotus-home-session-meta" style={{ color: textSecondary }}>
@@ -87,7 +89,7 @@ const SessionRow: React.FC<{
           ) : null}
         </span>
       </span>
-      {chat.isRunning ? (
+      {isRunning ? (
         <Tag color="green" bordered={false} style={{ margin: 0, fontSize: 11 }}>
           Running
         </Tag>
@@ -107,17 +109,22 @@ export const HomeDashboard: React.FC<{
   const { token } = theme.useToken();
 
   const chats = useAppStore((s) => s.chats);
-  const processingChats = useAppStore((s) => s.processingChats);
+
+  // Use selector-based isBusy for consistent semantics with rest of the app.
+  const isBusy = useCallback(
+    (sessionId: string) => selectIsBusy(sessionId)(useAppStore.getState()),
+    [],
+  );
 
   /* derive session lists */
   const runningSessions = useMemo(
-    () => chats.filter((c) => c.isRunning || processingChats.has(c.id)).slice(0, MAX_RUNNING),
-    [chats, processingChats],
+    () => chats.filter((c) => isBusy(c.id)).slice(0, MAX_RUNNING),
+    [chats, isBusy],
   );
 
   const pinnedSessions = useMemo(
-    () => chats.filter((c) => c.pinned && !c.isRunning).slice(0, MAX_PINNED),
-    [chats],
+    () => chats.filter((c) => c.pinned && !isBusy(c.id)).slice(0, MAX_PINNED),
+    [chats, isBusy],
   );
 
   const recentSessions = useMemo(() => {

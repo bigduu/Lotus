@@ -8,6 +8,7 @@ import { SkillSlice, createSkillSlice } from "./slices/skillSlice";
 import { TokenBudgetSlice, createTokenBudgetSlice } from "./slices/tokenBudgetSlice";
 import { TaskListSlice, createTaskListSlice } from "./slices/todoListSlice";
 import { InputStateSlice, createInputStateSlice } from "./slices/inputStateSlice";
+import { ExecutionStateSlice, createExecutionStateSlice } from "./slices/executionStateSlice";
 import { AgentClient } from "../services/AgentService";
 import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
@@ -47,6 +48,7 @@ export type AppState = ChatSlice &
   TokenBudgetSlice &
   TaskListSlice &
   InputStateSlice &
+  ExecutionStateSlice &
   AgentAvailabilitySlice &
   SessionIndexSyncSlice;
 
@@ -61,6 +63,7 @@ export const useAppStore = create<AppState>()(
       ...createTokenBudgetSlice(set, get, api),
       ...createTaskListSlice(set, get, api),
       ...createInputStateSlice(set, get, api),
+      ...createExecutionStateSlice(set, get, api),
       agentAvailability: null,
       setAgentAvailability: (available) => {
         set({ agentAvailability: available });
@@ -261,3 +264,22 @@ const initializeStore = async (force: boolean = false) => {
 
 // Export for explicit initialization by App.tsx after setup is complete
 export { initializeStore };
+
+// Phase 1+ — execution-state selectors (short imports)
+export {
+  selectExecutionState,
+  selectExecutionPhase,
+  selectIsBusy,
+  selectIsStreaming,
+  selectIsAwaitingUser,
+  selectIsInputLocked,
+  selectCanCancel,
+  selectShouldObserve,
+  selectActiveToolCalls,
+  selectRespondMode,
+  selectChildren,
+  selectChildrenSnapshot,
+  selectGeneration,
+  selectRailModel,
+  selectExecutionByPane,
+} from "./selectors/executionSelectors";

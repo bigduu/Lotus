@@ -15,7 +15,23 @@ vi.mock("../../pages/ChatPage/store", () => {
     setState: vi.fn(),
     destroy: vi.fn(),
   });
-  return { useAppStore: mockStore };
+  const selectIsBusy = (sessionId: string | null) => (state: any) => {
+    const entry = state.executionBySession?.[sessionId!];
+    if (entry) {
+      const phase = entry.phase;
+      return (
+        phase !== "idle" && phase !== "completed" && phase !== "error" && phase !== "cancelled"
+      );
+    }
+    return false;
+  };
+  const selectGeneration = (sessionId: string | null) => (state: any) => {
+    return state.executionBySession?.[sessionId!]?.generation ?? 0;
+  };
+  const selectChildren = (sessionId: string | null) => (state: any) => {
+    return state.executionBySession?.[sessionId!]?.children?.byId ?? {};
+  };
+  return { useAppStore: mockStore, selectIsBusy, selectGeneration, selectChildren };
 });
 
 vi.mock("../../services/chat/AgentService", () => {
@@ -37,9 +53,9 @@ const createMockState = (overrides: Partial<any> = {}) => ({
       messages: [],
     },
   ],
-  processingChats: new Set<string>(),
+  executionBySession: {},
   addMessage: vi.fn(),
-  setSessionProcessing: vi.fn(),
+  applyAgentEvent: vi.fn(),
   updateTokenUsage: vi.fn(),
   setTruncationInfo: vi.fn(),
   updateSession: vi.fn(),
@@ -49,21 +65,19 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   updateTaskListDelta: vi.fn(),
   setEvaluationState: vi.fn(),
   clearEvaluationState: vi.fn(),
-  upsertSubSessionProgress: vi.fn(),
-  clearSubSessionProgress: vi.fn(),
+  applyChildProgress: vi.fn(),
+  clearChildProgress: vi.fn(),
   persistSessionTitle: vi.fn().mockResolvedValue(undefined),
   refreshChats: vi.fn().mockResolvedValue(undefined),
   refreshChatsNow: vi.fn().mockResolvedValue(undefined),
   loadChatHistory: vi.fn(),
-  subSessionsByParent: {},
-  setPendingQuestionForSession: vi.fn(),
-  clearPendingQuestionForSession: vi.fn(),
+  setPendingQuestionFromSse: vi.fn(),
+  clearPendingQuestion: vi.fn(),
   ...overrides,
 });
 
 describe("useAgentEventSubscription", () => {
   let mockSubscribeToEvents: ReturnType<typeof vi.fn>;
-  let mockSetSessionProcessing: ReturnType<typeof vi.fn>;
   let mockAddMessage: ReturnType<typeof vi.fn>;
   let mockState: any;
   let mockStore: any;
@@ -75,12 +89,10 @@ describe("useAgentEventSubscription", () => {
     streamingMessageBus.clear("session-1", "streaming-reasoning-session-1");
     streamingMessageBus.clear("session-1", "streaming-status-session-1");
 
-    mockSetSessionProcessing = vi.fn();
     mockAddMessage = vi.fn();
 
     mockState = createMockState({
       addMessage: mockAddMessage,
-      setSessionProcessing: mockSetSessionProcessing,
     });
 
     // Import the mocked modules to get the mocks
@@ -102,14 +114,43 @@ describe("useAgentEventSubscription", () => {
     vi.useRealTimers();
   });
 
-  it("should not subscribe when processingChats is empty", () => {
+  it("should not subscribe when no sessions are busy", () => {
     renderHook(() => useAgentEventSubscription());
 
     expect(mockSubscribeToEvents).not.toHaveBeenCalled();
   });
 
   it("should subscribe when chat is processing and session exists", async () => {
-    mockState.processingChats = new Set(["session-1"]); // Session is processing
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
     mockSubscribeToEvents.mockImplementation(() => new Promise<void>(() => {}));
 
@@ -128,8 +169,37 @@ describe("useAgentEventSubscription", () => {
     });
   });
 
-  it("should unsubscribe when isProcessing becomes false", async () => {
-    mockState.processingChats = new Set(["session-1"]); // Session is processing
+  it("should unsubscribe when session becomes idle", async () => {
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
     mockSubscribeToEvents.mockResolvedValue(undefined);
 
@@ -139,8 +209,37 @@ describe("useAgentEventSubscription", () => {
       expect(mockSubscribeToEvents).toHaveBeenCalled();
     });
 
-    // Change back to not processing
-    mockState.processingChats = new Set();
+    // Change back to idle
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "idle",
+        confidence: "optimistic",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: false,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
     rerender();
 
@@ -149,9 +248,67 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("should handle subscription errors and reset state", async () => {
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
-      mockState.processingChats = new Set();
+      mockState.executionBySession = {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "idle",
+          confidence: "optimistic",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      };
       mockStore.getState.mockReturnValue(mockState);
     });
     mockStore.getState.mockReturnValue(mockState);
@@ -168,8 +325,12 @@ describe("useAgentEventSubscription", () => {
         expect.any(Error),
       );
 
-      // Should reset processing state on error
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+      // Should emit error event to execution state
+      expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ type: "error" }),
+        expect.any(Number),
+      );
     });
 
     consoleSpy.mockRestore();
@@ -181,7 +342,36 @@ describe("useAgentEventSubscription", () => {
       taskProgressHandler = handlers.onTaskListItemProgress;
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.taskLists = {};
     mockState.loadTaskList = vi.fn().mockResolvedValue({
       session_id: "session-1",
@@ -222,7 +412,36 @@ describe("useAgentEventSubscription", () => {
       subSessionStartedHandler = handlers.onSubSessionStarted;
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.refreshChatsNow = vi.fn().mockResolvedValue(undefined);
     mockStore.getState.mockReturnValue(mockState);
 
@@ -238,8 +457,7 @@ describe("useAgentEventSubscription", () => {
 
     await waitFor(() => {
       expect(mockState.refreshChatsNow).toHaveBeenCalledTimes(1);
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", true);
-      expect(mockState.upsertSubSessionProgress).toHaveBeenCalledWith(
+      expect(mockState.applyChildProgress).toHaveBeenCalledWith(
         "session-1",
         "child-1",
         expect.objectContaining({ title: "Child task", status: "pending" }),
@@ -262,10 +480,68 @@ describe("useAgentEventSubscription", () => {
       subSessionCompletedHandler = handlers.onSubSessionCompleted;
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
       mockState.chats = [{ id: "session-1", messages: [], isRunning: false }];
-      mockState.processingChats = new Set();
+      mockState.executionBySession = {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "idle",
+          confidence: "optimistic",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      };
       mockStore.getState.mockReturnValue(mockState);
     });
     mockState.loadChatHistory = vi.fn().mockResolvedValue(undefined);
@@ -286,19 +562,21 @@ describe("useAgentEventSubscription", () => {
       completeHandler?.();
     });
 
-    expect(mockSetSessionProcessing).not.toHaveBeenCalledWith("session-1", false);
+    // applyAgentEvent with complete should have been called immediately
+    expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ type: "complete" }),
+      expect.any(Number),
+    );
 
     act(() => {
       subSessionCompletedHandler?.("session-1", "child-1", "completed", undefined);
     });
 
-    expect(mockSetSessionProcessing).not.toHaveBeenCalledWith("session-1", false);
-
     await new Promise((r) => setTimeout(r, 350));
 
     await waitFor(() => {
       expect(mockState.refreshChatsNow).toHaveBeenCalled();
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
     });
   });
 
@@ -309,11 +587,38 @@ describe("useAgentEventSubscription", () => {
       return new Promise<void>(() => {});
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.chats = [{ id: "session-1", messages: [], isRunning: false }];
     mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
-      // Simulate the current store behavior where refresh updates chat.isRunning,
-      // but a stale processingChats bit may still linger until the hook clears it.
       mockState.chats = [{ id: "session-1", messages: [], isRunning: false }];
       mockStore.getState.mockReturnValue(mockState);
     });
@@ -334,7 +639,11 @@ describe("useAgentEventSubscription", () => {
 
     await waitFor(() => {
       expect(mockState.refreshChatsNow).toHaveBeenCalled();
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ type: "complete" }),
+        expect.any(Number),
+      );
     });
   });
 
@@ -345,9 +654,67 @@ describe("useAgentEventSubscription", () => {
       return new Promise<void>(() => {});
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
-      mockState.processingChats = new Set();
+      mockState.executionBySession = {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "idle",
+          confidence: "optimistic",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      };
       mockStore.getState.mockReturnValue(mockState);
     });
     mockStore.getState.mockReturnValue(mockState);
@@ -366,7 +733,11 @@ describe("useAgentEventSubscription", () => {
     });
 
     await waitFor(() => {
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ type: "complete" }),
+        expect.any(Number),
+      );
       expect(mockState.loadChatHistory).toHaveBeenCalledWith(
         "session-1",
         expect.objectContaining({
@@ -386,9 +757,67 @@ describe("useAgentEventSubscription", () => {
 
     const historyError = new Error("Fetch API cannot load due to access control checks");
     mockState.loadChatHistory = vi.fn().mockRejectedValue(historyError);
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
-      mockState.processingChats = new Set();
+      mockState.executionBySession = {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "idle",
+          confidence: "optimistic",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      };
       mockStore.getState.mockReturnValue(mockState);
     });
     mockStore.getState.mockReturnValue(mockState);
@@ -413,7 +842,11 @@ describe("useAgentEventSubscription", () => {
           waitForAssistant: true,
         }),
       );
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ type: "complete" }),
+        expect.any(Number),
+      );
     });
 
     expect(warnSpy).toHaveBeenCalledWith(
@@ -429,15 +862,68 @@ describe("useAgentEventSubscription", () => {
       handlers.onComplete?.();
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
-      mockState.processingChats = new Set();
+      mockState.executionBySession = {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "idle",
+          confidence: "optimistic",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      };
       mockStore.getState.mockReturnValue(mockState);
-    });
-    mockSetSessionProcessing.mockImplementation((sessionId: string, isProcessing: boolean) => {
-      if (!isProcessing) {
-        mockState.processingChats.delete(sessionId);
-      }
     });
     mockStore.getState.mockReturnValue(mockState);
 
@@ -445,7 +931,11 @@ describe("useAgentEventSubscription", () => {
 
     let initialCalls = 0;
     await waitFor(() => {
-      expect(mockSetSessionProcessing).toHaveBeenCalledWith("session-1", false);
+      expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ type: "complete" }),
+        expect.any(Number),
+      );
       initialCalls = mockSubscribeToEvents.mock.calls.length;
       expect(initialCalls).toBeGreaterThan(0);
     });
@@ -461,7 +951,36 @@ describe("useAgentEventSubscription", () => {
       errorHandler = handlers.onError;
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
 
     renderHook(() => useAgentEventSubscription());
@@ -494,7 +1013,36 @@ describe("useAgentEventSubscription", () => {
       return new Promise<void>(() => {});
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
 
     renderHook(() => useAgentEventSubscription());
@@ -523,7 +1071,36 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("should not create duplicate subscriptions", async () => {
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
     mockSubscribeToEvents.mockImplementation(() => new Promise<void>(() => {}));
 
@@ -550,11 +1127,38 @@ describe("useAgentEventSubscription", () => {
       return Promise.resolve();
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockState.refreshChatsNow = vi.fn().mockResolvedValue(undefined);
     mockState.loadChatHistory = vi.fn().mockImplementation(async () => {
-      // Keep processing=true to simulate a very fast resumed run arriving before
-      // old completion cleanup has fully converged.
       mockStore.getState.mockReturnValue(mockState);
     });
     mockStore.getState.mockReturnValue(mockState);
@@ -571,7 +1175,36 @@ describe("useAgentEventSubscription", () => {
     });
 
     // Same session remains marked processing, representing an immediate resumed run.
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 2,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
     rerender();
 
@@ -581,7 +1214,36 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("should reconnect on unexpected AbortError without clearing processing state", async () => {
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
 
     const abortErr = Object.assign(new Error("stream aborted"), {
@@ -603,8 +1265,6 @@ describe("useAgentEventSubscription", () => {
     await waitFor(() => {
       expect(mockSubscribeToEvents.mock.calls.length).toBeGreaterThanOrEqual(2);
     });
-
-    expect(mockSetSessionProcessing).not.toHaveBeenCalledWith("session-1", false);
   });
 
   it("should handle token streaming", async () => {
@@ -614,7 +1274,36 @@ describe("useAgentEventSubscription", () => {
       return new Promise<void>(() => {});
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
 
     renderHook(() => useAgentEventSubscription());
@@ -659,10 +1348,38 @@ describe("useAgentEventSubscription", () => {
     mockState = createMockState({
       addMessage,
       updateMessage,
-      setSessionProcessing: mockSetSessionProcessing,
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
     mockStore.mockImplementation((selector: MockSelector) => selector(mockState));
 
@@ -698,7 +1415,36 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("should cleanup subscription on unmount", async () => {
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
     mockSubscribeToEvents.mockImplementation(() => new Promise<void>(() => {}));
 
@@ -721,7 +1467,36 @@ describe("useAgentEventSubscription", () => {
       return new Promise<void>(() => {});
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
 
     renderHook(() => useAgentEventSubscription());
@@ -773,7 +1548,36 @@ describe("useAgentEventSubscription", () => {
       return new Promise<void>(() => {});
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
 
     renderHook(() => useAgentEventSubscription());
@@ -816,7 +1620,36 @@ describe("useAgentEventSubscription", () => {
       return new Promise<void>(() => {});
     });
 
-    mockState.processingChats = new Set(["session-1"]);
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
     mockStore.getState.mockReturnValue(mockState);
 
     renderHook(() => useAgentEventSubscription());

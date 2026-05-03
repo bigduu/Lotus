@@ -54,7 +54,6 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
             ? { model_ref: useProviderStore.getState().selectedModelRef }
             : {}),
         },
-        currentInteraction: null,
         ...options,
       };
       await addChat(newChatData);
@@ -78,7 +77,6 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
           baseSystemPrompt: prompt.content,
           lastUsedEnhancedPrompt: null,
         },
-        currentInteraction: null,
       };
       debugLog(
         "[ChatOps]",

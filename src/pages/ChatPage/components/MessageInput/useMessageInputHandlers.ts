@@ -6,6 +6,7 @@ import type { MessageRetryMode } from "./types";
 interface UseMessageInputHandlersProps {
   value: string;
   images: ImageFile[];
+  /** True when the input should be locked (starting, running, streaming, running_tools, running_children, settling). */
   isStreaming: boolean;
   disabled: boolean;
   isWorkflowSelectorVisible: boolean;

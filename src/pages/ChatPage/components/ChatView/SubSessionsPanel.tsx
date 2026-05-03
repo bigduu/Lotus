@@ -3,7 +3,7 @@ import { DownOutlined, UpOutlined } from "@ant-design/icons";
 import { Button, Card, Dropdown, Flex, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
-import { useAppStore } from "../../store";
+import { selectChildren, useAppStore } from "../../store";
 import { openSession } from "../../utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
 import { useSubagentProfiles } from "../../../../hooks/useSubagentProfiles";
@@ -89,15 +89,17 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
   const [continuingChildId, setContinuingChildId] = useState<string | null>(null);
   const [deletingChildId, setDeletingChildId] = useState<string | null>(null);
 
-  const subSessionsByParent = useAppStore((s) => s.subSessionsByParent);
+  const childrenById = useAppStore((s) => selectChildren(parentSessionId)(s));
   const chats = useAppStore((s) => s.chats);
   const loadChatHistory = useAppStore((s) => s.loadChatHistory);
   const refreshChats = useAppStore((s) => s.refreshChats);
-  const setSessionProcessing = useAppStore((s) => s.setSessionProcessing);
+  const markOptimisticStart = useAppStore((s) => s.markOptimisticStart);
+  const markRetryStart = useAppStore((s) => s.markRetryStart);
+  const markSettleTimeout = useAppStore((s) => s.markSettleTimeout);
   const pinSession = useAppStore((s) => s.pinSession);
   const unpinSession = useAppStore((s) => s.unpinSession);
-  const upsertSubSessionProgress = useAppStore((s) => s.upsertSubSessionProgress);
-  const clearSubSessionProgress = useAppStore((s) => s.clearSubSessionProgress);
+  const applyChildProgress = useAppStore((s) => s.applyChildProgress);
+  const clearChildProgress = useAppStore((s) => s.clearChildProgress);
 
   // Lazy-loaded subagent profile catalogue. Used to resolve a child's
   // `subagent_type` id (e.g. "plan") into a display name + ui hints
@@ -106,12 +108,11 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
 
   // In-memory progress (lost on restart).
   const progressItems = useMemo(() => {
-    const map = subSessionsByParent[parentSessionId] || {};
-    return Object.entries(map).map(([childSessionId, v]) => ({
+    return Object.entries(childrenById).map(([childSessionId, v]) => ({
       childSessionId,
       ...v,
     }));
-  }, [parentSessionId, subSessionsByParent]);
+  }, [childrenById]);
 
   // Persisted children (reconstructable after restart from backend index).
   const persistedChildren = useMemo(() => {
@@ -208,12 +209,12 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
   const runChildSession = useCallback(
     async (childSessionId: string, retryMode: SubSessionRetryMode = "regenerate") => {
       setRetryingChildId(childSessionId);
-      upsertSubSessionProgress(parentSessionId, childSessionId, {
+      applyChildProgress(parentSessionId, childSessionId, {
         status: "running",
         error: undefined,
         lastEventAt: new Date().toISOString(),
       });
-      setSessionProcessing(childSessionId, true);
+      markRetryStart(childSessionId);
 
       try {
         const executeResult = await toolService.executeTool({
@@ -233,7 +234,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           throw new Error(executeResult.result || "Failed to run child session");
         }
 
-        upsertSubSessionProgress(parentSessionId, childSessionId, {
+        applyChildProgress(parentSessionId, childSessionId, {
           status: "running",
           error: undefined,
           lastEventAt: new Date().toISOString(),
@@ -241,8 +242,8 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         await loadChatHistory(childSessionId, { mode: "replace" });
         await refreshChats();
       } catch (error) {
-        setSessionProcessing(childSessionId, false);
-        upsertSubSessionProgress(parentSessionId, childSessionId, {
+        markSettleTimeout(childSessionId);
+        applyChildProgress(parentSessionId, childSessionId, {
           status: "error",
           error: toErrorMessage(error),
           lastEventAt: new Date().toISOString(),
@@ -255,9 +256,10 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       loadChatHistory,
       parentSessionId,
       refreshChats,
-      setSessionProcessing,
+      markRetryStart,
+      markSettleTimeout,
       toErrorMessage,
-      upsertSubSessionProgress,
+      applyChildProgress,
     ],
   );
 
@@ -274,7 +276,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
 
       const message = followUp.trim();
       if (!message) {
-        upsertSubSessionProgress(parentSessionId, childSessionId, {
+        applyChildProgress(parentSessionId, childSessionId, {
           status: "error",
           error: "Follow-up message cannot be empty.",
           lastEventAt: new Date().toISOString(),
@@ -283,12 +285,12 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       }
 
       setContinuingChildId(childSessionId);
-      upsertSubSessionProgress(parentSessionId, childSessionId, {
+      applyChildProgress(parentSessionId, childSessionId, {
         status: "running",
         error: undefined,
         lastEventAt: new Date().toISOString(),
       });
-      setSessionProcessing(childSessionId, true);
+      markOptimisticStart(childSessionId);
 
       try {
         const executeResult = await toolService.executeTool({
@@ -318,15 +320,15 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           optimisticStatus = "running";
         }
 
-        upsertSubSessionProgress(parentSessionId, childSessionId, {
+        applyChildProgress(parentSessionId, childSessionId, {
           status: optimisticStatus,
           error: undefined,
           lastEventAt: new Date().toISOString(),
         });
         await refreshChats();
       } catch (error) {
-        setSessionProcessing(childSessionId, false);
-        upsertSubSessionProgress(parentSessionId, childSessionId, {
+        markSettleTimeout(childSessionId);
+        applyChildProgress(parentSessionId, childSessionId, {
           status: "error",
           error:
             error instanceof Error && error.message.trim()
@@ -338,7 +340,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         setContinuingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [parentSessionId, refreshChats, setSessionProcessing, upsertSubSessionProgress],
+    [parentSessionId, refreshChats, markOptimisticStart, markSettleTimeout, applyChildProgress],
   );
 
   const removeChildSession = useCallback(
@@ -358,13 +360,13 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           throw new Error(deleteResult.result || "Failed to delete child session");
         }
 
-        clearSubSessionProgress(parentSessionId, childSessionId);
+        clearChildProgress(parentSessionId, childSessionId);
         await refreshChats();
       } finally {
         setDeletingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [clearSubSessionProgress, parentSessionId, refreshChats],
+    [clearChildProgress, parentSessionId, refreshChats],
   );
 
   if (mergedItems.length === 0) return null;

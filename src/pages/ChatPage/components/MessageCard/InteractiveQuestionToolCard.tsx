@@ -50,10 +50,8 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
   );
   const resolvedExternally = resolvedQuestionIdentity === questionIdentity;
 
-  const setPendingQuestionRespond = useAppStore((state) => state.setPendingQuestionRespond);
-  const clearPendingQuestionRespondForSession = useAppStore(
-    (state) => state.clearPendingQuestionRespondForSession,
-  );
+  const enterRespondMode = useAppStore((state) => state.enterRespondMode);
+  const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -67,22 +65,21 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
         return;
       }
       setResolvedQuestionIdentity(questionIdentity);
-      clearPendingQuestionRespondForSession(sessionId);
+      clearPendingQuestion(sessionId);
     };
 
     window.addEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     return () => {
       window.removeEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     };
-  }, [sessionId, questionIdentity, clearPendingQuestionRespondForSession]);
+  }, [sessionId, questionIdentity, clearPendingQuestion]);
 
   useEffect(() => {
     if (!sessionId || resolvedExternally) {
       return;
     }
 
-    setPendingQuestionRespond({
-      sessionId,
+    enterRespondMode(sessionId, {
       question,
       options,
       allowCustom,
@@ -96,16 +93,8 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
     options,
     allowCustom,
     toolCallId,
-    setPendingQuestionRespond,
+    enterRespondMode,
   ]);
-
-  useEffect(() => {
-    return () => {
-      if (sessionId) {
-        clearPendingQuestionRespondForSession(sessionId);
-      }
-    };
-  }, [sessionId, clearPendingQuestionRespondForSession]);
 
   return (
     <Space direction="vertical" size="middle" style={{ width: "100%" }}>

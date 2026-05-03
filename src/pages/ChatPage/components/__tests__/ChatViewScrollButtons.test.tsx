@@ -39,6 +39,7 @@ vi.mock("../../store", () => ({
   ),
   selectSessionById: (sessionId: string | null) => (state: typeof mockStoreState) =>
     sessionId ? state.chats.find((c: any) => c.id === sessionId) || null : null,
+  selectIsBusy: (_sessionId: string | null) => (_state: typeof mockStoreState) => false,
 }));
 
 vi.mock("../ChatView/useChatViewMessages", () => ({

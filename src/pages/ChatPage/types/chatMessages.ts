@@ -222,18 +222,4 @@ export interface ChatItem {
       pendingQuestionToolCallId: string | null;
     };
   };
-  currentInteraction: {
-    machineState: string; // Legacy field, no longer used
-    streamingMessageId: string | null;
-    streamingContent: string | null;
-    pendingApproval?: {
-      toolCallId: string;
-      toolName: string;
-      parameters: Record<string, unknown>;
-    };
-    error?: {
-      message: string;
-      details?: unknown;
-    };
-  } | null;
 }

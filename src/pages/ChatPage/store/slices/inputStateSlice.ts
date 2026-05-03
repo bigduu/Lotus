@@ -1,7 +1,6 @@
 import { StateCreator } from "zustand";
 import type { AppState } from "../";
 import type { ReasoningEffort } from "../../services/AgentService";
-import { arePendingQuestionIdentityInputsEqual } from "../../utils/pendingQuestionIdentity";
 import { StorageManager } from "../../../../services/storage/StorageManager";
 
 // Attachment type (same as in InputContainer)
@@ -21,22 +20,9 @@ export interface InputState {
   reasoningEffort: ReasoningEffort;
 }
 
-// When conclusion_with_options/request_permissions is awaiting user input,
-// InputContainer enters "respond mode" and uses this payload to render
-// quick options plus optional custom-response behavior.
-export interface PendingQuestionRespond {
-  sessionId: string;
-  question: string;
-  options: string[];
-  allowCustom: boolean;
-  toolCallId?: string | null;
-}
-
 export interface InputStateSliceState {
   // Map of sessionId to input state
   inputStates: Record<string, InputState>;
-  // When set, InputContainer enters "respond mode" for the given session
-  pendingQuestionRespond: PendingQuestionRespond | null;
 }
 
 export interface InputStateSliceActions {
@@ -52,10 +38,6 @@ export interface InputStateSliceActions {
   clearInputState: (sessionId: string) => void;
   // Get input state for a chat (returns default if not found)
   getInputState: (sessionId: string) => InputState;
-  // Activate respond mode (InputContainer will submit to respond API)
-  setPendingQuestionRespond: (respond: PendingQuestionRespond | null) => void;
-  // Clear respond mode only when it belongs to the given session
-  clearPendingQuestionRespondForSession: (sessionId: string) => void;
 }
 
 export type InputStateSlice = InputStateSliceState & InputStateSliceActions;
@@ -149,7 +131,6 @@ export const createInputStateSlice: StateCreator<AppState, [], [], InputStateSli
 ) => ({
   // State
   inputStates: {},
-  pendingQuestionRespond: null,
 
   // Set input content for a chat
   setInputContent: (sessionId, content) =>
@@ -223,26 +204,4 @@ export const createInputStateSlice: StateCreator<AppState, [], [], InputStateSli
   getInputState: (sessionId) => {
     return get().inputStates[sessionId] || defaultInputStateForSession(sessionId);
   },
-
-  // Set or clear pending question respond mode
-  setPendingQuestionRespond: (respond) =>
-    set((state) => {
-      if (arePendingQuestionIdentityInputsEqual(state.pendingQuestionRespond, respond)) {
-        return {};
-      }
-      return { pendingQuestionRespond: respond };
-    }),
-
-  // Session-scoped clear for multi-pane safety:
-  // avoid one pane clearing another pane's pending conclusion_with_options response state.
-  clearPendingQuestionRespondForSession: (sessionId) =>
-    set((state) => {
-      if (state.pendingQuestionRespond?.sessionId !== sessionId) {
-        return {};
-      }
-      if (state.pendingQuestionRespond === null) {
-        return {};
-      }
-      return { pendingQuestionRespond: null };
-    }),
 });

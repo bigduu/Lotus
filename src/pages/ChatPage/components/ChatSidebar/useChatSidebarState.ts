@@ -17,6 +17,7 @@ import { selectSessionById, useAppStore } from "../../store";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { openSession } from "../../utils/openSession";
+import { selectIsBusy } from "../../store";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
 
@@ -47,12 +48,16 @@ const matchesSearchQuery = (chat: ChatItem, normalizedQuery: string): boolean =>
   return terms.every((term) => haystack.includes(term));
 };
 
-const matchesStatusFilter = (chat: ChatItem, filter: SidebarStatusFilter): boolean => {
+const matchesStatusFilter = (
+  chat: ChatItem,
+  filter: SidebarStatusFilter,
+  isBusy: (sessionId: string) => boolean,
+): boolean => {
   switch (filter) {
     case "pinned":
       return Boolean(chat.pinned);
     case "running":
-      return Boolean(chat.isRunning);
+      return isBusy(chat.id);
     case "child":
       return chat.kind === "child";
     case "all":
@@ -76,6 +81,11 @@ export const useChatSidebarState = () => {
   const refreshChats = useAppStore((state) => state.refreshChats);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
+  // Use selector-based isBusy for consistent semantics with rest of the app.
+  const isBusy = useCallback(
+    (sessionId: string) => selectIsBusy(sessionId)(useAppStore.getState()),
+    [],
+  );
 
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
   const setSidebarCollapsed = useUILayoutStore((s) => s.setSidebarCollapsed);
@@ -113,7 +123,6 @@ export const useChatSidebarState = () => {
           // Do NOT pass model_ref here — let addChat resolve it from provider defaults.
           // selectedModelRef is session-scoped and should not leak into new sessions.
         },
-        currentInteraction: null,
         ...options,
       };
       const newSessionId = await addChat(newChatData);
@@ -195,17 +204,24 @@ export const useChatSidebarState = () => {
     return rootSessions.filter((rootChat) => {
       const rootMatches =
         matchesSearchQuery(rootChat, normalizedSearchQuery) &&
-        matchesStatusFilter(rootChat, statusFilter);
+        matchesStatusFilter(rootChat, statusFilter, isBusy);
       if (rootMatches) return true;
 
       const childSessions = allChildrenByRoot[rootChat.id] || [];
       return childSessions.some(
         (childChat) =>
           matchesSearchQuery(childChat, normalizedSearchQuery) &&
-          matchesStatusFilter(childChat, statusFilter),
+          matchesStatusFilter(childChat, statusFilter, isBusy),
       );
     });
-  }, [allChildrenByRoot, hasActiveFilters, normalizedSearchQuery, rootSessions, statusFilter]);
+  }, [
+    allChildrenByRoot,
+    hasActiveFilters,
+    isBusy,
+    normalizedSearchQuery,
+    rootSessions,
+    statusFilter,
+  ]);
 
   const childrenByRoot = useMemo(() => {
     if (!hasActiveFilters) {
@@ -218,7 +234,7 @@ export const useChatSidebarState = () => {
       map[rootChat.id] = childSessions.filter(
         (childChat) =>
           matchesSearchQuery(childChat, normalizedSearchQuery) &&
-          matchesStatusFilter(childChat, statusFilter),
+          matchesStatusFilter(childChat, statusFilter, isBusy),
       );
     }
 
@@ -227,6 +243,7 @@ export const useChatSidebarState = () => {
     allChildrenByRoot,
     filteredRootSessions,
     hasActiveFilters,
+    isBusy,
     normalizedSearchQuery,
     statusFilter,
   ]);

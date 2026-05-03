@@ -32,7 +32,6 @@ export const useChatManager = () => {
   const streaming = useMessageStreaming({
     sessionId: state.currentSessionId,
     addMessage: state.addMessage,
-    setSessionProcessing: state.setSessionProcessing,
     updateSession: state.updateSession,
   });
 

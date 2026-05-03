@@ -12,7 +12,7 @@ import {
 import type { ChatItem, Message, UserMessage } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
-import { useAppStore } from "../../store";
+import { useAppStore, selectRespondMode, selectGeneration } from "../../store";
 import { getSystemPromptEnhancementText } from "@shared/utils/systemPromptEnhancement";
 import { isCopilotConclusionWithOptionsEnhancementEnabled } from "@shared/utils/copilotConclusionWithOptionsEnhancementUtils";
 import {
@@ -39,7 +39,6 @@ export interface UseMessageStreaming {
 interface UseMessageStreamingDeps {
   sessionId: string | null;
   addMessage: (sessionId: string, message: Message) => Promise<void>;
-  setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
 }
 
@@ -57,6 +56,7 @@ type PendingQuestionResponse = {
  * Agent-only flow using the local agent endpoints (localhost:9562).
  */
 export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageStreaming {
+  const { sessionId: depsSessionId, addMessage, updateSession } = deps;
   const { modal, message: appMessage } = AntApp.useApp();
   const { t } = useTranslation();
   const abortRef = useRef<AbortController | null>(null);
@@ -68,12 +68,16 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   const setAgentAvailability = useAppStore((state) => state.setAgentAvailability);
   const checkAgentAvailability = useAppStore((state) => state.checkAgentAvailability);
   const startAgentHealthCheck = useAppStore((state) => state.startAgentHealthCheck);
-  const activeModel = useActiveModel(deps.sessionId);
+  const markOptimisticStart = useAppStore((state) => state.markOptimisticStart);
+  const markRetryStart = useAppStore((state) => state.markRetryStart);
+  const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
+  const applyExecutionStarted = useAppStore((state) => state.applyExecutionStarted);
+  const activeModel = useActiveModel(depsSessionId);
   const currentProvider = useProviderStore((state) => state.currentProvider);
 
   // Fetch chat internally based on sessionId
   const currentChat = useAppStore((state) =>
-    deps.sessionId ? state.chats.find((chat) => chat.id === deps.sessionId) || null : null,
+    depsSessionId ? state.chats.find((chat) => chat.id === depsSessionId) || null : null,
   );
   const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
 
@@ -95,17 +99,11 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   }, [currentChat?.id]);
 
   const buildClientSync = useCallback((sessionId: string): ExecuteClientSync => {
-    const storeState = useAppStore.getState() as Partial<{
-      chats: ChatItem[];
-      pendingQuestionRespond: {
-        sessionId: string;
-        toolCallId?: string | null;
-      } | null;
-    }>;
-    const chats = Array.isArray(storeState.chats) ? storeState.chats : [];
+    const state = useAppStore.getState();
+    const chats = Array.isArray(state.chats) ? state.chats : [];
     const chat = chats.find((item) => item.id === sessionId);
-    const pendingRespond = storeState.pendingQuestionRespond;
-    const pendingForSession = pendingRespond?.sessionId === sessionId ? pendingRespond : null;
+    const respondMode = selectRespondMode(sessionId)(state);
+    const pendingForSession = respondMode?.sessionId === sessionId ? respondMode : null;
     const syncCursor = chat?.config?.syncCursor;
     const hasPendingQuestion =
       Boolean(pendingForSession) || Boolean(syncCursor?.hasPendingQuestion);
@@ -129,7 +127,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       const chat = chats.find((item) => item.id === sessionId);
       if (!chat) return;
 
-      deps.updateSession(sessionId, {
+      updateSession(sessionId, {
         messageCount: sync.server_message_count,
         config: {
           ...(chat.config || {}),
@@ -142,7 +140,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         },
       });
     },
-    [deps],
+    [updateSession],
   );
 
   const getPendingQuestion = useCallback(
@@ -166,17 +164,15 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       executeSync: ExecuteResponse["sync"],
       reasoningEffort?: ReasoningEffort,
     ): Promise<ExecuteResponse | null> => {
-      deps.setSessionProcessing(sessionId, false);
+      markSettleTimeout(sessionId);
       await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
       const pending = await getPendingQuestion(sessionId);
-      const setPendingQuestionRespond = useAppStore.getState().setPendingQuestionRespond;
-      const clearPendingQuestionRespondForSession =
-        useAppStore.getState().clearPendingQuestionRespondForSession;
+      const enterRespondMode = useAppStore.getState().enterRespondMode;
+      const clearPendingQuestion = useAppStore.getState().clearPendingQuestion;
 
       if (pending.has_pending_question) {
-        setPendingQuestionRespond({
-          sessionId,
+        enterRespondMode(sessionId, {
           question: pending.question || "",
           options: pending.options || [],
           allowCustom: pending.allow_custom ?? true,
@@ -185,7 +181,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
 
         const chat = useAppStore.getState().chats.find((item) => item.id === sessionId);
         if (chat) {
-          deps.updateSession(sessionId, {
+          updateSession(sessionId, {
             config: {
               ...(chat.config || {}),
               syncCursor: {
@@ -200,14 +196,14 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         return null;
       }
 
-      clearPendingQuestionRespondForSession(sessionId);
+      clearPendingQuestion(sessionId);
 
       const hasPendingUserMessage = executeSync?.has_pending_user_message ?? false;
       if (!hasPendingUserMessage) {
         return null;
       }
 
-      deps.setSessionProcessing(sessionId, true);
+      markOptimisticStart(sessionId);
       await new Promise((resolve) => setTimeout(resolve, 0));
       const retryResult = reasoningEffort
         ? await agentClientRef.current.execute(
@@ -227,7 +223,15 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       applyExecuteSyncSnapshot(sessionId, retryResult);
       return retryResult;
     },
-    [activeModelRef, applyExecuteSyncSnapshot, buildClientSync, deps, getPendingQuestion],
+    [
+      activeModelRef,
+      applyExecuteSyncSnapshot,
+      buildClientSync,
+      getPendingQuestion,
+      markOptimisticStart,
+      markSettleTimeout,
+      updateSession,
+    ],
   );
 
   const handleExecuteResult = useCallback(
@@ -249,7 +253,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         );
         syncRecoveries += 1;
         if (!recovered) {
-          deps.setSessionProcessing(sessionId, false);
+          markSettleTimeout(sessionId);
           return;
         }
         resolvedExecuteResult = recovered;
@@ -261,24 +265,28 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           `[useMessageStreaming] Execute remains out-of-sync after ${maxSyncRecoveries} recovery attempt(s) for session ${sessionId}.`,
           resolvedExecuteResult.sync,
         );
-        deps.setSessionProcessing(sessionId, false);
+        markSettleTimeout(sessionId);
         return;
       }
 
       if (["started", "already_running"].includes(resolvedExecuteResult.status)) {
+        if (resolvedExecuteResult.run_id) {
+          const generation = selectGeneration(sessionId)(useAppStore.getState());
+          applyExecutionStarted(sessionId, resolvedExecuteResult.run_id, generation);
+        }
         return;
       }
       if (resolvedExecuteResult.status === "completed") {
         debugLog("[Streaming]", "[Agent] Session already completed");
-        deps.setSessionProcessing(sessionId, false);
+        markSettleTimeout(sessionId);
         return;
       }
 
       console.error("[Agent] Execute failed:", resolvedExecuteResult.status);
-      deps.setSessionProcessing(sessionId, false);
+      markSettleTimeout(sessionId);
       throw new Error(`Execute failed: ${resolvedExecuteResult.status}`);
     },
-    [applyExecuteSyncSnapshot, deps, recoverAfterNeedSync],
+    [applyExecuteSyncSnapshot, recoverAfterNeedSync, markSettleTimeout, applyExecutionStarted],
   );
 
   /**
@@ -344,11 +352,8 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         // Refresh from persisted history once so execute uses a server-confirmed cursor
         await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
-        // Step 2: Ensure processing is active before execute (idempotent — caller
-        // normally sets this earlier, but this guards other entry points).
-        deps.setSessionProcessing(sessionId, true);
-
-        // Step 3: Trigger execution (idempotent)
+        // Step 2: Trigger execution. The optimistic start (markOptimisticStart) was
+        // already emitted by the caller (sendMessage) before entering this path.
         const executeResult = reasoningEffort
           ? await agentClientRef.current.execute(
               sessionId,
@@ -370,13 +375,14 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         throw error;
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeModel,
       activeModelRef,
       buildClientSync,
       currentChat,
       currentProvider,
-      deps,
+      depsSessionId,
       handleExecuteResult,
       t,
     ],
@@ -397,7 +403,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         return;
       }
 
-      if (!deps.sessionId) {
+      if (!depsSessionId) {
         modal.info({
           title: t("chat.streaming.noChatIdTitle"),
           content: t("chat.streaming.noChatIdSendContent"),
@@ -428,7 +434,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         return;
       }
 
-      const sessionId = deps.sessionId;
+      const sessionId = depsSessionId;
       const messageImages =
         images?.map((img) => ({
           id: img.id,
@@ -446,13 +452,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         images: messageImages,
       };
 
-      await deps.addMessage(sessionId, userMessage);
+      await addMessage(sessionId, userMessage);
 
-      // Set processing state immediately so the UI shows the spinner while the
+      // Emit optimistic start immediately so the UI shows the spinner while the
       // outbound network request is still in flight.  Previously this was done
       // inside sendWithAgent *after* sendMessage + loadChatHistory had already
       // completed, causing a perceptible delay before the UI responded.
-      deps.setSessionProcessing(sessionId, true);
+      markOptimisticStart(sessionId);
       // Yield so React can flush the processing-state render before we block
       // the microtask queue with network I/O.
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -479,7 +485,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
             setAgentAvailability(false);
           }
         }
-        deps.setSessionProcessing(sessionId, false);
+        markSettleTimeout(sessionId);
       } finally {
         abortRef.current = null;
         if (streamingMessageIdRef.current) {
@@ -494,12 +500,15 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       appMessage,
       checkAgentAvailability,
       currentChat,
-      deps,
+      depsSessionId,
+      addMessage,
       modal,
       sendWithAgent,
       setAgentAvailability,
       activeModel,
       t,
+      markOptimisticStart,
+      markSettleTimeout,
     ],
   );
 
@@ -513,7 +522,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         return;
       }
 
-      if (!deps.sessionId) {
+      if (!depsSessionId) {
         modal.info({
           title: t("chat.streaming.noChatIdTitle"),
           content: t("chat.streaming.noChatIdRetryContent"),
@@ -538,7 +547,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         return;
       }
 
-      const sessionId = deps.sessionId;
+      const sessionId = depsSessionId;
 
       if (streamingMessageIdRef.current) {
         streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
@@ -556,7 +565,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
         }
 
-        deps.setSessionProcessing(sessionId, true);
+        markRetryStart(sessionId);
 
         const executeResult = reasoningEffort
           ? await agentClientRef.current.execute(
@@ -582,7 +591,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         } else {
           appMessage.error(t("chat.streaming.retryFailed"));
         }
-        deps.setSessionProcessing(sessionId, false);
+        markSettleTimeout(sessionId);
       } finally {
         abortRef.current = null;
       }
@@ -595,10 +604,12 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       buildClientSync,
       checkAgentAvailability,
       currentChat,
-      deps,
+      depsSessionId,
       handleExecuteResult,
       modal,
       t,
+      markRetryStart,
+      markSettleTimeout,
     ],
   );
 

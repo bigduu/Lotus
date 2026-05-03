@@ -15,6 +15,7 @@ import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
 import { ApiError } from "../../../../services/api";
 import type { AppState } from "../";
 import { useProviderStore } from "./providerSlice";
+import { applyExecutionEvent } from "./executionStateSlice";
 import i18n from "../../../../shared/i18n";
 
 const AUTO_TITLE_KEY = "copilot_auto_generate_titles";
@@ -175,7 +176,6 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
       segmentsRemoved: s.token_usage?.segments_removed,
       compressionEvents: [],
     },
-    currentInteraction: null,
   };
 };
 
@@ -406,38 +406,13 @@ export const mapHistoryMessagesToUi = (
   return out;
 };
 
-export interface PendingQuestionState {
-  sessionId: string;
-  question: string;
-  options: string[];
-  allowCustom: boolean;
-  toolCallId: string | null;
-}
-
 export interface ChatSlice {
   // State (backend session list)
   chats: ChatItem[];
   currentSessionId: string | null;
   latestActiveSessionId: string | null;
-  processingChats: Set<string>;
   autoGenerateTitles: boolean;
   isUpdatingAutoTitlePreference: boolean;
-  // parentSessionId -> childSessionId -> progress
-  subSessionsByParent: Record<
-    string,
-    Record<
-      string,
-      {
-        title?: string;
-        status?: string;
-        error?: string;
-        lastHeartbeatAt?: string;
-        lastEventAt?: string;
-        // Small rolling preview of child output (token stream).
-        outputPreview?: string;
-      }
-    >
-  >;
 
   // Actions
   addChat: (chat: Omit<ChatItem, "id">) => Promise<string>;
@@ -445,12 +420,6 @@ export interface ChatSlice {
   deleteSession: (sessionId: string) => Promise<void>;
   deleteSessions: (sessionIds: string[]) => Promise<void>;
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
-  /**
-   * Persist a session title to the backend.
-   * Locally updates the title first, then awaits the PATCH call.
-   * On backend failure the local title is rolled back to the previous value
-   * and the error is re-thrown so callers can decide how to handle it.
-   */
   persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   pinSession: (sessionId: string) => void;
   unpinSession: (sessionId: string) => void;
@@ -469,33 +438,11 @@ export interface ChatSlice {
       mode?: "replace" | "monotonic";
       retries?: number;
       retryDelayMs?: number;
-      // When true, retry while backend history ends with a user message.
-      // This helps avoid a race where SSE emits "complete" before the session is persisted.
       waitForAssistant?: boolean;
     },
   ) => Promise<void>;
-  upsertSubSessionProgress: (
-    parentSessionId: string,
-    childSessionId: string,
-    patch: Partial<{
-      title?: string;
-      status?: string;
-      error?: string;
-      lastHeartbeatAt?: string;
-      lastEventAt?: string;
-      outputPreview?: string;
-    }>,
-  ) => void;
-  clearSubSessionProgress: (parentSessionId: string, childSessionId: string) => void;
 
-  setSessionProcessing: (sessionId: string, isProcessing: boolean) => void;
-  isSessionProcessing: (sessionId: string) => boolean;
   setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
-
-  // Pending questions by session (event-driven from SSE)
-  pendingQuestionsBySession: Record<string, PendingQuestionState>;
-  setPendingQuestionForSession: (state: PendingQuestionState) => void;
-  clearPendingQuestionForSession: (sessionId: string) => void;
 }
 
 // === REFRESH CHATS DEDUPLICATION ===
@@ -568,13 +515,15 @@ function applySessionsList(
   const next = sessions.map(sessionSummaryToChatItem);
 
   set((state) => {
-    const nextProcessing = new Set(state.processingChats);
-    next.forEach((c) => {
-      if (c.isRunning) {
-        nextProcessing.add(c.id);
-      }
-    });
-
+    // Phase 1 double-write: reconcile executionBySession against every summary.
+    let executionBySession = state.executionBySession;
+    for (const summary of sessions) {
+      executionBySession = applyExecutionEvent(executionBySession, {
+        type: "applySessionSummary",
+        sessionId: summary.id,
+        summary,
+      });
+    }
     // Preserve in-memory messages when possible.
     const prevById = new Map(state.chats.map((c) => [c.id, c]));
     const merged = next.map((c) => {
@@ -629,7 +578,7 @@ function applySessionsList(
         },
       };
     });
-    return { ...state, chats: merged, processingChats: nextProcessing };
+    return { ...state, chats: merged, executionBySession };
   });
 }
 
@@ -674,11 +623,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   chats: [],
   currentSessionId: null,
   latestActiveSessionId: null,
-  processingChats: new Set<string>(),
   autoGenerateTitles: true,
   isUpdatingAutoTitlePreference: false,
-  subSessionsByParent: {},
-  pendingQuestionsBySession: {},
 
   addChat: async (chatData) => {
     const title = (chatData.title || i18n.t("chat.sidebar.newSession")).trim();
@@ -735,7 +681,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         baseSystemPrompt: basePrompt || DEFAULT_BASE_SYSTEM_PROMPT,
       },
       messages: [],
-      currentInteraction: null,
     };
 
     set((state) => {
@@ -1073,13 +1018,44 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const chats = list.sessions.map(sessionSummaryToChatItem);
     const currentSessionId = chats[0]?.id ?? null;
 
-    const runningSessions = chats.filter((c) => c.isRunning).map((c) => c.id);
+    // Phase 1 double-write: reconcile executionBySession against every summary.
+    let executionBySession = get().executionBySession;
+    for (const summary of list.sessions) {
+      executionBySession = applyExecutionEvent(executionBySession, {
+        type: "applySessionSummary",
+        sessionId: summary.id,
+        summary,
+      });
+    }
+
+    // Phase 5B: Replay active running sessions so the UI reflects live state
+    // immediately after boot (removes the need for OPTIMISTIC_RACE_WINDOW_MS).
+    try {
+      const running = await agentClient.getRunningSessions();
+      if (running.sessions.length > 0) {
+        executionBySession = applyExecutionEvent(
+          executionBySession,
+          {
+            type: "applyRunningSnapshot",
+            sessions: running.sessions.map((s) => ({
+              sessionId: s.session_id,
+              runId: s.run_id,
+              criticalEvents: s.last_critical_events,
+            })),
+          },
+          () => new Date().toISOString(),
+        );
+      }
+    } catch {
+      // Non-fatal: if the backend doesn't support /runs/active yet,
+      // fall back to the summary-based reconciliation above.
+    }
 
     set({
       chats,
       latestActiveSessionId: currentSessionId,
       currentSessionId,
-      processingChats: new Set<string>(runningSessions),
+      executionBySession,
       autoGenerateTitles,
     });
 
@@ -1161,10 +1137,15 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             syncCursor: {
               messageCount: history.messages.length,
               lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
-              hasPendingQuestion: Boolean(get().pendingQuestionRespond?.sessionId === sessionId),
+              hasPendingQuestion: Boolean(
+                get().executionBySession?.[sessionId]?.interaction.respondMode?.sessionId ===
+                  sessionId,
+              ),
               pendingQuestionToolCallId:
-                get().pendingQuestionRespond?.sessionId === sessionId
-                  ? (get().pendingQuestionRespond?.toolCallId ?? null)
+                get().executionBySession?.[sessionId]?.interaction.respondMode?.sessionId ===
+                sessionId
+                  ? (get().executionBySession?.[sessionId]?.interaction.respondMode?.toolCallId ??
+                    null)
                   : null,
             },
           },
@@ -1181,48 +1162,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     }
   },
 
-  upsertSubSessionProgress: (parentSessionId, childSessionId, patch) => {
-    set((state) => {
-      const existingParent = state.subSessionsByParent[parentSessionId] || {};
-      const existingChild = existingParent[childSessionId] || {};
-      const nextParent = {
-        ...existingParent,
-        [childSessionId]: { ...existingChild, ...patch },
-      };
-      return {
-        subSessionsByParent: {
-          ...state.subSessionsByParent,
-          [parentSessionId]: nextParent,
-        },
-      };
-    });
-  },
-
-  clearSubSessionProgress: (parentSessionId, childSessionId) => {
-    set((state) => {
-      const existingParent = state.subSessionsByParent[parentSessionId];
-      if (!existingParent || !existingParent[childSessionId]) return {};
-      const { [childSessionId]: _removed, ...rest } = existingParent;
-      return {
-        subSessionsByParent: {
-          ...state.subSessionsByParent,
-          [parentSessionId]: rest,
-        },
-      };
-    });
-  },
-
-  setSessionProcessing: (sessionId, isProcessing) => {
-    set((state) => {
-      const processingChats = new Set(state.processingChats);
-      if (isProcessing) processingChats.add(sessionId);
-      else processingChats.delete(sessionId);
-      return { processingChats };
-    });
-  },
-
-  isSessionProcessing: (sessionId) => get().processingChats.has(sessionId),
-
   setAutoGenerateTitlesPreference: async (enabled) => {
     const previousValue = get().autoGenerateTitles;
     set({ autoGenerateTitles: enabled, isUpdatingAutoTitlePreference: true });
@@ -1235,22 +1174,5 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     } finally {
       set({ isUpdatingAutoTitlePreference: false });
     }
-  },
-
-  setPendingQuestionForSession: (state) => {
-    set((prev) => ({
-      pendingQuestionsBySession: {
-        ...prev.pendingQuestionsBySession,
-        [state.sessionId]: state,
-      },
-    }));
-  },
-
-  clearPendingQuestionForSession: (sessionId) => {
-    set((prev) => {
-      const next = { ...prev.pendingQuestionsBySession };
-      delete next[sessionId];
-      return { pendingQuestionsBySession: next };
-    });
   },
 });

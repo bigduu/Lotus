@@ -23,10 +23,6 @@ const getCompressionTimeLabel = (createdAt: string): string => {
   return parsed.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 };
 
-type InteractionState = {
-  matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
-};
-
 type ChatMessagesListProps = {
   currentChat: ChatItem | null;
   currentSessionId: string | null;
@@ -41,7 +37,7 @@ type ChatMessagesListProps = {
   showMessagesView: boolean;
   screens: { xs?: boolean };
   workflowDraftId?: string;
-  interactionState: InteractionState;
+  isThinking: boolean;
   padding: number;
   selectionMode: boolean;
   selectedMessageIds: ReadonlySet<string>;
@@ -71,7 +67,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   showMessagesView,
   screens,
   workflowDraftId,
-  interactionState,
+  isThinking,
   padding,
   selectionMode,
   selectedMessageIds,
@@ -300,7 +296,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
             })}
           </div>
         ))}
-      {interactionState.matches("THINKING") && currentSessionId && (
+      {isThinking && currentSessionId && (
         <div className="streaming-card-enter" style={{ paddingTop: rowGap }}>
           <Flex justify="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
             <div

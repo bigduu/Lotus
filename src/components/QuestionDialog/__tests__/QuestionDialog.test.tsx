@@ -5,9 +5,13 @@ import { useAppStore } from "../../../pages/ChatPage/store";
 import { useProviderStore } from "../../../pages/ChatPage/store/slices/providerSlice";
 
 // Mock dependencies
-vi.mock("../../../pages/ChatPage/store", () => ({
-  useAppStore: vi.fn(),
-}));
+vi.mock("../../../pages/ChatPage/store", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../pages/ChatPage/store")>();
+  return {
+    ...actual,
+    useAppStore: vi.fn(),
+  };
+});
 
 vi.mock("../../../services/api", () => ({
   agentApiClient: {
@@ -53,18 +57,16 @@ vi.mock("antd", async () => {
 });
 
 describe("QuestionDialog", () => {
-  const mockSetSessionProcessing = vi.fn();
-  const mockIsSessionProcessing = vi.fn();
-  const mockSetPendingQuestionRespond = vi.fn();
-  const mockClearPendingQuestionRespondForSession = vi.fn();
-  const mockClearPendingQuestionForSession = vi.fn();
+  const mockMarkRespondStart = vi.fn();
+  const mockMarkSettleTimeout = vi.fn();
+  const mockEnterRespondMode = vi.fn();
+  const mockClearPendingQuestion = vi.fn();
   const defaultProps = {
     sessionId: "test-session-1",
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockIsSessionProcessing.mockReturnValue(false);
     // Ensure provider store has a default model available (QuestionDialog uses it for resume).
     useProviderStore.setState({
       currentProvider: "openai",
@@ -80,15 +82,14 @@ describe("QuestionDialog", () => {
 
     (useAppStore as any).mockImplementation((selector: (state: any) => any) => {
       const state = {
-        setSessionProcessing: mockSetSessionProcessing,
-        isSessionProcessing: mockIsSessionProcessing,
-        setPendingQuestionRespond: mockSetPendingQuestionRespond,
-        clearPendingQuestionRespondForSession: mockClearPendingQuestionRespondForSession,
-        clearPendingQuestionForSession: mockClearPendingQuestionForSession,
+        markRespondStart: mockMarkRespondStart,
+        markSettleTimeout: mockMarkSettleTimeout,
+        enterRespondMode: mockEnterRespondMode,
+        clearPendingQuestion: mockClearPendingQuestion,
         chats: [],
         inputStates: {},
         currentSessionId: "test-session-1",
-        pendingQuestionsBySession: {},
+        executionBySession: {},
         // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
         // (it may auto-default to models[0] elsewhere).
         selectedModel: "gpt-5-ultra-expensive",
@@ -203,17 +204,10 @@ describe("QuestionDialog", () => {
         response: "A",
         reasoning_effort: "medium",
       });
-      // Processing should be set to true BEFORE the POST (immediate feedback),
-      // and remain true because auto_resume_status is "started".
-      const processingCalls = mockSetSessionProcessing.mock.calls.filter(
-        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
-      );
-      expect(processingCalls.length).toBeGreaterThanOrEqual(1);
-      // No setSessionProcessing(sessionId, false) should have been called
-      const clearCalls = mockSetSessionProcessing.mock.calls.filter(
-        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
-      );
-      expect(clearCalls).toHaveLength(0);
+      // markRespondStart should be called BEFORE the POST (immediate feedback),
+      // and markSettleTimeout should NOT be called because auto_resume_status is "started".
+      expect(mockMarkRespondStart).toHaveBeenCalledWith("test-session-1", "tool-1");
+      expect(mockMarkSettleTimeout).not.toHaveBeenCalled();
     });
   });
 
@@ -438,15 +432,9 @@ describe("QuestionDialog", () => {
       );
     });
 
-    // Processing was set to true before POST, but should be cleared on error status
-    const processingTrueCalls = mockSetSessionProcessing.mock.calls.filter(
-      (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
-    );
-    const processingFalseCalls = mockSetSessionProcessing.mock.calls.filter(
-      (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
-    );
-    expect(processingTrueCalls.length).toBeGreaterThanOrEqual(1);
-    expect(processingFalseCalls.length).toBeGreaterThanOrEqual(1);
+    // markRespondStart should be called before POST, and markSettleTimeout on error status
+    expect(mockMarkRespondStart).toHaveBeenCalledWith("test-session-1", "tool-1");
+    expect(mockMarkSettleTimeout).toHaveBeenCalledWith("test-session-1");
 
     consoleSpy.mockRestore();
   });
@@ -499,9 +487,8 @@ describe("QuestionDialog", () => {
     const customOption = screen.getByText("Other (type below)");
     fireEvent.click(customOption);
 
-    // Verify that setPendingQuestionRespond was called with the correct payload
-    expect(mockSetPendingQuestionRespond).toHaveBeenCalledWith({
-      sessionId: "test-session-1",
+    // Verify that enterRespondMode was called with the correct payload
+    expect(mockEnterRespondMode).toHaveBeenCalledWith("test-session-1", {
       question: "Test?",
       options: ["A"],
       allowCustom: true,
@@ -519,7 +506,7 @@ describe("QuestionDialog", () => {
     const optionA = screen.getByText("A");
     fireEvent.click(optionA);
 
-    expect(mockSetPendingQuestionRespond).not.toHaveBeenCalledWith(null);
+    expect(mockEnterRespondMode).not.toHaveBeenCalledWith(null);
   });
 
   it("should clear processing when respond POST fails", async () => {
@@ -551,15 +538,9 @@ describe("QuestionDialog", () => {
     });
 
     await waitFor(() => {
-      // Processing was set to true before POST, but should be cleared on error
-      const processingTrueCalls = mockSetSessionProcessing.mock.calls.filter(
-        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
-      );
-      const processingFalseCalls = mockSetSessionProcessing.mock.calls.filter(
-        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
-      );
-      expect(processingTrueCalls.length).toBeGreaterThanOrEqual(1);
-      expect(processingFalseCalls.length).toBeGreaterThanOrEqual(1);
+      // markRespondStart should be called before POST, and markSettleTimeout on error
+      expect(mockMarkRespondStart).toHaveBeenCalledWith("test-session-1", "tool-1");
+      expect(mockMarkSettleTimeout).toHaveBeenCalledWith("test-session-1");
     });
   });
 
@@ -593,15 +574,9 @@ describe("QuestionDialog", () => {
     });
 
     await waitFor(() => {
-      // Processing was set to true before POST, but should be cleared when no resume status
-      const processingTrueCalls = mockSetSessionProcessing.mock.calls.filter(
-        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === true,
-      );
-      const processingFalseCalls = mockSetSessionProcessing.mock.calls.filter(
-        (args: [string, boolean]) => args[0] === "test-session-1" && args[1] === false,
-      );
-      expect(processingTrueCalls.length).toBeGreaterThanOrEqual(1);
-      expect(processingFalseCalls.length).toBeGreaterThanOrEqual(1);
+      // markRespondStart should be called before POST, and markSettleTimeout when no resume status
+      expect(mockMarkRespondStart).toHaveBeenCalledWith("test-session-1", "tool-1");
+      expect(mockMarkSettleTimeout).toHaveBeenCalledWith("test-session-1");
     });
   });
 });

@@ -7,21 +7,16 @@ import { useScrollAnchorPersistence } from "./useScrollAnchorPersistence";
 const SCROLL_BOTTOM_EPSILON_PX = 2;
 const SCROLL_BOTTOM_MAX_FRAMES = 6;
 
-type InteractionState = {
-  value: "IDLE" | "THINKING" | "AWAITING_APPROVAL";
-  matches: (stateName: "IDLE" | "THINKING" | "AWAITING_APPROVAL") => boolean;
-};
-
 type UseChatViewScrollArgs = {
   currentSessionId: string | null;
-  interactionState: InteractionState;
+  isThinking: boolean;
   messagesListRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
 };
 
 export const useChatViewScroll = ({
   currentSessionId,
-  interactionState,
+  isThinking,
   messagesListRef,
   renderableMessages,
 }: UseChatViewScrollArgs) => {
@@ -195,18 +190,17 @@ export const useChatViewScroll = ({
     };
   }, [messagesListRef, renderableMessages]);
 
-  const previousStateRef = useRef(interactionState.value);
+  const wasThinkingRef = useRef(isThinking);
   useEffect(() => {
-    const currentState = interactionState.value;
-    const previousState = previousStateRef.current;
+    const wasThinking = wasThinkingRef.current;
 
-    if (previousState === "IDLE" && currentState === "THINKING") {
+    if (!wasThinking && isThinking) {
       resetUserScroll();
       scrollToBottom();
     }
 
-    previousStateRef.current = currentState;
-  }, [interactionState.value, resetUserScroll, scrollToBottom]);
+    wasThinkingRef.current = isThinking;
+  }, [isThinking, resetUserScroll, scrollToBottom]);
 
   useEffect(() => {
     return streamingMessageBus.subscribe((update) => {

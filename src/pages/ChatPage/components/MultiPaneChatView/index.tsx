@@ -87,7 +87,6 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
             : ""),
         lastUsedEnhancedPrompt: null,
       },
-      currentInteraction: null,
     });
 
     setLeafSessionId(leafId, newSessionId);

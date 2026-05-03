@@ -3,7 +3,7 @@ import { App as AntApp, Button, Radio, Space, Typography, theme } from "antd";
 import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { agentApiClient } from "../../services/api";
-import { useAppStore } from "../../pages/ChatPage/store";
+import { selectExecutionState, selectIsBusy, useAppStore } from "../../pages/ChatPage/store";
 import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef";
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
@@ -77,20 +77,18 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     typeof document === "undefined" ? true : !document.hidden,
   );
 
-  const setSessionProcessing = useAppStore((state) => state.setSessionProcessing);
-  const setPendingQuestionRespond = useAppStore((state) => state.setPendingQuestionRespond);
-  const clearPendingQuestionRespondForSession = useAppStore(
-    (state) => state.clearPendingQuestionRespondForSession,
-  );
-  const clearPendingQuestionForSession = useAppStore(
-    (state) => state.clearPendingQuestionForSession,
-  );
+  const markRespondStart = useAppStore((state) => state.markRespondStart);
+  const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
+  const enterRespondMode = useAppStore((state) => state.enterRespondMode);
+  const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
   const currentChat = useAppStore(
     (state) => state.chats.find((chat) => chat.id === sessionId) || null,
   );
-  const eventPendingQuestion = useAppStore((state) =>
-    sessionId ? state.pendingQuestionsBySession[sessionId] : null,
-  );
+  const eventPendingQuestion = useAppStore((state) => {
+    if (!sessionId) return null;
+    const entry = selectExecutionState(sessionId)(state);
+    return entry?.interaction.pendingQuestion ?? null;
+  });
 
   // Use event-driven data if available, otherwise fall back to polled data
   const pendingQuestion = useMemo<PendingQuestion | null>(() => {
@@ -129,9 +127,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     providerDefaultReasoningEffort ??
     "medium";
 
-  const isSessionProcessing = useAppStore((state) =>
-    sessionId ? state.isSessionProcessing(sessionId) : false,
-  );
+  // selectIsBusy = any active execution; used to speed up polling while agent is running
+  const isSessionProcessing = useAppStore(selectIsBusy(sessionId));
   const currentSessionId = useAppStore((state) => state.currentSessionId);
   const isCurrentSession = currentSessionId === sessionId;
 
@@ -236,8 +233,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       });
       const isSameQuestion = lastQuestionIdentityRef.current === nextIdentity;
 
-      setPendingQuestionRespond({
-        sessionId,
+      enterRespondMode(sessionId, {
         question: pendingQuestion?.question || "",
         options: pendingQuestion?.options || [],
         allowCustom: pendingQuestion?.allow_custom ?? true,
@@ -253,7 +249,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       lastQuestionIdentityRef.current = nextIdentity;
     } else {
       lastQuestionIdentityRef.current = null;
-      clearPendingQuestionRespondForSession(sessionId);
+      clearPendingQuestion(sessionId);
     }
   }, [
     pendingQuestion?.allow_custom,
@@ -262,8 +258,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     pendingQuestion?.question,
     pendingQuestion?.tool_call_id,
     sessionId,
-    setPendingQuestionRespond,
-    clearPendingQuestionRespondForSession,
+    enterRespondMode,
+    clearPendingQuestion,
   ]);
 
   // Adaptive polling with backoff based on session state and visibility
@@ -353,15 +349,14 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       setPolledQuestion(null);
       setSelectedOption(null);
       emptyCountRef.current = 0;
-      clearPendingQuestionForSession(sessionId);
-      clearPendingQuestionRespondForSession(sessionId);
+      clearPendingQuestion(sessionId);
     };
 
     window.addEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     return () => {
       window.removeEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     };
-  }, [sessionId, clearPendingQuestionRespondForSession, clearPendingQuestionForSession]);
+  }, [sessionId, clearPendingQuestion]);
 
   // Update selected option. Respond mode stays active for the entire
   // duration of the pending question (set in the effect above), so we
@@ -369,13 +364,6 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const handleOptionChange = useCallback((value: string) => {
     setSelectedOption(value);
   }, []);
-
-  // Clean up respond mode when question disappears or component unmounts
-  useEffect(() => {
-    return () => {
-      clearPendingQuestionRespondForSession(sessionId);
-    };
-  }, [clearPendingQuestionRespondForSession, sessionId]);
 
   // Submit response (for predefined options only; custom is handled by InputContainer)
   const handleSubmit = async () => {
@@ -389,7 +377,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     // Set processing state immediately so the UI shows feedback while the
     // outbound respond request is still in-flight.  This mirrors the send-path
     // and InputContainer respond-path fixes.
-    setSessionProcessing(sessionId, true);
+    markRespondStart(sessionId, pendingQuestion?.tool_call_id ?? null);
     // Yield so React can flush the processing-state render before we block
     // the microtask queue with network I/O.
     await new Promise((resolve) => setTimeout(resolve, 0));
@@ -411,8 +399,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       setPolledQuestion(null);
       setSelectedOption(null);
       emptyCountRef.current = 0;
-      clearPendingQuestionForSession(sessionId);
-      clearPendingQuestionRespondForSession(sessionId);
+      clearPendingQuestion(sessionId);
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent(CHAT_PENDING_QUESTION_RESOLVED_EVENT, {
@@ -427,9 +414,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       const resumeStatus = submitResult?.auto_resume_status;
       if (resumeStatus === "error") {
         console.error("[QuestionDialog] Failed to auto-resume agent execution");
-        setSessionProcessing(sessionId, false);
+        markSettleTimeout(sessionId);
       } else if (!resumeStatus || !["started", "already_running"].includes(resumeStatus)) {
-        setSessionProcessing(sessionId, false);
+        markSettleTimeout(sessionId);
       }
 
       // Notify parent (optional)
@@ -440,7 +427,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
         err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
       );
       // Clear processing on error to avoid stuck spinner.
-      setSessionProcessing(sessionId, false);
+      markSettleTimeout(sessionId);
     } finally {
       setIsSubmitting(false);
     }

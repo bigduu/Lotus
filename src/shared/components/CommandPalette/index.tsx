@@ -17,6 +17,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "@pages/ChatPage/store";
+import { isBusyPhase } from "@pages/ChatPage/store/slices/executionStateSlice";
 import { openSession } from "@pages/ChatPage/utils/openSession";
 import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/settingsViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";
@@ -192,10 +193,10 @@ const SETTINGS_ACTIONS: Array<{
   },
 ];
 
-const buildSessionKeywords = (chat: ChatItem): string[] => {
+const buildSessionKeywords = (chat: ChatItem, isRunning: boolean): string[] => {
   const keywords = [chat.title, chat.id, chat.kind || "root"];
   if (chat.pinned) keywords.push("pinned", "pin");
-  if (chat.isRunning) keywords.push("running", "processing");
+  if (isRunning) keywords.push("running", "processing");
   if (chat.config.workspacePath) keywords.push(chat.config.workspacePath);
   if (chat.updatedAt) keywords.push(chat.updatedAt);
   return keywords.filter(Boolean);
@@ -256,6 +257,7 @@ export const CommandPalette: React.FC = () => {
   const addChat = useAppStore((state) => state.addChat);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
+  const executionBySession = useAppStore((state) => state.executionBySession);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -291,7 +293,6 @@ export const CommandPalette: React.FC = () => {
             : ""),
         lastUsedEnhancedPrompt: null,
       },
-      currentInteraction: null,
     });
 
     const { activeLeafId, setLeafSessionId, setActiveLeafId } = useUILayoutStore.getState();
@@ -410,29 +411,34 @@ export const CommandPalette: React.FC = () => {
   ]);
 
   const sessionActions = useMemo<CommandPaletteAction[]>(() => {
-    return chats.map((chat) => ({
-      id: `session-${chat.id}`,
-      kind: "session",
-      title: chat.title,
-      subtitle: getSessionSubtitle(
-        chat,
-        t("commandPalette.badges.childSession", "Child session"),
-        t("commandPalette.badges.rootSession", "Session"),
-      ),
-      keywords: buildSessionKeywords(chat),
-      icon: <MessageOutlined />,
-      badge: chat.pinned
-        ? t("commandPalette.badges.pinned", "Pinned")
-        : chat.isRunning
-          ? t("commandPalette.badges.running", "Running")
-          : chat.kind === "child"
-            ? t("commandPalette.badges.child", "Child")
-            : undefined,
-      onSelect: () => {
-        openSession(chat.id);
-      },
-    }));
-  }, [chats, t]);
+    return chats.map((chat) => {
+      const isRunning = executionBySession[chat.id]?.phase
+        ? isBusyPhase(executionBySession[chat.id].phase)
+        : false;
+      return {
+        id: `session-${chat.id}`,
+        kind: "session",
+        title: chat.title,
+        subtitle: getSessionSubtitle(
+          chat,
+          t("commandPalette.badges.childSession", "Child session"),
+          t("commandPalette.badges.rootSession", "Session"),
+        ),
+        keywords: buildSessionKeywords(chat, isRunning),
+        icon: <MessageOutlined />,
+        badge: chat.pinned
+          ? t("commandPalette.badges.pinned", "Pinned")
+          : isRunning
+            ? t("commandPalette.badges.running", "Running")
+            : chat.kind === "child"
+              ? t("commandPalette.badges.child", "Child")
+              : undefined,
+        onSelect: () => {
+          openSession(chat.id);
+        },
+      };
+    });
+  }, [chats, executionBySession, t]);
 
   const actions = useMemo(() => [...baseActions, ...sessionActions], [baseActions, sessionActions]);
 

@@ -16,6 +16,7 @@ interface MessageInputControlsRightProps {
   allowRetry: boolean;
   hasMessages: boolean;
   isStreaming: boolean;
+  canCancel?: boolean;
   disabled: boolean;
   onRetry?: (mode: MessageRetryMode) => void;
   onCancel?: () => void;
@@ -32,6 +33,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
   allowRetry,
   hasMessages,
   isStreaming,
+  canCancel,
   disabled,
   onRetry,
   onCancel,
@@ -45,7 +47,8 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
 }) => {
   const { t } = useTranslation();
   const canSend = !value.trim() && images.length === 0;
-  const retryDisabled = isStreaming || disabled || !onRetry;
+  const effectiveCanCancel = canCancel ?? isStreaming;
+  const retryDisabled = effectiveCanCancel || disabled || !onRetry;
   const resolvedSubmitLabel = submitButtonLabel ?? t("chat.actions.sendMessage");
 
   return (
@@ -100,16 +103,20 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
       )}
 
       <Button
-        data-testid={isStreaming ? "cancel-button" : "send-button"}
+        data-testid={effectiveCanCancel ? "cancel-button" : "send-button"}
         type="primary"
-        icon={isStreaming ? <StopOutlined /> : <ArrowUpOutlined />}
-        onClick={isStreaming ? onCancel : onSubmit}
-        loading={isStreaming && !onCancel}
-        disabled={isStreaming ? !onCancel || disabled : canSend || disabled || isOverCharLimit}
+        icon={effectiveCanCancel ? <StopOutlined /> : <ArrowUpOutlined />}
+        onClick={effectiveCanCancel ? onCancel : onSubmit}
+        loading={effectiveCanCancel && !onCancel}
+        disabled={
+          effectiveCanCancel ? !onCancel || disabled : canSend || disabled || isOverCharLimit
+        }
         size="small"
-        danger={isStreaming}
+        danger={effectiveCanCancel}
         className={
-          isStreaming ? "message-input-send-button" : "message-input-send-button lotus-primary-cta"
+          effectiveCanCancel
+            ? "message-input-send-button"
+            : "message-input-send-button lotus-primary-cta"
         }
         style={{
           minWidth: 50,
@@ -120,16 +127,16 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
-          background: isStreaming
+          background: effectiveCanCancel
             ? undefined
             : "linear-gradient(135deg, var(--lotus-primary) 0%, var(--lotus-accent-secondary) 100%)",
-          border: isStreaming ? undefined : "none",
-          boxShadow: isStreaming ? undefined : "var(--lotus-send-btn-shadow)",
+          border: effectiveCanCancel ? undefined : "none",
+          boxShadow: effectiveCanCancel ? undefined : "var(--lotus-send-btn-shadow)",
           transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
           transform: "scale(1)",
         }}
-        title={isStreaming ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
-        aria-label={isStreaming ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
+        title={effectiveCanCancel ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
+        aria-label={effectiveCanCancel ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
       />
     </Flex>
   );
