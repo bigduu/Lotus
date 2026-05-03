@@ -67,9 +67,9 @@ export interface SessionBackendSnapshot {
   lastRunStatus: "completed" | "error" | "cancelled" | null;
   lastRunError: string | null;
   syncedAt: string | null;
-  /** Phase 5 — populated from SessionSummary.has_pending_question once the field exists. */
+  /** Populated from SessionSummary.has_pending_question (or SSE need_clarification). */
   hasPendingQuestion: boolean | null;
-  /** Phase 5 — running child count from SessionSummary. Null until backend exposes it. */
+  /** Running child count from SessionSummary or sub_session events. */
   runningChildCount: number | null;
 }
 
@@ -86,7 +86,7 @@ export interface SessionInteractionSnapshot {
         receivedAt: string;
       })
     | null;
-  /** Mirrors what InputContainer needs to enter respond mode. Session-scoped (multi-pane safe). */
+  /** Set atomically with pendingQuestion by the execution-state slice; read by InputContainer for respond routing. */
   respondMode:
     | (PendingQuestionPayload & {
         sessionId: string;
@@ -130,8 +130,17 @@ export interface SessionExecutionState {
   phase: ExecutionPhase;
   confidence: Confidence;
   activeReasons: ExecutionReason[];
+  /**
+   * Client-local primary convergence key. Incremented on every new execution
+   * attempt. All stale-event guards, subscription deduplication, and optimistic
+   * race protection use this value. NOT derived from the backend.
+   */
   generation: number;
-  /** Phase 5 — backend run_id once exposed. Null until then. */
+  /**
+   * Backend run_id from execution_started events. OBSERVATIONAL ONLY — useful
+   * for diagnostics and log correlation, but NEVER used for frontend convergence
+   * decisions because not every execution path exposes a reliable run identity.
+   */
   backendRunId: string | null;
   stream: SessionStreamSnapshot;
   backend: SessionBackendSnapshot;
@@ -702,7 +711,6 @@ const applySummaryInner = (
     summary.has_pending_question === undefined ? null : summary.has_pending_question;
   const runningChildCount =
     summary.running_child_count === undefined ? null : summary.running_child_count;
-  const backendRunId = summary.current_run_id ?? entry.backendRunId;
   const merged: SessionExecutionState = {
     ...entry,
     backend: {
@@ -714,7 +722,7 @@ const applySummaryInner = (
       hasPendingQuestion,
       runningChildCount,
     },
-    backendRunId,
+    backendRunId: entry.backendRunId,
   };
 
   if (summary.is_running) {
@@ -1142,7 +1150,7 @@ export const applyExecutionEvent = (
 };
 
 // =============================================================================
-// Phase 1 — Zustand slice creator + legacy projection helpers
+// Zustand slice creator + projection helpers
 // =============================================================================
 
 export interface ExecutionStateSlice {

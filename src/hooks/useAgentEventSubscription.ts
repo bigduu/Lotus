@@ -25,9 +25,14 @@ type SubscriptionEntry = {
   sessionId: string;
   controller: AbortController;
   /**
-   * Local frontend generation for this session's SSE stream.
-   * We intentionally keep this client-local because the backend does not yet
-   * expose a reliable per-execution run identity for every root/resume path.
+   * Client-local generation — the PRIMARY convergence key for this session's
+   * SSE stream.  All stale-event drops, subscription deduplication, and
+   * generation-gated state transitions use this value.
+   *
+   * backendRunId (from execution_started) is purely OBSERVATIONAL — useful for
+   * diagnostics and cross-referencing backend logs, but NEVER used for frontend
+   * convergence decisions because not every root/resume path exposes a reliable
+   * run identity from the backend.
    */
   generation: number;
   /**

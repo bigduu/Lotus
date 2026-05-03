@@ -82,7 +82,8 @@ export const selectIsAwaitingUser =
     if (entry.interaction.pendingQuestion !== null) {
       return true;
     }
-    // Phase 5 fallback — once SessionSummary.has_pending_question lands.
+    // Also consider the backend summary flag (used when SSE has not yet delivered
+    // the pending question but the summary already knows about it).
     if (entry.backend.hasPendingQuestion === true) {
       return true;
     }
@@ -161,7 +162,6 @@ export type RailLabelKey =
   | "running_tools"
   | "running_children"
   | "waiting_user_answer"
-  | "waiting_approval"
   | "settling"
   | "completed"
   | "error"

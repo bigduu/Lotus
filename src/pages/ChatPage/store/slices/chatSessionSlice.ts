@@ -515,7 +515,7 @@ function applySessionsList(
   const next = sessions.map(sessionSummaryToChatItem);
 
   set((state) => {
-    // Phase 1 double-write: reconcile executionBySession against every summary.
+    // Reconcile executionBySession against every summary.
     let executionBySession = state.executionBySession;
     for (const summary of sessions) {
       executionBySession = applyExecutionEvent(executionBySession, {
@@ -1018,7 +1018,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const chats = list.sessions.map(sessionSummaryToChatItem);
     const currentSessionId = chats[0]?.id ?? null;
 
-    // Phase 1 double-write: reconcile executionBySession against every summary.
+    // Reconcile executionBySession against every summary.
     let executionBySession = get().executionBySession;
     for (const summary of list.sessions) {
       executionBySession = applyExecutionEvent(executionBySession, {
@@ -1028,8 +1028,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       });
     }
 
-    // Phase 5B: Replay active running sessions so the UI reflects live state
-    // immediately after boot (removes the need for OPTIMISTIC_RACE_WINDOW_MS).
+    // Replay active running sessions so the UI reflects live state immediately
+    // after boot (removes the need for OPTIMISTIC_RACE_WINDOW_MS).
     try {
       const running = await agentClient.getRunningSessions();
       if (running.sessions.length > 0) {

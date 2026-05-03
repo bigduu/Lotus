@@ -74,7 +74,7 @@ type ModelCachePayload = {
 const getModelOptionsCacheKey = (provider: ProviderType) =>
   `${MODEL_OPTIONS_CACHE_PREFIX}:${provider}`;
 
-// Keep localStorage helpers for backward compatibility during migration
+// localStorage helpers for model options cache
 const readModelOptionsCacheFromLocalStorage = (provider: ProviderType): ModelOption[] | null => {
   if (typeof window === "undefined") return null;
   try {
@@ -130,7 +130,7 @@ const readModelOptionsCache = async (provider: ProviderType): Promise<ModelOptio
   } catch {
     // Fall through to localStorage
   }
-  // Fallback to localStorage during migration
+  // Fallback to localStorage if IndexedDB is unavailable
   return readModelOptionsCacheFromLocalStorage(provider);
 };
 

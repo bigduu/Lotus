@@ -185,7 +185,7 @@ export const createInputStateSlice: StateCreator<AppState, [], [], InputStateSli
     writeReasoningBySession(bySession);
     writeLastUsedReasoningEffort(reasoningEffort);
 
-    // Also persist to IndexedDB as incremental migration
+    // Also persist to IndexedDB for cross-session durability
     const manager = StorageManager.getInstance();
     manager.saveInputReasoning(sessionId, reasoningEffort).catch(() => {});
     manager.saveLastUsedReasoningEffort(reasoningEffort).catch(() => {});

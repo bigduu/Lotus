@@ -265,7 +265,7 @@ const initializeStore = async (force: boolean = false) => {
 // Export for explicit initialization by App.tsx after setup is complete
 export { initializeStore };
 
-// Phase 1+ — execution-state selectors (short imports)
+// Execution-state selectors
 export {
   selectExecutionState,
   selectExecutionPhase,
