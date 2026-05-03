@@ -16,8 +16,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { useAppStore } from "@pages/ChatPage/store";
-import { isBusyPhase } from "@pages/ChatPage/store/slices/executionStateSlice";
+import { useAppStore, selectIsBusy } from "@pages/ChatPage/store";
 import { openSession } from "@pages/ChatPage/utils/openSession";
 import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/settingsViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";
@@ -412,9 +411,7 @@ export const CommandPalette: React.FC = () => {
 
   const sessionActions = useMemo<CommandPaletteAction[]>(() => {
     return chats.map((chat) => {
-      const isRunning = executionBySession[chat.id]?.phase
-        ? isBusyPhase(executionBySession[chat.id].phase)
-        : false;
+      const isRunning = selectIsBusy(chat.id)({ executionBySession });
       return {
         id: `session-${chat.id}`,
         kind: "session",

@@ -345,6 +345,41 @@ describe("SubSessionsPanel", () => {
     expect(screen.getByText("running")).toBeInTheDocument();
   });
 
+  it("renders 'round 1' for roundCount: 0", () => {
+    mockStoreState.executionBySession[PARENT_SESSION_ID].children.byId["child-session-1"] = {
+      title: "Child Session 1",
+      status: "running",
+      roundCount: 0,
+    };
+
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    expect(screen.getByText(/round 1/)).toBeInTheDocument();
+  });
+
+  it("renders 'round 2' for roundCount: 1", () => {
+    mockStoreState.executionBySession[PARENT_SESSION_ID].children.byId["child-session-1"] = {
+      title: "Child Session 1",
+      status: "running",
+      roundCount: 1,
+    };
+
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    expect(screen.getByText(/round 2/)).toBeInTheDocument();
+  });
+
+  it("omits the round hint when roundCount is undefined", () => {
+    mockStoreState.executionBySession[PARENT_SESSION_ID].children.byId["child-session-1"] = {
+      title: "Child Session 1",
+      status: "running",
+    };
+
+    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    expect(screen.queryByText(/round \d/)).not.toBeInTheDocument();
+  });
+
   it("falls back to persisted terminal status when progress entry is missing", () => {
     mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {

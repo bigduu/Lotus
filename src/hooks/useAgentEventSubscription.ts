@@ -71,6 +71,8 @@ const isTaskItemStatus = (status: AgentEvent["status"]): status is TaskListDelta
   status === "completed" ||
   status === "blocked";
 
+const TERMINAL_CHILD_STATUS = new Set(["completed", "error", "cancelled", "failed"]);
+
 const isMemoryStatusTool = (toolName: string): boolean => {
   const normalizedToolName = toolName.trim().toLowerCase();
   return normalizedToolName === "memory_note" || normalizedToolName === "session_note";
@@ -1056,6 +1058,22 @@ export function useAgentEventSubscription() {
                 return;
               }
 
+              if (evt.type === "runner_progress") {
+                const current = selectChildren(parentSessionId)(useAppStore.getState())?.[
+                  childSessionId
+                ];
+                if (current?.status && TERMINAL_CHILD_STATUS.has(current.status)) {
+                  return;
+                }
+                applyChildProgress(parentSessionId, childSessionId, {
+                  status: "running",
+                  roundCount:
+                    typeof evt.round_count === "number" ? evt.round_count : current?.roundCount,
+                  lastEventAt: new Date().toISOString(),
+                });
+                return;
+              }
+
               // Maintain a small rolling preview for fast UI feedback.
               if (evt.type === "token" && typeof evt.content === "string") {
                 const prev =
@@ -1124,6 +1142,10 @@ export function useAgentEventSubscription() {
                 { type: "execution_started", run_id: runId } as AgentEvent,
                 generation,
               );
+            },
+            onRunnerProgress: () => {
+              // Root-session progress is parsed but unused in this scope; nested child
+              // progress is handled inside onSubSessionEvent.
             },
           },
           controller,

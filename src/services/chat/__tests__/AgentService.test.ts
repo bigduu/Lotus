@@ -693,6 +693,49 @@ describe("AgentClient", () => {
     consoleWarnSpy.mockRestore();
   });
 
+  it("dispatches runner_progress events to onRunnerProgress handler", () => {
+    const client = AgentClient.getInstance();
+    const onRunnerProgress = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "runner_progress", session_id: "sess-1", round_count: 0 },
+      { onRunnerProgress },
+    );
+
+    expect(onRunnerProgress).toHaveBeenCalledWith("sess-1", 0);
+  });
+
+  it("does not warn for known runner_progress event", () => {
+    const client = AgentClient.getInstance();
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    (client as any).handleEvent(
+      { type: "runner_progress", session_id: "sess-1", round_count: 2 },
+      { onRunnerProgress: () => {} },
+    );
+
+    expect(consoleWarnSpy).not.toHaveBeenCalled();
+
+    consoleWarnSpy.mockRestore();
+  });
+
+  it("ignores malformed runner_progress (missing session_id or non-numeric round_count)", () => {
+    const client = AgentClient.getInstance();
+    const onRunnerProgress = vi.fn();
+
+    (client as any).handleEvent({ type: "runner_progress", round_count: 0 }, { onRunnerProgress });
+    (client as any).handleEvent(
+      { type: "runner_progress", session_id: "sess-1" },
+      { onRunnerProgress },
+    );
+    (client as any).handleEvent(
+      { type: "runner_progress", session_id: "sess-1", round_count: "0" as any },
+      { onRunnerProgress },
+    );
+
+    expect(onRunnerProgress).not.toHaveBeenCalled();
+  });
+
   it("dispatches task/sub-session/context events to handlers", () => {
     const client = AgentClient.getInstance();
     const handlers = {

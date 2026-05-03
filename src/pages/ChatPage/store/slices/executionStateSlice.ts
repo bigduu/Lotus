@@ -101,6 +101,7 @@ export interface ChildProgress {
   lastHeartbeatAt?: string;
   lastEventAt?: string;
   outputPreview?: string;
+  roundCount?: number;
 }
 
 export interface SessionChildrenSnapshot {

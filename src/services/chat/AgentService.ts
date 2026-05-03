@@ -31,6 +31,7 @@ export type AgentEventType =
   | "sub_session_completed"
   | "need_clarification"
   | "execution_started"
+  | "runner_progress"
   | "complete"
   | "error";
 
@@ -152,6 +153,8 @@ export interface AgentEvent {
   // ExecutionStarted event
   run_id?: string;
   started_at?: string;
+  // RunnerProgress event
+  round_count?: number;
 }
 
 export interface ChatRequest {
@@ -205,7 +208,7 @@ export interface ExecuteResponse {
   status: "started" | "already_running" | "completed" | "error" | "cancelled";
   events_url: string;
   sync?: ExecuteSyncInfo;
-  /** Phase 5A — unique run identifier for correlating SSE events across reconnects. */
+  /** Unique run identifier for correlating SSE events across reconnects. */
   run_id?: string;
 }
 
@@ -285,8 +288,6 @@ export interface SessionSummary {
   has_pending_question?: boolean;
   /** Number of child sessions currently running under this session. */
   running_child_count?: number;
-  /** The current run_id if this session is actively executing (Phase 5A). */
-  current_run_id?: string | null;
 }
 
 export interface RunningSessionEntry {
@@ -578,6 +579,7 @@ export interface AgentEventHandlers {
   ) => void;
   onNeedClarification?: (event: AgentEvent) => void;
   onExecutionStarted?: (runId: string, startedAt?: string) => void;
+  onRunnerProgress?: (sessionId: string, roundCount: number) => void;
 }
 
 /**
@@ -1076,6 +1078,11 @@ export class AgentClient {
         break;
       case "execution_started":
         handlers.onExecutionStarted?.(event.run_id || "", event.started_at);
+        break;
+      case "runner_progress":
+        if (event.session_id && typeof event.round_count === "number") {
+          handlers.onRunnerProgress?.(event.session_id, event.round_count);
+        }
         break;
       case "need_clarification":
         handlers.onNeedClarification?.(event);

@@ -465,6 +465,193 @@ describe("useAgentEventSubscription", () => {
     });
   });
 
+  it("marks child running and writes roundCount on nested runner_progress", async () => {
+    let subSessionEventHandler:
+      | ((parentSessionId: string, childSessionId: string, evt: any) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subSessionEventHandler = handlers.onSubSessionEvent;
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: { "child-1": { status: "pending" } }, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      subSessionEventHandler?.("session-1", "child-1", {
+        type: "runner_progress",
+        session_id: "child-1",
+        round_count: 0,
+      });
+    });
+
+    expect(mockState.applyChildProgress).toHaveBeenCalledWith(
+      "session-1",
+      "child-1",
+      expect.objectContaining({ status: "running", roundCount: 0 }),
+    );
+    const lastCall = mockState.applyChildProgress.mock.calls.at(-1);
+    expect(typeof lastCall?.[2]?.lastEventAt).toBe("string");
+  });
+
+  it("ignores nested runner_progress when child is in a terminal state", async () => {
+    let subSessionEventHandler:
+      | ((parentSessionId: string, childSessionId: string, evt: any) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subSessionEventHandler = handlers.onSubSessionEvent;
+    });
+
+    for (const terminal of ["completed", "error", "cancelled", "failed"]) {
+      mockState.applyChildProgress.mockClear();
+      mockState.executionBySession = {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "running",
+          confidence: "live",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: true,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: { "child-1": { status: terminal } }, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      };
+      mockStore.getState.mockReturnValue(mockState);
+
+      const { unmount } = renderHook(() => useAgentEventSubscription());
+
+      await waitFor(() => {
+        expect(mockSubscribeToEvents).toHaveBeenCalled();
+      });
+
+      act(() => {
+        subSessionEventHandler?.("session-1", "child-1", {
+          type: "runner_progress",
+          session_id: "child-1",
+          round_count: 1,
+        });
+      });
+
+      expect(mockState.applyChildProgress).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it("preserves existing roundCount when runner_progress is missing round_count", async () => {
+    let subSessionEventHandler:
+      | ((parentSessionId: string, childSessionId: string, evt: any) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subSessionEventHandler = handlers.onSubSessionEvent;
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: { "child-1": { status: "running", roundCount: 3 } },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      subSessionEventHandler?.("session-1", "child-1", {
+        type: "runner_progress",
+        session_id: "child-1",
+      });
+    });
+
+    expect(mockState.applyChildProgress).toHaveBeenCalledWith(
+      "session-1",
+      "child-1",
+      expect.objectContaining({ status: "running", roundCount: 3 }),
+    );
+  });
+
   it("waits for settle check before clearing processing after the last child completes", async () => {
     let completeHandler: (() => void) | undefined;
     let subSessionStartedHandler:

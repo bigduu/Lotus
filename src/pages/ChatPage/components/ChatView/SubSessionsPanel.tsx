@@ -142,6 +142,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       lastRunStatus?: string;
       lastRunError?: string;
       subagentType?: string | null;
+      roundCount?: number;
     }> = [];
 
     for (const child of persistedChildren) {
@@ -154,6 +155,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         lastHeartbeatAt: p?.lastHeartbeatAt,
         lastEventAt: p?.lastEventAt,
         outputPreview: p?.outputPreview,
+        roundCount: p?.roundCount,
         pinned: child.pinned,
         updatedAt: child.updatedAt,
         isRunning: child.isRunning,
@@ -175,6 +177,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         lastHeartbeatAt: p.lastHeartbeatAt,
         lastEventAt: p.lastEventAt,
         outputPreview: p.outputPreview,
+        roundCount: p.roundCount,
       });
     }
 
@@ -458,6 +461,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                     {it.childSessionId.slice(0, 8)}
                     {it.updatedAt ? ` • ${it.updatedAt}` : ""}
                     {it.lastHeartbeatAt ? ` • heartbeat: ${it.lastHeartbeatAt}` : ""}
+                    {typeof it.roundCount === "number" ? ` • round ${it.roundCount + 1}` : ""}
                   </Text>
 
                   {it.outputPreview ? (
