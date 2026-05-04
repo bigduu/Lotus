@@ -21,13 +21,6 @@ vi.mock("../SystemPromptSelector", () => ({
   default: () => null,
 }));
 
-vi.mock("../../hooks/useChatManager/useChatTitleGeneration", () => ({
-  useChatTitleGeneration: () => ({
-    generateChatTitle: vi.fn(),
-    titleGenerationState: {},
-  }),
-}));
-
 describe("ChatSidebar", () => {
   beforeEach(() => {
     useUILayoutStore.setState((state) => ({

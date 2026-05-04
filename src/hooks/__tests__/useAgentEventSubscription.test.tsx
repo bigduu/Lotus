@@ -73,6 +73,8 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   loadChatHistory: vi.fn(),
   setPendingQuestion: vi.fn(),
   clearPendingQuestion: vi.fn(),
+  applyServerTitle: vi.fn(),
+  applyServerPinned: vi.fn(),
   ...overrides,
 });
 
@@ -1865,5 +1867,135 @@ describe("useAgentEventSubscription", () => {
     await waitFor(() => {
       expect(streamingMessageBus.getLatest("streaming-status-session-1")).toBeNull();
     });
+  });
+
+  // ===========================================================================
+  // F1: live SSE metadata events route through the unified entry.
+  // ===========================================================================
+
+  it("routes live session_title_updated through applyServerTitle on the store", async () => {
+    let capturedHandlers: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      capturedHandlers = handlers;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+      expect(capturedHandlers).toEqual(
+        expect.objectContaining({
+          onSessionTitleUpdated: expect.any(Function),
+          onSessionPinnedUpdated: expect.any(Function),
+        }),
+      );
+    });
+
+    act(() => {
+      capturedHandlers.onSessionTitleUpdated?.({
+        type: "session_title_updated",
+        session_id: "session-1",
+        title: "Renamed via SSE",
+        title_version: 7,
+        source: "manual",
+        updated_at: "2026-01-15T12:00:00.000Z",
+      });
+    });
+
+    expect(mockState.applyServerTitle).toHaveBeenCalledWith("session-1", "Renamed via SSE", 7);
+  });
+
+  it("routes live session_pinned_updated through applyServerPinned on the store", async () => {
+    let capturedHandlers: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      capturedHandlers = handlers;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      capturedHandlers.onSessionPinnedUpdated?.({
+        type: "session_pinned_updated",
+        session_id: "session-1",
+        pinned: true,
+        updated_at: "2026-01-15T13:00:00.000Z",
+      });
+    });
+
+    expect(mockState.applyServerPinned).toHaveBeenCalledWith(
+      "session-1",
+      true,
+      "2026-01-15T13:00:00.000Z",
+    );
   });
 });

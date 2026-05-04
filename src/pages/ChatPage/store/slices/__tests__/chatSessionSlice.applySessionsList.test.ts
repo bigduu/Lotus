@@ -1,0 +1,189 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createStore, type StoreApi } from "zustand/vanilla";
+
+import type { ChatItem } from "../../../types/chat";
+import type { SessionSummary } from "../../../services/AgentService";
+import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
+
+// Hoisted mock so per-test re-stubbing of `listSessions` reaches the slice's
+// singleton AgentClient instance.
+const { mockListSessions } = vi.hoisted(() => ({
+  mockListSessions: vi.fn<() => Promise<{ sessions: SessionSummary[] }>>(),
+}));
+
+vi.mock("../../../services/AgentService", () => ({
+  AgentClient: {
+    getInstance: vi.fn(() => ({
+      deleteSession: vi.fn(),
+      listSessions: mockListSessions,
+      createSession: vi.fn(),
+      patchSession: vi.fn(async () => undefined),
+      getHistory: vi.fn(async () => ({
+        session_id: "s",
+        compression_events: [],
+        messages: [],
+      })),
+      deleteSessionMessage: vi.fn(),
+    })),
+  },
+}));
+
+const createSummary = (overrides: Partial<SessionSummary> & { id: string }): SessionSummary => ({
+  id: overrides.id,
+  kind: overrides.kind ?? "root",
+  title: overrides.title ?? "Remote Title",
+  title_version: overrides.title_version ?? 0,
+  pinned: overrides.pinned ?? false,
+  parent_session_id: null,
+  root_session_id: overrides.root_session_id ?? overrides.id,
+  spawn_depth: 0,
+  model: overrides.model ?? "gpt-test",
+  model_ref: overrides.model_ref ?? null,
+  reasoning_effort: overrides.reasoning_effort ?? null,
+  created_by_schedule_id: null,
+  created_at: overrides.created_at ?? "2026-01-01T00:00:00.000Z",
+  updated_at: overrides.updated_at ?? "2026-01-15T12:00:00.000Z",
+  last_activity_at: overrides.last_activity_at ?? "2026-01-15T12:00:00.000Z",
+  message_count: overrides.message_count ?? 0,
+  has_attachments: false,
+  is_running: overrides.is_running ?? false,
+});
+
+const createChat = (overrides: Partial<ChatItem> & { id: string }): ChatItem => ({
+  id: overrides.id,
+  title: overrides.title ?? "Local Title",
+  titleVersion: overrides.titleVersion,
+  pinned: overrides.pinned,
+  updatedAt: overrides.updatedAt,
+  createdAt: overrides.createdAt ?? Date.now(),
+  messages: overrides.messages ?? [],
+  config: overrides.config ?? {
+    systemPromptId: "general_assistant",
+    baseSystemPrompt: "Base prompt",
+    lastUsedEnhancedPrompt: null,
+  },
+});
+
+const createTestStore = (): StoreApi<ChatSlice> => {
+  const sliceCreator = createChatSlice as unknown as (
+    set: StoreApi<ChatSlice>["setState"],
+    get: StoreApi<ChatSlice>["getState"],
+    api: StoreApi<ChatSlice>,
+  ) => ChatSlice;
+  const store = createStore<ChatSlice>()((set, get, api) => sliceCreator(set, get, api));
+  // applySessionsList reaches into `executionBySession` to reconcile per-summary
+  // execution state. The chatSlice harness here doesn't include the execution
+  // slice, so seed an empty map so the reconcile loop has a stable starting
+  // point.
+  store.setState((state) => ({ ...state, executionBySession: {} }) as ChatSlice);
+  return store;
+};
+
+// =============================================================================
+// F4: applySessionsList — version-aware title precedence on baseline merge.
+// =============================================================================
+
+describe("applySessionsList (via refreshChats)", () => {
+  let store: StoreApi<ChatSlice>;
+
+  beforeEach(() => {
+    store = createTestStore();
+    mockListSessions.mockReset();
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("keeps the locally-newer title when remote summary is at a lower title_version", async () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          title: "Local High Version",
+          titleVersion: 5,
+          updatedAt: "2026-01-15T12:00:00.000Z",
+        }),
+      ],
+    }));
+
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          title: "Remote Stale",
+          title_version: 3,
+          updated_at: "2026-01-15T12:30:00.000Z",
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    const chat = store.getState().chats.find((c) => c.id === "s1");
+    expect(chat?.title).toBe("Local High Version");
+    expect(chat?.titleVersion).toBe(5);
+  });
+
+  it("adopts the remotely-newer title when remote summary is at a higher title_version", async () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          title: "Local Stale",
+          titleVersion: 2,
+          updatedAt: "2026-01-15T12:00:00.000Z",
+        }),
+      ],
+    }));
+
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          title: "Remote Fresh",
+          title_version: 7,
+          updated_at: "2026-01-15T12:30:00.000Z",
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    const chat = store.getState().chats.find((c) => c.id === "s1");
+    expect(chat?.title).toBe("Remote Fresh");
+    expect(chat?.titleVersion).toBe(7);
+  });
+
+  it("treats missing local titleVersion as 0 so any remote version wins", async () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          title: "Legacy Local",
+          updatedAt: "2026-01-15T12:00:00.000Z",
+        }),
+      ],
+    }));
+
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          title: "Remote With Version",
+          title_version: 1,
+          updated_at: "2026-01-15T12:30:00.000Z",
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    const chat = store.getState().chats.find((c) => c.id === "s1");
+    expect(chat?.title).toBe("Remote With Version");
+    expect(chat?.titleVersion).toBe(1);
+  });
+});

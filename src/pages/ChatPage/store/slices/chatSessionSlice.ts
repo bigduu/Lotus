@@ -16,9 +16,9 @@ import { ApiError } from "../../../../services/api";
 import type { AppState } from "../";
 import { useProviderStore } from "./providerSlice";
 import { applyExecutionEvent } from "./executionStateSlice";
+import { applyReplayableSessionEventToList, isSessionMetadataEvent } from "./sessionMetadataSlice";
 import i18n from "../../../../shared/i18n";
 
-const AUTO_TITLE_KEY = "copilot_auto_generate_titles";
 const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
 const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
@@ -161,6 +161,7 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     lastRunError: s.last_run_error,
     subagentType: s.subagent_type ?? null,
     title: s.title || i18n.t("chat.session.defaultTitle"),
+    titleVersion: s.title_version ?? 0,
     createdAt: createdAtMs,
     pinned: s.pinned,
     messages: [],
@@ -411,8 +412,6 @@ export interface ChatSlice {
   chats: ChatItem[];
   currentSessionId: string | null;
   latestActiveSessionId: string | null;
-  autoGenerateTitles: boolean;
-  isUpdatingAutoTitlePreference: boolean;
 
   // Actions
   addChat: (chat: Omit<ChatItem, "id">) => Promise<string>;
@@ -421,6 +420,20 @@ export interface ChatSlice {
   deleteSessions: (sessionIds: string[]) => Promise<void>;
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
   persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
+  /**
+   * Apply an authoritative server title (from a `session_title_updated` SSE event).
+   * Updates `title` + `titleVersion` only when `titleVersion > current.titleVersion`.
+   * Does NOT call `patchSession` — the backend has already persisted the change
+   * (the SSE event implies persistence).
+   */
+  applyServerTitle: (sessionId: string, title: string, titleVersion: number) => void;
+  /**
+   * Apply an authoritative server pinned flag (from a `session_pinned_updated`
+   * SSE event). Suppresses replays whose `updatedAt` is older than the local
+   * `updatedAt`, and skips writes when the flag already matches. Does NOT call
+   * `patchSession` — the SSE event implies persistence.
+   */
+  applyServerPinned: (sessionId: string, pinned: boolean, updatedAt: string) => void;
   pinSession: (sessionId: string) => void;
   unpinSession: (sessionId: string) => void;
 
@@ -441,8 +454,6 @@ export interface ChatSlice {
       waitForAssistant?: boolean;
     },
   ) => Promise<void>;
-
-  setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
 }
 
 // === REFRESH CHATS DEDUPLICATION ===
@@ -548,9 +559,21 @@ function applySessionsList(
       // Ensure messageCount stays monotonic, as listSessions summary might briefly lag
       const effectiveMessageCount = Math.max(prev.messageCount ?? 0, c.messageCount ?? 0);
 
+      // Title precedence is governed by `title_version`, NOT `updatedAt`.
+      // The backend bumps `title_version` on every authoritative title change
+      // (manual PATCH or auto-title generation), so the highest version always wins.
+      const remoteTitleVersion = c.titleVersion ?? 0;
+      const localTitleVersion = prev.titleVersion ?? 0;
+      const titleFields =
+        remoteTitleVersion > localTitleVersion
+          ? { title: c.title, titleVersion: remoteTitleVersion }
+          : { title: prev.title, titleVersion: localTitleVersion };
+
       return {
         ...c,
-        title: preferLocalSessionFields ? prev.title : c.title,
+        // `title` and `titleVersion` are deliberately omitted here —
+        // version-based precedence below (`...titleFields`) is the source of truth
+        // for those two fields, overriding the `updatedAt`-based logic.
         pinned: preferLocalSessionFields ? prev.pinned : c.pinned,
         updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
         messages: prev.messages,
@@ -576,6 +599,9 @@ function applySessionsList(
           compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
           syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
         },
+        // Override title/titleVersion with version-based precedence,
+        // overriding the `updatedAt`-based decision for these fields specifically.
+        ...titleFields,
       };
     });
     return { ...state, chats: merged, executionBySession };
@@ -623,8 +649,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   chats: [],
   currentSessionId: null,
   latestActiveSessionId: null,
-  autoGenerateTitles: true,
-  isUpdatingAutoTitlePreference: false,
 
   addChat: async (chatData) => {
     const title = (chatData.title || i18n.t("chat.sidebar.newSession")).trim();
@@ -794,6 +818,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       }
     }
     if (Object.keys(patch).length > 0) {
+      // NOTE: `patchSession` returns void, so the backend's bumped
+      // `title_version` (and any other authoritative server fields) is not
+      // available here. The backend emits SSE events (e.g. `session_title_updated`)
+      // that `applyServerTitle` reconciles into local state.
       agentClient.patchSession(sessionId, patch).catch((e) => {
         console.warn(`[ChatSlice] Failed to patch session ${sessionId}:`, e);
       });
@@ -814,6 +842,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
     try {
       await agentClient.patchSession(sessionId, { title });
+      // NOTE: `patchSession` returns void, so we cannot read the new
+      // `title_version` from the PATCH response. The backend emits a
+      // `session_title_updated` SSE event after the PATCH bumps the version,
+      // and `applyServerTitle` will reconcile `titleVersion` locally there.
     } catch (e) {
       // Roll back to previous title on failure.
       if (typeof previousTitle === "string") {
@@ -828,6 +860,42 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       throw e;
     }
   },
+
+  applyServerTitle: (sessionId, title, titleVersion) =>
+    set((state) => {
+      const existing = state.chats.find((c) => c.id === sessionId);
+      if (!existing) return state;
+      if (titleVersion <= (existing.titleVersion ?? 0)) return state;
+      return {
+        ...state,
+        chats: state.chats.map((chat) =>
+          chat.id === sessionId
+            ? { ...chat, title, titleVersion, updatedAt: new Date().toISOString() }
+            : chat,
+        ),
+      };
+    }),
+
+  applyServerPinned: (sessionId, pinned, updatedAt) =>
+    set((state) => {
+      const existing = state.chats.find((c) => c.id === sessionId);
+      if (!existing) return state;
+      // Suppress stale replays: if the local copy is newer than the incoming
+      // event, ignore. (`pinned` has no version field; we use `updatedAt`.)
+      const incoming = Date.parse(updatedAt);
+      const local = existing.updatedAt ? Date.parse(existing.updatedAt) : NaN;
+      if (Number.isFinite(incoming) && Number.isFinite(local) && incoming < local) {
+        return state;
+      }
+      // Idempotent — skip the re-render if nothing actually changed.
+      if (existing.pinned === pinned) return state;
+      return {
+        ...state,
+        chats: state.chats.map((chat) =>
+          chat.id === sessionId ? { ...chat, pinned, updatedAt } : chat,
+        ),
+      };
+    }),
 
   pinSession: (sessionId) => {
     get().updateSession(sessionId, { pinned: true });
@@ -997,10 +1065,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   loadChats: async () => {
-    const storedAutoTitles = localStorage.getItem(AUTO_TITLE_KEY);
-    const autoGenerateTitles =
-      storedAutoTitles === null ? get().autoGenerateTitles : storedAutoTitles === "true";
-
     let list = await agentClient.listSessions();
     if (!list.sessions || list.sessions.length === 0) {
       // Use provider defaults when creating the initial session on startup
@@ -1033,15 +1097,35 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     try {
       const running = await agentClient.getRunningSessions();
       if (running.sessions.length > 0) {
+        // Partition criticalEvents into metadata vs execution before replay.
+        // Metadata events (title/pinned) flow through `applyReplayableSessionEvent`
+        // so live SSE and boot replay share the same precedence rules; the
+        // execution reducer never sees them.
+        const partitioned = running.sessions.map((s) => {
+          const executionOnly = [];
+          for (const event of s.last_critical_events) {
+            if (isSessionMetadataEvent(event)) {
+              // Bake replay metadata into the local `chats` snapshot before
+              // the single trailing `set`. Applying against the store here
+              // would be overwritten by that `set` because `chats` was built
+              // from the baseline before replay events arrived.
+              applyReplayableSessionEventToList(event, chats);
+              continue;
+            }
+            executionOnly.push(event);
+          }
+          return {
+            sessionId: s.session_id,
+            runId: s.run_id,
+            criticalEvents: executionOnly,
+          };
+        });
+
         executionBySession = applyExecutionEvent(
           executionBySession,
           {
             type: "applyRunningSnapshot",
-            sessions: running.sessions.map((s) => ({
-              sessionId: s.session_id,
-              runId: s.run_id,
-              criticalEvents: s.last_critical_events,
-            })),
+            sessions: partitioned,
           },
           () => new Date().toISOString(),
         );
@@ -1056,7 +1140,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       latestActiveSessionId: currentSessionId,
       currentSessionId,
       executionBySession,
-      autoGenerateTitles,
     });
 
     if (currentSessionId) {
@@ -1159,20 +1242,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
-    }
-  },
-
-  setAutoGenerateTitlesPreference: async (enabled) => {
-    const previousValue = get().autoGenerateTitles;
-    set({ autoGenerateTitles: enabled, isUpdatingAutoTitlePreference: true });
-    try {
-      localStorage.setItem(AUTO_TITLE_KEY, String(enabled));
-    } catch (error) {
-      console.warn("[ChatSlice] Failed to update auto-title preference:", error);
-      set({ autoGenerateTitles: previousValue });
-      throw error;
-    } finally {
-      set({ isUpdatingAutoTitlePreference: false });
     }
   },
 });

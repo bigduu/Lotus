@@ -199,6 +199,14 @@ export interface ChatItem {
    */
   subagentType?: string | null;
   title: string;
+  /**
+   * Monotonic title version mirrored from the backend `SessionSummary.title_version`.
+   * Used by `applyServerTitle` and `applySessionsList` to determine title precedence:
+   * the highest `titleVersion` always wins, regardless of `updatedAt`. Optional and
+   * defaults to 0 for legacy sessions / locally-constructed `ChatItem`s that pre-date
+   * the title state machine (callers of `addChat` need not set this).
+   */
+  titleVersion?: number;
   createdAt: number;
   pinned?: boolean;
   messages: Message[];

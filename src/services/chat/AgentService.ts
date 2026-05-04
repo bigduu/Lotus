@@ -29,6 +29,8 @@ export type AgentEventType =
   | "sub_session_event"
   | "sub_session_heartbeat"
   | "sub_session_completed"
+  | "session_title_updated"
+  | "session_pinned_updated"
   | "need_clarification"
   | "execution_started"
   | "runner_progress"
@@ -155,6 +157,12 @@ export interface AgentEvent {
   started_at?: string;
   // RunnerProgress event
   round_count?: number;
+  // SessionTitleUpdated event
+  title_version?: number;
+  source?: "auto" | "manual" | "fallback";
+  updated_at?: string;
+  // SessionPinnedUpdated event
+  pinned?: boolean;
 }
 
 export interface ChatRequest {
@@ -259,6 +267,7 @@ export interface SessionSummary {
   id: string;
   kind: SessionKind;
   title: string;
+  title_version: number;
   pinned: boolean;
   parent_session_id?: string | null;
   root_session_id: string;
@@ -536,6 +545,22 @@ export interface ListScheduleRunsResponse {
 }
 
 // Event handlers type
+export interface SessionTitleUpdatedEvent {
+  type: "session_title_updated";
+  session_id: string;
+  title: string;
+  title_version: number;
+  source: "auto" | "manual" | "fallback";
+  updated_at: string;
+}
+
+export interface SessionPinnedUpdatedEvent {
+  type: "session_pinned_updated";
+  session_id: string;
+  pinned: boolean;
+  updated_at: string;
+}
+
 export interface AgentEventHandlers {
   onToken?: (content: string) => void;
   onReasoningToken?: (content: string) => void;
@@ -578,6 +603,8 @@ export interface AgentEventHandlers {
     error?: string,
   ) => void;
   onNeedClarification?: (event: AgentEvent) => void;
+  onSessionTitleUpdated?: (event: SessionTitleUpdatedEvent) => void;
+  onSessionPinnedUpdated?: (event: SessionPinnedUpdatedEvent) => void;
   onExecutionStarted?: (runId: string, startedAt?: string) => void;
   onRunnerProgress?: (sessionId: string, roundCount: number) => void;
 }
@@ -675,6 +702,14 @@ export class AgentClient {
   async patchSession(sessionId: string, req: PatchSessionRequest): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     await agentApiClient.patch(`sessions/${encodedSessionId}`, req);
+  }
+
+  /**
+   * Manually regenerate a session's auto-title.
+   */
+  async regenerateSessionTitle(sessionId: string): Promise<void> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    await agentApiClient.post(`sessions/${encodedSessionId}/regenerate-title`);
   }
 
   /**
@@ -1086,6 +1121,38 @@ export class AgentClient {
         break;
       case "need_clarification":
         handlers.onNeedClarification?.(event);
+        break;
+      case "session_title_updated":
+        if (
+          event.session_id &&
+          typeof event.title === "string" &&
+          typeof event.title_version === "number" &&
+          (event.source === "auto" || event.source === "manual" || event.source === "fallback") &&
+          typeof event.updated_at === "string"
+        ) {
+          handlers.onSessionTitleUpdated?.({
+            type: "session_title_updated",
+            session_id: event.session_id,
+            title: event.title,
+            title_version: event.title_version,
+            source: event.source,
+            updated_at: event.updated_at,
+          });
+        }
+        break;
+      case "session_pinned_updated":
+        if (
+          event.session_id &&
+          typeof event.pinned === "boolean" &&
+          typeof event.updated_at === "string"
+        ) {
+          handlers.onSessionPinnedUpdated?.({
+            type: "session_pinned_updated",
+            session_id: event.session_id,
+            pinned: event.pinned,
+            updated_at: event.updated_at,
+          });
+        }
         break;
       case "complete":
         handlers.onComplete?.(event.usage);

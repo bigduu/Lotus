@@ -13,6 +13,7 @@ import {
   selectGeneration,
   selectChildren,
 } from "../pages/ChatPage/store";
+import { applyReplayableSessionEvent } from "../pages/ChatPage/store/slices/sessionMetadataSlice";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
 import { App as AntApp } from "antd";
@@ -974,6 +975,14 @@ export function useAgentEventSubscription() {
               } finally {
                 finalizeParentCompletion();
               }
+            },
+
+            onSessionTitleUpdated: (event) => {
+              applyReplayableSessionEvent(event, useAppStore.getState());
+            },
+
+            onSessionPinnedUpdated: (event) => {
+              applyReplayableSessionEvent(event, useAppStore.getState());
             },
 
             onSubSessionStarted: (parentSessionId, childSessionId, title) => {

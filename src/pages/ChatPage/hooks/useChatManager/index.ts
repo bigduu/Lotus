@@ -7,7 +7,6 @@
  */
 
 import { useChatState } from "./useChatState";
-import { useChatTitleGeneration } from "./useChatTitleGeneration";
 import { useChatOperations } from "./useChatOperations";
 import { useMessageStreaming } from "./useMessageStreaming";
 import { useChatHistory } from "./useChatHistory";
@@ -20,7 +19,6 @@ import { useChatHistory } from "./useChatHistory";
  */
 export const useChatManager = () => {
   const state = useChatState();
-  const titleGeneration = useChatTitleGeneration(state);
   const operations = useChatOperations(state);
   const streaming = useMessageStreaming({
     sessionId: state.currentSessionId,
@@ -47,11 +45,6 @@ export const useChatManager = () => {
     // State from useMessageStreaming
     agentAvailable: streaming.agentAvailable,
 
-    // State from useChatTitleGeneration
-    titleGenerationState: titleGeneration.titleGenerationState,
-    autoGenerateTitles: titleGeneration.autoGenerateTitles,
-    isUpdatingAutoTitlePreference: titleGeneration.isUpdatingAutoTitlePreference,
-
     // Actions from useChatState
     addMessage: state.addMessage,
     deleteMessage: state.deleteMessage,
@@ -62,10 +55,6 @@ export const useChatManager = () => {
     unpinSession: state.unpinSession,
     updateSession: state.updateSession,
     loadChats: state.loadChats,
-
-    // Actions from useChatTitleGeneration
-    generateChatTitle: titleGeneration.generateChatTitle,
-    setAutoGenerateTitlesPreference: titleGeneration.setAutoGenerateTitlesPreference,
 
     // Actions from useChatOperations
     createNewChat: operations.createNewChat,
@@ -89,5 +78,4 @@ export const useChatManager = () => {
 export type { UseChatState } from "./types";
 export type { UseChatOperations } from "./useChatOperations";
 export type { UseMessageStreaming } from "./useMessageStreaming";
-export type { UseChatTitleGeneration } from "./useChatTitleGeneration";
 export type { UseChatHistory } from "./useChatHistory";

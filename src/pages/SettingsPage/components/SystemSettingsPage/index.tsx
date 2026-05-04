@@ -65,12 +65,7 @@ const SystemSettingsPage = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const {
-    deleteAllChats,
-    autoGenerateTitles,
-    setAutoGenerateTitlesPreference,
-    isUpdatingAutoTitlePreference,
-  } = useChatManager();
+  const { deleteAllChats } = useChatManager();
   const [isResetting, setIsResetting] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
   const [promptEnhancement, setPromptEnhancement] = useState("");
@@ -150,19 +145,6 @@ const SystemSettingsPage = ({
         error instanceof Error ? error.message : t("settings.notifications.resetFailed"),
       );
       setIsResetting(false);
-    }
-  };
-
-  const handleAutoTitleToggle = async (checked: boolean) => {
-    try {
-      await setAutoGenerateTitlesPreference(checked);
-      msgApi.success(
-        checked
-          ? t("settings.notifications.autoTitleEnabled")
-          : t("settings.notifications.autoTitleDisabled"),
-      );
-    } catch {
-      msgApi.error(t("settings.notifications.autoTitleUpdateFailed"));
     }
   };
 
@@ -360,9 +342,6 @@ const SystemSettingsPage = ({
               label: tabLabel("app", t("settings.page.tabs.app")),
               children: (
                 <SystemSettingsAppTab
-                  autoGenerateTitles={autoGenerateTitles}
-                  isUpdatingAutoTitlePreference={isUpdatingAutoTitlePreference}
-                  onAutoTitleToggle={handleAutoTitleToggle}
                   themeMode={themeMode}
                   onThemeModeChange={onThemeModeChange}
                   vdiSafeMode={vdiSafeMode}

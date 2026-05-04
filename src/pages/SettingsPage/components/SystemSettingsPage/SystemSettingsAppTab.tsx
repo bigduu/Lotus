@@ -14,9 +14,6 @@ const { Text } = Typography;
 const { useToken } = theme;
 
 interface SystemSettingsAppTabProps {
-  autoGenerateTitles: boolean;
-  isUpdatingAutoTitlePreference: boolean;
-  onAutoTitleToggle: (checked: boolean) => void;
   themeMode: "light" | "dark";
   onThemeModeChange: (mode: "light" | "dark") => void;
   vdiSafeMode: boolean;
@@ -28,9 +25,6 @@ interface SystemSettingsAppTabProps {
 }
 
 const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
-  autoGenerateTitles,
-  isUpdatingAutoTitlePreference,
-  onAutoTitleToggle,
   themeMode,
   onThemeModeChange,
   vdiSafeMode,
@@ -46,17 +40,6 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
   return (
     <Card size="small" className="lotus-settings-card">
       <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-        <Flex align="center" gap={token.marginSM}>
-          <Text strong>{t("settings.appTab.autoGenerateTitle")}</Text>
-          <Switch
-            checked={autoGenerateTitles}
-            loading={isUpdatingAutoTitlePreference}
-            onChange={onAutoTitleToggle}
-          />
-        </Flex>
-        <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {t("settings.appTab.autoGenerateTitleDesc")}
-        </Text>
         <Flex align="center" justify="space-between" gap={token.marginSM}>
           <Text strong>{t("settings.appTab.runningVersion", "Running version")}</Text>
           <Text code data-testid="settings-app-version">

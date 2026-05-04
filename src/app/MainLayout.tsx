@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 import { ChatSidebar } from "../pages/ChatPage/components/ChatSidebar";
 import { SystemSettingsPage } from "../pages/SettingsPage/components/SystemSettingsPage";
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
-import { ChatAutoTitleEffect } from "../pages/ChatPage/components/ChatAutoTitleEffect";
 import { useSettingsViewStore } from "../shared/store/settingsViewStore";
 import { useMermaidTheme } from "../shared/components/MermaidChart/useMermaidTheme";
 import { mermaidCache } from "../shared/components/MermaidChart/mermaidConfig";
@@ -172,8 +171,6 @@ export const MainLayout: React.FC<{
             </Layout>
           ) : (
             <>
-              <ChatAutoTitleEffect />
-
               {isMobile ? (
                 <>
                   <Drawer

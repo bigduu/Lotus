@@ -98,9 +98,6 @@ const frTranslation = {
       localStorageCleared: "Le stockage local a été effacé",
       resetSuccessReloading: "Réinitialisation de l'application réussie. Rechargement...",
       resetFailed: "Échec de la réinitialisation de l'application",
-      autoTitleEnabled: "Génération automatique des titres activée",
-      autoTitleDisabled: "Génération automatique des titres désactivée",
-      autoTitleUpdateFailed: "Échec de la mise à jour de la préférence de titre automatique",
       promptEnhancementSaved: "Amélioration du prompt système enregistrée",
     },
     configTab: {
@@ -128,9 +125,6 @@ const frTranslation = {
     },
     appTab: {
       ...enTranslation.settings.appTab,
-      autoGenerateTitle: "Générer automatiquement les titres de session",
-      autoGenerateTitleDesc:
-        "Lorsqu'elle est activée, l'application génère un titre descriptif après la première réponse de l'assistant.",
       switchOn: "ACTIVÉ",
       switchOff: "DÉSACTIVÉ",
       darkMode: "Mode sombre",
@@ -1199,9 +1193,6 @@ const hiTranslation = {
     },
     appTab: {
       ...enTranslation.settings.appTab,
-      autoGenerateTitle: "सेशन शीर्षक स्वतः बनाएं",
-      autoGenerateTitleDesc:
-        "सक्षम होने पर, ऐप सहायक के पहले उत्तर के बाद वर्णनात्मक शीर्षक बनाता है।",
       switchOn: "चालू",
       switchOff: "बंद",
       darkMode: "डार्क मोड",

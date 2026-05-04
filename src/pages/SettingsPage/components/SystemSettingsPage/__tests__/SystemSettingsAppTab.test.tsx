@@ -9,9 +9,6 @@ describe("SystemSettingsAppTab", () => {
     render(
       <AntdApp>
         <SystemSettingsAppTab
-          autoGenerateTitles={false}
-          isUpdatingAutoTitlePreference={false}
-          onAutoTitleToggle={() => undefined}
           themeMode="light"
           onThemeModeChange={() => undefined}
           vdiSafeMode={false}

@@ -21,15 +21,6 @@ export interface UseChatState {
   loadChats: () => Promise<void>;
 }
 
-export interface UseChatTitleGeneration {
-  titleGenerationState: Record<string, { status: "idle" | "loading" | "error"; error?: string }>;
-  autoGenerateTitles: boolean;
-  isUpdatingAutoTitlePreference: boolean;
-  generateChatTitle: (sessionId: string, options?: { force?: boolean }) => Promise<void>;
-  setAutoGenerateTitlesPreference: (enabled: boolean) => Promise<void>;
-  isDefaultTitle: (title: string | undefined | null) => boolean;
-}
-
 export interface UseChatOperations {
   createNewChat: (title?: string, options?: Partial<Omit<ChatItem, "id">>) => Promise<void>;
   createChatWithSystemPrompt: (prompt: UserSystemPrompt) => Promise<void>;

@@ -12,7 +12,6 @@ import {
   groupChatsByDate,
 } from "../../utils/chatUtils";
 import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
-import { useChatTitleGeneration } from "../../hooks/useChatManager/useChatTitleGeneration";
 import { selectSessionById, useAppStore } from "../../store";
 import type { ChatItem, UserSystemPrompt } from "../../types/chat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
@@ -76,7 +75,6 @@ export const useChatSidebarState = () => {
   const pinSession = useAppStore((state) => state.pinSession);
   const unpinSession = useAppStore((state) => state.unpinSession);
   const updateSession = useAppStore((state) => state.updateSession);
-  const persistSessionTitle = useAppStore((state) => state.persistSessionTitle);
   const addChat = useAppStore((state) => state.addChat);
   const refreshChats = useAppStore((state) => state.refreshChats);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
@@ -90,12 +88,6 @@ export const useChatSidebarState = () => {
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
   const setSidebarCollapsed = useUILayoutStore((s) => s.setSidebarCollapsed);
   const clearSessionFromAllLeaves = useUILayoutStore((s) => s.clearSessionFromAllLeaves);
-
-  const { generateChatTitle, titleGenerationState } = useChatTitleGeneration({
-    chats,
-    updateSession,
-    persistSessionTitle,
-  });
 
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
@@ -317,13 +309,13 @@ export const useChatSidebarState = () => {
     updateSession(sessionId, { title: newTitle });
   };
 
-  const handleGenerateTitle = async (sessionId: string) => {
+  const handleGenerateTitle = useCallback(async (sessionId: string) => {
     try {
-      await generateChatTitle(sessionId, { force: true });
+      await AgentClient.getInstance().regenerateSessionTitle(sessionId);
     } catch (error) {
-      console.error("Failed to generate title:", error);
+      console.error("Failed to regenerate session title:", error);
     }
-  };
+  }, []);
 
   const handleRunProjectDream = useCallback(
     async (sessionId: string) => {
@@ -499,7 +491,10 @@ export const useChatSidebarState = () => {
     sortedDateKeys,
     statusFilter,
     systemPrompts,
-    titleGenerationState,
+    titleGenerationState: {} as Record<
+      string,
+      { status: "loading" | "error" | "idle"; error?: string }
+    >,
     unpinSession: handleUnpinChat,
   };
 };

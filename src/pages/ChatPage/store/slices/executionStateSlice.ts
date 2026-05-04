@@ -1,6 +1,7 @@
 import { StateCreator } from "zustand";
 import { AgentEvent, SessionSummary } from "../../services/AgentService";
 import type { AppState } from "../";
+import { applyReplayableSessionEvent, isSessionMetadataEvent } from "./sessionMetadataSlice";
 
 // =============================================================================
 // Execution-state model — owned by createExecutionStateSlice.
@@ -1189,6 +1190,7 @@ const sliceNow = (): string => new Date().toISOString();
 
 export const createExecutionStateSlice: StateCreator<AppState, [], [], ExecutionStateSlice> = (
   set,
+  get,
 ) => ({
   executionBySession: {},
 
@@ -1397,10 +1399,28 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
   },
 
   applyRunningSnapshot: (sessions) => {
+    // Partition replayable metadata events from execution events before
+    // reducing. Metadata events (title/pinned) flow through the unified
+    // `applyReplayableSessionEvent` entry so live SSE and snapshot replay
+    // share the same precedence rules — `applyAgentEventInner` only ever
+    // sees execution-domain events.
+    const target = get();
+    const partitioned = sessions.map((session) => {
+      const executionOnly: AgentEvent[] = [];
+      for (const event of session.criticalEvents) {
+        if (isSessionMetadataEvent(event)) {
+          applyReplayableSessionEvent(event, target);
+          continue;
+        }
+        executionOnly.push(event);
+      }
+      return { ...session, criticalEvents: executionOnly };
+    });
+
     set((state) => {
       const next = applyExecutionEvent(
         state.executionBySession,
-        { type: "applyRunningSnapshot", sessions },
+        { type: "applyRunningSnapshot", sessions: partitioned },
         sliceNow,
       );
       if (next === state.executionBySession) return {};
