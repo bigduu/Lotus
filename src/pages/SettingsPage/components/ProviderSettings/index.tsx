@@ -47,8 +47,10 @@ import {
 } from "../../../../services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelPicker";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
+import type { ReasoningEffort } from "../../../ChatPage/services/AgentService";
 
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
@@ -103,6 +105,40 @@ const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
     </Text>
     <Text type="secondary">{t("settings.providerTab.responsesOnlyHelp2")}</Text>
   </Space>
+);
+
+const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];
+
+type ReasoningEffortSelectProps = {
+  value?: ReasoningEffort;
+  onChange?: (value?: ReasoningEffort) => void;
+  disabled?: boolean;
+  size?: "small" | "middle" | "large";
+  style?: React.CSSProperties;
+  "data-testid"?: string;
+};
+
+const renderReasoningEffortSelect = (t: TFunction, props?: ReasoningEffortSelectProps) => (
+  <Select
+    placeholder={t("settings.providerTab.reasoningEffortDefault", "Default")}
+    allowClear
+    value={props?.value}
+    onChange={
+      props?.onChange
+        ? (value) => props.onChange?.((value as ReasoningEffort | undefined) ?? undefined)
+        : undefined
+    }
+    disabled={props?.disabled}
+    size={props?.size}
+    style={props?.style}
+    data-testid={props?.["data-testid"]}
+  >
+    {REASONING_EFFORT_OPTIONS.map((option) => (
+      <Select.Option key={option} value={option}>
+        {t(`chat.input.reasoning.${option}`)}
+      </Select.Option>
+    ))}
+  </Select>
 );
 
 export const ProviderSettings: React.FC = () => {
@@ -216,7 +252,7 @@ export const ProviderSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [form, t]);
+  }, [form, message, t]);
 
   const loadEnvVars = useCallback(async () => {
     try {
@@ -340,7 +376,7 @@ export const ProviderSettings: React.FC = () => {
     } finally {
       setFetchingAllModels(false);
     }
-  }, [t]);
+  }, [message, t]);
 
   // ── Save / Apply helpers ─────────────────────────────
 
@@ -468,7 +504,7 @@ export const ProviderSettings: React.FC = () => {
         providersWithModel[activeProvider] = {
           ...providerCfg,
           model: defaultChatModel.model,
-        } as any;
+        } as EditableProviders[typeof activeProvider];
       }
 
       const payload = {
@@ -626,6 +662,81 @@ export const ProviderSettings: React.FC = () => {
     }
   };
 
+  const handleProviderReasoningEffortChange = async () => {
+    if (modelAutoSaveStatus === "saving") return;
+    setModelAutoSaveStatus("saving");
+    setModelAutoSaveError(null);
+    try {
+      const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
+      await handleSave(currentValues, { showMessage: false, throwOnError: true });
+      await handleApply({ showMessage: false, throwOnError: true });
+      setModelAutoSaveStatus("success");
+      message.success(t("settings.providerTab.reasoningEffortUpdated", "Reasoning effort updated"));
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      setModelAutoSaveStatus("error");
+      setModelAutoSaveError(errorMessage);
+      message.error(
+        errorMessage
+          ? `${t("settings.providerTab.updateReasoningEffortErrorPrefix", "Failed to update reasoning effort")}: ${errorMessage}`
+          : t(
+              "settings.providerTab.updateReasoningEffortFailed",
+              "Failed to update reasoning effort",
+            ),
+      );
+    }
+  };
+
+  const renderInlineProviderReasoningControl = (
+    provider: ModelProvider | undefined,
+    options?: {
+      label?: string;
+      helperText?: string;
+      autoSave?: boolean;
+      size?: "small" | "middle" | "large";
+      marginTop?: number;
+      dataTestId?: string;
+    },
+  ) => {
+    if (!provider) return null;
+
+    const providerLabel = PROVIDER_LABELS[provider as ProviderType];
+    const reasoningValue = form.getFieldValue(["providers", provider, "reasoning_effort"]) as
+      | ReasoningEffort
+      | undefined;
+
+    return (
+      <div style={{ marginTop: options?.marginTop ?? 8 }}>
+        <Space direction="vertical" size={4} style={{ width: "100%" }}>
+          <Text strong>
+            {options?.label ||
+              `${providerLabel} · ${t("settings.providerTab.reasoningEffortOptional", "Reasoning Effort (Optional)")}`}
+          </Text>
+          {renderReasoningEffortSelect(t, {
+            value: reasoningValue,
+            disabled: modelAutoSaveStatus === "saving",
+            size: options?.size,
+            style: { width: "100%" },
+            "data-testid": options?.dataTestId,
+            onChange: (value) => {
+              form.setFieldValue(["providers", provider, "reasoning_effort"], value);
+              if (options?.autoSave) {
+                void handleProviderReasoningEffortChange();
+              }
+            },
+          })}
+          <Text type="secondary">
+            {options?.helperText ||
+              t(
+                "settings.providerTab.reasoningEffortHelp",
+                "Default reasoning effort for requests sent through this provider.",
+              )}
+          </Text>
+        </Space>
+      </div>
+    );
+  };
+
   // ── Provider panel status ────────────────────────────
 
   const isProviderConfigured = useCallback(
@@ -657,6 +768,40 @@ export const ProviderSettings: React.FC = () => {
       );
     };
 
+    const renderPreferenceSection = (
+      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_session" | "vision">,
+      title: string,
+      helpText?: string,
+    ) => (
+      <div>
+        <Text strong>{title}</Text>
+        <div style={{ marginTop: 8 }}>{renderPicker(field)}</div>
+        <Form.Item noStyle shouldUpdate>
+          {() => {
+            const selectedModelRef = form.getFieldValue(["defaults", field]) as
+              | ProviderModelRef
+              | undefined;
+            const selectedProvider = selectedModelRef?.provider as ModelProvider | undefined;
+            return renderInlineProviderReasoningControl(selectedProvider, {
+              autoSave: true,
+              dataTestId: `model-preference-${field}-reasoning-effort`,
+              label: selectedProvider
+                ? `${PROVIDER_LABELS[selectedProvider as ProviderType]} · ${t(
+                    "settings.providerTab.reasoningEffortOptional",
+                    "Reasoning Effort (Optional)",
+                  )}`
+                : t("settings.providerTab.reasoningEffortOptional", "Reasoning Effort (Optional)"),
+              helperText: t(
+                "settings.providerTab.reasoningEffortHelp",
+                "Default reasoning effort for requests sent through this provider.",
+              ),
+            });
+          }}
+        </Form.Item>
+        {helpText ? <Text type="secondary">{helpText}</Text> : null}
+      </div>
+    );
+
     return (
       <Card
         size="small"
@@ -676,32 +821,25 @@ export const ProviderSettings: React.FC = () => {
           <ProviderModelRefField />
         </Form.Item>
         <Space direction="vertical" size={16} style={{ width: "100%" }}>
-          <div>
-            <Text strong>{t("settings.providerTab.defaultModel")}</Text>
-            <div style={{ marginTop: 8 }}>{renderPicker("chat")}</div>
-          </div>
-          <div>
-            <Text strong>{t("settings.providerTab.fastModel")}</Text>
-            <div style={{ marginTop: 8 }}>{renderPicker("fast")}</div>
-            <Text type="secondary">{t("settings.providerTab.fastModelHelp")}</Text>
-          </div>
-          <div>
-            <Text strong>
-              {t("settings.providerTab.subSessionModel", "Sub Session Model (Optional)")}
-            </Text>
-            <div style={{ marginTop: 8 }}>{renderPicker("sub_session")}</div>
-            <Text type="secondary">
-              {t(
-                "settings.providerTab.subSessionModelHelp",
-                "Default model for new Sub Sessions. Uses Fast Model when not set.",
-              )}
-            </Text>
-          </div>
-          <div>
-            <Text strong>{t("settings.providerTab.visionModel")}</Text>
-            <div style={{ marginTop: 8 }}>{renderPicker("vision")}</div>
-            <Text type="secondary">{t("settings.providerTab.visionModelHelp")}</Text>
-          </div>
+          {renderPreferenceSection("chat", t("settings.providerTab.defaultModel"))}
+          {renderPreferenceSection(
+            "fast",
+            t("settings.providerTab.fastModel"),
+            t("settings.providerTab.fastModelHelp"),
+          )}
+          {renderPreferenceSection(
+            "sub_session",
+            t("settings.providerTab.subSessionModel", "Sub Session Model (Optional)"),
+            t(
+              "settings.providerTab.subSessionModelHelp",
+              "Default model for new Sub Sessions. Uses Fast Model when not set.",
+            ),
+          )}
+          {renderPreferenceSection(
+            "vision",
+            t("settings.providerTab.visionModel"),
+            t("settings.providerTab.visionModelHelp"),
+          )}
         </Space>
       </Card>
     );
@@ -781,6 +919,19 @@ export const ProviderSettings: React.FC = () => {
               <Input placeholder="https://api.openai.com/v1" />
             </Form.Item>
             <Form.Item
+              name={["providers", "openai", "reasoning_effort"]}
+              label={t(
+                "settings.providerTab.reasoningEffortOptional",
+                "Reasoning Effort (Optional)",
+              )}
+              extra={t(
+                "settings.providerTab.reasoningEffortHelp",
+                "Default reasoning effort for requests sent through this provider.",
+              )}
+            >
+              {renderReasoningEffortSelect(t)}
+            </Form.Item>
+            <Form.Item
               name={["providers", "openai", "responses_only_models"]}
               label={t("settings.providerTab.responsesOnlyModelsOptional")}
               extra={renderResponsesOnlyModelsHelp(t)}
@@ -822,6 +973,19 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input type="number" placeholder="4096" min={1} max={100000} />
             </Form.Item>
+            <Form.Item
+              name={["providers", "anthropic", "reasoning_effort"]}
+              label={t(
+                "settings.providerTab.reasoningEffortOptional",
+                "Reasoning Effort (Optional)",
+              )}
+              extra={t(
+                "settings.providerTab.reasoningEffortHelp",
+                "Default reasoning effort for requests sent through this provider.",
+              )}
+            >
+              {renderReasoningEffortSelect(t)}
+            </Form.Item>
             <Divider dashed />
             {renderRequestOverridesEditor("anthropic")}
           </>
@@ -843,6 +1007,19 @@ export const ProviderSettings: React.FC = () => {
               extra={t("settings.providerTab.geminiBaseUrlHelp")}
             >
               <Input placeholder="https://generativelanguage.googleapis.com/v1beta" />
+            </Form.Item>
+            <Form.Item
+              name={["providers", "gemini", "reasoning_effort"]}
+              label={t(
+                "settings.providerTab.reasoningEffortOptional",
+                "Reasoning Effort (Optional)",
+              )}
+              extra={t(
+                "settings.providerTab.reasoningEffortHelp",
+                "Default reasoning effort for requests sent through this provider.",
+              )}
+            >
+              {renderReasoningEffortSelect(t)}
             </Form.Item>
             <Divider dashed />
             {renderRequestOverridesEditor("gemini")}
@@ -911,6 +1088,20 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
 
             <Form.Item
+              name={["providers", "copilot", "reasoning_effort"]}
+              label={t(
+                "settings.providerTab.reasoningEffortOptional",
+                "Reasoning Effort (Optional)",
+              )}
+              extra={t(
+                "settings.providerTab.reasoningEffortHelp",
+                "Default reasoning effort for requests sent through this provider.",
+              )}
+            >
+              {renderReasoningEffortSelect(t)}
+            </Form.Item>
+
+            <Form.Item
               name={["providers", "copilot", "responses_only_models"]}
               label={t("settings.providerTab.responsesOnlyModelsOptional")}
               extra={renderResponsesOnlyModelsHelp(t)}
@@ -971,15 +1162,16 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
             <Form.Item
               name={["providers", "bodhi", "reasoning_effort"]}
-              label="Reasoning Effort (optional)"
+              label={t(
+                "settings.providerTab.reasoningEffortOptional",
+                "Reasoning Effort (Optional)",
+              )}
+              extra={t(
+                "settings.providerTab.reasoningEffortHelp",
+                "Default reasoning effort for requests sent through this provider.",
+              )}
             >
-              <Select placeholder="Default" allowClear>
-                <Select.Option value="low">Low</Select.Option>
-                <Select.Option value="medium">Medium</Select.Option>
-                <Select.Option value="high">High</Select.Option>
-                <Select.Option value="xhigh">Extra High</Select.Option>
-                <Select.Option value="max">Max</Select.Option>
-              </Select>
+              {renderReasoningEffortSelect(t)}
             </Form.Item>
             <Divider dashed />
             {renderRequestOverridesEditor("bodhi")}
@@ -1036,13 +1228,39 @@ export const ProviderSettings: React.FC = () => {
           label={t("settings.providerTab.activeProvider")}
           rules={[{ required: true, message: t("settings.providerTab.selectProviderRequired") }]}
         >
-          <Select data-testid="provider-select" size="large">
+          <Select
+            data-testid="provider-select"
+            size="large"
+            onChange={(value) => setCurrentProvider(value as ProviderType)}
+          >
             {(Object.keys(PROVIDER_LABELS) as ProviderType[]).map((key) => (
               <Select.Option key={key} value={key}>
                 {PROVIDER_LABELS[key]}
               </Select.Option>
             ))}
           </Select>
+        </Form.Item>
+
+        <Form.Item noStyle shouldUpdate>
+          {() =>
+            renderInlineProviderReasoningControl(
+              (form.getFieldValue("provider") || currentProvider) as ModelProvider | undefined,
+              {
+                autoSave: true,
+                size: "middle",
+                marginTop: 0,
+                dataTestId: "active-provider-reasoning-effort",
+                label: t(
+                  "settings.providerTab.activeProviderReasoningEffort",
+                  "Active Provider Reasoning Effort",
+                ),
+                helperText: t(
+                  "settings.providerTab.reasoningEffortHelp",
+                  "Default reasoning effort for requests sent through this provider.",
+                ),
+              },
+            )
+          }
         </Form.Item>
 
         <Divider />

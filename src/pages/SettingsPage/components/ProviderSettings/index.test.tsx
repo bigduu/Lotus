@@ -51,9 +51,110 @@ function jsonResponse(body: unknown, init?: { ok?: boolean; status?: number }) {
   };
 }
 
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function setupProviderSettingsFetch(
+  initialConfig: Record<string, unknown>,
+  options?: {
+    catalog?: Record<string, unknown>;
+  },
+) {
+  const postedBodies: Array<Record<string, unknown>> = [];
+  let currentConfig = deepClone(initialConfig);
+  const catalog =
+    options?.catalog ??
+    ({
+      providers: [],
+      models: [],
+    } satisfies Record<string, unknown>);
+
+  (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
+    const method = (init?.method || "GET").toUpperCase();
+    const path = url.toString();
+
+    if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
+      return jsonResponse({ authenticated: false });
+    }
+
+    if (method === "GET" && path.includes("/bamboo/settings/provider")) {
+      return jsonResponse(currentConfig);
+    }
+
+    if (method === "GET" && path.includes("/bamboo/provider-catalog")) {
+      return jsonResponse(catalog);
+    }
+
+    if (method === "GET" && path.includes("/bamboo/env-vars")) {
+      return jsonResponse({ entries: [] });
+    }
+
+    if (method === "POST" && path.includes("/bamboo/config/validate")) {
+      return jsonResponse({ valid: true, errors: {} });
+    }
+
+    if (method === "POST" && path.includes("/bamboo/settings/provider")) {
+      const body = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+      postedBodies.push(body);
+      currentConfig = {
+        ...currentConfig,
+        ...body,
+        defaults: (body.defaults as Record<string, unknown> | undefined) ?? currentConfig.defaults,
+        providers: {
+          ...(currentConfig.providers as Record<string, unknown> | undefined),
+          ...(body.providers as Record<string, unknown> | undefined),
+        },
+      };
+      return jsonResponse({ success: true, provider: currentConfig.provider });
+    }
+
+    return jsonResponse({});
+  });
+
+  return {
+    postedBodies,
+    getCurrentConfig: () => currentConfig,
+  };
+}
+
+async function selectAntdOption(testId: string, optionText: string) {
+  const select = await screen.findByTestId(testId);
+  const trigger = select.querySelector(".ant-select-selector") ?? select;
+  fireEvent.mouseDown(trigger);
+
+  const option = await waitFor(() => {
+    const found = Array.from(document.querySelectorAll(".ant-select-item-option-content")).find(
+      (node) => node.textContent?.trim() === optionText,
+    ) as HTMLElement | undefined;
+    expect(found).toBeTruthy();
+    return found as HTMLElement;
+  });
+
+  fireEvent.click(option);
+}
+
 describe("ProviderSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.setItem("lotus_ui_locale_v1", "en-US");
+    useProviderStore.setState({
+      currentProvider: "copilot",
+      providerConfig: {
+        provider: "copilot",
+        defaults: undefined,
+        providers: {},
+      },
+      selectedModelRef: null,
+      catalog: null,
+      isCatalogFetching: false,
+      isLoading: false,
+      error: null,
+    });
+    useAppStore.setState({
+      currentSessionId: null,
+      chats: [],
+    } as any);
   });
 
   it("includes defaults in save payload so model preferences persist", async () => {
@@ -384,4 +485,256 @@ describe("ProviderSettings", () => {
       ).toBe(false);
     });
   }, 15000);
+
+  it("updates the active provider reasoning effort for the selected provider", async () => {
+    const { postedBodies } = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-4o" },
+      },
+      providers: {
+        openai: { api_key: "sk-openai", reasoning_effort: "low" },
+        anthropic: { api_key: "sk-anthropic", reasoning_effort: "medium" },
+      },
+    });
+
+    render(<ProviderSettings />);
+
+    await screen.findByTestId("provider-select");
+    await selectAntdOption("provider-select", "Anthropic");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("active-provider-reasoning-effort").textContent).toContain(
+        "Medium",
+      );
+    });
+
+    await selectAntdOption("active-provider-reasoning-effort", "Max");
+
+    await waitFor(() => {
+      expect(postedBodies.length).toBeGreaterThan(0);
+      const latestBody = postedBodies.at(-1) as any;
+      expect(latestBody.provider).toBe("anthropic");
+      expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("max");
+      expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
+    });
+  }, 15000);
+
+  it("switches the model preference reasoning effort target when default chat model provider changes", async () => {
+    const { postedBodies } = setupProviderSettingsFetch(
+      {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "openai", model: "gpt-4o" },
+          fast: { provider: "openai", model: "gpt-4o-mini" },
+          sub_session: { provider: "openai", model: "gpt-4.1-mini" },
+          vision: { provider: "openai", model: "gpt-4.1" },
+        },
+        providers: {
+          openai: { api_key: "sk-openai", reasoning_effort: "low" },
+          anthropic: { api_key: "sk-anthropic", reasoning_effort: "medium" },
+        },
+      },
+      {
+        catalog: {
+          providers: [],
+          models: [
+            {
+              reference: { provider: "openai", model: "gpt-4o" },
+              display_name: "OpenAI Default Model",
+              provider_display_name: "OpenAI",
+              capabilities: { supports_vision: false },
+            },
+            {
+              reference: { provider: "openai", model: "gpt-4o-mini" },
+              display_name: "OpenAI Fast Model",
+              provider_display_name: "OpenAI",
+              capabilities: { supports_vision: false },
+            },
+            {
+              reference: { provider: "openai", model: "gpt-4.1-mini" },
+              display_name: "OpenAI Sub Session Model",
+              provider_display_name: "OpenAI",
+              capabilities: { supports_vision: false },
+            },
+            {
+              reference: { provider: "openai", model: "gpt-4.1" },
+              display_name: "OpenAI Vision Model",
+              provider_display_name: "OpenAI",
+              capabilities: { supports_vision: true },
+            },
+            {
+              reference: { provider: "anthropic", model: "claude-3-7-sonnet" },
+              display_name: "Anthropic Switch Model",
+              provider_display_name: "Anthropic",
+              capabilities: { supports_vision: false },
+            },
+            {
+              reference: { provider: "anthropic", model: "claude-3-5-haiku" },
+              display_name: "Anthropic Fast Model",
+              provider_display_name: "Anthropic",
+              capabilities: { supports_vision: false },
+            },
+            {
+              reference: { provider: "anthropic", model: "claude-3-5-sonnet" },
+              display_name: "Anthropic Sub Session Model",
+              provider_display_name: "Anthropic",
+              capabilities: { supports_vision: false },
+            },
+            {
+              reference: { provider: "anthropic", model: "claude-3-7-sonnet-vision" },
+              display_name: "Anthropic Vision Model",
+              provider_display_name: "Anthropic",
+              capabilities: { supports_vision: true },
+            },
+          ],
+        },
+      },
+    );
+
+    render(<ProviderSettings />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("model-preference-chat-reasoning-effort").textContent).toContain(
+        "Low",
+      );
+    });
+
+    fireEvent.click(await screen.findByTitle("openai/gpt-4o"));
+    fireEvent.click(await screen.findByText("Anthropic Switch Model"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("model-preference-chat-reasoning-effort").textContent).toContain(
+        "Medium",
+      );
+    });
+
+    await selectAntdOption("model-preference-chat-reasoning-effort", "High");
+
+    await waitFor(() => {
+      expect(postedBodies.length).toBeGreaterThan(0);
+      const latestBody = postedBodies.at(-1) as any;
+      expect(latestBody.defaults?.chat).toEqual({
+        provider: "anthropic",
+        model: "claude-3-7-sonnet",
+      });
+      expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("high");
+      expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
+    });
+  }, 15000);
+
+  it.each([
+    {
+      field: "fast",
+      currentTitle: "openai/gpt-4o-mini",
+      newOptionText: "Anthropic Fast Model",
+      expectedModel: { provider: "anthropic", model: "claude-3-5-haiku" },
+    },
+    {
+      field: "sub_session",
+      currentTitle: "openai/gpt-4.1-mini",
+      newOptionText: "Anthropic Sub Session Model",
+      expectedModel: { provider: "anthropic", model: "claude-3-5-sonnet" },
+    },
+    {
+      field: "vision",
+      currentTitle: "openai/gpt-4.1",
+      newOptionText: "Anthropic Vision Model",
+      expectedModel: { provider: "anthropic", model: "claude-3-7-sonnet-vision" },
+    },
+  ])(
+    "switches the $field model preference reasoning effort target when provider changes",
+    async ({ field, currentTitle, newOptionText, expectedModel }) => {
+      const { postedBodies } = setupProviderSettingsFetch(
+        {
+          provider: "openai",
+          defaults: {
+            chat: { provider: "openai", model: "gpt-4o" },
+            fast: { provider: "openai", model: "gpt-4o-mini" },
+            sub_session: { provider: "openai", model: "gpt-4.1-mini" },
+            vision: { provider: "openai", model: "gpt-4.1" },
+          },
+          providers: {
+            openai: { api_key: "sk-openai", reasoning_effort: "low" },
+            anthropic: { api_key: "sk-anthropic", reasoning_effort: "medium" },
+          },
+        },
+        {
+          catalog: {
+            providers: [],
+            models: [
+              {
+                reference: { provider: "openai", model: "gpt-4o" },
+                display_name: "OpenAI Default Model",
+                provider_display_name: "OpenAI",
+                capabilities: { supports_vision: false },
+              },
+              {
+                reference: { provider: "openai", model: "gpt-4o-mini" },
+                display_name: "OpenAI Fast Model",
+                provider_display_name: "OpenAI",
+                capabilities: { supports_vision: false },
+              },
+              {
+                reference: { provider: "openai", model: "gpt-4.1-mini" },
+                display_name: "OpenAI Sub Session Model",
+                provider_display_name: "OpenAI",
+                capabilities: { supports_vision: false },
+              },
+              {
+                reference: { provider: "openai", model: "gpt-4.1" },
+                display_name: "OpenAI Vision Model",
+                provider_display_name: "OpenAI",
+                capabilities: { supports_vision: true },
+              },
+              {
+                reference: { provider: "anthropic", model: "claude-3-5-haiku" },
+                display_name: "Anthropic Fast Model",
+                provider_display_name: "Anthropic",
+                capabilities: { supports_vision: false },
+              },
+              {
+                reference: { provider: "anthropic", model: "claude-3-5-sonnet" },
+                display_name: "Anthropic Sub Session Model",
+                provider_display_name: "Anthropic",
+                capabilities: { supports_vision: false },
+              },
+              {
+                reference: { provider: "anthropic", model: "claude-3-7-sonnet-vision" },
+                display_name: "Anthropic Vision Model",
+                provider_display_name: "Anthropic",
+                capabilities: { supports_vision: true },
+              },
+            ],
+          },
+        },
+      );
+
+      render(<ProviderSettings />);
+
+      const reasoningTestId = `model-preference-${field}-reasoning-effort`;
+
+      await waitFor(() => {
+        expect(screen.getByTestId(reasoningTestId).textContent).toContain("Low");
+      });
+
+      fireEvent.click(await screen.findByTitle(currentTitle));
+      fireEvent.click(await screen.findByText(newOptionText));
+
+      await waitFor(() => {
+        expect(screen.getByTestId(reasoningTestId).textContent).toContain("Medium");
+      });
+
+      await selectAntdOption(reasoningTestId, "Very high");
+
+      await waitFor(() => {
+        expect(postedBodies.length).toBeGreaterThan(0);
+        const latestBody = postedBodies.at(-1) as any;
+        expect(latestBody.defaults?.[field]).toEqual(expectedModel);
+        expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("xhigh");
+        expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
+      });
+    },
+    15000,
+  );
 });
