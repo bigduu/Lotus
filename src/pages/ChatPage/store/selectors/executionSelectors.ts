@@ -22,6 +22,7 @@ import {
  */
 export interface ExecutionStateView {
   executionBySession: ExecutionMap;
+  chats?: ReadonlyArray<{ id: string; isRunning?: boolean }>;
 }
 
 const NO_CHILDREN: SessionChildrenSnapshot = { byId: {}, runningCount: 0 };

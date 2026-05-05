@@ -160,6 +160,7 @@ export type ExecutionMap = Record<string, SessionExecutionState>;
 
 export type OneShotTerminalPayload =
   | { status: "completed" }
+  | { status: "cancelled"; message?: string }
   | { status: "error"; message?: string };
 
 export type ExecutionAction =
@@ -663,6 +664,23 @@ const applyAgentEventInner = (
         activeReasons: appendReason(entry.activeReasons, "sse:complete"),
       };
     }
+    case "cancelled": {
+      const terminalAt = now();
+      return {
+        ...entry,
+        phase: "cancelled",
+        confidence: "terminal",
+        timestamps: { ...entry.timestamps, terminalAt, settledAt: terminalAt },
+        error: event.message
+          ? {
+              message: event.message,
+              source: "user_cancel",
+              occurredAt: terminalAt,
+            }
+          : null,
+        activeReasons: appendReason(entry.activeReasons, "sse:error"),
+      };
+    }
     case "error": {
       const terminalAt = now();
       return {
@@ -1022,6 +1040,22 @@ export const applyExecutionEvent = (
           phase: "completed",
           confidence: "terminal",
           timestamps: { ...entry.timestamps, terminalAt, settledAt: terminalAt },
+          activeReasons: appendReason(entry.activeReasons, "sse:terminal_one_shot"),
+        });
+      }
+      if (action.payload.status === "cancelled") {
+        return writeEntry(map, action.sessionId, {
+          ...entry,
+          phase: "cancelled",
+          confidence: "terminal",
+          timestamps: { ...entry.timestamps, terminalAt, settledAt: terminalAt },
+          error: action.payload.message
+            ? {
+                message: action.payload.message,
+                source: "user_cancel",
+                occurredAt: terminalAt,
+              }
+            : null,
           activeReasons: appendReason(entry.activeReasons, "sse:terminal_one_shot"),
         });
       }

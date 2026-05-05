@@ -16,6 +16,7 @@ interface MessageInputControlsRightProps {
   allowRetry: boolean;
   hasMessages: boolean;
   isStreaming: boolean;
+  isInputLocked: boolean;
   canCancel?: boolean;
   disabled: boolean;
   onRetry?: (mode: MessageRetryMode) => void;
@@ -32,7 +33,7 @@ interface MessageInputControlsRightProps {
 const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
   allowRetry,
   hasMessages,
-  isStreaming,
+  isInputLocked,
   canCancel,
   disabled,
   onRetry,
@@ -47,8 +48,9 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
 }) => {
   const { t } = useTranslation();
   const canSend = !value.trim() && images.length === 0;
-  const effectiveCanCancel = canCancel ?? isStreaming;
-  const retryDisabled = effectiveCanCancel || disabled || !onRetry;
+  const effectiveCanCancel = canCancel ?? isInputLocked;
+  const shouldShowBusyFeedback = isInputLocked;
+  const retryDisabled = isInputLocked || disabled || !onRetry;
   const resolvedSubmitLabel = submitButtonLabel ?? t("chat.actions.sendMessage");
 
   return (
@@ -84,7 +86,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
           <Button
             data-testid="regenerate-button"
             type="text"
-            icon={<SyncOutlined spin={isStreaming} />}
+            icon={<SyncOutlined spin={shouldShowBusyFeedback} />}
             disabled={retryDisabled}
             title={t("chat.actions.retryOptions")}
             aria-label={t("chat.actions.retryOptions")}
@@ -109,7 +111,9 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         onClick={effectiveCanCancel ? onCancel : onSubmit}
         loading={effectiveCanCancel && !onCancel}
         disabled={
-          effectiveCanCancel ? !onCancel || disabled : canSend || disabled || isOverCharLimit
+          effectiveCanCancel
+            ? !onCancel || disabled
+            : isInputLocked || canSend || disabled || isOverCharLimit
         }
         size="small"
         danger={effectiveCanCancel}

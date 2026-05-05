@@ -836,6 +836,62 @@ describe("useAgentEventSubscription", () => {
     });
   });
 
+  it("handles cancelled terminal events", async () => {
+    let cancelledHandler: ((message?: string) => Promise<void>) | undefined;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      cancelledHandler = handlers.onCancelled;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    await act(async () => {
+      await cancelledHandler?.("Agent execution cancelled by user");
+    });
+
+    expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ type: "cancelled", message: "Agent execution cancelled by user" }),
+      expect.any(Number),
+    );
+  });
+
   it("should handle onComplete and save message", async () => {
     let completeHandler: any;
     mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {

@@ -7,7 +7,7 @@ interface UseMessageInputHandlersProps {
   value: string;
   images: ImageFile[];
   /** True when the input should be locked (starting, running, streaming, running_tools, running_children, settling). */
-  isStreaming: boolean;
+  isInputLocked: boolean;
   disabled: boolean;
   isWorkflowSelectorVisible: boolean;
   onChange: (value: string) => void;
@@ -30,7 +30,7 @@ interface UseMessageInputHandlersProps {
 export const useMessageInputHandlers = ({
   value,
   images,
-  isStreaming,
+  isInputLocked,
   disabled,
   isWorkflowSelectorVisible,
   onChange,
@@ -46,7 +46,7 @@ export const useMessageInputHandlers = ({
 }: UseMessageInputHandlersProps) => {
   const handleSubmit = useCallback(() => {
     const trimmedContent = value.trim();
-    if ((!trimmedContent && images.length === 0) || isStreaming || disabled) {
+    if ((!trimmedContent && images.length === 0) || isInputLocked || disabled) {
       return;
     }
 
@@ -73,7 +73,7 @@ export const useMessageInputHandlers = ({
     disabled,
     images,
     isOverCharLimit,
-    isStreaming,
+    isInputLocked,
     maxCharCount,
     messageApi,
     onSubmit,
@@ -86,7 +86,7 @@ export const useMessageInputHandlers = ({
       if (
         onHistoryNavigate &&
         !disabled &&
-        !isStreaming &&
+        !isInputLocked &&
         !event.shiftKey &&
         (event.key === "ArrowUp" || event.key === "ArrowDown")
       ) {
@@ -109,7 +109,7 @@ export const useMessageInputHandlers = ({
       if (
         event.key === "Enter" &&
         !event.shiftKey &&
-        !isStreaming &&
+        !isInputLocked &&
         !disabled &&
         !isWorkflowSelectorVisible
       ) {
@@ -120,7 +120,7 @@ export const useMessageInputHandlers = ({
     [
       disabled,
       handleSubmit,
-      isStreaming,
+      isInputLocked,
       isWorkflowSelectorVisible,
       onChange,
       onHistoryNavigate,
@@ -131,10 +131,10 @@ export const useMessageInputHandlers = ({
 
   const handleRetry = useCallback(
     (mode: MessageRetryMode = "regenerate") => {
-      if (isStreaming || disabled || !onRetry) return;
+      if (isInputLocked || disabled || !onRetry) return;
       onRetry(mode);
     },
-    [disabled, isStreaming, onRetry],
+    [disabled, isInputLocked, onRetry],
   );
 
   return {

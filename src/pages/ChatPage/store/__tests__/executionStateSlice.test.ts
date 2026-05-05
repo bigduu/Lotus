@@ -389,6 +389,33 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.backend.lastRunStatus).toBe("completed");
   });
 
+  it("streaming + cancelled event → cancelled phase with terminal timestamp", () => {
+    let map = startSession();
+    map = applyExecutionEvent(
+      map,
+      { type: "applyAgentEvent", sessionId: SESSION, event: tokenEvent, generation: 1 },
+      fixedNow(T1),
+    );
+
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "applyAgentEvent",
+        sessionId: SESSION,
+        event: { type: "cancelled", message: "Agent execution cancelled by user" },
+        generation: 1,
+      },
+      fixedNow(T2),
+    );
+
+    const entry = map[SESSION];
+    expect(entry.phase).toBe<ExecutionPhase>("cancelled");
+    expect(entry.timestamps.terminalAt).toBe(T2);
+    expect(entry.timestamps.settledAt).toBe(T2);
+    expect(entry.error?.source).toBe("user_cancel");
+    expect(entry.error?.message).toBe("Agent execution cancelled by user");
+  });
+
   it("streaming + error event → error phase with sse-source error", () => {
     // §E.1.12
     let map = startSession();

@@ -6,6 +6,7 @@ import { debugLog } from "@shared/utils/debugFlags";
  * Handles SSE streaming and AgentEvent processing
  */
 import { agentApiClient } from "../api";
+import { getBackendBaseUrlSync } from "../../shared/utils/backendBaseUrl";
 
 // Agent Event Types (matching Rust backend)
 export type AgentEventType =
@@ -35,6 +36,7 @@ export type AgentEventType =
   | "execution_started"
   | "runner_progress"
   | "complete"
+  | "cancelled"
   | "error";
 
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
@@ -588,6 +590,7 @@ export interface AgentEventHandlers {
     error?: string,
   ) => void;
   onComplete?: (usage: AgentEvent["usage"]) => void;
+  onCancelled?: (message?: string) => void;
   onError?: (message: string) => void;
   onSubSessionStarted?: (parentSessionId: string, childSessionId: string, title?: string) => void;
   onSubSessionEvent?: (parentSessionId: string, childSessionId: string, event: AgentEvent) => void;
@@ -866,93 +869,94 @@ export class AgentClient {
     const signal = abortController?.signal;
     debugLog("[AgentClient]", "[AgentClient] Subscribing to events for session:", sessionId);
 
-    try {
-      const response = await agentApiClient.fetchRaw(`events/${sessionId}`, {
-        signal,
-      });
+    const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
+    const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
+    const eventsUrl = `${origin}/api/v1/events/${encodeURIComponent(sessionId)}`;
+    debugLog("[AgentClient]", "[AgentClient] EventSource URL:", eventsUrl);
 
-      debugLog(
-        "[AgentClient]",
-        "[AgentClient] Events subscription response:",
-        response.status,
-        response.statusText,
-        "Content-Type:",
-        response.headers.get("content-type"),
-      );
-
-      if (!response.ok) {
-        // Try to parse error details from response
-        let errorMessage = `Failed to subscribe to events: ${response.statusText}`;
-        try {
-          const body = await response.text();
-          if (body) {
-            try {
-              const errorData = JSON.parse(body);
-              errorMessage =
-                errorData.error || errorData.message || errorData.detail || errorMessage;
-            } catch {
-              errorMessage = body || errorMessage;
-            }
-          }
-        } catch (e) {
-          console.error("Failed to parse error response:", e);
-        }
-        throw new Error(errorMessage);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body");
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      try {
-        while (true) {
-          if (signal?.aborted) {
-            break;
-          }
-
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-
-          // Process SSE lines
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || ""; // Keep incomplete line in buffer
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              const data = line.slice(6);
-
-              // Check for [DONE] marker
-              if (data === "[DONE]") {
-                return;
-              }
-
-              try {
-                const event: AgentEvent = JSON.parse(data);
-                this.handleEvent(event, handlers);
-              } catch (e) {
-                console.warn("Failed to parse event:", data, e);
-              }
-            }
-          }
-        }
-      } finally {
-        reader.releaseLock();
-      }
-    } catch (error) {
+    return await new Promise<void>((resolve, reject) => {
       if (signal?.aborted) {
-        // Normal lifecycle (caller aborted due to navigation, completion, etc.)
-        debugLog("[AgentClient]", "Events subscription aborted for session:", sessionId);
+        debugLog("[AgentClient]", "Events subscription aborted before connect:", sessionId);
+        resolve();
         return;
       }
-      console.error("[AgentClient] Events subscription error:", error);
-      throw error;
-    }
+
+      let settled = false;
+      let terminalSeen = false;
+      let eventSource: EventSource | null = null;
+
+      const abortListener = () => {
+        debugLog("[AgentClient]", "Events subscription aborted for session:", sessionId);
+        settleResolve();
+      };
+
+      const cleanup = () => {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+        signal?.removeEventListener("abort", abortListener);
+      };
+
+      const settleResolve = () => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve();
+      };
+
+      const settleReject = (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(error);
+      };
+
+      signal?.addEventListener("abort", abortListener, { once: true });
+
+      try {
+        eventSource = new EventSource(eventsUrl, { withCredentials: true });
+      } catch (error) {
+        settleReject(error);
+        return;
+      }
+
+      eventSource.onopen = () => {
+        debugLog("[AgentClient]", "EventSource opened for session:", sessionId);
+      };
+
+      eventSource.onmessage = (messageEvent) => {
+        const data = messageEvent.data;
+
+        if (data === "[DONE]") {
+          terminalSeen = true;
+          settleResolve();
+          return;
+        }
+
+        if (data === "[KEEPALIVE]") {
+          return;
+        }
+
+        try {
+          const event: AgentEvent = JSON.parse(data);
+          this.handleEvent(event, handlers);
+          if (event.type === "complete" || event.type === "cancelled" || event.type === "error") {
+            terminalSeen = true;
+          }
+        } catch (error) {
+          console.warn("Failed to parse event:", data, error);
+        }
+      };
+
+      eventSource.onerror = () => {
+        if (signal?.aborted || terminalSeen) {
+          settleResolve();
+          return;
+        }
+        settleReject(new Error(`EventSource connection failed for session ${sessionId}`));
+      };
+    });
   }
 
   /**
@@ -1156,6 +1160,9 @@ export class AgentClient {
         break;
       case "complete":
         handlers.onComplete?.(event.usage);
+        break;
+      case "cancelled":
+        handlers.onCancelled?.(event.message);
         break;
       case "error":
         // Error event uses 'message' field, not 'error' field

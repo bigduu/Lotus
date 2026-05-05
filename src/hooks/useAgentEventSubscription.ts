@@ -945,6 +945,18 @@ export function useAgentEventSubscription() {
               });
             },
 
+            onCancelled: async (cancelMessage?: string) => {
+              terminalEventSeen = true;
+              applyAgentEvent(
+                sessionId,
+                { type: "cancelled", message: cancelMessage } as AgentEvent,
+                generation,
+              );
+              setStreamingStatus(null);
+              clearPendingQuestion(sessionId);
+              finalizeParentCompletion();
+            },
+
             onError: async (errorMessage: string) => {
               terminalEventSeen = true;
               applyAgentEvent(

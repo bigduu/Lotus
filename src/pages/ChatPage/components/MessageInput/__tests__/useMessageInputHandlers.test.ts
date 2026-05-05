@@ -1,6 +1,5 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import type { TextAreaRef } from "antd/es/input/TextArea";
 import { useMessageInputHandlers } from "../useMessageInputHandlers";
 import type { ImageFile } from "../../../utils/imageUtils";
 
@@ -18,24 +17,6 @@ const mockRaf = vi.fn((callback: FrameRequestCallback) => {
 global.requestAnimationFrame = mockRaf;
 
 describe("useMessageInputHandlers", () => {
-  let mockProps: {
-    value: string;
-    images: ImageFile[];
-    isStreaming: boolean;
-    disabled: boolean;
-    isWorkflowSelectorVisible: boolean;
-    onChange: ReturnType<typeof vi.fn>;
-    onSubmit: ReturnType<typeof vi.fn>;
-    onRetry?: ReturnType<typeof vi.fn>;
-    onHistoryNavigate?: ReturnType<typeof vi.fn>;
-    validateMessage?: ReturnType<typeof vi.fn>;
-    isOverCharLimit: boolean;
-    maxCharCount?: number;
-    messageApi: { error: ReturnType<typeof vi.fn> };
-    clearImages: ReturnType<typeof vi.fn>;
-    textAreaRef: React.RefObject<TextAreaRef>;
-  };
-
   beforeEach(() => {
     vi.clearAllMocks();
     mockRaf.mockClear();
@@ -53,7 +34,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "  Hello World  ",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange,
@@ -91,7 +72,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "Check this image",
           images,
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange,
@@ -128,7 +109,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "",
           images,
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -157,7 +138,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "   ",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -187,7 +168,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: true,
+          isInputLocked: true,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -216,7 +197,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: true,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -245,7 +226,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -278,7 +259,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -314,7 +295,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -347,7 +328,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -378,7 +359,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -410,7 +391,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -445,7 +426,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -480,7 +461,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: true,
           onChange: vi.fn(),
@@ -525,7 +506,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "current value",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange,
@@ -573,7 +554,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "current value",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange,
@@ -610,7 +591,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: true,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -645,7 +626,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: true,
+          isInputLocked: true,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -680,7 +661,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -716,7 +697,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange,
@@ -753,7 +734,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange,
@@ -792,7 +773,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "test",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange,
@@ -830,7 +811,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -859,7 +840,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "",
           images: [],
-          isStreaming: true,
+          isInputLocked: true,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -888,7 +869,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: true,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),
@@ -916,7 +897,7 @@ describe("useMessageInputHandlers", () => {
         useMessageInputHandlers({
           value: "",
           images: [],
-          isStreaming: false,
+          isInputLocked: false,
           disabled: false,
           isWorkflowSelectorVisible: false,
           onChange: vi.fn(),

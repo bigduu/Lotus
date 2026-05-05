@@ -5,13 +5,40 @@ import { mockFetchError, mockFetchResponse } from "@test/helpers";
 
 describe("AgentClient", () => {
   let fetchMock: ReturnType<typeof vi.fn>;
+  let eventSourceInstances: Array<{
+    url: string;
+    withCredentials: boolean;
+    onopen: (() => void) | null;
+    onmessage: ((event: MessageEvent<string>) => void) | null;
+    onerror: ((event?: Event) => void) | null;
+    close: ReturnType<typeof vi.fn>;
+  }>;
 
   beforeEach(() => {
     fetchMock = vi.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
+    eventSourceInstances = [];
+
+    class MockEventSource {
+      url: string;
+      withCredentials: boolean;
+      onopen: (() => void) | null = null;
+      onmessage: ((event: MessageEvent<string>) => void) | null = null;
+      onerror: ((event?: Event) => void) | null = null;
+      close = vi.fn();
+
+      constructor(url: string | URL, init?: EventSourceInit) {
+        this.url = String(url);
+        this.withCredentials = init?.withCredentials ?? false;
+        eventSourceInstances.push(this);
+      }
+    }
+
+    vi.stubGlobal("EventSource", MockEventSource as unknown as typeof EventSource);
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
@@ -596,6 +623,42 @@ describe("AgentClient", () => {
     expect(onTaskListUpdated).not.toHaveBeenCalled();
   });
 
+  it("subscribes to events with native EventSource", async () => {
+    const client = AgentClient.getInstance();
+    const onToken = vi.fn();
+    const controller = new AbortController();
+
+    const pending = client.subscribeToEvents("session-1", { onToken }, controller);
+
+    expect(eventSourceInstances).toHaveLength(1);
+    expect(eventSourceInstances[0]?.url).toContain("/api/v1/events/session-1");
+    expect(eventSourceInstances[0]?.withCredentials).toBe(true);
+
+    eventSourceInstances[0]?.onmessage?.({ data: "[KEEPALIVE]" } as MessageEvent<string>);
+    expect(onToken).not.toHaveBeenCalled();
+
+    eventSourceInstances[0]?.onmessage?.({
+      data: JSON.stringify({ type: "token", content: "hello" }),
+    } as MessageEvent<string>);
+    expect(onToken).toHaveBeenCalledWith("hello");
+
+    eventSourceInstances[0]?.onmessage?.({ data: "[DONE]" } as MessageEvent<string>);
+    await expect(pending).resolves.toBeUndefined();
+    expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
+  });
+
+  it("rejects subscribeToEvents on EventSource error before terminal event", async () => {
+    const client = AgentClient.getInstance();
+
+    const pending = client.subscribeToEvents("session-1", {});
+
+    expect(eventSourceInstances).toHaveLength(1);
+    eventSourceInstances[0]?.onerror?.();
+
+    await expect(pending).rejects.toThrow("EventSource connection failed for session session-1");
+    expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
+  });
+
   it("dispatches complete events", () => {
     const client = AgentClient.getInstance();
     const onComplete = vi.fn();
@@ -617,6 +680,18 @@ describe("AgentClient", () => {
       completion_tokens: 20,
       total_tokens: 30,
     });
+  });
+
+  it("dispatches cancelled events", () => {
+    const client = AgentClient.getInstance();
+    const onCancelled = vi.fn();
+
+    (client as any).handleEvent(
+      { type: "cancelled", message: "Agent execution cancelled by user" },
+      { onCancelled },
+    );
+
+    expect(onCancelled).toHaveBeenCalledWith("Agent execution cancelled by user");
   });
 
   it("dispatches error events with message field", () => {
@@ -884,40 +959,20 @@ describe("AgentClient", () => {
     expect(onTaskListItemProgress).not.toHaveBeenCalled();
   });
 
-  it("subscribeToEvents parses SSE token and DONE marker", async () => {
+  it("subscribeToEvents resolves on EventSource DONE marker", async () => {
     const client = AgentClient.getInstance();
     const onToken = vi.fn();
 
-    const chunks = [
-      new TextEncoder().encode('data: {"type":"token","content":"hello"}\n'),
-      new TextEncoder().encode("\n"),
-      new TextEncoder().encode("data: [DONE]\n\n"),
-    ];
-    let index = 0;
+    const pending = client.subscribeToEvents("session-1", { onToken });
 
-    const reader = {
-      read: vi.fn(async () => {
-        if (index < chunks.length) {
-          return { done: false, value: chunks[index++] };
-        }
-        return { done: true, value: undefined };
-      }),
-      releaseLock: vi.fn(),
-    };
+    expect(eventSourceInstances).toHaveLength(1);
+    eventSourceInstances[0]?.onmessage?.({
+      data: JSON.stringify({ type: "token", content: "hello" }),
+    } as MessageEvent<string>);
+    eventSourceInstances[0]?.onmessage?.({ data: "[DONE]" } as MessageEvent<string>);
 
-    fetchMock.mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      statusText: "OK",
-      headers: new Headers({ "content-type": "text/event-stream" }),
-      body: {
-        getReader: () => reader,
-      },
-    } as unknown as Response);
-
-    await client.subscribeToEvents("session-1", { onToken });
-
+    await expect(pending).resolves.toBeUndefined();
     expect(onToken).toHaveBeenCalledWith("hello");
-    expect(reader.releaseLock).toHaveBeenCalledTimes(1);
+    expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
   });
 });

@@ -71,4 +71,94 @@ describe("MessageInput", () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText("9,001 / 8,000")).toBeInTheDocument();
   });
+
+  it("shows a cancel button while input is locked even before tokens start streaming", () => {
+    const onCancel = vi.fn();
+
+    render(
+      <MessageInput
+        value="hello"
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        interaction={{
+          isStreaming: false,
+          isInputLocked: true,
+          hasMessages: true,
+          onCancel,
+        }}
+        allowImages={false}
+      />,
+    );
+
+    const cancelButton = screen.getByTestId("cancel-button");
+    expect(cancelButton).toBeEnabled();
+
+    fireEvent.click(cancelButton);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows cancel button when legacy running fallback is active while input is locked", () => {
+    render(
+      <MessageInput
+        value="hello"
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        interaction={{
+          isStreaming: false,
+          isInputLocked: true,
+          canCancel: true,
+          hasMessages: true,
+          onCancel: vi.fn(),
+        }}
+        allowImages={false}
+      />,
+    );
+
+    expect(screen.getByTestId("cancel-button")).toBeInTheDocument();
+  });
+
+  it("shows retry spinner while execution is locked even before visible token streaming starts", () => {
+    render(
+      <MessageInput
+        value="hello"
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        interaction={{
+          isStreaming: false,
+          isInputLocked: true,
+          hasMessages: true,
+          allowRetry: true,
+          onRetry: vi.fn(),
+          onCancel: vi.fn(),
+        }}
+        allowImages={false}
+      />,
+    );
+
+    const regenerateButton = screen.getByTestId("regenerate-button");
+    expect(regenerateButton.querySelector(".anticon-spin")).not.toBeNull();
+    expect(regenerateButton).toBeDisabled();
+  });
+
+  it("keeps send button disabled when input is locked but not cancellable", () => {
+    render(
+      <MessageInput
+        value="hello"
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        interaction={{
+          isStreaming: false,
+          isInputLocked: true,
+          canCancel: false,
+          hasMessages: true,
+          allowRetry: true,
+          onRetry: vi.fn(),
+        }}
+        allowImages={false}
+      />,
+    );
+
+    const sendButton = screen.getByTestId("send-button");
+    expect(sendButton).toBeDisabled();
+  });
 });

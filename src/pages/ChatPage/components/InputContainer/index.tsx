@@ -15,6 +15,7 @@ import InputPreview from "./InputPreview";
 import { useMessageStreaming } from "../../hooks/useChatManager/useMessageStreaming";
 import {
   selectSessionById,
+  selectIsStreaming,
   selectIsInputLocked,
   selectCanCancel,
   selectRespondMode,
@@ -201,8 +202,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const currentMessages = currentChat?.messages || [];
   const addMessage = useAppStore((state) => state.addMessage);
   const updateSession = useAppStore((state) => state.updateSession);
+  const isStreaming = useAppStore(selectIsStreaming(sessionId));
   const isInputLocked = useAppStore(selectIsInputLocked(sessionId));
-  const canCancel = useAppStore(selectCanCancel(sessionId));
+  const canCancelFromExecution = useAppStore(selectCanCancel(sessionId));
+  const canCancel = canCancelFromExecution || (currentChat?.isRunning === true && isInputLocked);
   const markRespondStart = useAppStore((state) => state.markRespondStart);
   const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
   const respondMode = useAppStore(selectRespondMode(sessionId));
@@ -283,8 +286,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [currentChat, sessionId, setInputReasoningEffort, updateSession],
   );
 
-  const isProcessing = isInputLocked;
-
   const {
     sendMessage,
     retryLastTurn,
@@ -357,7 +358,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     };
   }, [activeSessionId, sessionId, setReferenceTextPersisted]);
 
-  const isStreaming = isProcessing;
   // Use the global Ant App context message API to avoid mounting a per-pane
   // rc-notification container (which can cause update-depth loops in some layouts).
   const { message: messageApi } = AntApp.useApp();
@@ -1102,6 +1102,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
         interaction={{
           isStreaming,
+          isInputLocked,
           canCancel,
           hasMessages: currentMessages.some((m) => m.role === "user"),
           allowRetry: true,

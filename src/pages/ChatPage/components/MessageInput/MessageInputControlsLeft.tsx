@@ -7,7 +7,7 @@ import { useTranslation } from "react-i18next";
 interface MessageInputControlsLeftProps {
   allowImages: boolean;
   disabled: boolean;
-  isStreaming: boolean;
+  isInputLocked: boolean;
   token: GlobalToken;
   fileInputRef: React.RefObject<HTMLInputElement>;
   onFileInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -18,7 +18,7 @@ interface MessageInputControlsLeftProps {
 const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
   allowImages,
   disabled,
-  isStreaming,
+  isInputLocked,
   token,
   fileInputRef,
   onFileInputChange,
@@ -49,7 +49,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
             type="text"
             icon={<PlusOutlined />}
             onClick={() => fileInputRef.current?.click()}
-            disabled={disabled || isStreaming}
+            disabled={disabled || isInputLocked}
             size="small"
             style={{
               minWidth: 36,
@@ -69,7 +69,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
           type="text"
           icon={<FileTextOutlined />}
           onClick={onFileReferenceButtonClick}
-          disabled={disabled || isStreaming}
+          disabled={disabled || isInputLocked}
           size="small"
           style={{
             minWidth: 36,

@@ -24,8 +24,14 @@ import type { MessageRetryMode } from "./types";
 // ToolService import removed - no longer needed for tool validation
 
 export interface MessageInputInteractionControls {
+  /** True when the assistant is actively streaming visible output tokens. */
   isStreaming: boolean;
-  /** Whether the send button should show as a cancel button. Defaults to isStreaming. */
+  /**
+   * True when the current request is still active and the composer should behave as busy/locked,
+   * even if no tokens are currently streaming yet.
+   */
+  isInputLocked?: boolean;
+  /** Whether the send button should show as a cancel button. Defaults to isInputLocked. */
   canCancel?: boolean;
   hasMessages: boolean;
   allowRetry?: boolean;
@@ -85,6 +91,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const { t } = useTranslation();
   const {
     isStreaming,
+    isInputLocked = isStreaming,
     canCancel,
     hasMessages,
     allowRetry = true,
@@ -161,7 +168,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const { handleKeyDown, handleSubmit, handleRetry } = useMessageInputHandlers({
     value,
     images,
-    isStreaming,
+    isInputLocked,
     disabled,
     isWorkflowSelectorVisible,
     onChange,
@@ -260,7 +267,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               <MessageInputControlsLeft
                 allowImages={allowImages}
                 disabled={disabled}
-                isStreaming={isStreaming}
+                isInputLocked={isInputLocked}
                 token={token}
                 fileInputRef={fileInputRef}
                 onFileInputChange={handleFileInputChange}
@@ -274,6 +281,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
               allowRetry={allowRetry}
               hasMessages={hasMessages}
               isStreaming={isStreaming}
+              isInputLocked={isInputLocked}
               canCancel={canCancel}
               disabled={disabled}
               onRetry={handleRetry}
