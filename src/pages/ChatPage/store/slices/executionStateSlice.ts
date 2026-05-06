@@ -37,8 +37,8 @@ export type ExecutionReason =
   | "sse:tool_start"
   | "sse:tool_complete"
   | "sse:need_clarification"
-  | "sse:sub_session_started"
-  | "sse:sub_session_completed"
+  | "sse:sub_agent_started"
+  | "sse:sub_agent_completed"
   | "sse:complete"
   | "sse:error"
   | "sse:terminal_one_shot"
@@ -70,7 +70,7 @@ export interface SessionBackendSnapshot {
   syncedAt: string | null;
   /** Populated from SessionSummary.has_pending_question (or SSE need_clarification). */
   hasPendingQuestion: boolean | null;
-  /** Running child count from SessionSummary or sub_session events. */
+  /** Running child count from SessionSummary or sub_agent events. */
   runningChildCount: number | null;
 }
 
@@ -280,6 +280,66 @@ const appendReason = (reasons: ExecutionReason[], reason: ExecutionReason): Exec
 const truncatePreview = (text: string): string =>
   text.length <= TOOL_PREVIEW_MAX_CHARS ? text : text.slice(text.length - TOOL_PREVIEW_MAX_CHARS);
 
+const areStringArraysEqual = (left: readonly string[], right: readonly string[]): boolean =>
+  left.length === right.length && left.every((value, index) => value === right[index]);
+
+const pendingQuestionPayloadEquals = (
+  current:
+    | PendingQuestionPayload
+    | (PendingQuestionPayload & { receivedAt: string })
+    | (PendingQuestionPayload & { sessionId: string })
+    | null,
+  payload: PendingQuestionPayload,
+): boolean => {
+  if (!current) {
+    return false;
+  }
+  return (
+    current.question === payload.question &&
+    current.allowCustom === payload.allowCustom &&
+    current.toolCallId === payload.toolCallId &&
+    areStringArraysEqual(current.options, payload.options)
+  );
+};
+
+const applyPendingQuestionSnapshot = (
+  entry: SessionExecutionState,
+  sessionId: string,
+  payload: PendingQuestionPayload,
+  receivedAt: string,
+): SessionExecutionState => {
+  const pendingQuestion = pendingQuestionPayloadEquals(entry.interaction.pendingQuestion, payload)
+    ? entry.interaction.pendingQuestion
+    : { ...payload, receivedAt };
+  const respondMode =
+    entry.interaction.respondMode &&
+    entry.interaction.respondMode.sessionId === sessionId &&
+    pendingQuestionPayloadEquals(entry.interaction.respondMode, payload)
+      ? entry.interaction.respondMode
+      : { ...payload, sessionId };
+
+  if (
+    entry.phase === "waiting_user_answer" &&
+    entry.confidence === "live" &&
+    pendingQuestion === entry.interaction.pendingQuestion &&
+    respondMode === entry.interaction.respondMode
+  ) {
+    return entry;
+  }
+
+  return {
+    ...entry,
+    phase: "waiting_user_answer",
+    confidence: "live",
+    interaction: {
+      ...entry.interaction,
+      pendingQuestion,
+      respondMode,
+    },
+    activeReasons: appendReason(entry.activeReasons, "sse:need_clarification"),
+  };
+};
+
 /**
  * Side-state events (tokens, tool progress, child progress) do not override
  * these phases. The user must explicitly respond/approve, or a dedicated action
@@ -430,7 +490,7 @@ const applyToolEnd = (
   return reconcileActivePhase(intermediate);
 };
 
-const applySubSessionStart = (
+const applySubAgentStart = (
   entry: SessionExecutionState,
   childId: string,
   patch: Partial<ChildProgress>,
@@ -452,12 +512,12 @@ const applySubSessionStart = (
       byId: { ...entry.children.byId, [childId]: newProgress },
       runningCount: Math.max(0, entry.children.runningCount + runningDelta),
     },
-    activeReasons: appendReason(entry.activeReasons, "sse:sub_session_started"),
+    activeReasons: appendReason(entry.activeReasons, "sse:sub_agent_started"),
   };
   return reconcileActivePhase(intermediate);
 };
 
-const applySubSessionUpdate = (
+const applySubAgentUpdate = (
   entry: SessionExecutionState,
   childId: string,
   patch: Partial<ChildProgress>,
@@ -494,7 +554,7 @@ const applySubSessionUpdate = (
         settlingStartedAt:
           intermediate.timestamps.settlingStartedAt ?? intermediate.timestamps.terminalAt,
       },
-      activeReasons: appendReason(intermediate.activeReasons, "sse:sub_session_completed"),
+      activeReasons: appendReason(intermediate.activeReasons, "sse:sub_agent_completed"),
     };
   }
   return reconcileActivePhase(intermediate);
@@ -573,18 +633,18 @@ const applyAgentEventInner = (
     }
     case "tool_lifecycle":
       return entry;
-    case "sub_session_started": {
+    case "sub_agent_started": {
       const childId = event.child_session_id ?? "";
       if (!childId) {
         return entry;
       }
-      return applySubSessionStart(entry, childId, {
+      return applySubAgentStart(entry, childId, {
         title: event.title,
         status: "running",
       });
     }
-    case "sub_session_event":
-    case "sub_session_heartbeat": {
+    case "sub_agent_event":
+    case "sub_agent_heartbeat": {
       const childId = event.child_session_id ?? "";
       if (!childId) {
         return entry;
@@ -592,18 +652,18 @@ const applyAgentEventInner = (
       const patch: Partial<ChildProgress> = {
         lastEventAt: event.timestamp ?? now(),
       };
-      if (event.type === "sub_session_heartbeat") {
+      if (event.type === "sub_agent_heartbeat") {
         patch.lastHeartbeatAt = event.timestamp ?? now();
       }
-      return applySubSessionUpdate(entry, childId, patch);
+      return applySubAgentUpdate(entry, childId, patch);
     }
-    case "sub_session_completed": {
+    case "sub_agent_completed": {
       const childId = event.child_session_id ?? "";
       if (!childId) {
         return entry;
       }
       const status = typeof event.status === "string" ? event.status : "completed";
-      return applySubSessionUpdate(entry, childId, {
+      return applySubAgentUpdate(entry, childId, {
         status,
         error: event.error,
       });
@@ -615,18 +675,7 @@ const applyAgentEventInner = (
         allowCustom: event.allow_custom ?? false,
         toolCallId: event.tool_call_id ?? null,
       };
-      const receivedAt = now();
-      return {
-        ...entry,
-        phase: "waiting_user_answer",
-        confidence: "live",
-        interaction: {
-          ...entry.interaction,
-          pendingQuestion: { ...payload, receivedAt },
-          respondMode: { ...payload, sessionId: entry.sessionId },
-        },
-        activeReasons: appendReason(entry.activeReasons, "sse:need_clarification"),
-      };
+      return applyPendingQuestionSnapshot(entry, entry.sessionId, payload, now());
     }
     case "execution_started": {
       const runId = event.run_id;
@@ -1100,8 +1149,8 @@ export const applyExecutionEvent = (
       const entry = ensureEntry(map, action.sessionId);
       const isFirstSeen = !(action.childId in entry.children.byId);
       const next = isFirstSeen
-        ? applySubSessionStart(entry, action.childId, action.patch)
-        : applySubSessionUpdate(entry, action.childId, action.patch);
+        ? applySubAgentStart(entry, action.childId, action.patch)
+        : applySubAgentUpdate(entry, action.childId, action.patch);
       if (next === entry) {
         return map;
       }
@@ -1117,18 +1166,10 @@ export const applyExecutionEvent = (
     }
     case "setPendingQuestion": {
       const entry = ensureEntry(map, action.sessionId);
-      const receivedAt = now();
-      const next: SessionExecutionState = {
-        ...entry,
-        phase: "waiting_user_answer",
-        confidence: "live",
-        interaction: {
-          ...entry.interaction,
-          pendingQuestion: { ...action.payload, receivedAt },
-          respondMode: { ...action.payload, sessionId: action.sessionId },
-        },
-        activeReasons: appendReason(entry.activeReasons, "sse:need_clarification"),
-      };
+      const next = applyPendingQuestionSnapshot(entry, action.sessionId, action.payload, now());
+      if (next === entry) {
+        return map;
+      }
       return writeEntry(map, action.sessionId, next);
     }
     case "clearPendingQuestion": {
@@ -1235,7 +1276,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "ensureSession", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1247,7 +1288,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "markOptimisticStart", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1259,7 +1300,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "markRespondStart", sessionId, toolCallId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1271,7 +1312,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "markRetryStart", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1283,7 +1324,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "markForceSubscribe", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1295,7 +1336,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "markCancel", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1307,7 +1348,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "markSettleTimeout", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1319,7 +1360,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "applyAgentEvent", sessionId, event, generation },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1331,7 +1372,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "applyExecutionStarted", sessionId, runId, generation },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1343,7 +1384,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "applySessionSummary", sessionId, summary },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1355,7 +1396,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "applyOneShotTerminal", sessionId, generation, payload },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1367,7 +1408,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "beginSettle", sessionId, generation },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1379,7 +1420,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "applyChildProgress", sessionId, childId, patch },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1391,7 +1432,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "clearChildProgress", sessionId, childId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1403,7 +1444,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "setPendingQuestion", sessionId, payload },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1415,7 +1456,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "clearPendingQuestion", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1427,7 +1468,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "resetSession", sessionId },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },
@@ -1457,7 +1498,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
         { type: "applyRunningSnapshot", sessions: partitioned },
         sliceNow,
       );
-      if (next === state.executionBySession) return {};
+      if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
   },

@@ -240,7 +240,7 @@ const initializeStore = async (force: boolean = false) => {
     // Keep a low-frequency self-healing session-index sync running alongside
     // event-driven updates. This is intentionally much less frequent than the
     // old 2-second polling loop, but it helps recover from missed SSE windows,
-    // reconnect gaps, and late task/sub-session state propagation.
+    // reconnect gaps, and late task/sub-agent state propagation.
     useAppStore.getState().startSessionsIndexSync();
   }
 

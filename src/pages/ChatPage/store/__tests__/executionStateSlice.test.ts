@@ -1,14 +1,18 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { AgentEvent, SessionSummary } from "../../services/AgentService";
 import {
   applyExecutionEvent,
+  createExecutionStateSlice,
   createInitialExecutionState,
   isBusyPhase,
   isInputLockedPhase,
   isCancellablePhase,
   type ExecutionMap,
   type ExecutionPhase,
+  type ExecutionStateSlice,
 } from "../slices/executionStateSlice";
 
 // =============================================================================
@@ -33,12 +37,34 @@ const seedIdle = (sessionId: string = SESSION): ExecutionMap => ({
   [sessionId]: createInitialExecutionState(sessionId),
 });
 
+describe("executionStateSlice — Zustand no-op notifications", () => {
+  it("does not notify subscribers when an action resolves to a reducer no-op", () => {
+    const store = createExecutionTestStore();
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+
+    store.getState().markSettleTimeout(SESSION);
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
+});
+
 const startSession = (sessionId: string = SESSION): ExecutionMap => {
   return applyExecutionEvent(
     seedIdle(sessionId),
     { type: "markOptimisticStart", sessionId },
     fixedNow(T0),
   );
+};
+
+const createExecutionTestStore = (): StoreApi<ExecutionStateSlice> => {
+  const sliceCreator = createExecutionStateSlice as unknown as (
+    set: StoreApi<ExecutionStateSlice>["setState"],
+    get: StoreApi<ExecutionStateSlice>["getState"],
+    api: StoreApi<ExecutionStateSlice>,
+  ) => ExecutionStateSlice;
+  return createStore<ExecutionStateSlice>()((set, get, api) => sliceCreator(set, get, api));
 };
 
 const summary = (overrides: Partial<SessionSummary> = {}): SessionSummary =>
@@ -211,7 +237,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(map[SESSION].phase).toBe<ExecutionPhase>("running");
   });
 
-  it("streaming + sub_session_started → running_children with runningCount=1", () => {
+  it("streaming + sub_agent_started → running_children with runningCount=1", () => {
     // §E.1.6
     let map = startSession();
     map = applyExecutionEvent(
@@ -221,7 +247,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     );
 
     const sub: AgentEvent = {
-      type: "sub_session_started",
+      type: "sub_agent_started",
       child_session_id: "child-1",
       title: "Child",
     };
@@ -238,7 +264,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.children.byId["child-1"].status).toBe("running");
   });
 
-  it("running_children + sub_session_completed → returns to streaming when tokens still flowing", () => {
+  it("running_children + sub_agent_completed → returns to streaming when tokens still flowing", () => {
     // §E.1.7
     let map = startSession();
     map = applyExecutionEvent(
@@ -251,7 +277,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
       {
         type: "applyAgentEvent",
         sessionId: SESSION,
-        event: { type: "sub_session_started", child_session_id: "child-1" },
+        event: { type: "sub_agent_started", child_session_id: "child-1" },
         generation: 1,
       },
       fixedNow(T2),
@@ -263,7 +289,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
         type: "applyAgentEvent",
         sessionId: SESSION,
         event: {
-          type: "sub_session_completed",
+          type: "sub_agent_completed",
           child_session_id: "child-1",
           status: "completed",
         },
@@ -331,6 +357,35 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.interaction.pendingQuestion).toBeNull();
     expect(entry.interaction.respondMode).toBeNull();
     expect(entry.activeReasons).toContain("optimistic:respond");
+  });
+
+  it("duplicate setPendingQuestion payload is idempotent even with a fresh options array", () => {
+    let map = seedIdle();
+    const payload = {
+      question: "Which file?",
+      options: ["a.ts", "b.ts"],
+      allowCustom: true,
+      toolCallId: "ask-1",
+    };
+
+    map = applyExecutionEvent(
+      map,
+      { type: "setPendingQuestion", sessionId: SESSION, payload },
+      fixedNow(T1),
+    );
+
+    const next = applyExecutionEvent(
+      map,
+      {
+        type: "setPendingQuestion",
+        sessionId: SESSION,
+        payload: { ...payload, options: [...payload.options] },
+      },
+      fixedNow(T2),
+    );
+
+    expect(next).toBe(map);
+    expect(next[SESSION].interaction.pendingQuestion?.receivedAt).toBe(T1);
   });
 
   it("streaming + complete → settling with terminalAt populated", () => {
@@ -757,7 +812,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
             sessionId: SESSION,
             runId: "run-snap-1",
             criticalEvents: [
-              { type: "sub_session_started", child_session_id: "child-1", title: "Child" },
+              { type: "sub_agent_started", child_session_id: "child-1", title: "Child" },
             ],
           },
         ],
