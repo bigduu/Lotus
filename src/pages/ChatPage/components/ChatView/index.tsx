@@ -28,7 +28,7 @@ import { ChatMessagesList } from "./ChatMessagesList";
 import { TodoList } from "@components/TodoList";
 import { QuestionDialog } from "@components/QuestionDialog";
 import { TokenUsageDisplay } from "../TokenUsageDisplay";
-import { SubSessionsPanel } from "./SubSessionsPanel";
+import { SubAgentsPanel } from "./SubAgentsPanel";
 import { ContextBar } from "../ContextBar";
 import { SessionSummaryCard } from "../SessionSummaryCard";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
@@ -124,7 +124,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
     if (isBusy) return true;
     return false;
   }, [currentChat, hasTaskList, sessionId, isBusy]);
-  const hasSubSessions = useAppStore((state) => {
+  const hasSubAgents = useAppStore((state) => {
     if (!sessionId) return false;
     const children = selectChildren(sessionId)(state);
     if (Object.keys(children).length > 0) return true;
@@ -691,7 +691,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         )}
 
-        {sessionId && hasSubSessions && (
+        {sessionId && hasSubAgents && (
           <div
             style={{
               paddingTop: token.paddingXS,
@@ -703,7 +703,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <SubSessionsPanel parentSessionId={sessionId} />
+            <SubAgentsPanel parentSessionId={sessionId} />
           </div>
         )}
 

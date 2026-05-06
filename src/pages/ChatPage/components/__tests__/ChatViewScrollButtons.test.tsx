@@ -7,7 +7,7 @@ const mockStoreState: any = {
   deleteMessage: vi.fn(),
   updateSession: vi.fn(),
   loadChatHistory: vi.fn(),
-  subSessionsByParent: {},
+  subAgentsByParent: {},
   selectSession: vi.fn(),
   setSessionProcessing: vi.fn(),
   isSessionProcessing: vi.fn(() => false),
@@ -69,8 +69,8 @@ vi.mock("../ChatView/ChatInputArea", () => ({
   ChatInputArea: () => <div data-testid="chat-input-area" />,
 }));
 
-vi.mock("../ChatView/SubSessionsPanel", () => ({
-  SubSessionsPanel: () => null,
+vi.mock("../ChatView/SubAgentsPanel", () => ({
+  SubAgentsPanel: () => null,
 }));
 
 vi.mock("@components/QuestionDialog", () => ({

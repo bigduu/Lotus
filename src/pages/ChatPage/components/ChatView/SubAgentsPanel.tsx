@@ -11,11 +11,11 @@ import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
 
 const { Text } = Typography;
 const { useToken } = theme;
-const SUB_SESSIONS_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-sub-sessions-collapsed:";
+const SUB_AGENTS_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-sub-agents-collapsed:";
 const AUTO_COLLAPSE_CHILD_THRESHOLD = 3;
-const SUB_SESSIONS_LIST_MAX_HEIGHT_PX = 600;
+const SUB_AGENTS_LIST_MAX_HEIGHT_PX = 600;
 
-const normalizeSubSessionStatus = (status?: string): string => {
+const normalizeSubAgentStatus = (status?: string): string => {
   const value = (status || "").trim().toLowerCase();
   if (!value) return "pending";
   if (value === "started" || value === "already_running") return "running";
@@ -48,13 +48,13 @@ const deriveFallbackStatus = (
   return "pending";
 };
 
-const getSubSessionsCollapseStorageKey = (parentSessionId: string) =>
-  `${SUB_SESSIONS_COLLAPSE_STORAGE_KEY_PREFIX}${parentSessionId}`;
+const getSubAgentsCollapseStorageKey = (parentSessionId: string) =>
+  `${SUB_AGENTS_COLLAPSE_STORAGE_KEY_PREFIX}${parentSessionId}`;
 
 const readCollapsedState = (parentSessionId: string): boolean | null => {
   if (typeof window === "undefined") return false;
   try {
-    const raw = window.localStorage.getItem(getSubSessionsCollapseStorageKey(parentSessionId));
+    const raw = window.localStorage.getItem(getSubAgentsCollapseStorageKey(parentSessionId));
     if (raw === "1") return true;
     if (raw === "0") return false;
     return null;
@@ -67,19 +67,19 @@ const persistCollapsedState = (parentSessionId: string, isCollapsed: boolean) =>
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(
-      getSubSessionsCollapseStorageKey(parentSessionId),
+      getSubAgentsCollapseStorageKey(parentSessionId),
       isCollapsed ? "1" : "0",
     );
   } catch {}
 };
 
-export interface SubSessionsPanelProps {
+export interface SubAgentsPanelProps {
   parentSessionId: string;
 }
 
-type SubSessionRetryMode = "regenerate" | "error_retry";
+type SubAgentRetryMode = "regenerate" | "error_retry";
 
-export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessionId }) => {
+export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({ parentSessionId }) => {
   const { t } = useTranslation();
   const { token } = useToken();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(
@@ -150,7 +150,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       out.push({
         childSessionId: child.id,
         title: child.title || p?.title,
-        status: normalizeSubSessionStatus(deriveFallbackStatus(child, p?.status)),
+        status: normalizeSubAgentStatus(deriveFallbackStatus(child, p?.status)),
         error: p?.error || child.lastRunError,
         lastHeartbeatAt: p?.lastHeartbeatAt,
         lastEventAt: p?.lastEventAt,
@@ -172,7 +172,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       out.push({
         childSessionId: p.childSessionId,
         title: p.title,
-        status: normalizeSubSessionStatus(p.status),
+        status: normalizeSubAgentStatus(p.status),
         error: p.error,
         lastHeartbeatAt: p.lastHeartbeatAt,
         lastEventAt: p.lastEventAt,
@@ -210,7 +210,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
   }, []);
 
   const runChildSession = useCallback(
-    async (childSessionId: string, retryMode: SubSessionRetryMode = "regenerate") => {
+    async (childSessionId: string, retryMode: SubAgentRetryMode = "regenerate") => {
       setRetryingChildId(childSessionId);
       applyChildProgress(parentSessionId, childSessionId, {
         status: "running",
@@ -221,7 +221,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
 
       try {
         const executeResult = await toolService.executeTool({
-          tool_name: "SubSession",
+          tool_name: "SubAgent",
           session_id: parentSessionId,
           parameters: [
             { name: "action", value: "run" },
@@ -234,7 +234,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         });
 
         if (!executeResult.success) {
-          throw new Error(executeResult.result || "Failed to run child session");
+          throw new Error(executeResult.result || "Failed to run sub-agent");
         }
 
         applyChildProgress(parentSessionId, childSessionId, {
@@ -272,7 +272,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       if (!promptFn) return;
 
       const followUp = promptFn(
-        "Send a follow-up message to this child session:",
+        "Send a follow-up message to this sub-agent:",
         "Continue from where you left off.",
       );
       if (followUp === null) return;
@@ -297,7 +297,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
 
       try {
         const executeResult = await toolService.executeTool({
-          tool_name: "SubSession",
+          tool_name: "SubAgent",
           session_id: parentSessionId,
           parameters: [
             { name: "action", value: "send_message" },
@@ -351,7 +351,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       setDeletingChildId(childSessionId);
       try {
         const deleteResult = await toolService.executeTool({
-          tool_name: "SubSession",
+          tool_name: "SubAgent",
           session_id: parentSessionId,
           parameters: [
             { name: "action", value: "delete" },
@@ -360,7 +360,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         });
 
         if (!deleteResult.success) {
-          throw new Error(deleteResult.result || "Failed to delete child session");
+          throw new Error(deleteResult.result || "Failed to delete sub-agent");
         }
 
         clearChildProgress(parentSessionId, childSessionId);
@@ -379,10 +379,10 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
       size="small"
       className="lotus-settings-card"
       style={{ marginBottom: token.marginMD }}
-      data-testid="sub-sessions-panel"
+      data-testid="sub-agents-panel"
       title={
         <Text strong>
-          {t("chat.subSessions.title")} <Text type="secondary">({mergedItems.length})</Text>
+          {t("chat.subAgents.title")} <Text type="secondary">({mergedItems.length})</Text>
         </Text>
       }
       extra={
@@ -391,9 +391,9 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           size="small"
           icon={isCollapsed ? <DownOutlined /> : <UpOutlined />}
           onClick={toggleCollapsed}
-          data-testid="sub-sessions-toggle"
+          data-testid="sub-agents-toggle"
         >
-          {isCollapsed ? t("chat.subSessions.expand") : t("chat.subSessions.collapse")}
+          {isCollapsed ? t("chat.subAgents.expand") : t("chat.subAgents.collapse")}
         </Button>
       }
     >
@@ -401,15 +401,15 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
         <Flex
           vertical
           gap={token.marginSM}
-          data-testid="sub-sessions-list"
+          data-testid="sub-agents-list"
           style={{
-            maxHeight: `${SUB_SESSIONS_LIST_MAX_HEIGHT_PX}px`,
+            maxHeight: `${SUB_AGENTS_LIST_MAX_HEIGHT_PX}px`,
             overflowY: "auto",
             paddingRight: token.paddingXS,
           }}
         >
           {mergedItems.map((it) => {
-            const status = normalizeSubSessionStatus(it.status);
+            const status = normalizeSubAgentStatus(it.status);
             const isRunning = status === "running";
             const isRetrying = retryingChildId === it.childSessionId;
             const isContinuing = continuingChildId === it.childSessionId;
@@ -431,7 +431,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                 <Flex vertical style={{ flex: 1, minWidth: 0 }}>
                   <Flex align="center" gap={token.marginXS} style={{ minWidth: 0 }}>
                     <Text strong ellipsis style={{ minWidth: 0 }}>
-                      {it.title || "Child Session"}
+                      {it.title || "Sub-agent"}
                     </Text>
                     <Tag
                       color={
@@ -490,18 +490,18 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                       void loadChatHistory(it.childSessionId);
                     }}
                   >
-                    {t("chat.subSessions.open")}
+                    {t("chat.subAgents.open")}
                   </Button>
                   <Button
                     size="small"
                     loading={isContinuing}
                     disabled={isDeleting || isRetrying || isRunning}
-                    data-testid={`sub-session-continue-${it.childSessionId}`}
+                    data-testid={`sub-agent-continue-${it.childSessionId}`}
                     onClick={() => {
                       void continueChildSession(it.childSessionId);
                     }}
                   >
-                    {t("chat.subSessions.continue")}
+                    {t("chat.subAgents.continue")}
                   </Button>
                   <Dropdown
                     trigger={["click"]}
@@ -517,7 +517,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                         },
                       ],
                       onClick: ({ key }) => {
-                        void runChildSession(it.childSessionId, key as SubSessionRetryMode);
+                        void runChildSession(it.childSessionId, key as SubAgentRetryMode);
                       },
                     }}
                     disabled={isDeleting || isRunning || isContinuing}
@@ -526,9 +526,9 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                       size="small"
                       loading={isRetrying}
                       disabled={isDeleting || isRunning || isContinuing}
-                      data-testid={`sub-session-retry-${it.childSessionId}`}
+                      data-testid={`sub-agent-retry-${it.childSessionId}`}
                     >
-                      {t("chat.subSessions.retry")}
+                      {t("chat.subAgents.retry")}
                     </Button>
                   </Dropdown>
                   {typeof it.pinned === "boolean" ? (
@@ -548,7 +548,7 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
                     size="small"
                     loading={isDeleting}
                     disabled={isRetrying}
-                    data-testid={`sub-session-delete-${it.childSessionId}`}
+                    data-testid={`sub-agent-delete-${it.childSessionId}`}
                     onClick={() => {
                       void removeChildSession(it.childSessionId);
                     }}
@@ -561,21 +561,21 @@ export const SubSessionsPanel: React.FC<SubSessionsPanelProps> = ({ parentSessio
           })}
         </Flex>
       ) : (
-        <Text type="secondary" data-testid="sub-sessions-collapsed-hint">
-          {t("chat.subSessions.hiddenHint", { count: mergedItems.length })}
+        <Text type="secondary" data-testid="sub-agents-collapsed-hint">
+          {t("chat.subAgents.hiddenHint", { count: mergedItems.length })}
         </Text>
       )}
-      {!isCollapsed && mergedItems.length > 1 && <SubSessionsSummaryFooter items={mergedItems} />}
+      {!isCollapsed && mergedItems.length > 1 && <SubAgentsSummaryFooter items={mergedItems} />}
     </Card>
   );
 };
 
-/** Compact summary of child session statuses. */
-const SubSessionsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> = ({ items }) => {
+/** Compact summary of sub-agent statuses. */
+const SubAgentsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> = ({ items }) => {
   const { token } = useToken();
   const counts = items.reduce(
     (acc, it) => {
-      const s = normalizeSubSessionStatus(it.status);
+      const s = normalizeSubAgentStatus(it.status);
       if (s === "completed") acc.completed++;
       else if (s === "running") acc.running++;
       else if (s === "error" || s === "failed") acc.error++;

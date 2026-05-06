@@ -33,7 +33,7 @@ export const renderSubagentTypeTag = (
     <Tag
       color={color}
       style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
-      data-testid={`sub-session-role-tag-${id}`}
+      data-testid={`sub-agent-role-tag-${id}`}
     >
       {icon ? `${icon} ${label}` : label}
     </Tag>

@@ -1,6 +1,6 @@
 /**
  * Unit tests for the `renderSubagentTypeTag` helper used by
- * `SubSessionsPanel` to render a child's subagent role tag.
+ * `SubAgentsPanel` to render a child's subagent role tag.
  *
  * The helper resolves a child's `subagent_type` (a stable id like "plan")
  * against the SubagentProfile catalogue and falls back gracefully when
@@ -43,7 +43,7 @@ describe("renderSubagentTypeTag", () => {
     const byId = buildCatalogue(planProfile);
     const node = renderSubagentTypeTag("plan", byId);
     const { container } = render(<>{node}</>);
-    const tag = container.querySelector('[data-testid="sub-session-role-tag-plan"]');
+    const tag = container.querySelector('[data-testid="sub-agent-role-tag-plan"]');
     expect(tag).not.toBeNull();
     expect(tag?.textContent).toContain("Plan");
     expect(tag?.textContent).toContain("🗺️");
@@ -53,7 +53,7 @@ describe("renderSubagentTypeTag", () => {
     const byId = buildCatalogue(planProfile);
     const node = renderSubagentTypeTag("researcher", byId);
     const { container } = render(<>{node}</>);
-    const tag = container.querySelector('[data-testid="sub-session-role-tag-researcher"]');
+    const tag = container.querySelector('[data-testid="sub-agent-role-tag-researcher"]');
     expect(tag).not.toBeNull();
     expect(tag?.textContent).toBe("researcher");
   });
@@ -62,7 +62,7 @@ describe("renderSubagentTypeTag", () => {
     const byId = buildCatalogue(noUiProfile);
     const node = renderSubagentTypeTag("minimal", byId);
     const { container } = render(<>{node}</>);
-    const tag = container.querySelector('[data-testid="sub-session-role-tag-minimal"]');
+    const tag = container.querySelector('[data-testid="sub-agent-role-tag-minimal"]');
     expect(tag).not.toBeNull();
     // No icon prefix; just the display_name.
     expect(tag?.textContent).toBe("Minimal");
@@ -72,7 +72,7 @@ describe("renderSubagentTypeTag", () => {
     const byId = buildCatalogue(planProfile);
     const node = renderSubagentTypeTag("  plan  ", byId);
     const { container } = render(<>{node}</>);
-    const tag = container.querySelector('[data-testid="sub-session-role-tag-plan"]');
+    const tag = container.querySelector('[data-testid="sub-agent-role-tag-plan"]');
     expect(tag).not.toBeNull();
     expect(tag?.textContent).toContain("Plan");
   });

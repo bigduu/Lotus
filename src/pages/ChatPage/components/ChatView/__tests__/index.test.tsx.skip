@@ -45,8 +45,8 @@ vi.mock("../ChatMessagesList", () => ({
   ChatMessagesList: vi.fn(() => <div data-testid="chat-messages-list">Messages</div>),
 }));
 
-vi.mock("../SubSessionsPanel", () => ({
-  SubSessionsPanel: vi.fn(() => <div data-testid="sub-sessions-panel">SubSessions</div>),
+vi.mock("../SubAgentsPanel", () => ({
+  SubAgentsPanel: vi.fn(() => <div data-testid="sub-agents-panel">SubAgents</div>),
 }));
 
 vi.mock("@components/TodoList", () => ({
@@ -120,7 +120,7 @@ describe("ChatView", () => {
           deleteMessage: vi.fn(),
           loadChatHistory: vi.fn(),
           taskLists: {},
-          subSessionsByParent: {},
+          subAgentsByParent: {},
           chats: [mockChat],
           agentAvailability: null,
           models: [],
@@ -138,7 +138,7 @@ describe("ChatView", () => {
         deleteMessage: vi.fn(),
         loadChatHistory: vi.fn(),
         taskLists: {},
-        subSessionsByParent: {},
+        subAgentsByParent: {},
         chats: [mockChat],
         agentAvailability: null,
         models: [],
@@ -228,7 +228,7 @@ describe("ChatView", () => {
             deleteMessage: vi.fn(),
             loadChatHistory: vi.fn(),
             taskLists: {},
-            subSessionsByParent: {},
+            subAgentsByParent: {},
             chats: [mockChat],
           };
           return selector(state as any);
@@ -241,7 +241,7 @@ describe("ChatView", () => {
           deleteMessage: vi.fn(),
           loadChatHistory: vi.fn(),
           taskLists: {},
-          subSessionsByParent: {},
+          subAgentsByParent: {},
           chats: [mockChat],
         };
       });
@@ -262,7 +262,7 @@ describe("ChatView", () => {
             deleteMessage: vi.fn(),
             loadChatHistory: vi.fn(),
             taskLists: {},
-            subSessionsByParent: {},
+            subAgentsByParent: {},
             chats: [mockChat],
           };
           return selector(state as any);
@@ -275,7 +275,7 @@ describe("ChatView", () => {
           deleteMessage: vi.fn(),
           loadChatHistory: vi.fn(),
           taskLists: {},
-          subSessionsByParent: {},
+          subAgentsByParent: {},
           chats: [mockChat],
         };
       });
@@ -312,7 +312,7 @@ describe("ChatView", () => {
             deleteMessage: vi.fn(),
             loadChatHistory: vi.fn(),
             taskLists: { "session-1": [] },
-            subSessionsByParent: {},
+            subAgentsByParent: {},
             chats: [mockChat],
           };
           return selector(state as any);
@@ -325,7 +325,7 @@ describe("ChatView", () => {
           deleteMessage: vi.fn(),
           loadChatHistory: vi.fn(),
           taskLists: { "session-1": [] },
-          subSessionsByParent: {},
+          subAgentsByParent: {},
           chats: [mockChat],
         };
       });
@@ -346,7 +346,7 @@ describe("ChatView", () => {
             deleteMessage: vi.fn(),
             loadChatHistory: vi.fn(),
             taskLists: {},
-            subSessionsByParent: {},
+            subAgentsByParent: {},
             chats: [mockChat],
           };
           return selector(state as any);
@@ -359,7 +359,7 @@ describe("ChatView", () => {
           deleteMessage: vi.fn(),
           loadChatHistory: vi.fn(),
           taskLists: {},
-          subSessionsByParent: {},
+          subAgentsByParent: {},
           chats: [mockChat],
         };
       });
@@ -370,8 +370,8 @@ describe("ChatView", () => {
     });
   });
 
-  describe("sub sessions", () => {
-    it("should show sub sessions panel when sub sessions exist", () => {
+  describe("sub agents", () => {
+    it("should show sub agents panel when sub agents exist", () => {
       vi.mocked(useAppStore).mockImplementation((selector) => {
         if (typeof selector === "function") {
           const state = {
@@ -382,7 +382,7 @@ describe("ChatView", () => {
             deleteMessage: vi.fn(),
             loadChatHistory: vi.fn(),
             taskLists: {},
-            subSessionsByParent: {
+            subAgentsByParent: {
               "session-1": { "sub-1": { progress: 50 } },
             },
             chats: [mockChat],
@@ -397,7 +397,7 @@ describe("ChatView", () => {
           deleteMessage: vi.fn(),
           loadChatHistory: vi.fn(),
           taskLists: {},
-          subSessionsByParent: {
+          subAgentsByParent: {
             "session-1": { "sub-1": { progress: 50 } },
           },
           chats: [mockChat],
@@ -406,10 +406,10 @@ describe("ChatView", () => {
 
       render(<ChatView sessionId="session-1" />);
 
-      expect(screen.getByTestId("sub-sessions-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("sub-agents-panel")).toBeInTheDocument();
     });
 
-    it("should not show sub sessions panel when no sub sessions", () => {
+    it("should not show sub agents panel when no sub agents", () => {
       vi.mocked(useAppStore).mockImplementation((selector) => {
         if (typeof selector === "function") {
           const state = {
@@ -420,7 +420,7 @@ describe("ChatView", () => {
             deleteMessage: vi.fn(),
             loadChatHistory: vi.fn(),
             taskLists: {},
-            subSessionsByParent: {},
+            subAgentsByParent: {},
             chats: [mockChat],
           };
           return selector(state as any);
@@ -433,14 +433,14 @@ describe("ChatView", () => {
           deleteMessage: vi.fn(),
           loadChatHistory: vi.fn(),
           taskLists: {},
-          subSessionsByParent: {},
+          subAgentsByParent: {},
           chats: [mockChat],
         };
       });
 
       render(<ChatView sessionId="session-1" />);
 
-      expect(screen.queryByTestId("sub-sessions-panel")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("sub-agents-panel")).not.toBeInTheDocument();
     });
   });
 

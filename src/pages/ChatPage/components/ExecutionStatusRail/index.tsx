@@ -67,7 +67,7 @@ const STATUS_CONFIGS: Record<ExecutionState, StatusConfig> = {
     icon: <SyncOutlined spin />,
     color: "processing",
     labelKey: "chat.statusRail.runningChildren",
-    fallbackLabel: "Running sub-sessions…",
+    fallbackLabel: "Running sub-agents…",
     animate: true,
   },
   completed: {
@@ -159,7 +159,7 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
             title={t("chat.statusRail.childrenTooltip", {
               running: model.runningChildCount,
               total: model.runningChildCount,
-              defaultValue: "{{running}} running sub-sessions",
+              defaultValue: "{{running}} running sub-agents",
             })}
           >
             <Tag bordered={false} className="lotus-execution-rail__detail-tag">

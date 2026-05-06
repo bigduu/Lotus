@@ -1,10 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SubSessionsPanel } from "./SubSessionsPanel";
+import { SubAgentsPanel } from "./SubAgentsPanel";
 
 const PARENT_SESSION_ID = "parent-session-1";
-const COLLAPSE_STORAGE_KEY = `chat-session-sub-sessions-collapsed:${PARENT_SESSION_ID}`;
+const COLLAPSE_STORAGE_KEY = `chat-session-sub-agents-collapsed:${PARENT_SESSION_ID}`;
 
 const mockStoreState: any = {
   executionBySession: {},
@@ -56,7 +56,7 @@ vi.mock("../../hooks/useActiveModel", () => ({
   useActiveModel: () => mockUseActiveModel(),
 }));
 
-describe("SubSessionsPanel", () => {
+describe("SubAgentsPanel", () => {
   beforeEach(() => {
     localStorage.clear();
     mockStoreState.loadChatHistory.mockReset();
@@ -86,7 +86,7 @@ describe("SubSessionsPanel", () => {
     });
     mockToolService.executeTool.mockReset();
     mockToolService.executeTool.mockResolvedValue({
-      tool_name: "SubSession",
+      tool_name: "SubAgent",
       success: true,
       result: JSON.stringify({
         child_session_id: "child-session-1",
@@ -205,56 +205,56 @@ describe("SubSessionsPanel", () => {
   };
 
   it("renders expanded by default", () => {
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.getByTestId("sub-sessions-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-list")).toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Collapse");
+    expect(screen.getByTestId("sub-agents-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-list")).toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Collapse");
   });
 
   it("applies max height and vertical scroll to expanded list", () => {
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.getByTestId("sub-sessions-list")).toHaveStyle({
+    expect(screen.getByTestId("sub-agents-list")).toHaveStyle({
       maxHeight: "600px",
       overflowY: "auto",
     });
   });
 
   it("can collapse and restore collapsed state from localStorage", () => {
-    const { unmount } = render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    const { unmount } = render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    fireEvent.click(screen.getByTestId("sub-sessions-toggle"));
+    fireEvent.click(screen.getByTestId("sub-agents-toggle"));
 
-    expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-collapsed-hint")).toBeInTheDocument();
+    expect(screen.queryByTestId("sub-agents-list")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-collapsed-hint")).toBeInTheDocument();
     expect(localStorage.getItem(COLLAPSE_STORAGE_KEY)).toBe("1");
 
     unmount();
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Expand");
+    expect(screen.queryByTestId("sub-agents-list")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Expand");
   });
 
   it("auto-collapses when child sessions exceed threshold and no preference is saved", () => {
     setChildrenCount(4);
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.queryByTestId("sub-sessions-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Expand");
+    expect(screen.queryByTestId("sub-agents-list")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Expand");
   });
 
   it("respects persisted expanded preference even when child sessions exceed threshold", () => {
     setChildrenCount(4);
     localStorage.setItem(COLLAPSE_STORAGE_KEY, "0");
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.getByTestId("sub-sessions-list")).toBeInTheDocument();
-    expect(screen.getByTestId("sub-sessions-toggle")).toHaveTextContent("Collapse");
+    expect(screen.getByTestId("sub-agents-list")).toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Collapse");
   });
 
   it("renders nothing when no child sessions exist", () => {
@@ -290,9 +290,9 @@ describe("SubSessionsPanel", () => {
     };
     mockStoreState.chats = [];
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.queryByTestId("sub-sessions-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("sub-agents-panel")).not.toBeInTheDocument();
   });
 
   it("falls back to running status from persisted child session when progress entry is missing", () => {
@@ -339,7 +339,7 @@ describe("SubSessionsPanel", () => {
       },
     ];
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     // Status is shown as a Tag with just the status text
     expect(screen.getByText("running")).toBeInTheDocument();
@@ -352,7 +352,7 @@ describe("SubSessionsPanel", () => {
       roundCount: 0,
     };
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByText(/round 1/)).toBeInTheDocument();
   });
@@ -364,7 +364,7 @@ describe("SubSessionsPanel", () => {
       roundCount: 1,
     };
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByText(/round 2/)).toBeInTheDocument();
   });
@@ -375,7 +375,7 @@ describe("SubSessionsPanel", () => {
       status: "running",
     };
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.queryByText(/round \d/)).not.toBeInTheDocument();
   });
@@ -425,7 +425,7 @@ describe("SubSessionsPanel", () => {
       },
     ];
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByText("completed")).toBeInTheDocument();
   });
@@ -480,7 +480,7 @@ describe("SubSessionsPanel", () => {
       },
     ];
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByText("running")).toBeInTheDocument();
   });
@@ -529,12 +529,12 @@ describe("SubSessionsPanel", () => {
       },
     ];
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     expect(screen.getByText("pending")).toBeInTheDocument();
   });
 
-  it("retries existing child session in place through SubSession", async () => {
+  it("retries existing child session in place through SubAgent", async () => {
     mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
         sessionId: PARENT_SESSION_ID,
@@ -573,9 +573,9 @@ describe("SubSessionsPanel", () => {
         error: null,
       },
     };
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+    fireEvent.click(screen.getByTestId("sub-agent-retry-child-session-1"));
     await waitFor(() => {
       expect(screen.getByText("Regenerate response")).toBeInTheDocument();
     });
@@ -583,7 +583,7 @@ describe("SubSessionsPanel", () => {
 
     await waitFor(() => {
       expect(mockToolService.executeTool).toHaveBeenCalledWith({
-        tool_name: "SubSession",
+        tool_name: "SubAgent",
         session_id: PARENT_SESSION_ID,
         parameters: [
           { name: "action", value: "run" },
@@ -601,7 +601,7 @@ describe("SubSessionsPanel", () => {
     expect(mockStoreState.refreshChats).toHaveBeenCalled();
   });
 
-  it("retries failed request through SubSession without resetting to last user", async () => {
+  it("retries failed request through SubAgent without resetting to last user", async () => {
     mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
         sessionId: PARENT_SESSION_ID,
@@ -640,9 +640,9 @@ describe("SubSessionsPanel", () => {
         error: null,
       },
     };
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+    fireEvent.click(screen.getByTestId("sub-agent-retry-child-session-1"));
     await waitFor(() => {
       expect(screen.getByText("Retry failed request")).toBeInTheDocument();
     });
@@ -650,7 +650,7 @@ describe("SubSessionsPanel", () => {
 
     await waitFor(() => {
       expect(mockToolService.executeTool).toHaveBeenCalledWith({
-        tool_name: "SubSession",
+        tool_name: "SubAgent",
         session_id: PARENT_SESSION_ID,
         parameters: [
           { name: "action", value: "run" },
@@ -706,13 +706,13 @@ describe("SubSessionsPanel", () => {
       .spyOn(window, "prompt")
       .mockReturnValue("Continue with the parser failure first.");
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    fireEvent.click(screen.getByTestId("sub-session-continue-child-session-1"));
+    fireEvent.click(screen.getByTestId("sub-agent-continue-child-session-1"));
 
     await waitFor(() => {
       expect(mockToolService.executeTool).toHaveBeenCalledWith({
-        tool_name: "SubSession",
+        tool_name: "SubAgent",
         session_id: PARENT_SESSION_ID,
         parameters: [
           { name: "action", value: "send_message" },
@@ -732,14 +732,14 @@ describe("SubSessionsPanel", () => {
     promptSpy.mockRestore();
   });
 
-  it("deletes existing child session through SubSession", async () => {
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+  it("deletes existing child session through SubAgent", async () => {
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    fireEvent.click(screen.getByTestId("sub-session-delete-child-session-1"));
+    fireEvent.click(screen.getByTestId("sub-agent-delete-child-session-1"));
 
     await waitFor(() => {
       expect(mockToolService.executeTool).toHaveBeenCalledWith({
-        tool_name: "SubSession",
+        tool_name: "SubAgent",
         session_id: PARENT_SESSION_ID,
         parameters: [
           { name: "action", value: "delete" },
@@ -807,7 +807,7 @@ describe("SubSessionsPanel", () => {
       },
     ];
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     // The persisted title should be displayed, not the stale progress title.
     expect(screen.getByText("Persisted Real Title")).toBeInTheDocument();
@@ -865,13 +865,13 @@ describe("SubSessionsPanel", () => {
       },
     ];
 
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
     // Falls back to progress title when persisted title is empty.
     expect(screen.getByText("Progress Title")).toBeInTheDocument();
   });
 
-  it("retries child session through SubSession even when no active provider model is configured", async () => {
+  it("retries child session through SubAgent even when no active provider model is configured", async () => {
     mockStoreState.executionBySession = {
       [PARENT_SESSION_ID]: {
         sessionId: PARENT_SESSION_ID,
@@ -911,9 +911,9 @@ describe("SubSessionsPanel", () => {
       },
     };
     mockUseActiveModel.mockReturnValue(undefined);
-    render(<SubSessionsPanel parentSessionId={PARENT_SESSION_ID} />);
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    fireEvent.click(screen.getByTestId("sub-session-retry-child-session-1"));
+    fireEvent.click(screen.getByTestId("sub-agent-retry-child-session-1"));
     await waitFor(() => {
       expect(screen.getByText("Regenerate response")).toBeInTheDocument();
     });
@@ -921,7 +921,7 @@ describe("SubSessionsPanel", () => {
 
     await waitFor(() => {
       expect(mockToolService.executeTool).toHaveBeenCalledWith({
-        tool_name: "SubSession",
+        tool_name: "SubAgent",
         session_id: PARENT_SESSION_ID,
         parameters: [
           { name: "action", value: "run" },

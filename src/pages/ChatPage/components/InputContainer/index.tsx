@@ -31,6 +31,7 @@ import { useInputContainerHistory } from "./useInputContainerHistory";
 import { getInputContainerPlaceholder } from "./inputContainerPlaceholder";
 import { useActiveModel } from "../../hooks/useActiveModel";
 import { useActiveModelRef } from "../../hooks/useActiveModelRef";
+import { resolveProviderDefaultReasoningEffort } from "../../utils/reasoningEffort";
 import { useProviderStore } from "../../store/slices/providerSlice";
 import { ProviderModelPicker } from "../ProviderModelPicker";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
@@ -230,8 +231,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const content = inputState?.content || "";
   const referenceText = inputState?.referenceText || null;
   const providerDefaultReasoningEffort = useMemo<ReasoningEffort | undefined>(
-    () => providerConfig.providers[currentProvider]?.reasoning_effort,
-    [providerConfig, currentProvider],
+    () =>
+      resolveProviderDefaultReasoningEffort(
+        providerConfig,
+        activeModelRef,
+        currentChat?.config?.model_ref?.provider ?? currentProvider,
+      ),
+    [activeModelRef, currentChat?.config?.model_ref?.provider, providerConfig, currentProvider],
   );
   const persistedReasoningEffort = useMemo<ReasoningEffort | undefined>(
     () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
