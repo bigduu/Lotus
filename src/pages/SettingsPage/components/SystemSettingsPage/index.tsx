@@ -33,6 +33,7 @@ import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
 import SystemSettingsHooksTab from "./SystemSettingsHooksTab";
 import SystemSettingsSchedulesTab from "./SystemSettingsSchedulesTab";
 import SystemSettingsSessionsTab from "./SystemSettingsSessionsTab";
+import SystemSettingsNotificationsTab from "./SystemSettingsNotificationsTab";
 import { ProviderSettings } from "../ProviderSettings";
 import { SkillManager } from "../../../../components/Skill";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
@@ -336,6 +337,14 @@ const SystemSettingsPage = ({
               key: "schedules",
               label: tabLabel("schedules", t("settings.page.tabs.schedules")),
               children: <SystemSettingsSchedulesTab />,
+            },
+            {
+              key: "notifications",
+              label: tabLabel(
+                "notifications",
+                t("settings.page.tabs.notifications", "Notifications"),
+              ),
+              children: <SystemSettingsNotificationsTab />,
             },
             {
               key: "app",
