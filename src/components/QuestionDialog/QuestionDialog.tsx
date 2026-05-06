@@ -8,6 +8,7 @@ import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef"
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
 import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
+import { resolveProviderDefaultReasoningEffort } from "../../pages/ChatPage/utils/reasoningEffort";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
 import { buildPendingQuestionIdentity } from "../../pages/ChatPage/utils/pendingQuestionIdentity";
 import styles from "./QuestionDialog.module.css";
@@ -90,6 +91,8 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     return entry?.interaction.pendingQuestion ?? null;
   });
 
+  const isEventBackedQuestion = eventPendingQuestion !== null;
+
   // Use event-driven data if available, otherwise fall back to polled data
   const pendingQuestion = useMemo<PendingQuestion | null>(() => {
     if (eventPendingQuestion) {
@@ -113,8 +116,13 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
   const providerDefaultReasoningEffort = useMemo<ReasoningEffort | undefined>(
-    () => providerConfig.providers[currentProvider]?.reasoning_effort,
-    [providerConfig, currentProvider],
+    () =>
+      resolveProviderDefaultReasoningEffort(
+        providerConfig,
+        activeModelRef,
+        currentChat?.config?.model_ref?.provider ?? currentProvider,
+      ),
+    [activeModelRef, currentChat?.config?.model_ref?.provider, providerConfig, currentProvider],
   );
   const persistedReasoningEffort = useMemo<ReasoningEffort | undefined>(
     () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
@@ -219,9 +227,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     return () => document.removeEventListener("visibilitychange", onVisibilityChange);
   }, []);
 
-  // When a new question appears, reset selection and activate respond mode
-  // so that ANY user input (even without selecting "Other") goes through
-  // the respond API instead of being sent as a brand-new message.
+  // When a new question appears, reset local UI state. Only polled questions
+  // need to be mirrored into the execution slice; SSE/event-backed questions
+  // already live there, and writing them back would create a read → write loop.
   useEffect(() => {
     if (pendingQuestion?.has_pending_question) {
       const nextIdentity = buildPendingQuestionIdentity({
@@ -233,12 +241,14 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       });
       const isSameQuestion = lastQuestionIdentityRef.current === nextIdentity;
 
-      setPendingQuestion(sessionId, {
-        question: pendingQuestion?.question || "",
-        options: pendingQuestion?.options || [],
-        allowCustom: pendingQuestion?.allow_custom ?? true,
-        toolCallId: pendingQuestion?.tool_call_id ?? null,
-      });
+      if (!isEventBackedQuestion) {
+        setPendingQuestion(sessionId, {
+          question: pendingQuestion?.question || "",
+          options: pendingQuestion?.options || [],
+          allowCustom: pendingQuestion?.allow_custom ?? true,
+          toolCallId: pendingQuestion?.tool_call_id ?? null,
+        });
+      }
 
       if (!isSameQuestion) {
         setSelectedOption(null);
@@ -252,6 +262,7 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       clearPendingQuestion(sessionId);
     }
   }, [
+    isEventBackedQuestion,
     pendingQuestion?.allow_custom,
     pendingQuestion?.has_pending_question,
     pendingQuestion?.options,

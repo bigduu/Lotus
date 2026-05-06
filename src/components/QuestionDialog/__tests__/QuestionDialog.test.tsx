@@ -439,6 +439,82 @@ describe("QuestionDialog", () => {
     consoleSpy.mockRestore();
   });
 
+  it("should not mirror an event-backed pending question back into the execution store", async () => {
+    const eventBackedState = {
+      markRespondStart: mockMarkRespondStart,
+      markSettleTimeout: mockMarkSettleTimeout,
+      setPendingQuestion: mockSetPendingQuestion,
+      clearPendingQuestion: mockClearPendingQuestion,
+      chats: [],
+      inputStates: {},
+      currentSessionId: "test-session-1",
+      executionBySession: {
+        "test-session-1": {
+          sessionId: "test-session-1",
+          phase: "waiting_user_answer",
+          confidence: "live",
+          activeReasons: ["sse:need_clarification"],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: true,
+            runningChildCount: 0,
+          },
+          interaction: {
+            pendingQuestion: {
+              question: "Event-backed question?",
+              options: ["A"],
+              allowCustom: true,
+              toolCallId: "ask-1",
+              receivedAt: "2026-05-06T00:00:00.000Z",
+            },
+            respondMode: {
+              sessionId: "test-session-1",
+              question: "Event-backed question?",
+              options: ["A"],
+              allowCustom: true,
+              toolCallId: "ask-1",
+            },
+          },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      },
+      selectedModel: "gpt-5-ultra-expensive",
+    };
+
+    (useAppStore as any).mockImplementation((selector: (state: any) => any) => {
+      if (typeof selector === "function") {
+        return selector(eventBackedState);
+      }
+      return eventBackedState;
+    });
+
+    const { agentApiClient } = await import("../../../services/api");
+
+    render(<QuestionDialog {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Event-backed question?")).toBeInTheDocument();
+    });
+
+    expect(agentApiClient.get).not.toHaveBeenCalled();
+    expect(mockSetPendingQuestion).not.toHaveBeenCalled();
+  });
+
   it("should reset polling state when sessionId changes", async () => {
     const { agentApiClient } = await import("../../../services/api");
     (agentApiClient.get as any).mockResolvedValue({
