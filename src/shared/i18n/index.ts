@@ -1350,15 +1350,15 @@ const frFullTranslation = {
       exportPdf: "Exporter en PDF",
       done: "Terminé",
     },
-    subSessions: {
-      ...enTranslation.chat.subSessions,
-      title: "Sous-sessions",
+    subAgents: {
+      ...enTranslation.chat.subAgents,
+      title: "Sous-agents",
       expand: "Développer",
       collapse: "Réduire",
       continue: "Continuer ici",
       open: "Ouvrir",
       retry: "Réessayer",
-      hiddenHint: "{{count}} sous-session(s) masquée(s)",
+      hiddenHint: "{{count}} sous-agent(s) masqué(s)",
     },
     chatItem: {
       ...enTranslation.chat.chatItem,
@@ -1756,15 +1756,15 @@ const hiFullTranslation = {
       exportPdf: "PDF निर्यात करें",
       done: "पूर्ण",
     },
-    subSessions: {
-      ...enTranslation.chat.subSessions,
-      title: "उप-सेशन",
+    subAgents: {
+      ...enTranslation.chat.subAgents,
+      title: "उप-एजेंट",
       expand: "विस्तार करें",
       collapse: "संक्षिप्त करें",
       continue: "यहीं जारी रखें",
       open: "खोलें",
       retry: "पुनः प्रयास करें",
-      hiddenHint: "{{count}} उप-सेशन छिपे हुए",
+      hiddenHint: "{{count}} उप-एजेंट छिपे हुए",
     },
     chatItem: {
       ...enTranslation.chat.chatItem,

@@ -14,7 +14,7 @@ export interface DefaultsConfig {
   planning?: ProviderModelRef;
   search?: ProviderModelRef;
   code_review?: ProviderModelRef;
-  sub_session?: ProviderModelRef;
+  sub_agent?: ProviderModelRef;
   subagent_models?: Record<string, ProviderModelRef>;
 }
 

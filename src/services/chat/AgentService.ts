@@ -26,10 +26,10 @@ export type AgentEventType =
   | "context_summarized"
   | "context_pressure_notification"
   | "tool_lifecycle"
-  | "sub_session_started"
-  | "sub_session_event"
-  | "sub_session_heartbeat"
-  | "sub_session_completed"
+  | "sub_agent_started"
+  | "sub_agent_event"
+  | "sub_agent_heartbeat"
+  | "sub_agent_completed"
   | "session_title_updated"
   | "session_pinned_updated"
   | "need_clarification"
@@ -141,7 +141,7 @@ export interface AgentEvent {
   is_mutating?: boolean;
   auto_approved?: boolean;
   summary?: string;
-  // Sub-session events
+  // Sub-agent events
   parent_session_id?: string;
   child_session_id?: string;
   title?: string;
@@ -592,14 +592,14 @@ export interface AgentEventHandlers {
   onComplete?: (usage: AgentEvent["usage"]) => void;
   onCancelled?: (message?: string) => void;
   onError?: (message: string) => void;
-  onSubSessionStarted?: (parentSessionId: string, childSessionId: string, title?: string) => void;
-  onSubSessionEvent?: (parentSessionId: string, childSessionId: string, event: AgentEvent) => void;
-  onSubSessionHeartbeat?: (
+  onSubAgentStarted?: (parentSessionId: string, childSessionId: string, title?: string) => void;
+  onSubAgentEvent?: (parentSessionId: string, childSessionId: string, event: AgentEvent) => void;
+  onSubAgentHeartbeat?: (
     parentSessionId: string,
     childSessionId: string,
     timestamp: string,
   ) => void;
-  onSubSessionCompleted?: (
+  onSubAgentCompleted?: (
     parentSessionId: string,
     childSessionId: string,
     status: string,
@@ -1078,36 +1078,32 @@ export class AgentClient {
           handlers.onContextPressureNotification?.(event.percent, event.level, event.message || "");
         }
         break;
-      case "sub_session_started":
+      case "sub_agent_started":
         if (event.parent_session_id && event.child_session_id) {
-          handlers.onSubSessionStarted?.(
+          handlers.onSubAgentStarted?.(
             event.parent_session_id,
             event.child_session_id,
             event.title,
           );
         }
         break;
-      case "sub_session_event":
+      case "sub_agent_event":
         if (event.parent_session_id && event.child_session_id && event.event) {
-          handlers.onSubSessionEvent?.(
-            event.parent_session_id,
-            event.child_session_id,
-            event.event,
-          );
+          handlers.onSubAgentEvent?.(event.parent_session_id, event.child_session_id, event.event);
         }
         break;
-      case "sub_session_heartbeat":
+      case "sub_agent_heartbeat":
         if (event.parent_session_id && event.child_session_id && event.timestamp) {
-          handlers.onSubSessionHeartbeat?.(
+          handlers.onSubAgentHeartbeat?.(
             event.parent_session_id,
             event.child_session_id,
             event.timestamp,
           );
         }
         break;
-      case "sub_session_completed":
+      case "sub_agent_completed":
         if (event.parent_session_id && event.child_session_id) {
-          handlers.onSubSessionCompleted?.(
+          handlers.onSubAgentCompleted?.(
             event.parent_session_id,
             event.child_session_id,
             typeof event.status === "string" ? event.status : "completed",

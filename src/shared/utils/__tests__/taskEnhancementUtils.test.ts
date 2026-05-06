@@ -60,7 +60,7 @@ describe("taskEnhancementUtils", () => {
       const prompt = getTaskEnhancementPrompt();
       expect(prompt).toContain("Task Management Rules");
       expect(prompt).toContain("Task");
-      expect(prompt).toContain("SubSession");
+      expect(prompt).toContain("SubAgent");
       expect(prompt).toContain("shared");
       expect(prompt.startsWith("\n\n")).toBe(true);
     });

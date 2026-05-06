@@ -331,14 +331,14 @@ export const resources = {
           tooltip: "Latest compression at {{time}}: {{count}} messages archived",
           archivedShort: "{{count}} archived",
         },
-        subSessions: {
-          title: "Sub-sessions",
+        subAgents: {
+          title: "Sub-agents",
           expand: "Expand",
           collapse: "Collapse",
           continue: "Continue here",
           open: "Open",
           retry: "Retry",
-          hiddenHint: "{{count}} sub-sessions hidden",
+          hiddenHint: "{{count}} sub-agents hidden",
         },
         chatItem: {
           edit: "Edit",
@@ -1147,9 +1147,9 @@ export const resources = {
           fastModel: "Fast Model (Optional)",
           fastModelHelp:
             "Cheaper/faster model for lightweight tasks like title generation, mermaid fix, and summarization. Uses default model when not set.",
-          subSessionModel: "Sub Session Model (Optional)",
-          subSessionModelHelp:
-            "Default model for new Sub Sessions. Uses Fast Model when not set, then falls back to the default model.",
+          subAgentModel: "Sub Agent Model (Optional)",
+          subAgentModelHelp:
+            "Default model for new Sub Agents. Uses Fast Model when not set, then falls back to the default model.",
           visionModel: "Vision Model (Optional)",
           visionModelHelp:
             "Vision-capable model for image understanding. When hooks.image_fallback.mode is set to 'vision', this model describes images as text so text-only models can understand them. Uses default model when not set.",
@@ -1380,6 +1380,7 @@ export const resources = {
           chatTokens: "Chat Tokens",
           toolCalls: "Tool Calls",
           avgSessionDuration: "Avg Session Duration",
+          promptCachedToolOutputs: "Prompt-Cached Tool Outputs",
           totalMemories: "Total Memories",
           staleCandidates: "Stale Candidates",
           memoryProjects: "Memory Projects",
@@ -1401,6 +1402,13 @@ export const resources = {
               toolCalls: "Tool Calls",
               messages: "Messages",
               action: "Action",
+            },
+            status: {
+              running: "Running",
+              awaitingResponse: "Awaiting Response",
+              completed: "Completed",
+              error: "Error",
+              cancelled: "Cancelled",
             },
             view: "View",
           },
@@ -2091,14 +2099,14 @@ export const resources = {
           tooltip: "最近一次压缩：{{time}}，已归档 {{count}} 条消息",
           archivedShort: "已归档 {{count}} 条",
         },
-        subSessions: {
-          title: "子会话",
+        subAgents: {
+          title: "子代理",
           expand: "展开",
           collapse: "收起",
           continue: "在此继续",
           open: "打开",
           retry: "重试",
-          hiddenHint: "已隐藏 {{count}} 个子会话",
+          hiddenHint: "已隐藏 {{count}} 个子代理",
         },
         chatItem: {
           edit: "编辑",
@@ -2815,9 +2823,9 @@ export const resources = {
           fastModel: "快速模型（可选）",
           fastModelHelp:
             "用于标题生成、Mermaid 修复、摘要等轻量任务的低成本/快速模型。未设置时使用默认模型。",
-          subSessionModel: "Sub Session 模型（可选）",
-          subSessionModelHelp:
-            "新建 Sub Session 时默认使用的模型。未设置时使用快速模型，再回退到默认模型。",
+          subAgentModel: "Sub Agent 模型（可选）",
+          subAgentModelHelp:
+            "新建 Sub Agent 时默认使用的模型。未设置时使用快速模型，再回退到默认模型。",
           visionModel: "视觉模型（可选）",
           visionModelHelp:
             "用于图片理解的视觉模型。当 hooks.image_fallback.mode 设为 'vision' 时，此模型会将图片描述为文本，让纯文本模型也能理解图片内容。未设置时使用默认模型。",

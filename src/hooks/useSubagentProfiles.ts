@@ -2,8 +2,8 @@
  * `useSubagentProfiles` — fetches the subagent profile catalogue once on mount.
  *
  * Used by:
- *   - SubSession role pickers (selecting `subagent_type` before creating a child).
- *   - SubSessionsPanel role tags (resolving an id to its display_name / icon).
+ *   - SubAgent role pickers (selecting `subagent_type` before creating a child).
+ *   - SubAgentsPanel role tags (resolving an id to its display_name / icon).
  *
  * The list rarely changes during a session (it's loaded from disk on backend
  * boot), so this hook performs a single GET on mount and caches the payload

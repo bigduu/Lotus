@@ -25,7 +25,7 @@ const samplePayload = {
       id: "coder",
       display_name: "Coder",
       description: "Implements changes.",
-      tools: { mode: "denylist" as const, deny: ["SubSession"] },
+      tools: { mode: "denylist" as const, deny: ["SubAgent"] },
     },
   ],
   fallback_id: "general-purpose",
@@ -64,7 +64,7 @@ describe("useSubagentProfiles", () => {
     expect(result.current.byId.get("researcher")?.display_name).toBe("Researcher");
     expect(result.current.byId.get("coder")?.tools).toEqual({
       mode: "denylist",
-      deny: ["SubSession"],
+      deny: ["SubAgent"],
     });
     expect(result.current.byId.get("does-not-exist")).toBeUndefined();
   });

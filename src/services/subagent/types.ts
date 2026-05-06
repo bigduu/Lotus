@@ -3,11 +3,11 @@
  *
  * Mirrors the JSON shape returned by the Bamboo backend's
  * `GET /v1/subagent_profiles` endpoint and the
- * `SubSession.action=list_profiles` tool action.
+ * `SubAgent.action=list_profiles` tool action.
  *
  * Backend reference:
  *   crates/bamboo-server/src/handlers/subagent_profiles.rs
- *   crates/bamboo-server/src/tools/sub_session.rs (list_profiles_payload)
+ *   crates/bamboo-server/src/tools/sub_agent.rs (list_profiles_payload)
  *
  * `system_prompt` is intentionally NOT exposed by either surface
  * (it can be lengthy and is not needed for role selection).

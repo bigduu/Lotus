@@ -21,6 +21,7 @@ import {
   formatCompletionPolicyViolationMessage,
   isCompletionPolicyViolationError,
 } from "../shared/utils/completionPolicyViolation";
+import { sendDesktopNotification } from "../services/notification/desktopNotification";
 
 type SubscriptionEntry = {
   sessionId: string;
@@ -659,13 +660,31 @@ export function useAgentEventSubscription() {
               });
             },
 
-            onToolLifecycle: (toolCallId, _toolName, phase, elapsedMs, isMutating) => {
+            onToolLifecycle: (
+              toolCallId,
+              _toolName,
+              phase,
+              elapsedMs,
+              isMutating,
+              autoApproved,
+            ) => {
               if (phase === "begin") {
                 const normalizedToolName = (_toolName || "").trim().toLowerCase();
                 if (isMemoryStatusTool(_toolName || "")) {
                   setStreamingStatus("memory_updating");
                 } else {
                   setStreamingStatus(`tool_running:${normalizedToolName || "tool"}`);
+                }
+
+                // Notify when a mutating tool needs user approval
+                if (autoApproved === false) {
+                  void sendDesktopNotification({
+                    title: `需要审批: ${_toolName || "未知工具"}`,
+                    body: `工具 ${_toolName || ""} 需要您的审批后才能执行`,
+                    sessionId,
+                    eventType: "tool_approval",
+                    eventId: toolCallId,
+                  });
                 }
               }
 
@@ -758,6 +777,12 @@ export function useAgentEventSubscription() {
             onContextPressureNotification: (_percent, level, msg) => {
               if (level === "critical") {
                 message.error(msg, 6);
+                void sendDesktopNotification({
+                  title: "上下文即将耗尽",
+                  body: msg,
+                  sessionId,
+                  eventType: "context_pressure",
+                });
               } else {
                 message.warning(msg, 5);
               }
@@ -929,7 +954,7 @@ export function useAgentEventSubscription() {
                 if (isSuperseded()) return;
 
                 // Mark parent completed. If there are background children, keep the SSE
-                // subscription alive to forward sub-session progress.
+                // subscription alive to forward sub-agent progress.
                 finalizeParentCompletion();
               })().catch((error) => {
                 // Completion cleanup must be best-effort but never leave the UI stuck in
@@ -997,7 +1022,7 @@ export function useAgentEventSubscription() {
               applyReplayableSessionEvent(event, useAppStore.getState());
             },
 
-            onSubSessionStarted: (parentSessionId, childSessionId, title) => {
+            onSubAgentStarted: (parentSessionId, childSessionId, title) => {
               const bg =
                 backgroundChildrenByParentRef.current.get(parentSessionId) ??
                 ({ children: new Set<string>(), parentDone: false } as const);
@@ -1008,7 +1033,7 @@ export function useAgentEventSubscription() {
                 parentDone: bg.parentDone,
               });
 
-              // Parent phase is already driven by applyAgentEvent(sub_session_started)
+              // Parent phase is already driven by applyAgentEvent(sub_agent_started)
               // via applyChildProgress → applyChildProgress.
 
               applyChildProgress(parentSessionId, childSessionId, {
@@ -1024,7 +1049,7 @@ export function useAgentEventSubscription() {
               if (title && title.trim()) {
                 persistSessionTitle(childSessionId, title).catch((e) => {
                   console.warn(
-                    `[useAgentEventSubscription] Failed to persist sub-session title for ${childSessionId}:`,
+                    `[useAgentEventSubscription] Failed to persist sub-agent title for ${childSessionId}:`,
                     e,
                   );
                 });
@@ -1034,7 +1059,7 @@ export function useAgentEventSubscription() {
               void refreshChatsNow();
             },
 
-            onSubSessionEvent: (parentSessionId, childSessionId, evt: AgentEvent) => {
+            onSubAgentEvent: (parentSessionId, childSessionId, evt: AgentEvent) => {
               if (evt.type === "task_list_updated" && evt.task_list) {
                 const sharedSessionId = evt.task_list.session_id || parentSessionId;
                 setTaskList(sharedSessionId, evt.task_list);
@@ -1118,14 +1143,14 @@ export function useAgentEventSubscription() {
               }
             },
 
-            onSubSessionHeartbeat: (parentSessionId, childSessionId, ts) => {
+            onSubAgentHeartbeat: (parentSessionId, childSessionId, ts) => {
               applyChildProgress(parentSessionId, childSessionId, {
                 status: "running",
                 lastHeartbeatAt: ts,
               });
             },
 
-            onSubSessionCompleted: (parentSessionId, childSessionId, status, error) => {
+            onSubAgentCompleted: (parentSessionId, childSessionId, status, error) => {
               const bg =
                 backgroundChildrenByParentRef.current.get(parentSessionId) ??
                 ({ children: new Set<string>(), parentDone: false } as const);
@@ -1141,6 +1166,20 @@ export function useAgentEventSubscription() {
                 error,
                 lastEventAt: new Date().toISOString(),
               });
+
+              // Notify when a background sub-agent completes successfully
+              if (status === "completed") {
+                const child = selectChildren(parentSessionId)(useAppStore.getState())?.[
+                  childSessionId
+                ];
+                void sendDesktopNotification({
+                  title: "后台任务完成",
+                  body: child?.title ? `「${child.title}」已完成` : "一个后台任务已完成",
+                  sessionId: parentSessionId,
+                  eventType: "subagent_completed",
+                  eventId: childSessionId,
+                });
+              }
 
               // If parent already completed and no more background children, wait briefly
               // for any backend auto-resume/root-resume handoff before tearing down the stream.
@@ -1159,6 +1198,18 @@ export function useAgentEventSubscription() {
                 allowCustom: event.allow_custom ?? true,
                 toolCallId: event.tool_call_id ?? null,
               });
+
+              // Notify user when a clarification is needed while app is in background
+              const questionText = event.question || "";
+              const truncatedQuestion =
+                questionText.length > 80 ? `${questionText.slice(0, 80)}...` : questionText;
+              void sendDesktopNotification({
+                title: "Bodhi AI 需要您的回复",
+                body: truncatedQuestion || "Agent 需要您回答一个问题",
+                sessionId: targetSessionId,
+                eventType: "clarification",
+                eventId: event.tool_call_id ?? undefined,
+              });
             },
 
             onExecutionStarted: (runId, _startedAt) => {
@@ -1170,7 +1221,7 @@ export function useAgentEventSubscription() {
             },
             onRunnerProgress: () => {
               // Root-session progress is parsed but unused in this scope; nested child
-              // progress is handled inside onSubSessionEvent.
+              // progress is handled inside onSubAgentEvent.
             },
           },
           controller,

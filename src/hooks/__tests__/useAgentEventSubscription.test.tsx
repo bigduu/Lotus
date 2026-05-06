@@ -407,11 +407,11 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("uses high-priority refresh when a child session starts", async () => {
-    let subSessionStartedHandler:
+    let subAgentStartedHandler:
       | ((parentSessionId: string, childSessionId: string, title?: string) => void)
       | undefined;
     mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
-      subSessionStartedHandler = handlers.onSubSessionStarted;
+      subAgentStartedHandler = handlers.onSubAgentStarted;
     });
 
     mockState.executionBySession = {
@@ -454,7 +454,7 @@ describe("useAgentEventSubscription", () => {
     });
 
     act(() => {
-      subSessionStartedHandler?.("session-1", "child-1", "Child task");
+      subAgentStartedHandler?.("session-1", "child-1", "Child task");
     });
 
     await waitFor(() => {
@@ -468,11 +468,11 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("marks child running and writes roundCount on nested runner_progress", async () => {
-    let subSessionEventHandler:
+    let subAgentEventHandler:
       | ((parentSessionId: string, childSessionId: string, evt: any) => void)
       | undefined;
     mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
-      subSessionEventHandler = handlers.onSubSessionEvent;
+      subAgentEventHandler = handlers.onSubAgentEvent;
     });
 
     mockState.executionBySession = {
@@ -514,7 +514,7 @@ describe("useAgentEventSubscription", () => {
     });
 
     act(() => {
-      subSessionEventHandler?.("session-1", "child-1", {
+      subAgentEventHandler?.("session-1", "child-1", {
         type: "runner_progress",
         session_id: "child-1",
         round_count: 0,
@@ -531,11 +531,11 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("ignores nested runner_progress when child is in a terminal state", async () => {
-    let subSessionEventHandler:
+    let subAgentEventHandler:
       | ((parentSessionId: string, childSessionId: string, evt: any) => void)
       | undefined;
     mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
-      subSessionEventHandler = handlers.onSubSessionEvent;
+      subAgentEventHandler = handlers.onSubAgentEvent;
     });
 
     for (const terminal of ["completed", "error", "cancelled", "failed"]) {
@@ -579,7 +579,7 @@ describe("useAgentEventSubscription", () => {
       });
 
       act(() => {
-        subSessionEventHandler?.("session-1", "child-1", {
+        subAgentEventHandler?.("session-1", "child-1", {
           type: "runner_progress",
           session_id: "child-1",
           round_count: 1,
@@ -592,11 +592,11 @@ describe("useAgentEventSubscription", () => {
   });
 
   it("preserves existing roundCount when runner_progress is missing round_count", async () => {
-    let subSessionEventHandler:
+    let subAgentEventHandler:
       | ((parentSessionId: string, childSessionId: string, evt: any) => void)
       | undefined;
     mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
-      subSessionEventHandler = handlers.onSubSessionEvent;
+      subAgentEventHandler = handlers.onSubAgentEvent;
     });
 
     mockState.executionBySession = {
@@ -641,7 +641,7 @@ describe("useAgentEventSubscription", () => {
     });
 
     act(() => {
-      subSessionEventHandler?.("session-1", "child-1", {
+      subAgentEventHandler?.("session-1", "child-1", {
         type: "runner_progress",
         session_id: "child-1",
       });
@@ -656,17 +656,17 @@ describe("useAgentEventSubscription", () => {
 
   it("waits for settle check before clearing processing after the last child completes", async () => {
     let completeHandler: (() => void) | undefined;
-    let subSessionStartedHandler:
+    let subAgentStartedHandler:
       | ((parentSessionId: string, childSessionId: string, title?: string) => void)
       | undefined;
-    let subSessionCompletedHandler:
+    let subAgentCompletedHandler:
       | ((parentSessionId: string, childSessionId: string, status: string, error?: string) => void)
       | undefined;
 
     mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
       completeHandler = handlers.onComplete;
-      subSessionStartedHandler = handlers.onSubSessionStarted;
-      subSessionCompletedHandler = handlers.onSubSessionCompleted;
+      subAgentStartedHandler = handlers.onSubAgentStarted;
+      subAgentCompletedHandler = handlers.onSubAgentCompleted;
     });
 
     mockState.executionBySession = {
@@ -744,7 +744,7 @@ describe("useAgentEventSubscription", () => {
     });
 
     act(() => {
-      subSessionStartedHandler?.("session-1", "child-1", "Child task");
+      subAgentStartedHandler?.("session-1", "child-1", "Child task");
     });
 
     await act(async () => {
@@ -759,7 +759,7 @@ describe("useAgentEventSubscription", () => {
     );
 
     act(() => {
-      subSessionCompletedHandler?.("session-1", "child-1", "completed", undefined);
+      subAgentCompletedHandler?.("session-1", "child-1", "completed", undefined);
     });
 
     await new Promise((r) => setTimeout(r, 350));

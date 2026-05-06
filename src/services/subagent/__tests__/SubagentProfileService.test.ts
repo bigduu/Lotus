@@ -56,7 +56,7 @@ describe("SubagentProfileService", () => {
           id: "coder",
           display_name: "Coder",
           description: "Implements changes.",
-          tools: { mode: "denylist", deny: ["SubSession"] },
+          tools: { mode: "denylist", deny: ["SubAgent"] },
           model_hint: "anthropic/claude-3-5-sonnet",
           default_responsibility: "Implement the requested change.",
           ui: { icon: "💻", color: "green" },
@@ -74,7 +74,7 @@ describe("SubagentProfileService", () => {
     expect(result.fallback_id).toBe("general-purpose");
     expect(result.count).toBe(2);
     expect(result.profiles[0].tools).toEqual({ mode: "allowlist", allow: ["Read", "Grep"] });
-    expect(result.profiles[1].tools).toEqual({ mode: "denylist", deny: ["SubSession"] });
+    expect(result.profiles[1].tools).toEqual({ mode: "denylist", deny: ["SubAgent"] });
   });
 
   it("propagates errors from the underlying apiClient", async () => {

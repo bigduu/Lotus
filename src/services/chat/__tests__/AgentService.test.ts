@@ -811,7 +811,7 @@ describe("AgentClient", () => {
     expect(onRunnerProgress).not.toHaveBeenCalled();
   });
 
-  it("dispatches task/sub-session/context events to handlers", () => {
+  it("dispatches task/sub-agent/context events to handlers", () => {
     const client = AgentClient.getInstance();
     const handlers = {
       onTaskListItemProgress: vi.fn(),
@@ -820,10 +820,10 @@ describe("AgentClient", () => {
       onTokenBudgetUpdated: vi.fn(),
       onContextCompressionStatus: vi.fn(),
       onContextSummarized: vi.fn(),
-      onSubSessionStarted: vi.fn(),
-      onSubSessionEvent: vi.fn(),
-      onSubSessionHeartbeat: vi.fn(),
-      onSubSessionCompleted: vi.fn(),
+      onSubAgentStarted: vi.fn(),
+      onSubAgentEvent: vi.fn(),
+      onSubAgentHeartbeat: vi.fn(),
+      onSubAgentCompleted: vi.fn(),
       onError: vi.fn(),
     };
 
@@ -887,7 +887,7 @@ describe("AgentClient", () => {
     );
     (client as any).handleEvent(
       {
-        type: "sub_session_started",
+        type: "sub_agent_started",
         parent_session_id: "p",
         child_session_id: "c",
         title: "child",
@@ -896,7 +896,7 @@ describe("AgentClient", () => {
     );
     (client as any).handleEvent(
       {
-        type: "sub_session_event",
+        type: "sub_agent_event",
         parent_session_id: "p",
         child_session_id: "c",
         event: { type: "token", content: "x" },
@@ -905,7 +905,7 @@ describe("AgentClient", () => {
     );
     (client as any).handleEvent(
       {
-        type: "sub_session_heartbeat",
+        type: "sub_agent_heartbeat",
         parent_session_id: "p",
         child_session_id: "c",
         timestamp: "2026-01-01T00:00:00Z",
@@ -914,7 +914,7 @@ describe("AgentClient", () => {
     );
     (client as any).handleEvent(
       {
-        type: "sub_session_completed",
+        type: "sub_agent_completed",
         parent_session_id: "p",
         child_session_id: "c",
         status: "completed",
@@ -933,10 +933,10 @@ describe("AgentClient", () => {
       messages_summarized: 3,
       tokens_saved: 20,
     });
-    expect(handlers.onSubSessionStarted).toHaveBeenCalledWith("p", "c", "child");
-    expect(handlers.onSubSessionEvent).toHaveBeenCalledTimes(1);
-    expect(handlers.onSubSessionHeartbeat).toHaveBeenCalledTimes(1);
-    expect(handlers.onSubSessionCompleted).toHaveBeenCalledWith("p", "c", "completed", undefined);
+    expect(handlers.onSubAgentStarted).toHaveBeenCalledWith("p", "c", "child");
+    expect(handlers.onSubAgentEvent).toHaveBeenCalledTimes(1);
+    expect(handlers.onSubAgentHeartbeat).toHaveBeenCalledTimes(1);
+    expect(handlers.onSubAgentCompleted).toHaveBeenCalledWith("p", "c", "completed", undefined);
     expect(handlers.onError).toHaveBeenCalledWith("boom");
   });
 
