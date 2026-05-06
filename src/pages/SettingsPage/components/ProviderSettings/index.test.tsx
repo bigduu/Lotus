@@ -173,7 +173,7 @@ describe("ProviderSettings", () => {
           defaults: {
             chat: { provider: "openai", model: "gpt-4o" },
             fast: { provider: "openai", model: "gpt-4o-mini" },
-            sub_session: { provider: "openai", model: "gpt-4.1-mini" },
+            sub_agent: { provider: "openai", model: "gpt-4.1-mini" },
             vision: { provider: "openai", model: "gpt-4.1" },
           },
           providers: { openai: { api_key: "sk-masked" } },
@@ -223,7 +223,7 @@ describe("ProviderSettings", () => {
       provider: "openai",
       model: "gpt-4o-mini",
     });
-    expect(postedBodies[0]?.defaults?.sub_session).toEqual({
+    expect(postedBodies[0]?.defaults?.sub_agent).toEqual({
       provider: "openai",
       model: "gpt-4.1-mini",
     });
@@ -527,7 +527,7 @@ describe("ProviderSettings", () => {
         defaults: {
           chat: { provider: "openai", model: "gpt-4o" },
           fast: { provider: "openai", model: "gpt-4o-mini" },
-          sub_session: { provider: "openai", model: "gpt-4.1-mini" },
+          sub_agent: { provider: "openai", model: "gpt-4.1-mini" },
           vision: { provider: "openai", model: "gpt-4.1" },
         },
         providers: {
@@ -553,7 +553,7 @@ describe("ProviderSettings", () => {
             },
             {
               reference: { provider: "openai", model: "gpt-4.1-mini" },
-              display_name: "OpenAI Sub Session Model",
+              display_name: "OpenAI Sub Agent Model",
               provider_display_name: "OpenAI",
               capabilities: { supports_vision: false },
             },
@@ -631,9 +631,9 @@ describe("ProviderSettings", () => {
       expectedModel: { provider: "anthropic", model: "claude-3-5-haiku" },
     },
     {
-      field: "sub_session",
+      field: "sub_agent",
       currentTitle: "openai/gpt-4.1-mini",
-      newOptionText: "Anthropic Sub Session Model",
+      newOptionText: "Anthropic Sub Agent Model",
       expectedModel: { provider: "anthropic", model: "claude-3-5-sonnet" },
     },
     {
@@ -651,7 +651,7 @@ describe("ProviderSettings", () => {
           defaults: {
             chat: { provider: "openai", model: "gpt-4o" },
             fast: { provider: "openai", model: "gpt-4o-mini" },
-            sub_session: { provider: "openai", model: "gpt-4.1-mini" },
+            sub_agent: { provider: "openai", model: "gpt-4.1-mini" },
             vision: { provider: "openai", model: "gpt-4.1" },
           },
           providers: {
@@ -695,7 +695,7 @@ describe("ProviderSettings", () => {
               },
               {
                 reference: { provider: "anthropic", model: "claude-3-5-sonnet" },
-                display_name: "Anthropic Sub Session Model",
+                display_name: "Anthropic Sub Agent Model",
                 provider_display_name: "Anthropic",
                 capabilities: { supports_vision: false },
               },

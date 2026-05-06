@@ -57,20 +57,31 @@ const { Text, Paragraph } = Typography;
 
 type ModelProvider = "openai" | "anthropic" | "gemini" | "copilot" | "bodhi";
 
-type EditableProviderConfig<K extends ModelProvider = ModelProvider> = NonNullable<
-  ProviderConfig["providers"][K]
+type EditableProviderConfig<K extends ModelProvider = ModelProvider> = Partial<
+  NonNullable<ProviderConfig["providers"][K]>
 > & {
   request_overrides_json?: string;
+  // Legacy compatibility: backend may still read providers.{provider}.model.
+  model?: string;
 };
+
+type AnyEditableProviderConfig =
+  | EditableProviderConfig<"openai">
+  | EditableProviderConfig<"anthropic">
+  | EditableProviderConfig<"gemini">
+  | EditableProviderConfig<"copilot">
+  | EditableProviderConfig<"bodhi">;
 
 type EditableProviders = {
   [K in ModelProvider]?: EditableProviderConfig<K>;
 };
 
+type EditableProvidersRecord = Partial<Record<ModelProvider, AnyEditableProviderConfig>>;
+
 type EditableDefaults = DefaultsConfig & {
   chat: ProviderModelRef;
   fast?: ProviderModelRef;
-  sub_session?: ProviderModelRef;
+  sub_agent?: ProviderModelRef;
   vision?: ProviderModelRef;
 };
 
@@ -96,6 +107,18 @@ const isCompleteProviderModelRef = (value: unknown): value is ProviderModelRef =
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ProviderModelRef>;
   return Boolean(candidate.provider?.trim() && candidate.model?.trim());
+};
+
+const setLegacyProviderModel = (
+  providers: EditableProviders,
+  provider: ModelProvider,
+  model: string,
+): void => {
+  const mutableProviders = providers as EditableProvidersRecord;
+  mutableProviders[provider] = {
+    ...(mutableProviders[provider] ?? {}),
+    model,
+  } as AnyEditableProviderConfig;
 };
 
 const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
@@ -496,18 +519,14 @@ export const ProviderSettings: React.FC = () => {
 
       // Sync defaults.chat to providers.{provider}.model for backward compatibility
       // with the backend which reads model from providers.{provider}.model.
-      const providersWithModel = { ...(normalizedValues.providers || {}) };
+      const providersWithModel: EditableProviders = { ...(normalizedValues.providers || {}) };
       const activeProvider = normalizedValues.provider as ModelProvider;
       const defaultChatModel = normalizedValues.defaults?.chat;
       if (defaultChatModel?.model && activeProvider) {
-        const providerCfg = providersWithModel[activeProvider] || {};
-        providersWithModel[activeProvider] = {
-          ...providerCfg,
-          model: defaultChatModel.model,
-        } as EditableProviders[typeof activeProvider];
+        setLegacyProviderModel(providersWithModel, activeProvider, defaultChatModel.model);
       }
 
-      const payload = {
+      const payload: Record<string, unknown> = {
         provider: normalizedValues.provider,
         defaults: normalizedValues.defaults,
         providers: providersWithModel,
@@ -629,7 +648,7 @@ export const ProviderSettings: React.FC = () => {
   // ── Auto-save model preference changes ──────────────────────────
 
   const handleDefaultsModelChange = async (
-    field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_session" | "vision">,
+    field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_agent" | "vision">,
     value: ProviderModelRef | undefined,
   ) => {
     if (field === "chat" && !value) return;
@@ -753,7 +772,7 @@ export const ProviderSettings: React.FC = () => {
 
   const renderModelPreferences = () => {
     const renderPicker = (
-      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_session" | "vision">,
+      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_agent" | "vision">,
     ) => {
       const value = form.getFieldValue(["defaults", field]) as ProviderModelRef | undefined;
       return (
@@ -769,7 +788,7 @@ export const ProviderSettings: React.FC = () => {
     };
 
     const renderPreferenceSection = (
-      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_session" | "vision">,
+      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_agent" | "vision">,
       title: string,
       helpText?: string,
     ) => (
@@ -814,7 +833,7 @@ export const ProviderSettings: React.FC = () => {
         <Form.Item name={["defaults", "fast"]} noStyle preserve>
           <ProviderModelRefField />
         </Form.Item>
-        <Form.Item name={["defaults", "sub_session"]} noStyle preserve>
+        <Form.Item name={["defaults", "sub_agent"]} noStyle preserve>
           <ProviderModelRefField />
         </Form.Item>
         <Form.Item name={["defaults", "vision"]} noStyle preserve>
@@ -828,11 +847,11 @@ export const ProviderSettings: React.FC = () => {
             t("settings.providerTab.fastModelHelp"),
           )}
           {renderPreferenceSection(
-            "sub_session",
-            t("settings.providerTab.subSessionModel", "Sub Session Model (Optional)"),
+            "sub_agent",
+            t("settings.providerTab.subAgentModel", "Sub Agent Model (Optional)"),
             t(
-              "settings.providerTab.subSessionModelHelp",
-              "Default model for new Sub Sessions. Uses Fast Model when not set.",
+              "settings.providerTab.subAgentModelHelp",
+              "Default model for new Sub Agents. Uses Fast Model when not set.",
             ),
           )}
           {renderPreferenceSection(
