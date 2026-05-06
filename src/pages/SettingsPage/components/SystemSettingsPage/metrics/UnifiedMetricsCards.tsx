@@ -189,8 +189,8 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
-            title={t("settings.unifiedMetricsCards.promptCacheCompactions", {
-              defaultValue: "Prompt Cache Compactions",
+            title={t("settings.unifiedMetricsCards.promptCachedToolOutputs", {
+              defaultValue: "Prompt-Cached Tool Outputs",
             })}
             value={
               chatSummary?.prompt_cached_tool_outputs ??

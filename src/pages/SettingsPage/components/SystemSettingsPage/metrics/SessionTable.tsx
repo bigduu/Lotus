@@ -49,12 +49,40 @@ const statusColor = (status: SessionMetrics["status"]): string => {
       return "success";
     case "running":
       return "processing";
+    case "awaiting_response":
+      return "gold";
     case "error":
       return "error";
     case "cancelled":
       return "warning";
     default:
       return "default";
+  }
+};
+
+const statusLabel = (
+  status: SessionMetrics["status"],
+  t: ReturnType<typeof useTranslation>["t"],
+): string => {
+  switch (status) {
+    case "awaiting_response":
+      return t("settings.metricsTable.session.status.awaitingResponse", {
+        defaultValue: "Awaiting Response",
+      });
+    case "running":
+      return t("settings.metricsTable.session.status.running", { defaultValue: "Running" });
+    case "completed":
+      return t("settings.metricsTable.session.status.completed", {
+        defaultValue: "Completed",
+      });
+    case "error":
+      return t("settings.metricsTable.session.status.error", { defaultValue: "Error" });
+    case "cancelled":
+      return t("settings.metricsTable.session.status.cancelled", {
+        defaultValue: "Cancelled",
+      });
+    default:
+      return status;
   }
 };
 
@@ -83,7 +111,9 @@ const SessionTable: React.FC<SessionTableProps> = ({ sessions, loading, onSelect
       dataIndex: "status",
       key: "status",
       width: 120,
-      render: (value: SessionMetrics["status"]) => <Tag color={statusColor(value)}>{value}</Tag>,
+      render: (value: SessionMetrics["status"]) => (
+        <Tag color={statusColor(value)}>{statusLabel(value, t)}</Tag>
+      ),
     },
     {
       title: t("settings.metricsTable.session.columns.started"),

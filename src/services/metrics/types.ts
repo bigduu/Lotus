@@ -12,6 +12,12 @@ export interface MetricsSummary {
   total_tool_calls: number;
   active_sessions: number;
   prompt_cached_tool_outputs?: number;
+  total_compression_events?: number;
+  total_tokens_saved?: number;
+  completed_sessions?: number;
+  awaiting_response_sessions?: number;
+  error_sessions?: number;
+  cancelled_sessions?: number;
   total_sync_mismatches?: number;
   sync_mismatch_breakdown?: Record<string, number>;
 }
@@ -25,7 +31,7 @@ export interface ModelMetrics {
   prompt_cached_tool_outputs?: number;
 }
 
-export type SessionStatus = "running" | "completed" | "error" | "cancelled";
+export type SessionStatus = "running" | "awaiting_response" | "completed" | "error" | "cancelled";
 
 export interface SessionMetrics {
   session_id: string;
@@ -40,6 +46,8 @@ export interface SessionMetrics {
   message_count: number;
   duration_ms?: number | null;
   prompt_cached_tool_outputs?: number;
+  total_compression_events?: number;
+  total_tokens_saved?: number;
 }
 
 export interface ToolCallMetrics {
@@ -66,6 +74,8 @@ export interface RoundMetrics {
   error?: string | null;
   duration_ms?: number | null;
   prompt_cached_tool_outputs?: number;
+  compression_count?: number;
+  tokens_saved?: number;
 }
 
 export interface SessionDetail {
@@ -158,7 +168,7 @@ export interface MetricsDailyQuery {
 }
 
 // Forward metrics types
-export type ForwardStatus = "success" | "error";
+export type ForwardStatus = "pending" | "success" | "error";
 
 export interface ForwardMetricsSummary {
   total_requests: number;
@@ -235,6 +245,8 @@ export interface CombinedSummary {
   total_errors: number;
   success_rate: number;
   prompt_cached_tool_outputs?: number;
+  total_compression_events?: number;
+  total_tokens_saved?: number;
   total_sync_mismatches?: number;
 }
 
