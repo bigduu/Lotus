@@ -302,6 +302,12 @@ export const zhCnTranslation = {
         exportPdf: "导出 PDF",
         done: "完成",
       },
+      scroll: {
+        jumpToTop: "回到顶部",
+        backToLatest: "回到最新消息",
+        newMessages: "有新消息",
+        newMessagesWithCount: "有 {{count}} 条新消息",
+      },
       compression: {
         tag: "已压缩上下文",
         timelineDetail: "已归档 {{count}} 条消息",

@@ -322,6 +322,13 @@ export const enUsTranslation = {
         exportPdf: "Export PDF",
         done: "Done",
       },
+      scroll: {
+        jumpToTop: "Jump to top",
+        backToLatest: "Back to latest",
+        newMessages: "New messages",
+        newMessagesWithCount_one: "{{count}} new message",
+        newMessagesWithCount_other: "{{count}} new messages",
+      },
       compression: {
         tag: "Context compressed",
         timelineDetail: "{{count}} messages archived",

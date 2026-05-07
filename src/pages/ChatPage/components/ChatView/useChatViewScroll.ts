@@ -6,12 +6,29 @@ import { useScrollAnchorPersistence } from "./useScrollAnchorPersistence";
 
 const SCROLL_BOTTOM_EPSILON_PX = 2;
 const SCROLL_BOTTOM_MAX_FRAMES = 6;
+const SCROLL_POSITION_THRESHOLD_PX = 150;
+const STREAMING_MESSAGE_PREFIX = "streaming-";
+const STREAMING_REASONING_MESSAGE_PREFIX = "streaming-reasoning-";
+const STREAMING_STATUS_MESSAGE_PREFIX = "streaming-status-";
 
 type UseChatViewScrollArgs = {
   currentSessionId: string | null;
   isThinking: boolean;
   messagesListRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
+};
+
+type ScrollIndicatorState = {
+  atBottom: boolean;
+  distanceFromBottom: number;
+};
+
+const isPrimaryStreamingMessageId = (messageId: string): boolean => {
+  return (
+    messageId.startsWith(STREAMING_MESSAGE_PREFIX) &&
+    !messageId.startsWith(STREAMING_REASONING_MESSAGE_PREFIX) &&
+    !messageId.startsWith(STREAMING_STATUS_MESSAGE_PREFIX)
+  );
 };
 
 export const useChatViewScroll = ({
@@ -22,8 +39,12 @@ export const useChatViewScroll = ({
 }: UseChatViewScrollArgs) => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
+  const [hasUnreadActivity, setHasUnreadActivity] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const userHasScrolledUpRef = useRef(false);
   const isFirstLoadRef = useRef(true);
+  const previousRenderableCountRef = useRef(renderableMessages.length);
+  const countedStreamingUnreadIdsRef = useRef<Set<string>>(new Set());
 
   // Use scroll anchor persistence
   const { handleScroll: handleScrollPersistence } = useScrollAnchorPersistence({
@@ -32,36 +53,70 @@ export const useChatViewScroll = ({
     renderableMessages,
   });
 
+  const clearUnreadState = useCallback(() => {
+    countedStreamingUnreadIdsRef.current.clear();
+    setHasUnreadActivity(false);
+    setUnreadCount(0);
+  }, []);
+
+  const consumePendingStreamingUnread = useCallback((newEntriesCount: number): number => {
+    if (newEntriesCount <= 0) return 0;
+
+    const pendingIds = countedStreamingUnreadIdsRef.current;
+    if (pendingIds.size === 0) return newEntriesCount;
+
+    let remaining = newEntriesCount;
+    for (const messageId of Array.from(pendingIds)) {
+      if (remaining <= 0) break;
+      pendingIds.delete(messageId);
+      remaining -= 1;
+    }
+
+    return remaining;
+  }, []);
+
+  const refreshScrollIndicators = useCallback((): ScrollIndicatorState | null => {
+    const el = messagesListRef.current;
+    if (!el || renderableMessages.length === 0) {
+      setShowScrollToBottom(false);
+      setShowScrollToTop(false);
+      clearUnreadState();
+      return null;
+    }
+
+    const distanceFromBottom = Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
+    const atBottom = distanceFromBottom <= SCROLL_POSITION_THRESHOLD_PX;
+    const atTop = el.scrollTop <= SCROLL_POSITION_THRESHOLD_PX;
+
+    setShowScrollToBottom(!atBottom);
+    setShowScrollToTop(!atTop && renderableMessages.length > 3);
+
+    if (atBottom) {
+      clearUnreadState();
+    }
+
+    return {
+      atBottom,
+      distanceFromBottom,
+    };
+  }, [clearUnreadState, messagesListRef, renderableMessages.length]);
+
   const handleMessagesScroll = useCallback(
     (e: React.UIEvent<HTMLElement>) => {
-      const el = messagesListRef.current;
-      if (!el) return;
-      // 没有消息时不显示滚动按钮
-      if (renderableMessages.length === 0) {
-        setShowScrollToBottom(false);
-        setShowScrollToTop(false);
-        return;
-      }
-      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const scrollTop = el.scrollTop;
-      // 使用统一的阈值：距离底部 150px 以内都视为"在底部"
-      const bottomThreshold = 150;
-      const topThreshold = 150;
-      const atBottom = distanceFromBottom < bottomThreshold;
-      const atTop = scrollTop < topThreshold;
-      setShowScrollToBottom(!atBottom);
-      setShowScrollToTop(!atTop && renderableMessages.length > 3);
-      // 用户主动向上滚动超过阈值时，标记为已滚动
-      if (distanceFromBottom > bottomThreshold * 2) {
+      const indicatorState = refreshScrollIndicators();
+      if (!indicatorState) return;
+
+      if (indicatorState.distanceFromBottom > SCROLL_POSITION_THRESHOLD_PX) {
         userHasScrolledUpRef.current = true;
-      } else if (atBottom) {
+      } else if (indicatorState.atBottom) {
         userHasScrolledUpRef.current = false;
+        clearUnreadState();
       }
 
       // Save scroll position (pass event to handler)
       handleScrollPersistence(e);
     },
-    [messagesListRef, renderableMessages.length, handleScrollPersistence],
+    [clearUnreadState, refreshScrollIndicators, handleScrollPersistence],
   );
 
   const scrollToBottom = useCallback(() => {
@@ -71,6 +126,12 @@ export const useChatViewScroll = ({
 
     let frame = 0;
     let lastKnownScrollHeight = -1;
+
+    const finishScroll = () => {
+      userHasScrolledUpRef.current = false;
+      clearUnreadState();
+      refreshScrollIndicators();
+    };
 
     const step = () => {
       const scrollEl = messagesListRef.current;
@@ -97,17 +158,24 @@ export const useChatViewScroll = ({
 
       if (frame < SCROLL_BOTTOM_MAX_FRAMES && shouldContinue) {
         requestAnimationFrame(step);
+        return;
       }
+
+      finishScroll();
     };
 
     requestAnimationFrame(step);
-  }, [messagesListRef, renderableMessages.length]);
+  }, [clearUnreadState, messagesListRef, refreshScrollIndicators, renderableMessages.length]);
 
   const scrollToTop = useCallback(() => {
     const el = messagesListRef.current;
     if (!el) return;
 
     let frame = 0;
+
+    const finishScroll = () => {
+      refreshScrollIndicators();
+    };
 
     const step = () => {
       const scrollEl = messagesListRef.current;
@@ -121,15 +189,19 @@ export const useChatViewScroll = ({
       frame += 1;
       if (frame < SCROLL_BOTTOM_MAX_FRAMES && shouldContinue) {
         requestAnimationFrame(step);
+        return;
       }
+
+      finishScroll();
     };
 
     requestAnimationFrame(step);
-  }, [messagesListRef]);
+  }, [messagesListRef, refreshScrollIndicators]);
 
   const resetUserScroll = useCallback(() => {
     userHasScrolledUpRef.current = false;
-  }, []);
+    clearUnreadState();
+  }, [clearUnreadState]);
 
   useEffect(() => {
     const handleMessageNavigation = (event: Event) => {
@@ -205,73 +277,143 @@ export const useChatViewScroll = ({
   useEffect(() => {
     return streamingMessageBus.subscribe((update) => {
       if (update.sessionId !== currentSessionId) return;
-      if (userHasScrolledUpRef.current) return;
-      if (!update.content) return;
+
+      if (userHasScrolledUpRef.current) {
+        const normalizedContent = update.content?.trim() ?? "";
+        if (normalizedContent && isPrimaryStreamingMessageId(update.messageId)) {
+          if (!countedStreamingUnreadIdsRef.current.has(update.messageId)) {
+            countedStreamingUnreadIdsRef.current.add(update.messageId);
+            setUnreadCount((current) => current + 1);
+          }
+          setHasUnreadActivity(true);
+        }
+        refreshScrollIndicators();
+        return;
+      }
+
+      if (!update.content) {
+        refreshScrollIndicators();
+        return;
+      }
+
       scrollToBottom();
     });
-  }, [currentSessionId, scrollToBottom]);
+  }, [currentSessionId, refreshScrollIndicators, scrollToBottom]);
 
   useEffect(() => {
-    // Only auto-scroll when streaming, not on initial load
-    if (!userHasScrolledUpRef.current && renderableMessages.length > 0 && !isFirstLoadRef.current) {
-      scrollToBottom();
+    const currentCount = renderableMessages.length;
+    const previousCount = previousRenderableCountRef.current;
+    const hasNewEntries = currentCount > previousCount;
+
+    if (currentCount === 0) {
+      clearUnreadState();
+      refreshScrollIndicators();
+      previousRenderableCountRef.current = currentCount;
+      return;
     }
-    isFirstLoadRef.current = false;
-  }, [renderableMessages.length, scrollToBottom]);
+
+    if (isFirstLoadRef.current) {
+      refreshScrollIndicators();
+      isFirstLoadRef.current = false;
+      previousRenderableCountRef.current = currentCount;
+      return;
+    }
+
+    if (hasNewEntries && userHasScrolledUpRef.current) {
+      const unreadDelta = consumePendingStreamingUnread(currentCount - previousCount);
+      setHasUnreadActivity(true);
+      if (unreadDelta > 0) {
+        setUnreadCount((current) => current + unreadDelta);
+      }
+    }
+
+    if (!userHasScrolledUpRef.current && hasNewEntries) {
+      scrollToBottom();
+    } else {
+      refreshScrollIndicators();
+    }
+
+    previousRenderableCountRef.current = currentCount;
+  }, [
+    clearUnreadState,
+    consumePendingStreamingUnread,
+    refreshScrollIndicators,
+    renderableMessages.length,
+    scrollToBottom,
+  ]);
+
+  useEffect(() => {
+    const el = messagesListRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+
+    let rafId = 0;
+    const scheduleRefresh = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        refreshScrollIndicators();
+      });
+    };
+
+    const observer = new ResizeObserver(() => {
+      scheduleRefresh();
+    });
+
+    observer.observe(el);
+
+    const contentEl = el.firstElementChild;
+    if (contentEl instanceof HTMLElement) {
+      observer.observe(contentEl);
+    }
+
+    scheduleRefresh();
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
+  }, [currentSessionId, messagesListRef, refreshScrollIndicators, renderableMessages.length]);
 
   // 当消息数量变化或切换聊天时，主动检查是否应该显示滚动按钮
   // 使用 rAF + 延时确保在滚动锚点恢复和 DOM 布局完成后再检查
   useEffect(() => {
     const el = messagesListRef.current;
-    if (!el) {
-      setShowScrollToBottom(false);
-      setShowScrollToTop(false);
-      return;
-    }
-    if (renderableMessages.length === 0) {
-      setShowScrollToBottom(false);
-      setShowScrollToTop(false);
+    if (!el || renderableMessages.length === 0) {
+      refreshScrollIndicators();
       return;
     }
 
-    const checkPosition = () => {
-      const scrollEl = messagesListRef.current;
-      if (!scrollEl) return;
-      const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
-      const scrollTop = scrollEl.scrollTop;
-      const bottomThreshold = 150;
-      const topThreshold = 150;
-      const atBottom = distanceFromBottom < bottomThreshold;
-      const atTop = scrollTop < topThreshold;
-      setShowScrollToBottom(!atBottom);
-      setShowScrollToTop(!atTop && renderableMessages.length > 3);
-    };
+    refreshScrollIndicators();
 
-    // Check immediately
-    checkPosition();
-
-    // Re-check after layout settles (scroll anchor restore is async)
-    let rafId = requestAnimationFrame(() => {
-      checkPosition();
-      // One more delayed check for async scroll restores
-      rafId = requestAnimationFrame(checkPosition);
+    let nestedRafId = 0;
+    const rafId = requestAnimationFrame(() => {
+      refreshScrollIndicators();
+      nestedRafId = requestAnimationFrame(() => {
+        refreshScrollIndicators();
+      });
     });
 
-    return () => cancelAnimationFrame(rafId);
-  }, [messagesListRef, renderableMessages.length, currentSessionId]);
+    return () => {
+      cancelAnimationFrame(rafId);
+      cancelAnimationFrame(nestedRafId);
+    };
+  }, [messagesListRef, renderableMessages.length, currentSessionId, refreshScrollIndicators]);
 
   // Reset first load flag when switching chats
   useEffect(() => {
     isFirstLoadRef.current = true;
     userHasScrolledUpRef.current = false;
-  }, [currentSessionId]);
+    previousRenderableCountRef.current = 0;
+    clearUnreadState();
+  }, [clearUnreadState, currentSessionId]);
 
   return {
     handleMessagesScroll,
+    hasUnreadActivity,
     resetUserScroll,
     scrollToBottom,
     scrollToTop,
     showScrollToBottom,
     showScrollToTop,
+    unreadCount,
   };
 };

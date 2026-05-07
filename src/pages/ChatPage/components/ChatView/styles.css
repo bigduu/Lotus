@@ -129,6 +129,22 @@
     padding-bottom: 8px;
   }
 
+  .chat-scroll-capsule-wrapper {
+    right: 8px;
+    bottom: calc(100% + 8px);
+  }
+
+  .chat-scroll-capsule {
+    max-width: min(100%, calc(100vw - 24px));
+    gap: 6px;
+    padding: 4px;
+  }
+
+  .chat-scroll-capsule__button.chat-scroll-capsule__button {
+    min-height: 32px;
+    padding-inline: 10px;
+  }
+
   .lotus-message-input-shell {
     border-radius: 18px !important;
   }
@@ -209,6 +225,72 @@
 
 .streaming-card-enter {
   animation: streamingEnter 0.25s ease-out both;
+}
+
+.chat-bottom-stack {
+  position: relative;
+  width: 100%;
+}
+
+.chat-scroll-capsule-wrapper {
+  position: absolute;
+  right: 12px;
+  bottom: calc(100% + 10px);
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.chat-scroll-capsule {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ant-color-bg-elevated) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ant-color-border-secondary) 85%, transparent);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.chat-scroll-capsule__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ant-color-error);
+  color: white;
+  font-size: 12px;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--ant-color-bg-elevated);
+}
+
+.chat-scroll-capsule .ant-badge {
+  display: inline-flex;
+}
+
+.chat-scroll-capsule__button.chat-scroll-capsule__button {
+  border-radius: 999px;
+  border: none;
+  min-height: 34px;
+  padding-inline: 12px;
+  box-shadow: none;
+}
+
+.chat-scroll-capsule__button.chat-scroll-capsule__button--active {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--ant-color-primary) 28%, transparent);
+}
+
+.chat-scroll-capsule .ant-badge-count {
+  box-shadow: 0 0 0 2px var(--ant-color-bg-elevated);
 }
 
 /* Send button micro-interactions — doubled for specificity */

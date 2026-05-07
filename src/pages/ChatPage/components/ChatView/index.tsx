@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   App as AntApp,
   Button,
-  FloatButton,
   Grid,
   Layout,
   theme,
@@ -15,10 +14,8 @@ import {
 import {
   CheckSquareOutlined,
   CloseOutlined,
-  DownOutlined,
   DownloadOutlined,
   InboxOutlined,
-  UpOutlined,
 } from "@ant-design/icons";
 
 import { selectChildren, selectIsBusy, selectSessionById, useAppStore } from "../../store";
@@ -593,21 +590,19 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
   const {
     handleMessagesScroll,
+    hasUnreadActivity,
     resetUserScroll,
     scrollToBottom,
     scrollToTop,
     showScrollToBottom,
     showScrollToTop,
+    unreadCount,
   } = useChatViewScroll({
     currentSessionId: sessionId,
     isThinking,
     messagesListRef,
     renderableMessages: renderableMessagesWithDraft,
   });
-
-  const getScrollButtonPosition = () => {
-    return screens.xs ? 16 : 32;
-  };
 
   const shouldShowSelectionToolbar =
     Boolean(showMessagesView) && hasSelectableMessages && (!embedded || selectionMode);
@@ -839,71 +834,89 @@ export const ChatView: React.FC<ChatViewProps> = ({
           selectableMessageIds={selectableMessageIds}
           onToggleMessageSelection={handleToggleMessageSelection}
         />
+        <div className="chat-bottom-stack" data-testid="chat-bottom-stack">
+          {(showScrollToTop || showScrollToBottom) && showMessagesView && (
+            <div className="chat-scroll-capsule-wrapper" data-testid="chat-scroll-capsule-wrapper">
+              <div className="chat-scroll-capsule" data-testid="chat-scroll-capsule">
+                {showScrollToTop && (
+                  <Button
+                    data-testid="chat-scroll-top-button"
+                    className="chat-scroll-capsule__button"
+                    type="text"
+                    icon={<span aria-hidden="true">↑</span>}
+                    size="small"
+                    onClick={scrollToTop}
+                  >
+                    {t("chat.scroll.jumpToTop", "Jump to top")}
+                  </Button>
+                )}
+                {showScrollToBottom && (
+                  <span style={{ display: "inline-flex" }}>
+                    <span style={{ display: "inline-flex" }}>
+                      <Button
+                        data-testid="chat-scroll-bottom-button"
+                        className={`chat-scroll-capsule__button ${
+                          hasUnreadActivity ? "chat-scroll-capsule__button--active" : ""
+                        }`}
+                        type={hasUnreadActivity ? "primary" : "text"}
+                        icon={<span aria-hidden="true">↓</span>}
+                        size="small"
+                        onClick={() => {
+                          resetUserScroll();
+                          scrollToBottom();
+                        }}
+                      >
+                        {hasUnreadActivity
+                          ? t("chat.scroll.newMessagesWithCount", {
+                              count: unreadCount,
+                              defaultValue:
+                                unreadCount > 0 ? "{{count}} new messages" : "New messages",
+                            })
+                          : t("chat.scroll.backToLatest", "Back to latest")}
+                      </Button>
+                    </span>
+                    {hasUnreadActivity && unreadCount > 0 && (
+                      <span
+                        className="chat-scroll-capsule__count"
+                        data-testid="chat-scroll-unread-count"
+                      >
+                        {unreadCount}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
-        {/* 滚动按钮组 - 输入框上方右侧，使用 absolute 相对于父容器定位 */}
-        {(showScrollToTop || showScrollToBottom) && (
-          <div
-            style={{
-              position: "absolute",
-              right: getScrollButtonPosition(),
-              bottom: screens.xs ? 160 : 180,
-              display: "flex",
-              flexDirection: "column",
-              gap: token.marginXS,
-              zIndex: 1000,
-            }}
-          >
-            {showScrollToTop && (
-              <FloatButton
-                type="default"
-                icon={<UpOutlined />}
-                style={{ position: "relative", inset: "unset" }}
-                onClick={() => {
-                  scrollToTop();
-                }}
-              />
-            )}
-            {showScrollToBottom && (
-              <FloatButton
-                type="primary"
-                icon={<DownOutlined />}
-                style={{ position: "relative", inset: "unset" }}
-                onClick={() => {
-                  resetUserScroll();
-                  scrollToBottom();
-                }}
-              />
-            )}
-          </div>
-        )}
+          {sessionId && auxReady && (
+            <div
+              style={{
+                paddingTop: token.paddingXS,
+                paddingRight: getContainerPadding(),
+                paddingBottom: 0,
+                paddingLeft: getContainerPadding(),
+                maxWidth: getContainerMaxWidth(),
+                margin: "0 auto",
+                width: "100%",
+              }}
+            >
+              <React.Suspense fallback={null}>
+                <LazyQuestionDialog sessionId={sessionId} />
+              </React.Suspense>
+            </div>
+          )}
 
-        {sessionId && auxReady && (
-          <div
-            style={{
-              paddingTop: token.paddingXS,
-              paddingRight: getContainerPadding(),
-              paddingBottom: 0,
-              paddingLeft: getContainerPadding(),
-              maxWidth: getContainerMaxWidth(),
-              margin: "0 auto",
-              width: "100%",
-            }}
-          >
-            <React.Suspense fallback={null}>
-              <LazyQuestionDialog sessionId={sessionId} />
-            </React.Suspense>
-          </div>
-        )}
-
-        <ChatInputArea
-          sessionId={sessionId}
-          isCenteredLayout={!showMessagesView}
-          maxWidth={showMessagesView ? getContainerMaxWidth() : "100%"}
-          onWorkflowDraftChange={setWorkflowDraft}
-          showMessagesView={Boolean(showMessagesView)}
-          sessionDiffSummary={sessionDiffSummary}
-          contextUsageIndicator={tokenUsageIndicator}
-        />
+          <ChatInputArea
+            sessionId={sessionId}
+            isCenteredLayout={!showMessagesView}
+            maxWidth={showMessagesView ? getContainerMaxWidth() : "100%"}
+            onWorkflowDraftChange={setWorkflowDraft}
+            showMessagesView={Boolean(showMessagesView)}
+            sessionDiffSummary={sessionDiffSummary}
+            contextUsageIndicator={tokenUsageIndicator}
+          />
+        </div>
       </Flex>
     </Layout>
   );

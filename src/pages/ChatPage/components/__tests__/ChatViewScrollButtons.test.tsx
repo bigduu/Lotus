@@ -1,12 +1,13 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockStoreState: any = {
-  currentSessionId: null,
-  chats: [],
+  currentSessionId: "session-1",
+  chats: [{ id: "session-1", kind: "root", messages: [{ id: "m1" }], messageCount: 1 }],
   deleteMessage: vi.fn(),
   updateSession: vi.fn(),
   loadChatHistory: vi.fn(),
+  loadTaskList: vi.fn().mockResolvedValue(undefined),
   subAgentsByParent: {},
   selectSession: vi.fn(),
   setSessionProcessing: vi.fn(),
@@ -15,6 +16,7 @@ const mockStoreState: any = {
   tokenUsages: {},
   truncationOccurred: {},
   segmentsRemoved: {},
+  taskLists: {},
 };
 
 vi.mock("antd", async () => {
@@ -28,11 +30,32 @@ vi.mock("antd", async () => {
   };
 });
 
+vi.mock("react-i18next", () => ({
+  useTranslation: () => ({
+    t: (key: string, optionsOrDefault?: any, maybeDefault?: string) => {
+      if (typeof optionsOrDefault === "string") return optionsOrDefault;
+      if (typeof maybeDefault === "string") return maybeDefault;
+      if (optionsOrDefault && typeof optionsOrDefault === "object") {
+        if (typeof optionsOrDefault.defaultValue === "string") {
+          return optionsOrDefault.defaultValue.replace(
+            "{{count}}",
+            String(optionsOrDefault.count ?? 0),
+          );
+        }
+        if (key === "chat.scroll.newMessagesWithCount") {
+          return `${optionsOrDefault.count ?? 0} new messages`;
+        }
+      }
+      return key;
+    },
+  }),
+}));
+
 vi.mock("../../store", () => ({
   useAppStore: Object.assign(
     (selector: (state: typeof mockStoreState) => unknown) => selector(mockStoreState),
     {
-      subscribe: vi.fn(() => vi.fn()), // Return unsubscribe function
+      subscribe: vi.fn(() => vi.fn()),
       getState: vi.fn(() => mockStoreState),
       setState: vi.fn(),
     },
@@ -40,12 +63,18 @@ vi.mock("../../store", () => ({
   selectSessionById: (sessionId: string | null) => (state: typeof mockStoreState) =>
     sessionId ? state.chats.find((c: any) => c.id === sessionId) || null : null,
   selectIsBusy: (_sessionId: string | null) => (_state: typeof mockStoreState) => false,
+  selectChildren: () => () => ({}),
 }));
 
 vi.mock("../ChatView/useChatViewMessages", () => ({
   useChatViewMessages: () => ({
     systemPromptMessage: null,
-    renderableMessages: [],
+    renderableMessages: [
+      { message: { id: "m1", role: "assistant", createdAt: new Date().toISOString() } },
+      { message: { id: "m2", role: "assistant", createdAt: new Date().toISOString() } },
+      { message: { id: "m3", role: "assistant", createdAt: new Date().toISOString() } },
+      { message: { id: "m4", role: "assistant", createdAt: new Date().toISOString() } },
+    ],
     convertRenderableEntry: vi.fn(),
   }),
 }));
@@ -53,11 +82,13 @@ vi.mock("../ChatView/useChatViewMessages", () => ({
 vi.mock("../ChatView/useChatViewScroll", () => ({
   useChatViewScroll: () => ({
     handleMessagesScroll: vi.fn(),
+    hasUnreadActivity: true,
     resetUserScroll: vi.fn(),
     scrollToBottom: vi.fn(),
     scrollToTop: vi.fn(),
-    showScrollToBottom: false,
+    showScrollToBottom: true,
     showScrollToTop: true,
+    unreadCount: 3,
   }),
 }));
 
@@ -65,12 +96,22 @@ vi.mock("../ChatView/ChatMessagesList", () => ({
   ChatMessagesList: () => <div data-testid="chat-messages-list" />,
 }));
 
-vi.mock("../ChatView/ChatInputArea", () => ({
-  ChatInputArea: () => <div data-testid="chat-input-area" />,
+vi.mock("../InputContainer", () => ({
+  InputContainer: () => <div data-testid="chat-input-area" />,
 }));
 
 vi.mock("../ChatView/SubAgentsPanel", () => ({
   SubAgentsPanel: () => null,
+}));
+
+vi.mock("../ChatView/ActiveToolMessageCard", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+vi.mock("../EmptyTaskLauncher", () => ({
+  __esModule: true,
+  default: () => null,
 }));
 
 vi.mock("@components/QuestionDialog", () => ({
@@ -94,20 +135,18 @@ describe("ChatView scroll button group", () => {
   beforeEach(() => {
     mockStoreState.deleteMessage.mockReset();
     mockStoreState.updateSession.mockReset();
+    mockStoreState.loadTaskList.mockClear();
   });
 
-  it("renders scroll button container with the expected absolute position", () => {
-    const { container } = render(<ChatView />);
-    // The scroll buttons are now in a plain div with position: absolute
-    // Look for a container that has FloatButton children
-    const floatBtns = container.querySelectorAll(".ant-float-btn");
-    expect(floatBtns.length).toBeGreaterThan(0);
+  it("renders visible sticky scroll controls near the message composer", () => {
+    render(<ChatView />);
 
-    // The parent div should have absolute positioning
-    const wrapper = floatBtns[0].parentElement;
-    expect(wrapper).not.toBeNull();
-    expect((wrapper as HTMLElement).style.position).toBe("absolute");
-    expect((wrapper as HTMLElement).style.bottom).toBe("180px");
-    expect((wrapper as HTMLElement).style.right).toBe("32px");
+    const bottomStack = screen.getByTestId("chat-bottom-stack");
+    const capsule = screen.getByTestId("chat-scroll-capsule-wrapper");
+
+    expect(bottomStack).toContainElement(capsule);
+    expect(screen.getByTestId("chat-scroll-top-button")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-scroll-bottom-button")).toBeInTheDocument();
+    expect(screen.getByText("3 new messages")).toBeInTheDocument();
   });
 });
