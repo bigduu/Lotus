@@ -572,7 +572,12 @@ export interface AgentEventHandlers {
   onToolError?: (toolCallId: string, error: string) => void;
   onTaskListUpdated?: (taskList: TaskList) => void;
   onTaskListItemProgress?: (delta: TaskListDelta) => void;
-  onTaskListCompleted?: (sessionId: string, totalRounds: number, totalToolCalls: number) => void;
+  onTaskListCompleted?: (
+    sessionId: string,
+    totalRounds: number,
+    totalToolCalls: number,
+    completedAt?: string,
+  ) => void;
   onTaskEvaluationStarted?: (sessionId: string, itemsCount: number) => void;
   onTaskEvaluationCompleted?: (sessionId: string, updatesCount: number, reasoning: string) => void;
   onTokenBudgetUpdated?: (usage: TokenBudgetUsage) => void;
@@ -1029,6 +1034,7 @@ export class AgentClient {
             event.session_id,
             event.total_rounds,
             event.total_tool_calls,
+            event.completed_at,
           );
         }
         break;

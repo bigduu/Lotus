@@ -11,11 +11,13 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../../types/chat";
-import type { ToolCallCardProps } from "../ToolCallCard";
-import type { ToolSessionItem } from "../ToolSessionCard";
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
+import { formatResultContent } from "../../utils/resultFormatters";
+import type { ToolCallCardProps } from "../ToolCallCard";
+import type { ToolSessionItem } from "../ToolSessionCard";
 import ToolStepDetailDrawer from "./ToolStepDetailDrawer";
+import FormattedContentPreview, { type FormattedContentMode } from "./FormattedContentPreview";
 import "./styles.css";
 
 const { Text } = Typography;
@@ -171,24 +173,28 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           intent.length > 60 ? intent.substring(0, 60).trimEnd() + "…" : intent;
 
         // Mini output preview — shown for process (live tail of streamingOutput)
-        // and for finish/error (tail of the final result text). Gives users a
-        // glanceable summary without opening the drawer.
+        // and for finish/error (head of the final result text). Use the same
+        // formatter as the detail drawer so JSON/object output is readable.
         let miniPreview: string | null = null;
+        let miniPreviewMode: FormattedContentMode = "text";
         let miniPreviewKind: "live" | "result" | null = null;
         if (entry.info.status === "process" && entry.streamingOutput?.trim()) {
           const lines = entry.streamingOutput.split("\n");
           miniPreview = lines.slice(-3).join("\n");
+          miniPreviewMode = formatResultContent(entry.streamingOutput).isJson ? "auto" : "text";
           miniPreviewKind = "live";
         } else if (
           (entry.info.status === "finish" || entry.info.status === "error") &&
           entry.result?.result?.result
         ) {
-          const text = String(entry.result.result.result).trimEnd();
+          const formattedResult = formatResultContent(entry.result.result.result);
+          const text = formattedResult.formattedText.trimEnd();
           if (text.length > 0) {
             const lines = text.split("\n");
             // For results we show the first 3 lines (head), which usually
             // carries the most informative summary line.
             miniPreview = lines.slice(0, 3).join("\n");
+            miniPreviewMode = formattedResult.isJson ? "json" : "text";
             miniPreviewKind = "result";
           }
         }
@@ -266,24 +272,15 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
               {/* Mini output preview (live streaming tail OR final result head) */}
               {miniPreview && (
                 <div style={{ marginTop: token.marginXS }}>
-                  <pre
+                  <FormattedContentPreview
+                    value={miniPreview}
+                    mode={miniPreviewMode}
                     className="lotus-tool-step-preview"
-                    style={{
-                      margin: 0,
-                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                      fontSize: token.fontSizeSM,
-                      color: token.colorTextSecondary,
-                      background: "transparent",
-                      border: "none",
-                      padding: 0,
-                      whiteSpace: "pre-wrap",
-                      wordBreak: "break-word",
-                      maxHeight: 72,
-                      overflow: "hidden",
-                    }}
-                  >
-                    {miniPreview}
-                  </pre>
+                    compact={true}
+                    maxHeight={72}
+                    scrollable={false}
+                    backgroundColor="transparent"
+                  />
                   <Button
                     type="link"
                     size="small"

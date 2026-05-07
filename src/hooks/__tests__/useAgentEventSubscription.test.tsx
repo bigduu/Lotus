@@ -4,6 +4,24 @@ import { useAgentEventSubscription } from "../useAgentEventSubscription";
 import { AgentClient } from "../../services/chat/AgentService";
 import { streamingMessageBus } from "../../pages/ChatPage/utils/streamingMessageBus";
 
+const { mockAntdMessage } = vi.hoisted(() => ({
+  mockAntdMessage: {
+    success: vi.fn(),
+    error: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+    loading: vi.fn(),
+    open: vi.fn(),
+    destroy: vi.fn(),
+  },
+}));
+
+vi.mock("antd", () => ({
+  App: {
+    useApp: () => ({ message: mockAntdMessage }),
+  },
+}));
+
 // Type for mock selectors
 type MockSelector = (state: any) => any;
 
@@ -43,6 +61,36 @@ vi.mock("../../services/chat/AgentService", () => {
       subscribeToEvents = mockSubscribeToEvents;
     },
   };
+});
+
+const createBusyExecutionEntry = (overrides: Partial<any> = {}) => ({
+  sessionId: "session-1",
+  phase: "running",
+  confidence: "live",
+  activeReasons: [],
+  generation: 1,
+  backendRunId: null,
+  stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+  backend: {
+    isRunning: true,
+    lastRunStatus: null,
+    lastRunError: null,
+    syncedAt: null,
+    hasPendingQuestion: null,
+    runningChildCount: null,
+  },
+  interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+  children: { byId: {}, runningCount: 0 },
+  timestamps: {
+    optimisticAt: null,
+    confirmedAt: null,
+    firstTokenAt: null,
+    terminalAt: null,
+    settlingStartedAt: null,
+    settledAt: null,
+  },
+  error: null,
+  ...overrides,
 });
 
 // Mock state factory
@@ -86,6 +134,7 @@ describe("useAgentEventSubscription", () => {
 
   beforeEach(async () => {
     vi.clearAllMocks();
+    Object.values(mockAntdMessage).forEach((mockFn) => mockFn.mockReset());
 
     streamingMessageBus.clear("session-1", "streaming-session-1");
     streamingMessageBus.clear("session-1", "streaming-reasoning-session-1");
@@ -336,6 +385,92 @@ describe("useAgentEventSubscription", () => {
     });
 
     consoleSpy.mockRestore();
+  });
+
+  it("shows task-list completion toast only once for replayed completion events", async () => {
+    let taskCompletedHandler:
+      | ((
+          sessionId: string,
+          totalRounds: number,
+          totalToolCalls: number,
+          completedAt?: string,
+        ) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      taskCompletedHandler = handlers.onTaskListCompleted;
+    });
+
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry(),
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      taskCompletedHandler?.("session-1", 3, 8, "2026-05-07T07:00:00.000Z");
+      taskCompletedHandler?.("session-1", 3, 8, "2026-05-07T07:00:00.000Z");
+    });
+
+    expect(mockAntdMessage.success).toHaveBeenCalledTimes(1);
+    expect(mockAntdMessage.success).toHaveBeenCalledWith(
+      "All tasks completed! Total rounds: 3, Tool calls: 8",
+      3,
+    );
+  });
+
+  it("suppresses task-list completion toast while waiting for QuestionDialog response", async () => {
+    let taskCompletedHandler:
+      | ((
+          sessionId: string,
+          totalRounds: number,
+          totalToolCalls: number,
+          completedAt?: string,
+        ) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      taskCompletedHandler = handlers.onTaskListCompleted;
+    });
+
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry({
+        phase: "waiting_user_answer",
+        interaction: {
+          pendingQuestion: {
+            question: "Continue?",
+            options: ["Yes", "No"],
+            allowCustom: true,
+            toolCallId: "ask-1",
+            receivedAt: "2026-05-07T07:00:00.000Z",
+          },
+          respondMode: {
+            sessionId: "session-1",
+            question: "Continue?",
+            options: ["Yes", "No"],
+            allowCustom: true,
+            toolCallId: "ask-1",
+          },
+          pendingApproval: null,
+        },
+      }),
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      taskCompletedHandler?.("session-1", 3, 8, "2026-05-07T07:00:00.000Z");
+    });
+
+    expect(mockAntdMessage.success).not.toHaveBeenCalled();
   });
 
   it("recovers missing task list baseline before applying task progress deltas", async () => {

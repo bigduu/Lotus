@@ -144,7 +144,31 @@ vi.mock("../../../utils/toolIntent", () => ({
 
 // Mock resultFormatters
 vi.mock("../../../utils/resultFormatters", () => ({
-  safeStringify: (obj: unknown, indent?: number) => JSON.stringify(obj, null, indent),
+  safeStringify: (obj: unknown, indent = 2) =>
+    typeof obj === "string" ? obj : JSON.stringify(obj, null, indent),
+  formatResultContent: (content: string) => {
+    const trimmed = content.trim();
+    if (
+      (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))
+    ) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return {
+          isJson: true,
+          formattedText: JSON.stringify(parsed, null, 2),
+          parsedJson: parsed,
+        };
+      } catch {
+        // Fall through to plain text rendering.
+      }
+    }
+
+    return {
+      isJson: false,
+      formattedText: content,
+    };
+  },
 }));
 
 import { ToolStepsCard } from "../index";

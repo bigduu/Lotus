@@ -92,8 +92,38 @@
 }
 
 /* Mini output preview block: soft fade-in when streaming arrives */
+.lotus-tool-step-preview,
 .lotus-tool-steps .ant-steps-item-description pre {
   animation: lotus-tool-step-fade 240ms ease both;
+}
+
+.lotus-tool-step-drawer-tabs,
+.lotus-tool-step-drawer-tabs > .ant-tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lotus-tool-step-drawer-tabs > .ant-tabs .ant-tabs-content-holder,
+.lotus-tool-step-drawer-tabs > .ant-tabs .ant-tabs-content,
+.lotus-tool-step-drawer-tabs > .ant-tabs .ant-tabs-tabpane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.lotus-tool-step-drawer-pane {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.lotus-tool-step-preview pre {
+  margin: 0;
 }
 
 @keyframes lotus-tool-step-fade {

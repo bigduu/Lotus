@@ -80,6 +80,19 @@ const isTaskItemStatus = (status: AgentEvent["status"]): status is TaskListDelta
 
 const TERMINAL_CHILD_STATUS = new Set(["completed", "error", "cancelled", "failed"]);
 
+const buildTaskListCompletionNoticeKey = (
+  sessionId: string,
+  totalRounds: number,
+  totalToolCalls: number,
+  completedAt?: string,
+): string => {
+  const normalizedCompletedAt = completedAt?.trim();
+  if (normalizedCompletedAt) {
+    return `${sessionId}:${normalizedCompletedAt}`;
+  }
+  return `${sessionId}:stats:${totalRounds}:${totalToolCalls}`;
+};
+
 const isMemoryStatusTool = (toolName: string): boolean => {
   const normalizedToolName = toolName.trim().toLowerCase();
   return normalizedToolName === "memory_note" || normalizedToolName === "session_note";
@@ -142,6 +155,7 @@ export function useAgentEventSubscription() {
   }
   const taskBaselineRecoveryRef = useRef<Set<string>>(new Set());
   const parentSettleTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const taskCompletionNoticeKeyBySessionRef = useRef<Map<string, string>>(new Map());
 
   // sessionId -> subscription
   const subscriptionsBySessionRef = useRef<Map<string, SubscriptionEntry>>(new Map());
@@ -254,6 +268,31 @@ export function useAgentEventSubscription() {
       }
     },
     [loadTaskList],
+  );
+
+  const shouldShowTaskListCompletedNotice = useCallback(
+    (sessionId: string, totalRounds: number, totalToolCalls: number, completedAt?: string) => {
+      const noticeKey = buildTaskListCompletionNoticeKey(
+        sessionId,
+        totalRounds,
+        totalToolCalls,
+        completedAt,
+      );
+      const lastNoticeKey = taskCompletionNoticeKeyBySessionRef.current.get(sessionId);
+      if (lastNoticeKey === noticeKey) {
+        return false;
+      }
+
+      const executionEntry = useAppStore.getState().executionBySession?.[sessionId];
+      const hasActiveQuestion =
+        executionEntry?.phase === "waiting_user_answer" ||
+        executionEntry?.interaction?.pendingQuestion != null ||
+        executionEntry?.interaction?.respondMode != null;
+
+      taskCompletionNoticeKeyBySessionRef.current.set(sessionId, noticeKey);
+      return !hasActiveQuestion;
+    },
+    [],
   );
 
   const startSubscription = useCallback(
@@ -843,7 +882,18 @@ export function useAgentEventSubscription() {
               }
             },
 
-            onTaskListCompleted: (_sid, totalRounds, totalToolCalls) => {
+            onTaskListCompleted: (completedSessionId, totalRounds, totalToolCalls, completedAt) => {
+              if (
+                !shouldShowTaskListCompletedNotice(
+                  completedSessionId,
+                  totalRounds,
+                  totalToolCalls,
+                  completedAt,
+                )
+              ) {
+                return;
+              }
+
               message.success(
                 `All tasks completed! Total rounds: ${totalRounds}, Tool calls: ${totalToolCalls}`,
                 3,
@@ -1346,6 +1396,7 @@ export function useAgentEventSubscription() {
       clearReconnect,
       ensureTaskListBaseline,
       message,
+      shouldShowTaskListCompletedNotice,
       persistSessionTitle,
       refreshChatsNow,
       setEvaluationState,
