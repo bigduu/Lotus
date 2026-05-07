@@ -226,10 +226,18 @@ const bootstrapProxyAuthGate = async (): Promise<boolean> => {
   }
 };
 
-// Initialize the store
+// Staged bootstrap — split into critical vs deferred work so the first useful
+// UI (chat shell + session list) appears without waiting for models / prompts.
 let isInitialized = false;
+let isCriticalDone = false;
+let deferredBootstrapPromise: Promise<void> | null = null;
 
-const initializeStore = async (force: boolean = false) => {
+/**
+ * Critical bootstrap — loads only what the chat shell needs to render:
+ * provider defaults + session list.  Callers should `await` this before
+ * rendering the main layout, then fire-and-forget `bootstrapDeferred()`.
+ */
+const bootstrapCritical = async (force: boolean = false): Promise<void> => {
   if (isInitialized && !force) {
     return;
   }
@@ -253,17 +261,55 @@ const initializeStore = async (force: boolean = false) => {
   // in fresh sessions (e.g., Playwright E2E with empty localStorage).
   await useAppStore.getState().loadChats();
 
-  const shouldSkipModelBootstrap = await bootstrapProxyAuthGate();
-
-  if (!shouldSkipModelBootstrap) {
-    await useAppStore.getState().fetchModels();
-  }
-
-  await useAppStore.getState().loadSystemPrompts();
+  isCriticalDone = true;
 };
 
-// Export for explicit initialization by App.tsx after setup is complete
-export { initializeStore };
+/**
+ * Deferred bootstrap — fetches models, resolves proxy-auth gate, and loads
+ * system prompts.  None of these block the initial shell render.
+ * Errors are logged but never prevent the UI from being interactive.
+ */
+const bootstrapDeferred = async (): Promise<void> => {
+  if (!isCriticalDone) {
+    return;
+  }
+
+  if (deferredBootstrapPromise) {
+    return deferredBootstrapPromise;
+  }
+
+  deferredBootstrapPromise = (async () => {
+    try {
+      const shouldSkipModelBootstrap = await bootstrapProxyAuthGate();
+
+      if (!shouldSkipModelBootstrap) {
+        await useAppStore.getState().fetchModels();
+      }
+
+      await useAppStore.getState().loadSystemPrompts();
+    } catch (error) {
+      console.error("[AppStore] Deferred bootstrap failed:", error);
+    }
+  })();
+
+  return deferredBootstrapPromise;
+};
+
+/**
+ * Backward-compatible wrapper: runs critical path, then deferred in background.
+ * Existing callers (App.tsx) can continue to call this without changes.
+ */
+const initializeStore = async (force: boolean = false): Promise<void> => {
+  await bootstrapCritical(force);
+  // Fire-and-forget — deferred work must not block the shell from rendering.
+  bootstrapDeferred().catch((err) => {
+    console.error("[AppStore] Deferred bootstrap error:", err);
+  });
+};
+
+// Export for explicit initialization by App.tsx after setup is complete.
+// Also export staged variants for callers that want finer control.
+export { initializeStore, bootstrapCritical, bootstrapDeferred };
 
 // Execution-state selectors
 export {

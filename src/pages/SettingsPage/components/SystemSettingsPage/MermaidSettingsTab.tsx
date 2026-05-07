@@ -33,12 +33,18 @@ export const MermaidSettingsTab: React.FC = () => {
   const resetSettings = useResetMermaidSettings();
   const [form] = Form.useForm();
 
-  // Sync form with store
+  const prevSettingsRef = React.useRef(settings);
+
+  // Sync form with store only when settings change externally (e.g. reset)
   React.useEffect(() => {
-    form.setFieldsValue(settings);
+    if (prevSettingsRef.current !== settings) {
+      form.setFieldsValue(settings);
+      prevSettingsRef.current = settings;
+    }
   }, [settings, form]);
 
   const handleValuesChange = (changedValues: Partial<Record<string, unknown>>) => {
+    prevSettingsRef.current = { ...prevSettingsRef.current, ...changedValues };
     updateSettings(changedValues);
   };
 

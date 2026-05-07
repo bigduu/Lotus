@@ -14,10 +14,10 @@ import {
   CloudSyncOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { ChatItem as ChatItemType } from "../../types/chat";
+import type { SidebarChatListItem } from "../../types/sidebarChat";
 
 interface ChatItemProps {
-  chat: ChatItemType;
+  chat: SidebarChatListItem;
   isSelected: boolean;
   onSelect: (sessionId: string) => void;
   onDelete: (sessionId: string) => void;

@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "antd/dist/reset.css"; // Import Ant Design CSS reset
-import "@shared/i18n";
+import { i18nReady } from "@shared/i18n";
 
 const rootElement = document.getElementById("root");
 
@@ -44,6 +44,7 @@ const renderBootstrapError = (error: unknown) => {
 
 const bootstrap = async () => {
   try {
+    await i18nReady;
     const { default: App } = await import("./app/App");
     root.render(
       <React.StrictMode>

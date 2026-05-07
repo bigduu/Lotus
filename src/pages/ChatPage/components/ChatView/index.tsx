@@ -25,12 +25,7 @@ import { selectChildren, selectIsBusy, selectSessionById, useAppStore } from "..
 import { isAssistantToolResultMessage, type Message } from "../../types/chat";
 import { ChatInputArea } from "./ChatInputArea";
 import { ChatMessagesList } from "./ChatMessagesList";
-import { TodoList } from "@components/TodoList";
-import { QuestionDialog } from "@components/QuestionDialog";
 import { TokenUsageDisplay } from "../TokenUsageDisplay";
-import { SubAgentsPanel } from "./SubAgentsPanel";
-import { ContextBar } from "../ContextBar";
-import { SessionSummaryCard } from "../SessionSummaryCard";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
 import "./styles.css";
 import { useChatViewScroll } from "./useChatViewScroll";
@@ -45,6 +40,26 @@ import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { useTranslation } from "react-i18next";
 import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
 import { useIsMobile } from "@shared/hooks/useMediaQuery";
+
+// ── Lazy-loaded auxiliary panels ─────────────────────────────────────────
+// These components are not needed for the very first paint.  Lazy-loading
+// them avoids parsing & evaluating their (often heavy) dependency trees
+// during the critical startup path.  They mount after an idle gate resolves.
+const LazyContextBar = React.lazy(() =>
+  import("../ContextBar").then((m) => ({ default: m.ContextBar })),
+);
+const LazySessionSummaryCard = React.lazy(() =>
+  import("../SessionSummaryCard").then((m) => ({ default: m.SessionSummaryCard })),
+);
+const LazyTodoList = React.lazy(() =>
+  import("@components/TodoList").then((m) => ({ default: m.TodoList })),
+);
+const LazySubAgentsPanel = React.lazy(() =>
+  import("./SubAgentsPanel").then((m) => ({ default: m.SubAgentsPanel })),
+);
+const LazyQuestionDialog = React.lazy(() =>
+  import("@components/QuestionDialog").then((m) => ({ default: m.QuestionDialog })),
+);
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -101,9 +116,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
   const loadTaskList = useAppStore((state) => state.loadTaskList);
-  const tokenUsages = useAppStore((state) => state.tokenUsages);
-  const truncationOccurred = useAppStore((state) => state.truncationOccurred);
-  const segmentsRemoved = useAppStore((state) => state.segmentsRemoved);
+  const storeTokenUsage = useAppStore((state) =>
+    sessionId ? (state.tokenUsages[sessionId] ?? null) : null,
+  );
+  const storeTruncation = useAppStore((state) =>
+    sessionId ? (state.truncationOccurred[sessionId] ?? false) : false,
+  );
+  const storeSegments = useAppStore((state) =>
+    sessionId ? (state.segmentsRemoved[sessionId] ?? 0) : 0,
+  );
   const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
   const sharedTaskSessionId = useMemo(() => {
     if (!sessionId || !currentChat) return sessionId;
@@ -319,6 +340,21 @@ export const ChatView: React.FC<ChatViewProps> = ({
   const [selectedMessageIds, setSelectedMessageIds] = useState<Set<string>>(new Set());
   const sidebarCollapsed = useUILayoutStore((s) => s.sidebar.collapsed);
 
+  // ── Deferred auxiliary mount gate ─────────────────────────────────────
+  // Auxiliary panels (ContextBar, TodoList, SubAgentsPanel, QuestionDialog,
+  // SessionSummaryCard) are not required for the very first paint.
+  // We defer their mount until the browser is idle (or a short timeout).
+  const [auxReady, setAuxReady] = useState(false);
+
+  useEffect(() => {
+    if (typeof requestIdleCallback === "function") {
+      const handle = requestIdleCallback(() => setAuxReady(true));
+      return () => cancelIdleCallback(handle);
+    }
+    const timer = window.setTimeout(() => setAuxReady(true), 300);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const getContainerMaxWidth = () => {
     if (embedded) return "100%";
     if (screens.xs) return "100%";
@@ -532,15 +568,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
   }, [sessionId, handleToggleSelectionMode]);
 
   // Get token usage - prefer store (real-time), fallback to chat config (persisted)
-  const storeTokenUsage = sessionId ? tokenUsages[sessionId] : null;
   const configTokenUsage = currentChat?.config?.tokenUsage;
   const currentTokenUsage = storeTokenUsage || configTokenUsage || null;
 
-  const storeTruncation = sessionId ? truncationOccurred[sessionId] : false;
   const configTruncation = currentChat?.config?.truncationOccurred;
   const currentTruncationOccurred = storeTruncation || configTruncation || false;
 
-  const storeSegments = sessionId ? segmentsRemoved[sessionId] : 0;
   const configSegments = currentChat?.config?.segmentsRemoved;
   const currentSegmentsRemoved = storeSegments || configSegments || 0;
   const latestCompressionEvent = useMemo(() => {
@@ -655,10 +688,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
         }}
       >
         {/* ContextBar - persistent context overview */}
-        {sessionId && <ContextBar sessionId={sessionId} />}
+        {sessionId && auxReady && (
+          <React.Suspense fallback={null}>
+            <LazyContextBar sessionId={sessionId} />
+          </React.Suspense>
+        )}
 
         {/* SessionSummaryCard - collapsible session overview (advanced mode only) */}
-        {isAdvancedMode && sessionId && showMessagesView && (
+        {isAdvancedMode && sessionId && showMessagesView && auxReady && (
           <div
             style={{
               paddingTop: token.paddingXS,
@@ -670,12 +707,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <SessionSummaryCard sessionId={sessionId} />
+            <React.Suspense fallback={null}>
+              <LazySessionSummaryCard sessionId={sessionId} />
+            </React.Suspense>
           </div>
         )}
 
         {/* TaskList - show when there is an active or task-capable session */}
-        {sessionId && shouldShowTaskPanel && (
+        {sessionId && shouldShowTaskPanel && auxReady && (
           <div
             style={{
               paddingTop: getContainerPadding(),
@@ -687,11 +726,13 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <TodoList sessionId={sessionId} initialCollapsed={true} />
+            <React.Suspense fallback={null}>
+              <LazyTodoList sessionId={sessionId} initialCollapsed={true} />
+            </React.Suspense>
           </div>
         )}
 
-        {sessionId && hasSubAgents && (
+        {sessionId && hasSubAgents && auxReady && (
           <div
             style={{
               paddingTop: token.paddingXS,
@@ -703,7 +744,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <SubAgentsPanel parentSessionId={sessionId} />
+            <React.Suspense fallback={null}>
+              <LazySubAgentsPanel parentSessionId={sessionId} />
+            </React.Suspense>
           </div>
         )}
 
@@ -834,7 +877,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
           </div>
         )}
 
-        {sessionId && (
+        {sessionId && auxReady && (
           <div
             style={{
               paddingTop: token.paddingXS,
@@ -846,7 +889,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
               width: "100%",
             }}
           >
-            <QuestionDialog sessionId={sessionId} />
+            <React.Suspense fallback={null}>
+              <LazyQuestionDialog sessionId={sessionId} />
+            </React.Suspense>
           </div>
         )}
 

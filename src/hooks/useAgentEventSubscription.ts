@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
+import { useShallow } from "zustand/react/shallow";
 import {
   AgentClient,
   TokenBudgetUsage,
@@ -84,26 +85,61 @@ const isMemoryStatusTool = (toolName: string): boolean => {
   return normalizedToolName === "memory_note" || normalizedToolName === "session_note";
 };
 
+const getSharedAgentClient = (): AgentClient => {
+  const maybeSingleton = AgentClient as typeof AgentClient & {
+    getInstance?: () => AgentClient;
+  };
+
+  if (typeof maybeSingleton.getInstance === "function") {
+    return maybeSingleton.getInstance();
+  }
+
+  return new AgentClient();
+};
+
 export function useAgentEventSubscription() {
   const { message } = AntApp.useApp();
   // Stable store actions
-  const addMessage = useAppStore((state) => state.addMessage);
-  const applyAgentEvent = useAppStore((state) => state.applyAgentEvent);
-  const updateTokenUsage = useAppStore((state) => state.updateTokenUsage);
-  const setTruncationInfo = useAppStore((state) => state.setTruncationInfo);
-  const updateSession = useAppStore((state) => state.updateSession);
-  const updateMessage = useAppStore((state) => state.updateMessage);
-  const setTaskList = useAppStore((state) => state.setTaskList);
-  const loadTaskList = useAppStore((state) => state.loadTaskList);
-  const updateTaskListDelta = useAppStore((state) => state.updateTaskListDelta);
-  const setEvaluationState = useAppStore((state) => state.setEvaluationState);
-  const applyChildProgress = useAppStore((state) => state.applyChildProgress);
-  const persistSessionTitle = useAppStore((state) => state.persistSessionTitle);
-  const refreshChatsNow = useAppStore((state) => state.refreshChatsNow);
-  const setPendingQuestion = useAppStore((state) => state.setPendingQuestion);
-  const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
+  const {
+    addMessage,
+    applyAgentEvent,
+    updateTokenUsage,
+    setTruncationInfo,
+    updateSession,
+    updateMessage,
+    setTaskList,
+    loadTaskList,
+    updateTaskListDelta,
+    setEvaluationState,
+    applyChildProgress,
+    persistSessionTitle,
+    refreshChatsNow,
+    setPendingQuestion,
+    clearPendingQuestion,
+  } = useAppStore(
+    useShallow((state) => ({
+      addMessage: state.addMessage,
+      applyAgentEvent: state.applyAgentEvent,
+      updateTokenUsage: state.updateTokenUsage,
+      setTruncationInfo: state.setTruncationInfo,
+      updateSession: state.updateSession,
+      updateMessage: state.updateMessage,
+      setTaskList: state.setTaskList,
+      loadTaskList: state.loadTaskList,
+      updateTaskListDelta: state.updateTaskListDelta,
+      setEvaluationState: state.setEvaluationState,
+      applyChildProgress: state.applyChildProgress,
+      persistSessionTitle: state.persistSessionTitle,
+      refreshChatsNow: state.refreshChatsNow,
+      setPendingQuestion: state.setPendingQuestion,
+      clearPendingQuestion: state.clearPendingQuestion,
+    })),
+  );
 
-  const agentClientRef = useRef(new AgentClient());
+  const agentClientRef = useRef<AgentClient | null>(null);
+  if (!agentClientRef.current) {
+    agentClientRef.current = getSharedAgentClient();
+  }
   const taskBaselineRecoveryRef = useRef<Set<string>>(new Set());
   const parentSettleTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
@@ -409,7 +445,10 @@ export function useAgentEventSubscription() {
         clearParentDraft();
       };
 
-      agentClientRef.current
+      const client = agentClientRef.current;
+      if (!client) return;
+
+      client
         .subscribeToEvents(
           sessionId,
           {

@@ -186,4 +186,45 @@ describe("applySessionsList (via refreshChats)", () => {
     expect(chat?.title).toBe("Remote With Version");
     expect(chat?.titleVersion).toBe(1);
   });
+
+  it("reuses the previous chat object when refresh summary does not change the merged session", async () => {
+    const stableSummary = createSummary({
+      id: "s1",
+      title: "Stable Title",
+      title_version: 2,
+      pinned: true,
+      updated_at: "2026-01-15T12:30:00.000Z",
+      last_activity_at: "2026-01-15T12:30:00.000Z",
+      message_count: 1,
+    });
+
+    mockListSessions.mockResolvedValueOnce({ sessions: [stableSummary] });
+    await store.getState().refreshChatsNow();
+
+    const normalizedChat = store.getState().chats.find((c) => c.id === "s1");
+    expect(normalizedChat).toBeTruthy();
+
+    const existingChat = {
+      ...normalizedChat!,
+      messages: [
+        {
+          id: "m1",
+          role: "user" as const,
+          content: "hello",
+          createdAt: "2026-01-15T12:00:00.000Z",
+        },
+      ],
+    };
+
+    store.setState((state) => ({
+      ...state,
+      chats: [existingChat],
+    }));
+
+    mockListSessions.mockResolvedValueOnce({ sessions: [stableSummary] });
+    await store.getState().refreshChatsNow();
+
+    const nextChat = store.getState().chats.find((c) => c.id === "s1");
+    expect(nextChat).toBe(existingChat);
+  });
 });

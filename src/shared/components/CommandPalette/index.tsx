@@ -246,6 +246,8 @@ const isEditableTarget = (target: EventTarget | null): boolean => {
   return tagName === "input" || tagName === "textarea" || tagName === "select";
 };
 
+const COMMAND_PALETTE_FORCE_OPEN_KEY = "__LOTUS_COMMAND_PALETTE_FORCE_OPEN__";
+
 export const CommandPalette: React.FC = () => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
@@ -257,7 +259,23 @@ export const CommandPalette: React.FC = () => {
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
   const executionBySession = useAppStore((state) => state.executionBySession);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const shouldForceOpen = (
+      window as typeof window & {
+        [COMMAND_PALETTE_FORCE_OPEN_KEY]?: boolean;
+      }
+    )[COMMAND_PALETTE_FORCE_OPEN_KEY];
+    if (shouldForceOpen) {
+      delete (
+        window as typeof window & {
+          [COMMAND_PALETTE_FORCE_OPEN_KEY]?: boolean;
+        }
+      )[COMMAND_PALETTE_FORCE_OPEN_KEY];
+      return true;
+    }
+    return false;
+  });
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<InputRef | null>(null);
@@ -536,6 +554,25 @@ export const CommandPalette: React.FC = () => {
       setSelectedIndex(0);
     }
   }, [open]);
+
+  // If MainLayout requested a force-open just before this lazy chunk mounted,
+  // consume that one-shot flag here as a safety net.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const shouldForceOpen = (
+      window as typeof window & {
+        [COMMAND_PALETTE_FORCE_OPEN_KEY]?: boolean;
+      }
+    )[COMMAND_PALETTE_FORCE_OPEN_KEY];
+    if (!shouldForceOpen) return;
+
+    delete (
+      window as typeof window & {
+        [COMMAND_PALETTE_FORCE_OPEN_KEY]?: boolean;
+      }
+    )[COMMAND_PALETTE_FORCE_OPEN_KEY];
+    setOpen(true);
+  }, []);
 
   useEffect(() => {
     const container = listRef.current;

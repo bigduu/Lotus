@@ -1,8 +1,9 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockInitializeStore } = vi.hoisted(() => ({
-  mockInitializeStore: vi.fn(),
+const { mockBootstrapCritical, mockBootstrapDeferred } = vi.hoisted(() => ({
+  mockBootstrapCritical: vi.fn().mockResolvedValue(undefined),
+  mockBootstrapDeferred: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock fetch globally
@@ -17,7 +18,8 @@ vi.mock("../../pages/SetupPage", () => ({
 }));
 
 vi.mock("../../pages/ChatPage/store", () => ({
-  initializeStore: mockInitializeStore,
+  bootstrapCritical: mockBootstrapCritical,
+  bootstrapDeferred: mockBootstrapDeferred,
 }));
 
 import App from "../App";
@@ -37,7 +39,8 @@ const mockSetupStatus = (status: {
 describe("App setup flow", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockInitializeStore.mockReset();
+    mockBootstrapCritical.mockResolvedValue(undefined);
+    mockBootstrapDeferred.mockResolvedValue(undefined);
   });
 
   it("renders SetupPage when setup has not been completed", async () => {
@@ -53,7 +56,7 @@ describe("App setup flow", () => {
 
     expect(await screen.findByText("SetupPage")).toBeInTheDocument();
     expect(screen.queryByText("MainLayout")).toBeNull();
-    expect(mockInitializeStore).not.toHaveBeenCalled();
+    expect(mockBootstrapCritical).not.toHaveBeenCalled();
   });
 
   it("renders MainLayout and initializes store when proxy config exists", async () => {
@@ -68,7 +71,7 @@ describe("App setup flow", () => {
 
     expect(await screen.findByText("MainLayout")).toBeInTheDocument();
     await waitFor(() => {
-      expect(mockInitializeStore).toHaveBeenCalledTimes(1);
+      expect(mockBootstrapCritical).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -84,7 +87,7 @@ describe("App setup flow", () => {
 
     expect(await screen.findByText("MainLayout")).toBeInTheDocument();
     await waitFor(() => {
-      expect(mockInitializeStore).toHaveBeenCalledTimes(1);
+      expect(mockBootstrapCritical).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -100,7 +103,7 @@ describe("App setup flow", () => {
 
     expect(await screen.findByText("MainLayout")).toBeInTheDocument();
     await waitFor(() => {
-      expect(mockInitializeStore).toHaveBeenCalledTimes(1);
+      expect(mockBootstrapCritical).toHaveBeenCalledTimes(1);
     });
   });
 

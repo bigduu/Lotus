@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Button, Layout, theme, Drawer } from "antd";
 import { MenuUnfoldOutlined } from "@ant-design/icons";
 import { useIsMobile } from "../shared/hooks/useMediaQuery";
 import { useTranslation } from "react-i18next";
 import { ChatSidebar } from "../pages/ChatPage/components/ChatSidebar";
-import { SystemSettingsPage } from "../pages/SettingsPage/components/SystemSettingsPage";
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import { useSettingsViewStore } from "../shared/store/settingsViewStore";
 import { useMermaidTheme } from "../shared/components/MermaidChart/useMermaidTheme";
@@ -12,16 +11,53 @@ import { mermaidCache } from "../shared/components/MermaidChart/mermaidConfig";
 import { clearMermaidRenderCache } from "../shared/components/MermaidChart/mermaidRenderManager";
 import { useMermaidSettings } from "../shared/store/mermaidSettingsStore";
 import { useAgentEventSubscription } from "@hooks/useAgentEventSubscription";
-import { useProviderStore } from "../pages/ChatPage/store/slices/providerSlice";
 import { MultiPaneChatView } from "../pages/ChatPage/components/MultiPaneChatView";
 import { useUILayoutStore } from "../shared/store/uiLayoutStore";
 import { ResizableSplit } from "../shared/components/ResizableSplit";
 import type { AppLocale } from "../shared/i18n/types";
 import { detectOS } from "../shared/utils/osInfoUtils";
-import { CommandPalette } from "@shared/components/CommandPalette";
-import { FeatureGuide } from "@shared/components/FeatureGuide";
+
+// ── Lazy-loaded non-critical UI ─────────────────────────────────────────
+// SystemSettingsPage is a heavy component only needed when the settings
+// drawer is open.  Using React.lazy avoids parsing & evaluating its entire
+// dependency tree (MCP tables, metrics charts, schedules, etc.) during the
+// initial startup render.
+const LazySystemSettingsPage = React.lazy(() =>
+  import("../pages/SettingsPage/components/SystemSettingsPage").then((m) => ({
+    default: m.SystemSettingsPage,
+  })),
+);
+
+// CommandPalette registers its own keyboard shortcut (⌘K) in a useEffect.
+// By lazy-loading it the heavy modal + action list is kept off the startup
+// bundle.  We install a lightweight global keydown listener below so the
+// shortcut is responsive even before the chunk loads.
+const LazyCommandPalette = React.lazy(() =>
+  import("@shared/components/CommandPalette").then((m) => ({
+    default: m.CommandPalette,
+  })),
+);
+
+// FeatureGuide is an onboarding tour – never needed on the critical path.
+const LazyFeatureGuide = React.lazy(() =>
+  import("@shared/components/FeatureGuide/FeatureGuide").then((m) => ({
+    default: m.FeatureGuide,
+  })),
+);
 
 const OPEN_PROVIDER_FLAG = "bodhi_open_provider_on_entry";
+const COMMAND_PALETTE_FORCE_OPEN_KEY = "__LOTUS_COMMAND_PALETTE_FORCE_OPEN__";
+
+// ── Deferred agent subscription ──────────────────────────────────────────
+// Thin wrapper that mounts the agent-event subscription hook only once the
+// idle-gate (`auxReady`) is true.  This keeps AgentClient instantiation,
+// store selector subscriptions, and the reconciliation effect off the
+// critical first-paint path.  On cold start there are typically no busy
+// sessions, so the hook would be a no-op anyway — deferring saves ~5–10 ms.
+const DeferredAgentSubscription: React.FC = () => {
+  useAgentEventSubscription();
+  return null;
+};
 
 export const MainLayout: React.FC<{
   themeMode: "light" | "dark";
@@ -36,12 +72,6 @@ export const MainLayout: React.FC<{
   const mermaidSettings = useMermaidSettings();
   const isMacOS = useMemo(() => detectOS() === "macos", []);
 
-  // Load provider configuration once for the whole app.
-  const loadProviderConfig = useProviderStore((state) => state.loadProviderConfig);
-  useEffect(() => {
-    loadProviderConfig();
-  }, [loadProviderConfig]);
-
   // Auto-open Settings to Provider tab if user clicked "Configure Provider" during setup.
   useEffect(() => {
     if (localStorage.getItem(OPEN_PROVIDER_FLAG) === "true") {
@@ -51,7 +81,8 @@ export const MainLayout: React.FC<{
   }, []);
 
   // Maintain a single persistent subscription to agent events.
-  useAgentEventSubscription();
+  // Deferred until the browser is idle via the DeferredAgentSubscription
+  // wrapper — see that component for rationale.
 
   // Enable global Mermaid theme updates
   useMermaidTheme();
@@ -88,6 +119,45 @@ export const MainLayout: React.FC<{
   const isMobile = useIsMobile();
   const mobileDrawerWidthPx = "min(86vw, 360px)";
 
+  // ── Deferred mount gates ──────────────────────────────────────────────
+  // CommandPalette and FeatureGuide are non-critical for the first paint.
+  // We mount them after the browser becomes idle (or after a short timeout
+  // on environments without requestIdleCallback).
+  const [auxReady, setAuxReady] = useState(false);
+
+  useEffect(() => {
+    // Immediately request idle callback; fall back to a short timeout.
+    if (typeof requestIdleCallback === "function") {
+      const handle = requestIdleCallback(() => setAuxReady(true));
+      return () => cancelIdleCallback(handle);
+    }
+    const timer = window.setTimeout(() => setAuxReady(true), 200);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  // Lightweight ⌘K bootstrap that only runs before CommandPalette mounts.
+  // Once auxReady is true, CommandPalette's own key handler takes over so
+  // open/close toggling semantics stay unchanged.
+  useEffect(() => {
+    const onEarlyCommandShortcut = (event: KeyboardEvent) => {
+      const isOpenShortcut = (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+      if (!isOpenShortcut || auxReady) {
+        return;
+      }
+
+      event.preventDefault();
+      (
+        window as typeof window & {
+          [COMMAND_PALETTE_FORCE_OPEN_KEY]?: boolean;
+        }
+      )[COMMAND_PALETTE_FORCE_OPEN_KEY] = true;
+      setAuxReady(true);
+    };
+
+    window.addEventListener("keydown", onEarlyCommandShortcut);
+    return () => window.removeEventListener("keydown", onEarlyCommandShortcut);
+  }, [auxReady]);
+
   return (
     <>
       {/* Skip to main content link for keyboard/screen-reader users */}
@@ -117,8 +187,17 @@ export const MainLayout: React.FC<{
       >
         {t("app.skipToContent", "Skip to main content")}
       </a>
-      <CommandPalette />
-      <FeatureGuide disabled={settingsOpen} />
+      {auxReady && (
+        <React.Suspense fallback={null}>
+          <LazyCommandPalette />
+        </React.Suspense>
+      )}
+      {auxReady && (
+        <React.Suspense fallback={null}>
+          <LazyFeatureGuide disabled={settingsOpen} />
+        </React.Suspense>
+      )}
+      {auxReady && <DeferredAgentSubscription />}
       <Layout
         style={{
           minHeight: "100vh",
@@ -160,13 +239,21 @@ export const MainLayout: React.FC<{
               }}
             >
               <ErrorBoundary name="SystemSettings">
-                <SystemSettingsPage
-                  themeMode={themeMode}
-                  onThemeModeChange={onThemeModeChange}
-                  locale={locale}
-                  onLocaleChange={onLocaleChange}
-                  onBack={closeSettings}
-                />
+                <React.Suspense
+                  fallback={
+                    <div style={{ padding: 24, color: "var(--ant-color-text-secondary)" }}>
+                      {t("app.loading", "Loading…")}
+                    </div>
+                  }
+                >
+                  <LazySystemSettingsPage
+                    themeMode={themeMode}
+                    onThemeModeChange={onThemeModeChange}
+                    locale={locale}
+                    onLocaleChange={onLocaleChange}
+                    onBack={closeSettings}
+                  />
+                </React.Suspense>
               </ErrorBoundary>
             </Layout>
           ) : (

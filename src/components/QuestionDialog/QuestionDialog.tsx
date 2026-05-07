@@ -2,8 +2,9 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from "react"
 import { App as AntApp, Button, Radio, Space, Typography, theme } from "antd";
 import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
+import { useShallow } from "zustand/react/shallow";
 import { agentApiClient } from "../../services/api";
-import { selectExecutionState, selectIsBusy, useAppStore } from "../../pages/ChatPage/store";
+import { selectIsBusy, useAppStore } from "../../pages/ChatPage/store";
 import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef";
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
@@ -51,7 +52,7 @@ interface RespondSubmitResult {
   auto_resume_status?: string;
 }
 
-export const QuestionDialog: React.FC<QuestionDialogProps> = ({
+const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
   sessionId,
   onResponseSubmitted,
   onQuestionAppeared,
@@ -78,18 +79,36 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     typeof document === "undefined" ? true : !document.hidden,
   );
 
-  const markRespondStart = useAppStore((state) => state.markRespondStart);
-  const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
-  const setPendingQuestion = useAppStore((state) => state.setPendingQuestion);
-  const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
-  const currentChat = useAppStore(
-    (state) => state.chats.find((chat) => chat.id === sessionId) || null,
+  const {
+    markRespondStart,
+    markSettleTimeout,
+    setPendingQuestion,
+    clearPendingQuestion,
+    sessionModelRef,
+    sessionReasoningEffort,
+    inputReasoningEffort,
+    eventPendingQuestion,
+    isCurrentSession,
+  } = useAppStore(
+    useShallow((state) => {
+      const chat = sessionId ? (state.chats.find((item) => item.id === sessionId) ?? null) : null;
+      return {
+        markRespondStart: state.markRespondStart,
+        markSettleTimeout: state.markSettleTimeout,
+        setPendingQuestion: state.setPendingQuestion,
+        clearPendingQuestion: state.clearPendingQuestion,
+        sessionModelRef: chat?.config?.model_ref ?? null,
+        sessionReasoningEffort: chat?.config?.reasoningEffort ?? null,
+        inputReasoningEffort: sessionId
+          ? (state.inputStates?.[sessionId]?.reasoningEffort ?? null)
+          : null,
+        eventPendingQuestion: sessionId
+          ? (state.executionBySession[sessionId]?.interaction.pendingQuestion ?? null)
+          : null,
+        isCurrentSession: state.currentSessionId === sessionId,
+      };
+    }),
   );
-  const eventPendingQuestion = useAppStore((state) => {
-    if (!sessionId) return null;
-    const entry = selectExecutionState(sessionId)(state);
-    return entry?.interaction.pendingQuestion ?? null;
-  });
 
   const isEventBackedQuestion = eventPendingQuestion !== null;
 
@@ -107,12 +126,9 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     return polledQuestion;
   }, [eventPendingQuestion, polledQuestion]);
 
-  const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
+  const activeModelRef = useActiveModelRef(sessionModelRef);
 
   // Resolve reasoning effort (same priority as InputContainer)
-  const inputState = useAppStore((state) =>
-    sessionId ? state.inputStates?.[sessionId] : undefined,
-  );
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
   const providerDefaultReasoningEffort = useMemo<ReasoningEffort | undefined>(
@@ -120,25 +136,23 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
       resolveProviderDefaultReasoningEffort(
         providerConfig,
         activeModelRef,
-        currentChat?.config?.model_ref?.provider ?? currentProvider,
+        sessionModelRef?.provider ?? currentProvider,
       ),
-    [activeModelRef, currentChat?.config?.model_ref?.provider, providerConfig, currentProvider],
+    [activeModelRef, sessionModelRef?.provider, providerConfig, currentProvider],
   );
   const persistedReasoningEffort = useMemo<ReasoningEffort | undefined>(
     () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
     [sessionId],
   );
   const reasoningEffort: ReasoningEffort =
-    currentChat?.config?.reasoningEffort ??
-    inputState?.reasoningEffort ??
+    sessionReasoningEffort ??
+    inputReasoningEffort ??
     persistedReasoningEffort ??
     providerDefaultReasoningEffort ??
     "medium";
 
   // selectIsBusy = any active execution; used to speed up polling while agent is running
   const isSessionProcessing = useAppStore(selectIsBusy(sessionId));
-  const currentSessionId = useAppStore((state) => state.currentSessionId);
-  const isCurrentSession = currentSessionId === sessionId;
 
   // Fetch pending question
   const fetchPendingQuestion = useCallback(async () => {
@@ -539,5 +553,10 @@ export const QuestionDialog: React.FC<QuestionDialogProps> = ({
     </div>
   );
 };
+
+QuestionDialogComponent.displayName = "QuestionDialog";
+
+export const QuestionDialog = React.memo(QuestionDialogComponent);
+QuestionDialog.displayName = "QuestionDialog";
 
 export default QuestionDialog;

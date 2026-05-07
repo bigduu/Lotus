@@ -33,6 +33,110 @@ const parseTimestampMs = (value?: string): number | null => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const areModelRefsEqual = (
+  a: ChatItem["config"]["model_ref"],
+  b: ChatItem["config"]["model_ref"],
+): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return a == null && b == null;
+  return a.provider === b.provider && a.model === b.model;
+};
+
+const areTokenUsagesEqual = (
+  a: ChatItem["config"]["tokenUsage"],
+  b: ChatItem["config"]["tokenUsage"],
+): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return a == null && b == null;
+  return (
+    a.systemTokens === b.systemTokens &&
+    a.summaryTokens === b.summaryTokens &&
+    a.windowTokens === b.windowTokens &&
+    a.totalTokens === b.totalTokens &&
+    a.maxContextTokens === b.maxContextTokens &&
+    a.budgetLimit === b.budgetLimit &&
+    a.promptCachedToolOutputs === b.promptCachedToolOutputs
+  );
+};
+
+const areCompressionEventsEqual = (
+  a: ChatItem["config"]["compressionEvents"],
+  b: ChatItem["config"]["compressionEvents"],
+): boolean => {
+  if (a === b) return true;
+  const left = a ?? [];
+  const right = b ?? [];
+  if (left.length !== right.length) return false;
+  return left.every((event, index) => {
+    const other = right[index];
+    return (
+      Boolean(other) &&
+      event.id === other.id &&
+      event.createdAt === other.createdAt &&
+      event.messagesCompressed === other.messagesCompressed &&
+      event.segmentsRemoved === other.segmentsRemoved
+    );
+  });
+};
+
+const areSyncCursorsEqual = (
+  a: ChatItem["config"]["syncCursor"],
+  b: ChatItem["config"]["syncCursor"],
+): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return a == null && b == null;
+  return (
+    a.messageCount === b.messageCount &&
+    a.lastMessageId === b.lastMessageId &&
+    a.hasPendingQuestion === b.hasPendingQuestion &&
+    a.pendingQuestionToolCallId === b.pendingQuestionToolCallId
+  );
+};
+
+const areChatConfigsEquivalent = (a: ChatItem["config"], b: ChatItem["config"]): boolean => {
+  if (a === b) return true;
+  return (
+    a.systemPromptId === b.systemPromptId &&
+    a.baseSystemPrompt === b.baseSystemPrompt &&
+    a.lastUsedEnhancedPrompt === b.lastUsedEnhancedPrompt &&
+    a.agentRole === b.agentRole &&
+    a.workspacePath === b.workspacePath &&
+    a.model === b.model &&
+    areModelRefsEqual(a.model_ref, b.model_ref) &&
+    a.reasoningEffort === b.reasoningEffort &&
+    areTokenUsagesEqual(a.tokenUsage, b.tokenUsage) &&
+    a.truncationOccurred === b.truncationOccurred &&
+    a.segmentsRemoved === b.segmentsRemoved &&
+    areCompressionEventsEqual(a.compressionEvents, b.compressionEvents) &&
+    areSyncCursorsEqual(a.syncCursor, b.syncCursor)
+  );
+};
+
+const canReuseSessionListChat = (prev: ChatItem, next: ChatItem): boolean => {
+  return (
+    prev.id === next.id &&
+    prev.kind === next.kind &&
+    prev.parentSessionId === next.parentSessionId &&
+    prev.rootSessionId === next.rootSessionId &&
+    prev.spawnDepth === next.spawnDepth &&
+    prev.createdByScheduleId === next.createdByScheduleId &&
+    prev.isRunning === next.isRunning &&
+    prev.updatedAt === next.updatedAt &&
+    prev.lastActivityAt === next.lastActivityAt &&
+    prev.messageCount === next.messageCount &&
+    prev.hasAttachments === next.hasAttachments &&
+    prev.lastRunStatus === next.lastRunStatus &&
+    prev.lastRunError === next.lastRunError &&
+    prev.subagentType === next.subagentType &&
+    prev.title === next.title &&
+    prev.titleVersion === next.titleVersion &&
+    prev.createdAt === next.createdAt &&
+    prev.pinned === next.pinned &&
+    prev.messages === next.messages &&
+    areChatConfigsEquivalent(prev.config, next.config)
+  );
+};
+
 export type DeleteMessageFailureReason =
   | "session_not_found"
   | "message_not_found"
@@ -535,11 +639,15 @@ function applySessionsList(
         summary,
       });
     }
+
     // Preserve in-memory messages when possible.
     const prevById = new Map(state.chats.map((c) => [c.id, c]));
-    const merged = next.map((c) => {
+    let chatsChanged = state.chats.length !== next.length;
+
+    const merged = next.map((c, index) => {
       const prev = prevById.get(c.id);
       if (!prev) {
+        chatsChanged = true;
         return c;
       }
 
@@ -569,7 +677,29 @@ function applySessionsList(
           ? { title: c.title, titleVersion: remoteTitleVersion }
           : { title: prev.title, titleVersion: localTitleVersion };
 
-      return {
+      const mergedConfig = {
+        ...prevConfig,
+        ...nextConfig,
+        model: preferLocalSessionFields
+          ? hasLocalModel
+            ? prevConfig.model
+            : nextConfig.model
+          : nextConfig.model,
+        model_ref: preferLocalSessionFields
+          ? hasLocalModelRef
+            ? prevConfig.model_ref
+            : nextConfig.model_ref
+          : nextConfig.model_ref,
+        reasoningEffort: preferLocalSessionFields
+          ? hasLocalReasoning
+            ? prevConfig.reasoningEffort
+            : nextConfig.reasoningEffort
+          : nextConfig.reasoningEffort,
+        compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
+        syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
+      };
+
+      const mergedChat: ChatItem = {
         ...c,
         // `title` and `titleVersion` are deliberately omitted here —
         // version-based precedence below (`...titleFields`) is the source of truth
@@ -578,33 +708,32 @@ function applySessionsList(
         updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
         messages: prev.messages,
         messageCount: effectiveMessageCount,
-        config: {
-          ...prevConfig,
-          ...nextConfig,
-          model: preferLocalSessionFields
-            ? hasLocalModel
-              ? prevConfig.model
-              : nextConfig.model
-            : nextConfig.model,
-          model_ref: preferLocalSessionFields
-            ? hasLocalModelRef
-              ? prevConfig.model_ref
-              : nextConfig.model_ref
-            : nextConfig.model_ref,
-          reasoningEffort: preferLocalSessionFields
-            ? hasLocalReasoning
-              ? prevConfig.reasoningEffort
-              : nextConfig.reasoningEffort
-            : nextConfig.reasoningEffort,
-          compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
-          syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
-        },
+        config: mergedConfig,
         // Override title/titleVersion with version-based precedence,
         // overriding the `updatedAt`-based decision for these fields specifically.
         ...titleFields,
       };
+
+      if (canReuseSessionListChat(prev, mergedChat)) {
+        if (state.chats[index] !== prev) {
+          chatsChanged = true;
+        }
+        return prev;
+      }
+
+      chatsChanged = true;
+      return mergedChat;
     });
-    return { ...state, chats: merged, executionBySession };
+
+    if (!chatsChanged && executionBySession === state.executionBySession) {
+      return state;
+    }
+
+    return {
+      ...state,
+      chats: chatsChanged ? merged : state.chats,
+      executionBySession,
+    };
   });
 }
 

@@ -1,12 +1,18 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { resources as baseResources } from "./resources";
+import { loadBaseResource, type EnUsTranslation, type ZhCnTranslation } from "./resources";
 import { frAutoOverrides } from "./generated/frAutoOverrides";
 import { hiAutoOverrides } from "./generated/hiAutoOverrides";
-import { DEFAULT_APP_LOCALE, resolveInitialLocale, SUPPORTED_APP_LOCALES } from "./types";
+import {
+  DEFAULT_APP_LOCALE,
+  type AppLocale,
+  resolveInitialLocale,
+  SUPPORTED_APP_LOCALES,
+} from "./types";
 
-const enTranslation = baseResources["en-US"].translation;
-const zhCnTranslation = baseResources["zh-CN"].translation;
+type TranslationResource = { translation: Record<string, unknown> };
+type EnTranslation = EnUsTranslation["translation"];
+type ZhCnBaseTranslation = ZhCnTranslation["translation"];
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -27,7 +33,13 @@ const deepMerge = <T extends Record<string, unknown>>(
   return result as T;
 };
 
-const frTranslation = {
+// ---------------------------------------------------------------------------
+// Lazy locale data builders.
+// These spread heavy translation objects, so they are wrapped in thunks to
+// avoid paying the construction cost for locales that aren't needed at startup.
+// ---------------------------------------------------------------------------
+
+const buildFrTranslation = (enTranslation: EnTranslation) => ({
   ...enTranslation,
   app: {
     ...enTranslation.app,
@@ -985,9 +997,9 @@ const frTranslation = {
       noForwardMetrics: "Aucune métrique de transfert disponible pour cette plage.",
     },
   },
-};
+});
 
-const jaTranslation = {
+const buildJaTranslation = (enTranslation: EnTranslation) => ({
   ...enTranslation,
   app: {
     ...enTranslation.app,
@@ -1059,9 +1071,9 @@ const jaTranslation = {
       languageHindi: "ヒンディー語",
     },
   },
-};
+});
 
-const hiTranslation = {
+const buildHiTranslation = (enTranslation: EnTranslation) => ({
   ...enTranslation,
   app: {
     ...enTranslation.app,
@@ -1215,828 +1227,832 @@ const hiTranslation = {
       failed: "विफल",
     },
   },
-};
+});
 
-const frFullTranslation = {
-  ...frTranslation,
-  layout: {
-    ...enTranslation.layout,
-    showSidebar: "Afficher la barre latérale",
-  },
-  common: {
-    ...enTranslation.common,
-    workspace: "Espace de travail",
-    server: "Serveur :",
-    category: "Catégorie :",
-    parameters: "Paramètres",
-    approve: "Approuver",
-    reject: "Refuser",
-  },
-  chat: {
-    ...frTranslation.chat,
-    sidebar: {
-      ...frTranslation.chat.sidebar,
-      createFailedTitle: "Échec de création de session",
-      createFailedUnknown: "Erreur inconnue",
-      delete: {
-        title: "Supprimer la session",
-        confirm: "Voulez-vous vraiment supprimer cette session ?",
+const buildFrFullTranslation = (enTranslation: EnTranslation) => {
+  const frTranslation = buildFrTranslation(enTranslation);
+  return {
+    ...frTranslation,
+    layout: {
+      ...enTranslation.layout,
+      showSidebar: "Afficher la barre latérale",
+    },
+    common: {
+      ...enTranslation.common,
+      workspace: "Espace de travail",
+      server: "Serveur :",
+      category: "Catégorie :",
+      parameters: "Paramètres",
+      approve: "Approuver",
+      reject: "Refuser",
+    },
+    chat: {
+      ...frTranslation.chat,
+      sidebar: {
+        ...frTranslation.chat.sidebar,
+        createFailedTitle: "Échec de création de session",
+        createFailedUnknown: "Erreur inconnue",
+        delete: {
+          title: "Supprimer la session",
+          confirm: "Voulez-vous vraiment supprimer cette session ?",
+        },
+        deleteByDate: {
+          title: "Supprimer les sessions du {{date}}",
+          confirm: "Voulez-vous vraiment supprimer {{count}} session(s) du {{date}} ?",
+        },
+        newSessionWithPrompt: "Nouvelle session avec {{prompt}}",
       },
-      deleteByDate: {
-        title: "Supprimer les sessions du {{date}}",
-        confirm: "Voulez-vous vraiment supprimer {{count}} session(s) du {{date}} ?",
+      workspace: {
+        ...enTranslation.chat.workspace,
+        recentTitle: "Espaces récents",
+        suggestedTitle: "Espaces suggérés",
+        noRecentWorkspaces: "Aucun espace récent",
+        noSuggestions: "Aucune suggestion",
+        defaultWorkspaceName: "Espace de travail",
+        validWorkspace: "Espace valide",
+        fileCount: "{{count}} fichiers",
       },
-      newSessionWithPrompt: "Nouvelle session avec {{prompt}}",
-    },
-    workspace: {
-      ...enTranslation.chat.workspace,
-      recentTitle: "Espaces récents",
-      suggestedTitle: "Espaces suggérés",
-      noRecentWorkspaces: "Aucun espace récent",
-      noSuggestions: "Aucune suggestion",
-      defaultWorkspaceName: "Espace de travail",
-      validWorkspace: "Espace valide",
-      fileCount: "{{count}} fichiers",
-    },
-    input: {
-      ...enTranslation.chat.input,
-      addAttachments: "Ajouter des pièces jointes",
-      referenceWorkspaceFiles: "Référencer des fichiers de l'espace",
-      imageCountSingular: "{{count}} image",
-      imageCountPlural: "{{count}} images",
-      moreImages: "+{{count}} de plus",
-      clearAllImages: "Effacer toutes les images",
-      reasoningTitle: "Effort de raisonnement : {{label}}",
-      reasoning: {
-        ...enTranslation.chat.input.reasoning,
-        low: "Faible",
-        medium: "Moyen",
-        high: "Élevé",
-        xhigh: "Très élevé",
-        max: "Max",
+      input: {
+        ...enTranslation.chat.input,
+        addAttachments: "Ajouter des pièces jointes",
+        referenceWorkspaceFiles: "Référencer des fichiers de l'espace",
+        imageCountSingular: "{{count}} image",
+        imageCountPlural: "{{count}} images",
+        moreImages: "+{{count}} de plus",
+        clearAllImages: "Effacer toutes les images",
+        reasoningTitle: "Effort de raisonnement : {{label}}",
+        reasoning: {
+          ...enTranslation.chat.input.reasoning,
+          low: "Faible",
+          medium: "Moyen",
+          high: "Élevé",
+          xhigh: "Très élevé",
+          max: "Max",
+        },
+        strictToolOnlyMode: "Mode strict outils uniquement",
+        toolSpecificModeLabel: "Mode spécifique à l'outil",
+        allowedTools: "Outils autorisés :",
+        autoPrefixLabel: "Préfixe auto : {{prefix}}",
+        mustStartWithPrefix: 'Le message doit commencer par "{{prefix}}"',
       },
-      strictToolOnlyMode: "Mode strict outils uniquement",
-      toolSpecificModeLabel: "Mode spécifique à l'outil",
-      allowedTools: "Outils autorisés :",
-      autoPrefixLabel: "Préfixe auto : {{prefix}}",
-      mustStartWithPrefix: 'Le message doit commencer par "{{prefix}}"',
-    },
-    prompt: {
-      ...enTranslation.chat.prompt,
-      selectorTitle: "Choisir un prompt système",
-      createButton: "Créer une nouvelle session",
-      helperText:
-        "Choisissez un prompt système de base pour l'IA. Vous pouvez en ajouter ou modifier dans les paramètres système.",
-      emptyDescription: "Aucun prompt système trouvé. Ajoutez-en un dans les paramètres système.",
-      newSessionSelectorTitle: "Choisir un prompt système pour la nouvelle session",
-      defaultDescription: "Prompt système par défaut.",
-      loadPresetsFailed: "Échec du chargement des préréglages",
-      loadCurrentInfoFailed: "Échec du chargement des informations actuelles",
-    },
-    commandSelector: {
-      ...enTranslation.chat.commandSelector,
-      loading: "Chargement des commandes...",
-      emptyWithSearch: 'Aucune commande trouvée pour "{{search}}"',
-      empty: "Aucune commande disponible.",
-      navigationHint:
-        "Navigation : Haut/Bas ou Ctrl+P/N | Sélection : Entrée | Compléter : Espace/Tab | Annuler : Échap",
-      types: {
-        ...enTranslation.chat.commandSelector.types,
-        workflow: "Flux de travail",
-        skill: "Compétence",
-        mcp: "MCP",
+      prompt: {
+        ...enTranslation.chat.prompt,
+        selectorTitle: "Choisir un prompt système",
+        createButton: "Créer une nouvelle session",
+        helperText:
+          "Choisissez un prompt système de base pour l'IA. Vous pouvez en ajouter ou modifier dans les paramètres système.",
+        emptyDescription: "Aucun prompt système trouvé. Ajoutez-en un dans les paramètres système.",
+        newSessionSelectorTitle: "Choisir un prompt système pour la nouvelle session",
+        defaultDescription: "Prompt système par défaut.",
+        loadPresetsFailed: "Échec du chargement des préréglages",
+        loadCurrentInfoFailed: "Échec du chargement des informations actuelles",
       },
-    },
-    model: {
-      ...enTranslation.chat.model,
-      selectModel: "Sélectionner un modèle",
-      noModelSelected: "Aucun modèle sélectionné",
-      selectModelHint: "Choisissez un modèle pour commencer la discussion.",
-      providerNotConfigured: "Fournisseur non configuré",
-      configureProviderHint:
-        "Configurez votre fournisseur dans les paramètres avant de choisir un modèle.",
-      configureProvider: "Configurer le fournisseur",
-      openSettings: "Ouvrir les paramètres",
-      noModelsAvailable: "Aucun modèle disponible",
-      selectModelBeforeSend: "Veuillez sélectionner un modèle avant l'envoi.",
-      selectModelBeforeRetry: "Veuillez sélectionner un modèle avant de réessayer.",
-    },
-    streaming: {
-      ...enTranslation.chat.streaming,
-      assistant: "Bodhi",
-      requestCancelled: "Requête annulée",
-      sendFailed: "Échec de l'envoi du message",
-      retryFailed: "Échec de la nouvelle tentative",
-      modelConfigNotLoaded: "Configuration du modèle non chargée",
-      agentUnavailable: "Agent indisponible",
-      noActiveChatTitle: "Aucune conversation active",
-      noActiveChatSendContent:
-        "Veuillez créer ou sélectionner une conversation avant d'envoyer un message.",
-      noActiveChatRetryContent:
-        "Veuillez créer ou sélectionner une conversation avant de réessayer.",
-      noChatIdTitle: "ID de conversation manquant",
-      noChatIdSendContent:
-        "La conversation actuelle n'a pas d'ID. Créez une nouvelle conversation puis réessayez.",
-      noChatIdRetryContent:
-        "La conversation actuelle n'a pas d'ID. Créez une nouvelle conversation puis réessayez.",
-    },
-    selectionToolbar: {
-      ...enTranslation.chat.selectionToolbar,
-      selectMessages: "Sélectionner des messages",
-      selectedCount: "{{selected}} sélectionné(s) ({{total}} au total)",
-      selectAll: "Tout sélectionner",
-      clear: "Effacer",
-      exportMarkdown: "Exporter en Markdown",
-      exportPdf: "Exporter en PDF",
-      done: "Terminé",
-    },
-    subAgents: {
-      ...enTranslation.chat.subAgents,
-      title: "Sous-agents",
-      expand: "Développer",
-      collapse: "Réduire",
-      continue: "Continuer ici",
-      open: "Ouvrir",
-      retry: "Réessayer",
-      hiddenHint: "{{count}} sous-agent(s) masqué(s)",
-    },
-    chatItem: {
-      ...enTranslation.chat.chatItem,
-      edit: "Modifier",
-      childTag: "Enfant",
-    },
-    systemPromptSelector: {
-      ...enTranslation.chat.systemPromptSelector,
-      defaultTag: "Par défaut",
-      hide: "Masquer",
-      preview: "Aperçu",
-      copy: "Copier",
-      lines: "{{count}} lignes",
-      words: "{{count}} mots",
-      chars: "{{count}} caractères",
-      noContent: "Aucun contenu",
-    },
-    title: {
-      ...enTranslation.chat.title,
-      updated: "Titre de conversation mis à jour",
-      generateFailed: "Échec de génération du titre de conversation",
-    },
-    respond: {
-      ...enTranslation.chat.respond,
-      customAnswerPlaceholder: "Saisissez votre réponse personnalisée...",
-    },
-    multiPane: {
-      ...enTranslation.chat.multiPane,
-      splitHorizontal: "Diviser horizontalement",
-      splitVertical: "Diviser verticalement",
-      closePane: "Fermer le panneau",
-      selectSessionHint: "Sélectionnez une session pour voir les messages",
-      hoverToSplitHint: "Survolez un panneau pour le diviser et comparer les conversations",
-      selectMessagesToExport: "Sélectionnez des messages à exporter",
-    },
-    messageCard: {
-      ...enTranslation.chat.messageCard,
-      authRequired: "Authentification requise",
-      goToSettings: "Aller aux paramètres",
-      assistantThinking: "L'assistant réfléchit...",
-      reasoning: "Raisonnement",
-      selected: "Sélectionné",
-      selectedTool: "Outil sélectionné",
-    },
-    messageActions: {
-      ...enTranslation.chat.messageActions,
-      copy: "Copier",
-      exportMarkdown: "Exporter en Markdown",
-      exportPdf: "Exporter en PDF",
-      restoreChat: "Restaurer uniquement la conversation",
-      restoreFilesAndChat: "Restaurer les fichiers et la conversation",
-      deleteMessage: "Supprimer le message",
-      savedFile: "Enregistré dans {{filename}}",
-      nothingToExport: "Rien à exporter",
-      exportFailed: "Échec de l'export",
-      cannotRestore: "Impossible de restaurer ce message",
-      restorePartial: "Conversation restaurée. {{count}} fichier(s) n'ont pas pu être restaurés.",
-      restoreFilesSuccess: "Fichiers et conversation restaurés ({{count}} message(s) supprimé(s)).",
-      restoreSuccess: "Conversation restaurée ({{count}} message(s) supprimé(s)).",
-      restoreFailed: "Échec de restauration de la conversation",
-      pdfUnavailable: "L'export PDF n'est pas disponible dans cet environnement",
-      exportingPdf: "Export PDF en cours...",
-    },
-    session: {
-      ...enTranslation.chat.session,
-      defaultTitle: "Nouvelle session",
-    },
-  },
-  settings: {
-    ...frTranslation.settings,
-    page: {
-      ...frTranslation.settings.page,
-      tabs: {
-        ...frTranslation.settings.page.tabs,
-        hooks: "Hooks",
-        envVars: "Variables d'environnement",
+      commandSelector: {
+        ...enTranslation.chat.commandSelector,
+        loading: "Chargement des commandes...",
+        emptyWithSearch: 'Aucune commande trouvée pour "{{search}}"',
+        empty: "Aucune commande disponible.",
+        navigationHint:
+          "Navigation : Haut/Bas ou Ctrl+P/N | Sélection : Entrée | Compléter : Espace/Tab | Annuler : Échap",
+        types: {
+          ...enTranslation.chat.commandSelector.types,
+          workflow: "Flux de travail",
+          skill: "Compétence",
+          mcp: "MCP",
+        },
+      },
+      model: {
+        ...enTranslation.chat.model,
+        selectModel: "Sélectionner un modèle",
+        noModelSelected: "Aucun modèle sélectionné",
+        selectModelHint: "Choisissez un modèle pour commencer la discussion.",
+        providerNotConfigured: "Fournisseur non configuré",
+        configureProviderHint:
+          "Configurez votre fournisseur dans les paramètres avant de choisir un modèle.",
+        configureProvider: "Configurer le fournisseur",
+        openSettings: "Ouvrir les paramètres",
+        noModelsAvailable: "Aucun modèle disponible",
+        selectModelBeforeSend: "Veuillez sélectionner un modèle avant l'envoi.",
+        selectModelBeforeRetry: "Veuillez sélectionner un modèle avant de réessayer.",
+      },
+      streaming: {
+        ...enTranslation.chat.streaming,
+        assistant: "Bodhi",
+        requestCancelled: "Requête annulée",
+        sendFailed: "Échec de l'envoi du message",
+        retryFailed: "Échec de la nouvelle tentative",
+        modelConfigNotLoaded: "Configuration du modèle non chargée",
+        agentUnavailable: "Agent indisponible",
+        noActiveChatTitle: "Aucune conversation active",
+        noActiveChatSendContent:
+          "Veuillez créer ou sélectionner une conversation avant d'envoyer un message.",
+        noActiveChatRetryContent:
+          "Veuillez créer ou sélectionner une conversation avant de réessayer.",
+        noChatIdTitle: "ID de conversation manquant",
+        noChatIdSendContent:
+          "La conversation actuelle n'a pas d'ID. Créez une nouvelle conversation puis réessayez.",
+        noChatIdRetryContent:
+          "La conversation actuelle n'a pas d'ID. Créez une nouvelle conversation puis réessayez.",
+      },
+      selectionToolbar: {
+        ...enTranslation.chat.selectionToolbar,
+        selectMessages: "Sélectionner des messages",
+        selectedCount: "{{selected}} sélectionné(s) ({{total}} au total)",
+        selectAll: "Tout sélectionner",
+        clear: "Effacer",
+        exportMarkdown: "Exporter en Markdown",
+        exportPdf: "Exporter en PDF",
+        done: "Terminé",
+      },
+      subAgents: {
+        ...enTranslation.chat.subAgents,
+        title: "Sous-agents",
+        expand: "Développer",
+        collapse: "Réduire",
+        continue: "Continuer ici",
+        open: "Ouvrir",
+        retry: "Réessayer",
+        hiddenHint: "{{count}} sous-agent(s) masqué(s)",
+      },
+      chatItem: {
+        ...enTranslation.chat.chatItem,
+        edit: "Modifier",
+        childTag: "Enfant",
+      },
+      systemPromptSelector: {
+        ...enTranslation.chat.systemPromptSelector,
+        defaultTag: "Par défaut",
+        hide: "Masquer",
+        preview: "Aperçu",
+        copy: "Copier",
+        lines: "{{count}} lignes",
+        words: "{{count}} mots",
+        chars: "{{count}} caractères",
+        noContent: "Aucun contenu",
+      },
+      title: {
+        ...enTranslation.chat.title,
+        updated: "Titre de conversation mis à jour",
+        generateFailed: "Échec de génération du titre de conversation",
+      },
+      respond: {
+        ...enTranslation.chat.respond,
+        customAnswerPlaceholder: "Saisissez votre réponse personnalisée...",
+      },
+      multiPane: {
+        ...enTranslation.chat.multiPane,
+        splitHorizontal: "Diviser horizontalement",
+        splitVertical: "Diviser verticalement",
+        closePane: "Fermer le panneau",
+        selectSessionHint: "Sélectionnez une session pour voir les messages",
+        hoverToSplitHint: "Survolez un panneau pour le diviser et comparer les conversations",
+        selectMessagesToExport: "Sélectionnez des messages à exporter",
+      },
+      messageCard: {
+        ...enTranslation.chat.messageCard,
+        authRequired: "Authentification requise",
+        goToSettings: "Aller aux paramètres",
+        assistantThinking: "L'assistant réfléchit...",
+        reasoning: "Raisonnement",
+        selected: "Sélectionné",
+        selectedTool: "Outil sélectionné",
+      },
+      messageActions: {
+        ...enTranslation.chat.messageActions,
+        copy: "Copier",
+        exportMarkdown: "Exporter en Markdown",
+        exportPdf: "Exporter en PDF",
+        restoreChat: "Restaurer uniquement la conversation",
+        restoreFilesAndChat: "Restaurer les fichiers et la conversation",
+        deleteMessage: "Supprimer le message",
+        savedFile: "Enregistré dans {{filename}}",
+        nothingToExport: "Rien à exporter",
+        exportFailed: "Échec de l'export",
+        cannotRestore: "Impossible de restaurer ce message",
+        restorePartial: "Conversation restaurée. {{count}} fichier(s) n'ont pas pu être restaurés.",
+        restoreFilesSuccess:
+          "Fichiers et conversation restaurés ({{count}} message(s) supprimé(s)).",
+        restoreSuccess: "Conversation restaurée ({{count}} message(s) supprimé(s)).",
+        restoreFailed: "Échec de restauration de la conversation",
+        pdfUnavailable: "L'export PDF n'est pas disponible dans cet environnement",
+        exportingPdf: "Export PDF en cours...",
+      },
+      session: {
+        ...enTranslation.chat.session,
+        defaultTitle: "Nouvelle session",
       },
     },
-    configTab: {
-      ...frTranslation.settings.configTab,
-      tabs: {
-        ...enTranslation.settings.configTab.tabs,
-        general: "Général",
+    settings: {
+      ...frTranslation.settings,
+      page: {
+        ...frTranslation.settings.page,
+        tabs: {
+          ...frTranslation.settings.page.tabs,
+          hooks: "Hooks",
+          envVars: "Variables d'environnement",
+        },
+      },
+      configTab: {
+        ...frTranslation.settings.configTab,
+        tabs: {
+          ...enTranslation.settings.configTab.tabs,
+          general: "Général",
+          tools: "Outils",
+        },
+        toolsTitle: "Disponibilité des outils",
+        toolsDescription:
+          "Activez/désactivez les outils pouvant être envoyés au modèle IA. Les outils désactivés sont masqués du schéma d'outils du modèle.",
+        toolsEmpty: "Aucun outil disponible actuellement.",
+        reloadTools: "Recharger les outils",
+        loadBambooConfigFailed: "Échec du chargement de la configuration Bamboo",
+        bambooConfigSaved: "Configuration Bamboo enregistrée",
+        saveBambooConfigFailed: "Échec de l'enregistrement de la configuration Bamboo",
+      },
+      keywordMaskingTab: {
+        ...frTranslation.settings.keywordMaskingTab,
+        invalidRegexPattern: "Motif regex invalide",
+      },
+    },
+    components: {
+      ...enTranslation.components,
+      workflowResult: {
+        ...enTranslation.components.workflowResult,
+        userWorkflow: "Workflow utilisateur",
+        waitingForResult: "En attente du résultat du workflow...",
+        executionFailed: "Échec d'exécution du workflow",
+        retryWorkflow: "Relancer le workflow",
+        copyParameters: "Copier les paramètres",
+        copyResult: "Copier le résultat",
+        expandResult: "Développer le résultat",
+        collapseResult: "Réduire le résultat",
+      },
+      toolResult: {
+        ...enTranslation.components.toolResult,
+        waiting: "En attente",
+        waitingForResult: "En attente du résultat...",
+        executionFailed: "Échec d'exécution de l'outil",
+        copyResult: "Copier le résultat",
+        checkpoint: "Point de contrôle",
+        checkpointNone: "Aucun",
+        diffTruncated: "Le diff est trop long et a été tronqué",
+      },
+      toolCall: {
+        ...enTranslation.components.toolCall,
+        liveOutput: "Sortie en direct",
+        keyParameters: "Paramètres clés",
+        fullParameters: "Paramètres complets",
+        copyParameters: "Copier les paramètres",
+      },
+      plan: {
+        ...enTranslation.components.plan,
+        executionPlan: "Plan d'exécution",
+        goal: "Objectif",
+        steps: "Étapes",
+        stepTitle: "Étape {{number}}",
+        reason: "Raison",
+        estimated: "Estimé",
         tools: "Outils",
+        prerequisites: "Prérequis",
+        potentialRisks: "Risques potentiels ({{count}})",
+        totalEstimatedTime: "Temps total estimé",
+        feedbackPlaceholder: "Indiquez à l'agent ce que vous souhaitez ajuster...",
+        sendFeedback: "Envoyer un retour",
+        refinePlan: "Affiner le plan",
+        executePlan: "Exécuter le plan",
       },
-      toolsTitle: "Disponibilité des outils",
-      toolsDescription:
-        "Activez/désactivez les outils pouvant être envoyés au modèle IA. Les outils désactivés sont masqués du schéma d'outils du modèle.",
-      toolsEmpty: "Aucun outil disponible actuellement.",
-      reloadTools: "Recharger les outils",
-      loadBambooConfigFailed: "Échec du chargement de la configuration Bamboo",
-      bambooConfigSaved: "Configuration Bamboo enregistrée",
-      saveBambooConfigFailed: "Échec de l'enregistrement de la configuration Bamboo",
-    },
-    keywordMaskingTab: {
-      ...frTranslation.settings.keywordMaskingTab,
-      invalidRegexPattern: "Motif regex invalide",
-    },
-  },
-  components: {
-    ...enTranslation.components,
-    workflowResult: {
-      ...enTranslation.components.workflowResult,
-      userWorkflow: "Workflow utilisateur",
-      waitingForResult: "En attente du résultat du workflow...",
-      executionFailed: "Échec d'exécution du workflow",
-      retryWorkflow: "Relancer le workflow",
-      copyParameters: "Copier les paramètres",
-      copyResult: "Copier le résultat",
-      expandResult: "Développer le résultat",
-      collapseResult: "Réduire le résultat",
-    },
-    toolResult: {
-      ...enTranslation.components.toolResult,
-      waiting: "En attente",
-      waitingForResult: "En attente du résultat...",
-      executionFailed: "Échec d'exécution de l'outil",
-      copyResult: "Copier le résultat",
-      checkpoint: "Point de contrôle",
-      checkpointNone: "Aucun",
-      diffTruncated: "Le diff est trop long et a été tronqué",
-    },
-    toolCall: {
-      ...enTranslation.components.toolCall,
-      liveOutput: "Sortie en direct",
-      keyParameters: "Paramètres clés",
-      fullParameters: "Paramètres complets",
-      copyParameters: "Copier les paramètres",
-    },
-    plan: {
-      ...enTranslation.components.plan,
-      executionPlan: "Plan d'exécution",
-      goal: "Objectif",
-      steps: "Étapes",
-      stepTitle: "Étape {{number}}",
-      reason: "Raison",
-      estimated: "Estimé",
-      tools: "Outils",
-      prerequisites: "Prérequis",
-      potentialRisks: "Risques potentiels ({{count}})",
-      totalEstimatedTime: "Temps total estimé",
-      feedbackPlaceholder: "Indiquez à l'agent ce que vous souhaitez ajuster...",
-      sendFeedback: "Envoyer un retour",
-      refinePlan: "Affiner le plan",
-      executePlan: "Exécuter le plan",
-    },
-    question: {
-      ...enTranslation.components.question,
-      agentQuestion: "Question de l'agent",
-      context: "Contexte",
-      chooseOption: "Choisir une option",
-      recommended: "Recommandé",
-      customAnswerHint: "Aucune option adaptée ? Saisissez votre propre réponse.",
-      customAnswerPlaceholder: "Saisissez votre réponse personnalisée...",
-      submitAnswer: "Soumettre la réponse",
-    },
-    questionDialog: {
-      ...enTranslation.components.questionDialog,
-      selectOptionWarning: "Veuillez sélectionner une option avant de soumettre.",
-      responseSubmitted: "Réponse soumise",
-      responseSubmittedContinue: "Réponse soumise, l'IA va continuer le traitement",
-      submitFailed: "Échec de soumission de la réponse",
-      noModelConfigured: "Aucun modèle configuré",
-      customAnswerTip: "Réponse personnalisée",
-      otherTypeBelow: "Autre (saisir ci-dessous)",
-      confirm: "Confirmer",
-    },
-    skillManager: {
-      ...enTranslation.components.skillManager,
-      title: "Compétences",
-      refresh: "Actualiser",
-      skillsRefreshed: "Compétences actualisées",
-      lastUpdated: "Dernière mise à jour : {{value}}",
-      justNow: "à l'instant",
-      secondsAgo: "il y a {{count}} s",
-      minutesAgo: "il y a {{count}} min",
-      searchPlaceholder: "Rechercher des compétences",
-      readOnlyHint: "Mode lecture seule : les compétences ne peuvent pas être modifiées.",
-      noSkillsFound: "Aucune compétence trouvée",
-      noMatch: "Aucune compétence ne correspond à la recherche",
-      loadFailed: "Échec du chargement des compétences",
-      getFailed: "Échec de récupération de la compétence",
-    },
-    skillSelector: {
-      ...enTranslation.components.skillSelector,
-      placeholder: "Sélectionner des compétences",
-    },
-    imageGrid: {
-      ...enTranslation.components.imageGrid,
-      preview: "Aperçu",
-      ocr: "OCR",
-    },
-    todoList: {
-      ...enTranslation.components.todoList,
-      title: "Liste des tâches",
-      evaluating: "Évaluation en cours",
-      pin: "Épingler",
-      unpin: "Désépingler",
-      llmEvaluation: "Évaluation LLM",
-      tools: "outils",
-      dependsOn: "Dépend de : {{deps}}",
-      dependencies: "dépendances",
-      status: {
-        ...enTranslation.components.todoList.status,
-        pending: "En attente",
-        inProgress: "En cours",
-        completed: "Terminée",
-        blocked: "Bloquée",
+      question: {
+        ...enTranslation.components.question,
+        agentQuestion: "Question de l'agent",
+        context: "Contexte",
+        chooseOption: "Choisir une option",
+        recommended: "Recommandé",
+        customAnswerHint: "Aucune option adaptée ? Saisissez votre propre réponse.",
+        customAnswerPlaceholder: "Saisissez votre réponse personnalisée...",
+        submitAnswer: "Soumettre la réponse",
+      },
+      questionDialog: {
+        ...enTranslation.components.questionDialog,
+        selectOptionWarning: "Veuillez sélectionner une option avant de soumettre.",
+        responseSubmitted: "Réponse soumise",
+        responseSubmittedContinue: "Réponse soumise, l'IA va continuer le traitement",
+        submitFailed: "Échec de soumission de la réponse",
+        noModelConfigured: "Aucun modèle configuré",
+        customAnswerTip: "Réponse personnalisée",
+        otherTypeBelow: "Autre (saisir ci-dessous)",
+        confirm: "Confirmer",
+      },
+      skillManager: {
+        ...enTranslation.components.skillManager,
+        title: "Compétences",
+        refresh: "Actualiser",
+        skillsRefreshed: "Compétences actualisées",
+        lastUpdated: "Dernière mise à jour : {{value}}",
+        justNow: "à l'instant",
+        secondsAgo: "il y a {{count}} s",
+        minutesAgo: "il y a {{count}} min",
+        searchPlaceholder: "Rechercher des compétences",
+        readOnlyHint: "Mode lecture seule : les compétences ne peuvent pas être modifiées.",
+        noSkillsFound: "Aucune compétence trouvée",
+        noMatch: "Aucune compétence ne correspond à la recherche",
+        loadFailed: "Échec du chargement des compétences",
+        getFailed: "Échec de récupération de la compétence",
+      },
+      skillSelector: {
+        ...enTranslation.components.skillSelector,
+        placeholder: "Sélectionner des compétences",
+      },
+      imageGrid: {
+        ...enTranslation.components.imageGrid,
+        preview: "Aperçu",
+        ocr: "OCR",
+      },
+      todoList: {
+        ...enTranslation.components.todoList,
+        title: "Liste des tâches",
+        evaluating: "Évaluation en cours",
+        pin: "Épingler",
+        unpin: "Désépingler",
+        llmEvaluation: "Évaluation LLM",
+        tools: "outils",
+        dependsOn: "Dépend de : {{deps}}",
+        dependencies: "dépendances",
+        status: {
+          ...enTranslation.components.todoList.status,
+          pending: "En attente",
+          inProgress: "En cours",
+          completed: "Terminée",
+          blocked: "Bloquée",
+        },
+      },
+      tokenUsage: {
+        ...enTranslation.components.tokenUsage,
+        title: "Utilisation des tokens",
+        summary: "Résumé",
+        system: "Système",
+        messages: "Messages",
+        tokens: "tokens",
+        usedPercent: "{{value}} % utilisés",
+      },
+      approval: {
+        ...enTranslation.components.approval,
+        workflow: "Workflow",
+        executionRequest: "Demande d'exécution",
+        aiWantsExecute: "L'IA souhaite exécuter l'action suivante",
+      },
+      toolSession: {
+        ...enTranslation.components.toolSession,
+        title: "Session d'outils",
+        running: "En cours",
+        done: "Terminé",
+        error: "Erreur",
+        completedOnly: "{{completed}} terminé(s)",
+        completedWithErrors: "{{completed}} terminé(s) (avec erreurs)",
+        completedProgress: "{{completed}} / {{total}} terminés",
+        noPersistedMessage: "Aucune sortie persistée",
+        deleteMessage: "Supprimer la session d'outils",
+      },
+      mermaid: {
+        ...enTranslation.components.mermaid,
+        loadingDiagram: "Chargement du diagramme...",
+        diagramError: "Erreur de diagramme Mermaid",
+        errorTitlePrefix: "Erreur",
+        checkConsoleHint: "Vérifiez la syntaxe Mermaid ou ouvrez la console pour les détails.",
+        fixMermaid: "Corriger Mermaid",
+        renderingDiagram: "Rendu du diagramme...",
+        exportSvg: "Exporter en SVG",
+        exportFailed: "Échec de l'export du diagramme",
       },
     },
-    tokenUsage: {
-      ...enTranslation.components.tokenUsage,
-      title: "Utilisation des tokens",
-      summary: "Résumé",
-      system: "Système",
-      messages: "Messages",
-      tokens: "tokens",
-      usedPercent: "{{value}} % utilisés",
-    },
-    approval: {
-      ...enTranslation.components.approval,
-      workflow: "Workflow",
-      executionRequest: "Demande d'exécution",
-      aiWantsExecute: "L'IA souhaite exécuter l'action suivante",
-    },
-    toolSession: {
-      ...enTranslation.components.toolSession,
-      title: "Session d'outils",
-      running: "En cours",
-      done: "Terminé",
-      error: "Erreur",
-      completedOnly: "{{completed}} terminé(s)",
-      completedWithErrors: "{{completed}} terminé(s) (avec erreurs)",
-      completedProgress: "{{completed}} / {{total}} terminés",
-      noPersistedMessage: "Aucune sortie persistée",
-      deleteMessage: "Supprimer la session d'outils",
-    },
-    mermaid: {
-      ...enTranslation.components.mermaid,
-      loadingDiagram: "Chargement du diagramme...",
-      diagramError: "Erreur de diagramme Mermaid",
-      errorTitlePrefix: "Erreur",
-      checkConsoleHint: "Vérifiez la syntaxe Mermaid ou ouvrez la console pour les détails.",
-      fixMermaid: "Corriger Mermaid",
-      renderingDiagram: "Rendu du diagramme...",
-      exportSvg: "Exporter en SVG",
-      exportFailed: "Échec de l'export du diagramme",
-    },
-  },
+  };
 };
 
-const hiFullTranslation = {
-  ...hiTranslation,
-  layout: {
-    ...enTranslation.layout,
-    showSidebar: "साइडबार दिखाएँ",
-  },
-  common: {
-    ...enTranslation.common,
-    workspace: "वर्कस्पेस",
-    server: "सर्वर:",
-    category: "श्रेणी:",
-    parameters: "पैरामीटर्स",
-    approve: "स्वीकृत करें",
-    reject: "अस्वीकृत करें",
-  },
-  chat: {
-    ...hiTranslation.chat,
-    sidebar: {
-      ...hiTranslation.chat.sidebar,
-      createFailedTitle: "सेशन बनाने में विफल",
-      createFailedUnknown: "अज्ञात त्रुटि",
-      delete: {
-        title: "सेशन हटाएँ",
-        confirm: "क्या आप वाकई इस सेशन को हटाना चाहते हैं?",
+const buildHiFullTranslation = (enTranslation: EnTranslation) => {
+  const hiTranslation = buildHiTranslation(enTranslation);
+  return {
+    ...hiTranslation,
+    layout: {
+      ...enTranslation.layout,
+      showSidebar: "साइडबार दिखाएँ",
+    },
+    common: {
+      ...enTranslation.common,
+      workspace: "वर्कस्पेस",
+      server: "सर्वर:",
+      category: "श्रेणी:",
+      parameters: "पैरामीटर्स",
+      approve: "स्वीकृत करें",
+      reject: "अस्वीकृत करें",
+    },
+    chat: {
+      ...hiTranslation.chat,
+      sidebar: {
+        ...hiTranslation.chat.sidebar,
+        createFailedTitle: "सेशन बनाने में विफल",
+        createFailedUnknown: "अज्ञात त्रुटि",
+        delete: {
+          title: "सेशन हटाएँ",
+          confirm: "क्या आप वाकई इस सेशन को हटाना चाहते हैं?",
+        },
+        deleteByDate: {
+          title: "{{date}} के सेशन हटाएँ",
+          confirm: "क्या आप {{date}} के {{count}} सेशन हटाना चाहते हैं?",
+        },
+        newSessionWithPrompt: "{{prompt}} के साथ नया सेशन",
       },
-      deleteByDate: {
-        title: "{{date}} के सेशन हटाएँ",
-        confirm: "क्या आप {{date}} के {{count}} सेशन हटाना चाहते हैं?",
+      workspace: {
+        ...enTranslation.chat.workspace,
+        modalTitle: "वर्कस्पेस पथ सेट करें",
+        invalidTitle: "अमान्य वर्कस्पेस पथ",
+        issuesDetected: "वर्कस्पेस पथ में संभावित समस्याएँ मिलीं:",
+        confirmSaveInvalid: "क्या आप फिर भी यह पथ सहेजना चाहते हैं?",
+        errorEnterPath: "कृपया वर्कस्पेस पथ दर्ज करें",
+        errorSaveFailed: "वर्कस्पेस पथ सहेजने में विफल",
+        label: "वर्कस्पेस",
+        browseFolder: "फ़ोल्डर ब्राउज़ करें",
+        descriptionTitle: "वर्कस्पेस पथ विवरण",
+        checkTitle: "वर्कस्पेस पथ जाँच",
+        checkDescription: "वर्कस्पेस पथ सत्यापन विफल।",
+        recentTitle: "हाल के वर्कस्पेस",
+        suggestedTitle: "सुझाए गए वर्कस्पेस",
+        noRecentWorkspaces: "कोई हाल का वर्कस्पेस नहीं",
+        noSuggestions: "कोई सुझाव नहीं",
+        defaultWorkspaceName: "वर्कस्पेस",
+        validWorkspace: "वैध वर्कस्पेस",
+        fileCount: "{{count}} फ़ाइलें",
       },
-      newSessionWithPrompt: "{{prompt}} के साथ नया सेशन",
-    },
-    workspace: {
-      ...enTranslation.chat.workspace,
-      modalTitle: "वर्कस्पेस पथ सेट करें",
-      invalidTitle: "अमान्य वर्कस्पेस पथ",
-      issuesDetected: "वर्कस्पेस पथ में संभावित समस्याएँ मिलीं:",
-      confirmSaveInvalid: "क्या आप फिर भी यह पथ सहेजना चाहते हैं?",
-      errorEnterPath: "कृपया वर्कस्पेस पथ दर्ज करें",
-      errorSaveFailed: "वर्कस्पेस पथ सहेजने में विफल",
-      label: "वर्कस्पेस",
-      browseFolder: "फ़ोल्डर ब्राउज़ करें",
-      descriptionTitle: "वर्कस्पेस पथ विवरण",
-      checkTitle: "वर्कस्पेस पथ जाँच",
-      checkDescription: "वर्कस्पेस पथ सत्यापन विफल।",
-      recentTitle: "हाल के वर्कस्पेस",
-      suggestedTitle: "सुझाए गए वर्कस्पेस",
-      noRecentWorkspaces: "कोई हाल का वर्कस्पेस नहीं",
-      noSuggestions: "कोई सुझाव नहीं",
-      defaultWorkspaceName: "वर्कस्पेस",
-      validWorkspace: "वैध वर्कस्पेस",
-      fileCount: "{{count}} फ़ाइलें",
-    },
-    input: {
-      ...enTranslation.chat.input,
-      placeholder: "संदेश भेजें...",
-      placeholderWithReference: "संदेश भेजें (संदर्भ सहित)",
-      placeholderWithWorkflows: "संदेश भेजें... (वर्कफ़्लो के लिए '/' टाइप करें)",
-      toolCallsOnly: "केवल टूल कॉल (अनुमत टूल: {{tools}})",
-      autoPrefixMode: "ऑटो-प्रिफिक्स मोड: {{prefix}} (टूल चुनने के लिए '/' टाइप करें)",
-      toolSpecificMode: "टूल-विशिष्ट मोड (अनुमत टूल: {{tools}})",
-      processingFiles: "फ़ाइलें प्रोसेस की जा रही हैं…",
-      addAttachments: "संलग्नक जोड़ें",
-      referenceWorkspaceFiles: "वर्कस्पेस फ़ाइलों का संदर्भ दें",
-      imageCountSingular: "{{count}} छवि",
-      imageCountPlural: "{{count}} छवियाँ",
-      moreImages: "+{{count}} और",
-      clearAllImages: "सभी छवियाँ साफ़ करें",
-      reasoningTitle: "रीज़निंग प्रयास: {{label}}",
-      reasoning: {
-        ...enTranslation.chat.input.reasoning,
-        low: "कम",
-        medium: "मध्यम",
-        high: "उच्च",
-        xhigh: "बहुत उच्च",
-        max: "अधिकतम",
+      input: {
+        ...enTranslation.chat.input,
+        placeholder: "संदेश भेजें...",
+        placeholderWithReference: "संदेश भेजें (संदर्भ सहित)",
+        placeholderWithWorkflows: "संदेश भेजें... (वर्कफ़्लो के लिए '/' टाइप करें)",
+        toolCallsOnly: "केवल टूल कॉल (अनुमत टूल: {{tools}})",
+        autoPrefixMode: "ऑटो-प्रिफिक्स मोड: {{prefix}} (टूल चुनने के लिए '/' टाइप करें)",
+        toolSpecificMode: "टूल-विशिष्ट मोड (अनुमत टूल: {{tools}})",
+        processingFiles: "फ़ाइलें प्रोसेस की जा रही हैं…",
+        addAttachments: "संलग्नक जोड़ें",
+        referenceWorkspaceFiles: "वर्कस्पेस फ़ाइलों का संदर्भ दें",
+        imageCountSingular: "{{count}} छवि",
+        imageCountPlural: "{{count}} छवियाँ",
+        moreImages: "+{{count}} और",
+        clearAllImages: "सभी छवियाँ साफ़ करें",
+        reasoningTitle: "रीज़निंग प्रयास: {{label}}",
+        reasoning: {
+          ...enTranslation.chat.input.reasoning,
+          low: "कम",
+          medium: "मध्यम",
+          high: "उच्च",
+          xhigh: "बहुत उच्च",
+          max: "अधिकतम",
+        },
+        strictToolOnlyMode: "सख्त केवल-टूल मोड",
+        toolSpecificModeLabel: "टूल-विशिष्ट मोड",
+        allowedTools: "अनुमत टूल:",
+        autoPrefixLabel: "ऑटो प्रिफिक्स: {{prefix}}",
+        mustStartWithPrefix: 'संदेश "{{prefix}}" से शुरू होना चाहिए',
       },
-      strictToolOnlyMode: "सख्त केवल-टूल मोड",
-      toolSpecificModeLabel: "टूल-विशिष्ट मोड",
-      allowedTools: "अनुमत टूल:",
-      autoPrefixLabel: "ऑटो प्रिफिक्स: {{prefix}}",
-      mustStartWithPrefix: 'संदेश "{{prefix}}" से शुरू होना चाहिए',
+      prompt: {
+        ...enTranslation.chat.prompt,
+        selectorTitle: "सिस्टम प्रॉम्प्ट चुनें",
+        createButton: "नया सेशन बनाएँ",
+        helperText:
+          "AI के लिए आधार सिस्टम प्रॉम्प्ट चुनें। आप सिस्टम सेटिंग्स में प्रॉम्प्ट जोड़ या संपादित कर सकते हैं।",
+        emptyDescription: "कोई सिस्टम प्रॉम्प्ट नहीं मिला। सिस्टम सेटिंग्स में एक जोड़ें।",
+        newSessionSelectorTitle: "नए सेशन के लिए सिस्टम प्रॉम्प्ट चुनें",
+        defaultDescription: "डिफ़ॉल्ट सिस्टम प्रॉम्प्ट।",
+        loadPresetsFailed: "प्रिसेट लोड करने में विफल",
+        loadCurrentInfoFailed: "वर्तमान जानकारी लोड करने में विफल",
+      },
+      commandSelector: {
+        ...enTranslation.chat.commandSelector,
+        loading: "कमांड लोड हो रहे हैं...",
+        emptyWithSearch: '"{{search}}" से मेल खाने वाली कोई कमांड नहीं मिली',
+        empty: "कोई कमांड उपलब्ध नहीं है।",
+        navigationHint:
+          "नेविगेशन: ऊपर/नीचे या Ctrl+P/N | चयन: Enter | पूर्ण करें: Space/Tab | रद्द: Esc",
+        types: {
+          ...enTranslation.chat.commandSelector.types,
+          workflow: "वर्कफ़्लो",
+          skill: "स्किल",
+          mcp: "MCP",
+        },
+      },
+      model: {
+        ...enTranslation.chat.model,
+        selectModel: "मॉडल चुनें",
+        noModelSelected: "कोई मॉडल चयनित नहीं",
+        selectModelHint: "चैट शुरू करने के लिए एक मॉडल चुनें।",
+        providerNotConfigured: "प्रोवाइडर कॉन्फ़िगर नहीं है",
+        configureProviderHint: "मॉडल चुनने से पहले सेटिंग्स में प्रोवाइडर कॉन्फ़िगर करें।",
+        configureProvider: "प्रोवाइडर कॉन्फ़िगर करें",
+        openSettings: "सेटिंग्स खोलें",
+        noModelsAvailable: "कोई मॉडल उपलब्ध नहीं",
+        selectModelBeforeSend: "भेजने से पहले मॉडल चुनें।",
+        selectModelBeforeRetry: "पुनः प्रयास से पहले मॉडल चुनें।",
+      },
+      streaming: {
+        ...enTranslation.chat.streaming,
+        assistant: "Bodhi",
+        requestCancelled: "अनुरोध रद्द किया गया",
+        sendFailed: "संदेश भेजने में विफल",
+        retryFailed: "पुनः प्रयास विफल",
+        modelConfigNotLoaded: "मॉडल कॉन्फ़िगरेशन लोड नहीं हुआ",
+        agentUnavailable: "एजेंट उपलब्ध नहीं",
+        noActiveChatTitle: "कोई सक्रिय चैट नहीं",
+        noActiveChatSendContent: "संदेश भेजने से पहले चैट बनाएँ या चुनें।",
+        noActiveChatRetryContent: "पुनः प्रयास से पहले चैट बनाएँ या चुनें।",
+        noChatIdTitle: "चैट ID अनुपस्थित",
+        noChatIdSendContent: "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
+        noChatIdRetryContent: "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
+      },
+      selectionToolbar: {
+        ...enTranslation.chat.selectionToolbar,
+        selectMessages: "संदेश चुनें",
+        selectedCount: "{{selected}} चयनित (कुल {{total}})",
+        selectAll: "सभी चुनें",
+        clear: "साफ़ करें",
+        exportMarkdown: "Markdown निर्यात करें",
+        exportPdf: "PDF निर्यात करें",
+        done: "पूर्ण",
+      },
+      subAgents: {
+        ...enTranslation.chat.subAgents,
+        title: "उप-एजेंट",
+        expand: "विस्तार करें",
+        collapse: "संक्षिप्त करें",
+        continue: "यहीं जारी रखें",
+        open: "खोलें",
+        retry: "पुनः प्रयास करें",
+        hiddenHint: "{{count}} उप-एजेंट छिपे हुए",
+      },
+      chatItem: {
+        ...enTranslation.chat.chatItem,
+        edit: "संपादित करें",
+        childTag: "चाइल्ड",
+      },
+      systemPromptSelector: {
+        ...enTranslation.chat.systemPromptSelector,
+        defaultTag: "डिफ़ॉल्ट",
+        hide: "छिपाएँ",
+        preview: "पूर्वावलोकन",
+        copy: "कॉपी करें",
+        lines: "{{count}} पंक्तियाँ",
+        words: "{{count}} शब्द",
+        chars: "{{count}} अक्षर",
+        noContent: "कोई सामग्री नहीं",
+      },
+      title: {
+        ...enTranslation.chat.title,
+        updated: "चैट शीर्षक अपडेट हुआ",
+        generateFailed: "चैट शीर्षक बनाने में विफल",
+      },
+      respond: {
+        ...enTranslation.chat.respond,
+        customAnswerPlaceholder: "अपना कस्टम उत्तर लिखें...",
+      },
+      multiPane: {
+        ...enTranslation.chat.multiPane,
+        splitHorizontal: "क्षैतिज विभाजित करें",
+        splitVertical: "ऊर्ध्वाधर विभाजित करें",
+        closePane: "पैन बंद करें",
+        selectSessionHint: "संदेश देखने के लिए एक सेशन चुनें",
+        hoverToSplitHint: "चैट तुलना के लिए पैन पर होवर करके विभाजित करें",
+        selectMessagesToExport: "निर्यात के लिए संदेश चुनें",
+      },
+      messageCard: {
+        ...enTranslation.chat.messageCard,
+        authRequired: "प्रमाणीकरण आवश्यक",
+        goToSettings: "सेटिंग्स पर जाएँ",
+        assistantThinking: "सहायक सोच रहा है...",
+        reasoning: "रीज़निंग",
+        selected: "चयनित",
+        selectedTool: "चयनित टूल",
+      },
+      messageActions: {
+        ...enTranslation.chat.messageActions,
+        copy: "कॉपी करें",
+        exportMarkdown: "Markdown के रूप में निर्यात करें",
+        exportPdf: "PDF के रूप में निर्यात करें",
+        restoreChat: "केवल चैट पुनर्स्थापित करें",
+        restoreFilesAndChat: "फ़ाइलें और चैट पुनर्स्थापित करें",
+        deleteMessage: "संदेश हटाएँ",
+        savedFile: "{{filename}} में सहेजा गया",
+        nothingToExport: "निर्यात करने के लिए कुछ नहीं",
+        exportFailed: "निर्यात विफल",
+        cannotRestore: "यह संदेश पुनर्स्थापित नहीं किया जा सकता",
+        restorePartial: "चैट पुनर्स्थापित हुई। {{count}} फ़ाइल(ें) पुनर्स्थापित नहीं हो सकीं।",
+        restoreFilesSuccess: "फ़ाइलें और चैट पुनर्स्थापित ({{count}} संदेश हटाए गए)।",
+        restoreSuccess: "चैट पुनर्स्थापित ({{count}} संदेश हटाए गए)।",
+        restoreFailed: "चैट पुनर्स्थापित करने में विफल",
+        pdfUnavailable: "इस वातावरण में PDF निर्यात उपलब्ध नहीं है",
+        exportingPdf: "PDF निर्यात हो रहा है...",
+      },
+      session: {
+        ...enTranslation.chat.session,
+        defaultTitle: "नया सत्र",
+      },
     },
-    prompt: {
-      ...enTranslation.chat.prompt,
-      selectorTitle: "सिस्टम प्रॉम्प्ट चुनें",
-      createButton: "नया सेशन बनाएँ",
-      helperText:
-        "AI के लिए आधार सिस्टम प्रॉम्प्ट चुनें। आप सिस्टम सेटिंग्स में प्रॉम्प्ट जोड़ या संपादित कर सकते हैं।",
-      emptyDescription: "कोई सिस्टम प्रॉम्प्ट नहीं मिला। सिस्टम सेटिंग्स में एक जोड़ें।",
-      newSessionSelectorTitle: "नए सेशन के लिए सिस्टम प्रॉम्प्ट चुनें",
-      defaultDescription: "डिफ़ॉल्ट सिस्टम प्रॉम्प्ट।",
-      loadPresetsFailed: "प्रिसेट लोड करने में विफल",
-      loadCurrentInfoFailed: "वर्तमान जानकारी लोड करने में विफल",
+    settings: {
+      ...hiTranslation.settings,
+      page: {
+        ...hiTranslation.settings.page,
+        tabs: {
+          ...hiTranslation.settings.page.tabs,
+          envVars: "पर्यावरण वेरिएबल्स",
+        },
+      },
+      configTab: {
+        ...hiTranslation.settings.configTab,
+        loadBambooConfigFailed: "Bamboo कॉन्फ़िग लोड करने में विफल",
+        bambooConfigSaved: "Bamboo कॉन्फ़िग सहेजा गया",
+        saveBambooConfigFailed: "Bamboo कॉन्फ़िग सहेजने में विफल",
+      },
+      keywordMaskingTab: {
+        ...enTranslation.settings.keywordMaskingTab,
+        title: "कीवर्ड मास्किंग",
+        addKeyword: "कीवर्ड जोड़ें",
+        description:
+          "Copilot API को भेजने से पहले मास्क किए जाने वाले कीवर्ड कॉन्फ़िगर करें। शाब्दिक स्ट्रिंग के लिए सटीक मिलान या पैटर्न के लिए regex उपयोग करें। सभी मिलान [MASKED] से बदले जाएंगे।",
+        empty: "कोई कीवर्ड मास्किंग नियम कॉन्फ़िगर नहीं है",
+        cancel: "रद्द करें",
+        patternPlaceholder: "मिलान का पैटर्न दर्ज करें",
+        examples: "उदाहरण",
+        exactMatch: "सटीक मिलान",
+        regexPattern: "Regex पैटर्न",
+        enabled: "सक्षम",
+        disabled: "अक्षम",
+        sampleText: "नमूना टेक्स्ट",
+        sampleTextPlaceholder: "नमूना टेक्स्ट दर्ज करें",
+        maskedPreview: "मास्क किया गया पूर्वावलोकन",
+        emptyPattern: "(खाली)",
+        loadFailed: "कीवर्ड मास्किंग कॉन्फ़िगरेशन लोड करने में विफल",
+        saveFailed: "कॉन्फ़िगरेशन सहेजने में विफल",
+        saveSuccess: "कीवर्ड मास्किंग कॉन्फ़िगरेशन सहेजा गया",
+        validationFailedPrefix: "सत्यापन विफल",
+        patternRequired: "पैटर्न खाली नहीं हो सकता",
+        invalidRegexPattern: "अमान्य regex पैटर्न",
+        example: {
+          ...enTranslation.settings.keywordMaskingTab.example,
+          literalToken: "शाब्दिक टोकन मास्क करें",
+          githubTokens: "GitHub टोकन मास्क करें",
+          awsKeys: "AWS key मास्क करें",
+          emails: "ईमेल पते मास्क करें",
+        },
+      },
     },
-    commandSelector: {
-      ...enTranslation.chat.commandSelector,
-      loading: "कमांड लोड हो रहे हैं...",
-      emptyWithSearch: '"{{search}}" से मेल खाने वाली कोई कमांड नहीं मिली',
-      empty: "कोई कमांड उपलब्ध नहीं है।",
-      navigationHint:
-        "नेविगेशन: ऊपर/नीचे या Ctrl+P/N | चयन: Enter | पूर्ण करें: Space/Tab | रद्द: Esc",
-      types: {
-        ...enTranslation.chat.commandSelector.types,
+    components: {
+      ...enTranslation.components,
+      workflowResult: {
+        ...enTranslation.components.workflowResult,
+        userWorkflow: "उपयोगकर्ता वर्कफ़्लो",
+        waitingForResult: "वर्कफ़्लो परिणाम की प्रतीक्षा...",
+        executionFailed: "वर्कफ़्लो निष्पादन विफल",
+        retryWorkflow: "वर्कफ़्लो पुनः चलाएँ",
+        copyParameters: "पैरामीटर्स कॉपी करें",
+        copyResult: "परिणाम कॉपी करें",
+        expandResult: "परिणाम विस्तार करें",
+        collapseResult: "परिणाम संक्षिप्त करें",
+      },
+      toolResult: {
+        ...enTranslation.components.toolResult,
+        waiting: "प्रतीक्षा में",
+        waitingForResult: "परिणाम की प्रतीक्षा...",
+        executionFailed: "टूल निष्पादन विफल",
+        copyResult: "परिणाम कॉपी करें",
+        checkpoint: "चेकपॉइंट",
+        checkpointNone: "कोई नहीं",
+        diffTruncated: "डिफ़ बहुत लंबा है और काट दिया गया है",
+      },
+      toolCall: {
+        ...enTranslation.components.toolCall,
+        liveOutput: "लाइव आउटपुट",
+        keyParameters: "मुख्य पैरामीटर्स",
+        fullParameters: "पूर्ण पैरामीटर्स",
+        copyParameters: "पैरामीटर्स कॉपी करें",
+      },
+      plan: {
+        ...enTranslation.components.plan,
+        executionPlan: "निष्पादन योजना",
+        goal: "लक्ष्य",
+        steps: "चरण",
+        stepTitle: "चरण {{number}}",
+        reason: "कारण",
+        estimated: "अनुमानित",
+        tools: "टूल्स",
+        prerequisites: "पूर्वापेक्षाएँ",
+        potentialRisks: "संभावित जोखिम ({{count}})",
+        totalEstimatedTime: "कुल अनुमानित समय",
+        feedbackPlaceholder: "एजेंट को बताएँ क्या समायोजित करना है...",
+        sendFeedback: "फ़ीडबैक भेजें",
+        refinePlan: "योजना परिष्कृत करें",
+        executePlan: "योजना निष्पादित करें",
+      },
+      question: {
+        ...enTranslation.components.question,
+        agentQuestion: "एजेंट प्रश्न",
+        context: "संदर्भ",
+        chooseOption: "एक विकल्प चुनें",
+        recommended: "अनुशंसित",
+        customAnswerHint: "कोई उपयुक्त विकल्प नहीं? अपना उत्तर लिखें।",
+        customAnswerPlaceholder: "अपना कस्टम उत्तर लिखें...",
+        submitAnswer: "उत्तर सबमिट करें",
+      },
+      questionDialog: {
+        ...enTranslation.components.questionDialog,
+        selectOptionWarning: "सबमिट करने से पहले एक विकल्प चुनें।",
+        responseSubmitted: "उत्तर सबमिट किया गया",
+        responseSubmittedContinue: "उत्तर सबमिट किया गया, AI आगे प्रोसेस करेगा",
+        submitFailed: "उत्तर सबमिट करने में विफल",
+        noModelConfigured: "कोई मॉडल कॉन्फ़िगर नहीं है",
+        customAnswerTip: "कस्टम उत्तर",
+        otherTypeBelow: "अन्य (नीचे लिखें)",
+        confirm: "पुष्टि करें",
+      },
+      skillManager: {
+        ...enTranslation.components.skillManager,
+        title: "स्किल्स",
+        refresh: "रीफ्रेश करें",
+        skillsRefreshed: "स्किल्स रीफ्रेश हुईं",
+        lastUpdated: "अंतिम अपडेट: {{value}}",
+        justNow: "अभी-अभी",
+        secondsAgo: "{{count}} सेकंड पहले",
+        minutesAgo: "{{count}} मिनट पहले",
+        searchPlaceholder: "स्किल्स खोजें",
+        readOnlyHint: "रीड-ओनली मोड: स्किल्स संपादित नहीं की जा सकतीं।",
+        noSkillsFound: "कोई स्किल नहीं मिली",
+        noMatch: "खोज से मेल खाती कोई स्किल नहीं मिली",
+        loadFailed: "स्किल्स लोड करने में विफल",
+        getFailed: "स्किल प्राप्त करने में विफल",
+      },
+      skillSelector: {
+        ...enTranslation.components.skillSelector,
+        placeholder: "स्किल्स चुनें",
+      },
+      imageGrid: {
+        ...enTranslation.components.imageGrid,
+        preview: "पूर्वावलोकन",
+        ocr: "OCR",
+      },
+      todoList: {
+        ...enTranslation.components.todoList,
+        title: "कार्य सूची",
+        evaluating: "मूल्यांकन जारी",
+        pin: "पिन करें",
+        unpin: "अनपिन करें",
+        llmEvaluation: "LLM मूल्यांकन",
+        tools: "टूल्स",
+        dependsOn: "निर्भर करता है: {{deps}}",
+        dependencies: "निर्भरताएँ",
+        status: {
+          ...enTranslation.components.todoList.status,
+          pending: "लंबित",
+          inProgress: "प्रगति में",
+          completed: "पूर्ण",
+          blocked: "अवरोधित",
+        },
+      },
+      tokenUsage: {
+        ...enTranslation.components.tokenUsage,
+        title: "टोकन उपयोग",
+        summary: "सारांश",
+        system: "सिस्टम",
+        messages: "संदेश",
+        tokens: "टोकन",
+        usedPercent: "{{value}}% उपयोग",
+      },
+      approval: {
+        ...enTranslation.components.approval,
         workflow: "वर्कफ़्लो",
-        skill: "स्किल",
-        mcp: "MCP",
+        executionRequest: "निष्पादन अनुरोध",
+        aiWantsExecute: "AI निम्नलिखित क्रिया निष्पादित करना चाहता है",
+      },
+      toolSession: {
+        ...enTranslation.components.toolSession,
+        title: "टूल सेशन",
+        running: "चल रहा है",
+        done: "पूर्ण",
+        error: "त्रुटि",
+        completedOnly: "{{completed}} पूर्ण",
+        completedWithErrors: "{{completed}} पूर्ण (त्रुटियों सहित)",
+        completedProgress: "{{completed}} / {{total}} पूर्ण",
+        noPersistedMessage: "कोई स्थायी आउटपुट नहीं",
+        deleteMessage: "टूल सेशन हटाएँ",
+      },
+      mermaid: {
+        ...enTranslation.components.mermaid,
+        loadingDiagram: "डायग्राम लोड हो रहा है...",
+        diagramError: "Mermaid डायग्राम त्रुटि",
+        errorTitlePrefix: "त्रुटि",
+        checkConsoleHint: "Mermaid सिंटैक्स जाँचें या विवरण के लिए कंसोल खोलें।",
+        fixMermaid: "Mermaid ठीक करें",
+        renderingDiagram: "डायग्राम रेंडर हो रहा है...",
+        exportSvg: "SVG निर्यात करें",
+        exportFailed: "डायग्राम निर्यात विफल",
       },
     },
-    model: {
-      ...enTranslation.chat.model,
-      selectModel: "मॉडल चुनें",
-      noModelSelected: "कोई मॉडल चयनित नहीं",
-      selectModelHint: "चैट शुरू करने के लिए एक मॉडल चुनें।",
-      providerNotConfigured: "प्रोवाइडर कॉन्फ़िगर नहीं है",
-      configureProviderHint: "मॉडल चुनने से पहले सेटिंग्स में प्रोवाइडर कॉन्फ़िगर करें।",
-      configureProvider: "प्रोवाइडर कॉन्फ़िगर करें",
-      openSettings: "सेटिंग्स खोलें",
-      noModelsAvailable: "कोई मॉडल उपलब्ध नहीं",
-      selectModelBeforeSend: "भेजने से पहले मॉडल चुनें।",
-      selectModelBeforeRetry: "पुनः प्रयास से पहले मॉडल चुनें।",
-    },
-    streaming: {
-      ...enTranslation.chat.streaming,
-      assistant: "Bodhi",
-      requestCancelled: "अनुरोध रद्द किया गया",
-      sendFailed: "संदेश भेजने में विफल",
-      retryFailed: "पुनः प्रयास विफल",
-      modelConfigNotLoaded: "मॉडल कॉन्फ़िगरेशन लोड नहीं हुआ",
-      agentUnavailable: "एजेंट उपलब्ध नहीं",
-      noActiveChatTitle: "कोई सक्रिय चैट नहीं",
-      noActiveChatSendContent: "संदेश भेजने से पहले चैट बनाएँ या चुनें।",
-      noActiveChatRetryContent: "पुनः प्रयास से पहले चैट बनाएँ या चुनें।",
-      noChatIdTitle: "चैट ID अनुपस्थित",
-      noChatIdSendContent: "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
-      noChatIdRetryContent: "वर्तमान चैट में ID नहीं है। नया चैट बनाकर पुनः प्रयास करें।",
-    },
-    selectionToolbar: {
-      ...enTranslation.chat.selectionToolbar,
-      selectMessages: "संदेश चुनें",
-      selectedCount: "{{selected}} चयनित (कुल {{total}})",
-      selectAll: "सभी चुनें",
-      clear: "साफ़ करें",
-      exportMarkdown: "Markdown निर्यात करें",
-      exportPdf: "PDF निर्यात करें",
-      done: "पूर्ण",
-    },
-    subAgents: {
-      ...enTranslation.chat.subAgents,
-      title: "उप-एजेंट",
-      expand: "विस्तार करें",
-      collapse: "संक्षिप्त करें",
-      continue: "यहीं जारी रखें",
-      open: "खोलें",
-      retry: "पुनः प्रयास करें",
-      hiddenHint: "{{count}} उप-एजेंट छिपे हुए",
-    },
-    chatItem: {
-      ...enTranslation.chat.chatItem,
-      edit: "संपादित करें",
-      childTag: "चाइल्ड",
-    },
-    systemPromptSelector: {
-      ...enTranslation.chat.systemPromptSelector,
-      defaultTag: "डिफ़ॉल्ट",
-      hide: "छिपाएँ",
-      preview: "पूर्वावलोकन",
-      copy: "कॉपी करें",
-      lines: "{{count}} पंक्तियाँ",
-      words: "{{count}} शब्द",
-      chars: "{{count}} अक्षर",
-      noContent: "कोई सामग्री नहीं",
-    },
-    title: {
-      ...enTranslation.chat.title,
-      updated: "चैट शीर्षक अपडेट हुआ",
-      generateFailed: "चैट शीर्षक बनाने में विफल",
-    },
-    respond: {
-      ...enTranslation.chat.respond,
-      customAnswerPlaceholder: "अपना कस्टम उत्तर लिखें...",
-    },
-    multiPane: {
-      ...enTranslation.chat.multiPane,
-      splitHorizontal: "क्षैतिज विभाजित करें",
-      splitVertical: "ऊर्ध्वाधर विभाजित करें",
-      closePane: "पैन बंद करें",
-      selectSessionHint: "संदेश देखने के लिए एक सेशन चुनें",
-      hoverToSplitHint: "चैट तुलना के लिए पैन पर होवर करके विभाजित करें",
-      selectMessagesToExport: "निर्यात के लिए संदेश चुनें",
-    },
-    messageCard: {
-      ...enTranslation.chat.messageCard,
-      authRequired: "प्रमाणीकरण आवश्यक",
-      goToSettings: "सेटिंग्स पर जाएँ",
-      assistantThinking: "सहायक सोच रहा है...",
-      reasoning: "रीज़निंग",
-      selected: "चयनित",
-      selectedTool: "चयनित टूल",
-    },
-    messageActions: {
-      ...enTranslation.chat.messageActions,
-      copy: "कॉपी करें",
-      exportMarkdown: "Markdown के रूप में निर्यात करें",
-      exportPdf: "PDF के रूप में निर्यात करें",
-      restoreChat: "केवल चैट पुनर्स्थापित करें",
-      restoreFilesAndChat: "फ़ाइलें और चैट पुनर्स्थापित करें",
-      deleteMessage: "संदेश हटाएँ",
-      savedFile: "{{filename}} में सहेजा गया",
-      nothingToExport: "निर्यात करने के लिए कुछ नहीं",
-      exportFailed: "निर्यात विफल",
-      cannotRestore: "यह संदेश पुनर्स्थापित नहीं किया जा सकता",
-      restorePartial: "चैट पुनर्स्थापित हुई। {{count}} फ़ाइल(ें) पुनर्स्थापित नहीं हो सकीं।",
-      restoreFilesSuccess: "फ़ाइलें और चैट पुनर्स्थापित ({{count}} संदेश हटाए गए)।",
-      restoreSuccess: "चैट पुनर्स्थापित ({{count}} संदेश हटाए गए)।",
-      restoreFailed: "चैट पुनर्स्थापित करने में विफल",
-      pdfUnavailable: "इस वातावरण में PDF निर्यात उपलब्ध नहीं है",
-      exportingPdf: "PDF निर्यात हो रहा है...",
-    },
-    session: {
-      ...enTranslation.chat.session,
-      defaultTitle: "नया सत्र",
-    },
-  },
-  settings: {
-    ...hiTranslation.settings,
-    page: {
-      ...hiTranslation.settings.page,
-      tabs: {
-        ...hiTranslation.settings.page.tabs,
-        envVars: "पर्यावरण वेरिएबल्स",
-      },
-    },
-    configTab: {
-      ...hiTranslation.settings.configTab,
-      loadBambooConfigFailed: "Bamboo कॉन्फ़िग लोड करने में विफल",
-      bambooConfigSaved: "Bamboo कॉन्फ़िग सहेजा गया",
-      saveBambooConfigFailed: "Bamboo कॉन्फ़िग सहेजने में विफल",
-    },
-    keywordMaskingTab: {
-      ...enTranslation.settings.keywordMaskingTab,
-      title: "कीवर्ड मास्किंग",
-      addKeyword: "कीवर्ड जोड़ें",
-      description:
-        "Copilot API को भेजने से पहले मास्क किए जाने वाले कीवर्ड कॉन्फ़िगर करें। शाब्दिक स्ट्रिंग के लिए सटीक मिलान या पैटर्न के लिए regex उपयोग करें। सभी मिलान [MASKED] से बदले जाएंगे।",
-      empty: "कोई कीवर्ड मास्किंग नियम कॉन्फ़िगर नहीं है",
-      cancel: "रद्द करें",
-      patternPlaceholder: "मिलान का पैटर्न दर्ज करें",
-      examples: "उदाहरण",
-      exactMatch: "सटीक मिलान",
-      regexPattern: "Regex पैटर्न",
-      enabled: "सक्षम",
-      disabled: "अक्षम",
-      sampleText: "नमूना टेक्स्ट",
-      sampleTextPlaceholder: "नमूना टेक्स्ट दर्ज करें",
-      maskedPreview: "मास्क किया गया पूर्वावलोकन",
-      emptyPattern: "(खाली)",
-      loadFailed: "कीवर्ड मास्किंग कॉन्फ़िगरेशन लोड करने में विफल",
-      saveFailed: "कॉन्फ़िगरेशन सहेजने में विफल",
-      saveSuccess: "कीवर्ड मास्किंग कॉन्फ़िगरेशन सहेजा गया",
-      validationFailedPrefix: "सत्यापन विफल",
-      patternRequired: "पैटर्न खाली नहीं हो सकता",
-      invalidRegexPattern: "अमान्य regex पैटर्न",
-      example: {
-        ...enTranslation.settings.keywordMaskingTab.example,
-        literalToken: "शाब्दिक टोकन मास्क करें",
-        githubTokens: "GitHub टोकन मास्क करें",
-        awsKeys: "AWS key मास्क करें",
-        emails: "ईमेल पते मास्क करें",
-      },
-    },
-  },
-  components: {
-    ...enTranslation.components,
-    workflowResult: {
-      ...enTranslation.components.workflowResult,
-      userWorkflow: "उपयोगकर्ता वर्कफ़्लो",
-      waitingForResult: "वर्कफ़्लो परिणाम की प्रतीक्षा...",
-      executionFailed: "वर्कफ़्लो निष्पादन विफल",
-      retryWorkflow: "वर्कफ़्लो पुनः चलाएँ",
-      copyParameters: "पैरामीटर्स कॉपी करें",
-      copyResult: "परिणाम कॉपी करें",
-      expandResult: "परिणाम विस्तार करें",
-      collapseResult: "परिणाम संक्षिप्त करें",
-    },
-    toolResult: {
-      ...enTranslation.components.toolResult,
-      waiting: "प्रतीक्षा में",
-      waitingForResult: "परिणाम की प्रतीक्षा...",
-      executionFailed: "टूल निष्पादन विफल",
-      copyResult: "परिणाम कॉपी करें",
-      checkpoint: "चेकपॉइंट",
-      checkpointNone: "कोई नहीं",
-      diffTruncated: "डिफ़ बहुत लंबा है और काट दिया गया है",
-    },
-    toolCall: {
-      ...enTranslation.components.toolCall,
-      liveOutput: "लाइव आउटपुट",
-      keyParameters: "मुख्य पैरामीटर्स",
-      fullParameters: "पूर्ण पैरामीटर्स",
-      copyParameters: "पैरामीटर्स कॉपी करें",
-    },
-    plan: {
-      ...enTranslation.components.plan,
-      executionPlan: "निष्पादन योजना",
-      goal: "लक्ष्य",
-      steps: "चरण",
-      stepTitle: "चरण {{number}}",
-      reason: "कारण",
-      estimated: "अनुमानित",
-      tools: "टूल्स",
-      prerequisites: "पूर्वापेक्षाएँ",
-      potentialRisks: "संभावित जोखिम ({{count}})",
-      totalEstimatedTime: "कुल अनुमानित समय",
-      feedbackPlaceholder: "एजेंट को बताएँ क्या समायोजित करना है...",
-      sendFeedback: "फ़ीडबैक भेजें",
-      refinePlan: "योजना परिष्कृत करें",
-      executePlan: "योजना निष्पादित करें",
-    },
-    question: {
-      ...enTranslation.components.question,
-      agentQuestion: "एजेंट प्रश्न",
-      context: "संदर्भ",
-      chooseOption: "एक विकल्प चुनें",
-      recommended: "अनुशंसित",
-      customAnswerHint: "कोई उपयुक्त विकल्प नहीं? अपना उत्तर लिखें।",
-      customAnswerPlaceholder: "अपना कस्टम उत्तर लिखें...",
-      submitAnswer: "उत्तर सबमिट करें",
-    },
-    questionDialog: {
-      ...enTranslation.components.questionDialog,
-      selectOptionWarning: "सबमिट करने से पहले एक विकल्प चुनें।",
-      responseSubmitted: "उत्तर सबमिट किया गया",
-      responseSubmittedContinue: "उत्तर सबमिट किया गया, AI आगे प्रोसेस करेगा",
-      submitFailed: "उत्तर सबमिट करने में विफल",
-      noModelConfigured: "कोई मॉडल कॉन्फ़िगर नहीं है",
-      customAnswerTip: "कस्टम उत्तर",
-      otherTypeBelow: "अन्य (नीचे लिखें)",
-      confirm: "पुष्टि करें",
-    },
-    skillManager: {
-      ...enTranslation.components.skillManager,
-      title: "स्किल्स",
-      refresh: "रीफ्रेश करें",
-      skillsRefreshed: "स्किल्स रीफ्रेश हुईं",
-      lastUpdated: "अंतिम अपडेट: {{value}}",
-      justNow: "अभी-अभी",
-      secondsAgo: "{{count}} सेकंड पहले",
-      minutesAgo: "{{count}} मिनट पहले",
-      searchPlaceholder: "स्किल्स खोजें",
-      readOnlyHint: "रीड-ओनली मोड: स्किल्स संपादित नहीं की जा सकतीं।",
-      noSkillsFound: "कोई स्किल नहीं मिली",
-      noMatch: "खोज से मेल खाती कोई स्किल नहीं मिली",
-      loadFailed: "स्किल्स लोड करने में विफल",
-      getFailed: "स्किल प्राप्त करने में विफल",
-    },
-    skillSelector: {
-      ...enTranslation.components.skillSelector,
-      placeholder: "स्किल्स चुनें",
-    },
-    imageGrid: {
-      ...enTranslation.components.imageGrid,
-      preview: "पूर्वावलोकन",
-      ocr: "OCR",
-    },
-    todoList: {
-      ...enTranslation.components.todoList,
-      title: "कार्य सूची",
-      evaluating: "मूल्यांकन जारी",
-      pin: "पिन करें",
-      unpin: "अनपिन करें",
-      llmEvaluation: "LLM मूल्यांकन",
-      tools: "टूल्स",
-      dependsOn: "निर्भर करता है: {{deps}}",
-      dependencies: "निर्भरताएँ",
-      status: {
-        ...enTranslation.components.todoList.status,
-        pending: "लंबित",
-        inProgress: "प्रगति में",
-        completed: "पूर्ण",
-        blocked: "अवरोधित",
-      },
-    },
-    tokenUsage: {
-      ...enTranslation.components.tokenUsage,
-      title: "टोकन उपयोग",
-      summary: "सारांश",
-      system: "सिस्टम",
-      messages: "संदेश",
-      tokens: "टोकन",
-      usedPercent: "{{value}}% उपयोग",
-    },
-    approval: {
-      ...enTranslation.components.approval,
-      workflow: "वर्कफ़्लो",
-      executionRequest: "निष्पादन अनुरोध",
-      aiWantsExecute: "AI निम्नलिखित क्रिया निष्पादित करना चाहता है",
-    },
-    toolSession: {
-      ...enTranslation.components.toolSession,
-      title: "टूल सेशन",
-      running: "चल रहा है",
-      done: "पूर्ण",
-      error: "त्रुटि",
-      completedOnly: "{{completed}} पूर्ण",
-      completedWithErrors: "{{completed}} पूर्ण (त्रुटियों सहित)",
-      completedProgress: "{{completed}} / {{total}} पूर्ण",
-      noPersistedMessage: "कोई स्थायी आउटपुट नहीं",
-      deleteMessage: "टूल सेशन हटाएँ",
-    },
-    mermaid: {
-      ...enTranslation.components.mermaid,
-      loadingDiagram: "डायग्राम लोड हो रहा है...",
-      diagramError: "Mermaid डायग्राम त्रुटि",
-      errorTitlePrefix: "त्रुटि",
-      checkConsoleHint: "Mermaid सिंटैक्स जाँचें या विवरण के लिए कंसोल खोलें।",
-      fixMermaid: "Mermaid ठीक करें",
-      renderingDiagram: "डायग्राम रेंडर हो रहा है...",
-      exportSvg: "SVG निर्यात करें",
-      exportFailed: "डायग्राम निर्यात विफल",
-    },
-  },
+  };
 };
 
-const frCompleteTranslation = deepMerge(frFullTranslation, frAutoOverrides);
-const hiCompleteTranslation = deepMerge(hiFullTranslation, hiAutoOverrides);
-
-const zhTwTranslation = {
+const buildZhTwTranslation = (zhCnTranslation: ZhCnBaseTranslation) => ({
   ...zhCnTranslation,
   app: {
     ...zhCnTranslation.app,
@@ -2123,39 +2139,118 @@ const zhTwTranslation = {
       languageHindi: "印地語",
     },
   },
+});
+
+// ---------------------------------------------------------------------------
+// Lazy locale resource builders.
+// Each builder is only invoked when its locale is first needed (either as the
+// initial locale at startup or on-demand when the user switches language).
+// Base locales are loaded on-demand as separate chunks.
+// ---------------------------------------------------------------------------
+
+const localeResourceBuilders: Partial<Record<AppLocale, () => Promise<TranslationResource>>> = {
+  "fr-FR": async () => {
+    const enTranslation = (await loadBaseResource("en-US")).translation;
+    return { translation: deepMerge(buildFrFullTranslation(enTranslation), frAutoOverrides) };
+  },
+  "hi-IN": async () => {
+    const enTranslation = (await loadBaseResource("en-US")).translation;
+    return { translation: deepMerge(buildHiFullTranslation(enTranslation), hiAutoOverrides) };
+  },
+  "ja-JP": async () => {
+    const enTranslation = (await loadBaseResource("en-US")).translation;
+    return { translation: buildJaTranslation(enTranslation) };
+  },
+  "zh-TW": async () => {
+    const zhCnTranslation = (await loadBaseResource("zh-CN")).translation;
+    return { translation: buildZhTwTranslation(zhCnTranslation) };
+  },
 };
 
-const resources = {
-  ...baseResources,
-  "fr-FR": {
-    translation: frCompleteTranslation,
-  },
-  "hi-IN": {
-    translation: hiCompleteTranslation,
-  },
-  "ja-JP": {
-    translation: jaTranslation,
-  },
-  "zh-TW": {
-    translation: zhTwTranslation,
-  },
+const baseLocales = new Set<AppLocale>(["en-US", "zh-CN"]);
+const localeResourceCache = new Map<AppLocale, Promise<TranslationResource>>();
+
+const loadLocaleResource = (locale: AppLocale): Promise<TranslationResource> => {
+  const cached = localeResourceCache.get(locale);
+  if (cached) {
+    return cached;
+  }
+
+  const promise = (async () => {
+    if (baseLocales.has(locale)) {
+      const baseResource = await loadBaseResource(locale as "en-US" | "zh-CN");
+      return baseResource as TranslationResource;
+    }
+
+    const builder = localeResourceBuilders[locale];
+    if (!builder) {
+      throw new Error(`No i18n resource loader registered for locale: ${locale}`);
+    }
+
+    return builder();
+  })();
+
+  localeResourceCache.set(locale, promise);
+  return promise;
 };
 
-if (!i18n.isInitialized) {
-  i18n.use(initReactI18next);
-  void i18n.init({
-    resources,
-    lng: resolveInitialLocale(),
-    fallbackLng: DEFAULT_APP_LOCALE,
-    supportedLngs: SUPPORTED_APP_LOCALES,
-    interpolation: {
-      escapeValue: false,
-    },
-    react: {
-      useSuspense: false,
-    },
-    returnNull: false,
-  });
-}
+const ensureLocaleResource = async (locale: AppLocale) => {
+  if (i18n.hasResourceBundle(locale, "translation")) {
+    return;
+  }
+
+  const resource = await loadLocaleResource(locale);
+  i18n.addResourceBundle(locale, "translation", resource.translation, true, false);
+};
+
+// ---------------------------------------------------------------------------
+// i18n initialization — only load fallback locale plus the active initial locale.
+// Additional locales are added on-demand via `changeLocale()`.
+// ---------------------------------------------------------------------------
+
+const initialLocale = resolveInitialLocale();
+
+export const i18nReady = (async () => {
+  const initialResources: Record<string, TranslationResource> = {};
+
+  initialResources[DEFAULT_APP_LOCALE] = await loadLocaleResource(DEFAULT_APP_LOCALE);
+
+  if (initialLocale !== DEFAULT_APP_LOCALE) {
+    initialResources[initialLocale] = await loadLocaleResource(initialLocale);
+  }
+
+  if (!i18n.isInitialized) {
+    i18n.use(initReactI18next);
+    await i18n.init({
+      resources: initialResources,
+      lng: initialLocale,
+      fallbackLng: DEFAULT_APP_LOCALE,
+      supportedLngs: SUPPORTED_APP_LOCALES,
+      interpolation: {
+        escapeValue: false,
+      },
+      react: {
+        useSuspense: false,
+      },
+      returnNull: false,
+    });
+    return;
+  }
+
+  await ensureLocaleResource(initialLocale);
+  if (i18n.language !== initialLocale) {
+    await i18n.changeLanguage(initialLocale);
+  }
+})();
+
+/**
+ * Change the active locale, ensuring its translation resources are loaded first.
+ * Non-base locales are built lazily on first use and cached in i18n's store.
+ */
+export const changeLocale = async (locale: AppLocale) => {
+  await i18nReady;
+  await ensureLocaleResource(locale);
+  return i18n.changeLanguage(locale);
+};
 
 export default i18n;

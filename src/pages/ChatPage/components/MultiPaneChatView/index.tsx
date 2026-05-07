@@ -9,7 +9,12 @@ import {
 
 import { useAppStore } from "../../store";
 import { ChatView } from "../ChatView";
-import { HomeDashboard } from "../HomeDashboard";
+// HomeDashboard pulls in EmptyTaskLauncher (14 templates, many icons, system
+// prompts) which is heavy and only rendered when a pane has no active session.
+// Lazy-loading keeps that entire subtree off the startup bundle.
+const LazyHomeDashboard = React.lazy(() =>
+  import("../HomeDashboard").then((m) => ({ default: m.HomeDashboard })),
+);
 import {
   type LayoutNode,
   type LayoutSplitNode,
@@ -227,7 +232,12 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
         </ErrorBoundary>
       ) : (
         <ErrorBoundary name="HomeDashboard">
-          <HomeDashboard onOpenSession={handleOpenSession} onCreateSession={handleCreateSession} />
+          <React.Suspense fallback={null}>
+            <LazyHomeDashboard
+              onOpenSession={handleOpenSession}
+              onCreateSession={handleCreateSession}
+            />
+          </React.Suspense>
         </ErrorBoundary>
       )}
     </div>
@@ -269,14 +279,13 @@ export const MultiPaneChatView: React.FC = () => {
   const activeLeafId = useUILayoutStore((s) => s.activeLeafId);
   const setActiveLeafId = useUILayoutStore((s) => s.setActiveLeafId);
   const setLeafSessionId = useUILayoutStore((s) => s.setLeafSessionId);
-  const clearSessionFromAllLeaves = useUILayoutStore((s) => s.clearSessionFromAllLeaves);
 
-  const chats = useAppStore((s) => s.chats);
+  const chatIdsRaw = useAppStore((s) => s.chats.map((c) => c.id).join(","));
+  const sessionIdSet = useMemo(() => new Set(chatIdsRaw.split(",")), [chatIdsRaw]);
   const currentSessionId = useAppStore((s) => s.currentSessionId);
 
   const didSeedInitialChatRef = useRef(false);
   const leafIds = useMemo(() => getLeafIdsFromTree(tree), [tree]);
-  const sessionIdSet = useMemo(() => new Set(chats.map((c) => c.id)), [chats]);
 
   // Ensure active leaf is always valid.
   useEffect(() => {
@@ -288,6 +297,16 @@ export const MultiPaneChatView: React.FC = () => {
 
   // Prune deleted chats from pane assignments.
   useEffect(() => {
+    const mappedSessionIds = new Set(Object.values(leafSessionIds).filter(Boolean) as string[]);
+    let needsUpdate = false;
+    for (const sid of mappedSessionIds) {
+      if (!sessionIdSet.has(sid)) {
+        needsUpdate = true;
+        break;
+      }
+    }
+    if (!needsUpdate) return;
+
     for (const [leafId, mappedSessionId] of Object.entries(leafSessionIds)) {
       if (mappedSessionId && !sessionIdSet.has(mappedSessionId)) {
         setLeafSessionId(leafId, null);
@@ -313,18 +332,6 @@ export const MultiPaneChatView: React.FC = () => {
   // `setLeafSessionId(...)` and `selectSession(...)`. Extra sync effects here can create
   // selection ping-pong (especially during Create New Session) and trigger
   // "Maximum update depth exceeded".
-
-  // Clear assignments for chats when they are deleted via store actions elsewhere.
-  useEffect(() => {
-    // This is intentionally coarse: it keeps UI layout consistent if some other flow
-    // deletes chats without going through ChatSidebar handlers.
-    const mappedSessionIds = new Set(Object.values(leafSessionIds).filter(Boolean) as string[]);
-    for (const mappedSessionId of mappedSessionIds) {
-      if (!sessionIdSet.has(mappedSessionId)) {
-        clearSessionFromAllLeaves(mappedSessionId);
-      }
-    }
-  }, [sessionIdSet, clearSessionFromAllLeaves, leafSessionIds]);
 
   return (
     <div

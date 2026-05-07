@@ -2,16 +2,15 @@ import { useEffect, useState } from "react";
 import { App as AntdApp, Button, ConfigProvider as AntdConfigProvider, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import "./App.css";
-import "@shared/i18n";
 import { MainLayout } from "./MainLayout";
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import { useThemeStore } from "@shared/store/themeStore";
 import { SetupPage } from "../pages/SetupPage";
 import { PasswordGatePage } from "../pages/PasswordGatePage";
-import { initializeStore } from "../pages/ChatPage/store";
+import { bootstrapCritical, bootstrapDeferred } from "../pages/ChatPage/store";
 import { ServiceFactory } from "../services/common/ServiceFactory";
 import { getBackendBaseUrlSync } from "../shared/utils/backendBaseUrl";
-import i18n from "@shared/i18n";
+import { changeLocale } from "@shared/i18n";
 import { getAntdLocale } from "@shared/i18n/antdLocale";
 import { APP_LOCALE_STORAGE_KEY, type AppLocale, resolveInitialLocale } from "@shared/i18n/types";
 import { isVdiSafeModeEnabled } from "@shared/utils/vdiSafeMode";
@@ -220,7 +219,7 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem(APP_LOCALE_STORAGE_KEY, appLocale);
-    void i18n.changeLanguage(appLocale);
+    void changeLocale(appLocale);
   }, [appLocale]);
 
   useEffect(() => {
@@ -310,9 +309,20 @@ function App() {
   }, [themeMode]);
 
   useEffect(() => {
-    if (isSetupComplete) {
-      initializeStore();
+    if (!isSetupComplete) {
+      return;
     }
+
+    // Staged bootstrap: await critical (provider + chats) so the shell has
+    // sessions, then kick off deferred (models + prompts) in the background
+    // without blocking the first useful render.
+    bootstrapCritical()
+      .then(() => {
+        return bootstrapDeferred();
+      })
+      .catch((err) => {
+        console.error("[App] Bootstrap error:", err);
+      });
   }, [isSetupComplete]);
 
   // Cleanup stale IndexedDB data on startup and periodically

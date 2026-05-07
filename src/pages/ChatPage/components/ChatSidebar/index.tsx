@@ -1,12 +1,16 @@
-import React, { useEffect } from "react";
+import React, { useEffect, lazy, Suspense } from "react";
 import { Button, Flex, Grid, Input, Segmented, theme } from "antd";
 import { MenuFoldOutlined, SearchOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import SystemPromptSelector from "../SystemPromptSelector";
 import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
 import { ChatSidebarFooter } from "./ChatSidebarFooter";
 import { useChatSidebarState } from "./useChatSidebarState";
+
+// Lazy-load SystemPromptSelector — its full module tree (Modal, Radio, List,
+// SystemPromptListItem, SystemPromptPreview, etc.) is only fetched when the
+// user actually opens the "new chat" selector dialog.
+const SystemPromptSelector = lazy(() => import("../SystemPromptSelector"));
 
 const { useBreakpoint } = Grid;
 const { useToken } = theme;
@@ -177,14 +181,16 @@ export const ChatSidebar: React.FC = () => {
         token={token}
       />
 
-      <SystemPromptSelector
-        open={isNewChatSelectorOpen}
-        onClose={handleNewChatSelectorClose}
-        onSelect={handleSystemPromptSelect}
-        prompts={systemPrompts}
-        title={t("chat.prompt.newSessionSelectorTitle")}
-        showCancelButton={true}
-      />
+      <Suspense fallback={null}>
+        <SystemPromptSelector
+          open={isNewChatSelectorOpen}
+          onClose={handleNewChatSelectorClose}
+          onSelect={handleSystemPromptSelect}
+          prompts={systemPrompts}
+          title={t("chat.prompt.newSessionSelectorTitle")}
+          showCancelButton={true}
+        />
+      </Suspense>
     </nav>
   );
 };

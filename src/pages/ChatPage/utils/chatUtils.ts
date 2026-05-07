@@ -64,8 +64,23 @@ export const getDateGroupWeight = (dateKey: string): number => {
   return weights[dateKey] ?? 4; // Older dates get weight 4+
 };
 
-export const groupChatsByDate = (chats: ChatItem[]): Record<string, ChatItem[]> => {
-  const grouped: Record<string, ChatItem[]> = {};
+type DateGroupChat = {
+  id: string;
+  pinned?: boolean;
+  createdAt: number;
+  createdByScheduleId?: string | null;
+};
+
+type CategoryGroupChat = {
+  pinned?: boolean;
+  createdAt: number;
+  config: {
+    systemPromptId?: string | null;
+  };
+};
+
+export const groupChatsByDate = <T extends DateGroupChat>(chats: T[]): Record<string, T[]> => {
+  const grouped: Record<string, T[]> = {};
   // Add pinned group at the top if any pinned chats
   const pinnedChats = chats.filter((chat) => chat.pinned);
   if (pinnedChats.length > 0) {
@@ -103,8 +118,10 @@ export const groupChatsByDate = (chats: ChatItem[]): Record<string, ChatItem[]> 
 /**
  * Group chats by tool category, sort by time within each category
  */
-export const groupChatsByToolCategory = (chats: ChatItem[]): Record<string, ChatItem[]> => {
-  const grouped: Record<string, ChatItem[]> = {};
+export const groupChatsByToolCategory = <T extends CategoryGroupChat>(
+  chats: T[],
+): Record<string, T[]> => {
+  const grouped: Record<string, T[]> = {};
 
   // Handle pinned chats first
   const pinnedChats = chats.filter((chat) => chat.pinned);
@@ -137,19 +154,19 @@ export const groupChatsByToolCategory = (chats: ChatItem[]): Record<string, Chat
  * Group chats by date and then by category within each date
  * Returns a nested structure: { dateKey: { category: ChatItem[] } }
  */
-export interface DateCategoryGroup {
+export interface DateCategoryGroup<T extends DateGroupChat = ChatItem> {
   [dateKey: string]: {
-    [category: string]: ChatItem[];
+    [category: string]: T[];
   };
 }
 
 /**
  * Get sorted date keys for consistent ordering
  */
-export const getSortedDateKeys = (
-  grouped: Record<string, ChatItem[]> | DateCategoryGroup,
+export const getSortedDateKeys = <T extends DateGroupChat>(
+  grouped: Record<string, T[]> | DateCategoryGroup<T>,
 ): string[] => {
-  const getLatestTimestamp = (group: ChatItem[] | Record<string, ChatItem[]>): number => {
+  const getLatestTimestamp = (group: T[] | Record<string, T[]>): number => {
     if (Array.isArray(group)) {
       return group.reduce((max, chat) => Math.max(max, chat.createdAt), 0);
     }
@@ -169,8 +186,8 @@ export const getSortedDateKeys = (
     const bGroup = grouped[b];
     if (!aGroup || !bGroup) return 0;
 
-    const aTime = getLatestTimestamp(aGroup as ChatItem[] | Record<string, ChatItem[]>);
-    const bTime = getLatestTimestamp(bGroup as ChatItem[] | Record<string, ChatItem[]>);
+    const aTime = getLatestTimestamp(aGroup as T[] | Record<string, T[]>);
+    const bTime = getLatestTimestamp(bGroup as T[] | Record<string, T[]>);
 
     if (aTime !== bTime) return bTime - aTime;
 
@@ -181,8 +198,8 @@ export const getSortedDateKeys = (
 /**
  * Get all chat IDs from a specific date group
  */
-export const getSessionIdsByDate = (
-  grouped: Record<string, ChatItem[]>,
+export const getSessionIdsByDate = <T extends { id: string }>(
+  grouped: Record<string, T[]>,
   dateKey: string,
 ): string[] => {
   if (!grouped[dateKey]) return [];
@@ -192,10 +209,7 @@ export const getSessionIdsByDate = (
 /**
  * Get chat count for a date group
  */
-export const getChatCountByDate = (
-  grouped: Record<string, ChatItem[]>,
-  dateKey: string,
-): number => {
+export const getChatCountByDate = <T>(grouped: Record<string, T[]>, dateKey: string): number => {
   if (!grouped[dateKey]) return 0;
   return grouped[dateKey].length;
 };
@@ -204,7 +218,11 @@ export const getChatCountByDate = (
  * Get the date group key for a specific chat
  * Returns the same format as used in groupChatsByDate
  */
-export const getDateGroupKeyForChat = (chat: ChatItem): string => {
+export const getDateGroupKeyForChat = (chat: {
+  pinned?: boolean;
+  createdByScheduleId?: string | null;
+  createdAt: number;
+}): string => {
   if (chat.pinned) {
     return "Pinned";
   }

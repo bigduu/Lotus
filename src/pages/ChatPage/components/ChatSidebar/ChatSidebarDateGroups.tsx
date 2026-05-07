@@ -5,13 +5,13 @@ import { DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { ChatItem as ChatItemComponent } from "../ChatItem";
-import type { ChatItem } from "../../types/chat";
+import type { SidebarChatItem } from "../../types/sidebarChat";
 import { getChatCountByDate } from "../../utils/chatUtils";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
 
 type ChatSidebarDateGroupsProps = {
-  groupedChatsByDate: Record<string, ChatItem[]>;
-  childrenByRoot: Record<string, ChatItem[]>;
+  groupedChatsByDate: Record<string, SidebarChatItem[]>;
+  childrenByRoot: Record<string, SidebarChatItem[]>;
   expandedRootIds: Set<string>;
   onToggleRootExpanded: (rootId: string) => void;
   sortedDateKeys: string[];
@@ -234,7 +234,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                   itemLayout="horizontal"
                   dataSource={dateGroup}
                   split={false}
-                  renderItem={(chat: ChatItem) => (
+                  renderItem={(chat: SidebarChatItem) => (
                     <div key={chat.id}>
                       <Flex align="center" gap={6}>
                         {childrenByRoot[chat.id]?.length ? (
@@ -288,7 +288,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                             itemLayout="horizontal"
                             dataSource={childrenByRoot[chat.id]}
                             split={false}
-                            renderItem={(child: ChatItem) => (
+                            renderItem={(child: SidebarChatItem) => (
                               <div key={child.id} style={{ paddingLeft: 12 }}>
                                 <ChatItemComponent
                                   chat={child}

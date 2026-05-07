@@ -54,7 +54,8 @@ beforeEach(() => {
   installMemoryStorage();
 });
 
-await import("@shared/i18n");
+const { i18nReady } = await import("@shared/i18n");
+await i18nReady;
 
 // Always mock fetch to prevent network calls in tests
 global.fetch = vi.fn();
