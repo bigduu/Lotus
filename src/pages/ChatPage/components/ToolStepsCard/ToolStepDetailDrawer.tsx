@@ -5,12 +5,15 @@ import { useTranslation } from "react-i18next";
 
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
-import { safeStringify } from "../../utils/resultFormatters";
+import { parseFileChangeResultPayload, safeStringify } from "../../utils/resultFormatters";
 import { copyText } from "@shared/utils/clipboard";
 import type { AssistantToolResultMessage } from "../../types/chat";
+import FileChangeViewer from "../FileChangeViewer";
 import FormattedContentPreview, { type FormattedContentMode } from "./FormattedContentPreview";
 
 const { Text } = Typography;
+
+type ToolStepDrawerTab = "preview" | "parameters" | "result" | "diff";
 
 export interface ToolStepDetailDrawerProps {
   open: boolean;
@@ -24,8 +27,9 @@ export interface ToolStepDetailDrawerProps {
   metadata?: {
     elapsed_ms?: number;
     is_mutating?: boolean;
+    summary?: string;
   };
-  initialTab?: "preview" | "parameters" | "result";
+  initialTab?: ToolStepDrawerTab;
   result?: AssistantToolResultMessage;
 }
 
@@ -50,6 +54,15 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
     () => generateIntentDescription(call.toolName, call.parameters),
     [call.toolName, call.parameters],
   );
+  const resultContent = result?.result?.result ?? "";
+  const fileChangePayload = useMemo(
+    () => (resultContent.trim() ? parseFileChangeResultPayload(resultContent) : null),
+    [resultContent],
+  );
+  const summaryText =
+    typeof metadata?.summary === "string" && metadata.summary.trim().length > 0
+      ? metadata.summary.trim()
+      : null;
 
   const formattedJson = useMemo(() => safeStringify(call.parameters, 2), [call.parameters]);
 
@@ -66,18 +79,18 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
     value: unknown;
     mode: FormattedContentMode;
   } | null>(() => {
-    if (result?.result?.result?.trim()) {
-      return {
-        label: t("components.toolSteps.result"),
-        value: result.result.result,
-        mode: "auto",
-      };
-    }
-
     if (call.streamingOutput?.trim()) {
       return {
         label: t("components.toolCall.liveOutput"),
         value: call.streamingOutput,
+        mode: "auto",
+      };
+    }
+
+    if (!fileChangePayload && resultContent.trim()) {
+      return {
+        label: t("components.toolSteps.result"),
+        value: resultContent,
         mode: "auto",
       };
     }
@@ -91,7 +104,7 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
     }
 
     return null;
-  }, [call.parameters, call.streamingOutput, result, t]);
+  }, [call.parameters, call.streamingOutput, fileChangePayload, resultContent, t]);
 
   // Key params sorted by priority (first 3)
   const keyParamsList = useMemo(() => {
@@ -113,15 +126,15 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
   const statusTag = useMemo(() => {
     if (result) {
       if (result.isError) {
-        return <Tag color="error">error</Tag>;
+        return <Tag color="error">{t("components.toolSteps.statusError")}</Tag>;
       }
-      return <Tag color="success">finish</Tag>;
+      return <Tag color="success">{t("components.toolSteps.statusFinish")}</Tag>;
     }
     if (hasStreamingOutput) {
-      return <Tag color="processing">process</Tag>;
+      return <Tag color="processing">{t("components.toolSteps.statusProcess")}</Tag>;
     }
-    return <Tag color="default">wait</Tag>;
-  }, [result, hasStreamingOutput]);
+    return <Tag color="default">{t("components.toolSteps.statusWait")}</Tag>;
+  }, [result, hasStreamingOutput, t]);
 
   const elapsedTag =
     metadata?.elapsed_ms != null ? (
@@ -155,6 +168,12 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
     </Space>
   );
 
+  const resolvedInitialTab: ToolStepDrawerTab = fileChangePayload
+    ? initialTab
+    : initialTab === "diff"
+      ? "preview"
+      : initialTab;
+
   const tabItems = [
     {
       key: "preview" as const,
@@ -170,6 +189,19 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
                 <Text style={{ fontSize: token.fontSizeSM }}>{intentDescription}</Text>
               </div>
             </div>
+
+            {summaryText ? (
+              <div>
+                <Text strong style={{ fontSize: token.fontSizeSM }}>
+                  {t("components.toolSteps.summary", { defaultValue: "Summary" })}
+                </Text>
+                <div style={{ marginTop: token.marginXS }}>
+                  <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                    {summaryText}
+                  </Text>
+                </div>
+              </div>
+            ) : null}
 
             {keyParamsList.length > 0 && (
               <div>
@@ -208,7 +240,18 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
               minHeight: 0,
             }}
           >
-            {previewPanel ? (
+            {fileChangePayload ? (
+              <>
+                <Text strong style={{ fontSize: token.fontSizeSM }}>
+                  {t("components.toolSteps.fileChanges", { defaultValue: "File changes" })}
+                </Text>
+                <FileChangeViewer
+                  payload={fileChangePayload}
+                  defaultViewMode="unified"
+                  maxHeight={340}
+                />
+              </>
+            ) : previewPanel ? (
               <>
                 <Text strong style={{ fontSize: token.fontSizeSM }}>
                   {previewPanel.label}
@@ -232,6 +275,23 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
         </div>
       ),
     },
+    ...(fileChangePayload
+      ? [
+          {
+            key: "diff" as const,
+            label: t("components.toolSteps.diff", { defaultValue: "Diff" }),
+            children: (
+              <div className="lotus-tool-step-drawer-pane">
+                <FileChangeViewer
+                  payload={fileChangePayload}
+                  defaultViewMode="sideBySide"
+                  height="100%"
+                />
+              </div>
+            ),
+          },
+        ]
+      : []),
     {
       key: "parameters" as const,
       label: t("components.toolSteps.parameters"),
@@ -264,7 +324,7 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
       children: (
         <div className="lotus-tool-step-drawer-pane">
           <FormattedContentPreview
-            value={result?.result?.result}
+            value={resultContent}
             mode="auto"
             height="100%"
             scrollable={true}
@@ -278,7 +338,7 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
   return (
     <Drawer
       placement="right"
-      width={480}
+      width={960}
       open={open}
       onClose={onClose}
       title={title}
@@ -294,7 +354,12 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
       }}
     >
       <div className="lotus-tool-step-drawer-tabs">
-        <Tabs defaultActiveKey={initialTab} items={tabItems} style={{ height: "100%" }} />
+        <Tabs
+          key={`${call.toolCallId}:${resolvedInitialTab}`}
+          defaultActiveKey={resolvedInitialTab}
+          items={tabItems}
+          style={{ height: "100%" }}
+        />
       </div>
     </Drawer>
   );

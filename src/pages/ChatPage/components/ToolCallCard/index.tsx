@@ -21,6 +21,7 @@ export interface ToolCallCardProps {
   metadata?: {
     elapsed_ms?: number;
     is_mutating?: boolean;
+    summary?: string;
   };
 }
 

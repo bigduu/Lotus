@@ -14,6 +14,73 @@ import { openExternalLink } from "../../../../shared/utils/openExternalLink";
 const { Text } = Typography;
 const { useToken } = theme;
 
+const STREAMING_BLOCK_MARGIN_PX = 8;
+const STREAMING_INLINE_MARGIN_PX = 4;
+const STREAMING_MERMAID_LANGUAGES = new Set([
+  "mermaid",
+  "graph",
+  "flowchart",
+  "sequencediagram",
+  "classdiagram",
+  "statediagram",
+  "statediagram-v2",
+  "erdiagram",
+  "journey",
+  "gantt",
+  "pie",
+  "gitgraph",
+  "mindmap",
+  "timeline",
+  "quadrantchart",
+  "requirementdiagram",
+  "c4context",
+  "c4container",
+  "c4component",
+  "c4dynamic",
+  "c4deployment",
+  "sankey",
+  "sankey-beta",
+  "xychart",
+  "xychart-beta",
+  "block",
+  "block-beta",
+  "packet",
+  "packet-beta",
+  "kanban",
+  "architecture",
+]);
+
+const renderStreamingMermaidFallback = (codeString: string, token: GlobalToken) => (
+  <Card
+    size="small"
+    styles={{ body: { padding: 0 } }}
+    style={{
+      position: "relative",
+      maxWidth: "100%",
+      overflow: "auto",
+      marginBottom: STREAMING_BLOCK_MARGIN_PX,
+      background: token.colorBgContainer,
+      borderColor: token.colorBorder,
+    }}
+  >
+    <pre
+      style={{
+        margin: 0,
+        padding: token.paddingSM,
+        background: token.colorBgContainer,
+        color: token.colorText,
+        borderRadius: token.borderRadiusSM,
+        fontSize: token.fontSizeSM,
+        overflowX: "auto",
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+      }}
+    >
+      <code style={{ color: token.colorText }}>{codeString}</code>
+    </pre>
+  </Card>
+);
+
 /**
  * 创建流式阶段专用的 Markdown 组件
  * 与完整版的区别：
@@ -24,7 +91,7 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   p: ({ children }) => (
     <Text
       style={{
-        marginBottom: token.marginSM,
+        marginBottom: STREAMING_BLOCK_MARGIN_PX,
         display: "block",
       }}
     >
@@ -35,7 +102,7 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   ol: ({ children }) => (
     <ol
       style={{
-        marginBottom: token.marginSM,
+        marginBottom: STREAMING_BLOCK_MARGIN_PX,
         paddingLeft: 20,
       }}
     >
@@ -46,7 +113,7 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   ul: ({ children }) => (
     <ul
       style={{
-        marginBottom: token.marginSM,
+        marginBottom: STREAMING_BLOCK_MARGIN_PX,
         paddingLeft: 20,
       }}
     >
@@ -57,7 +124,7 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   li: ({ children }) => (
     <li
       style={{
-        marginBottom: token.marginXS,
+        marginBottom: STREAMING_INLINE_MARGIN_PX,
       }}
     >
       {children}
@@ -84,48 +151,28 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
       return null;
     }
 
-    // 流式阶段：跳过 Mermaid 渲染，显示为普通代码
     const normalizedLanguage = language.toLowerCase();
-    if (normalizedLanguage === "mermaid") {
-      return (
-        <Card
-          size="small"
-          styles={{ body: { padding: 0 } }}
-          style={{
-            position: "relative",
-            maxWidth: "100%",
-            overflow: "auto",
-            marginBottom: token.marginSM,
-          }}
-        >
-          <pre
-            style={{
-              margin: 0,
-              padding: token.paddingSM,
-              background: token.colorBgContainer,
-              borderRadius: token.borderRadiusSM,
-              fontSize: "13px",
-            }}
-          >
-            <code>{codeString}</code>
-          </pre>
-        </Card>
-      );
+
+    // 流式阶段：跳过 Mermaid 渲染，显示为普通代码
+    if (STREAMING_MERMAID_LANGUAGES.has(normalizedLanguage)) {
+      return renderStreamingMermaidFallback(codeString, token);
     }
 
     // 其他代码块正常渲染（带语法高亮）
-    return renderCodeBlock(language, codeString, token, undefined);
+    return renderCodeBlock(language, codeString, undefined, undefined);
   },
+
+  pre: ({ children }) => <>{children}</>,
 
   blockquote: ({ children }) => (
     <Card
       size="small"
-      styles={{ body: { padding: `${token.paddingXS}px ${token.padding}px` } }}
+      styles={{ body: { padding: "4px 8px" } }}
       style={{
-        borderLeft: `3px solid ${token.colorPrimary}`,
-        background: token.colorPrimaryBg,
-        margin: `${token.marginXS}px 0`,
-        color: token.colorTextSecondary,
+        borderLeft: "3px solid var(--ant-color-primary, #0d9488)",
+        background: "var(--ant-color-primary-bg, rgba(13, 148, 136, 0.08))",
+        margin: `${STREAMING_INLINE_MARGIN_PX}px 0`,
+        color: "var(--ant-color-text-secondary, #64748b)",
         fontStyle: "italic",
       }}
     >
@@ -149,7 +196,7 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
           void openExternalLink(link);
         }}
         style={{
-          color: token.colorLink,
+          color: "var(--ant-color-link, #0d9488)",
           textDecoration: "underline",
           overflowWrap: "anywhere",
         }}
@@ -163,13 +210,13 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
     <Card
       size="small"
       styles={{ body: { padding: 0 } }}
-      style={{ overflow: "auto", margin: `${token.marginSM}px 0` }}
+      style={{ overflow: "auto", margin: `${STREAMING_BLOCK_MARGIN_PX}px 0` }}
     >
       <table
         style={{
           width: "100%",
           borderCollapse: "collapse",
-          border: `1px solid ${token.colorBorder}`,
+          border: "1px solid var(--ant-color-border, #d9d9d9)",
         }}
       >
         {children}
@@ -178,22 +225,22 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   ),
 
   thead: ({ children }) => (
-    <thead style={{ backgroundColor: token.colorBgContainer }}>{children}</thead>
+    <thead style={{ backgroundColor: "var(--ant-color-bg-container, #ffffff)" }}>{children}</thead>
   ),
 
   tbody: ({ children }) => <tbody>{children}</tbody>,
 
   tr: ({ children }) => (
-    <tr style={{ borderBottom: `1px solid ${token.colorBorder}` }}>{children}</tr>
+    <tr style={{ borderBottom: "1px solid var(--ant-color-border, #d9d9d9)" }}>{children}</tr>
   ),
 
   th: ({ children }) => (
     <th
       style={{
-        padding: `${token.paddingXS}px ${token.paddingSM}px`,
+        padding: "4px 8px",
         textAlign: "left",
         fontWeight: "bold",
-        borderRight: `1px solid ${token.colorBorder}`,
+        borderRight: "1px solid var(--ant-color-border, #d9d9d9)",
       }}
     >
       {children}
@@ -203,8 +250,8 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   td: ({ children }) => (
     <td
       style={{
-        padding: `${token.paddingXS}px ${token.paddingSM}px`,
-        borderRight: `1px solid ${token.colorBorder}`,
+        padding: "4px 8px",
+        borderRight: "1px solid var(--ant-color-border, #d9d9d9)",
       }}
     >
       {children}
@@ -219,8 +266,8 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
           checked={checked}
           disabled={disabled}
           style={{
-            marginRight: token.marginXS,
-            accentColor: token.colorPrimary,
+            marginRight: STREAMING_INLINE_MARGIN_PX,
+            accentColor: "var(--ant-color-primary, #0d9488)",
           }}
           readOnly
         />
@@ -253,21 +300,69 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
   );
 
   useEffect(() => {
-    return streamingMessageBus.subscribeMessage(messageId, (next) => {
-      setContent(next ?? "");
+    let animationFrameId: number | null = null;
+    let latestContent: string | null = null;
+
+    const unsubscribe = streamingMessageBus.subscribeMessage(messageId, (next) => {
+      latestContent = next;
+      if (animationFrameId === null) {
+        animationFrameId = requestAnimationFrame(() => {
+          setContent(latestContent ?? "");
+          animationFrameId = null;
+        });
+      }
     });
+
+    return () => {
+      unsubscribe();
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [messageId]);
 
   useEffect(() => {
-    return streamingMessageBus.subscribeMessage(reasoningMessageId, (next) => {
-      setReasoningContent(next ?? "");
+    let animationFrameId: number | null = null;
+    let latestReasoning: string | null = null;
+
+    const unsubscribe = streamingMessageBus.subscribeMessage(reasoningMessageId, (next) => {
+      latestReasoning = next;
+      if (animationFrameId === null) {
+        animationFrameId = requestAnimationFrame(() => {
+          setReasoningContent(latestReasoning ?? "");
+          animationFrameId = null;
+        });
+      }
     });
+
+    return () => {
+      unsubscribe();
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [reasoningMessageId]);
 
   useEffect(() => {
-    return streamingMessageBus.subscribeMessage(statusMessageId, (next) => {
-      setStatusContent(next ?? "");
+    let animationFrameId: number | null = null;
+    let latestStatus: string | null = null;
+
+    const unsubscribe = streamingMessageBus.subscribeMessage(statusMessageId, (next) => {
+      latestStatus = next;
+      if (animationFrameId === null) {
+        animationFrameId = requestAnimationFrame(() => {
+          setStatusContent(latestStatus ?? "");
+          animationFrameId = null;
+        });
+      }
     });
+
+    return () => {
+      unsubscribe();
+      if (animationFrameId !== null) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
   }, [statusMessageId]);
 
   const pendingStatusText = useMemo(() => {
@@ -309,7 +404,7 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
       role="status"
       aria-live="polite"
       aria-busy={true}
-      aria-label="AI is responding"
+      aria-label={t("chat.view.aiRespondingAria")}
       style={{
         width: "100%",
         minWidth: "100%",

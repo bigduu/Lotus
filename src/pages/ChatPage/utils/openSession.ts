@@ -64,7 +64,8 @@ const ensureSessionVisibleAndLoaded = async (sessionId: string, options?: OpenSe
 };
 
 /**
- * Open a session in the UI layout (multi-pane) and set it as the global selection.
+ * Open a session in the pane workspace and set it as the global selection.
+ * The workspace may currently be in a single-leaf or multi-leaf state.
  *
  * Important: some callers (e.g. buttons inside ChatView) run inside a pane whose
  * onMouseDownCapture may also set selection. We always assign the leaf mapping first,
@@ -86,15 +87,15 @@ export const openSession = (sessionId: string, options?: OpenSessionOptions) => 
 
   if (existingLeafId) {
     if (existingLeafId === activeLeafId) {
-      // Already visible in the focused pane.
+      // Already visible in the focused leaf.
       uiLayoutDebug("openSession (decision)", {
         action: "noop_already_active",
         leafId: activeLeafId,
         sessionId,
       });
     } else {
-      // Focus the pane where the session already exists to preserve
-      // one-session-per-pane mapping.
+      // Focus the leaf where the session already exists to preserve
+      // one-session-per-leaf mapping.
       setActiveLeafId(existingLeafId);
       uiLayoutDebug("openSession (decision)", {
         action: "focus_existing_leaf",

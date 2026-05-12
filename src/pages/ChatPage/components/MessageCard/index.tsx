@@ -202,10 +202,10 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 
   const markdownComponents = useMemo(
     () =>
-      createMarkdownComponents(token, {
+      createMarkdownComponents(undefined, {
         onFixMermaid,
       }),
-    [token, onFixMermaid],
+    [onFixMermaid],
   );
 
   const markdownPlugins = useMemo(() => [remarkGfm, remarkBreaks], []);

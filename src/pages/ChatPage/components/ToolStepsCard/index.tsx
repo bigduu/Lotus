@@ -13,9 +13,14 @@ import { useTranslation } from "react-i18next";
 import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../../types/chat";
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
-import { formatResultContent } from "../../utils/resultFormatters";
+import {
+  formatResultContent,
+  getFileChangeDiffStats,
+  parseFileChangeResultPayload,
+} from "../../utils/resultFormatters";
 import type { ToolCallCardProps } from "../ToolCallCard";
 import type { ToolSessionItem } from "../ToolSessionCard";
+import FileChangeViewer from "../FileChangeViewer";
 import ToolStepDetailDrawer from "./ToolStepDetailDrawer";
 import FormattedContentPreview, { type FormattedContentMode } from "./FormattedContentPreview";
 import "./styles.css";
@@ -114,7 +119,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           streamingOutput: call?.streamingOutput,
           info: getStepInfoFromItem(item),
           result: item.result,
-          metadata,
+          metadata: (item.call.metadata as ToolCallCardProps["metadata"]) ?? metadata,
         };
       });
     }
@@ -133,11 +138,11 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
   // Drawer state
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerEntry, setDrawerEntry] = useState<StepEntry | null>(null);
-  const [drawerInitialTab, setDrawerInitialTab] = useState<"preview" | "parameters" | "result">(
-    "preview",
-  );
+  const [drawerInitialTab, setDrawerInitialTab] = useState<
+    "preview" | "parameters" | "result" | "diff"
+  >("preview");
 
-  const openDrawer = (entry: StepEntry, tab?: "preview" | "parameters" | "result") => {
+  const openDrawer = (entry: StepEntry, tab?: "preview" | "parameters" | "result" | "diff") => {
     setDrawerEntry(entry);
     setDrawerInitialTab(tab ?? "preview");
     setDrawerOpen(true);
@@ -171,6 +176,18 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
         const intent = generateIntentDescription(entry.toolName, entry.parameters);
         const truncatedIntent =
           intent.length > 60 ? intent.substring(0, 60).trimEnd() + "…" : intent;
+        const resultContent = entry.result?.result?.result ?? "";
+        const fileChangePayload = resultContent
+          ? parseFileChangeResultPayload(resultContent)
+          : null;
+        const fileChangeStats = resultContent ? getFileChangeDiffStats(resultContent) : null;
+        const summaryText =
+          typeof entry.metadata?.summary === "string" && entry.metadata.summary.trim().length > 0
+            ? entry.metadata.summary.trim()
+            : null;
+        const fileChangeTitle = fileChangePayload
+          ? `${fileChangePayload.operation}(${fileChangePayload.file_path})`
+          : null;
 
         // Mini output preview — shown for process (live tail of streamingOutput)
         // and for finish/error (head of the final result text). Use the same
@@ -184,6 +201,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           miniPreviewMode = formatResultContent(entry.streamingOutput).isJson ? "auto" : "text";
           miniPreviewKind = "live";
         } else if (
+          !fileChangePayload &&
           (entry.info.status === "finish" || entry.info.status === "error") &&
           entry.result?.result?.result
         ) {
@@ -202,8 +220,8 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
         const subTitle =
           entry.info.status === "process"
             ? t("components.toolSteps.running")
-            : metadata?.elapsed_ms != null
-              ? formatElapsed(metadata.elapsed_ms)
+            : entry.metadata?.elapsed_ms != null
+              ? formatElapsed(entry.metadata.elapsed_ms)
               : undefined;
 
         return {
@@ -264,11 +282,68 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
                   icon={<EyeOutlined />}
                   style={{ padding: 0, height: "auto", fontSize: token.fontSizeSM }}
                   data-testid={`tool-step-details-${entry.key}`}
-                  onClick={() => openDrawer(entry, "preview")}
+                  onClick={() => openDrawer(entry, fileChangePayload ? "diff" : "preview")}
                 >
                   {t("components.toolSteps.details")}
                 </Button>
               </div>
+              {summaryText && !fileChangePayload && (
+                <Text
+                  type="secondary"
+                  style={{
+                    display: "block",
+                    marginTop: token.marginXS,
+                    fontSize: token.fontSizeSM - 1,
+                  }}
+                >
+                  {summaryText}
+                </Text>
+              )}
+              {fileChangePayload && fileChangeStats && (
+                <div
+                  style={{
+                    marginTop: token.marginXS,
+                    padding: token.paddingXS,
+                    borderRadius: token.borderRadiusSM,
+                    background: token.colorFillTertiary,
+                    border: `1px solid ${token.colorBorderSecondary}`,
+                  }}
+                  data-testid={`tool-step-file-change-${entry.key}`}
+                >
+                  <div style={{ display: "grid", gap: token.marginXXS ?? 2 }}>
+                    <Text
+                      strong
+                      style={{ fontSize: token.fontSizeSM }}
+                      ellipsis={{ tooltip: fileChangeTitle }}
+                    >
+                      {fileChangeTitle}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: token.fontSizeSM - 1 }}>
+                      {t("components.toolSteps.fileChangeStats", {
+                        added: fileChangeStats.added,
+                        removed: fileChangeStats.removed,
+                        defaultValue: `Added ${fileChangeStats.added} lines, removed ${fileChangeStats.removed} lines`,
+                      })}
+                    </Text>
+                    <FileChangeViewer
+                      payload={fileChangePayload}
+                      compact={true}
+                      showHeader={false}
+                      showViewToggle={false}
+                      defaultViewMode="unified"
+                      maxHeight={108}
+                    />
+                    <Button
+                      type="link"
+                      size="small"
+                      style={{ padding: 0, height: "auto", fontSize: token.fontSizeSM - 1 }}
+                      onClick={() => openDrawer(entry, "diff")}
+                    >
+                      {t("components.toolSteps.viewFullDiff", { defaultValue: "View full diff" })}
+                    </Button>
+                  </div>
+                </div>
+              )}
               {/* Mini output preview (live streaming tail OR final result head) */}
               {miniPreview && (
                 <div style={{ marginTop: token.marginXS }}>
@@ -303,7 +378,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           icon: entry.info.icon,
         };
       }),
-    [entries, token, metadata, t],
+    [entries, token, t],
   );
 
   // When embedded (hideHeader), drop the chrome — feels cleaner inside ToolSessionCard.

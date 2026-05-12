@@ -13,7 +13,15 @@ import type { ChatItem } from "../../types/chat";
 
 const { Content } = Layout;
 const { Text } = Typography;
-const VIRTUALIZATION_THRESHOLD = 24;
+
+const DEFAULT_ENTRY_ESTIMATE_PX = 120;
+const USER_MESSAGE_ESTIMATE_PX = 140;
+const ASSISTANT_MESSAGE_ESTIMATE_PX = 220;
+const SYSTEM_MESSAGE_ESTIMATE_PX = 140;
+const COMPRESSION_DIVIDER_ESTIMATE_PX = 72;
+const COLLAPSED_TOOL_SESSION_ESTIMATE_PX = 68;
+const TOOL_STEP_ESTIMATE_PX = 84;
+const MAX_TOOL_SESSION_ESTIMATE_PX = 720;
 
 const getCompressionTimeLabel = (createdAt: string): string => {
   const parsed = new Date(createdAt);
@@ -32,6 +40,7 @@ type ChatMessagesListProps = {
   handleMessagesScroll: (e: React.UIEvent<HTMLElement>) => void;
   hasSystemPrompt: boolean;
   messagesListRef: React.RefObject<HTMLDivElement>;
+  bottomAnchorRef: React.RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
   rowGap: number;
   showMessagesView: boolean;
@@ -53,6 +62,53 @@ function entryKey(entry: RenderableEntry): string {
   return (entry as { message: { id: string } }).message.id;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- utility used by virtualizer options
+export function estimateChatEntrySize(entries: readonly RenderableEntry[], index: number): number {
+  const entry = entries[index];
+  if (!entry) return DEFAULT_ENTRY_ESTIMATE_PX;
+
+  if ("type" in entry) {
+    if (entry.type === "compression_divider") {
+      return COMPRESSION_DIVIDER_ESTIMATE_PX;
+    }
+
+    if (entry.type === "tool_session") {
+      const isLastEntry = index === entries.length - 1;
+      if (!isLastEntry) {
+        return COLLAPSED_TOOL_SESSION_ESTIMATE_PX;
+      }
+
+      const estimatedExpandedHeight =
+        COLLAPSED_TOOL_SESSION_ESTIMATE_PX +
+        Math.min(entry.tools.length, 8) * TOOL_STEP_ESTIMATE_PX;
+      return Math.min(MAX_TOOL_SESSION_ESTIMATE_PX, estimatedExpandedHeight);
+    }
+  }
+
+  const message = "message" in entry ? entry.message : undefined;
+  if (!message) return DEFAULT_ENTRY_ESTIMATE_PX;
+  if (message.role === "system") return SYSTEM_MESSAGE_ESTIMATE_PX;
+  if (message.role === "user") return USER_MESSAGE_ESTIMATE_PX;
+  return ASSISTANT_MESSAGE_ESTIMATE_PX;
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- utility used by virtualizer options
+export function getVirtualizationWeight(entries: readonly RenderableEntry[]): number {
+  return entries.reduce((total, entry) => {
+    if ("type" in entry) {
+      if (entry.type === "tool_session") {
+        return total + Math.max(4, entry.tools.length * 2);
+      }
+
+      if (entry.type === "compression_divider") {
+        return total + 1;
+      }
+    }
+
+    return total + 1;
+  }, 0);
+}
+
 export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   currentChat,
   currentSessionId,
@@ -62,6 +118,7 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
   handleMessagesScroll,
   hasSystemPrompt,
   messagesListRef,
+  bottomAnchorRef,
   renderableMessages,
   rowGap,
   showMessagesView,
@@ -88,10 +145,15 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     [], // messagesRef is stable
   );
 
+  const estimateSize = useCallback(
+    (index: number) => estimateChatEntrySize(messagesRef.current, index),
+    [],
+  );
+
   const virtualizer = useVirtualizer({
     count: renderableMessages.length,
     getScrollElement: () => messagesListRef.current,
-    estimateSize: () => 120,
+    estimateSize,
     overscan: 5,
     gap: rowGap,
     getItemKey,
@@ -223,13 +285,12 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
 
   const hasMessages = (showMessagesView || hasSystemPrompt) && renderableMessages.length > 0;
   const virtualItems = virtualizer.getVirtualItems();
-  const shouldUseVirtualization = renderableMessages.length > VIRTUALIZATION_THRESHOLD;
 
   return (
     <Content
       role="log"
       aria-live="polite"
-      aria-label="Chat messages"
+      aria-label={t("chat.view.chatMessagesAria")}
       className={`chat-view-messages-list ${showMessagesView ? "visible" : "hidden"}`}
       style={{
         flex: 1,
@@ -243,8 +304,16 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
       ref={messagesListRef}
       onScroll={handleMessagesScroll}
     >
-      {hasMessages &&
-        (shouldUseVirtualization ? (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: rowGap,
+          width: "100%",
+          minHeight: "100%",
+        }}
+      >
+        {hasMessages && (
           <div
             style={{
               position: "relative",
@@ -277,39 +346,28 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
               );
             })}
           </div>
-        ) : (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: rowGap,
-              width: "100%",
-            }}
-          >
-            {renderableMessages.map((entry, idx) => {
-              const key = entryKey(entry);
-              return (
-                <div key={key} data-chat-entry-id={key} className="messageEnter">
-                  {renderEntry(entry, idx)}
-                </div>
-              );
-            })}
+        )}
+        {isThinking && currentSessionId && (
+          <div className="streaming-card-enter">
+            <Flex justify="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: screens.xs ? "100%" : "90%",
+                }}
+              >
+                <StreamingMessageCard sessionId={currentSessionId} />
+              </div>
+            </Flex>
           </div>
-        ))}
-      {isThinking && currentSessionId && (
-        <div className="streaming-card-enter" style={{ paddingTop: rowGap }}>
-          <Flex justify="flex-start" style={{ width: "100%", maxWidth: "100%" }}>
-            <div
-              style={{
-                width: "100%",
-                maxWidth: screens.xs ? "100%" : "90%",
-              }}
-            >
-              <StreamingMessageCard sessionId={currentSessionId} />
-            </div>
-          </Flex>
-        </div>
-      )}
+        )}
+        <div
+          ref={bottomAnchorRef}
+          data-chat-bottom-anchor="true"
+          aria-hidden="true"
+          style={{ width: "100%", height: 1, flexShrink: 0 }}
+        />
+      </div>
     </Content>
   );
 };

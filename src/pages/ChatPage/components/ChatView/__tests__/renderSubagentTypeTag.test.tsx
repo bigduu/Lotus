@@ -49,6 +49,17 @@ describe("renderSubagentTypeTag", () => {
     expect(tag?.textContent).toContain("🗺️");
   });
 
+  it("renders compact inline text without Ant Tag chrome when compact mode is enabled", () => {
+    const byId = buildCatalogue(planProfile);
+    const node = renderSubagentTypeTag("plan", byId, { compact: true });
+    const { container } = render(<>{node}</>);
+    const tag = container.querySelector('[data-testid="sub-agent-role-tag-plan"]');
+    expect(tag).not.toBeNull();
+    expect(tag).not.toHaveClass("ant-tag");
+    expect(tag?.textContent).toContain("Plan");
+    expect(tag?.textContent).toContain("🗺️");
+  });
+
   it("falls back to the raw id when the catalogue is missing the entry", () => {
     const byId = buildCatalogue(planProfile);
     const node = renderSubagentTypeTag("researcher", byId);

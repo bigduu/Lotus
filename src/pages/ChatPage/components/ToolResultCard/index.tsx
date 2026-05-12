@@ -8,11 +8,11 @@ import {
   formatResultContent,
   createCompactPreview,
   getStatusColor,
-  parseUnifiedDiffLines,
   parseFileChangeResultPayload,
   parseMemoryInspectRebuildPayload,
   safeStringify,
 } from "../../utils/resultFormatters";
+import FileChangeViewer from "../FileChangeViewer";
 import { ExecutionStatus } from "../../types/chat";
 import { copyText } from "@shared/utils/clipboard";
 
@@ -64,10 +64,6 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   );
   const fileChangePayload = useMemo(() => parseFileChangeResultPayload(content), [content]);
   const memoryInspectPayload = useMemo(() => parseMemoryInspectRebuildPayload(content), [content]);
-  const parsedDiffLines = useMemo(
-    () => (fileChangePayload ? parseUnifiedDiffLines(fileChangePayload.diff.unified) : []),
-    [fileChangePayload],
-  );
 
   const handleCopy = async () => {
     try {
@@ -351,84 +347,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                     ) : null}
                   </Space>
                 ) : fileChangePayload ? (
-                  <Space direction="vertical" style={{ width: "100%" }} size={8}>
-                    {fileChangePayload.message && (
-                      <Text style={{ fontSize: token.fontSizeSM }}>
-                        {fileChangePayload.message}
-                      </Text>
-                    )}
-                    <Text style={{ fontSize: token.fontSizeSM }}>
-                      <Text strong>{t("common.file")}:</Text>{" "}
-                      <Text code>{fileChangePayload.file_path}</Text>
-                    </Text>
-                    {fileChangePayload.workspace && (
-                      <Text style={{ fontSize: token.fontSizeSM }}>
-                        <Text strong>{t("common.workspace")}:</Text>{" "}
-                        <Text code>{fileChangePayload.workspace}</Text>
-                      </Text>
-                    )}
-                    {fileChangePayload.checkpoint?.created ? (
-                      <Text style={{ fontSize: token.fontSizeSM }}>
-                        <Text strong>{t("components.toolResult.checkpoint")}:</Text>{" "}
-                        <Text code>{fileChangePayload.checkpoint.path}</Text>
-                      </Text>
-                    ) : (
-                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                        {t("components.toolResult.checkpointNone")}
-                      </Text>
-                    )}
-                    <div
-                      style={{
-                        border: `1px solid ${token.colorBorderSecondary}`,
-                        borderRadius: token.borderRadiusSM,
-                        maxHeight: 400,
-                        overflow: "auto",
-                        background: token.colorBgContainer,
-                      }}
-                    >
-                      {parsedDiffLines.map((line, idx) => {
-                        const style: React.CSSProperties = {
-                          margin: 0,
-                          whiteSpace: "pre-wrap",
-                          wordBreak: "break-word",
-                          fontSize: token.fontSizeSM,
-                          lineHeight: 1.5,
-                          padding: "0 8px",
-                          fontFamily:
-                            "Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-                        };
-
-                        if (line.kind === "add") {
-                          style.background = token.colorSuccessBg;
-                        } else if (line.kind === "remove") {
-                          style.background = token.colorErrorBg;
-                        } else if (line.kind === "modified_add") {
-                          style.background = token.colorWarningBg;
-                          style.borderLeft = `3px solid ${token.colorSuccess}`;
-                        } else if (line.kind === "modified_remove") {
-                          style.background = token.colorWarningBg;
-                          style.borderLeft = `3px solid ${token.colorError}`;
-                        } else if (line.kind === "hunk") {
-                          style.background = token.colorFillSecondary;
-                          style.color = token.colorTextSecondary;
-                        } else if (line.kind === "meta") {
-                          style.background = token.colorFillTertiary;
-                          style.color = token.colorTextSecondary;
-                        }
-
-                        return (
-                          <pre key={`${idx}-${line.kind}`} style={style}>
-                            {line.text || " "}
-                          </pre>
-                        );
-                      })}
-                    </div>
-                    {fileChangePayload.diff.truncated && (
-                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                        {t("components.toolResult.diffTruncated")}
-                      </Text>
-                    )}
-                  </Space>
+                  <FileChangeViewer payload={fileChangePayload} defaultViewMode="sideBySide" />
                 ) : formatted.isJson ? (
                   <SyntaxHighlighter
                     language="json"

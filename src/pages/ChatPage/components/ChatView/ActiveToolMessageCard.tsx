@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Card, Space, Typography, theme } from "antd";
-import { DiffOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
-import { parseUnifiedDiffLines, type DiffLine } from "../../utils/resultFormatters";
-import { StorageManager } from "../../../../services/storage/StorageManager";
+import { Button, Card, Drawer, Flex, Space, Tag, Typography, theme } from "antd";
+import { ArrowLeftOutlined, DiffOutlined, LeftOutlined, RightOutlined } from "@ant-design/icons";
+
+import FileChangeViewer from "../FileChangeViewer";
+import type { FileChangeResultPayload } from "../../utils/resultFormatters";
+import InlineMetaText from "../../../../shared/components/InlineMetaText";
 
 const { Text } = Typography;
 
@@ -12,6 +14,8 @@ export type SessionDiffFileSummary = {
   removed: number;
   unifiedDiff: string;
   truncated?: boolean;
+  toolCount?: number;
+  workspace?: string;
 };
 
 export type SessionDiffSummary = {
@@ -24,77 +28,513 @@ export type SessionDiffSummary = {
 type ActiveToolMessageCardProps = {
   sessionDiffSummary: SessionDiffSummary | null;
   sessionId?: string | null;
+  compact?: boolean;
 };
 
+type SessionDiffSortMode = "magnitude" | "path";
+
 const EXIT_ANIMATION_MS = 220;
-const DIFF_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-diff-collapse:";
 
 const basename = (filePath: string): string => filePath.split(/[\\/]/).pop() || filePath;
 
-interface PersistedCollapseState {
-  isExpanded: boolean;
-  expandedFiles: string[];
-}
-
-const getCollapseStorageKey = (sessionId?: string | null): string =>
-  `${DIFF_COLLAPSE_STORAGE_KEY_PREFIX}${sessionId ?? "default"}`;
-
-const readPersistedCollapseState = (sessionId?: string | null): PersistedCollapseState | null => {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const raw = window.localStorage.getItem(getCollapseStorageKey(sessionId));
-    if (!raw) return null;
-
-    const parsed: unknown = JSON.parse(raw);
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const isExpanded =
-      "isExpanded" in parsed && typeof parsed.isExpanded === "boolean" ? parsed.isExpanded : true;
-    const expandedFiles =
-      "expandedFiles" in parsed && Array.isArray(parsed.expandedFiles)
-        ? parsed.expandedFiles.filter((item): item is string => typeof item === "string")
-        : [];
-
-    return { isExpanded, expandedFiles };
-  } catch {
+const dirname = (filePath: string): string | null => {
+  const normalized = filePath.replace(/\\/g, "/");
+  const index = normalized.lastIndexOf("/");
+  if (index <= 0) {
     return null;
   }
+  return normalized.slice(0, index);
 };
 
-const writePersistedCollapseState = async (
-  sessionId: string | null | undefined,
-  state: PersistedCollapseState,
-): Promise<void> => {
-  if (typeof window === "undefined") return;
+const getChangeMagnitude = (file: SessionDiffFileSummary): number => file.added + file.removed;
 
-  // Write to IndexedDB
-  const manager = StorageManager.getInstance();
-  await manager.saveDiffCollapse(sessionId ?? "default", state);
+const formatDiffCount = (value: number): string => value.toLocaleString();
+const formatDiffDeltaPair = (added: number, removed: number): string =>
+  `(+${formatDiffCount(added)} / -${formatDiffCount(removed)})`;
 
-  // Also write to localStorage as fallback
-  try {
-    window.localStorage.setItem(getCollapseStorageKey(sessionId), JSON.stringify(state));
-  } catch {
-    // Best-effort persistence only.
+const buildViewerPayload = (file: SessionDiffFileSummary): FileChangeResultPayload => ({
+  operation: "session_diff_review",
+  file_path: file.filePath,
+  workspace: file.workspace,
+  diff: {
+    unified: file.unifiedDiff,
+    added_lines: file.added,
+    removed_lines: file.removed,
+    truncated: file.truncated,
+  },
+});
+
+const sortFiles = (
+  files: SessionDiffFileSummary[],
+  sortMode: SessionDiffSortMode,
+): SessionDiffFileSummary[] => {
+  const next = [...files];
+
+  if (sortMode === "path") {
+    next.sort((a, b) => a.filePath.localeCompare(b.filePath));
+    return next;
   }
+
+  next.sort((a, b) => {
+    const magnitudeDelta = getChangeMagnitude(b) - getChangeMagnitude(a);
+    if (magnitudeDelta !== 0) {
+      return magnitudeDelta;
+    }
+    return a.filePath.localeCompare(b.filePath);
+  });
+  return next;
+};
+
+const DiffDeltaText: React.FC<{
+  value: number;
+  kind: "added" | "removed";
+  compact?: boolean;
+}> = ({ value, kind, compact = false }) => {
+  const { token } = theme.useToken();
+  const isAdded = kind === "added";
+
+  return (
+    <Text
+      style={{
+        color: isAdded ? token.colorSuccess : token.colorError,
+        fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+        whiteSpace: "nowrap",
+        fontSize: compact ? 11 : undefined,
+      }}
+    >
+      {isAdded ? "+" : "-"}
+      {formatDiffCount(value)}
+    </Text>
+  );
+};
+
+const SessionDiffListView: React.FC<{
+  files: SessionDiffFileSummary[];
+  changedTools: number;
+  totalAdded: number;
+  totalRemoved: number;
+  sortMode: SessionDiffSortMode;
+  selectedFilePath: string | null;
+  compact?: boolean;
+  onSortModeChange: (mode: SessionDiffSortMode) => void;
+  onSelectFile: (filePath: string) => void;
+}> = ({
+  files,
+  changedTools,
+  totalAdded,
+  totalRemoved,
+  sortMode,
+  selectedFilePath,
+  compact = false,
+  onSortModeChange,
+  onSelectFile,
+}) => {
+  const { token } = theme.useToken();
+
+  const sortedFiles = useMemo(() => sortFiles(files, sortMode), [files, sortMode]);
+  const truncatedCount = useMemo(() => files.filter((file) => file.truncated).length, [files]);
+  const largestFile = useMemo(() => sortFiles(files, "magnitude")[0] ?? null, [files]);
+  const compactTagStyle = compact
+    ? { marginInlineEnd: 0, fontSize: 10, lineHeight: "16px", paddingInline: 6 }
+    : { marginInlineEnd: 0 };
+  const compactSummaryItems = useMemo(() => {
+    const parts: string[] = [];
+    if (largestFile) {
+      parts.push(
+        `Largest: ${basename(largestFile.filePath)} ${formatDiffDeltaPair(largestFile.added, largestFile.removed)}`,
+      );
+    }
+    if (truncatedCount > 0) {
+      parts.push(`${truncatedCount} truncated preview${truncatedCount > 1 ? "s" : ""}`);
+    }
+    return parts;
+  }, [largestFile, truncatedCount]);
+
+  return (
+    <Flex
+      vertical
+      gap={compact ? token.marginXS : token.marginSM}
+      style={{ width: "100%", minWidth: 0 }}
+    >
+      <Flex vertical gap={compact ? 4 : 6} style={{ width: "100%", minWidth: 0 }}>
+        <Flex
+          align="flex-start"
+          justify="space-between"
+          gap={compact ? token.marginXS : token.marginSM}
+          wrap
+        >
+          <Space size={compact ? 6 : token.marginXS} wrap>
+            <DiffOutlined style={{ color: token.colorPrimary }} />
+            <Text strong style={compact ? { fontSize: 12 } : undefined}>
+              Session diffs
+            </Text>
+            {!compact ? (
+              <Text type="secondary">Review changed files, then open one file at a time.</Text>
+            ) : null}
+          </Space>
+          <Space size={compact ? 2 : 4} wrap>
+            {compact ? (
+              <InlineMetaText nowrap items={[`${files.length} files`, `${changedTools} tools`]} />
+            ) : (
+              <>
+                <Tag style={compactTagStyle}>{files.length} files</Tag>
+                <Tag style={compactTagStyle}>{changedTools} tools</Tag>
+              </>
+            )}
+            <DiffDeltaText value={totalAdded} kind="added" />
+            <DiffDeltaText value={totalRemoved} kind="removed" />
+          </Space>
+        </Flex>
+
+        {compact ? (
+          <InlineMetaText block items={compactSummaryItems} />
+        ) : (
+          <>
+            {largestFile ? (
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                Largest change: {basename(largestFile.filePath)}{" "}
+                {formatDiffDeltaPair(largestFile.added, largestFile.removed)}
+              </Text>
+            ) : null}
+
+            {truncatedCount > 0 ? (
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                {truncatedCount} diff{truncatedCount > 1 ? "s" : ""} truncated in preview.
+              </Text>
+            ) : null}
+          </>
+        )}
+      </Flex>
+
+      <Flex
+        align="center"
+        justify="space-between"
+        gap={compact ? token.marginXS : token.marginSM}
+        wrap
+      >
+        <Text strong style={compact ? { fontSize: 12 } : undefined}>
+          {compact ? "Files" : "Changed files"}
+        </Text>
+        {files.length > 1 ? (
+          <Space size={compact ? 4 : 8} wrap>
+            <Button
+              size="small"
+              type={sortMode === "magnitude" ? "primary" : "default"}
+              onClick={() => onSortModeChange("magnitude")}
+              data-testid="session-diff-sort-magnitude"
+            >
+              {compact ? "Largest" : "Largest changes"}
+            </Button>
+            <Button
+              size="small"
+              type={sortMode === "path" ? "primary" : "default"}
+              onClick={() => onSortModeChange("path")}
+              data-testid="session-diff-sort-path"
+            >
+              Path
+            </Button>
+          </Space>
+        ) : null}
+      </Flex>
+
+      <div
+        data-testid="session-diff-file-list"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr",
+          gap: compact ? 4 : 6,
+          width: "100%",
+          minWidth: 0,
+          maxHeight: compact ? 248 : 320,
+          overflowY: "auto",
+          overflowX: "hidden",
+        }}
+      >
+        {sortedFiles.map((file) => {
+          const directoryLabel = dirname(file.filePath);
+          const isSelected = selectedFilePath === file.filePath;
+
+          const compactMetaItems = compact
+            ? [
+                directoryLabel,
+                file.toolCount && file.toolCount > 1 ? `${file.toolCount} tool steps` : null,
+              ]
+            : [];
+
+          return (
+            <button
+              key={file.filePath}
+              type="button"
+              aria-pressed={isSelected}
+              data-selected={isSelected ? "true" : "false"}
+              onClick={() => onSelectFile(file.filePath)}
+              data-testid="session-diff-file-row"
+              data-file-path={file.filePath}
+              style={{
+                width: "100%",
+                minWidth: 0,
+                padding: compact ? `6px 8px` : `${token.paddingSM}px`,
+                borderRadius: token.borderRadiusSM,
+                border: `1px solid ${isSelected ? token.colorPrimary : token.colorBorderSecondary}`,
+                background: isSelected ? token.colorFillSecondary : token.colorFillTertiary,
+                boxShadow: isSelected ? `inset 0 0 0 1px ${token.colorPrimary}` : "none",
+                cursor: "pointer",
+                textAlign: "left",
+                transition: "border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease",
+              }}
+            >
+              <Flex
+                align="flex-start"
+                justify="space-between"
+                gap={compact ? token.marginXS : token.marginSM}
+                style={{ width: "100%" }}
+              >
+                <Flex vertical gap={2} style={{ flex: 1, minWidth: 0 }}>
+                  <Flex align="center" gap={token.marginXS} style={{ minWidth: 0 }}>
+                    <RightOutlined
+                      style={{
+                        color: isSelected ? token.colorPrimary : token.colorTextSecondary,
+                        flex: "0 0 auto",
+                      }}
+                    />
+                    <Text
+                      strong
+                      ellipsis={{ tooltip: file.filePath }}
+                      style={{ display: "block", flex: 1, minWidth: 0 }}
+                    >
+                      {basename(file.filePath)}
+                    </Text>
+                    {file.truncated ? (
+                      compact ? (
+                        <Text type="secondary" style={{ fontSize: 11, flex: "0 0 auto" }}>
+                          · trunc.
+                        </Text>
+                      ) : (
+                        <Tag color="warning" style={{ ...compactTagStyle, flex: "0 0 auto" }}>
+                          Truncated
+                        </Tag>
+                      )
+                    ) : null}
+                  </Flex>
+
+                  {compact ? (
+                    <InlineMetaText
+                      block
+                      ellipsis={{ tooltip: file.filePath }}
+                      items={compactMetaItems}
+                      style={{ minWidth: 0 }}
+                    />
+                  ) : (
+                    <>
+                      {directoryLabel ? (
+                        <Text
+                          type="secondary"
+                          ellipsis={{ tooltip: file.filePath }}
+                          style={{ display: "block", minWidth: 0, fontSize: token.fontSizeSM }}
+                        >
+                          {directoryLabel}
+                        </Text>
+                      ) : null}
+
+                      {file.toolCount && file.toolCount > 1 ? (
+                        <Text
+                          type="secondary"
+                          style={{ fontSize: Math.max(token.fontSizeSM - 1, 11) }}
+                        >
+                          Touched by {file.toolCount} tool steps
+                        </Text>
+                      ) : null}
+                    </>
+                  )}
+                </Flex>
+
+                <Flex vertical align="flex-end" gap={compact ? 1 : 0} style={{ flex: "0 0 auto" }}>
+                  <DiffDeltaText value={file.added} kind="added" compact={compact} />
+                  <DiffDeltaText value={file.removed} kind="removed" compact={compact} />
+                </Flex>
+              </Flex>
+            </button>
+          );
+        })}
+      </div>
+    </Flex>
+  );
+};
+
+const SessionDiffDetailView: React.FC<{
+  file: SessionDiffFileSummary;
+  currentPosition: number;
+  totalFiles: number;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  compact?: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  onBack: () => void;
+}> = ({
+  file,
+  currentPosition,
+  totalFiles,
+  canGoPrevious,
+  canGoNext,
+  compact = false,
+  onPrevious,
+  onNext,
+  onBack,
+}) => {
+  const { token } = theme.useToken();
+  const payload = useMemo(() => buildViewerPayload(file), [file]);
+
+  return (
+    <Flex
+      vertical
+      gap={compact ? token.marginXS : token.marginSM}
+      style={{ width: "100%", minWidth: 0 }}
+      data-testid="session-diff-detail-view"
+    >
+      <Flex
+        align="center"
+        justify="space-between"
+        gap={compact ? token.marginXS : token.marginSM}
+        wrap
+      >
+        <Space size={compact ? 4 : 8} wrap>
+          <Button
+            type="text"
+            size="small"
+            icon={<ArrowLeftOutlined />}
+            onClick={onBack}
+            data-testid="session-diff-back"
+            style={{ paddingInline: 0 }}
+          >
+            Back to files
+          </Button>
+          <Text
+            type="secondary"
+            data-testid="session-diff-position"
+            style={compact ? { fontSize: 11 } : undefined}
+          >
+            File {currentPosition} of {totalFiles}
+          </Text>
+        </Space>
+
+        {totalFiles > 1 ? (
+          <Space size={compact ? 4 : 8} wrap>
+            <Button
+              size="small"
+              icon={<LeftOutlined />}
+              onClick={onPrevious}
+              disabled={!canGoPrevious}
+              data-testid="session-diff-prev"
+            >
+              Previous
+            </Button>
+            <Button
+              size="small"
+              icon={<RightOutlined />}
+              onClick={onNext}
+              disabled={!canGoNext}
+              data-testid="session-diff-next"
+            >
+              Next
+            </Button>
+          </Space>
+        ) : null}
+      </Flex>
+
+      <Flex vertical gap={6} style={{ width: "100%", minWidth: 0 }}>
+        <Flex
+          align="flex-start"
+          justify="space-between"
+          gap={compact ? token.marginXS : token.marginSM}
+          wrap
+        >
+          <Flex vertical gap={2} style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              strong
+              ellipsis={{ tooltip: file.filePath }}
+              style={{ display: "block", minWidth: 0 }}
+            >
+              {basename(file.filePath)}
+            </Text>
+            <Text
+              type="secondary"
+              ellipsis={{ tooltip: file.filePath }}
+              style={{ display: "block", minWidth: 0, fontSize: compact ? 11 : token.fontSizeSM }}
+            >
+              {file.filePath}
+            </Text>
+            {file.workspace ? (
+              <Text
+                type="secondary"
+                ellipsis={{ tooltip: file.workspace }}
+                style={{ display: "block", minWidth: 0, fontSize: compact ? 11 : token.fontSizeSM }}
+              >
+                {file.workspace}
+              </Text>
+            ) : null}
+          </Flex>
+
+          <Space size={compact ? 2 : 4} wrap>
+            {file.truncated ? (
+              <Tag
+                color="warning"
+                style={
+                  compact
+                    ? { marginInlineEnd: 0, fontSize: 10, lineHeight: "16px", paddingInline: 6 }
+                    : { marginInlineEnd: 0 }
+                }
+              >
+                {compact ? "Trunc." : "Truncated"}
+              </Tag>
+            ) : null}
+            {file.toolCount && file.toolCount > 1 ? (
+              <Tag
+                style={
+                  compact
+                    ? { marginInlineEnd: 0, fontSize: 10, lineHeight: "16px", paddingInline: 6 }
+                    : { marginInlineEnd: 0 }
+                }
+              >
+                {file.toolCount} tools
+              </Tag>
+            ) : null}
+            <DiffDeltaText value={file.added} kind="added" compact={compact} />
+            <DiffDeltaText value={file.removed} kind="removed" compact={compact} />
+          </Space>
+        </Flex>
+
+        {!compact ? (
+          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+            Review this file in side-by-side or unified mode.
+          </Text>
+        ) : null}
+      </Flex>
+
+      <FileChangeViewer
+        payload={payload}
+        defaultViewMode="sideBySide"
+        showHeader={false}
+        showViewToggle
+        compact={compact}
+        maxHeight={compact ? "calc(100vh - 240px)" : "calc(100vh - 280px)"}
+      />
+    </Flex>
+  );
 };
 
 export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
   sessionDiffSummary,
   sessionId,
+  compact = false,
 }) => {
   const { token } = theme.useToken();
   const hasDiff = Boolean(sessionDiffSummary && sessionDiffSummary.files.length > 0);
 
   const [shouldRender, setShouldRender] = useState(hasDiff);
   const [isVisible, setIsVisible] = useState(hasDiff);
-  const [isExpanded, setIsExpanded] = useState<boolean>(
-    () => readPersistedCollapseState(sessionId)?.isExpanded ?? true,
-  );
-  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(
-    () => new Set(readPersistedCollapseState(sessionId)?.expandedFiles ?? []),
-  );
+  const [sortMode, setSortMode] = useState<SessionDiffSortMode>("magnitude");
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
 
   useEffect(() => {
     if (hasDiff) {
@@ -108,75 +548,29 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
     return () => window.clearTimeout(id);
   }, [hasDiff]);
 
-  const fileRows = useMemo(() => {
-    if (!sessionDiffSummary) return [];
-    return sessionDiffSummary.files;
-  }, [sessionDiffSummary]);
-
-  const parsedDiffByFile = useMemo(() => {
-    const map = new Map<string, DiffLine[]>();
-    if (!sessionDiffSummary) {
-      return map;
-    }
-
-    sessionDiffSummary.files.forEach((file) => {
-      map.set(file.filePath, parseUnifiedDiffLines(file.unifiedDiff));
-    });
-
-    return map;
-  }, [sessionDiffSummary]);
-
   useEffect(() => {
-    const persisted = readPersistedCollapseState(sessionId);
-    setIsExpanded(persisted?.isExpanded ?? true);
-    setExpandedFiles(new Set(persisted?.expandedFiles ?? []));
-
-    // Also try to load from IndexedDB (async) and update if different
-    const manager = StorageManager.getInstance();
-    manager
-      .loadDiffCollapse(sessionId ?? "default")
-      .then((idbState) => {
-        if (idbState) {
-          setIsExpanded(idbState.isExpanded);
-          setExpandedFiles(new Set(idbState.expandedFiles));
-        }
-      })
-      .catch(() => {
-        // Ignore IndexedDB errors, localStorage already handled above
-      });
+    setSortMode("magnitude");
+    setSelectedFilePath(null);
   }, [sessionId]);
 
-  useEffect(() => {
-    writePersistedCollapseState(sessionId, {
-      isExpanded,
-      expandedFiles: Array.from(expandedFiles),
-    }).catch(() => {});
-  }, [sessionId, isExpanded, expandedFiles]);
+  const files = useMemo(() => sessionDiffSummary?.files ?? [], [sessionDiffSummary]);
+  const sortedFiles = useMemo(() => sortFiles(files, sortMode), [files, sortMode]);
+
+  const selectedIndex = useMemo(
+    () => sortedFiles.findIndex((file) => file.filePath === selectedFilePath),
+    [sortedFiles, selectedFilePath],
+  );
+
+  const selectedFile = selectedIndex >= 0 ? sortedFiles[selectedIndex] : null;
 
   useEffect(() => {
-    if (!sessionDiffSummary || sessionDiffSummary.files.length === 0) {
+    if (!selectedFilePath) {
       return;
     }
-
-    const fileKeys = new Set(sessionDiffSummary.files.map((file) => file.filePath));
-    setExpandedFiles((previous) => {
-      const next = new Set<string>();
-      let changed = false;
-      previous.forEach((key) => {
-        if (fileKeys.has(key)) {
-          next.add(key);
-        } else {
-          changed = true;
-        }
-      });
-
-      if (!changed && next.size === previous.size) {
-        return previous;
-      }
-
-      return next;
-    });
-  }, [sessionDiffSummary]);
+    if (!files.some((file) => file.filePath === selectedFilePath)) {
+      setSelectedFilePath(null);
+    }
+  }, [files, selectedFilePath]);
 
   if (!shouldRender || !sessionDiffSummary) return null;
 
@@ -185,250 +579,92 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
       className={`active-tool-card-wrapper ${isVisible ? "visible" : ""}`}
       aria-hidden={!isVisible}
       data-testid="session-diff-card"
+      style={{ width: "100%", minWidth: 0 }}
     >
-      <Card
-        size="small"
-        style={{
-          width: "100%",
-          borderRadius: token.borderRadiusLG,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          background: token.colorBgContainer,
-          boxShadow: token.boxShadowSecondary,
-        }}
-        styles={{ body: { padding: `${token.paddingXS}px ${token.paddingSM}px` } }}
-      >
-        <Space direction="vertical" style={{ width: "100%" }} size={6}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: token.marginSM,
-              cursor: "pointer",
-            }}
-            onClick={() => setIsExpanded((prev) => !prev)}
-            data-testid="session-diff-toggle"
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: token.marginSM,
+      <div
+        style={
+          compact
+            ? { width: "100%", minWidth: 0, padding: `2px 0 0` }
+            : {
+                width: "100%",
                 minWidth: 0,
-              }}
-            >
-              <DiffOutlined style={{ color: token.colorPrimary }} />
-              <Text strong style={{ whiteSpace: "nowrap" }}>
-                Session diffs
-              </Text>
-              <Text type="secondary" style={{ fontSize: token.fontSizeSM, whiteSpace: "nowrap" }}>
-                ({sessionDiffSummary.files.length} files / {sessionDiffSummary.changedTools} tools)
-              </Text>
-              <Space size={4} style={{ marginInlineStart: token.marginXS }}>
-                <Text
-                  style={{
-                    color: token.colorSuccess,
-                    fontSize: token.fontSizeSM,
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  }}
-                >
-                  +{sessionDiffSummary.totalAdded}
-                </Text>
-                <Text
-                  style={{
-                    color: token.colorError,
-                    fontSize: token.fontSizeSM,
-                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                  }}
-                >
-                  -{sessionDiffSummary.totalRemoved}
-                </Text>
-              </Space>
-            </div>
-            <div style={{ color: token.colorTextSecondary }}>
-              {isExpanded ? <DownOutlined /> : <RightOutlined />}
-            </div>
-          </div>
+              }
+        }
+      >
+        {compact ? (
+          <SessionDiffListView
+            files={files}
+            changedTools={sessionDiffSummary.changedTools}
+            totalAdded={sessionDiffSummary.totalAdded}
+            totalRemoved={sessionDiffSummary.totalRemoved}
+            sortMode={sortMode}
+            selectedFilePath={selectedFilePath}
+            compact={compact}
+            onSortModeChange={setSortMode}
+            onSelectFile={setSelectedFilePath}
+          />
+        ) : (
+          <Card
+            size="small"
+            style={{
+              width: "100%",
+              minWidth: 0,
+              overflow: "hidden",
+              borderRadius: token.borderRadiusLG,
+              border: `1px solid ${token.colorBorderSecondary}`,
+              background: token.colorBgContainer,
+              boxShadow: token.boxShadowSecondary,
+            }}
+            styles={{ body: { padding: `${token.paddingSM}px` } }}
+          >
+            <SessionDiffListView
+              files={files}
+              changedTools={sessionDiffSummary.changedTools}
+              totalAdded={sessionDiffSummary.totalAdded}
+              totalRemoved={sessionDiffSummary.totalRemoved}
+              sortMode={sortMode}
+              selectedFilePath={selectedFilePath}
+              compact={compact}
+              onSortModeChange={setSortMode}
+              onSelectFile={setSelectedFilePath}
+            />
+          </Card>
+        )}
+      </div>
 
-          {isExpanded && (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr",
-                gap: 6,
-                maxHeight: 280,
-                overflowY: "auto",
-              }}
-              data-testid="session-diff-file-list"
-            >
-              {fileRows.map((file) => {
-                const expanded = expandedFiles.has(file.filePath);
-                const diffLines = parsedDiffByFile.get(file.filePath) ?? [];
-
-                return (
-                  <div
-                    key={file.filePath}
-                    style={{
-                      border: `1px solid ${token.colorBorderSecondary}`,
-                      borderRadius: token.borderRadiusSM,
-                      overflow: "hidden",
-                      background: token.colorBgContainer,
-                    }}
-                    data-testid="session-diff-file-item"
-                    data-file-path={file.filePath}
-                  >
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: token.marginSM,
-                        padding: "4px 8px",
-                        borderRadius: token.borderRadiusSM,
-                        background: token.colorFillTertiary,
-                        cursor: "pointer",
-                      }}
-                      onClick={() => {
-                        setExpandedFiles((previous) => {
-                          const next = new Set(previous);
-                          if (next.has(file.filePath)) {
-                            next.delete(file.filePath);
-                          } else {
-                            next.add(file.filePath);
-                          }
-                          return next;
-                        });
-                      }}
-                      data-testid="session-diff-file-header"
-                      data-file-path={file.filePath}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: token.marginXS,
-                          minWidth: 0,
-                          flex: 1,
-                        }}
-                      >
-                        <span style={{ color: token.colorTextSecondary }}>
-                          {expanded ? <DownOutlined /> : <RightOutlined />}
-                        </span>
-                        <Text
-                          ellipsis={{ tooltip: file.filePath }}
-                          style={{ flex: 1, minWidth: 0, fontSize: token.fontSizeSM }}
-                        >
-                          {basename(file.filePath)}
-                        </Text>
-                      </div>
-                      <Space size={4}>
-                        <Text
-                          style={{
-                            color: token.colorSuccess,
-                            fontSize: token.fontSizeSM,
-                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                          }}
-                        >
-                          +{file.added}
-                        </Text>
-                        <Text
-                          style={{
-                            color: token.colorError,
-                            fontSize: token.fontSizeSM,
-                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                          }}
-                        >
-                          -{file.removed}
-                        </Text>
-                      </Space>
-                    </div>
-
-                    {expanded && (
-                      <div
-                        style={{
-                          borderTop: `1px solid ${token.colorBorderSecondary}`,
-                          maxHeight: 220,
-                          overflow: "auto",
-                          background: token.colorBgContainer,
-                        }}
-                        data-testid="session-diff-file-panel"
-                        data-file-path={file.filePath}
-                      >
-                        {diffLines.length > 0 ? (
-                          diffLines.map((line, index) => {
-                            const lineStyle: React.CSSProperties = {
-                              margin: 0,
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word",
-                              fontSize: token.fontSizeSM,
-                              lineHeight: 1.5,
-                              padding: "0 8px",
-                              fontFamily:
-                                "Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-                            };
-
-                            if (line.kind === "add") {
-                              lineStyle.background = token.colorSuccessBg;
-                            } else if (line.kind === "remove") {
-                              lineStyle.background = token.colorErrorBg;
-                            } else if (line.kind === "modified_add") {
-                              lineStyle.background = token.colorWarningBg;
-                              lineStyle.borderLeft = `3px solid ${token.colorSuccess}`;
-                            } else if (line.kind === "modified_remove") {
-                              lineStyle.background = token.colorWarningBg;
-                              lineStyle.borderLeft = `3px solid ${token.colorError}`;
-                            } else if (line.kind === "hunk") {
-                              lineStyle.background = token.colorFillSecondary;
-                              lineStyle.color = token.colorTextSecondary;
-                            } else if (line.kind === "meta") {
-                              lineStyle.background = token.colorFillTertiary;
-                              lineStyle.color = token.colorTextSecondary;
-                            }
-
-                            return (
-                              <pre
-                                key={`${file.filePath}-${index}`}
-                                style={lineStyle}
-                                data-testid="session-diff-line"
-                                data-kind={line.kind}
-                              >
-                                {line.text || " "}
-                              </pre>
-                            );
-                          })
-                        ) : (
-                          <Text
-                            type="secondary"
-                            style={{
-                              display: "block",
-                              padding: "8px",
-                              fontSize: token.fontSizeSM,
-                            }}
-                          >
-                            No diff preview available.
-                          </Text>
-                        )}
-                        {file.truncated && (
-                          <Text
-                            type="secondary"
-                            style={{
-                              display: "block",
-                              padding: "6px 8px 8px",
-                              fontSize: token.fontSizeSM,
-                            }}
-                          >
-                            Diff truncated for display.
-                          </Text>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </Space>
-      </Card>
+      <Drawer
+        title="Diff details"
+        placement="right"
+        open={Boolean(selectedFile)}
+        onClose={() => setSelectedFilePath(null)}
+        width="min(1100px, calc(100vw - 24px))"
+        styles={{
+          body: { padding: compact ? token.paddingXS : token.paddingLG, minWidth: 0 },
+        }}
+        destroyOnClose
+      >
+        {selectedFile ? (
+          <SessionDiffDetailView
+            file={selectedFile}
+            currentPosition={selectedIndex + 1}
+            totalFiles={sortedFiles.length}
+            canGoPrevious={selectedIndex > 0}
+            canGoNext={selectedIndex >= 0 && selectedIndex < sortedFiles.length - 1}
+            compact={compact}
+            onPrevious={() => {
+              if (selectedIndex > 0) {
+                setSelectedFilePath(sortedFiles[selectedIndex - 1].filePath);
+              }
+            }}
+            onNext={() => {
+              if (selectedIndex >= 0 && selectedIndex < sortedFiles.length - 1) {
+                setSelectedFilePath(sortedFiles[selectedIndex + 1].filePath);
+              }
+            }}
+            onBack={() => setSelectedFilePath(null)}
+          />
+        ) : null}
+      </Drawer>
     </div>
   );
 };

@@ -15,7 +15,12 @@ type UseChatViewScrollArgs = {
   currentSessionId: string | null;
   isThinking: boolean;
   messagesListRef: RefObject<HTMLDivElement>;
+  bottomAnchorRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
+};
+
+type ScrollToBottomOptions = {
+  behavior?: ScrollBehavior;
 };
 
 type ScrollIndicatorState = {
@@ -35,6 +40,7 @@ export const useChatViewScroll = ({
   currentSessionId,
   isThinking,
   messagesListRef,
+  bottomAnchorRef,
   renderableMessages,
 }: UseChatViewScrollArgs) => {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
@@ -42,6 +48,7 @@ export const useChatViewScroll = ({
   const [hasUnreadActivity, setHasUnreadActivity] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const userHasScrolledUpRef = useRef(false);
+  const stickToBottomRef = useRef(false);
   const isFirstLoadRef = useRef(true);
   const previousRenderableCountRef = useRef(renderableMessages.length);
   const countedStreamingUnreadIdsRef = useRef<Set<string>>(new Set());
@@ -92,6 +99,7 @@ export const useChatViewScroll = ({
     setShowScrollToTop(!atTop && renderableMessages.length > 3);
 
     if (atBottom) {
+      stickToBottomRef.current = true;
       clearUnreadState();
     }
 
@@ -108,8 +116,10 @@ export const useChatViewScroll = ({
 
       if (indicatorState.distanceFromBottom > SCROLL_POSITION_THRESHOLD_PX) {
         userHasScrolledUpRef.current = true;
+        stickToBottomRef.current = false;
       } else if (indicatorState.atBottom) {
         userHasScrolledUpRef.current = false;
+        stickToBottomRef.current = true;
         clearUnreadState();
       }
 
@@ -119,53 +129,69 @@ export const useChatViewScroll = ({
     [clearUnreadState, refreshScrollIndicators, handleScrollPersistence],
   );
 
-  const scrollToBottom = useCallback(() => {
-    const el = messagesListRef.current;
-    if (!el) return;
-    if (renderableMessages.length === 0) return;
+  const scrollToBottom = useCallback(
+    (options?: ScrollToBottomOptions) => {
+      const el = messagesListRef.current;
+      const anchorEl = bottomAnchorRef.current;
+      if (!el || !anchorEl) return;
+      if (renderableMessages.length === 0) return;
 
-    let frame = 0;
-    let lastKnownScrollHeight = -1;
+      const initialBehavior = options?.behavior ?? "smooth";
+      let frame = 0;
+      let lastAnchorTop = Number.NaN;
 
-    const finishScroll = () => {
-      userHasScrolledUpRef.current = false;
-      clearUnreadState();
-      refreshScrollIndicators();
-    };
+      const finishScroll = () => {
+        userHasScrolledUpRef.current = false;
+        stickToBottomRef.current = true;
+        clearUnreadState();
+        refreshScrollIndicators();
+      };
 
-    const step = () => {
-      const scrollEl = messagesListRef.current;
-      if (!scrollEl) return;
+      const step = () => {
+        const scrollEl = messagesListRef.current;
+        const currentAnchorEl = bottomAnchorRef.current;
+        if (!scrollEl || !currentAnchorEl) return;
 
-      const targetTop = Math.max(0, scrollEl.scrollHeight - scrollEl.clientHeight);
-      const distanceFromBottom = Math.max(
-        0,
-        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight,
-      );
-      const heightChanged = scrollEl.scrollHeight !== lastKnownScrollHeight;
-      const shouldContinue =
-        distanceFromBottom > SCROLL_BOTTOM_EPSILON_PX || heightChanged || frame === 0;
+        const distanceFromBottom = Math.max(
+          0,
+          scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight,
+        );
+        const anchorRect = currentAnchorEl.getBoundingClientRect();
+        const containerRect = scrollEl.getBoundingClientRect();
+        const anchorTop = anchorRect.top - containerRect.top;
+        const anchorMoved =
+          !Number.isFinite(lastAnchorTop) || Math.abs(anchorTop - lastAnchorTop) > 0.5;
+        const shouldContinue =
+          distanceFromBottom > SCROLL_BOTTOM_EPSILON_PX || anchorMoved || frame === 0;
 
-      if (shouldContinue) {
-        scrollEl.scrollTo({
-          top: targetTop,
-          behavior: frame === 0 ? "smooth" : "auto",
-        });
-      }
+        if (shouldContinue) {
+          currentAnchorEl.scrollIntoView({
+            block: "end",
+            behavior: frame === 0 ? initialBehavior : "auto",
+          });
+        }
 
-      lastKnownScrollHeight = scrollEl.scrollHeight;
-      frame += 1;
+        lastAnchorTop = anchorTop;
+        frame += 1;
 
-      if (frame < SCROLL_BOTTOM_MAX_FRAMES && shouldContinue) {
-        requestAnimationFrame(step);
-        return;
-      }
+        if (frame < SCROLL_BOTTOM_MAX_FRAMES && shouldContinue) {
+          requestAnimationFrame(step);
+          return;
+        }
 
-      finishScroll();
-    };
+        finishScroll();
+      };
 
-    requestAnimationFrame(step);
-  }, [clearUnreadState, messagesListRef, refreshScrollIndicators, renderableMessages.length]);
+      requestAnimationFrame(step);
+    },
+    [
+      bottomAnchorRef,
+      clearUnreadState,
+      messagesListRef,
+      refreshScrollIndicators,
+      renderableMessages.length,
+    ],
+  );
 
   const scrollToTop = useCallback(() => {
     const el = messagesListRef.current;
@@ -200,6 +226,7 @@ export const useChatViewScroll = ({
 
   const resetUserScroll = useCallback(() => {
     userHasScrolledUpRef.current = false;
+    stickToBottomRef.current = true;
     clearUnreadState();
   }, [clearUnreadState]);
 
@@ -347,14 +374,22 @@ export const useChatViewScroll = ({
     if (!el || typeof ResizeObserver === "undefined") return;
 
     let rafId = 0;
+    let didObserveResize = false;
     const scheduleRefresh = () => {
       cancelAnimationFrame(rafId);
+      const shouldStickToBottom = stickToBottomRef.current;
+
       rafId = requestAnimationFrame(() => {
+        if (didObserveResize && shouldStickToBottom && !userHasScrolledUpRef.current) {
+          scrollToBottom({ behavior: "auto" });
+          return;
+        }
         refreshScrollIndicators();
       });
     };
 
     const observer = new ResizeObserver(() => {
+      didObserveResize = true;
       scheduleRefresh();
     });
 
@@ -365,13 +400,25 @@ export const useChatViewScroll = ({
       observer.observe(contentEl);
     }
 
+    const anchorEl = bottomAnchorRef.current;
+    if (anchorEl instanceof HTMLElement) {
+      observer.observe(anchorEl);
+    }
+
     scheduleRefresh();
 
     return () => {
       cancelAnimationFrame(rafId);
       observer.disconnect();
     };
-  }, [currentSessionId, messagesListRef, refreshScrollIndicators, renderableMessages.length]);
+  }, [
+    bottomAnchorRef,
+    currentSessionId,
+    messagesListRef,
+    refreshScrollIndicators,
+    renderableMessages.length,
+    scrollToBottom,
+  ]);
 
   // 当消息数量变化或切换聊天时，主动检查是否应该显示滚动按钮
   // 使用 rAF + 延时确保在滚动锚点恢复和 DOM 布局完成后再检查
@@ -402,6 +449,7 @@ export const useChatViewScroll = ({
   useEffect(() => {
     isFirstLoadRef.current = true;
     userHasScrolledUpRef.current = false;
+    stickToBottomRef.current = false;
     previousRenderableCountRef.current = 0;
     clearUnreadState();
   }, [clearUnreadState, currentSessionId]);

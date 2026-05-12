@@ -169,6 +169,54 @@ vi.mock("../../../utils/resultFormatters", () => ({
       formattedText: content,
     };
   },
+  parseFileChangeResultPayload: (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        typeof parsed.operation === "string" &&
+        typeof parsed.file_path === "string" &&
+        parsed.diff &&
+        typeof parsed.diff.unified === "string"
+      ) {
+        return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  },
+  getFileChangeDiffStats: (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      if (!parsed?.diff?.unified) return null;
+      return {
+        added:
+          typeof parsed.diff.added_lines === "number"
+            ? parsed.diff.added_lines
+            : (parsed.diff.unified.match(/^\+/gm) || []).filter(
+                (line: string) => !line.startsWith("+++"),
+              ).length,
+        removed:
+          typeof parsed.diff.removed_lines === "number"
+            ? parsed.diff.removed_lines
+            : (parsed.diff.unified.match(/^-/gm) || []).filter(
+                (line: string) => !line.startsWith("---"),
+              ).length,
+      };
+    } catch {
+      return null;
+    }
+  },
+}));
+
+vi.mock("../../FileChangeViewer", () => ({
+  default: ({ payload, defaultViewMode }: any) => (
+    <div data-testid="file-change-viewer" data-default-view-mode={defaultViewMode}>
+      {payload?.file_path}
+    </div>
+  ),
 }));
 
 import { ToolStepsCard } from "../index";
@@ -420,6 +468,69 @@ describe("ToolStepsCard", () => {
       // The Result tab content should contain the actual result text
       const resultTab = screen.getByTestId("tab-content-result");
       expect(resultTab.textContent).toContain("operation completed");
+    });
+
+    it("renders inline file change summary for file-changing tool results", () => {
+      const payload = JSON.stringify({
+        operation: "Edit",
+        file_path: "/tmp/demo.ts",
+        diff: {
+          unified:
+            "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-console.log('a')\n+console.log('b')",
+          added_lines: 1,
+          removed_lines: 1,
+        },
+      });
+
+      const tools = [
+        makeToolSessionItem({
+          toolCallId: "c1",
+          toolName: "edit",
+          hasResult: true,
+          isError: false,
+          resultContent: payload,
+        }),
+      ];
+
+      render(<ToolStepsCard tools={tools} defaultExpanded={true} />);
+
+      expect(screen.getByTestId("tool-step-file-change-c1").textContent).toContain(
+        "Edit(/tmp/demo.ts)",
+      );
+      expect(screen.getByTestId("file-change-viewer").getAttribute("data-default-view-mode")).toBe(
+        "unified",
+      );
+      expect(screen.getByText("components.toolSteps.viewFullDiff")).toBeDefined();
+    });
+
+    it("opens file change detail drawer on diff tab by default", () => {
+      const payload = JSON.stringify({
+        operation: "Edit",
+        file_path: "/tmp/demo.ts",
+        diff: {
+          unified:
+            "--- a/demo.ts\n+++ b/demo.ts\n@@ -1,1 +1,1 @@\n-console.log('a')\n+console.log('b')",
+          added_lines: 1,
+          removed_lines: 1,
+        },
+      });
+
+      const tools = [
+        makeToolSessionItem({
+          toolCallId: "c1",
+          toolName: "edit",
+          hasResult: true,
+          isError: false,
+          resultContent: payload,
+        }),
+      ];
+
+      render(<ToolStepsCard tools={tools} defaultExpanded={true} />);
+
+      fireEvent.click(screen.getByTestId("tool-step-details-c1"));
+
+      expect(screen.getByTestId("tabs").getAttribute("data-default-active-key")).toBe("diff");
+      expect(screen.getByTestId("tab-diff")).toBeDefined();
     });
   });
 

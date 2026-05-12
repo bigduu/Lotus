@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Flex, Typography } from "antd";
+import { useTranslation } from "react-i18next";
 const { Text } = Typography;
 
 interface MessageCardHeaderProps {
@@ -14,10 +15,20 @@ const MessageCardHeader: React.FC<MessageCardHeaderProps> = ({
   formattedTimestamp,
   token,
 }) => {
+  const { t } = useTranslation();
   const isUser = role === "user";
   const isAssistant = role === "assistant";
-  const label = isUser ? "You" : isAssistant ? "Bodhi" : role;
-  const avatarText = isUser ? "Y" : isAssistant ? "B" : role.slice(0, 1).toUpperCase();
+  const isSystem = role === "system";
+  const label = isUser
+    ? t("chat.view.roleUser")
+    : isAssistant
+      ? t("chat.view.brandName")
+      : t("chat.view.roleDefault");
+  const avatarText = isUser
+    ? t("chat.view.roleUser").slice(0, 1)
+    : isAssistant
+      ? t("chat.view.brandName").slice(0, 1)
+      : role.slice(0, 1).toUpperCase();
 
   return (
     <Flex
@@ -74,7 +85,13 @@ const MessageCardHeader: React.FC<MessageCardHeaderProps> = ({
               lineHeight: 1.1,
             }}
           >
-            {isUser ? "Prompt" : isAssistant ? "Assistant" : "System"}
+            {isUser
+              ? t("chat.view.subTitleUser")
+              : isAssistant
+                ? t("chat.view.roleAssistant")
+                : isSystem
+                  ? t("chat.view.roleSystem")
+                  : t("chat.view.roleDefault")}
           </Text>
         </Flex>
       </Flex>

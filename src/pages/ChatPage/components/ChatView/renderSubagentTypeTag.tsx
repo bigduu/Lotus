@@ -17,6 +17,7 @@ import type { SubagentProfile } from "../../../../services/subagent/types";
 export const renderSubagentTypeTag = (
   subagentType: string | null | undefined,
   byId: Map<string, SubagentProfile>,
+  options?: { compact?: boolean },
 ): React.ReactNode => {
   const id = subagentType?.trim();
   if (!id) return null;
@@ -28,6 +29,22 @@ export const renderSubagentTypeTag = (
   // If the profile didn't supply one, omit the color prop entirely so the
   // tag renders in the default neutral palette.
   const color = profile?.ui?.color?.trim() || undefined;
+  const compact = options?.compact ?? false;
+
+  if (compact) {
+    return (
+      <span
+        data-testid={`sub-agent-role-tag-${id}`}
+        style={{
+          color: color || "inherit",
+          lineHeight: "inherit",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {icon ? `${icon} ${label}` : label}
+      </span>
+    );
+  }
 
   return (
     <Tag

@@ -110,12 +110,28 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
     const pendingQuestionToolCallId =
       pendingForSession?.toolCallId ?? syncCursor?.pendingQuestionToolCallId ?? null;
 
-    return {
+    const clientSync = {
       client_message_count: syncCursor?.messageCount ?? chat?.messageCount ?? 0,
       client_last_message_id: syncCursor?.lastMessageId ?? null,
       client_has_pending_question: hasPendingQuestion,
       client_pending_question_tool_call_id: pendingQuestionToolCallId,
     };
+
+    debugLog("[Streaming]", "buildClientSync", {
+      sessionId,
+      generation: selectGeneration(sessionId)(state),
+      syncCursor: syncCursor ?? null,
+      messageCount: chat?.messageCount ?? null,
+      respondMode: pendingForSession
+        ? {
+            toolCallId: pendingForSession.toolCallId ?? null,
+            question: pendingForSession.question,
+          }
+        : null,
+      clientSync,
+    });
+
+    return clientSync;
   }, []);
 
   const applyExecuteSyncSnapshot = useCallback(
@@ -126,6 +142,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       const chats = Array.isArray(storeState.chats) ? storeState.chats : [];
       const chat = chats.find((item) => item.id === sessionId);
       if (!chat) return;
+
+      debugLog("[Streaming]", "applyExecuteSyncSnapshot", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+        runId: executeResult.run_id ?? null,
+        sync,
+      });
 
       updateSession(sessionId, {
         messageCount: sync.server_message_count,
@@ -164,6 +187,12 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       executeSync: ExecuteResponse["sync"],
       reasoningEffort?: ReasoningEffort,
     ): Promise<ExecuteResponse | null> => {
+      debugLog("[Streaming]", "recoverAfterNeedSync.start", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+        executeSync,
+        reasoningEffort: reasoningEffort ?? null,
+      });
       markSettleTimeout(sessionId);
       await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
@@ -172,6 +201,11 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       const clearPendingQuestion = useAppStore.getState().clearPendingQuestion;
 
       if (pending.has_pending_question) {
+        debugLog("[Streaming]", "recoverAfterNeedSync.pendingQuestion", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          pending,
+        });
         setPendingQuestion(sessionId, {
           question: pending.question || "",
           options: pending.options || [],
@@ -200,9 +234,19 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
 
       const hasPendingUserMessage = executeSync?.has_pending_user_message ?? false;
       if (!hasPendingUserMessage) {
+        debugLog("[Streaming]", "recoverAfterNeedSync.noPendingUserMessage", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          executeSync,
+        });
         return null;
       }
 
+      debugLog("[Streaming]", "recoverAfterNeedSync.retryExecute", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+        executeSync,
+      });
       markOptimisticStart(sessionId);
       await new Promise((resolve) => setTimeout(resolve, 0));
       const retryResult = reasoningEffort
@@ -220,6 +264,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
             buildClientSync(sessionId),
             activeModelRef ?? undefined,
           );
+      debugLog("[Streaming]", "recoverAfterNeedSync.retryExecute.result", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+        status: retryResult.status,
+        runId: retryResult.run_id ?? null,
+        sync: retryResult.sync ?? null,
+      });
       applyExecuteSyncSnapshot(sessionId, retryResult);
       return retryResult;
     },
@@ -241,11 +292,24 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       reasoningEffort?: ReasoningEffort,
     ) => {
       let resolvedExecuteResult = executeResult;
+      debugLog("[Streaming]", "handleExecuteResult.start", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+        status: resolvedExecuteResult.status,
+        runId: resolvedExecuteResult.run_id ?? null,
+        sync: resolvedExecuteResult.sync ?? null,
+      });
       applyExecuteSyncSnapshot(sessionId, resolvedExecuteResult);
 
       const maxSyncRecoveries = 2;
       let syncRecoveries = 0;
       while (resolvedExecuteResult.sync?.need_sync && syncRecoveries < maxSyncRecoveries) {
+        debugLog("[Streaming]", "handleExecuteResult.needSync", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          syncRecoveries,
+          sync: resolvedExecuteResult.sync,
+        });
         const recovered = await recoverAfterNeedSync(
           sessionId,
           resolvedExecuteResult.sync,
@@ -318,6 +382,19 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         const rawWorkspacePath = currentChat?.config?.workspacePath || "";
         const workspacePath = rawWorkspacePath.trim().replace(/\/+$/, "").replace(/\\+$/, "");
 
+        debugLog("[Streaming]", "sendWithAgent.start", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          userMessageId: userMessage.id,
+          contentLength: content.length,
+          imageCount: userMessage.images?.length ?? 0,
+          reasoningEffort: reasoningEffort ?? null,
+          selectedSkillCount: selectedSkillIds?.length ?? 0,
+          workspacePath: workspacePath || null,
+          activeModel,
+          activeModelRef: activeModelRef ?? null,
+        });
+
         // Step 1: Send message to Agent
         const response = await agentClientRef.current.sendMessage({
           message: content,
@@ -342,6 +419,12 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
             : {}),
         });
 
+        debugLog("[Streaming]", "sendWithAgent.chatResponse", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          response,
+        });
+
         const { session_id } = response;
         if (session_id !== sessionId) {
           console.warn(
@@ -350,7 +433,14 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         }
 
         // Refresh from persisted history once so execute uses a server-confirmed cursor
-        await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
+        debugLog("[Streaming]", "sendWithAgent.loadHistory.beforeExecute", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+        });
+        // We delay or skip full history replacement here because the optimistic message
+        // might not be completely propagated through DB triggers/read consistency paths.
+        // The event bus will handle sync state organically as agent outputs arrive.
+        // await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
         // Step 2: Trigger execution. The optimistic start (markOptimisticStart) was
         // already emitted by the caller (sendMessage) before entering this path.
@@ -369,9 +459,20 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
               buildClientSync(sessionId),
               activeModelRef ?? undefined,
             );
-        debugLog("[Streaming]", "[Agent] Execute status:", executeResult.status);
+        debugLog("[Streaming]", "sendWithAgent.executeResponse", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          status: executeResult.status,
+          runId: executeResult.run_id ?? null,
+          sync: executeResult.sync ?? null,
+        });
         await handleExecuteResult(sessionId, executeResult, reasoningEffort);
       } catch (error) {
+        debugLog("[Streaming]", "sendWithAgent.error", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          error,
+        });
         throw error;
       }
     },
@@ -452,13 +553,31 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         images: messageImages,
       };
 
+      debugLog("[Streaming]", "sendMessage.localAdd.before", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+        userMessageId: userMessage.id,
+        contentLength: content.length,
+        imageCount: messageImages.length,
+        reasoningEffort: reasoningEffort ?? null,
+        selectedSkillCount: selectedSkillIds?.length ?? 0,
+      });
       await addMessage(sessionId, userMessage);
+      debugLog("[Streaming]", "sendMessage.localAdd.after", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+        userMessageId: userMessage.id,
+      });
 
       // Emit optimistic start immediately so the UI shows the spinner while the
       // outbound network request is still in flight.  Previously this was done
       // inside sendWithAgent *after* sendMessage + loadChatHistory had already
       // completed, causing a perceptible delay before the UI responded.
       markOptimisticStart(sessionId);
+      debugLog("[Streaming]", "sendMessage.markOptimisticStart", {
+        sessionId,
+        generation: selectGeneration(sessionId)(useAppStore.getState()),
+      });
       // Yield so React can flush the processing-state render before we block
       // the microtask queue with network I/O.
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -466,6 +585,11 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       try {
         debugLog("[Streaming]", "[useChatStreaming] Using Agent Server");
         await sendWithAgent(content, sessionId, userMessage, reasoningEffort, selectedSkillIds);
+        debugLog("[Streaming]", "sendMessage.completed", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          userMessageId: userMessage.id,
+        });
       } catch (error) {
         if (streamingMessageIdRef.current) {
           streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
@@ -485,8 +609,18 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
             setAgentAvailability(false);
           }
         }
+        debugLog("[Streaming]", "sendMessage.error", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          error,
+        });
         markSettleTimeout(sessionId);
       } finally {
+        debugLog("[Streaming]", "sendMessage.finally", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          streamingMessageId: streamingMessageIdRef.current,
+        });
         abortRef.current = null;
         if (streamingMessageIdRef.current) {
           streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);

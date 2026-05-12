@@ -104,6 +104,17 @@ export interface DiffLine {
   text: string;
 }
 
+export type SideBySideDiffRowKind = "meta" | "hunk" | "context" | "add" | "remove" | "modified";
+
+export interface SideBySideDiffRow {
+  kind: SideBySideDiffRowKind;
+  text?: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+  oldText?: string;
+  newText?: string;
+}
+
 export interface CollapseOptions {
   maxLines?: number;
   maxCharacters?: number;
@@ -498,6 +509,157 @@ export const parseUnifiedDiffLines = (unified: string): DiffLine[] => {
   }
 
   return output;
+};
+
+const parseUnifiedHunkHeader = (line: string): { oldStart: number; newStart: number } | null => {
+  const match = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    oldStart: Number.parseInt(match[1], 10),
+    newStart: Number.parseInt(match[2], 10),
+  };
+};
+
+const stripUnifiedLinePrefix = (line: string): string => {
+  if (!line) {
+    return "";
+  }
+
+  const prefix = line[0];
+  if (prefix === "+" || prefix === "-" || prefix === " ") {
+    return line.slice(1);
+  }
+
+  return line;
+};
+
+const advanceDiffCursor = (value: number | null): number | null => {
+  if (value == null) {
+    return null;
+  }
+  return value + 1;
+};
+
+export const parseUnifiedDiffSideBySideRows = (unified: string): SideBySideDiffRow[] => {
+  const rawLines = unified.split("\n");
+  const rows: SideBySideDiffRow[] = [];
+
+  let oldLine: number | null = null;
+  let newLine: number | null = null;
+  let index = 0;
+
+  while (index < rawLines.length) {
+    const line = rawLines[index] ?? "";
+
+    if (line.startsWith("--- ") || line.startsWith("+++ ")) {
+      rows.push({ kind: "meta", text: line });
+      index += 1;
+      continue;
+    }
+
+    if (line.startsWith("@@")) {
+      const parsed = parseUnifiedHunkHeader(line);
+      if (parsed) {
+        oldLine = parsed.oldStart;
+        newLine = parsed.newStart;
+      }
+      rows.push({ kind: "hunk", text: line });
+      index += 1;
+      continue;
+    }
+
+    if (isRemovedLine(line)) {
+      const removedBlock: string[] = [];
+      while (index < rawLines.length && isRemovedLine(rawLines[index] ?? "")) {
+        removedBlock.push(rawLines[index] ?? "");
+        index += 1;
+      }
+
+      const addedBlock: string[] = [];
+      while (index < rawLines.length && isAddedLine(rawLines[index] ?? "")) {
+        addedBlock.push(rawLines[index] ?? "");
+        index += 1;
+      }
+
+      if (addedBlock.length > 0) {
+        const pairCount = Math.max(removedBlock.length, addedBlock.length);
+        for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
+          const removedLine = removedBlock[pairIndex];
+          const addedLine = addedBlock[pairIndex];
+
+          if (removedLine && addedLine) {
+            rows.push({
+              kind: "modified",
+              oldLineNumber: oldLine ?? undefined,
+              newLineNumber: newLine ?? undefined,
+              oldText: stripUnifiedLinePrefix(removedLine),
+              newText: stripUnifiedLinePrefix(addedLine),
+            });
+            oldLine = advanceDiffCursor(oldLine);
+            newLine = advanceDiffCursor(newLine);
+            continue;
+          }
+
+          if (removedLine) {
+            rows.push({
+              kind: "remove",
+              oldLineNumber: oldLine ?? undefined,
+              oldText: stripUnifiedLinePrefix(removedLine),
+            });
+            oldLine = advanceDiffCursor(oldLine);
+            continue;
+          }
+
+          if (addedLine) {
+            rows.push({
+              kind: "add",
+              newLineNumber: newLine ?? undefined,
+              newText: stripUnifiedLinePrefix(addedLine),
+            });
+            newLine = advanceDiffCursor(newLine);
+          }
+        }
+      } else {
+        removedBlock.forEach((removedLine) => {
+          rows.push({
+            kind: "remove",
+            oldLineNumber: oldLine ?? undefined,
+            oldText: stripUnifiedLinePrefix(removedLine),
+          });
+          oldLine = advanceDiffCursor(oldLine);
+        });
+      }
+      continue;
+    }
+
+    if (isAddedLine(line)) {
+      rows.push({
+        kind: "add",
+        newLineNumber: newLine ?? undefined,
+        newText: stripUnifiedLinePrefix(line),
+      });
+      newLine = advanceDiffCursor(newLine);
+      index += 1;
+      continue;
+    }
+
+    const contextText = stripUnifiedLinePrefix(line);
+    rows.push({
+      kind: "context",
+      oldLineNumber: oldLine ?? undefined,
+      newLineNumber: newLine ?? undefined,
+      oldText: contextText,
+      newText: contextText,
+    });
+    oldLine = advanceDiffCursor(oldLine);
+    newLine = advanceDiffCursor(newLine);
+    index += 1;
+  }
+
+  return rows;
 };
 
 export const extractDiffStatsFromUnified = (unified: string): DiffStats => {

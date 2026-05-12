@@ -8,6 +8,7 @@ import { openSession } from "../../utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
 import { useSubagentProfiles } from "../../../../hooks/useSubagentProfiles";
 import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
+import InlineMetaText from "../../../../shared/components/InlineMetaText";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -75,11 +76,15 @@ const persistCollapsedState = (parentSessionId: string, isCollapsed: boolean) =>
 
 export interface SubAgentsPanelProps {
   parentSessionId: string;
+  compact?: boolean;
 }
 
 type SubAgentRetryMode = "regenerate" | "error_retry";
 
-export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({ parentSessionId }) => {
+export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
+  parentSessionId,
+  compact = false,
+}) => {
   const { t } = useTranslation();
   const { token } = useToken();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(
@@ -202,12 +207,15 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({ parentSessionId 
     });
   }, [parentSessionId]);
 
-  const toErrorMessage = useCallback((error: unknown): string => {
-    if (error instanceof Error && error.message.trim()) {
-      return error.message;
-    }
-    return "Failed to run child session";
-  }, []);
+  const toErrorMessage = useCallback(
+    (error: unknown): string => {
+      if (error instanceof Error && error.message.trim()) {
+        return error.message;
+      }
+      return t("chat.subAgents.runChildFailed");
+    },
+    [t],
+  );
 
   const runChildSession = useCallback(
     async (childSessionId: string, retryMode: SubAgentRetryMode = "regenerate") => {
@@ -336,14 +344,14 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({ parentSessionId 
           error:
             error instanceof Error && error.message.trim()
               ? error.message
-              : "Failed to continue child session",
+              : t("chat.subAgents.continueChildFailed"),
           lastEventAt: new Date().toISOString(),
         });
       } finally {
         setContinuingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [parentSessionId, refreshChats, markOptimisticStart, markSettleTimeout, applyChildProgress],
+    [parentSessionId, refreshChats, markOptimisticStart, markSettleTimeout, applyChildProgress, t],
   );
 
   const removeChildSession = useCallback(
@@ -374,65 +382,114 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({ parentSessionId 
 
   if (mergedItems.length === 0) return null;
 
-  return (
-    <Card
-      size="small"
-      className="lotus-settings-card"
-      style={{ marginBottom: token.marginMD }}
-      data-testid="sub-agents-panel"
-      title={
-        <Text strong>
-          {t("chat.subAgents.title")} <Text type="secondary">({mergedItems.length})</Text>
-        </Text>
-      }
-      extra={
-        <Button
-          type="text"
-          size="small"
-          icon={isCollapsed ? <DownOutlined /> : <UpOutlined />}
-          onClick={toggleCollapsed}
-          data-testid="sub-agents-toggle"
-        >
-          {isCollapsed ? t("chat.subAgents.expand") : t("chat.subAgents.collapse")}
-        </Button>
-      }
-    >
-      {!isCollapsed ? (
-        <Flex
-          vertical
-          gap={token.marginSM}
-          data-testid="sub-agents-list"
-          style={{
-            maxHeight: `${SUB_AGENTS_LIST_MAX_HEIGHT_PX}px`,
-            overflowY: "auto",
-            paddingRight: token.paddingXS,
-          }}
-        >
-          {mergedItems.map((it) => {
-            const status = normalizeSubAgentStatus(it.status);
-            const isRunning = status === "running";
-            const isRetrying = retryingChildId === it.childSessionId;
-            const isContinuing = continuingChildId === it.childSessionId;
-            const isDeleting = deletingChildId === it.childSessionId;
-            const isBusy = isRetrying || isContinuing || isDeleting;
+  const headerTitle = (
+    <Text strong>
+      {t("chat.subAgents.title")} <Text type="secondary">({mergedItems.length})</Text>
+    </Text>
+  );
 
-            return (
-              <Flex
-                key={it.childSessionId}
-                align="flex-start"
-                justify="space-between"
-                gap={token.marginSM}
-                className="lotus-settings-list-item"
-                style={{
-                  padding: token.paddingSM,
-                  borderRadius: token.borderRadiusSM,
-                }}
-              >
-                <Flex vertical style={{ flex: 1, minWidth: 0 }}>
-                  <Flex align="center" gap={token.marginXS} style={{ minWidth: 0 }}>
-                    <Text strong ellipsis style={{ minWidth: 0 }}>
-                      {it.title || "Sub-agent"}
-                    </Text>
+  const compactItemTagStyle = compact
+    ? { marginInlineEnd: 0, flex: "0 0 auto", fontSize: 10, lineHeight: "16px", paddingInline: 6 }
+    : { marginInlineEnd: 0, flex: "0 0 auto" };
+  const compactActionButtonStyle = compact ? { paddingInline: 0, height: 22 } : undefined;
+  const getStatusLabel = (value: string) =>
+    value === "running"
+      ? t("chat.subAgents.statusRunning")
+      : value === "completed"
+        ? t("chat.subAgents.statusCompleted")
+        : value === "pending"
+          ? t("chat.subAgents.statusPending")
+          : value === "cancelled"
+            ? t("chat.subAgents.statusCancelled")
+            : value === "error" || value === "failed"
+              ? t("chat.subAgents.statusFailed")
+              : value;
+  const getStatusColor = (value: string) =>
+    value === "running"
+      ? token.colorPrimary
+      : value === "completed"
+        ? token.colorSuccess
+        : value === "error" || value === "failed"
+          ? token.colorError
+          : value === "cancelled"
+            ? token.colorWarning
+            : token.colorTextSecondary;
+
+  const headerExtra = (
+    <Button
+      type="text"
+      size="small"
+      icon={isCollapsed ? <DownOutlined /> : <UpOutlined />}
+      onClick={toggleCollapsed}
+      data-testid="sub-agents-toggle"
+      style={compact ? { paddingInline: 4 } : undefined}
+    >
+      {isCollapsed ? t("chat.subAgents.expand") : t("chat.subAgents.collapse")}
+    </Button>
+  );
+
+  const listContent = !isCollapsed ? (
+    <Flex
+      vertical
+      gap={compact ? token.marginXS : token.marginSM}
+      data-testid="sub-agents-list"
+      style={{
+        width: "100%",
+        minWidth: 0,
+        maxHeight: `${SUB_AGENTS_LIST_MAX_HEIGHT_PX}px`,
+        overflowY: "auto",
+        overflowX: "hidden",
+        paddingRight: compact ? 0 : token.paddingXS,
+      }}
+    >
+      {mergedItems.map((it, index) => {
+        const status = normalizeSubAgentStatus(it.status);
+        const isRunning = status === "running";
+        const isRetrying = retryingChildId === it.childSessionId;
+        const isContinuing = continuingChildId === it.childSessionId;
+        const isDeleting = deletingChildId === it.childSessionId;
+        const isBusy = isRetrying || isContinuing || isDeleting;
+
+        return (
+          <Flex
+            key={it.childSessionId}
+            vertical
+            gap={compact ? 6 : token.marginSM}
+            className={compact ? undefined : "lotus-settings-list-item"}
+            style={{
+              width: "100%",
+              minWidth: 0,
+              padding: compact ? `6px 0` : token.paddingSM,
+              borderRadius: compact ? 0 : token.borderRadiusSM,
+              borderTop:
+                compact && index > 0 ? `1px solid ${token.colorBorderSecondary}` : undefined,
+              background: compact ? "transparent" : undefined,
+            }}
+          >
+            <Flex vertical style={{ width: "100%", minWidth: 0 }}>
+              <Flex align="center" gap={token.marginXS} wrap style={{ width: "100%", minWidth: 0 }}>
+                <Text
+                  strong
+                  ellipsis
+                  style={{ minWidth: 0, flex: "1 1 180px", fontSize: compact ? 13 : undefined }}
+                >
+                  {it.title || t("chat.subAgents.fallbackTitle")}
+                </Text>
+                {compact ? (
+                  <InlineMetaText
+                    nowrap
+                    items={[
+                      <span style={{ color: getStatusColor(status) }}>
+                        {getStatusLabel(status)}
+                      </span>,
+                      it.pinned ? t("chat.subAgents.pinned") : null,
+                      renderSubagentTypeTag(it.subagentType, subagentProfilesById, {
+                        compact: true,
+                      }),
+                    ]}
+                  />
+                ) : (
+                  <>
                     <Tag
                       color={
                         status === "running"
@@ -445,127 +502,231 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({ parentSessionId 
                                 ? "warning"
                                 : "default"
                       }
-                      style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
+                      style={compactItemTagStyle}
                     >
-                      {status}
+                      {getStatusLabel(status)}
                     </Tag>
                     {it.pinned ? (
-                      <Tag color="warning" style={{ marginInlineEnd: 0, flex: "0 0 auto" }}>
-                        Pinned
+                      <Tag color="warning" style={compactItemTagStyle}>
+                        {t("chat.subAgents.pinned")}
                       </Tag>
                     ) : null}
                     {renderSubagentTypeTag(it.subagentType, subagentProfilesById)}
-                  </Flex>
-
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 2 }}>
-                    {it.childSessionId.slice(0, 8)}
-                    {it.updatedAt ? ` • ${it.updatedAt}` : ""}
-                    {it.lastHeartbeatAt ? ` • heartbeat: ${it.lastHeartbeatAt}` : ""}
-                    {typeof it.roundCount === "number" ? ` • round ${it.roundCount + 1}` : ""}
-                  </Text>
-
-                  {it.outputPreview ? (
-                    <Text
-                      type="secondary"
-                      style={{ marginTop: token.marginXS, fontSize: 13 }}
-                      ellipsis
-                    >
-                      {it.outputPreview}
-                    </Text>
-                  ) : null}
-
-                  {it.error ? (
-                    <Text type="danger" style={{ marginTop: token.marginXS }}>
-                      {it.error}
-                    </Text>
-                  ) : null}
-                </Flex>
-
-                <Flex gap={8}>
-                  <Button
-                    size="small"
-                    disabled={isBusy}
-                    onClick={() => {
-                      openSession(it.childSessionId);
-                      void loadChatHistory(it.childSessionId);
-                    }}
-                  >
-                    {t("chat.subAgents.open")}
-                  </Button>
-                  <Button
-                    size="small"
-                    loading={isContinuing}
-                    disabled={isDeleting || isRetrying || isRunning}
-                    data-testid={`sub-agent-continue-${it.childSessionId}`}
-                    onClick={() => {
-                      void continueChildSession(it.childSessionId);
-                    }}
-                  >
-                    {t("chat.subAgents.continue")}
-                  </Button>
-                  <Dropdown
-                    trigger={["click"]}
-                    menu={{
-                      items: [
-                        {
-                          key: "regenerate",
-                          label: t("chat.actions.regenerate"),
-                        },
-                        {
-                          key: "error_retry",
-                          label: t("chat.actions.retryFailed"),
-                        },
-                      ],
-                      onClick: ({ key }) => {
-                        void runChildSession(it.childSessionId, key as SubAgentRetryMode);
-                      },
-                    }}
-                    disabled={isDeleting || isRunning || isContinuing}
-                  >
-                    <Button
-                      size="small"
-                      loading={isRetrying}
-                      disabled={isDeleting || isRunning || isContinuing}
-                      data-testid={`sub-agent-retry-${it.childSessionId}`}
-                    >
-                      {t("chat.subAgents.retry")}
-                    </Button>
-                  </Dropdown>
-                  {typeof it.pinned === "boolean" ? (
-                    <Button
-                      size="small"
-                      disabled={isBusy}
-                      onClick={() => {
-                        if (it.pinned) unpinSession(it.childSessionId);
-                        else pinSession(it.childSessionId);
-                      }}
-                    >
-                      {it.pinned ? t("chat.actions.unpin") : t("chat.actions.pin")}
-                    </Button>
-                  ) : null}
-                  <Button
-                    danger
-                    size="small"
-                    loading={isDeleting}
-                    disabled={isRetrying}
-                    data-testid={`sub-agent-delete-${it.childSessionId}`}
-                    onClick={() => {
-                      void removeChildSession(it.childSessionId);
-                    }}
-                  >
-                    {t("common.delete")}
-                  </Button>
-                </Flex>
+                  </>
+                )}
               </Flex>
-            );
-          })}
+
+              {compact ? (
+                <InlineMetaText
+                  block
+                  items={[
+                    it.childSessionId.slice(0, 8),
+                    it.updatedAt,
+                    it.lastHeartbeatAt
+                      ? `${t("chat.subAgents.heartbeat")}: ${it.lastHeartbeatAt}`
+                      : null,
+                    typeof it.roundCount === "number"
+                      ? `${t("chat.subAgents.round")} ${it.roundCount + 1}`
+                      : null,
+                  ]}
+                />
+              ) : (
+                <Text
+                  type="secondary"
+                  style={{
+                    display: "block",
+                    minWidth: 0,
+                    fontSize: 12,
+                    marginTop: 2,
+                  }}
+                >
+                  {it.childSessionId.slice(0, 8)}
+                  {it.updatedAt ? ` • ${it.updatedAt}` : ""}
+                  {it.lastHeartbeatAt
+                    ? ` • ${t("chat.subAgents.heartbeat")}: ${it.lastHeartbeatAt}`
+                    : ""}
+                  {typeof it.roundCount === "number"
+                    ? ` • ${t("chat.subAgents.round")} ${it.roundCount + 1}`
+                    : ""}
+                </Text>
+              )}
+
+              {it.outputPreview ? (
+                <Text
+                  type="secondary"
+                  style={{
+                    display: "block",
+                    minWidth: 0,
+                    marginTop: compact ? 4 : token.marginXS,
+                    fontSize: compact ? 11 : 13,
+                    lineHeight: compact ? 1.35 : undefined,
+                  }}
+                  ellipsis
+                >
+                  {it.outputPreview}
+                </Text>
+              ) : null}
+
+              {it.error ? (
+                <Text
+                  type="danger"
+                  style={{
+                    display: "block",
+                    minWidth: 0,
+                    marginTop: compact ? 4 : token.marginXS,
+                    fontSize: compact ? 11 : undefined,
+                    lineHeight: compact ? 1.35 : undefined,
+                  }}
+                >
+                  {it.error}
+                </Text>
+              ) : null}
+            </Flex>
+
+            <Flex
+              gap={compact ? 4 : 8}
+              wrap
+              style={{ width: "100%", minWidth: 0, paddingTop: compact ? 2 : 0 }}
+            >
+              <Button
+                size="small"
+                type={compact ? "text" : "default"}
+                style={compactActionButtonStyle}
+                disabled={isBusy}
+                onClick={() => {
+                  openSession(it.childSessionId);
+                  void loadChatHistory(it.childSessionId);
+                }}
+              >
+                {t("chat.subAgents.open")}
+              </Button>
+              <Button
+                size="small"
+                type={compact ? "text" : "default"}
+                style={compactActionButtonStyle}
+                loading={isContinuing}
+                disabled={isDeleting || isRetrying || isRunning}
+                data-testid={`sub-agent-continue-${it.childSessionId}`}
+                onClick={() => {
+                  void continueChildSession(it.childSessionId);
+                }}
+              >
+                {t("chat.subAgents.continue")}
+              </Button>
+              <Dropdown
+                trigger={["click"]}
+                menu={{
+                  items: [
+                    {
+                      key: "regenerate",
+                      label: t("chat.actions.regenerate"),
+                    },
+                    {
+                      key: "error_retry",
+                      label: t("chat.actions.retryFailed"),
+                    },
+                  ],
+                  onClick: ({ key }) => {
+                    void runChildSession(it.childSessionId, key as SubAgentRetryMode);
+                  },
+                }}
+                disabled={isDeleting || isRunning || isContinuing}
+              >
+                <Button
+                  size="small"
+                  type={compact ? "text" : "default"}
+                  style={compactActionButtonStyle}
+                  loading={isRetrying}
+                  disabled={isDeleting || isRunning || isContinuing}
+                  data-testid={`sub-agent-retry-${it.childSessionId}`}
+                >
+                  {t("chat.subAgents.retry")}
+                </Button>
+              </Dropdown>
+              {typeof it.pinned === "boolean" ? (
+                <Button
+                  size="small"
+                  type={compact ? "text" : "default"}
+                  style={compactActionButtonStyle}
+                  disabled={isBusy}
+                  onClick={() => {
+                    if (it.pinned) unpinSession(it.childSessionId);
+                    else pinSession(it.childSessionId);
+                  }}
+                >
+                  {it.pinned ? t("chat.actions.unpin") : t("chat.actions.pin")}
+                </Button>
+              ) : null}
+              <Button
+                danger
+                type={compact ? "text" : "default"}
+                style={compactActionButtonStyle}
+                size="small"
+                loading={isDeleting}
+                disabled={isRetrying}
+                data-testid={`sub-agent-delete-${it.childSessionId}`}
+                onClick={() => {
+                  void removeChildSession(it.childSessionId);
+                }}
+              >
+                {t("common.delete")}
+              </Button>
+            </Flex>
+          </Flex>
+        );
+      })}
+    </Flex>
+  ) : (
+    <Text type="secondary" data-testid="sub-agents-collapsed-hint">
+      {t("chat.subAgents.hiddenHint", { count: mergedItems.length })}
+    </Text>
+  );
+
+  const footer =
+    !isCollapsed && mergedItems.length > 1 ? <SubAgentsSummaryFooter items={mergedItems} /> : null;
+
+  if (compact) {
+    return (
+      <section
+        data-testid="sub-agents-panel"
+        style={{
+          width: "100%",
+          minWidth: 0,
+          marginBottom: token.marginXS,
+          overflow: "hidden",
+        }}
+      >
+        <Flex
+          align="center"
+          justify="space-between"
+          gap={token.marginXS}
+          style={{
+            padding: `${token.paddingXXS ?? 2}px 0 ${token.paddingXS}px`,
+            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>{headerTitle}</div>
+          <div style={{ flex: "0 0 auto" }}>{headerExtra}</div>
         </Flex>
-      ) : (
-        <Text type="secondary" data-testid="sub-agents-collapsed-hint">
-          {t("chat.subAgents.hiddenHint", { count: mergedItems.length })}
-        </Text>
-      )}
-      {!isCollapsed && mergedItems.length > 1 && <SubAgentsSummaryFooter items={mergedItems} />}
+        <div style={{ padding: `${token.paddingXS}px 0 0` }}>
+          {listContent}
+          {footer}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <Card
+      size="small"
+      className="lotus-settings-card"
+      style={{ marginBottom: token.marginMD }}
+      data-testid="sub-agents-panel"
+      title={headerTitle}
+      extra={headerExtra}
+    >
+      {listContent}
+      {footer}
     </Card>
   );
 };
@@ -573,6 +734,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({ parentSessionId 
 /** Compact summary of sub-agent statuses. */
 const SubAgentsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> = ({ items }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
   const counts = items.reduce(
     (acc, it) => {
       const s = normalizeSubAgentStatus(it.status);
@@ -585,14 +747,11 @@ const SubAgentsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> = 
     { completed: 0, running: 0, error: 0, pending: 0 },
   );
   const parts: string[] = [];
-  if (counts.completed > 0) parts.push(`${counts.completed} completed`);
-  if (counts.running > 0) parts.push(`${counts.running} running`);
-  if (counts.pending > 0) parts.push(`${counts.pending} pending`);
-  if (counts.error > 0) parts.push(`${counts.error} failed`);
+  if (counts.completed > 0)
+    parts.push(t("chat.subAgents.summaryCompleted", { count: counts.completed }));
+  if (counts.running > 0) parts.push(t("chat.subAgents.summaryRunning", { count: counts.running }));
+  if (counts.pending > 0) parts.push(t("chat.subAgents.summaryPending", { count: counts.pending }));
+  if (counts.error > 0) parts.push(t("chat.subAgents.summaryFailed", { count: counts.error }));
   if (parts.length === 0) return null;
-  return (
-    <Text type="secondary" style={{ fontSize: 11, marginTop: token.marginXS, display: "block" }}>
-      {parts.join(" · ")}
-    </Text>
-  );
+  return <InlineMetaText block items={parts} style={{ marginTop: token.marginXS }} />;
 };

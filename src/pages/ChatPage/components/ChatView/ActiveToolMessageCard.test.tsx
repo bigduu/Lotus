@@ -2,12 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { ActiveToolMessageCard, type SessionDiffSummary } from "./ActiveToolMessageCard";
-import { storageDb } from "../../../../services/storage/StorageDb";
 
 const SESSION_ID = "chat-diff-test";
-const STORAGE_KEY = `chat-session-diff-collapse:${SESSION_ID}`;
 
-const PRIMARY_FILE_PATH = "/tmp/test_say.py";
+const PRIMARY_FILE_PATH = "/tmp/z-test_say.py";
 const PRIMARY_DIFF = [
   "--- a/test_say.py",
   "+++ b/test_say.py",
@@ -21,148 +19,128 @@ const PRIMARY_DIFF = [
   "-const deleted = false;",
 ].join("\n");
 
-const SECOND_FILE_PATH = "/tmp/another.py";
+const SECOND_FILE_PATH = "/tmp/a-another.py";
 const SECOND_DIFF = [
   "--- a/another.py",
   "+++ b/another.py",
-  "@@ -1,1 +1,2 @@",
+  "@@ -1,1 +1,6 @@",
   " print('hello')",
   "+print('world')",
+  "+print('!')",
+  "+print('again')",
+  "+print('and again')",
+  "+print('done')",
 ].join("\n");
 
 const createSummary = (files?: SessionDiffSummary["files"]): SessionDiffSummary => ({
-  totalAdded: 2,
+  totalAdded: 13,
   totalRemoved: 2,
-  changedTools: 1,
+  changedTools: 3,
   files: files ?? [
     {
       filePath: PRIMARY_FILE_PATH,
-      added: 2,
+      added: 8,
       removed: 2,
       unifiedDiff: PRIMARY_DIFF,
       truncated: false,
+      toolCount: 1,
+    },
+    {
+      filePath: SECOND_FILE_PATH,
+      added: 5,
+      removed: 0,
+      unifiedDiff: SECOND_DIFF,
+      truncated: true,
+      toolCount: 2,
     },
   ],
 });
 
+const getRowByPath = (path: string): HTMLElement => {
+  const row = screen
+    .getAllByTestId("session-diff-file-row")
+    .find((candidate) => candidate.getAttribute("data-file-path") === path);
+
+  expect(row).toBeDefined();
+  return row as HTMLElement;
+};
+
 describe("ActiveToolMessageCard", () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     localStorage.clear();
-    await storageDb.delete();
-    await storageDb.open();
   });
 
-  it("persists session-level collapse state by session id", async () => {
-    const summary = createSummary();
-
-    const { unmount } = render(
-      <ActiveToolMessageCard sessionDiffSummary={summary} sessionId={SESSION_ID} />,
-    );
-
-    expect(screen.getByTestId("session-diff-file-list")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("session-diff-toggle"));
-
-    // Wait for the async persistence to complete
-    await waitFor(() => {
-      expect(screen.queryByTestId("session-diff-file-list")).not.toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")).toMatchObject({
-        isExpanded: false,
-      });
-    });
-
-    unmount();
-
-    render(<ActiveToolMessageCard sessionDiffSummary={summary} sessionId={SESSION_ID} />);
-
-    expect(screen.queryByTestId("session-diff-file-list")).not.toBeInTheDocument();
-  });
-
-  it("persists file-level expansion and renders styled diff lines", async () => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        isExpanded: true,
-        expandedFiles: [PRIMARY_FILE_PATH],
-      }),
-    );
-
+  it("renders summary-first diff review with files sorted by largest changes by default", () => {
     render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
 
-    expect(screen.getByTestId("session-diff-file-panel")).toBeInTheDocument();
+    expect(screen.getByText("Session diffs")).toBeInTheDocument();
+    expect(screen.getByText("Changed files")).toBeInTheDocument();
+    expect(screen.getByText("2 files")).toBeInTheDocument();
+    expect(screen.getByText("3 tools")).toBeInTheDocument();
 
-    const addLine = screen.getByText("+const added = true;");
-    const removeLine = screen.getByText("-const deleted = false;");
-    const modifiedAddLine = screen.getByText("+const newValue = 1;");
-    const modifiedRemoveLine = screen.getByText("-const oldValue = 1;");
-
-    expect((addLine as HTMLElement).dataset.kind).toBe("add");
-    expect((removeLine as HTMLElement).dataset.kind).toBe("remove");
-    expect((modifiedAddLine as HTMLElement).dataset.kind).toBe("modified_add");
-    expect((modifiedRemoveLine as HTMLElement).dataset.kind).toBe("modified_remove");
-
-    expect((addLine as HTMLElement).style.background).not.toBe("");
-    expect((removeLine as HTMLElement).style.background).not.toBe("");
-    expect((modifiedAddLine as HTMLElement).style.background).not.toBe("");
-    expect((modifiedRemoveLine as HTMLElement).style.background).not.toBe("");
-    expect((modifiedAddLine as HTMLElement).style.borderLeft).not.toBe("");
-    expect((modifiedRemoveLine as HTMLElement).style.borderLeft).not.toBe("");
-
-    fireEvent.click(screen.getByTestId("session-diff-file-header"));
-
-    await waitFor(() => {
-      expect(screen.queryByTestId("session-diff-file-panel")).not.toBeInTheDocument();
-    });
-
-    await waitFor(() => {
-      expect(JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")).toMatchObject({
-        isExpanded: true,
-        expandedFiles: [],
-      });
-    });
+    const rows = screen.getAllByTestId("session-diff-file-row");
+    expect(rows[0]).toHaveAttribute("data-file-path", PRIMARY_FILE_PATH);
+    expect(rows[1]).toHaveAttribute("data-file-path", SECOND_FILE_PATH);
   });
 
-  it("does not auto-expand files when persisted expandedFiles is empty", () => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({
-        isExpanded: true,
-        expandedFiles: [],
-      }),
-    );
+  it("can switch file ordering to path sort", () => {
+    render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
 
-    const { rerender } = render(
-      <ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />,
-    );
+    fireEvent.click(screen.getByTestId("session-diff-sort-path"));
 
-    expect(screen.queryByTestId("session-diff-file-panel")).not.toBeInTheDocument();
+    const rows = screen.getAllByTestId("session-diff-file-row");
+    expect(rows[0]).toHaveAttribute("data-file-path", SECOND_FILE_PATH);
+    expect(rows[1]).toHaveAttribute("data-file-path", PRIMARY_FILE_PATH);
+  });
 
-    rerender(
-      <ActiveToolMessageCard
-        sessionDiffSummary={createSummary([
-          {
-            filePath: PRIMARY_FILE_PATH,
-            added: 2,
-            removed: 2,
-            unifiedDiff: PRIMARY_DIFF,
-            truncated: false,
-          },
-          {
-            filePath: SECOND_FILE_PATH,
-            added: 1,
-            removed: 0,
-            unifiedDiff: SECOND_DIFF,
-            truncated: false,
-          },
-        ])}
-        sessionId={SESSION_ID}
-      />,
-    );
+  it("opens a wider detail drawer and highlights the selected file row", () => {
+    render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
 
-    expect(screen.queryByTestId("session-diff-file-panel")).not.toBeInTheDocument();
-    expect(screen.getAllByTestId("session-diff-file-header")).toHaveLength(2);
+    fireEvent.click(getRowByPath(SECOND_FILE_PATH));
+
+    expect(screen.getByText("Diff details")).toBeInTheDocument();
+    expect(screen.getByTestId("session-diff-detail-view")).toBeInTheDocument();
+    expect(screen.getByTestId("session-diff-file-list")).toBeInTheDocument();
+    expect(screen.getByTestId("session-diff-position")).toHaveTextContent("File 2 of 2");
+    expect(screen.getByRole("button", { name: "Side by side" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unified" })).toBeInTheDocument();
+    expect(getRowByPath(SECOND_FILE_PATH)).toHaveAttribute("data-selected", "true");
+    expect(getRowByPath(PRIMARY_FILE_PATH)).toHaveAttribute("data-selected", "false");
+  });
+
+  it("supports previous and next navigation inside the detail drawer", () => {
+    render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
+
+    fireEvent.click(getRowByPath(SECOND_FILE_PATH));
+
+    expect(screen.getByTestId("session-diff-prev")).not.toBeDisabled();
+    expect(screen.getByTestId("session-diff-next")).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("session-diff-prev"));
+
+    expect(screen.getByTestId("session-diff-position")).toHaveTextContent("File 1 of 2");
+    expect(getRowByPath(PRIMARY_FILE_PATH)).toHaveAttribute("data-selected", "true");
+    expect(getRowByPath(SECOND_FILE_PATH)).toHaveAttribute("data-selected", "false");
+    expect(screen.getByTestId("session-diff-prev")).toBeDisabled();
+    expect(screen.getByTestId("session-diff-next")).not.toBeDisabled();
+
+    fireEvent.click(screen.getByTestId("session-diff-next"));
+
+    expect(screen.getByTestId("session-diff-position")).toHaveTextContent("File 2 of 2");
+    expect(getRowByPath(SECOND_FILE_PATH)).toHaveAttribute("data-selected", "true");
+  });
+
+  it("closes the detail drawer and clears selection when returning to the file list", async () => {
+    render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
+
+    fireEvent.click(getRowByPath(SECOND_FILE_PATH));
+    fireEvent.click(screen.getByTestId("session-diff-back"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("session-diff-detail-view")).not.toBeInTheDocument();
+    });
+
+    expect(getRowByPath(PRIMARY_FILE_PATH)).toHaveAttribute("data-selected", "false");
+    expect(getRowByPath(SECOND_FILE_PATH)).toHaveAttribute("data-selected", "false");
   });
 });

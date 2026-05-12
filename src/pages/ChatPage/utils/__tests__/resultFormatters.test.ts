@@ -13,6 +13,7 @@ import {
   parseFileChangeResultPayload,
   parseMemoryInspectRebuildPayload,
   parseUnifiedDiffLines,
+  parseUnifiedDiffSideBySideRows,
   safeStringify,
   shouldCollapseContent,
 } from "../resultFormatters";
@@ -839,6 +840,51 @@ describe("parseUnifiedDiffLines", () => {
     expect(lines.some((l) => l.kind === "modified_add")).toBe(true);
     expect(lines.some((l) => l.kind === "add")).toBe(true);
     expect(lines.some((l) => l.kind === "remove")).toBe(true);
+  });
+});
+
+describe("parseUnifiedDiffSideBySideRows", () => {
+  it("builds side-by-side rows with line numbers for modified/add/remove blocks", () => {
+    const rows = parseUnifiedDiffSideBySideRows(
+      [
+        "--- a/demo.ts",
+        "+++ b/demo.ts",
+        "@@ -2,2 +2,3 @@",
+        " const keep = true;",
+        "-const oldValue = 1;",
+        "+const newValue = 1;",
+        "+const added = true;",
+        "-const removedOnly = false;",
+      ].join("\n"),
+    );
+
+    expect(rows[0]).toMatchObject({ kind: "meta", text: "--- a/demo.ts" });
+    expect(rows[1]).toMatchObject({ kind: "meta", text: "+++ b/demo.ts" });
+    expect(rows[2]).toMatchObject({ kind: "hunk", text: "@@ -2,2 +2,3 @@" });
+    expect(rows[3]).toMatchObject({
+      kind: "context",
+      oldLineNumber: 2,
+      newLineNumber: 2,
+      oldText: "const keep = true;",
+      newText: "const keep = true;",
+    });
+    expect(rows[4]).toMatchObject({
+      kind: "modified",
+      oldLineNumber: 3,
+      newLineNumber: 3,
+      oldText: "const oldValue = 1;",
+      newText: "const newValue = 1;",
+    });
+    expect(rows[5]).toMatchObject({
+      kind: "add",
+      newLineNumber: 4,
+      newText: "const added = true;",
+    });
+    expect(rows[6]).toMatchObject({
+      kind: "remove",
+      oldLineNumber: 4,
+      oldText: "const removedOnly = false;",
+    });
   });
 });
 
