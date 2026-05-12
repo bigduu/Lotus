@@ -32,6 +32,9 @@ export type AgentEventType =
   | "sub_agent_completed"
   | "session_title_updated"
   | "session_pinned_updated"
+  | "plan_mode_entered"
+  | "plan_mode_exited"
+  | "plan_file_updated"
   | "need_clarification"
   | "execution_started"
   | "runner_progress"
@@ -51,6 +54,7 @@ export interface TokenBudgetUsage {
   truncation_occurred: boolean;
   segments_removed: number;
   prompt_cached_tool_outputs?: number;
+  prompt_cached_tool_tokens_saved?: number;
 }
 
 export interface ContextSummaryInfo {
@@ -125,7 +129,14 @@ export interface AgentEvent {
   // TaskList delta
   session_id?: string;
   item_id?: string;
-  status?: TaskItemStatus | string;
+  status?:
+    | TaskItemStatus
+    | "exploring"
+    | "designing"
+    | "reviewing"
+    | "finalizing"
+    | "awaiting_approval"
+    | string;
   phase?: string;
   tool_calls_count?: number;
   version?: number;
@@ -157,6 +168,8 @@ export interface AgentEvent {
   // ExecutionStarted event
   run_id?: string;
   started_at?: string;
+  // PlanModeEntered event
+  entered_at?: string;
   // RunnerProgress event
   round_count?: number;
   // SessionTitleUpdated event
@@ -165,6 +178,11 @@ export interface AgentEvent {
   updated_at?: string;
   // SessionPinnedUpdated event
   pinned?: boolean;
+  // Plan mode events
+  pre_permission_mode?: string;
+  restored_mode?: string;
+  plan?: string | null;
+  plan_file_path?: string | null;
 }
 
 export interface ChatRequest {
@@ -265,6 +283,13 @@ export interface HistoryResponse {
 
 export type SessionKind = "root" | "child";
 
+export interface SessionPlanModeState {
+  entered_at: string;
+  pre_permission_mode: string;
+  plan_file_path?: string | null;
+  status: "exploring" | "designing" | "reviewing" | "finalizing" | "awaiting_approval";
+}
+
 export interface SessionSummary {
   id: string;
   kind: SessionKind;
@@ -287,6 +312,8 @@ export interface SessionSummary {
   is_running: boolean;
   last_run_status?: string;
   last_run_error?: string;
+  /** Active plan mode runtime state mirrored from backend session summary. */
+  plan_mode?: SessionPlanModeState | null;
   /**
    * SubAgent profile id for child sessions (e.g. "general-purpose", "plan").
    * Mirrored from the child session's metadata into the global SessionIndexEntry,
@@ -613,9 +640,84 @@ export interface AgentEventHandlers {
   onNeedClarification?: (event: AgentEvent) => void;
   onSessionTitleUpdated?: (event: SessionTitleUpdatedEvent) => void;
   onSessionPinnedUpdated?: (event: SessionPinnedUpdatedEvent) => void;
+  onPlanModeEntered?: (event: AgentEvent) => void;
+  onPlanModeExited?: (event: AgentEvent) => void;
+  onPlanFileUpdated?: (event: AgentEvent) => void;
   onExecutionStarted?: (runId: string, startedAt?: string) => void;
   onRunnerProgress?: (sessionId: string, roundCount: number) => void;
 }
+
+const summarizeClientSync = (clientSync?: ExecuteClientSync): Record<string, unknown> | null => {
+  if (!clientSync) return null;
+  return {
+    client_message_count: clientSync.client_message_count,
+    client_last_message_id: clientSync.client_last_message_id ?? null,
+    client_has_pending_question: clientSync.client_has_pending_question,
+    client_pending_question_tool_call_id: clientSync.client_pending_question_tool_call_id ?? null,
+  };
+};
+
+const summarizeExecuteSync = (sync?: ExecuteSyncInfo): Record<string, unknown> | null => {
+  if (!sync) return null;
+  return {
+    need_sync: sync.need_sync,
+    reason: sync.reason ?? null,
+    server_message_count: sync.server_message_count,
+    server_last_message_id: sync.server_last_message_id ?? null,
+    has_pending_question: sync.has_pending_question,
+    pending_question_tool_call_id: sync.pending_question_tool_call_id ?? null,
+    has_pending_user_message: sync.has_pending_user_message,
+  };
+};
+
+const summarizeHistoryResponse = (history: HistoryResponse): Record<string, unknown> => {
+  const last = history.messages[history.messages.length - 1];
+  return {
+    session_id: history.session_id,
+    messageCount: history.messages.length,
+    lastMessageId: last?.id ?? null,
+    lastRole: last?.role ?? null,
+    compressionEvents: history.compression_events?.length ?? 0,
+  };
+};
+
+const summarizeSessionList = (sessions: SessionSummary[]): Record<string, unknown> => ({
+  count: sessions.length,
+  runningCount: sessions.filter((session) => session.is_running).length,
+  sessions: sessions.slice(0, 10).map((session) => ({
+    id: session.id,
+    is_running: session.is_running,
+    last_run_status: session.last_run_status ?? null,
+    message_count: session.message_count,
+    has_pending_question: session.has_pending_question ?? false,
+    running_child_count: session.running_child_count ?? 0,
+    updated_at: session.updated_at,
+  })),
+});
+
+const summarizeRunningSessions = (response: RunningSessionsResponse): Record<string, unknown> => ({
+  count: response.sessions.length,
+  sessions: response.sessions.map((session) => ({
+    session_id: session.session_id,
+    run_id: session.run_id,
+    round_count: session.round_count,
+    last_event_at: session.last_event_at ?? null,
+    last_tool_name: session.last_tool_name ?? null,
+    last_tool_phase: session.last_tool_phase ?? null,
+    criticalEventCount: session.last_critical_events.length,
+    runningChildCount: session.running_child_session_ids.length,
+  })),
+});
+
+const summarizeStreamControlEvent = (event: AgentEvent): Record<string, unknown> => ({
+  type: event.type,
+  session_id: event.session_id ?? null,
+  run_id: event.run_id ?? null,
+  round_count: event.round_count ?? null,
+  message: event.message ?? null,
+  error: event.error ?? null,
+  tool_call_id: event.tool_call_id ?? null,
+});
 
 /**
  * Agent Client - HTTP client for copilot-agent-server
@@ -634,7 +736,24 @@ export class AgentClient {
    * Send a chat message and get session ID
    */
   async sendMessage(request: ChatRequest): Promise<ChatResponse> {
-    return agentApiClient.post<ChatResponse>("chat", request);
+    debugLog("[AgentClient]", "chat.request", {
+      sessionId: request.session_id ?? null,
+      model: request.model,
+      modelRef: request.model_ref ?? null,
+      provider: request.provider ?? null,
+      messageLength: request.message.length,
+      hasImages: (request.images?.length ?? 0) > 0,
+      imageCount: request.images?.length ?? 0,
+      selectedSkillCount: request.selected_skill_ids?.length ?? 0,
+      workspacePath: request.workspace_path ?? null,
+    });
+    const response = await agentApiClient.post<ChatResponse>("chat", request);
+    debugLog("[AgentClient]", "chat.response", {
+      requestedSessionId: request.session_id ?? null,
+      sessionId: response.session_id,
+      status: response.status,
+    });
+    return response;
   }
 
   /**
@@ -662,14 +781,33 @@ export class AgentClient {
       payload.model_ref = modelRef;
       payload.provider = modelRef.provider;
     }
-    return agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, payload);
+    debugLog("[AgentClient]", "execute.request", {
+      sessionId,
+      model: payload.model ?? null,
+      reasoningEffort: payload.reasoning_effort ?? null,
+      modelRef: payload.model_ref ?? null,
+      provider: payload.provider ?? null,
+      clientSync: summarizeClientSync(payload.client_sync),
+    });
+    const response = await agentApiClient.post<ExecuteResponse>(`execute/${sessionId}`, payload);
+    debugLog("[AgentClient]", "execute.response", {
+      sessionId,
+      status: response.status,
+      runId: response.run_id ?? null,
+      eventsUrl: response.events_url,
+      sync: summarizeExecuteSync(response.sync),
+    });
+    return response;
   }
 
   /**
    * List backend sessions (V2 index-backed).
    */
   async listSessions(): Promise<ListSessionsResponse> {
-    return agentApiClient.get<ListSessionsResponse>("sessions");
+    debugLog("[AgentClient]", "sessions.list.request", {});
+    const response = await agentApiClient.get<ListSessionsResponse>("sessions");
+    debugLog("[AgentClient]", "sessions.list.response", summarizeSessionList(response.sessions));
+    return response;
   }
 
   /**
@@ -826,7 +964,10 @@ export class AgentClient {
    * Used by the frontend on boot/reconnect to replay active run state.
    */
   async getRunningSessions(): Promise<RunningSessionsResponse> {
-    return agentApiClient.get<RunningSessionsResponse>("runs/active");
+    debugLog("[AgentClient]", "runs.active.request", {});
+    const response = await agentApiClient.get<RunningSessionsResponse>("runs/active");
+    debugLog("[AgentClient]", "runs.active.response", summarizeRunningSessions(response));
+    return response;
   }
 
   async listSchedules(): Promise<ListSchedulesResponse> {
@@ -872,16 +1013,16 @@ export class AgentClient {
     abortController?: AbortController,
   ): Promise<void> {
     const signal = abortController?.signal;
-    debugLog("[AgentClient]", "[AgentClient] Subscribing to events for session:", sessionId);
+    debugLog("[AgentClient]", "events.subscribe.request", { sessionId });
 
     const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
     const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
     const eventsUrl = `${origin}/api/v1/events/${encodeURIComponent(sessionId)}`;
-    debugLog("[AgentClient]", "[AgentClient] EventSource URL:", eventsUrl);
+    debugLog("[AgentClient]", "events.subscribe.url", { sessionId, eventsUrl });
 
     return await new Promise<void>((resolve, reject) => {
       if (signal?.aborted) {
-        debugLog("[AgentClient]", "Events subscription aborted before connect:", sessionId);
+        debugLog("[AgentClient]", "events.subscribe.aborted_before_connect", { sessionId });
         resolve();
         return;
       }
@@ -891,7 +1032,7 @@ export class AgentClient {
       let eventSource: EventSource | null = null;
 
       const abortListener = () => {
-        debugLog("[AgentClient]", "Events subscription aborted for session:", sessionId);
+        debugLog("[AgentClient]", "events.subscribe.abort", { sessionId, terminalSeen });
         settleResolve();
       };
 
@@ -906,6 +1047,11 @@ export class AgentClient {
       const settleResolve = () => {
         if (settled) return;
         settled = true;
+        debugLog("[AgentClient]", "events.subscribe.resolve", {
+          sessionId,
+          terminalSeen,
+          aborted: signal?.aborted ?? false,
+        });
         cleanup();
         resolve();
       };
@@ -913,6 +1059,12 @@ export class AgentClient {
       const settleReject = (error: unknown) => {
         if (settled) return;
         settled = true;
+        debugLog("[AgentClient]", "events.subscribe.reject", {
+          sessionId,
+          terminalSeen,
+          aborted: signal?.aborted ?? false,
+          error,
+        });
         cleanup();
         reject(error);
       };
@@ -927,7 +1079,7 @@ export class AgentClient {
       }
 
       eventSource.onopen = () => {
-        debugLog("[AgentClient]", "EventSource opened for session:", sessionId);
+        debugLog("[AgentClient]", "events.subscribe.open", { sessionId });
       };
 
       eventSource.onmessage = (messageEvent) => {
@@ -935,6 +1087,7 @@ export class AgentClient {
 
         if (data === "[DONE]") {
           terminalSeen = true;
+          debugLog("[AgentClient]", "events.subscribe.done", { sessionId });
           settleResolve();
           return;
         }
@@ -945,6 +1098,19 @@ export class AgentClient {
 
         try {
           const event: AgentEvent = JSON.parse(data);
+          if (
+            event.type === "execution_started" ||
+            event.type === "complete" ||
+            event.type === "cancelled" ||
+            event.type === "error" ||
+            event.type === "runner_progress" ||
+            event.type === "need_clarification"
+          ) {
+            debugLog("[AgentClient]", "events.subscribe.event", {
+              sessionId,
+              ...summarizeStreamControlEvent(event),
+            });
+          }
           this.handleEvent(event, handlers);
           if (event.type === "complete" || event.type === "cancelled" || event.type === "error") {
             terminalSeen = true;
@@ -955,6 +1121,11 @@ export class AgentClient {
       };
 
       eventSource.onerror = () => {
+        debugLog("[AgentClient]", "events.subscribe.error", {
+          sessionId,
+          terminalSeen,
+          aborted: signal?.aborted ?? false,
+        });
         if (signal?.aborted || terminalSeen) {
           settleResolve();
           return;
@@ -1160,13 +1331,25 @@ export class AgentClient {
           });
         }
         break;
+      case "plan_mode_entered":
+        handlers.onPlanModeEntered?.(event);
+        break;
+      case "plan_mode_exited":
+        handlers.onPlanModeExited?.(event);
+        break;
+      case "plan_file_updated":
+        handlers.onPlanFileUpdated?.(event);
+        break;
       case "complete":
+        debugLog("[AgentClient]", "events.dispatch.complete", summarizeStreamControlEvent(event));
         handlers.onComplete?.(event.usage);
         break;
       case "cancelled":
+        debugLog("[AgentClient]", "events.dispatch.cancelled", summarizeStreamControlEvent(event));
         handlers.onCancelled?.(event.message);
         break;
       case "error":
+        debugLog("[AgentClient]", "events.dispatch.error", summarizeStreamControlEvent(event));
         // Error event uses 'message' field, not 'error' field
         handlers.onError?.(event.message || event.error || "Unknown error");
         break;
@@ -1194,7 +1377,10 @@ export class AgentClient {
    * Get chat history
    */
   async getHistory(sessionId: string): Promise<HistoryResponse> {
-    return agentApiClient.get<HistoryResponse>(`history/${sessionId}`);
+    debugLog("[AgentClient]", "history.request", { sessionId });
+    const response = await agentApiClient.get<HistoryResponse>(`history/${sessionId}`);
+    debugLog("[AgentClient]", "history.response", summarizeHistoryResponse(response));
+    return response;
   }
 
   /**

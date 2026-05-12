@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createBudgetForModel,
   estimateTokens,
+  formatCompactTokenCount,
   formatTokenCount,
   getModelContextLimit,
   getUsageColor,
@@ -74,8 +75,16 @@ describe("tokenBudget utilities", () => {
     expect(getUsageColor(mkUsage(90))).toBe("error");
   });
 
-  it("formats and estimates token counts", () => {
+  it("formats token counts for readable and compact displays", () => {
     expect(formatTokenCount(1234567)).toBe("1,234,567");
+    expect(formatCompactTokenCount(999)).toBe("999");
+    expect(formatCompactTokenCount(1200)).toBe("1.2K");
+    expect(formatCompactTokenCount(10000)).toBe("10K");
+    expect(formatCompactTokenCount(1250000)).toBe("1.3M");
+    expect(formatCompactTokenCount(1200000000)).toBe("1.2B");
+  });
+
+  it("estimates tokens heuristically", () => {
     expect(estimateTokens("abcd")).toBe(2);
     expect(estimateTokens("")).toBe(0);
   });

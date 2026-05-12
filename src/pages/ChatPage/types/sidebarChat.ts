@@ -1,8 +1,11 @@
+import type { SessionPlanModeState } from "../../../services/chat/AgentService";
+
 export type SidebarChatListItem = {
   id: string;
   title: string;
   kind: "root" | "child";
   pinned: boolean;
+  planMode?: SessionPlanModeState | null;
 };
 
 export type SidebarChatItem = SidebarChatListItem & {

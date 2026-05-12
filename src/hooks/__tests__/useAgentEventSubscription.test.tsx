@@ -726,6 +726,66 @@ describe("useAgentEventSubscription", () => {
     }
   });
 
+  it("ignores nested token events when child is in a terminal state", async () => {
+    let subAgentEventHandler:
+      | ((parentSessionId: string, childSessionId: string, evt: any) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subAgentEventHandler = handlers.onSubAgentEvent;
+    });
+
+    for (const terminal of ["completed", "error", "cancelled", "failed"]) {
+      mockState.applyChildProgress.mockClear();
+      mockState.executionBySession = {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "running",
+          confidence: "live",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: true,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: { "child-1": { status: terminal } }, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      };
+      mockStore.getState.mockReturnValue(mockState);
+
+      const { unmount } = renderHook(() => useAgentEventSubscription());
+
+      await waitFor(() => {
+        expect(mockSubscribeToEvents).toHaveBeenCalled();
+      });
+
+      act(() => {
+        subAgentEventHandler?.("session-1", "child-1", {
+          type: "token",
+          content: "late tail event",
+        });
+      });
+
+      expect(mockState.applyChildProgress).not.toHaveBeenCalled();
+      unmount();
+    }
+  });
+
   it("preserves existing roundCount when runner_progress is missing round_count", async () => {
     let subAgentEventHandler:
       | ((parentSessionId: string, childSessionId: string, evt: any) => void)
@@ -1126,6 +1186,94 @@ describe("useAgentEventSubscription", () => {
         }),
       );
     });
+  });
+
+  it("retries refreshing chats when completion settles but title is still a default placeholder", async () => {
+    vi.useFakeTimers();
+
+    let completeHandler: any;
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry(),
+    };
+    mockState.chats = [
+      {
+        id: "session-1",
+        title: "New session with Bodhi",
+        titleVersion: 0,
+        isRunning: true,
+        messages: [],
+      },
+    ];
+
+    let refreshCount = 0;
+    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
+      refreshCount += 1;
+      mockState.executionBySession = {
+        "session-1": createBusyExecutionEntry({
+          phase: "idle",
+          confidence: "optimistic",
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+        }),
+      };
+
+      if (refreshCount === 1) {
+        mockState.chats = [
+          {
+            id: "session-1",
+            title: "New session with Bodhi",
+            titleVersion: 0,
+            isRunning: false,
+            messages: [],
+          },
+        ];
+      } else {
+        mockState.chats = [
+          {
+            id: "session-1",
+            title: "Real Generated Title",
+            titleVersion: 1,
+            isRunning: false,
+            messages: [],
+          },
+        ];
+      }
+
+      mockStore.getState.mockReturnValue(mockState);
+    });
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    expect(mockSubscribeToEvents).toHaveBeenCalled();
+
+    await act(async () => {
+      await completeHandler?.();
+      vi.advanceTimersByTime(250);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockState.refreshChatsNow).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1200);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mockState.refreshChatsNow).toHaveBeenCalledTimes(2);
   });
 
   it("clears processing when completion history sync fails", async () => {

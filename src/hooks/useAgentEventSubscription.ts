@@ -23,6 +23,8 @@ import {
   isCompletionPolicyViolationError,
 } from "../shared/utils/completionPolicyViolation";
 import { sendDesktopNotification } from "../services/notification/desktopNotification";
+import i18n from "../shared/i18n";
+import { debugLog } from "../shared/utils/debugFlags";
 
 type SubscriptionEntry = {
   sessionId: string;
@@ -80,6 +82,15 @@ const isTaskItemStatus = (status: AgentEvent["status"]): status is TaskListDelta
 
 const TERMINAL_CHILD_STATUS = new Set(["completed", "error", "cancelled", "failed"]);
 
+const getChildStatus = (parentSessionId: string, childSessionId: string): string | undefined => {
+  return selectChildren(parentSessionId)(useAppStore.getState())?.[childSessionId]?.status;
+};
+
+const isTerminalChildStatus = (status?: string): boolean => {
+  if (!status) return false;
+  return TERMINAL_CHILD_STATUS.has(status);
+};
+
 const buildTaskListCompletionNoticeKey = (
   sessionId: string,
   totalRounds: number,
@@ -108,6 +119,28 @@ const getSharedAgentClient = (): AgentClient => {
   }
 
   return new AgentClient();
+};
+
+const planModeStateFromEvent = (event: AgentEvent) => {
+  if (typeof event.pre_permission_mode !== "string" || typeof event.entered_at !== "string") {
+    return null;
+  }
+  const status = event.status;
+  if (
+    status !== "exploring" &&
+    status !== "designing" &&
+    status !== "reviewing" &&
+    status !== "finalizing" &&
+    status !== "awaiting_approval"
+  ) {
+    return null;
+  }
+  return {
+    entered_at: event.entered_at,
+    pre_permission_mode: event.pre_permission_mode,
+    plan_file_path: event.plan_file_path ?? null,
+    status,
+  } as const;
 };
 
 export function useAgentEventSubscription() {
@@ -155,6 +188,9 @@ export function useAgentEventSubscription() {
   }
   const taskBaselineRecoveryRef = useRef<Set<string>>(new Set());
   const parentSettleTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const titleRefreshRetryTimersRef = useRef<
+    Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null }>
+  >(new Map());
   const taskCompletionNoticeKeyBySessionRef = useRef<Map<string, string>>(new Map());
 
   // sessionId -> subscription
@@ -210,11 +246,32 @@ export function useAgentEventSubscription() {
     }
   }, []);
 
+  const clearTitleRefreshRetry = useCallback((sessionId: string) => {
+    const existing = titleRefreshRetryTimersRef.current.get(sessionId);
+    if (existing?.timer) {
+      clearTimeout(existing.timer);
+    }
+    titleRefreshRetryTimersRef.current.delete(sessionId);
+  }, []);
+
   const cleanupChat = useCallback(
-    (sessionId: string, opts?: { clearDraft?: boolean }) => {
+    (sessionId: string, opts?: { clearDraft?: boolean; clearTitleRetry?: boolean }) => {
       debugSse("cleanupChat", sessionId, opts);
+      const state = useAppStore.getState();
+      const executionEntry = state.executionBySession?.[sessionId];
+      debugLog("[SSE]", "cleanupChat", {
+        sessionId,
+        opts: opts ?? null,
+        generation: executionEntry?.generation ?? null,
+        phase: executionEntry?.phase ?? null,
+        backendRunId: executionEntry?.backendRunId ?? null,
+        shouldObserve: selectShouldObserve(sessionId)(state),
+      });
       clearReconnect(sessionId);
       clearParentSettleTimer(sessionId);
+      if (opts?.clearTitleRetry) {
+        clearTitleRefreshRetry(sessionId);
+      }
       pendingSessionIdsRef.current.delete(sessionId);
 
       const existing = subscriptionsBySessionRef.current.get(sessionId);
@@ -245,7 +302,7 @@ export function useAgentEventSubscription() {
         streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
       }
     },
-    [clearParentSettleTimer, clearReconnect],
+    [clearParentSettleTimer, clearReconnect, clearTitleRefreshRetry],
   );
 
   const ensureTaskListBaseline = useCallback(
@@ -297,10 +354,20 @@ export function useAgentEventSubscription() {
 
   const startSubscription = useCallback(
     (sessionId: string) => {
-      const generation = selectGeneration(sessionId)(useAppStore.getState()) ?? 0;
+      const state = useAppStore.getState();
+      const generation = selectGeneration(sessionId)(state) ?? 0;
+      const executionEntry = state.executionBySession?.[sessionId];
       debugSse("startSubscription", sessionId, "generation:", generation);
+      debugLog("[SSE]", "startSubscription", {
+        sessionId,
+        generation,
+        phase: executionEntry?.phase ?? null,
+        backendRunId: executionEntry?.backendRunId ?? null,
+        shouldObserve: selectShouldObserve(sessionId)(state),
+      });
       // If a reconnect was scheduled, starting a new subscription supersedes it.
       clearReconnect(sessionId);
+      clearTitleRefreshRetry(sessionId);
 
       const controller = new AbortController();
       subscriptionsBySessionRef.current.set(sessionId, {
@@ -357,16 +424,42 @@ export function useAgentEventSubscription() {
         const prev = reconnectStateBySessionRef.current.get(sessionId);
         const attempt = prev?.attempt ?? 0;
         const delayMs = Math.min(5000, 250 * Math.pow(2, attempt));
+        const reconnectState = useAppStore.getState();
+        const reconnectEntry = reconnectState.executionBySession?.[sessionId];
         debugSse("scheduleReconnect", sessionId, "delay:", delayMs, "attempt:", attempt);
+        debugLog("[SSE]", "scheduleReconnect", {
+          sessionId,
+          generation,
+          attempt,
+          delayMs,
+          phase: reconnectEntry?.phase ?? null,
+          backendRunId: reconnectEntry?.backendRunId ?? null,
+          shouldObserve: selectShouldObserve(sessionId)(reconnectState),
+          terminalEventSeen,
+        });
 
         cleanupChat(sessionId, { clearDraft: false });
         const timer = setTimeout(() => {
           reconnectStateBySessionRef.current.delete(sessionId);
           // selectShouldObserve = any active execution; triggers reconnect while session is alive
-          if (!selectShouldObserve(sessionId)(useAppStore.getState())) return;
-          const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
+          const latestState = useAppStore.getState();
+          const shouldObserve = selectShouldObserve(sessionId)(latestState);
+          if (!shouldObserve) {
+            debugLog("[SSE]", "scheduleReconnect.skipNotBusy", {
+              sessionId,
+              generation,
+              phase: latestState.executionBySession?.[sessionId]?.phase ?? null,
+              backendRunId: latestState.executionBySession?.[sessionId]?.backendRunId ?? null,
+            });
+            return;
+          }
+          const chat = latestState.chats.find((c) => c.id === sessionId);
           const sid = chat?.id?.trim();
-          if (!sid) return;
+          if (!sid) {
+            debugLog("[SSE]", "scheduleReconnect.skipMissingSession", { sessionId, generation });
+            return;
+          }
+          debugLog("[SSE]", "scheduleReconnect.restart", { sessionId: sid, generation });
           startSubscription(sid);
         }, delayMs);
         reconnectStateBySessionRef.current.set(sessionId, {
@@ -377,6 +470,95 @@ export function useAgentEventSubscription() {
 
       let terminalEventSeen = false;
       const PARENT_SETTLE_DELAY_MS = 250;
+      const TITLE_REFRESH_RETRY_DELAYS_MS = [1200, 3000] as const;
+      const DEFAULT_SESSION_TITLES = new Set([
+        "New Session",
+        "新建会话",
+        "新建會話",
+        "Nouvelle session",
+        "新しいセッション",
+        "नया सत्र",
+      ]);
+
+      const isUntitledChatTitle = (title: string | undefined | null): boolean => {
+        const normalized = (title || "").trim();
+        if (!normalized) return true;
+        if (DEFAULT_SESSION_TITLES.has(normalized)) return true;
+        const prefixed =
+          normalized.startsWith("New Session - ") ||
+          normalized.startsWith("New Session with ") ||
+          normalized.startsWith("New session - ") ||
+          normalized.startsWith("New session with ");
+        if (!prefixed) return false;
+        const suffix = normalized
+          .replace(/^New Session - /, "")
+          .replace(/^New Session with /, "")
+          .replace(/^New session - /, "")
+          .replace(/^New session with /, "")
+          .trim();
+        return suffix.length > 0;
+      };
+
+      const shouldRetryTitleRefresh = (): boolean => {
+        const state = useAppStore.getState();
+        const currentGeneration = selectGeneration(sessionId)(state) ?? 0;
+        if (currentGeneration !== generation) {
+          return false;
+        }
+        if (selectShouldObserve(sessionId)(state)) {
+          return false;
+        }
+        const chat = state.chats.find((c) => c.id === sessionId);
+        if (!chat || chat.isRunning) {
+          return false;
+        }
+        return isUntitledChatTitle(chat.title) && (chat.titleVersion ?? 0) === 0;
+      };
+
+      const scheduleTitleRefreshRetry = () => {
+        if (!shouldRetryTitleRefresh()) {
+          clearTitleRefreshRetry(sessionId);
+          return;
+        }
+
+        const existing = titleRefreshRetryTimersRef.current.get(sessionId);
+        const attempt = existing?.attempt ?? 0;
+        if (attempt >= TITLE_REFRESH_RETRY_DELAYS_MS.length) {
+          clearTitleRefreshRetry(sessionId);
+          return;
+        }
+
+        clearTitleRefreshRetry(sessionId);
+        const delayMs = TITLE_REFRESH_RETRY_DELAYS_MS[attempt];
+        const timer = setTimeout(() => {
+          titleRefreshRetryTimersRef.current.delete(sessionId);
+          void (async () => {
+            if (!shouldRetryTitleRefresh()) {
+              clearTitleRefreshRetry(sessionId);
+              return;
+            }
+            try {
+              await refreshChatsNow();
+            } catch (error) {
+              console.warn(
+                `[useAgentEventSubscription] Title refresh retry failed for session ${sessionId}:`,
+                error,
+              );
+            } finally {
+              if (shouldRetryTitleRefresh()) {
+                scheduleTitleRefreshRetry();
+              } else {
+                clearTitleRefreshRetry(sessionId);
+              }
+            }
+          })();
+        }, delayMs);
+
+        titleRefreshRetryTimersRef.current.set(sessionId, {
+          attempt: attempt + 1,
+          timer,
+        });
+      };
 
       const markStreamEnded = () => {
         const current = subscriptionsBySessionRef.current.get(sessionId);
@@ -447,7 +629,14 @@ export function useAgentEventSubscription() {
         if (stillRunning) {
           // Execution state already reflects running via applySessionSummary from
           // refreshChatsNow; no explicit action needed.
+          clearTitleRefreshRetry(sessionId);
           return;
+        }
+
+        if (shouldRetryTitleRefresh()) {
+          scheduleTitleRefreshRetry();
+        } else {
+          clearTitleRefreshRetry(sessionId);
         }
 
         cleanupChat(sessionId, { clearDraft: true });
@@ -745,6 +934,7 @@ export function useAgentEventSubscription() {
               elapsedMs,
               isMutating,
               autoApproved,
+              summary,
             ) => {
               if (phase === "begin") {
                 const normalizedToolName = (_toolName || "").trim().toLowerCase();
@@ -757,8 +947,10 @@ export function useAgentEventSubscription() {
                 // Notify when a mutating tool needs user approval
                 if (autoApproved === false) {
                   void sendDesktopNotification({
-                    title: `需要审批: ${_toolName || "未知工具"}`,
-                    body: `工具 ${_toolName || ""} 需要您的审批后才能执行`,
+                    title: i18n.t("app.notifications.toolApproval.title", {
+                      tool: _toolName || i18n.t("app.notifications.toolApproval.unknownTool"),
+                    }),
+                    body: i18n.t("app.notifications.toolApproval.body", { tool: _toolName || "" }),
                     sessionId,
                     eventType: "tool_approval",
                     eventId: toolCallId,
@@ -770,10 +962,19 @@ export function useAgentEventSubscription() {
               if (phase === "finished" || phase === "error" || phase === "cancelled") {
                 const messageId = toolCallMessageIdByCallIdRef.current.get(toolCallId);
                 if (messageId) {
+                  const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
+                  const existingMessage = chat?.messages.find((m) => m.id === messageId);
+                  const existingMetadata =
+                    existingMessage && "metadata" in existingMessage
+                      ? ((existingMessage as { metadata?: Record<string, unknown> }).metadata ?? {})
+                      : {};
+
                   void updateMessage(sessionId, messageId, {
                     metadata: {
+                      ...existingMetadata,
                       elapsed_ms: elapsedMs,
                       is_mutating: isMutating,
+                      ...(summary ? { summary } : {}),
                     },
                   });
                 }
@@ -824,6 +1025,10 @@ export function useAgentEventSubscription() {
                 usage.prompt_cached_tool_outputs > 0
                   ? { promptCachedToolOutputs: usage.prompt_cached_tool_outputs }
                   : {}),
+                ...(typeof usage.prompt_cached_tool_tokens_saved === "number" &&
+                usage.prompt_cached_tool_tokens_saved > 0
+                  ? { promptCachedToolTokensSaved: usage.prompt_cached_tool_tokens_saved }
+                  : {}),
               };
 
               updateTokenUsage(sessionId, tokenUsage);
@@ -847,7 +1052,10 @@ export function useAgentEventSubscription() {
             onContextSummarized: (summaryInfo: ContextSummaryInfo) => {
               setStreamingStatus(null);
               message.info(
-                `Conversation summarized: ${summaryInfo.messages_summarized} messages compressed, saved ${summaryInfo.tokens_saved.toLocaleString()} tokens`,
+                i18n.t("app.notifications.conversationSummarized", {
+                  messages: summaryInfo.messages_summarized,
+                  tokens: summaryInfo.tokens_saved.toLocaleString(),
+                }),
                 5,
               );
             },
@@ -856,7 +1064,7 @@ export function useAgentEventSubscription() {
               if (level === "critical") {
                 message.error(msg, 6);
                 void sendDesktopNotification({
-                  title: "上下文即将耗尽",
+                  title: i18n.t("app.notifications.contextPressure.title"),
                   body: msg,
                   sessionId,
                   eventType: "context_pressure",
@@ -895,7 +1103,10 @@ export function useAgentEventSubscription() {
               }
 
               message.success(
-                `All tasks completed! Total rounds: ${totalRounds}, Tool calls: ${totalToolCalls}`,
+                i18n.t("app.notifications.allTasksCompleted", {
+                  rounds: totalRounds,
+                  toolCalls: totalToolCalls,
+                }),
                 3,
               );
             },
@@ -906,7 +1117,12 @@ export function useAgentEventSubscription() {
                 reasoning: null,
                 timestamp: Date.now(),
               });
-              message.info(`Evaluating ${itemsCount} task(s)...`, 2);
+              message.info(
+                i18n.t("app.notifications.evaluatingTasks", {
+                  count: itemsCount,
+                }),
+                2,
+              );
             },
 
             onTaskEvaluationCompleted: (sid, updatesCount, reasoning) => {
@@ -918,9 +1134,14 @@ export function useAgentEventSubscription() {
               });
 
               if (updatesCount > 0) {
-                message.success(`Evaluation complete: ${updatesCount} task(s) updated.`, 3);
+                message.success(
+                  i18n.t("app.notifications.evaluationCompleteUpdated", {
+                    count: updatesCount,
+                  }),
+                  3,
+                );
               } else {
-                message.info(`Evaluation complete: No updates needed`, 2);
+                message.info(i18n.t("app.notifications.evaluationCompleteNoUpdates"), 2);
               }
             },
 
@@ -1111,6 +1332,52 @@ export function useAgentEventSubscription() {
               applyReplayableSessionEvent(event, useAppStore.getState());
             },
 
+            onPlanModeEntered: (event) => {
+              const targetSessionId = event.session_id || sessionId;
+              const planMode = planModeStateFromEvent(event);
+              if (!planMode) {
+                void refreshChatsNow();
+                return;
+              }
+              updateSession(targetSessionId, {
+                planMode,
+              });
+            },
+
+            onPlanModeExited: (event) => {
+              const targetSessionId = event.session_id || sessionId;
+              updateSession(targetSessionId, {
+                planMode: null,
+              });
+              void refreshChatsNow();
+            },
+
+            onPlanFileUpdated: (event) => {
+              const targetSessionId = event.session_id || sessionId;
+              const currentSession = useAppStore
+                .getState()
+                .chats.find((chat) => chat.id === targetSessionId);
+              const currentPlanMode = currentSession?.planMode;
+              if (currentPlanMode) {
+                updateSession(targetSessionId, {
+                  planMode: {
+                    ...currentPlanMode,
+                    plan_file_path: event.plan_file_path ?? currentPlanMode.plan_file_path ?? null,
+                    status:
+                      event.status === "exploring" ||
+                      event.status === "designing" ||
+                      event.status === "reviewing" ||
+                      event.status === "finalizing" ||
+                      event.status === "awaiting_approval"
+                        ? event.status
+                        : currentPlanMode.status,
+                  },
+                });
+              } else {
+                void refreshChatsNow();
+              }
+            },
+
             onSubAgentStarted: (parentSessionId, childSessionId, title) => {
               const bg =
                 backgroundChildrenByParentRef.current.get(parentSessionId) ??
@@ -1197,13 +1464,14 @@ export function useAgentEventSubscription() {
                 return;
               }
 
+              const current = selectChildren(parentSessionId)(useAppStore.getState())?.[
+                childSessionId
+              ];
+              if (isTerminalChildStatus(current?.status)) {
+                return;
+              }
+
               if (evt.type === "runner_progress") {
-                const current = selectChildren(parentSessionId)(useAppStore.getState())?.[
-                  childSessionId
-                ];
-                if (current?.status && TERMINAL_CHILD_STATUS.has(current.status)) {
-                  return;
-                }
                 applyChildProgress(parentSessionId, childSessionId, {
                   status: "running",
                   roundCount:
@@ -1215,9 +1483,7 @@ export function useAgentEventSubscription() {
 
               // Maintain a small rolling preview for fast UI feedback.
               if (evt.type === "token" && typeof evt.content === "string") {
-                const prev =
-                  selectChildren(parentSessionId)(useAppStore.getState())?.[childSessionId]
-                    ?.outputPreview || "";
+                const prev = current?.outputPreview || "";
                 const next = (prev + evt.content).slice(-2000);
                 applyChildProgress(parentSessionId, childSessionId, {
                   status: "running",
@@ -1233,6 +1499,9 @@ export function useAgentEventSubscription() {
             },
 
             onSubAgentHeartbeat: (parentSessionId, childSessionId, ts) => {
+              if (isTerminalChildStatus(getChildStatus(parentSessionId, childSessionId))) {
+                return;
+              }
               applyChildProgress(parentSessionId, childSessionId, {
                 status: "running",
                 lastHeartbeatAt: ts,
@@ -1262,8 +1531,12 @@ export function useAgentEventSubscription() {
                   childSessionId
                 ];
                 void sendDesktopNotification({
-                  title: "后台任务完成",
-                  body: child?.title ? `「${child.title}」已完成` : "一个后台任务已完成",
+                  title: i18n.t("app.notifications.backgroundTask.completedTitle"),
+                  body: child?.title
+                    ? i18n.t("app.notifications.backgroundTask.completedBody", {
+                        title: child.title,
+                      })
+                    : i18n.t("app.notifications.backgroundTask.completedFallback"),
                   sessionId: parentSessionId,
                   eventType: "subagent_completed",
                   eventId: childSessionId,
@@ -1293,8 +1566,8 @@ export function useAgentEventSubscription() {
               const truncatedQuestion =
                 questionText.length > 80 ? `${questionText.slice(0, 80)}...` : questionText;
               void sendDesktopNotification({
-                title: "Bodhi AI 需要您的回复",
-                body: truncatedQuestion || "Agent 需要您回答一个问题",
+                title: i18n.t("app.notifications.clarification.title"),
+                body: truncatedQuestion || i18n.t("app.notifications.clarification.fallbackBody"),
                 sessionId: targetSessionId,
                 eventType: "clarification",
                 eventId: event.tool_call_id ?? undefined,
@@ -1302,6 +1575,11 @@ export function useAgentEventSubscription() {
             },
 
             onExecutionStarted: (runId, _startedAt) => {
+              debugLog("[SSE]", "event.executionStarted", {
+                sessionId,
+                generation,
+                runId,
+              });
               applyAgentEvent(
                 sessionId,
                 { type: "execution_started", run_id: runId } as AgentEvent,
@@ -1327,6 +1605,16 @@ export function useAgentEventSubscription() {
             "terminal:",
             terminalEventSeen,
           );
+          debugLog("[SSE]", "streamEnded", {
+            sessionId,
+            generation,
+            aborted: controller.signal.aborted,
+            terminalEventSeen,
+            shouldSkipReconnectAfterTerminal: shouldSkipReconnectAfterTerminal(),
+            phase: useAppStore.getState().executionBySession?.[sessionId]?.phase ?? null,
+            backendRunId:
+              useAppStore.getState().executionBySession?.[sessionId]?.backendRunId ?? null,
+          });
           // Stream ended without throwing. Backend live SSE should be long-lived, but
           // one-shot terminal streams intentionally close after emitting complete/error.
           if (controller.signal.aborted || shouldSkipReconnectAfterTerminal()) return;
@@ -1342,6 +1630,14 @@ export function useAgentEventSubscription() {
 
           // selectShouldObserve = any active execution; keep processing state while session is alive
           const stillBusy = selectShouldObserve(sessionId)(useAppStore.getState());
+          debugLog("[SSE]", "streamEnded.busyCheck", {
+            sessionId,
+            generation,
+            stillBusy,
+            phase: useAppStore.getState().executionBySession?.[sessionId]?.phase ?? null,
+            backendRunId:
+              useAppStore.getState().executionBySession?.[sessionId]?.backendRunId ?? null,
+          });
           if (!stillBusy) {
             cleanupChat(sessionId, { clearDraft: true });
             return;
@@ -1353,6 +1649,16 @@ export function useAgentEventSubscription() {
         .catch((err) => {
           markStreamEnded();
           debugSse("streamError", sessionId, "generation:", generation, err);
+          debugLog("[SSE]", "streamError", {
+            sessionId,
+            generation,
+            aborted: controller.signal.aborted,
+            terminalEventSeen,
+            error: err,
+            phase: useAppStore.getState().executionBySession?.[sessionId]?.phase ?? null,
+            backendRunId:
+              useAppStore.getState().executionBySession?.[sessionId]?.backendRunId ?? null,
+          });
           // If we explicitly aborted, do nothing (normal cleanup path).
           if (controller.signal.aborted) return;
 
@@ -1363,6 +1669,14 @@ export function useAgentEventSubscription() {
 
             // selectShouldObserve = any active execution; attempt reconnect while session is alive
             const stillBusy = selectShouldObserve(sessionId)(useAppStore.getState());
+            debugLog("[SSE]", "streamError.abortError.busyCheck", {
+              sessionId,
+              generation,
+              stillBusy,
+              phase: useAppStore.getState().executionBySession?.[sessionId]?.phase ?? null,
+              backendRunId:
+                useAppStore.getState().executionBySession?.[sessionId]?.backendRunId ?? null,
+            });
             if (!stillBusy) {
               cleanupChat(sessionId, { clearDraft: true });
               return;
@@ -1394,6 +1708,7 @@ export function useAgentEventSubscription() {
       clearParentSettleTimer,
       clearPendingQuestion,
       clearReconnect,
+      clearTitleRefreshRetry,
       ensureTaskListBaseline,
       message,
       shouldShowTaskListCompletedNotice,
@@ -1472,6 +1787,17 @@ export function useAgentEventSubscription() {
         .map(([id]) => id),
     );
 
+    debugLog("[SSE]", "effect.busySessions", {
+      busySessionIds: Array.from(busySessionIds),
+      executionEntries: Object.entries(executionBySession).map(([sessionId, entry]) => ({
+        sessionId,
+        phase: entry.phase,
+        generation: entry.generation,
+        backendRunId: entry.backendRunId,
+        shouldObserve: selectShouldObserve(sessionId)(state),
+      })),
+    });
+
     // Start needed subscriptions
     busySessionIds.forEach((sessionId) => ensureSubscription(sessionId));
 
@@ -1515,7 +1841,7 @@ export function useAgentEventSubscription() {
     return () => {
       const activeSessionIds = Array.from(subscriptionsBySession.keys());
       for (const sessionId of activeSessionIds) {
-        cleanupChat(sessionId, { clearDraft: true });
+        cleanupChat(sessionId, { clearDraft: true, clearTitleRetry: true });
       }
     };
   }, [cleanupChat]);

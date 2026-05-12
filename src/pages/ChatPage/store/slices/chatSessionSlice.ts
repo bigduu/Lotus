@@ -18,6 +18,7 @@ import { useProviderStore } from "./providerSlice";
 import { applyExecutionEvent } from "./executionStateSlice";
 import { applyReplayableSessionEventToList, isSessionMetadataEvent } from "./sessionMetadataSlice";
 import i18n from "../../../../shared/i18n";
+import { debugLog } from "../../../../shared/utils/debugFlags";
 
 const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
@@ -127,6 +128,7 @@ const canReuseSessionListChat = (prev: ChatItem, next: ChatItem): boolean => {
     prev.hasAttachments === next.hasAttachments &&
     prev.lastRunStatus === next.lastRunStatus &&
     prev.lastRunError === next.lastRunError &&
+    prev.planMode === next.planMode &&
     prev.subagentType === next.subagentType &&
     prev.title === next.title &&
     prev.titleVersion === next.titleVersion &&
@@ -247,6 +249,10 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
         s.token_usage.prompt_cached_tool_outputs > 0
           ? { promptCachedToolOutputs: s.token_usage.prompt_cached_tool_outputs }
           : {}),
+        ...(typeof s.token_usage.prompt_cached_tool_tokens_saved === "number" &&
+        s.token_usage.prompt_cached_tool_tokens_saved > 0
+          ? { promptCachedToolTokensSaved: s.token_usage.prompt_cached_tool_tokens_saved }
+          : {}),
       }
     : undefined;
   return {
@@ -263,6 +269,7 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     hasAttachments: s.has_attachments,
     lastRunStatus: s.last_run_status,
     lastRunError: s.last_run_error,
+    planMode: s.plan_mode ?? null,
     subagentType: s.subagent_type ?? null,
     title: s.title || i18n.t("chat.session.defaultTitle"),
     titleVersion: s.title_version ?? 0,
@@ -708,6 +715,7 @@ function applySessionsList(
         updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
         messages: prev.messages,
         messageCount: effectiveMessageCount,
+        planMode: c.planMode,
         config: mergedConfig,
         // Override title/titleVersion with version-based precedence,
         // overriding the `updatedAt`-based decision for these fields specifically.
@@ -739,18 +747,26 @@ function applySessionsList(
 
 async function executeRefreshChats(set: Parameters<typeof createChatSlice>[0]): Promise<void> {
   if (refreshChatsState.inFlight) {
+    debugLog("[ChatSlice]", "refreshChats.inFlight.reuse", {});
     return refreshChatsState.inFlight;
   }
 
+  debugLog("[ChatSlice]", "refreshChats.start", {});
   refreshChatsState.inFlight = (async () => {
     try {
       const list = await agentClient.listSessions();
+      debugLog("[ChatSlice]", "refreshChats.response", {
+        count: list.sessions.length,
+        runningCount: list.sessions.filter((session) => session.is_running).length,
+      });
       applySessionsList(list.sessions, set);
     } catch (error) {
       console.error("[ChatSlice] Failed to refresh sessions:", error);
+      debugLog("[ChatSlice]", "refreshChats.error", { error });
       throw error;
     }
   })().finally(() => {
+    debugLog("[ChatSlice]", "refreshChats.finally", {});
     refreshChatsState.inFlight = null;
   });
 
@@ -759,15 +775,20 @@ async function executeRefreshChats(set: Parameters<typeof createChatSlice>[0]): 
 
 function executeForcedRefreshChats(set: Parameters<typeof createChatSlice>[0]): Promise<void> {
   if (refreshChatsState.forcedPromise) {
+    debugLog("[ChatSlice]", "refreshChatsNow.forced.reuse", {});
     return refreshChatsState.forcedPromise;
   }
 
+  debugLog("[ChatSlice]", "refreshChatsNow.forced.start", {
+    hasInflight: Boolean(refreshChatsState.inFlight),
+  });
   refreshChatsState.forcedPromise = (async () => {
     if (refreshChatsState.inFlight) {
       await refreshChatsState.inFlight;
     }
     await executeRefreshChats(set);
   })().finally(() => {
+    debugLog("[ChatSlice]", "refreshChatsNow.forced.finally", {});
     refreshChatsState.forcedPromise = null;
   });
 
@@ -1186,6 +1207,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
   refreshChatsNow: async () => {
     const trailingCallbacks = clearRefreshChatsThrottleWindow();
+    debugLog("[ChatSlice]", "refreshChatsNow.start", {
+      hadTrailingCallbacks: Boolean(trailingCallbacks),
+      hasInflight: Boolean(refreshChatsState.inFlight),
+    });
     const refreshPromise = refreshChatsState.inFlight
       ? executeForcedRefreshChats(set)
       : executeRefreshChats(set);
@@ -1194,11 +1219,16 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   loadChats: async () => {
+    debugLog("[ChatSlice]", "loadChats.start", {});
     let list = await agentClient.listSessions();
     if (!list.sessions || list.sessions.length === 0) {
       // Use provider defaults when creating the initial session on startup
       const defaultModel = useProviderStore.getState().getActiveModel()?.trim();
       const defaultModelRef = useProviderStore.getState().providerConfig.defaults?.chat;
+      debugLog("[ChatSlice]", "loadChats.createInitialSession", {
+        defaultModel: defaultModel ?? null,
+        defaultModelRef: defaultModelRef ?? null,
+      });
       const created = await agentClient.createSession({
         title: i18n.t("chat.sidebar.newSession"),
         model: defaultModel,
@@ -1210,6 +1240,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
     const chats = list.sessions.map(sessionSummaryToChatItem);
     const currentSessionId = chats[0]?.id ?? null;
+    debugLog("[ChatSlice]", "loadChats.listResolved", {
+      count: list.sessions.length,
+      currentSessionId,
+    });
 
     // Reconcile executionBySession against every summary.
     let executionBySession = get().executionBySession;
@@ -1225,6 +1259,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     // after boot (removes the need for OPTIMISTIC_RACE_WINDOW_MS).
     try {
       const running = await agentClient.getRunningSessions();
+      debugLog("[ChatSlice]", "loadChats.runningSnapshot", {
+        count: running.sessions.length,
+      });
       if (running.sessions.length > 0) {
         // Partition criticalEvents into metadata vs execution before replay.
         // Metadata events (title/pinned) flow through `applyReplayableSessionEvent`
@@ -1259,7 +1296,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           () => new Date().toISOString(),
         );
       }
-    } catch {
+    } catch (error) {
+      debugLog("[ChatSlice]", "loadChats.runningSnapshot.error", { error });
       // Non-fatal: if the backend doesn't support /runs/active yet,
       // fall back to the summary-based reconciliation above.
     }
@@ -1271,8 +1309,15 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       executionBySession,
     });
 
+    debugLog("[ChatSlice]", "loadChats.applied", {
+      currentSessionId,
+      chatCount: chats.length,
+      executionSessionCount: Object.keys(executionBySession || {}).length,
+    });
+
     if (currentSessionId) {
       // Lazy load history for the initial session.
+      debugLog("[ChatSlice]", "loadChats.loadInitialHistory", { currentSessionId });
       await get().loadChatHistory(currentSessionId);
     }
   },
@@ -1282,19 +1327,44 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const retries = Math.max(0, options?.retries ?? 0);
     const retryDelayMs = Math.max(0, options?.retryDelayMs ?? 0);
 
+    debugLog("[ChatSlice]", "loadChatHistory.start", {
+      sessionId,
+      mode,
+      retries,
+      retryDelayMs,
+      waitForAssistant: options?.waitForAssistant ?? false,
+    });
+
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
         // Avoid spurious backend calls when the UI layout references a stale session id.
         // (e.g. after backend reset or manual data cleanup)
         const chat = get().chats.find((c) => c.id === sessionId);
-        if (!chat) return;
+        if (!chat) {
+          debugLog("[ChatSlice]", "loadChatHistory.skipMissingChat", { sessionId, attempt });
+          return;
+        }
 
         const history = await agentClient.getHistory(sessionId);
+        debugLog("[ChatSlice]", "loadChatHistory.response", {
+          sessionId,
+          attempt,
+          historyMessageCount: history.messages.length,
+          localMessageCount: chat.messages.length,
+          localStoredMessageCount: chat.messageCount ?? null,
+          lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
+          lastRole: history.messages[history.messages.length - 1]?.role ?? null,
+        });
 
         const lastRole = history.messages[history.messages.length - 1]?.role;
         if (options?.waitForAssistant && lastRole === "user" && attempt < retries) {
           // Backoff to give the backend time to persist the assistant reply.
           const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
+          debugLog("[ChatSlice]", "loadChatHistory.waitForAssistant.retry", {
+            sessionId,
+            attempt,
+            delay,
+          });
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
         }
@@ -1327,9 +1397,27 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             shouldReplace = resolvedUserTail || terminalChanged;
           }
 
+          debugLog("[ChatSlice]", "loadChatHistory.monotonicDecision", {
+            sessionId,
+            attempt,
+            prevLen,
+            nextLen,
+            prevLastRole: prevLastRole ?? null,
+            nextLastRole: nextLastRole ?? null,
+            prevLastId: prevLastId ?? null,
+            nextLastId: nextLastId ?? null,
+            shouldReplace,
+          });
+
           if (!shouldReplace) {
             get().updateSession(sessionId, {
               messageCount: Math.max(chat.messageCount ?? 0, history.messages.length),
+            });
+            debugLog("[ChatSlice]", "loadChatHistory.monotonicSkip", {
+              sessionId,
+              attempt,
+              localMessageCount: chat.messages.length,
+              serverMessageCount: history.messages.length,
             });
             return;
           }
@@ -1362,13 +1450,32 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             },
           },
         });
+        debugLog("[ChatSlice]", "loadChatHistory.applied", {
+          sessionId,
+          attempt,
+          mode,
+          messageCount: history.messages.length,
+          lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
+        });
         return;
       } catch (error) {
         if (attempt >= retries) {
           console.warn(`[ChatSlice] Failed to load history for ${sessionId}:`, error);
+          debugLog("[ChatSlice]", "loadChatHistory.error.final", {
+            sessionId,
+            attempt,
+            retries,
+            error,
+          });
           return;
         }
         const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
+        debugLog("[ChatSlice]", "loadChatHistory.error.retry", {
+          sessionId,
+          attempt,
+          delay,
+          error,
+        });
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }

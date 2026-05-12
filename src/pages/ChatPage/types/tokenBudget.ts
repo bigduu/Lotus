@@ -43,6 +43,8 @@ export interface TokenUsage {
   budgetLimit: number;
   /** Number of long tool outputs compacted into prompt-side cached summaries */
   promptCachedToolOutputs?: number;
+  /** Tokens saved by prompt-side tool output compaction */
+  promptCachedToolTokensSaved?: number;
 }
 
 /**
@@ -171,6 +173,33 @@ export function getUsageColor(usage: TokenUsage): "success" | "warning" | "error
  */
 export function formatTokenCount(count: number): string {
   return count.toLocaleString();
+}
+
+/**
+ * Format token counts in a compact K/M/B style for dense UI surfaces.
+ * Uses fixed English suffixes regardless of locale to keep labels stable.
+ */
+export function formatCompactTokenCount(count: number): string {
+  const abs = Math.abs(count);
+
+  const trimTrailingZero = (value: string): string => value.replace(/\.0$/, "");
+
+  if (abs >= 1_000_000_000) {
+    const digits = abs >= 10_000_000_000 ? 0 : 1;
+    return `${trimTrailingZero((count / 1_000_000_000).toFixed(digits))}B`;
+  }
+
+  if (abs >= 1_000_000) {
+    const digits = abs >= 10_000_000 ? 0 : 1;
+    return `${trimTrailingZero((count / 1_000_000).toFixed(digits))}M`;
+  }
+
+  if (abs >= 1_000) {
+    const digits = abs >= 10_000 ? 0 : 1;
+    return `${trimTrailingZero((count / 1_000).toFixed(digits))}K`;
+  }
+
+  return `${count}`;
 }
 
 /**

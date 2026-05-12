@@ -213,7 +213,7 @@ export const selectRailModel =
   };
 
 // =============================================================================
-// Multi-pane convenience
+// Pane-workspace convenience
 // =============================================================================
 
 export interface PaneExecutionView {

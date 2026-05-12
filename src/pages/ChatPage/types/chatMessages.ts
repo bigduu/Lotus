@@ -137,6 +137,7 @@ export interface AssistantToolCallMessage extends BaseMessage {
   metadata?: {
     elapsed_ms?: number;
     is_mutating?: boolean;
+    summary?: string;
     [key: string]: unknown;
   };
 }
@@ -190,6 +191,8 @@ export interface ChatItem {
   hasAttachments?: boolean;
   lastRunStatus?: string;
   lastRunError?: string;
+  /** Active plan mode runtime state mirrored from backend session summary/SSE. */
+  planMode?: import("../services/AgentService").SessionPlanModeState | null;
   /**
    * SubAgent profile id for child sessions ("general-purpose", "plan", ...).
    * Mirrored from `session.metadata["subagent_type"]` into the backend
