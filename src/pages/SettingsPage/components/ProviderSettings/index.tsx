@@ -143,7 +143,7 @@ type ReasoningEffortSelectProps = {
 
 const renderReasoningEffortSelect = (t: TFunction, props?: ReasoningEffortSelectProps) => (
   <Select
-    placeholder={t("settings.providerTab.reasoningEffortDefault", "Default")}
+    placeholder={t("settings.providerTab.reasoningEffortDefault")}
     allowClear
     value={props?.value}
     onChange={
@@ -505,7 +505,10 @@ export const ProviderSettings: React.FC = () => {
           try {
             providerCfg.request_overrides = JSON.parse(trimmed);
           } catch (error) {
-            const messageText = `Invalid request_overrides JSON for ${p}: ${(error as Error).message}`;
+            const messageText = t("settings.providerTab.invalidRequestOverridesJson", {
+              provider: p,
+              error: (error as Error).message,
+            });
             form.setFields([
               { name: ["providers", p, "request_overrides_json"], errors: [messageText] },
             ]);
@@ -690,18 +693,15 @@ export const ProviderSettings: React.FC = () => {
       await handleSave(currentValues, { showMessage: false, throwOnError: true });
       await handleApply({ showMessage: false, throwOnError: true });
       setModelAutoSaveStatus("success");
-      message.success(t("settings.providerTab.reasoningEffortUpdated", "Reasoning effort updated"));
+      message.success(t("settings.providerTab.reasoningEffortUpdated"));
     } catch (error) {
       const errorMessage = getErrorMessage(error);
       setModelAutoSaveStatus("error");
       setModelAutoSaveError(errorMessage);
       message.error(
         errorMessage
-          ? `${t("settings.providerTab.updateReasoningEffortErrorPrefix", "Failed to update reasoning effort")}: ${errorMessage}`
-          : t(
-              "settings.providerTab.updateReasoningEffortFailed",
-              "Failed to update reasoning effort",
-            ),
+          ? `${t("settings.providerTab.updateReasoningEffortErrorPrefix")}: ${errorMessage}`
+          : t("settings.providerTab.updateReasoningEffortFailed"),
       );
     }
   };
@@ -729,7 +729,7 @@ export const ProviderSettings: React.FC = () => {
         <Space direction="vertical" size={4} style={{ width: "100%" }}>
           <Text strong>
             {options?.label ||
-              `${providerLabel} · ${t("settings.providerTab.reasoningEffortOptional", "Reasoning Effort (Optional)")}`}
+              `${providerLabel} · ${t("settings.providerTab.reasoningEffortOptional")}`}
           </Text>
           {renderReasoningEffortSelect(t, {
             value: reasoningValue,
@@ -745,11 +745,7 @@ export const ProviderSettings: React.FC = () => {
             },
           })}
           <Text type="secondary">
-            {options?.helperText ||
-              t(
-                "settings.providerTab.reasoningEffortHelp",
-                "Default reasoning effort for requests sent through this provider.",
-              )}
+            {options?.helperText || t("settings.providerTab.reasoningEffortHelp")}
           </Text>
         </Space>
       </div>
@@ -807,13 +803,9 @@ export const ProviderSettings: React.FC = () => {
               label: selectedProvider
                 ? `${PROVIDER_LABELS[selectedProvider as ProviderType]} · ${t(
                     "settings.providerTab.reasoningEffortOptional",
-                    "Reasoning Effort (Optional)",
                   )}`
-                : t("settings.providerTab.reasoningEffortOptional", "Reasoning Effort (Optional)"),
-              helperText: t(
-                "settings.providerTab.reasoningEffortHelp",
-                "Default reasoning effort for requests sent through this provider.",
-              ),
+                : t("settings.providerTab.reasoningEffortOptional"),
+              helperText: t("settings.providerTab.reasoningEffortHelp"),
             });
           }}
         </Form.Item>
@@ -824,7 +816,7 @@ export const ProviderSettings: React.FC = () => {
     return (
       <Card
         size="small"
-        title={t("settings.providerTab.modelPreferences", "模型偏好")}
+        title={t("settings.providerTab.modelPreferences")}
         style={{ marginBottom: 16 }}
       >
         <Form.Item name={["defaults", "chat"]} noStyle preserve>
@@ -848,11 +840,8 @@ export const ProviderSettings: React.FC = () => {
           )}
           {renderPreferenceSection(
             "sub_agent",
-            t("settings.providerTab.subAgentModel", "Sub Agent Model (Optional)"),
-            t(
-              "settings.providerTab.subAgentModelHelp",
-              "Default model for new Sub Agents. Uses Fast Model when not set.",
-            ),
+            t("settings.providerTab.subAgentModel"),
+            t("settings.providerTab.subAgentModelHelp"),
           )}
           {renderPreferenceSection(
             "vision",
@@ -887,12 +876,12 @@ export const ProviderSettings: React.FC = () => {
     return (
       <Form.Item
         name={["providers", provider, "request_overrides_json"]}
-        label="Advanced Request Overrides (JSON)"
+        label={t("settings.providerTab.advancedRequestOverrides")}
         extra={
           <Space direction="vertical" size={4}>
-            <Text type="secondary">Customize provider request headers/body patch rules.</Text>
+            <Text type="secondary">{t("settings.providerTab.advancedRequestOverridesHelp")}</Text>
             <Text type="secondary">
-              Env var injection:{" "}
+              {t("settings.providerTab.envVarInjection")}{" "}
               <Text code>{`{ "type": "env_ref", "name": "YOUR_ENV_NAME" }`}</Text>
             </Text>
             {envNames.length > 0 && (
@@ -926,7 +915,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input.Password
                 data-testid="api-key-input"
-                placeholder="sk-..."
+                placeholder={t("settings.providerTab.openaiApiKeyPlaceholder", "sk-...")}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -935,18 +924,17 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.openaiBaseUrlHelp")}
             >
-              <Input placeholder="https://api.openai.com/v1" />
+              <Input
+                placeholder={t(
+                  "settings.providerTab.openaiBaseUrlPlaceholder",
+                  "https://api.openai.com/v1",
+                )}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "openai", "reasoning_effort"]}
-              label={t(
-                "settings.providerTab.reasoningEffortOptional",
-                "Reasoning Effort (Optional)",
-              )}
-              extra={t(
-                "settings.providerTab.reasoningEffortHelp",
-                "Default reasoning effort for requests sent through this provider.",
-              )}
+              label={t("settings.providerTab.reasoningEffortOptional")}
+              extra={t("settings.providerTab.reasoningEffortHelp")}
             >
               {renderReasoningEffortSelect(t)}
             </Form.Item>
@@ -957,7 +945,10 @@ export const ProviderSettings: React.FC = () => {
             >
               <Select
                 mode="tags"
-                placeholder='e.g. "gpt-5.3-codex", "gpt-5*"'
+                placeholder={t(
+                  "settings.providerTab.responsesOnlyModelsPlaceholder",
+                  'e.g. "gpt-5.3-codex", "gpt-5*"',
+                )}
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
@@ -976,32 +967,39 @@ export const ProviderSettings: React.FC = () => {
                 { required: true, message: t("settings.providerTab.anthropicApiKeyRequired") },
               ]}
             >
-              <Password placeholder="sk-ant-..." prefix={<KeyOutlined />} />
+              <Password
+                placeholder={t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-...")}
+                prefix={<KeyOutlined />}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "base_url"]}
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.anthropicBaseUrlHelp")}
             >
-              <Input placeholder="https://api.anthropic.com/v1" />
+              <Input
+                placeholder={t(
+                  "settings.providerTab.anthropicBaseUrlPlaceholder",
+                  "https://api.anthropic.com/v1",
+                )}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "max_tokens"]}
               label={t("settings.providerTab.maxTokensOptional")}
               extra={t("settings.providerTab.maxTokensHelp")}
             >
-              <Input type="number" placeholder="4096" min={1} max={100000} />
+              <Input
+                type="number"
+                placeholder={t("settings.providerTab.maxTokensPlaceholder", "4096")}
+                min={1}
+                max={100000}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "reasoning_effort"]}
-              label={t(
-                "settings.providerTab.reasoningEffortOptional",
-                "Reasoning Effort (Optional)",
-              )}
-              extra={t(
-                "settings.providerTab.reasoningEffortHelp",
-                "Default reasoning effort for requests sent through this provider.",
-              )}
+              label={t("settings.providerTab.reasoningEffortOptional")}
+              extra={t("settings.providerTab.reasoningEffortHelp")}
             >
               {renderReasoningEffortSelect(t)}
             </Form.Item>
@@ -1018,25 +1016,27 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.geminiApiKey")}
               rules={[{ required: true, message: t("settings.providerTab.geminiApiKeyRequired") }]}
             >
-              <Password placeholder="AIza..." prefix={<KeyOutlined />} />
+              <Password
+                placeholder={t("settings.providerTab.geminiApiKeyPlaceholder", "AIza...")}
+                prefix={<KeyOutlined />}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "gemini", "base_url"]}
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.geminiBaseUrlHelp")}
             >
-              <Input placeholder="https://generativelanguage.googleapis.com/v1beta" />
+              <Input
+                placeholder={t(
+                  "settings.providerTab.geminiBaseUrlPlaceholder",
+                  "https://generativelanguage.googleapis.com/v1beta",
+                )}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "gemini", "reasoning_effort"]}
-              label={t(
-                "settings.providerTab.reasoningEffortOptional",
-                "Reasoning Effort (Optional)",
-              )}
-              extra={t(
-                "settings.providerTab.reasoningEffortHelp",
-                "Default reasoning effort for requests sent through this provider.",
-              )}
+              label={t("settings.providerTab.reasoningEffortOptional")}
+              extra={t("settings.providerTab.reasoningEffortHelp")}
             >
               {renderReasoningEffortSelect(t)}
             </Form.Item>
@@ -1108,14 +1108,8 @@ export const ProviderSettings: React.FC = () => {
 
             <Form.Item
               name={["providers", "copilot", "reasoning_effort"]}
-              label={t(
-                "settings.providerTab.reasoningEffortOptional",
-                "Reasoning Effort (Optional)",
-              )}
-              extra={t(
-                "settings.providerTab.reasoningEffortHelp",
-                "Default reasoning effort for requests sent through this provider.",
-              )}
+              label={t("settings.providerTab.reasoningEffortOptional")}
+              extra={t("settings.providerTab.reasoningEffortHelp")}
             >
               {renderReasoningEffortSelect(t)}
             </Form.Item>
@@ -1127,7 +1121,10 @@ export const ProviderSettings: React.FC = () => {
             >
               <Select
                 mode="tags"
-                placeholder='e.g. "gpt-5.3-codex", "gpt-5*"'
+                placeholder={t(
+                  "settings.providerTab.responsesOnlyModelsPlaceholder",
+                  'e.g. "gpt-5.3-codex", "gpt-5*"',
+                )}
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
@@ -1152,28 +1149,36 @@ export const ProviderSettings: React.FC = () => {
           <>
             <Form.Item
               name={["providers", "bodhi", "api_key"]}
-              label="Bodhi API Key"
-              rules={[{ required: true, message: "API key is required" }]}
+              label={t("settings.providerTab.bodhiApiKey")}
+              rules={[{ required: true, message: t("settings.providerTab.apiKeyRequired") }]}
             >
               <Input.Password
                 data-testid="bodhi-api-key-input"
-                placeholder="bhi_sk_..."
+                placeholder={t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_...")}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
             <Form.Item
               name={["providers", "bodhi", "base_url"]}
-              label="Base URL"
-              extra="Your Bodhi Server endpoint address"
+              label={t("settings.providerTab.bodhiBaseUrl")}
+              extra={t("settings.providerTab.bodhiBaseUrlExtra")}
             >
-              <Input placeholder="http://localhost:8080" />
+              <Input
+                placeholder={t(
+                  "settings.providerTab.bodhiBaseUrlPlaceholder",
+                  "http://localhost:8080",
+                )}
+              />
             </Form.Item>
             <Form.Item
               name={["providers", "bodhi", "target_provider"]}
-              label="Target Provider"
-              extra="Which upstream provider to route through Bodhi"
+              label={t("settings.providerTab.targetProvider")}
+              extra={t("settings.providerTab.targetProviderExtra")}
             >
-              <Select placeholder="openai" allowClear>
+              <Select
+                placeholder={t("settings.providerTab.targetProviderPlaceholder", "openai")}
+                allowClear
+              >
                 <Select.Option value="openai">OpenAI</Select.Option>
                 <Select.Option value="anthropic">Anthropic</Select.Option>
                 <Select.Option value="gemini">Gemini</Select.Option>
@@ -1181,14 +1186,8 @@ export const ProviderSettings: React.FC = () => {
             </Form.Item>
             <Form.Item
               name={["providers", "bodhi", "reasoning_effort"]}
-              label={t(
-                "settings.providerTab.reasoningEffortOptional",
-                "Reasoning Effort (Optional)",
-              )}
-              extra={t(
-                "settings.providerTab.reasoningEffortHelp",
-                "Default reasoning effort for requests sent through this provider.",
-              )}
+              label={t("settings.providerTab.reasoningEffortOptional")}
+              extra={t("settings.providerTab.reasoningEffortHelp")}
             >
               {renderReasoningEffortSelect(t)}
             </Form.Item>
@@ -1269,14 +1268,8 @@ export const ProviderSettings: React.FC = () => {
                 size: "middle",
                 marginTop: 0,
                 dataTestId: "active-provider-reasoning-effort",
-                label: t(
-                  "settings.providerTab.activeProviderReasoningEffort",
-                  "Active Provider Reasoning Effort",
-                ),
-                helperText: t(
-                  "settings.providerTab.reasoningEffortHelp",
-                  "Default reasoning effort for requests sent through this provider.",
-                ),
+                label: t("settings.providerTab.activeProviderReasoningEffort"),
+                helperText: t("settings.providerTab.reasoningEffortHelp"),
               },
             )
           }

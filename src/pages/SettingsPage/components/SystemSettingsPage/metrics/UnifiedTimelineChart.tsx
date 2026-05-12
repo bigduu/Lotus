@@ -12,6 +12,7 @@ import {
 } from "recharts";
 
 import type { UnifiedTimelinePoint } from "../../../../../services/metrics";
+import { formatMetricCompactNumber, formatMetricTooltipValue } from "./metricNumberFormatting";
 
 const { Text } = Typography;
 
@@ -53,8 +54,8 @@ const UnifiedTimelineChart: React.FC<UnifiedTimelineChartProps> = ({ data, loadi
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" minTickGap={24} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <YAxis allowDecimals={false} tickFormatter={formatMetricCompactNumber} />
+                <Tooltip formatter={(value: number) => formatMetricTooltipValue(value)} />
                 <Legend />
                 <Line
                   type="monotone"

@@ -12,8 +12,10 @@ export interface MetricsSummary {
   total_tool_calls: number;
   active_sessions: number;
   prompt_cached_tool_outputs?: number;
+  tool_context_tokens_saved?: number;
   total_compression_events?: number;
   total_tokens_saved?: number;
+  non_tool_compression_tokens_saved?: number;
   completed_sessions?: number;
   awaiting_response_sessions?: number;
   error_sessions?: number;
@@ -46,6 +48,7 @@ export interface SessionMetrics {
   message_count: number;
   duration_ms?: number | null;
   prompt_cached_tool_outputs?: number;
+  prompt_cached_tool_tokens_saved?: number;
   total_compression_events?: number;
   total_tokens_saved?: number;
 }
@@ -74,6 +77,7 @@ export interface RoundMetrics {
   error?: string | null;
   duration_ms?: number | null;
   prompt_cached_tool_outputs?: number;
+  prompt_cached_tool_tokens_saved?: number;
   compression_count?: number;
   tokens_saved?: number;
 }

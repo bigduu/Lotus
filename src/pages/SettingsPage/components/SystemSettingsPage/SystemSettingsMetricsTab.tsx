@@ -43,19 +43,15 @@ import SyncMismatchBreakdownCard from "./metrics/SyncMismatchBreakdownCard";
 import TokenChart from "./metrics/TokenChart";
 import TopUsageBarCard from "./metrics/TopUsageBarCard";
 import UsageBreakdownCards from "./metrics/UsageBreakdownCards";
+import {
+  formatMetricCompactNumber,
+  formatMetricExactNumber,
+  renderMetricNumber,
+  statisticNumberFormatter,
+} from "./metrics/metricNumberFormatting";
 
 const { Text } = Typography;
 const { useToken } = theme;
-
-// Report-level estimation assumptions.
-// These are intentionally conservative and can be tuned later.
-const MANUAL_TOKEN_THROUGHPUT_PER_MINUTE = 70;
-const ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE = 130;
-const MANUAL_TOOL_TASK_MINUTES = 2.0;
-const ASSISTED_TOOL_TASK_MINUTES = 1.2;
-const ESTIMATE_REALIZATION_FACTOR = 0.65;
-const MAX_EFFICIENCY_LIFT_PERCENT = 45;
-const MAX_SPEED_MULTIPLIER = 1.8;
 
 const asTimelineLabel = (item: DailyMetrics | PeriodMetrics): string => {
   if ("date" in item) {
@@ -125,7 +121,7 @@ const formatBreakdownText = (input?: Record<string, number> | null): string => {
 
   return entries
     .slice(0, 6)
-    .map(([key, value]) => `${key}: ${value.toLocaleString()}`)
+    .map(([key, value]) => `${key}: ${formatMetricExactNumber(value)}`)
     .join(" • ");
 };
 
@@ -272,7 +268,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
         title: t("settings.metricsDashboard.roundColumns.tokens"),
         key: "tokens",
         render: (_: unknown, round: RoundMetrics) =>
-          round.token_usage.total_tokens.toLocaleString(),
+          renderMetricNumber(round.token_usage.total_tokens),
       },
       {
         title: t("settings.metricsDashboard.roundColumns.toolCalls"),
@@ -289,6 +285,11 @@ const SystemSettingsMetricsTab: React.FC = () => {
     const totalToolCalls = summary?.total_tool_calls ?? 0;
     const activeSessions = summary?.active_sessions ?? 0;
     const totalRounds = sessions.reduce((sum, session) => sum + session.total_rounds, 0);
+    const totalSavedTokens = summary?.total_tokens_saved ?? 0;
+    const toolContextTokensSaved = summary?.tool_context_tokens_saved ?? 0;
+    const nonToolCompressionTokensSaved = summary?.non_tool_compression_tokens_saved ?? 0;
+    const promptCachedToolOutputs = summary?.prompt_cached_tool_outputs ?? 0;
+    const totalCompressionEvents = summary?.total_compression_events ?? 0;
 
     const totalForwardRequests = forwardSummary?.total_requests ?? 0;
     const totalForwardTokens = forwardSummary?.total_tokens.total_tokens ?? 0;
@@ -300,35 +301,14 @@ const SystemSettingsMetricsTab: React.FC = () => {
       totalForwardRequests > 0 ? (failedForwardRequests / totalForwardRequests) * 100 : 0;
     const streamRate =
       forwardRequests.length > 0 ? (streamedForwardRequests / forwardRequests.length) * 100 : 0;
-
-    const manualMinutesEstimate =
-      totalSessionTokens / MANUAL_TOKEN_THROUGHPUT_PER_MINUTE +
-      totalToolCalls * MANUAL_TOOL_TASK_MINUTES;
-    const assistedMinutesEstimate =
-      totalSessionTokens / ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE +
-      totalToolCalls * ASSISTED_TOOL_TASK_MINUTES;
-    const rawSavedMinutesEstimate = Math.max(0, manualMinutesEstimate - assistedMinutesEstimate);
-    const savedMinutesEstimate = rawSavedMinutesEstimate * ESTIMATE_REALIZATION_FACTOR;
-    const realizedMinutesEstimate = Math.max(
-      assistedMinutesEstimate,
-      manualMinutesEstimate - savedMinutesEstimate,
-    );
-    const savedDurationEstimate = formatDuration(savedMinutesEstimate * 60_000);
-    const savedWorkdaysEstimate = Number((savedMinutesEstimate / (8 * 60)).toFixed(2));
-    const efficiencyLiftEstimate =
-      manualMinutesEstimate > 0
-        ? Math.min(
-            MAX_EFFICIENCY_LIFT_PERCENT,
-            Number(((savedMinutesEstimate / manualMinutesEstimate) * 100).toFixed(1)),
-          )
+    const savedTokenRatio =
+      totalSessionTokens > 0
+        ? Number(((totalSavedTokens / totalSessionTokens) * 100).toFixed(1))
         : 0;
-    const speedMultiplierEstimate =
-      realizedMinutesEstimate > 0
-        ? Math.min(
-            MAX_SPEED_MULTIPLIER,
-            Number((manualMinutesEstimate / realizedMinutesEstimate).toFixed(2)),
-          )
-        : 1;
+    const toolSavedShare =
+      totalSavedTokens > 0
+        ? Number(((toolContextTokensSaved / totalSavedTokens) * 100).toFixed(1))
+        : 0;
 
     return [
       {
@@ -336,22 +316,48 @@ const SystemSettingsMetricsTab: React.FC = () => {
         value: totalSessions > 0 ? Math.round(totalSessionTokens / totalSessions) : 0,
       },
       {
-        title: t("settings.metricsDashboard.compactStats.estimatedTimeSaved"),
-        value: savedDurationEstimate,
+        title: t("settings.metricsDashboard.compactStats.savedTokens", {
+          defaultValue: "Saved Tokens",
+        }),
+        value: totalSavedTokens,
       },
       {
-        title: t("settings.metricsDashboard.compactStats.estimatedEfficiencyLift"),
-        value: efficiencyLiftEstimate,
+        title: t("settings.metricsDashboard.compactStats.toolContextSavedTokens", {
+          defaultValue: "Tool Context Saved Tokens",
+        }),
+        value: toolContextTokensSaved,
+      },
+      {
+        title: t("settings.metricsDashboard.compactStats.nonToolCompressionSavedTokens", {
+          defaultValue: "Non-Tool Compression Saved Tokens",
+        }),
+        value: nonToolCompressionTokensSaved,
+      },
+      {
+        title: t("settings.metricsDashboard.compactStats.savedTokenRatio", {
+          defaultValue: "Saved / Chat Tokens",
+        }),
+        value: savedTokenRatio,
         suffix: "%",
       },
       {
-        title: t("settings.metricsDashboard.compactStats.estimatedSpeedMultiplier"),
-        value: speedMultiplierEstimate,
-        suffix: t("settings.metricsDashboard.multiplierSuffix"),
+        title: t("settings.metricsDashboard.compactStats.toolSavedShare", {
+          defaultValue: "Tool Share of Saved Tokens",
+        }),
+        value: toolSavedShare,
+        suffix: "%",
       },
       {
-        title: t("settings.metricsDashboard.compactStats.estimatedSavedWorkdays"),
-        value: savedWorkdaysEstimate,
+        title: t("settings.metricsDashboard.compactStats.promptCachedToolOutputs", {
+          defaultValue: "Prompt-Cached Tool Outputs",
+        }),
+        value: promptCachedToolOutputs,
+      },
+      {
+        title: t("settings.metricsDashboard.compactStats.compressionEvents", {
+          defaultValue: "Compression Events",
+        }),
+        value: totalCompressionEvents,
       },
       {
         title: t("settings.metricsDashboard.compactStats.avgRoundsPerSession"),
@@ -605,17 +611,40 @@ const SystemSettingsMetricsTab: React.FC = () => {
               label: t("settings.metricsDashboard.tabs.overview"),
               children: (
                 <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                  <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
-                  <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
-                  <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
-                  <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
                   <Card
                     size="small"
                     className="lotus-metric-card"
-                    title={t("settings.metricsDashboard.derivedMetricsTitle")}
+                    title={t("settings.metricsDashboard.overviewSections.scaleTitle", {
+                      defaultValue: "Scale & Activity",
+                    })}
                     extra={
                       <Text type="secondary">
-                        {t("settings.metricsDashboard.derivedMetricsSubtitle")}
+                        {t("settings.metricsDashboard.overviewSections.scaleSubtitle", {
+                          defaultValue:
+                            "Current usage volume across chat, forward, skills, and memory.",
+                        })}
+                      </Text>
+                    }
+                  >
+                    <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                      <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
+                      <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
+                      <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
+                      <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
+                    </Space>
+                  </Card>
+                  <Card
+                    size="small"
+                    className="lotus-metric-card"
+                    title={t("settings.metricsDashboard.overviewSections.efficiencyTitle", {
+                      defaultValue: "Compression & Efficiency Advantage",
+                    })}
+                    extra={
+                      <Text type="secondary">
+                        {t("settings.metricsDashboard.overviewSections.efficiencySubtitle", {
+                          defaultValue:
+                            "Real savings from context compression, especially around tool-heavy workflows.",
+                        })}
                       </Text>
                     }
                   >
@@ -638,6 +667,11 @@ const SystemSettingsMetricsTab: React.FC = () => {
                               title={metric.title}
                               value={metric.value}
                               suffix={metric.suffix}
+                              formatter={
+                                typeof metric.value === "number"
+                                  ? statisticNumberFormatter
+                                  : undefined
+                              }
                               valueStyle={{ fontSize: token.fontSizeHeading4 }}
                             />
                           </div>
@@ -646,13 +680,8 @@ const SystemSettingsMetricsTab: React.FC = () => {
                     </Row>
                     <Text type="secondary" style={{ display: "block", marginTop: token.marginXS }}>
                       {t("settings.metricsDashboard.efficiencyHint", {
-                        manualTpm: MANUAL_TOKEN_THROUGHPUT_PER_MINUTE,
-                        manualToolMinutes: MANUAL_TOOL_TASK_MINUTES,
-                        assistedTpm: ASSISTED_TOKEN_THROUGHPUT_PER_MINUTE,
-                        assistedToolMinutes: ASSISTED_TOOL_TASK_MINUTES,
-                        realization: Math.round(ESTIMATE_REALIZATION_FACTOR * 100),
-                        maxLift: MAX_EFFICIENCY_LIFT_PERCENT,
-                        maxMultiplier: MAX_SPEED_MULTIPLIER,
+                        defaultValue:
+                          "这些指标优先使用真实运行统计：总节约 Tokens、工具上下文压缩节约、非工具压缩节约、压缩事件数，以及会话 / Forward 的平均负载与质量指标。",
                       })}
                     </Text>
                   </Card>
@@ -714,7 +743,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
                               </div>
                               <div style={{ fontSize: 12 }}>
                                 {t("settings.metricsDashboard.tokensAmount", {
-                                  value: point.tokens.toLocaleString(),
+                                  value: formatMetricCompactNumber(point.tokens),
                                 })}
                               </div>
                             </div>
@@ -993,7 +1022,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
                 {selectedSession.message_count}
               </Descriptions.Item>
               <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.totalTokens")}>
-                {selectedSession.total_token_usage.total_tokens.toLocaleString()}
+                {renderMetricNumber(selectedSession.total_token_usage.total_tokens)}
               </Descriptions.Item>
               <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.toolCalls")}>
                 {selectedSession.tool_call_count}

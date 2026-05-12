@@ -2,6 +2,7 @@ import { Card, Col, Row, Skeleton, Statistic, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import type { ForwardMetricsSummary } from "../../../../../services/metrics";
+import { statisticNumberFormatter } from "./metricNumberFormatting";
 
 const { useToken } = theme;
 
@@ -53,6 +54,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({ summary, load
             title={t("settings.forwardMetricsCards.totalForwardRequests")}
             value={summary?.total_requests ?? 0}
             precision={0}
+            formatter={statisticNumberFormatter}
             valueStyle={{ color: "var(--lotus-chart-primary)" }}
           />
         </Card>
@@ -80,6 +82,7 @@ const ForwardMetricsCards: React.FC<ForwardMetricsCardsProps> = ({ summary, load
             title={t("settings.forwardMetricsCards.forwardTokens")}
             value={summary?.total_tokens.total_tokens ?? 0}
             precision={0}
+            formatter={statisticNumberFormatter}
             valueStyle={{ color: "var(--lotus-metric-text-strong)" }}
           />
         </Card>

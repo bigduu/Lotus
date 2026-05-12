@@ -7,6 +7,7 @@ import {
   normalizeBackendBaseUrl,
   setBackendBaseUrl,
 } from "../../../../shared/utils/backendBaseUrl";
+import i18n from "../../../../shared/i18n";
 
 interface UseSystemSettingsBackendProps {
   msgApi: {
@@ -31,20 +32,20 @@ export const useSystemSettingsBackend = ({
   const validateBackendUrl = (value: string): string | null => {
     const normalized = normalizeBackendBaseUrl(value);
     if (!normalized) {
-      return "Backend URL cannot be empty";
+      return i18n.t("settings.configTab.backendUrlEmpty");
     }
 
     try {
       const parsed = new URL(normalized);
       if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-        return "Backend URL must start with http:// or https://";
+        return i18n.t("settings.configTab.backendUrlInvalidProtocol");
       }
     } catch {
-      return "Backend URL is not a valid URL";
+      return i18n.t("settings.configTab.backendUrlInvalidUrl");
     }
 
     if (!normalized.endsWith("/v1")) {
-      return 'Backend URL must end with \"/v1\"';
+      return i18n.t("settings.configTab.backendUrlMustEndWithV1");
     }
 
     return null;
@@ -61,7 +62,7 @@ export const useSystemSettingsBackend = ({
     setBackendBaseUrl(normalized);
     setBackendBaseUrlState(normalized);
     setHasBackendOverride(true);
-    msgApi.success("Backend URL saved");
+    msgApi.success(i18n.t("settings.configTab.backendSaved"));
 
     try {
       await refreshModels();
@@ -72,7 +73,7 @@ export const useSystemSettingsBackend = ({
     clearBackendBaseUrlOverride();
     setBackendBaseUrlState(getDefaultBackendBaseUrl());
     setHasBackendOverride(false);
-    msgApi.success("Backend URL reset to default");
+    msgApi.success(i18n.t("settings.configTab.backendResetDefault"));
 
     try {
       await refreshModels();

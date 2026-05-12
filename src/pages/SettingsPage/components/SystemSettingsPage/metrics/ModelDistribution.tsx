@@ -3,6 +3,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { useTranslation } from "react-i18next";
 
 import type { ModelMetrics } from "@services/metrics";
+import { formatMetricTooltipValue } from "./metricNumberFormatting";
 
 const { Text } = Typography;
 
@@ -68,7 +69,7 @@ const ModelDistribution: React.FC<ModelDistributionProps> = ({ data, loading }) 
                     />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip formatter={(value: number) => formatMetricTooltipValue(value)} />
               </PieChart>
             </ResponsiveContainer>
           </div>

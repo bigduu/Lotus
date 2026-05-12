@@ -11,6 +11,8 @@ import {
   YAxis,
 } from "recharts";
 
+import { formatMetricCompactNumber, formatMetricTooltipValue } from "./metricNumberFormatting";
+
 const { Text } = Typography;
 
 export interface TokenChartPoint {
@@ -58,8 +60,8 @@ const TokenChart: React.FC<TokenChartProps> = ({ data, loading }) => {
               <LineChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="label" minTickGap={24} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
+                <YAxis allowDecimals={false} tickFormatter={formatMetricCompactNumber} />
+                <Tooltip formatter={(value: number) => formatMetricTooltipValue(value)} />
                 <Legend />
                 <Line
                   type="monotone"

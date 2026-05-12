@@ -3,6 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
 
 import type { ForwardRequestMetrics } from "../../../../../services/metrics";
+import { renderMetricNumber } from "./metricNumberFormatting";
 
 const { Text } = Typography;
 
@@ -105,7 +106,7 @@ const ForwardRequestTable: React.FC<ForwardRequestTableProps> = ({ requests, loa
       width: 100,
       render: (_, record) =>
         record.token_usage ? (
-          <Text>{record.token_usage.total_tokens.toLocaleString()}</Text>
+          <Text>{renderMetricNumber(record.token_usage.total_tokens)}</Text>
         ) : (
           <Text type="secondary">-</Text>
         ),

@@ -17,6 +17,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
+import i18n from "../../../../shared/i18n";
 
 import {
   AgentClient,
@@ -85,13 +86,13 @@ interface ScheduleFormValues {
 }
 
 const WEEKDAY_OPTIONS: Array<{ label: string; value: WeeklyWeekday }> = [
-  { label: "Mon", value: "mon" },
-  { label: "Tue", value: "tue" },
-  { label: "Wed", value: "wed" },
-  { label: "Thu", value: "thu" },
-  { label: "Fri", value: "fri" },
-  { label: "Sat", value: "sat" },
-  { label: "Sun", value: "sun" },
+  { label: i18n.t("settings.schedulesTab.weekdays.mon"), value: "mon" },
+  { label: i18n.t("settings.schedulesTab.weekdays.tue"), value: "tue" },
+  { label: i18n.t("settings.schedulesTab.weekdays.wed"), value: "wed" },
+  { label: i18n.t("settings.schedulesTab.weekdays.thu"), value: "thu" },
+  { label: i18n.t("settings.schedulesTab.weekdays.fri"), value: "fri" },
+  { label: i18n.t("settings.schedulesTab.weekdays.sat"), value: "sat" },
+  { label: i18n.t("settings.schedulesTab.weekdays.sun"), value: "sun" },
 ];
 
 function normalizedString(value: unknown): string | undefined {
@@ -113,41 +114,56 @@ function buildIntervalTrigger(everySeconds: number): ScheduleTrigger {
 function triggerLabel(trigger: ScheduleTrigger): string {
   switch (trigger.type) {
     case "interval":
-      return `interval · ${trigger.every_seconds}s`;
+      return i18n.t("settings.schedulesTab.triggerLabels.interval", {
+        type: i18n.t("settings.schedulesTab.triggerTypes.interval"),
+        seconds: trigger.every_seconds,
+      });
     case "daily":
-      return `daily · ${String(trigger.hour).padStart(2, "0")}:${String(trigger.minute).padStart(2, "0")}`;
+      return i18n.t("settings.schedulesTab.triggerLabels.daily", {
+        type: i18n.t("settings.schedulesTab.triggerTypes.daily"),
+        time: `${String(trigger.hour).padStart(2, "0")}:${String(trigger.minute).padStart(2, "0")}`,
+      });
     case "weekly":
-      return `weekly · ${trigger.weekdays.join(", ")}`;
+      return i18n.t("settings.schedulesTab.triggerLabels.weekly", {
+        type: i18n.t("settings.schedulesTab.triggerTypes.weekly"),
+        weekdays: trigger.weekdays.join(", "),
+      });
     case "monthly":
-      return `monthly · ${trigger.days.join(", ")}`;
+      return i18n.t("settings.schedulesTab.triggerLabels.monthly", {
+        type: i18n.t("settings.schedulesTab.triggerTypes.monthly"),
+        days: trigger.days.join(", "),
+      });
     case "cron":
-      return `cron · ${trigger.expr}`;
+      return i18n.t("settings.schedulesTab.triggerLabels.cron", {
+        type: i18n.t("settings.schedulesTab.triggerTypes.cron"),
+        expr: trigger.expr,
+      });
   }
 }
 
 function misfireLabel(policy: MisfirePolicy | undefined): string {
   switch (policy?.type) {
     case "skip":
-      return "skip";
+      return i18n.t("settings.schedulesTab.misfirePolicyOptions.skip");
     case "catch_up_all":
-      return "catch up all";
+      return i18n.t("settings.schedulesTab.misfirePolicyOptions.catchUpAll");
     case "catch_up_window":
-      return "catch up window";
+      return i18n.t("settings.schedulesTab.misfirePolicyOptions.catchUpWindow");
     case "run_once":
     default:
-      return "run once";
+      return i18n.t("settings.schedulesTab.misfirePolicyOptions.runOnce");
   }
 }
 
 function overlapLabel(policy: OverlapPolicy | undefined): string {
   switch (policy) {
     case "allow":
-      return "allow overlap";
+      return i18n.t("settings.schedulesTab.overlapPolicyOptions.allow");
     case "skip":
-      return "skip overlap";
+      return i18n.t("settings.schedulesTab.overlapPolicyOptions.skip");
     case "queue_one":
     default:
-      return "queue one";
+      return i18n.t("settings.schedulesTab.overlapPolicyOptions.queueOne");
   }
 }
 
@@ -167,40 +183,46 @@ function statusTone(row: ScheduleEntry): { color: string; label: string; detail?
   if (row.state?.running_run_count > 0) {
     return {
       color: "processing",
-      label: "running",
-      detail: `${row.state.running_run_count} active`,
+      label: i18n.t("settings.schedulesTab.statusLabels.running"),
+      detail: i18n.t("settings.schedulesTab.statusDetails.active", {
+        count: row.state.running_run_count,
+      }),
     };
   }
   if ((row.state?.queued_run_count || 0) > 0) {
     return {
       color: "gold",
-      label: "queued",
-      detail: `${row.state.queued_run_count} pending`,
+      label: i18n.t("settings.schedulesTab.statusLabels.queued"),
+      detail: i18n.t("settings.schedulesTab.statusDetails.pending", {
+        count: row.state.queued_run_count,
+      }),
     };
   }
   if ((row.state?.consecutive_failures || 0) > 0) {
     return {
       color: "error",
-      label: "failing",
-      detail: `${row.state.consecutive_failures} consecutive failures`,
+      label: i18n.t("settings.schedulesTab.statusLabels.failing"),
+      detail: i18n.t("settings.schedulesTab.statusDetails.consecutiveFailures", {
+        count: row.state.consecutive_failures,
+      }),
     };
   }
   if (!row.enabled) {
     return {
       color: "default",
-      label: "disabled",
+      label: i18n.t("settings.schedulesTab.statusLabels.disabled"),
     };
   }
   if (row.state?.last_success_at) {
     return {
       color: "success",
-      label: "healthy",
-      detail: "last run succeeded",
+      label: i18n.t("settings.schedulesTab.statusLabels.healthy"),
+      detail: i18n.t("settings.schedulesTab.statusDetails.lastRunSucceeded"),
     };
   }
   return {
     color: "default",
-    label: "idle",
+    label: i18n.t("settings.schedulesTab.statusLabels.idle"),
   };
 }
 
@@ -726,10 +748,26 @@ export default function SystemSettingsSchedulesTab() {
         key: "activity",
         render: (_, row) => (
           <Flex vertical gap={2}>
-            <Text type="secondary">queued: {row.state?.queued_run_count ?? 0}</Text>
-            <Text type="secondary">running: {row.state?.running_run_count ?? 0}</Text>
-            <Text type="secondary">ok: {row.state?.total_success_count ?? 0}</Text>
-            <Text type="secondary">fail: {row.state?.total_failure_count ?? 0}</Text>
+            <Text type="secondary">
+              {t("settings.schedulesTab.activityLabels.queued", {
+                count: row.state?.queued_run_count ?? 0,
+              })}
+            </Text>
+            <Text type="secondary">
+              {t("settings.schedulesTab.activityLabels.running", {
+                count: row.state?.running_run_count ?? 0,
+              })}
+            </Text>
+            <Text type="secondary">
+              {t("settings.schedulesTab.activityLabels.ok", {
+                count: row.state?.total_success_count ?? 0,
+              })}
+            </Text>
+            <Text type="secondary">
+              {t("settings.schedulesTab.activityLabels.fail", {
+                count: row.state?.total_failure_count ?? 0,
+              })}
+            </Text>
           </Flex>
         ),
       },

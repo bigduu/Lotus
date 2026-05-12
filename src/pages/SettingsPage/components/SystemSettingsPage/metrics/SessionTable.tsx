@@ -3,6 +3,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
 
 import type { SessionMetrics } from "../../../../../services/metrics";
+import { renderMetricNumber } from "./metricNumberFormatting";
 
 interface SessionTableProps {
   sessions: SessionMetrics[];
@@ -135,7 +136,7 @@ const SessionTable: React.FC<SessionTableProps> = ({ sessions, loading, onSelect
     {
       title: t("settings.metricsTable.session.columns.tokens"),
       key: "tokens",
-      render: (_, record) => record.total_token_usage.total_tokens.toLocaleString(),
+      render: (_, record) => renderMetricNumber(record.total_token_usage.total_tokens),
       width: 120,
       sorter: (left, right) =>
         left.total_token_usage.total_tokens - right.total_token_usage.total_tokens,

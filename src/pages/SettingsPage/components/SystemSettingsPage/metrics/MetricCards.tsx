@@ -2,6 +2,7 @@ import { Card, Col, Row, Skeleton, Statistic, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import type { MetricsSummary, SessionMetrics } from "@services/metrics";
+import { statisticNumberFormatter } from "./metricNumberFormatting";
 
 const { useToken } = theme;
 
@@ -80,6 +81,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
             title={t("settings.metricsCards.chatTokens")}
             value={summary?.total_tokens.total_tokens ?? 0}
             precision={0}
+            formatter={statisticNumberFormatter}
             valueStyle={{ color: "var(--lotus-metric-text-strong)" }}
           />
         </Card>
@@ -90,7 +92,47 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
             title={t("settings.metricsCards.totalToolCalls")}
             value={summary?.total_tool_calls ?? 0}
             precision={0}
+            formatter={statisticNumberFormatter}
             valueStyle={{ color: "var(--lotus-chart-purple)" }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} lg={8} xl={4}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.metricsCards.tokensSaved", {
+              defaultValue: "Saved Tokens",
+            })}
+            value={summary?.total_tokens_saved ?? 0}
+            precision={0}
+            formatter={statisticNumberFormatter}
+            valueStyle={{ color: "var(--lotus-chart-cyan)" }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} lg={8} xl={4}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.metricsCards.toolContextSavedTokens", {
+              defaultValue: "Tool Context Saved Tokens",
+            })}
+            value={summary?.tool_context_tokens_saved ?? 0}
+            precision={0}
+            formatter={statisticNumberFormatter}
+            valueStyle={{ color: "var(--lotus-chart-accent)" }}
+          />
+        </Card>
+      </Col>
+      <Col xs={24} sm={12} lg={8} xl={4}>
+        <Card size="small" className="lotus-metric-card">
+          <Statistic
+            title={t("settings.metricsCards.compressionEvents", {
+              defaultValue: "Compression Events",
+            })}
+            value={summary?.total_compression_events ?? 0}
+            precision={0}
+            formatter={statisticNumberFormatter}
+            valueStyle={{ color: "var(--lotus-chart-secondary)" }}
           />
         </Card>
       </Col>

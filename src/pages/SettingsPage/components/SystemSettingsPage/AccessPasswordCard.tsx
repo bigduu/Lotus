@@ -31,21 +31,12 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
 
   const helperText = useMemo(() => {
     if (!passwordEnabled) {
-      return t(
-        "settings.configTab.accessPassword.helperNotEnabled",
-        "未设置访问密码。设置后，远程访问需要先输入密码，本地 loopback 访问可直接绕过。",
-      );
+      return t("settings.configTab.accessPassword.helperNotEnabled");
     }
     if (localBypass) {
-      return t(
-        "settings.configTab.accessPassword.helperLocalBypass",
-        "当前是本地访问，可直接修改访问密码，无需输入当前密码。",
-      );
+      return t("settings.configTab.accessPassword.helperLocalBypass");
     }
-    return t(
-      "settings.configTab.accessPassword.helperRemote",
-      "当前是远程访问。修改访问密码前，必须先输入当前密码。",
-    );
+    return t("settings.configTab.accessPassword.helperRemote");
   }, [localBypass, passwordEnabled, t]);
 
   const loadStatus = useCallback(async () => {
@@ -82,8 +73,8 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
 
       msgApi.success(
         passwordEnabled
-          ? t("settings.configTab.accessPassword.updated", "访问密码已更新")
-          : t("settings.configTab.accessPassword.enabled", "访问密码已设置"),
+          ? t("settings.configTab.accessPassword.updated")
+          : t("settings.configTab.accessPassword.enabled"),
       );
       form.resetFields();
       await loadStatus();
@@ -105,7 +96,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
     <Card
       size="small"
       className="lotus-settings-card"
-      title={<Text strong>{t("settings.configTab.accessPasswordTitle", "访问密码")}</Text>}
+      title={<Text strong>{t("settings.configTab.accessPasswordTitle")}</Text>}
     >
       <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
         <Alert
@@ -113,8 +104,8 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
           showIcon
           message={
             passwordEnabled
-              ? t("settings.configTab.accessPassword.statusEnabled", "访问密码已启用")
-              : t("settings.configTab.accessPassword.statusDisabled", "访问密码未启用")
+              ? t("settings.configTab.accessPassword.statusEnabled")
+              : t("settings.configTab.accessPassword.statusDisabled")
           }
           description={helperText}
         />
@@ -124,14 +115,13 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
         <Form form={form} layout="vertical" disabled={isLoading || isSaving}>
           {requiresCurrentPassword ? (
             <Form.Item
-              label={t("settings.configTab.accessPassword.currentPasswordLabel", "当前密码")}
+              label={t("settings.configTab.accessPassword.currentPasswordLabel")}
               name="currentPassword"
               rules={[
                 {
                   required: true,
                   message: t(
                     "settings.configTab.accessPassword.validation.currentPasswordRequired",
-                    "请输入当前密码",
                   ),
                 },
               ]}
@@ -143,24 +133,18 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
           <Form.Item
             label={
               passwordEnabled
-                ? t("settings.configTab.accessPassword.newPasswordLabel", "新密码")
-                : t("settings.configTab.accessPassword.setPasswordLabel", "设置密码")
+                ? t("settings.configTab.accessPassword.newPasswordLabel")
+                : t("settings.configTab.accessPassword.setPasswordLabel")
             }
             name="newPassword"
             rules={[
               {
                 required: true,
-                message: t(
-                  "settings.configTab.accessPassword.validation.newPasswordRequired",
-                  "请输入新密码",
-                ),
+                message: t("settings.configTab.accessPassword.validation.newPasswordRequired"),
               },
               {
                 min: 4,
-                message: t(
-                  "settings.configTab.accessPassword.validation.minLength",
-                  "密码长度至少 4 位",
-                ),
+                message: t("settings.configTab.accessPassword.validation.minLength"),
               },
             ]}
           >
@@ -168,16 +152,13 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
           </Form.Item>
 
           <Form.Item
-            label={t("settings.configTab.accessPassword.confirmPasswordLabel", "确认密码")}
+            label={t("settings.configTab.accessPassword.confirmPasswordLabel")}
             name="confirmPassword"
             dependencies={["newPassword"]}
             rules={[
               {
                 required: true,
-                message: t(
-                  "settings.configTab.accessPassword.validation.confirmPasswordRequired",
-                  "请再次输入新密码",
-                ),
+                message: t("settings.configTab.accessPassword.validation.confirmPasswordRequired"),
               },
               ({ getFieldValue }) => ({
                 validator(_, value) {
@@ -185,12 +166,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
                     return Promise.resolve();
                   }
                   return Promise.reject(
-                    new Error(
-                      t(
-                        "settings.configTab.accessPassword.validation.passwordMismatch",
-                        "两次输入的密码不一致",
-                      ),
-                    ),
+                    new Error(t("settings.configTab.accessPassword.validation.passwordMismatch")),
                   );
                 },
               }),
@@ -201,8 +177,8 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
 
           <Button type="primary" loading={isSaving} onClick={() => void handleSubmit()}>
             {passwordEnabled
-              ? t("settings.configTab.accessPassword.updateAction", "更新访问密码")
-              : t("settings.configTab.accessPassword.enableAction", "启用访问密码")}
+              ? t("settings.configTab.accessPassword.updateAction")
+              : t("settings.configTab.accessPassword.enableAction")}
           </Button>
         </Form>
       </Space>
