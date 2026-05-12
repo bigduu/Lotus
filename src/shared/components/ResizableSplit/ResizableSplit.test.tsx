@@ -1,6 +1,6 @@
 import React from "react";
 import { act, render, screen } from "@testing-library/react";
-import { vi } from "vitest";
+import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 import { ResizableSplit } from "./ResizableSplit";
 
@@ -70,5 +70,45 @@ describe("ResizableSplit", () => {
     });
 
     expect(separator).toHaveStyle({ left: "207px" });
+  });
+
+  it("establishes a stable flex height context for pane content", () => {
+    render(
+      <ResizableSplit
+        layout="horizontal"
+        sizesPx={[600, 600]}
+        first={<div data-testid="first-pane-content">left</div>}
+        second={<div data-testid="second-pane-content">right</div>}
+      />,
+    );
+
+    const firstContent = screen.getByTestId("first-pane-content");
+    const secondContent = screen.getByTestId("second-pane-content");
+    const firstOuterPane = firstContent.parentElement?.parentElement;
+    const secondOuterPane = secondContent.parentElement?.parentElement;
+    const firstContentWrapper = firstContent.parentElement;
+    const secondContentWrapper = secondContent.parentElement;
+
+    expect(firstOuterPane).toHaveStyle({
+      display: "flex",
+      overflow: "hidden",
+    });
+    expect(secondOuterPane).toHaveStyle({
+      display: "flex",
+      overflow: "hidden",
+    });
+
+    expect(firstContentWrapper).toHaveStyle({
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+      overflow: "hidden",
+    });
+    expect(secondContentWrapper).toHaveStyle({
+      display: "flex",
+      flexDirection: "column",
+      height: "100%",
+      overflow: "hidden",
+    });
   });
 });

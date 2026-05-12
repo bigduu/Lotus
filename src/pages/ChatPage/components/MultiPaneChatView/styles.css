@@ -1,14 +1,31 @@
-.chat-pane-shell .chat-pane-actions {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  z-index: 20;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease-in-out;
+.chat-pane-shell {
+  display: flex;
+  flex-direction: column;
 }
 
-.chat-pane-shell:hover .chat-pane-actions {
-  opacity: 1;
-  pointer-events: auto;
+.chat-pane-shell__header {
+  flex: 0 0 auto;
+}
+
+.chat-pane-shell__title {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.chat-pane-shell__title .ant-typography {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-pane-shell__actions {
+  flex: 0 0 auto;
+}
+
+.chat-pane-shell__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }

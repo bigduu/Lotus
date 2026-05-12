@@ -1,17 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { Button, Flex, theme } from "antd";
+import { Button, Flex, Tag, theme, Typography } from "antd";
 import {
+  AppstoreOutlined,
   BorderHorizontalOutlined,
   BorderVerticleOutlined,
   CheckSquareOutlined,
   CloseOutlined,
 } from "@ant-design/icons";
 
-import { useAppStore } from "../../store";
+import { selectSessionById, useAppStore } from "../../store";
 import { ChatView } from "../ChatView";
-// HomeDashboard pulls in EmptyTaskLauncher (14 templates, many icons, system
-// prompts) which is heavy and only rendered when a pane has no active session.
-// Lazy-loading keeps that entire subtree off the startup bundle.
 const LazyHomeDashboard = React.lazy(() =>
   import("../HomeDashboard").then((m) => ({ default: m.HomeDashboard })),
 );
@@ -24,13 +22,18 @@ import {
 import { ResizableSplit } from "@shared/components/ResizableSplit";
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
 import { ErrorBoundary } from "@shared/components/ErrorBoundary";
-import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "../ChatView/events";
+import {
+  CHAT_OPEN_INSPECTOR_EVENT,
+  CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT,
+} from "../ChatView/events";
 import { useTranslation } from "react-i18next";
 import { useMediaQuery } from "@shared/hooks/useMediaQuery";
+import { buildConversationWorkspaceState } from "../../workspace/workspaceState";
 
 import "./styles.css";
 
 const { useToken } = theme;
+const { Text } = Typography;
 
 const MAX_PANES = 4;
 
@@ -52,14 +55,31 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const lastSelectedPromptId = useAppStore((s) => s.lastSelectedPromptId);
 
   const sessionId = leafSessionIds[leafId] ?? null;
-  const leafCount = useMemo(() => getLeafIdsFromTree(tree).length, [tree]);
+  const currentChat = useAppStore(selectSessionById(sessionId));
+  const leafIds = useMemo(() => getLeafIdsFromTree(tree), [tree]);
+  const leafCount = leafIds.length;
+  const paneIndex = Math.max(0, leafIds.indexOf(leafId)) + 1;
   const canSplit = leafCount < MAX_PANES;
   const isMobile = useMediaQuery("(max-width: 768px)");
-  const canClosePane = leafCount > 1;
+  const workspaceState = useMemo(
+    () =>
+      buildConversationWorkspaceState({
+        isEmbedded: true,
+        leafCount,
+        isMobileViewport: isMobile,
+      }),
+    [isMobile, leafCount],
+  );
+  /** In multi-leaf mode the close button removes the leaf; otherwise it just clears the session binding. */
+  const canCloseLeaf = workspaceState.isMultiPane;
   const canClearSession = Boolean(sessionId);
-  const canClose = canClosePane || canClearSession;
-  const hasMultiplePanes = leafCount > 1;
+  const canClose = canCloseLeaf || canClearSession;
+  const isMultiLeafWorkspace = workspaceState.isMultiPane;
   const isActive = activeLeafId === leafId;
+  const paneTitle = currentChat?.title?.trim() || t("chat.multiPane.selectSessionHint");
+  const showPaneHeader = !isMobile;
+  const showPaneHeaderInspectorButton =
+    workspaceState.inspectorTogglePlacement === "pane_header" && Boolean(sessionId);
 
   const handleOpenSession = useCallback(
     (sid: string) => {
@@ -123,123 +143,173 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
       style={{
         height: "100%",
         minHeight: 0,
-        border: hasMultiplePanes
+        border: isMultiLeafWorkspace
           ? `1px solid ${isActive ? token.colorPrimaryBorder : token.colorBorderSecondary}`
           : "none",
-        borderRadius: hasMultiplePanes ? token.borderRadiusLG : 0,
+        borderRadius: isMultiLeafWorkspace ? token.borderRadiusLG : 0,
         overflow: "hidden",
         background: token.colorBgContainer,
         position: "relative",
       }}
     >
-      {!isMobile && (
+      {showPaneHeader ? (
         <div
-          className="chat-pane-actions"
+          className="chat-pane-shell__header"
           style={{
-            background: token.colorBgElevated,
-            border: `1px solid ${token.colorBorderSecondary}`,
-            borderRadius: 10,
-            padding: "2px 4px",
+            padding: `${token.paddingXS}px ${token.paddingSM}px`,
+            borderBottom: `1px solid ${token.colorBorderSecondary}`,
+            background: isMultiLeafWorkspace ? token.colorBgElevated : token.colorBgContainer,
           }}
         >
-          <Flex gap={token.marginXS}>
-            <Button
-              size="small"
-              type="text"
-              icon={<BorderHorizontalOutlined />}
-              disabled={!canSplit}
-              title={t("chat.multiPane.splitHorizontal")}
-              aria-label={t("chat.multiPane.splitHorizontal")}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                uiLayoutDebug("pane split request", { leafId, layout: "horizontal" });
-                splitLeaf(leafId, "horizontal");
-                // New pane becomes active; keep global selection consistent.
-                const next = useUILayoutStore.getState();
-                const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
-                if (nextSessionId) selectSession(nextSessionId);
-              }}
-            />
+          <Flex align="center" justify="space-between" gap={token.marginSM} style={{ minWidth: 0 }}>
+            <Flex align="center" gap={token.marginXS} style={{ minWidth: 0, flex: 1 }}>
+              {isMultiLeafWorkspace ? (
+                <Tag color={isActive ? "blue" : "default"} style={{ marginInlineEnd: 0 }}>
+                  {t("chat.multiPane.paneLabel", {
+                    index: paneIndex,
+                    defaultValue: "Pane {{index}}",
+                  })}
+                </Tag>
+              ) : null}
+              <div className="chat-pane-shell__title">
+                <Text
+                  strong={Boolean(sessionId)}
+                  type={sessionId ? undefined : "secondary"}
+                  ellipsis={{ tooltip: paneTitle }}
+                >
+                  {paneTitle}
+                </Text>
+              </div>
+            </Flex>
 
-            <Button
-              size="small"
-              type="text"
-              icon={<BorderVerticleOutlined />}
-              disabled={!canSplit}
-              title={t("chat.multiPane.splitVertical")}
-              aria-label={t("chat.multiPane.splitVertical")}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                uiLayoutDebug("pane split request", { leafId, layout: "vertical" });
-                splitLeaf(leafId, "vertical");
-                const next = useUILayoutStore.getState();
-                const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
-                if (nextSessionId) selectSession(nextSessionId);
-              }}
-            />
+            <Flex className="chat-pane-shell__actions" align="center" gap={4}>
+              <Button
+                size="small"
+                type="text"
+                icon={<BorderHorizontalOutlined />}
+                disabled={!canSplit}
+                title={t("chat.multiPane.splitHorizontal")}
+                aria-label={t("chat.multiPane.splitHorizontal")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  uiLayoutDebug("pane split request", { leafId, layout: "horizontal" });
+                  splitLeaf(leafId, "horizontal");
+                  const next = useUILayoutStore.getState();
+                  const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+                  if (nextSessionId) selectSession(nextSessionId);
+                }}
+              />
 
-            <Button
-              size="small"
-              type="text"
-              icon={<CheckSquareOutlined />}
-              disabled={!sessionId}
-              title={t("chat.multiPane.selectMessagesToExport")}
-              aria-label={t("chat.multiPane.selectMessagesToExport")}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (!sessionId) return;
-                window.dispatchEvent(
-                  new CustomEvent(CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT, {
-                    detail: { sessionId },
-                  }),
-                );
-              }}
-            />
+              <Button
+                size="small"
+                type="text"
+                icon={<BorderVerticleOutlined />}
+                disabled={!canSplit}
+                title={t("chat.multiPane.splitVertical")}
+                aria-label={t("chat.multiPane.splitVertical")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  uiLayoutDebug("pane split request", { leafId, layout: "vertical" });
+                  splitLeaf(leafId, "vertical");
+                  const next = useUILayoutStore.getState();
+                  const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+                  if (nextSessionId) selectSession(nextSessionId);
+                }}
+              />
 
-            <Button
-              size="small"
-              type="text"
-              danger
-              icon={<CloseOutlined />}
-              disabled={!canClose}
-              title={t("chat.multiPane.closePane")}
-              aria-label={t("chat.multiPane.closePane")}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                uiLayoutDebug("pane close request", { leafId });
-                if (canClosePane) {
-                  closeLeaf(leafId);
-                } else {
-                  // Keep the last pane, but allow users to close (clear) its active chat.
-                  setLeafSessionId(leafId, null);
-                }
-                const next = useUILayoutStore.getState();
-                const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
-                selectSession(nextSessionId);
-              }}
-            />
+              <Button
+                size="small"
+                type="text"
+                icon={<CheckSquareOutlined />}
+                disabled={!sessionId}
+                title={t("chat.multiPane.selectMessagesToExport")}
+                aria-label={t("chat.multiPane.selectMessagesToExport")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (!sessionId) return;
+                  window.dispatchEvent(
+                    new CustomEvent(CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT, {
+                      detail: { sessionId },
+                    }),
+                  );
+                }}
+              />
+
+              {showPaneHeaderInspectorButton ? (
+                <Button
+                  size="small"
+                  type="text"
+                  icon={<AppstoreOutlined />}
+                  title={t("chat.workspace.openInspector", {
+                    defaultValue: "Open inspector",
+                  })}
+                  aria-label={t("chat.workspace.openInspector", {
+                    defaultValue: "Open inspector",
+                  })}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!sessionId) return;
+                    window.dispatchEvent(
+                      new CustomEvent(CHAT_OPEN_INSPECTOR_EVENT, {
+                        detail: { sessionId },
+                      }),
+                    );
+                  }}
+                />
+              ) : null}
+
+              <Button
+                size="small"
+                type="text"
+                danger
+                icon={<CloseOutlined />}
+                disabled={!canClose}
+                title={t("chat.multiPane.closePane")}
+                aria-label={t("chat.multiPane.closePane")}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  uiLayoutDebug("pane close request", { leafId });
+                  if (canCloseLeaf) {
+                    closeLeaf(leafId);
+                  } else {
+                    setLeafSessionId(leafId, null);
+                  }
+                  const next = useUILayoutStore.getState();
+                  const nextSessionId = next.leafSessionIds[next.activeLeafId] ?? null;
+                  selectSession(nextSessionId);
+                }}
+              />
+            </Flex>
           </Flex>
         </div>
-      )}
+      ) : null}
 
-      {sessionId ? (
-        <ErrorBoundary name="ChatView">
-          <ChatView sessionId={sessionId} embedded={true} />
-        </ErrorBoundary>
-      ) : (
-        <ErrorBoundary name="HomeDashboard">
-          <React.Suspense fallback={null}>
-            <LazyHomeDashboard
-              onOpenSession={handleOpenSession}
-              onCreateSession={handleCreateSession}
+      <div className="chat-pane-shell__content">
+        {sessionId ? (
+          <ErrorBoundary name="ChatView">
+            <ChatView
+              sessionId={sessionId}
+              embedded={true}
+              paneCount={leafCount}
+              workspaceState={workspaceState}
             />
-          </React.Suspense>
-        </ErrorBoundary>
-      )}
+          </ErrorBoundary>
+        ) : (
+          <ErrorBoundary name="HomeDashboard">
+            <React.Suspense fallback={null}>
+              <LazyHomeDashboard
+                onOpenSession={handleOpenSession}
+                onCreateSession={handleCreateSession}
+              />
+            </React.Suspense>
+          </ErrorBoundary>
+        )}
+      </div>
     </div>
   );
 };
@@ -287,7 +357,6 @@ export const MultiPaneChatView: React.FC = () => {
   const didSeedInitialChatRef = useRef(false);
   const leafIds = useMemo(() => getLeafIdsFromTree(tree), [tree]);
 
-  // Ensure active leaf is always valid.
   useEffect(() => {
     if (leafIds.length === 0) return;
     if (!leafIds.includes(activeLeafId)) {
@@ -295,7 +364,6 @@ export const MultiPaneChatView: React.FC = () => {
     }
   }, [activeLeafId, leafIds, setActiveLeafId]);
 
-  // Prune deleted chats from pane assignments.
   useEffect(() => {
     const mappedSessionIds = new Set(Object.values(leafSessionIds).filter(Boolean) as string[]);
     let needsUpdate = false;
@@ -314,7 +382,6 @@ export const MultiPaneChatView: React.FC = () => {
     }
   }, [sessionIdSet, leafSessionIds, setLeafSessionId]);
 
-  // Seed initial pane assignment once so fresh sessions aren't blank.
   useEffect(() => {
     if (!currentSessionId) return;
     if (didSeedInitialChatRef.current) return;
@@ -326,12 +393,6 @@ export const MultiPaneChatView: React.FC = () => {
     }
     didSeedInitialChatRef.current = true;
   }, [activeLeafId, currentSessionId, leafSessionIds, setLeafSessionId]);
-
-  // NOTE: We intentionally avoid "two-way binding" between global `currentSessionId`
-  // and pane assignments. The sidebar and pane click handlers already coordinate
-  // `setLeafSessionId(...)` and `selectSession(...)`. Extra sync effects here can create
-  // selection ping-pong (especially during Create New Session) and trigger
-  // "Maximum update depth exceeded".
 
   return (
     <div

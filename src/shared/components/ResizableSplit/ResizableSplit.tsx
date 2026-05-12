@@ -93,19 +93,33 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
     return Number.isFinite(v) ? v : null;
   }, [sizesPx]);
 
+  const persistedSecondPx = useMemo(() => {
+    if (!sizesPx) return null;
+    const v = Number(sizesPx[1]);
+    return Number.isFinite(v) ? v : null;
+  }, [sizesPx]);
+
   const persistedSplitRatio = useMemo(() => {
     if (!sizesPx) return null;
     const first = Number(sizesPx[0]);
     const second = Number(sizesPx[1]);
     if (!Number.isFinite(first) || !Number.isFinite(second)) return null;
     const total = first + second;
-    // When second is 0 the caller only cares about an absolute first-pane
-    // pixel size (e.g. sidebar width).  Computing a ratio here would yield
-    // 1.0, causing the first pane to fill the entire container on the next
-    // render.  Return null so we fall back to persistedFirstPx instead.
-    if (total <= 0 || second <= 0) return null;
+    // When either pane is being persisted as an absolute pixel width
+    // (sidebar => [width, 0], inspector => [0, width]) we should not derive a ratio.
+    if (total <= 0 || first <= 0 || second <= 0) return null;
     return clamp(first / total, 0, 1);
   }, [sizesPx]);
+
+  const absoluteFirstPanePx = useMemo(() => {
+    if (persistedFirstPx === null || persistedSecondPx === null) return null;
+    return persistedFirstPx > 0 && persistedSecondPx <= 0 ? persistedFirstPx : null;
+  }, [persistedFirstPx, persistedSecondPx]);
+
+  const absoluteSecondPanePx = useMemo(() => {
+    if (persistedFirstPx === null || persistedSecondPx === null) return null;
+    return persistedSecondPx > 0 && persistedFirstPx <= 0 ? persistedSecondPx : null;
+  }, [persistedFirstPx, persistedSecondPx]);
 
   // Measure the container so split sizes can adapt when the window changes.
   useLayoutEffect(() => {
@@ -153,11 +167,15 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
   const ratioFirstPx = containerSize > 0 ? Math.round(containerSize * sourceRatio) : null;
   // When a valid ratio was derived from props (both sizesPx values > 0),
   // prefer the ratio so the split adapts to container resizes.
-  // Otherwise prefer the absolute persistedFirstPx (e.g. sidebar width).
+  // Otherwise prefer an absolute first-pane width (sidebar) or an absolute
+  // second-pane width (inspector rail) when provided.
   const rawFirstPx =
     liveFirstPx ??
     (persistedSplitRatio !== null ? ratioFirstPx : null) ??
-    persistedFirstPx ??
+    absoluteFirstPanePx ??
+    (absoluteSecondPanePx !== null && containerSize > 0
+      ? containerSize - absoluteSecondPanePx
+      : null) ??
     ratioFirstPx ??
     0;
   const effectiveFirstPx =
@@ -292,7 +310,19 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
           display: "flex",
         }}
       >
-        <div style={{ flex: 1, minHeight: 0, minWidth: 0 }}>{first}</div>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            height: "100%",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {first}
+        </div>
       </div>
 
       <div
@@ -304,7 +334,19 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
           display: "flex",
         }}
       >
-        <div style={{ flex: 1, minHeight: 0, minWidth: 0 }}>{second}</div>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            height: "100%",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {second}
+        </div>
       </div>
 
       {handleThickness > 0 ? (

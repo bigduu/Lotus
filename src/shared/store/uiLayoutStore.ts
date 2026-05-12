@@ -40,9 +40,16 @@ type SidebarLayout = {
   maxWidthPx: number;
 };
 
+type InspectorLayout = {
+  widthPx: number;
+  minWidthPx: number;
+  maxWidthPx: number;
+};
+
 export type UILayoutSnapshotV2 = {
   v: 2;
   sidebar: SidebarLayout;
+  inspector: InspectorLayout;
   tree: LayoutNode;
   activeLeafId: string;
   /**
@@ -63,9 +70,16 @@ const DEFAULT_SIDEBAR: SidebarLayout = {
   maxWidthPx: 520,
 };
 
+const DEFAULT_INSPECTOR: InspectorLayout = {
+  widthPx: 420,
+  minWidthPx: 320,
+  maxWidthPx: 680,
+};
+
 const DEFAULT_LAYOUT_V2: UILayoutSnapshotV2 = {
   v: 2,
   sidebar: DEFAULT_SIDEBAR,
+  inspector: DEFAULT_INSPECTOR,
   tree: { type: "leaf", id: "lt" },
   activeLeafId: "lt",
   leafSessionIds: { lt: null },
@@ -188,6 +202,7 @@ const removeLeafFromTree = (
 
 const toSnapshot = (state: {
   sidebar: SidebarLayout;
+  inspector: InspectorLayout;
   tree: LayoutNode;
   activeLeafId: string;
   leafSessionIds: Record<string, string | null>;
@@ -195,6 +210,7 @@ const toSnapshot = (state: {
 }): UILayoutSnapshotV2 => ({
   v: 2,
   sidebar: state.sidebar,
+  inspector: state.inspector,
   tree: state.tree,
   activeLeafId: state.activeLeafId,
   leafSessionIds: state.leafSessionIds,
@@ -203,7 +219,7 @@ const toSnapshot = (state: {
 
 type PersistableLayoutState = Pick<
   UILayoutSnapshotV2,
-  "sidebar" | "tree" | "activeLeafId" | "leafSessionIds" | "splitSizesPx"
+  "sidebar" | "inspector" | "tree" | "activeLeafId" | "leafSessionIds" | "splitSizesPx"
 >;
 
 const persistLayout = (snapshot: UILayoutSnapshotV2) => {
@@ -243,6 +259,7 @@ type UILayoutSnapshotV1 = {
 
 const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
   const sidebar: SidebarLayout = { ...DEFAULT_SIDEBAR, ...(v1.sidebar || {}) };
+  const inspector: InspectorLayout = { ...DEFAULT_INSPECTOR };
 
   const mode = v1.view?.mode ?? "single";
   const twoDirection = v1.view?.twoDirection ?? "horizontal";
@@ -259,6 +276,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
     return {
       v: 2,
       sidebar,
+      inspector,
       tree: { type: "leaf", id: "lt" },
       activeLeafId: activeLeafId === "lt" ? "lt" : "lt",
       leafSessionIds: { lt: leafSessionIds.lt ?? null },
@@ -303,6 +321,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
     return {
       v: 2,
       sidebar,
+      inspector,
       tree,
       activeLeafId: leafIds.includes(activeLeafId) ? activeLeafId : leafIds[0],
       leafSessionIds: Object.fromEntries(leafIds.map((id) => [id, leafSessionIds[id] ?? null])),
@@ -349,6 +368,7 @@ const migrateV1ToV2 = (v1: UILayoutSnapshotV1): UILayoutSnapshotV2 => {
   return {
     v: 2,
     sidebar,
+    inspector,
     tree,
     activeLeafId: leafIds.includes(activeLeafId) ? activeLeafId : leafIds[0],
     leafSessionIds: Object.fromEntries(leafIds.map((id) => [id, leafSessionIds[id] ?? null])),
@@ -367,6 +387,10 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
       const sidebar: SidebarLayout = {
         ...DEFAULT_SIDEBAR,
         ...(parsed.sidebar || {}),
+      };
+      const inspector: InspectorLayout = {
+        ...DEFAULT_INSPECTOR,
+        ...(parsed.inspector || {}),
       };
       const tree: LayoutNode = parsed.tree || DEFAULT_LAYOUT_V2.tree;
       const leafIds = getLeafIdsFromTree(tree);
@@ -397,6 +421,7 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
       return {
         v: 2,
         sidebar,
+        inspector,
         tree,
         activeLeafId,
         leafSessionIds: normalizedLeafSessionIds,
@@ -422,6 +447,7 @@ const loadInitialLayout = (): UILayoutSnapshotV2 => {
 export type UILayoutState = UILayoutSnapshotV2 & {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidthPx: (widthPx: number) => void;
+  setInspectorWidthPx: (widthPx: number) => void;
 
   setActiveLeafId: (leafId: string) => void;
   setLeafSessionId: (leafId: string, sessionId: string | null) => void;
@@ -444,6 +470,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       }
       return commitLayoutState({
         sidebar: { ...state.sidebar, collapsed },
+        inspector: state.inspector,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,
@@ -463,6 +490,27 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       }
       return commitLayoutState({
         sidebar: { ...state.sidebar, widthPx: clamped },
+        inspector: state.inspector,
+        tree: state.tree,
+        activeLeafId: state.activeLeafId,
+        leafSessionIds: state.leafSessionIds,
+        splitSizesPx: state.splitSizesPx,
+      });
+    });
+  },
+
+  setInspectorWidthPx: (widthPx) => {
+    set((state) => {
+      const clamped = Math.max(
+        state.inspector.minWidthPx,
+        Math.min(state.inspector.maxWidthPx, widthPx),
+      );
+      if (state.inspector.widthPx === clamped) {
+        return state;
+      }
+      return commitLayoutState({
+        sidebar: state.sidebar,
+        inspector: { ...state.inspector, widthPx: clamped },
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,
@@ -486,6 +534,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
 
       return commitLayoutState({
         sidebar: state.sidebar,
+        inspector: state.inspector,
         tree: state.tree,
         activeLeafId: leafId,
         leafSessionIds: state.leafSessionIds,
@@ -544,6 +593,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
 
       return commitLayoutState({
         sidebar: state.sidebar,
+        inspector: state.inspector,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: nextLeafSessionIds,
@@ -572,6 +622,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
 
       return commitLayoutState({
         sidebar: state.sidebar,
+        inspector: state.inspector,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: nextLeafSessionIds,
@@ -598,6 +649,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
 
       return commitLayoutState({
         sidebar: state.sidebar,
+        inspector: state.inspector,
         tree: nextTree,
         // Make the new pane active so the user can pick a chat for it.
         activeLeafId: newLeafId,
@@ -640,6 +692,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
 
       return commitLayoutState({
         sidebar: state.sidebar,
+        inspector: state.inspector,
         tree: nextTree,
         activeLeafId: nextActiveLeafId,
         leafSessionIds: nextLeafSessionIds,
@@ -656,6 +709,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       }
       return commitLayoutState({
         sidebar: state.sidebar,
+        inspector: state.inspector,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,
@@ -682,6 +736,7 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
 
       return commitLayoutState({
         sidebar: state.sidebar,
+        inspector: state.inspector,
         tree: state.tree,
         activeLeafId: state.activeLeafId,
         leafSessionIds: state.leafSessionIds,

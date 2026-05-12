@@ -14,6 +14,7 @@ type ChatInputAreaProps = {
   showMessagesView: boolean;
   sessionDiffSummary: SessionDiffSummary | null;
   contextUsageIndicator?: React.ReactNode;
+  showSessionDiffCard?: boolean;
 };
 
 export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
@@ -24,6 +25,7 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
   showMessagesView,
   sessionDiffSummary,
   contextUsageIndicator,
+  showSessionDiffCard = true,
 }) => {
   return (
     <Flex
@@ -44,10 +46,10 @@ export const ChatInputArea: React.FC<ChatInputAreaProps> = ({
           gap: showMessagesView ? 0 : 24,
         }}
       >
-        {showMessagesView && (
+        {showMessagesView && showSessionDiffCard ? (
           <ActiveToolMessageCard sessionDiffSummary={sessionDiffSummary} sessionId={sessionId} />
-        )}
-        {!showMessagesView && sessionId && <EmptyTaskLauncher sessionId={sessionId} />}
+        ) : null}
+        {!showMessagesView && sessionId ? <EmptyTaskLauncher sessionId={sessionId} /> : null}
         <InputContainer
           sessionId={sessionId}
           isCenteredLayout={isCenteredLayout}
