@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
+import i18n from "i18next";
 import type { FileReferenceInfo } from "../../utils/inputHighlight";
 import type { WorkspaceFileEntry } from "../../types/workspace";
 import type { ChatItem } from "../../types/chat";
@@ -159,7 +160,7 @@ export const useInputContainerFileReferences = ({
       if (!currentChat || !currentSessionId) return;
       const trimmedPath = path.trim();
       if (!trimmedPath) {
-        messageApi.error("Workspace path cannot be empty");
+        messageApi.error(i18n.t("chat.view.workspacePathEmpty"));
         return;
       }
 

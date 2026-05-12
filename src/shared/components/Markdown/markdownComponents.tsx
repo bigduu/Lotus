@@ -6,8 +6,13 @@ import { openExternalLink } from "../../utils/openExternalLink";
 
 const { Text } = Typography;
 
+const BLOCK_MARGIN_PX = 8;
+const INLINE_MARGIN_PX = 4;
+const CELL_PADDING = "4px 8px";
+const BLOCKQUOTE_BODY_PADDING = "4px 8px";
+
 export const createMarkdownComponents = (
-  token: Partial<GlobalToken>,
+  _token?: Partial<GlobalToken>,
   options?: {
     onFixMermaid?: (chart: string, renderError?: string) => Promise<void> | void;
     mermaidRenderMode?: MermaidRenderMode;
@@ -16,7 +21,7 @@ export const createMarkdownComponents = (
   p: ({ children }) => (
     <Text
       style={{
-        marginBottom: token.marginSM,
+        marginBottom: BLOCK_MARGIN_PX,
         display: "block",
       }}
     >
@@ -27,7 +32,7 @@ export const createMarkdownComponents = (
   ol: ({ children }) => (
     <ol
       style={{
-        marginBottom: token.marginSM,
+        marginBottom: BLOCK_MARGIN_PX,
         paddingLeft: 20,
       }}
     >
@@ -38,7 +43,7 @@ export const createMarkdownComponents = (
   ul: ({ children }) => (
     <ul
       style={{
-        marginBottom: token.marginSM,
+        marginBottom: BLOCK_MARGIN_PX,
         paddingLeft: 20,
       }}
     >
@@ -49,7 +54,7 @@ export const createMarkdownComponents = (
   li: ({ children }) => (
     <li
       style={{
-        marginBottom: token.marginXS,
+        marginBottom: INLINE_MARGIN_PX,
       }}
     >
       {children}
@@ -79,7 +84,7 @@ export const createMarkdownComponents = (
     return renderCodeBlock(
       language,
       codeString,
-      token,
+      undefined,
       options?.onFixMermaid,
       options?.mermaidRenderMode,
     );
@@ -88,12 +93,12 @@ export const createMarkdownComponents = (
   blockquote: ({ children }) => (
     <Card
       size="small"
-      styles={{ body: { padding: `${token.paddingXS}px ${token.padding}px` } }}
+      styles={{ body: { padding: BLOCKQUOTE_BODY_PADDING } }}
       style={{
-        borderLeft: `3px solid ${token.colorPrimary}`,
-        background: token.colorPrimaryBg,
-        margin: `${token.marginXS}px 0`,
-        color: token.colorTextSecondary,
+        borderLeft: "3px solid var(--ant-color-primary, #0d9488)",
+        background: "var(--ant-color-primary-bg, rgba(13, 148, 136, 0.08))",
+        margin: `${INLINE_MARGIN_PX}px 0`,
+        color: "var(--ant-color-text-secondary, #64748b)",
         fontStyle: "italic",
       }}
     >
@@ -119,7 +124,7 @@ export const createMarkdownComponents = (
           void openExternalLink(link);
         }}
         style={{
-          color: token.colorLink,
+          color: "var(--ant-color-link, #0d9488)",
           textDecoration: "underline",
           overflowWrap: "anywhere",
         }}
@@ -133,13 +138,13 @@ export const createMarkdownComponents = (
     <Card
       size="small"
       styles={{ body: { padding: 0 } }}
-      style={{ overflow: "auto", margin: `${token.marginSM}px 0` }}
+      style={{ overflow: "auto", margin: `${BLOCK_MARGIN_PX}px 0` }}
     >
       <table
         style={{
           width: "100%",
           borderCollapse: "collapse",
-          border: `1px solid ${token.colorBorder}`,
+          border: "1px solid var(--ant-color-border, #d9d9d9)",
         }}
       >
         {children}
@@ -148,7 +153,7 @@ export const createMarkdownComponents = (
   ),
 
   thead: ({ children }) => (
-    <thead style={{ backgroundColor: token.colorFillTertiary, color: token.colorText }}>
+    <thead style={{ backgroundColor: "var(--ant-color-fill-tertiary, rgba(15, 23, 42, 0.04))" }}>
       {children}
     </thead>
   ),
@@ -156,16 +161,16 @@ export const createMarkdownComponents = (
   tbody: ({ children }) => <tbody>{children}</tbody>,
 
   tr: ({ children }) => (
-    <tr style={{ borderBottom: `1px solid ${token.colorBorder}` }}>{children}</tr>
+    <tr style={{ borderBottom: "1px solid var(--ant-color-border, #d9d9d9)" }}>{children}</tr>
   ),
 
   th: ({ children }) => (
     <th
       style={{
-        padding: `${token.paddingXS}px ${token.paddingSM}px`,
+        padding: CELL_PADDING,
         textAlign: "left",
         fontWeight: "bold",
-        borderRight: `1px solid ${token.colorBorder}`,
+        borderRight: "1px solid var(--ant-color-border, #d9d9d9)",
       }}
     >
       {children}
@@ -175,8 +180,8 @@ export const createMarkdownComponents = (
   td: ({ children }) => (
     <td
       style={{
-        padding: `${token.paddingXS}px ${token.paddingSM}px`,
-        borderRight: `1px solid ${token.colorBorder}`,
+        padding: CELL_PADDING,
+        borderRight: "1px solid var(--ant-color-border, #d9d9d9)",
       }}
     >
       {children}
@@ -191,8 +196,8 @@ export const createMarkdownComponents = (
           checked={checked}
           disabled={disabled}
           style={{
-            marginRight: token.marginXS,
-            accentColor: token.colorPrimary,
+            marginRight: INLINE_MARGIN_PX,
+            accentColor: "var(--ant-color-primary, #0d9488)",
           }}
           readOnly
         />

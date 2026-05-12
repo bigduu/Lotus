@@ -590,12 +590,10 @@ export const useChatSidebarState = () => {
 
     const next = new Set(expandedRoots);
 
-    // Ensure current selection is visible.
-    if (selectedSessionMeta) {
-      const rootId =
-        selectedSessionMeta.kind === "child"
-          ? selectedSessionMeta.parentSessionId || selectedSessionMeta.rootSessionId
-          : selectedSessionMeta.id;
+    // Ensure a selected child is visible, but do not automatically expand every
+    // selected root's children — that creates too much persistent sidebar noise.
+    if (selectedSessionMeta?.kind === "child") {
+      const rootId = selectedSessionMeta.parentSessionId || selectedSessionMeta.rootSessionId;
       if (rootId) next.add(rootId);
     }
 

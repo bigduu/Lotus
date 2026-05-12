@@ -43,6 +43,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
     if (visible) {
       loadDirectory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadDirectory is a stable async function
   }, [visible]);
 
   const loadDirectory = async (path?: string) => {
@@ -53,8 +54,8 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
       setParentPath(result.parent_path);
       setFolders(result.folders);
     } catch (error) {
-      console.error("Failed to load directory:", error);
-      message.error("Unable to read folder");
+      console.error(t("chat.folderBrowser.readFolderError"), error);
+      message.error(t("chat.folderBrowser.readFolderError"));
     } finally {
       setLoading(false);
     }

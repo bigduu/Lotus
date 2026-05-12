@@ -1,5 +1,6 @@
 import React from "react";
 import { Button, Space } from "antd";
+import i18n from "i18next";
 
 export interface ModalFooterButton {
   key: string;
@@ -57,10 +58,11 @@ export const ModalFooter: React.FC<ModalFooterProps> = ({
 };
 
 // Predefined common button configurations
+/* eslint-disable react-refresh/only-export-components -- shared button factories used by modal dialogs */
 export const createCancelButton = (onCancel: () => void, text?: string): ModalFooterButton => {
   return {
     key: "cancel",
-    text: text || "Cancel",
+    text: text || i18n.t("common.cancel"),
     type: "default",
     onClick: onCancel,
   };
@@ -76,7 +78,7 @@ export const createOkButton = (
 ): ModalFooterButton => {
   return {
     key: "ok",
-    text: options?.text || "OK",
+    text: options?.text || i18n.t("common.ok"),
     type: "primary",
     disabled: options?.disabled,
     loading: options?.loading,
@@ -94,7 +96,7 @@ export const createApplyButton = (
 ): ModalFooterButton => {
   return {
     key: "apply",
-    text: options?.text || "Apply",
+    text: options?.text || i18n.t("common.apply"),
     type: "primary",
     disabled: options?.disabled,
     loading: options?.loading,
@@ -112,7 +114,7 @@ export const createSaveButton = (
 ): ModalFooterButton => {
   return {
     key: "save",
-    text: options?.text || "Save",
+    text: options?.text || i18n.t("common.save"),
     type: "primary",
     disabled: options?.disabled,
     loading: options?.loading,
@@ -130,7 +132,7 @@ export const createDeleteButton = (
 ): ModalFooterButton => {
   return {
     key: "delete",
-    text: options?.text || "Delete",
+    text: options?.text || i18n.t("common.delete"),
     type: "primary",
     danger: true,
     disabled: options?.disabled,

@@ -1,6 +1,7 @@
 import React from "react";
 import { Typography, Space, Button, theme } from "antd";
 import { CloseOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -12,6 +13,7 @@ interface InputPreviewProps {
 
 const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
 
   // Limit text length for preview
   const displayText = text.length > 150 ? text.substring(0, 147) + "..." : text;
@@ -37,7 +39,9 @@ const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
         }}
       >
         <div style={{ flex: 1 }}>
-          <Text style={{ fontSize: token.fontSizeSM, color: token.colorPrimary }}>Referencing</Text>
+          <Text style={{ fontSize: token.fontSizeSM, color: token.colorPrimary }}>
+            {t("chat.input.referencing")}
+          </Text>
           <Text
             style={{
               fontSize: token.fontSizeSM,

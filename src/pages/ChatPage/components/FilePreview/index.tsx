@@ -1,6 +1,7 @@
 import React from "react";
 import { Typography, Button, theme, Space, Tag, Tooltip } from "antd";
 import { CloseOutlined, FileTextOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { ProcessedFile } from "../../utils/fileUtils";
 
 const { Text } = Typography;
@@ -14,6 +15,7 @@ interface FilePreviewProps {
 
 const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
 
   if (files.length === 0) {
     return null;
@@ -37,7 +39,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) =
         <Space align="center" wrap size={token.marginXS}>
           <FileTextOutlined style={{ color: token.colorTextSecondary }} />
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            {files.length} file{files.length > 1 ? "s" : ""}
+            {t("chat.filePreview.fileCount", { count: files.length })}
           </Text>
           {files.map((file) => (
             <Tooltip
@@ -75,7 +77,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) =
               borderRadius: 999,
             }}
           >
-            Clear
+            {t("common.clear")}
           </Button>
         ) : null}
       </Space>

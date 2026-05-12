@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import i18n from "i18next";
 
 import type { Message, UserSystemPrompt } from "../../types/chat";
 import { SystemPromptService } from "../../services/SystemPromptService";
@@ -216,7 +217,7 @@ export const useSystemPromptContent = ({
     if (message.role === "system") {
       return systemMessageContent;
     }
-    return "System prompt is being prepared...";
+    return i18n.t("chat.systemPrompt.preparing");
   }, [
     showEnhanced,
     enhancedPrompt,

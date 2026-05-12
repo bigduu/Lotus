@@ -120,7 +120,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   const expanded = new Set(expandedKeys);
 
   return (
-    <Space direction="vertical" size="small" style={{ width: "100%" }}>
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
       {groups.map(({ dateKey, dateGroup, totalChatsInDate }) => {
         const isExpanded = expanded.has(dateKey);
 
@@ -129,8 +129,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             key={dateKey}
             style={{
               borderRadius: token.borderRadiusSM,
-              background: isExpanded ? token.colorFillTertiary : "transparent",
-              padding: 4,
+              background: "transparent",
+              padding: 0,
             }}
           >
             <Flex
@@ -138,9 +138,9 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               justify="space-between"
               style={{
                 cursor: "pointer",
-                padding: "8px 12px",
+                padding: "4px 8px",
                 borderRadius: token.borderRadiusSM,
-                transition: "all 0.2s ease",
+                transition: "background-color 0.2s ease, color 0.2s ease",
                 border: "1px solid transparent",
               }}
               role="button"
@@ -161,9 +161,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background =
-                  "var(--lotus-sidebar-item-hover-bg, rgba(204, 251, 241, 0.92))";
-                e.currentTarget.style.borderColor =
-                  "var(--lotus-sidebar-item-hover-border, rgba(13, 148, 136, 0.28))";
+                  "var(--lotus-sidebar-item-hover-bg, rgba(204, 251, 241, 0.76))";
+                e.currentTarget.style.borderColor = "transparent";
                 const btn = e.currentTarget.querySelector(
                   ".chat-sidebar-date-group-delete",
                 ) as HTMLElement;
@@ -196,10 +195,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 )}
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 10.5,
                     fontWeight: 700,
                     textTransform: "uppercase",
-                    letterSpacing: "0.5px",
+                    letterSpacing: "0.3px",
                     color: dateKey === "Today" ? "var(--lotus-primary)" : token.colorTextSecondary,
                     minWidth: 0,
                     overflow: "hidden",
@@ -229,19 +228,19 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             </Flex>
 
             {isExpanded ? (
-              <div style={{ marginTop: 4 }}>
+              <div style={{ marginTop: 2 }}>
                 <List
                   itemLayout="horizontal"
                   dataSource={dateGroup}
                   split={false}
                   renderItem={(chat: SidebarChatItem) => (
                     <div key={chat.id}>
-                      <Flex align="center" gap={6}>
+                      <Flex align="center" gap={6} style={{ padding: "4px 8px" }}>
                         {childrenByRoot[chat.id]?.length ? (
                           <Button
                             size="small"
                             type="text"
-                            style={{ padding: 0, width: 22 }}
+                            style={{ padding: 0, width: 18, minWidth: 18, height: 18 }}
                             aria-label={
                               expandedRootIds.has(chat.id)
                                 ? t("chat.sidebar.actions.collapseChildren")
@@ -253,15 +252,20 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                               onToggleRootExpanded(chat.id);
                             }}
                           >
-                            {expandedRootIds.has(chat.id) ? <DownOutlined /> : <RightOutlined />}
+                            {expandedRootIds.has(chat.id) ? (
+                              <DownOutlined style={{ fontSize: 12 }} />
+                            ) : (
+                              <RightOutlined style={{ fontSize: 12 }} />
+                            )}
                           </Button>
                         ) : (
-                          <div style={{ width: 22 }} />
+                          <div style={{ width: 18 }} />
                         )}
 
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ flex: 1, minWidth: 0, marginLeft: -8 }}>
                           <ChatItemComponent
                             chat={chat}
+                            compact
                             isSelected={chat.id === currentSessionId}
                             onSelect={onSelectChat}
                             onDelete={onDeleteChat}
@@ -283,15 +287,23 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
 
                       {expandedRootIds.has(chat.id) &&
                       (childrenByRoot[chat.id]?.length ?? 0) > 0 ? (
-                        <div style={{ marginLeft: 22, marginTop: 2 }}>
+                        <div style={{ marginLeft: 18, marginTop: 1 }}>
                           <List
                             itemLayout="horizontal"
                             dataSource={childrenByRoot[chat.id]}
                             split={false}
                             renderItem={(child: SidebarChatItem) => (
-                              <div key={child.id} style={{ paddingLeft: 12 }}>
+                              <div
+                                key={child.id}
+                                style={{
+                                  paddingLeft: 8,
+                                  borderLeft: `1px solid ${token.colorBorderSecondary}`,
+                                  marginLeft: 2,
+                                }}
+                              >
                                 <ChatItemComponent
                                   chat={child}
+                                  compact
                                   isSelected={child.id === currentSessionId}
                                   onSelect={onSelectChat}
                                   onDelete={onDeleteChat}
@@ -325,6 +337,6 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
           </div>
         );
       })}
-    </Space>
+    </div>
   );
 };

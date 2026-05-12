@@ -1,6 +1,7 @@
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
 import { Button, Typography, theme } from "antd";
 import { ReloadOutlined, BugOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 const { Text, Paragraph } = Typography;
 
@@ -76,6 +77,7 @@ const DefaultErrorFallback: React.FC<{
 }> = ({ error, onReset }) => {
   const { token } = theme.useToken();
   const [showDetails, setShowDetails] = React.useState(false);
+  const { t } = useTranslation();
 
   return (
     <div
@@ -99,12 +101,11 @@ const DefaultErrorFallback: React.FC<{
       />
 
       <Text strong style={{ fontSize: 16 }}>
-        Something went wrong
+        {t("app.errorBoundary.title")}
       </Text>
 
       <Text type="secondary" style={{ maxWidth: 420 }}>
-        An unexpected error occurred in this section. You can try again or reload the page if the
-        issue persists.
+        {t("app.errorBoundary.description")}
       </Text>
 
       <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -112,9 +113,9 @@ const DefaultErrorFallback: React.FC<{
           type="primary"
           icon={<ReloadOutlined />}
           onClick={onReset}
-          aria-label="Retry rendering this section"
+          aria-label={t("app.errorBoundary.tryAgain")}
         >
-          Try Again
+          {t("app.errorBoundary.tryAgain")}
         </Button>
 
         <Button
@@ -122,9 +123,9 @@ const DefaultErrorFallback: React.FC<{
           size="small"
           onClick={() => setShowDetails((v) => !v)}
           aria-expanded={showDetails}
-          aria-label="Toggle error details"
+          aria-label={t("app.errorBoundary.showDetails")}
         >
-          {showDetails ? "Hide Details" : "Show Details"}
+          {showDetails ? t("app.errorBoundary.hideDetails") : t("app.errorBoundary.showDetails")}
         </Button>
       </div>
 

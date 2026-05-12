@@ -19,6 +19,8 @@ const renderBootstrapError = (error: unknown) => {
 
   console.error("[Bodhi] Failed to bootstrap app:", error);
 
+  // NOTE: i18n is not yet initialized at this point (bootstrap failed before
+  // i18nReady resolved), so these strings remain hardcoded in English.
   root.render(
     <React.StrictMode>
       <div

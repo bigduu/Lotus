@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import i18n from "i18next";
 import { useDragAndDrop } from "../../hooks/useDragAndDrop";
 import { useImageHandler } from "../../hooks/useImageHandler";
 import { usePasteHandler } from "../../hooks/usePasteHandler";
@@ -43,7 +44,7 @@ export const useMessageInputAttachments = ({
         const { processed, errors } = await processFiles(others);
         if (processed.length > 0) {
           onAttachmentsAdded(processed);
-          messageApi.success(`Added ${processed.length} file(s)`);
+          messageApi.success(i18n.t("chat.input.filesAdded", { count: processed.length }));
         }
         errors.forEach((err) => messageApi.error(err));
         setIsProcessingAttachments(false);
@@ -65,7 +66,7 @@ export const useMessageInputAttachments = ({
           const { processed, errors } = await processFiles(files);
           if (processed.length > 0) {
             onAttachmentsAdded(processed);
-            messageApi.success(`Attached ${processed.length} file(s)`);
+            messageApi.success(i18n.t("chat.input.filesAttached", { count: processed.length }));
           }
           errors.forEach((err) => messageApi.error(err));
           setIsProcessingAttachments(false);

@@ -8,6 +8,7 @@ import {
   MinusCircleOutlined,
 } from "@ant-design/icons";
 import { TaskListMsg, TaskItemStatus } from "../../types/todoList";
+import { useTranslation } from "react-i18next";
 
 interface TaskListDisplayProps {
   taskList: TaskListMsg;
@@ -16,37 +17,38 @@ interface TaskListDisplayProps {
 export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({ taskList }) => {
   const { token } = theme.useToken();
   const { Text } = Typography;
+  const { t } = useTranslation();
 
   const getStatusTag = (status: TaskItemStatus) => {
     switch (status) {
       case "pending":
         return (
           <Tag icon={<ClockCircleOutlined />} color="default">
-            Pending
+            {t("components.todoList.status.pending")}
           </Tag>
         );
       case "in_progress":
         return (
           <Tag icon={<LoadingOutlined spin />} color="processing">
-            In Progress
+            {t("components.todoList.status.inProgress")}
           </Tag>
         );
       case "completed":
         return (
           <Tag icon={<CheckCircleOutlined />} color="success">
-            Completed
+            {t("components.todoList.status.completed")}
           </Tag>
         );
       case "skipped":
         return (
           <Tag icon={<MinusCircleOutlined />} color="default">
-            Skipped
+            {t("components.todoList.status.skipped")}
           </Tag>
         );
       case "failed":
         return (
           <Tag icon={<CloseCircleOutlined />} color="error">
-            Failed
+            {t("components.todoList.status.failed")}
           </Tag>
         );
       default:
@@ -57,11 +59,11 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({ taskList }) =>
   const getListStatusTag = () => {
     switch (taskList.status) {
       case "active":
-        return <Tag color="processing">Active</Tag>;
+        return <Tag color="processing">{t("components.todoList.listStatus.active")}</Tag>;
       case "completed":
-        return <Tag color="success">Completed</Tag>;
+        return <Tag color="success">{t("components.todoList.listStatus.completed")}</Tag>;
       case "abandoned":
-        return <Tag color="error">Abandoned</Tag>;
+        return <Tag color="error">{t("components.todoList.listStatus.abandoned")}</Tag>;
       default:
         return null;
     }
@@ -104,7 +106,9 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({ taskList }) =>
             }
             showInfo
           />
-          <Text type="secondary">{completionPercentage}% Complete</Text>
+          <Text type="secondary">
+            {t("components.todoList.percentComplete", { percent: completionPercentage })}
+          </Text>
         </Space>
 
         <List
@@ -145,12 +149,14 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({ taskList }) =>
 
         <Flex align="center" justify="space-between" wrap="wrap" gap="small">
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {taskList.items.filter((i) => i.status === "completed").length} /{" "}
-            {taskList.items.length} tasks completed
+            {t("components.todoList.progressLabel", {
+              completed: taskList.items.filter((i) => i.status === "completed").length,
+              total: taskList.items.length,
+            })}
           </Text>
           {currentItem ? (
             <Text type="secondary" style={{ fontSize: 12 }}>
-              Current: {currentItem.description}
+              {t("components.todoList.currentLabel", { description: currentItem.description })}
             </Text>
           ) : null}
         </Flex>

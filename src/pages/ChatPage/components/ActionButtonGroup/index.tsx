@@ -1,6 +1,7 @@
 import React from "react";
 import { Button, Flex, Tooltip, theme, Grid } from "antd";
 import { CopyOutlined, BookOutlined } from "@ant-design/icons";
+import i18n from "i18next";
 
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
@@ -64,7 +65,7 @@ export const ActionButtonGroup: React.FC<ActionButtonGroupProps> = ({
       {buttons.map((button) => (
         <Tooltip key={button.key} title={button.title}>
           <Button
-            data-testid={(button as any)["data-testid"] || button.key}
+            data-testid={button["data-testid"] || button.key}
             icon={button.icon}
             size={getActionButtonSize()}
             type="text"
@@ -82,21 +83,23 @@ export const ActionButtonGroup: React.FC<ActionButtonGroupProps> = ({
 };
 
 // Predefined common action button configurations
+// eslint-disable-next-line react-refresh/only-export-components -- shared button factory used by message cards
 export const createCopyButton = (onCopy: () => void, title?: string): ActionButton => {
   return {
     key: "copy",
     "data-testid": "copy-message",
     icon: <CopyOutlined />,
-    title: title || "Copy message",
+    title: title || i18n.t("chat.actions.copyMessage"),
     onClick: onCopy,
   };
 };
 
+// eslint-disable-next-line react-refresh/only-export-components -- shared button factory used by message cards
 export const createReferenceButton = (onReference: () => void, title?: string): ActionButton => {
   return {
     key: "reference",
     icon: <BookOutlined />,
-    title: title || "Reference message",
+    title: title || i18n.t("chat.actions.referenceMessage"),
     onClick: onReference,
   };
 };

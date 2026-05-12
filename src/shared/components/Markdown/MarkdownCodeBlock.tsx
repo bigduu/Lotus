@@ -13,7 +13,7 @@ export type MermaidRenderMode = "lazy" | "eager";
 interface CodeBlockWithCopyProps {
   language: string;
   codeString: string;
-  token: GlobalToken;
+  token?: GlobalToken;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components -- utility component intentionally colocated with render helper
@@ -21,6 +21,12 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
   const [isHovered, setIsHovered] = useState(false);
+
+  // Stable layout values — fall back to constants when token absent (theme-change resilience)
+  const marginXS = token?.marginXS ?? 8;
+  const borderRadiusSM = token?.borderRadiusSM ?? 4;
+  const fontSizeSM = token?.fontSizeSM ?? 12;
+  const paddingSM = token?.paddingSM ?? 8;
 
   const handleCopy = async () => {
     try {
@@ -52,9 +58,9 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
         language={isSupported ? normalizedLanguage : "text"}
         PreTag="div"
         customStyle={{
-          margin: `${token.marginXS}px 0`,
-          borderRadius: token.borderRadiusSM,
-          fontSize: token.fontSizeSM,
+          margin: `${marginXS}px 0`,
+          borderRadius: borderRadiusSM,
+          fontSize: fontSizeSM,
           maxWidth: "100%",
           paddingRight: "50px",
         }}
@@ -71,15 +77,15 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
           size="small"
           icon={<CopyOutlined />}
           onClick={handleCopy}
-          aria-label="Copy code"
+          aria-label={t("components.markdown.copyCodeAriaLabel")}
           style={{
             position: "absolute",
-            top: token.paddingSM,
-            right: token.paddingSM,
+            top: paddingSM,
+            right: paddingSM,
             backgroundColor: "var(--lotus-code-copy-btn-bg, rgba(0, 0, 0, 0.6))",
             color: "var(--lotus-code-copy-btn-color, white)",
             border: "none",
-            borderRadius: token.borderRadiusSM,
+            borderRadius: borderRadiusSM,
             opacity: 0.8,
             transition: "opacity 0.2s",
             zIndex: 10,
@@ -102,10 +108,17 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
 // eslint-disable-next-line react-refresh/only-export-components -- utility component intentionally colocated with render helper
 const FallbackCodeBlock: React.FC<{
   codeString: string;
-  token: GlobalToken;
+  token?: GlobalToken;
 }> = ({ codeString, token }) => {
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
+
+  // Stable layout values — fall back to constants when token absent
+  const marginXS = token?.marginXS ?? 8;
+  const borderRadiusSM = token?.borderRadiusSM ?? 4;
+  const fontSizeSM = token?.fontSizeSM ?? 12;
+  const paddingSM = token?.paddingSM ?? 8;
+  const padding = token?.padding ?? 16;
 
   return (
     <Card
@@ -113,7 +126,7 @@ const FallbackCodeBlock: React.FC<{
       styles={{ body: { padding: 0 } }}
       style={{
         position: "relative",
-        margin: `${token.marginXS}px 0`,
+        margin: `${marginXS}px 0`,
       }}
       onMouseEnter={(e) => {
         const copyBtn = e.currentTarget.querySelector(".fallback-copy-btn") as HTMLElement;
@@ -126,23 +139,23 @@ const FallbackCodeBlock: React.FC<{
     >
       <pre
         style={{
-          backgroundColor: token.colorBgContainer,
-          border: `1px solid ${token.colorBorder}`,
-          padding: token.padding,
-          borderRadius: token.borderRadiusSM,
+          backgroundColor: "var(--ant-color-bg-container, #ffffff)",
+          border: "1px solid var(--ant-color-border, #d9d9d9)",
+          padding: padding,
+          borderRadius: borderRadiusSM,
           overflow: "auto",
-          fontSize: token.fontSizeSM,
+          fontSize: fontSizeSM,
           paddingRight: "50px",
           margin: 0,
         }}
       >
-        <code style={{ color: token.colorText }}>{codeString}</code>
+        <code style={{ color: "var(--ant-color-text, #333)" }}>{codeString}</code>
       </pre>
       <Button
         type="text"
         size="small"
         icon={<CopyOutlined />}
-        aria-label="Copy code"
+        aria-label={t("components.markdown.copyCodeAriaLabel")}
         className="fallback-copy-btn"
         onClick={async () => {
           try {
@@ -155,12 +168,12 @@ const FallbackCodeBlock: React.FC<{
         }}
         style={{
           position: "absolute",
-          top: token.paddingSM,
-          right: token.paddingSM,
+          top: paddingSM,
+          right: paddingSM,
           backgroundColor: "var(--lotus-code-copy-btn-bg, rgba(0, 0, 0, 0.6))",
           color: "var(--lotus-code-copy-btn-color, white)",
           border: "none",
-          borderRadius: token.borderRadiusSM,
+          borderRadius: borderRadiusSM,
           display: "none",
           zIndex: 10,
         }}
@@ -249,7 +262,7 @@ const toMermaidChart = (language: string, codeString: string): string | null => 
 export const renderCodeBlock = (
   language: string,
   codeString: string,
-  token: Partial<GlobalToken>,
+  token?: Partial<GlobalToken>,
   onFixMermaid?: (chart: string, renderError?: string) => Promise<void> | void,
   mermaidRenderMode: MermaidRenderMode = "lazy",
 ) => {
@@ -278,11 +291,11 @@ export const renderCodeBlock = (
       <CodeBlockWithCopy
         language={normalizedLanguage}
         codeString={codeString}
-        token={token as GlobalToken}
+        token={token as GlobalToken | undefined}
       />
     );
   } catch (error) {
     console.warn("Syntax highlighting failed:", error);
-    return <FallbackCodeBlock codeString={codeString} token={token as GlobalToken} />;
+    return <FallbackCodeBlock codeString={codeString} token={token as GlobalToken | undefined} />;
   }
 };

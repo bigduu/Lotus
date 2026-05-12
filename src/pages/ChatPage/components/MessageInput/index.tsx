@@ -1,4 +1,4 @@
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo, useCallback } from "react";
 import { Flex, message, theme } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { useTranslation } from "react-i18next";
@@ -66,254 +66,256 @@ interface MessageInputProps {
   submitButtonLabel?: string;
 }
 
-export const MessageInput: React.FC<MessageInputProps> = ({
-  value,
-  onChange,
-  onSubmit,
-  interaction,
-  placeholder,
-  disabled = false,
-  images: propImages,
-  onImagesChange,
-  allowImages = true,
-  isWorkflowSelectorVisible = false,
-  textAreaRef: externalTextAreaRef, // External ref from parent
-  statusIndicator,
-  validateMessage,
-  onAttachmentsAdded,
-  onWorkflowCommandChange,
-  onFileReferenceChange,
-  onFileReferenceButtonClick,
-  maxCharCount,
-  leftControlsExtra,
-  submitButtonLabel,
-}) => {
-  const { t } = useTranslation();
-  const {
-    isStreaming,
-    isInputLocked = isStreaming,
-    canCancel,
-    hasMessages,
-    allowRetry = true,
-    onRetry,
-    onCancel,
-    onHistoryNavigate,
-  } = interaction;
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const internalTextAreaRef = useRef<TextAreaRef>(null);
-  const textAreaRef = externalTextAreaRef || internalTextAreaRef; // Use external ref if provided
-  const highlightOverlayRef = useRef<HTMLDivElement>(null);
-  const { token } = theme.useToken();
-  const isVdiSafeMode =
-    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
-  const [messageApi, contextHolder] = message.useMessage();
-  const charCount = value.length;
-  const hasCharLimit =
-    typeof maxCharCount === "number" && Number.isFinite(maxCharCount) && maxCharCount > 0;
-  const isOverCharLimit = hasCharLimit ? charCount > maxCharCount : false;
-  const isNearCharLimit = hasCharLimit
-    ? !isOverCharLimit && charCount >= maxCharCount * 0.9
-    : false;
-
-  const {
-    images,
-    setImages,
-    previewModalVisible,
-    setPreviewModalVisible,
-    previewImageIndex,
-    handleImagePreview,
-    clearImages,
-    isProcessingAttachments,
-    isDragOver,
-    handleDragOver,
-    handleDragLeave,
-    handleDrop,
-    handlePaste,
-    handleFileInputChange,
-  } = useMessageInputAttachments({
-    allowImages,
-    onAttachmentsAdded,
-    messageApi,
-  });
-
-  // Use debounced value only for triggering workflow/file search to avoid excessive API calls
-  // But use real-time value for highlighting to prevent input lag
-  const debouncedValue = useDebouncedValue(value, 80);
-
-  const highlightSegments = useMemo(() => getInputHighlightSegments(value), [value]);
-
-  const syncOverlayScroll = () => {
-    const textArea = textAreaRef.current?.resizableTextArea?.textArea;
-    if (!textArea || !highlightOverlayRef.current) return;
-    const scrollTop = textArea.scrollTop;
-    const scrollLeft = textArea.scrollLeft;
-    highlightOverlayRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`;
-  };
-
-  useMessageInputEffects({
+export const MessageInput = React.memo<MessageInputProps>(
+  ({
     value,
-    debouncedValue,
-    onWorkflowCommandChange,
-    onFileReferenceChange,
-    onImagesChange,
-    images,
-    propImages,
-    setImages,
-    syncOverlayScroll,
-  });
-
-  // Note: Tool validation logic removed - users no longer input tool commands directly
-  // Tools are now called autonomously by LLM based on user intent
-
-  const { handleKeyDown, handleSubmit, handleRetry } = useMessageInputHandlers({
-    value,
-    images,
-    isInputLocked,
-    disabled,
-    isWorkflowSelectorVisible,
     onChange,
     onSubmit,
-    onRetry,
-    onHistoryNavigate,
+    interaction,
+    placeholder,
+    disabled = false,
+    images: propImages,
+    onImagesChange,
+    allowImages = true,
+    isWorkflowSelectorVisible = false,
+    textAreaRef: externalTextAreaRef, // External ref from parent
+    statusIndicator,
     validateMessage,
-    isOverCharLimit,
+    onAttachmentsAdded,
+    onWorkflowCommandChange,
+    onFileReferenceChange,
+    onFileReferenceButtonClick,
     maxCharCount,
-    messageApi,
-    clearImages,
-    textAreaRef,
-  });
+    leftControlsExtra,
+    submitButtonLabel,
+  }) => {
+    const { t } = useTranslation();
+    const {
+      isStreaming,
+      isInputLocked = isStreaming,
+      canCancel,
+      hasMessages,
+      allowRetry = true,
+      onRetry,
+      onCancel,
+      onHistoryNavigate,
+    } = interaction;
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const internalTextAreaRef = useRef<TextAreaRef>(null);
+    const textAreaRef = externalTextAreaRef || internalTextAreaRef; // Use external ref if provided
+    const highlightOverlayRef = useRef<HTMLDivElement>(null);
+    const { token } = theme.useToken();
+    const isVdiSafeMode =
+      typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
+    const [messageApi, contextHolder] = message.useMessage();
+    const charCount = value.length;
+    const hasCharLimit =
+      typeof maxCharCount === "number" && Number.isFinite(maxCharCount) && maxCharCount > 0;
+    const isOverCharLimit = hasCharLimit ? charCount > maxCharCount : false;
+    const isNearCharLimit = hasCharLimit
+      ? !isOverCharLimit && charCount >= maxCharCount * 0.9
+      : false;
 
-  const resolvedPlaceholder = placeholder ?? t("chat.input.placeholder");
+    const {
+      images,
+      setImages,
+      previewModalVisible,
+      setPreviewModalVisible,
+      previewImageIndex,
+      handleImagePreview,
+      clearImages,
+      isProcessingAttachments,
+      isDragOver,
+      handleDragOver,
+      handleDragLeave,
+      handleDrop,
+      handlePaste,
+      handleFileInputChange,
+    } = useMessageInputAttachments({
+      allowImages,
+      onAttachmentsAdded,
+      messageApi,
+    });
 
-  return (
-    <>
-      {/* Ant Design message context holder */}
-      {contextHolder}
+    // Use debounced value only for triggering workflow/file search to avoid excessive API calls
+    // But use real-time value for highlighting to prevent input lag
+    const debouncedValue = useDebouncedValue(value, 80);
 
-      {/* Input Container with Drag & Drop */}
-      <div
-        className={`message-input-container lotus-message-input-shell ${isDragOver ? "is-drag-over" : ""}`}
-        role="group"
-        aria-label={t("chat.input.messageComposer", "Message composer")}
-        style={{
-          position: "relative",
-          border: `1px solid ${isDragOver ? "var(--lotus-input-border-active)" : "var(--lotus-input-border)"}`,
-          borderRadius: 26,
-          background: isDragOver ? "var(--lotus-input-bg-active)" : "var(--lotus-input-bg)",
-          backdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
-          WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
-          boxShadow: "var(--lotus-input-shadow)",
-          transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
-          width: "100%",
-          padding: `${token.paddingSM}px`,
-          overflow: "hidden",
-        }}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        <MessageInputImageStrip
-          images={images}
-          token={token}
-          allowImages={allowImages}
-          onPreview={handleImagePreview}
-          onClear={clearImages}
-        />
-        <MessageInputDragOverlay visible={isDragOver} token={token} />
+    const highlightSegments = useMemo(() => getInputHighlightSegments(value), [value]);
 
-        {/* Input with integrated buttons */}
-        <Flex
-          vertical
+    const syncOverlayScroll = useCallback(() => {
+      const textArea = textAreaRef.current?.resizableTextArea?.textArea;
+      if (!textArea || !highlightOverlayRef.current) return;
+      const scrollTop = textArea.scrollTop;
+      const scrollLeft = textArea.scrollLeft;
+      highlightOverlayRef.current.style.transform = `translate(${-scrollLeft}px, ${-scrollTop}px)`;
+    }, [textAreaRef]);
+
+    useMessageInputEffects({
+      value,
+      debouncedValue,
+      onWorkflowCommandChange,
+      onFileReferenceChange,
+      onImagesChange,
+      images,
+      propImages,
+      setImages,
+      syncOverlayScroll,
+    });
+
+    // Note: Tool validation logic removed - users no longer input tool commands directly
+    // Tools are now called autonomously by LLM based on user intent
+
+    const { handleKeyDown, handleSubmit, handleRetry } = useMessageInputHandlers({
+      value,
+      images,
+      isInputLocked,
+      disabled,
+      isWorkflowSelectorVisible,
+      onChange,
+      onSubmit,
+      onRetry,
+      onHistoryNavigate,
+      validateMessage,
+      isOverCharLimit,
+      maxCharCount,
+      messageApi,
+      clearImages,
+      textAreaRef,
+    });
+
+    const resolvedPlaceholder = placeholder ?? t("chat.input.placeholder");
+
+    return (
+      <>
+        {/* Ant Design message context holder */}
+        {contextHolder}
+
+        {/* Input Container with Drag & Drop */}
+        <div
+          className={`message-input-container lotus-message-input-shell ${isDragOver ? "is-drag-over" : ""}`}
+          role="group"
+          aria-label={t("chat.input.messageComposer", "Message composer")}
           style={{
-            gap: token.marginXS,
-            minHeight: 132,
+            position: "relative",
+            border: `1px solid ${isDragOver ? "var(--lotus-input-border-active)" : "var(--lotus-input-border)"}`,
+            borderRadius: 26,
+            background: isDragOver ? "var(--lotus-input-bg-active)" : "var(--lotus-input-bg)",
+            backdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
+            WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(18px)",
+            boxShadow: "var(--lotus-input-shadow)",
+            transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
             width: "100%",
+            padding: `${token.paddingSM}px`,
+            overflow: "hidden",
           }}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
         >
-          {/* Text input */}
-          <MessageInputField
-            value={value}
-            placeholder={resolvedPlaceholder}
-            disabled={disabled}
+          <MessageInputImageStrip
+            images={images}
             token={token}
-            highlightSegments={highlightSegments}
-            textAreaRef={textAreaRef}
-            highlightOverlayRef={highlightOverlayRef}
-            onChange={onChange}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onScrollSync={syncOverlayScroll}
+            allowImages={allowImages}
+            onPreview={handleImagePreview}
+            onClear={clearImages}
           />
+          <MessageInputDragOverlay visible={isDragOver} token={token} />
 
+          {/* Input with integrated buttons */}
           <Flex
-            align="center"
-            justify="space-between"
-            gap={token.marginSM}
-            wrap="wrap"
+            vertical
             style={{
-              rowGap: token.marginXS,
+              gap: token.marginXS,
+              minHeight: 132,
+              width: "100%",
             }}
           >
+            {/* Text input */}
+            <MessageInputField
+              value={value}
+              placeholder={resolvedPlaceholder}
+              disabled={disabled}
+              token={token}
+              highlightSegments={highlightSegments}
+              textAreaRef={textAreaRef}
+              highlightOverlayRef={highlightOverlayRef}
+              onChange={onChange}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onScrollSync={syncOverlayScroll}
+            />
+
             <Flex
               align="center"
-              gap={token.marginXS}
+              justify="space-between"
+              gap={token.marginSM}
               wrap="wrap"
               style={{
-                minWidth: 0,
-                flex: "1 1 260px",
+                rowGap: token.marginXS,
               }}
             >
-              {/* Left side buttons */}
-              <MessageInputControlsLeft
-                allowImages={allowImages}
-                disabled={disabled}
+              <Flex
+                align="center"
+                gap={token.marginXS}
+                wrap="wrap"
+                style={{
+                  minWidth: 0,
+                  flex: "1 1 260px",
+                }}
+              >
+                {/* Left side buttons */}
+                <MessageInputControlsLeft
+                  allowImages={allowImages}
+                  disabled={disabled}
+                  isInputLocked={isInputLocked}
+                  token={token}
+                  fileInputRef={fileInputRef}
+                  onFileInputChange={handleFileInputChange}
+                  onFileReferenceButtonClick={onFileReferenceButtonClick}
+                  extraControl={leftControlsExtra}
+                />
+              </Flex>
+
+              {/* Right side buttons */}
+              <MessageInputControlsRight
+                allowRetry={allowRetry}
+                hasMessages={hasMessages}
+                isStreaming={isStreaming}
                 isInputLocked={isInputLocked}
+                canCancel={canCancel}
+                disabled={disabled}
+                onRetry={handleRetry}
+                onCancel={onCancel}
+                onSubmit={handleSubmit}
+                value={value}
+                images={images}
+                isOverCharLimit={isOverCharLimit}
                 token={token}
-                fileInputRef={fileInputRef}
-                onFileInputChange={handleFileInputChange}
-                onFileReferenceButtonClick={onFileReferenceButtonClick}
-                extraControl={leftControlsExtra}
+                statusIndicator={statusIndicator}
+                submitButtonLabel={submitButtonLabel}
               />
             </Flex>
-
-            {/* Right side buttons */}
-            <MessageInputControlsRight
-              allowRetry={allowRetry}
-              hasMessages={hasMessages}
-              isStreaming={isStreaming}
-              isInputLocked={isInputLocked}
-              canCancel={canCancel}
-              disabled={disabled}
-              onRetry={handleRetry}
-              onCancel={onCancel}
-              onSubmit={handleSubmit}
-              value={value}
-              images={images}
-              isOverCharLimit={isOverCharLimit}
-              token={token}
-              statusIndicator={statusIndicator}
-              submitButtonLabel={submitButtonLabel}
-            />
           </Flex>
-        </Flex>
-      </div>
+        </div>
 
-      <MessageInputFooter
-        charCount={charCount}
-        maxCharCount={maxCharCount}
-        isOverCharLimit={isOverCharLimit}
-        isNearCharLimit={isNearCharLimit}
-        isProcessingAttachments={isProcessingAttachments}
-        token={token}
-      />
-      {allowImages && (
-        <ImagePreviewModal
-          visible={previewModalVisible}
-          images={images}
-          currentIndex={previewImageIndex}
-          onClose={() => setPreviewModalVisible(false)}
+        <MessageInputFooter
+          charCount={charCount}
+          maxCharCount={maxCharCount}
+          isOverCharLimit={isOverCharLimit}
+          isNearCharLimit={isNearCharLimit}
+          isProcessingAttachments={isProcessingAttachments}
+          token={token}
         />
-      )}
-    </>
-  );
-};
+        {allowImages && (
+          <ImagePreviewModal
+            visible={previewModalVisible}
+            images={images}
+            currentIndex={previewImageIndex}
+            onClose={() => setPreviewModalVisible(false)}
+          />
+        )}
+      </>
+    );
+  },
+);

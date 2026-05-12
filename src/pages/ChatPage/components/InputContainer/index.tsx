@@ -200,7 +200,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
   const activeSessionId = useAppStore((state) => state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(sessionId));
-  const currentMessages = currentChat?.messages || [];
+  const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat?.messages]);
   const addMessage = useAppStore((state) => state.addMessage);
   const updateSession = useAppStore((state) => state.updateSession);
   const isStreaming = useAppStore(selectIsStreaming(sessionId));
@@ -598,7 +598,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     navigate,
   });
 
-  const handleCloseReferencePreview = () => setReferenceTextPersisted(null);
+  const handleCloseReferencePreview = useCallback(
+    () => setReferenceTextPersisted(null),
+    [setReferenceTextPersisted],
+  );
 
   const currentProviderSettings = useMemo<
     OpenAIConfig | AnthropicConfig | GeminiConfig | CopilotConfig | undefined
@@ -628,9 +631,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const redirectToProviderSettingsIfNeeded = useCallback(() => {
     if (isProviderConfigured) return false;
     openSettings("chat");
-    messageApi.warning("Please configure provider first");
+    messageApi.warning(t("chat.view.providerNotConfigured"));
     return true;
-  }, [isProviderConfigured, messageApi, openSettings]);
+  }, [isProviderConfigured, messageApi, openSettings, t]);
 
   useEffect(() => {
     void (async () => {
@@ -640,10 +643,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     })();
   }, [currentProvider]);
 
-  const getErrorMessage = useCallback((error: unknown) => {
-    if (error instanceof Error && error.message.trim()) return error.message;
-    return "Unknown error";
-  }, []);
+  const getErrorMessage = useCallback(
+    (error: unknown) => {
+      if (error instanceof Error && error.message.trim()) return error.message;
+      return t("chat.view.unknownError");
+    },
+    [t],
+  );
 
   const fallbackModelOptions = useMemo(() => {
     const byProvider: Record<ProviderType, ModelOption[]> = {
@@ -840,43 +846,58 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [reasoningEffort, reasoningEffortLabelMap],
   );
 
-  const reasoningControl = (
-    <Dropdown
-      trigger={["click"]}
-      placement="topLeft"
-      disabled={!activeModel || isInputLocked}
-      menu={{
-        selectable: true,
-        selectedKeys: [reasoningEffort],
-        items: REASONING_EFFORT_OPTIONS.map((option) => ({
-          key: option,
-          label: reasoningEffortLabelMap[option],
-        })),
-        onClick: ({ key }) => {
-          setReasoningEffortPersisted(key as ReasoningEffort);
-        },
-      }}
-    >
-      <Button
-        type="text"
-        size="small"
-        disabled={!activeModel || isStreaming}
-        style={{
-          minWidth: isMobile ? 74 : 88,
-          padding: isMobile ? "0 8px" : "0 12px",
-          height: 36,
-          borderRadius: 18,
-          color: reasoningEffort === "medium" ? token.colorTextSecondary : token.colorPrimary,
+  const reasoningControl = useMemo(
+    () => (
+      <Dropdown
+        trigger={["click"]}
+        placement="topLeft"
+        disabled={!activeModel || isInputLocked}
+        menu={{
+          selectable: true,
+          selectedKeys: [reasoningEffort],
+          items: REASONING_EFFORT_OPTIONS.map((option) => ({
+            key: option,
+            label: reasoningEffortLabelMap[option],
+          })),
+          onClick: ({ key }) => {
+            setReasoningEffortPersisted(key as ReasoningEffort);
+          },
         }}
-        title={t("chat.input.reasoningTitle", { label: currentReasoningLabel })}
       >
-        <Space size={6}>
-          <ExperimentOutlined />
-          <span>{currentReasoningLabel}</span>
-          <DownOutlined style={{ fontSize: 10 }} />
-        </Space>
-      </Button>
-    </Dropdown>
+        <Button
+          type="text"
+          size="small"
+          disabled={!activeModel || isStreaming}
+          style={{
+            minWidth: isMobile ? 74 : 88,
+            padding: isMobile ? "0 8px" : "0 12px",
+            height: 36,
+            borderRadius: 18,
+            color: reasoningEffort === "medium" ? token.colorTextSecondary : token.colorPrimary,
+          }}
+          title={t("chat.input.reasoningTitle", { label: currentReasoningLabel })}
+        >
+          <Space size={6}>
+            <ExperimentOutlined />
+            <span>{currentReasoningLabel}</span>
+            <DownOutlined style={{ fontSize: 10 }} />
+          </Space>
+        </Button>
+      </Dropdown>
+    ),
+    [
+      activeModel,
+      currentReasoningLabel,
+      isInputLocked,
+      isMobile,
+      isStreaming,
+      reasoningEffort,
+      reasoningEffortLabelMap,
+      setReasoningEffortPersisted,
+      t,
+      token.colorPrimary,
+      token.colorTextSecondary,
+    ],
   );
 
   const modelLabel =
@@ -899,72 +920,160 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [resolvedModelOptions, modelOptionsError, t],
   );
 
-  const modelButton = (
-    <Button
-      type="text"
-      size="small"
-      disabled={isStreaming || isSavingModel}
-      onClick={() => {
-        if (!isProviderConfigured) {
-          redirectToProviderSettingsIfNeeded();
-        }
-      }}
-      style={{
-        minWidth: isMobile ? 112 : 146,
-        padding: isMobile ? "0 8px" : "0 12px",
-        height: 36,
-        borderRadius: 18,
-        color: modelOptionsError ? token.colorError : token.colorTextSecondary,
-      }}
-      title={modelLabel}
-    >
-      <Space size={6}>
-        {isModelOptionsLoading ? <LoadingOutlined /> : <RobotOutlined />}
-        <span
-          style={{
-            maxWidth: isMobile ? 84 : 128,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {modelLabel}
-        </span>
-        <DownOutlined style={{ fontSize: 10 }} />
-      </Space>
-    </Button>
+  const modelButton = useMemo(
+    () => (
+      <Button
+        type="text"
+        size="small"
+        disabled={isStreaming || isSavingModel}
+        onClick={() => {
+          if (!isProviderConfigured) {
+            redirectToProviderSettingsIfNeeded();
+          }
+        }}
+        style={{
+          minWidth: isMobile ? 112 : 146,
+          padding: isMobile ? "0 8px" : "0 12px",
+          height: 36,
+          borderRadius: 18,
+          color: modelOptionsError ? token.colorError : token.colorTextSecondary,
+        }}
+        title={modelLabel}
+      >
+        <Space size={6}>
+          {isModelOptionsLoading ? <LoadingOutlined /> : <RobotOutlined />}
+          <span
+            style={{
+              maxWidth: isMobile ? 84 : 128,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {modelLabel}
+          </span>
+          <DownOutlined style={{ fontSize: 10 }} />
+        </Space>
+      </Button>
+    ),
+    [
+      isStreaming,
+      isSavingModel,
+      isProviderConfigured,
+      redirectToProviderSettingsIfNeeded,
+      isMobile,
+      modelOptionsError,
+      token.colorError,
+      token.colorTextSecondary,
+      modelLabel,
+      isModelOptionsLoading,
+    ],
   );
 
-  const modelControl = isFlagOn() ? (
-    <ProviderModelPicker
-      value={activeModelRef}
-      onChange={handleModelRefChange}
-      disabled={isStreaming || isSavingModel}
-    />
-  ) : isProviderConfigured ? (
-    <Dropdown
-      trigger={["click"]}
-      placement="topLeft"
-      menu={{
-        selectable: true,
-        selectedKeys: activeModel ? [activeModel] : [],
-        items: modelMenuItems,
-        style: {
-          maxHeight: "50vh",
-          overflowY: "auto",
-        },
-        onClick: ({ key }) => {
-          if (key === "__no_models__") return;
-          void handleModelSelect(String(key));
-        },
-      }}
-      onOpenChange={handleModelDropdownVisibleChange}
-      disabled={isInputLocked || isSavingModel}
-    >
-      {modelButton}
-    </Dropdown>
-  ) : (
-    modelButton
+  const modelControl = useMemo(() => {
+    if (isFlagOn()) {
+      return (
+        <ProviderModelPicker
+          value={activeModelRef}
+          onChange={handleModelRefChange}
+          disabled={isStreaming || isSavingModel}
+        />
+      );
+    }
+    if (isProviderConfigured) {
+      return (
+        <Dropdown
+          trigger={["click"]}
+          placement="topLeft"
+          menu={{
+            selectable: true,
+            selectedKeys: activeModel ? [activeModel] : [],
+            items: modelMenuItems,
+            style: {
+              maxHeight: "50vh",
+              overflowY: "auto",
+            },
+            onClick: ({ key }) => {
+              if (key === "__no_models__") return;
+              void handleModelSelect(String(key));
+            },
+          }}
+          onOpenChange={handleModelDropdownVisibleChange}
+          disabled={isInputLocked || isSavingModel}
+        >
+          {modelButton}
+        </Dropdown>
+      );
+    }
+    return modelButton;
+  }, [
+    isFlagOn,
+    activeModelRef,
+    handleModelRefChange,
+    isStreaming,
+    isSavingModel,
+    isProviderConfigured,
+    activeModel,
+    modelMenuItems,
+    handleModelSelect,
+    handleModelDropdownVisibleChange,
+    isInputLocked,
+    modelButton,
+  ]);
+
+  const leftControlsExtra = useMemo(
+    () => (
+      <Space size={0} wrap>
+        {modelControl}
+        {reasoningControl}
+      </Space>
+    ),
+    [modelControl, reasoningControl],
+  );
+
+  const validateMessage = useCallback(
+    (message: string) => {
+      if (isRestrictConversation && autoToolPrefix) {
+        const trimmed = message.trim();
+        if (!trimmed.startsWith(autoToolPrefix)) {
+          return {
+            isValid: false,
+            errorMessage: t("chat.input.mustStartWithPrefix", {
+              prefix: autoToolPrefix,
+            }),
+          };
+        }
+      }
+      return { isValid: true };
+    },
+    [isRestrictConversation, autoToolPrefix, t],
+  );
+
+  const hasUserMessages = useMemo(
+    () => currentMessages.some((m) => m.role === "user"),
+    [currentMessages],
+  );
+
+  const interaction = useMemo(
+    () => ({
+      isStreaming,
+      isInputLocked,
+      canCancel,
+      hasMessages: hasUserMessages,
+      allowRetry: true as const,
+      onRetry: retryLastMessage,
+      onCancel: cancelMessage,
+      onHistoryNavigate: handleHistoryNavigate,
+    }),
+    [
+      isStreaming,
+      isInputLocked,
+      canCancel,
+      hasUserMessages,
+      retryLastMessage,
+      cancelMessage,
+      handleHistoryNavigate,
+    ],
   );
 
   return (
@@ -1082,40 +1191,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         submitButtonLabel={submitButtonLabel}
         isWorkflowSelectorVisible={commandState.showCommandSelector}
         textAreaRef={textAreaRef}
-        validateMessage={(message) => {
-          if (isRestrictConversation && autoToolPrefix) {
-            const trimmed = message.trim();
-            if (!trimmed.startsWith(autoToolPrefix)) {
-              return {
-                isValid: false,
-                errorMessage: t("chat.input.mustStartWithPrefix", {
-                  prefix: autoToolPrefix,
-                }),
-              };
-            }
-          }
-          return { isValid: true };
-        }}
+        validateMessage={validateMessage}
         onAttachmentsAdded={handleAttachmentsAdded}
         onWorkflowCommandChange={commandState.handleCommandChange}
         onFileReferenceChange={fileReferenceState.handleFileReferenceChange}
         onFileReferenceButtonClick={fileReferenceState.handleFileReferenceButtonClick}
-        leftControlsExtra={
-          <Space size={0} wrap>
-            {modelControl}
-            {reasoningControl}
-          </Space>
-        }
-        interaction={{
-          isStreaming,
-          isInputLocked,
-          canCancel,
-          hasMessages: currentMessages.some((m) => m.role === "user"),
-          allowRetry: true,
-          onRetry: retryLastMessage,
-          onCancel: cancelMessage,
-          onHistoryNavigate: handleHistoryNavigate,
-        }}
+        leftControlsExtra={leftControlsExtra}
+        interaction={interaction}
       />
 
       <Suspense fallback={null}>

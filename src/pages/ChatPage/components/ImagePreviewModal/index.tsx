@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Modal, Button, Space, Typography, theme, Carousel } from "antd";
 import { LeftOutlined, RightOutlined, DownloadOutlined, CloseOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { ImageFile, formatFileSize } from "../../utils/imageUtils";
 
 const { Text, Title } = Typography;
@@ -21,6 +22,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
   onDownload,
 }) => {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(currentIndex);
 
   if (!images || images.length === 0) {
@@ -89,7 +91,8 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
             </Title>
             <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
               {formatFileSize(currentImage.size)} • {currentImage.type}
-              {images.length > 1 && ` • ${activeIndex + 1} of ${images.length}`}
+              {images.length > 1 &&
+                ` • ${t("chat.imagePreview.counter", { current: activeIndex + 1, total: images.length })}`}
             </Text>
           </div>
 
@@ -105,7 +108,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               </>
             )}
             <Button icon={<DownloadOutlined />} onClick={handleDownload}>
-              Download
+              {t("common.download")}
             </Button>
           </Space>
         </div>

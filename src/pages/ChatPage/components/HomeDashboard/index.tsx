@@ -10,6 +10,7 @@ import {
   ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
+import i18n from "i18next";
 
 import { selectIsBusy, useAppStore } from "../../store";
 import type { ChatItem } from "../../types/chatMessages";
@@ -29,13 +30,13 @@ const formatRelativeTime = (dateStr: string | undefined): string => {
     const diff = Date.now() - new Date(dateStr).getTime();
     if (diff < 0) return "";
     const seconds = Math.floor(diff / 1000);
-    if (seconds < 60) return "just now";
+    if (seconds < 60) return i18n.t("chat.home.justNow");
     const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes}m ago`;
+    if (minutes < 60) return i18n.t("chat.home.minutesAgo", { count: minutes });
     const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
+    if (hours < 24) return i18n.t("chat.home.hoursAgo", { count: hours });
     const days = Math.floor(hours / 24);
-    if (days < 30) return `${days}d ago`;
+    if (days < 30) return i18n.t("chat.home.daysAgo", { count: days });
     return new Date(dateStr).toLocaleDateString();
   } catch {
     return "";
@@ -56,6 +57,7 @@ const SessionRow: React.FC<{
   onOpen: (id: string) => void;
   textSecondary: string;
 }> = ({ chat, onOpen, textSecondary }) => {
+  const { t } = useTranslation();
   // selectIsBusy = any active execution for "Running" badge
   const isRunning = useAppStore(selectIsBusy(chat.id));
   const workspace = chat.config.workspacePath
@@ -91,7 +93,7 @@ const SessionRow: React.FC<{
       </span>
       {isRunning ? (
         <Tag color="green" bordered={false} style={{ margin: 0, fontSize: 11 }}>
-          Running
+          {t("chat.home.running")}
         </Tag>
       ) : null}
       <RightOutlined className="lotus-home-session-arrow" />

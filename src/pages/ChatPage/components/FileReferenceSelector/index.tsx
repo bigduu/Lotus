@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, List, Typography, Space, Button, Empty, Spin, theme, Alert } from "antd";
 import { FileTextOutlined, FolderOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { WorkspaceFileEntry } from "../../types/workspace";
 
 const { Text } = Typography;
@@ -28,6 +29,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
   onChangeWorkspace,
 }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(0);
   const listContainerRef = useRef<HTMLDivElement>(null);
   const activeItemRef = useRef<HTMLDivElement>(null);
@@ -118,7 +120,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         }}
         title={
           <Space align="center" size={token.marginXS}>
-            <Text strong>@ File Reference</Text>
+            <Text strong>{t("chat.fileReference.title")}</Text>
             {loading && <Spin size="small" />}
           </Space>
         }
@@ -131,11 +133,11 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
                 icon={<ReloadOutlined />}
                 onClick={onChangeWorkspace}
               >
-                Set Workspace
+                {t("chat.fileReference.setWorkspace")}
               </Button>
             )}
             <Button type="text" size="small" onClick={onCancel}>
-              Close
+              {t("common.close")}
             </Button>
           </Space>
         }
@@ -145,7 +147,11 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         ) : filteredFiles.length === 0 && !loading ? (
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description={searchText ? "No matching files found" : "Directory is empty"}
+            description={
+              searchText
+                ? t("chat.fileReference.noMatches")
+                : t("chat.fileReference.emptyDirectory")
+            }
           />
         ) : (
           <div ref={listContainerRef}>
@@ -170,7 +176,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
                       <Text>{file.name}</Text>
                       <div>
                         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                          {file.is_directory ? "Directory" : "File"}
+                          {file.is_directory ? t("common.directory") : t("common.file")}
                         </Text>
                       </div>
                     </div>

@@ -1,5 +1,5 @@
 import React, { memo, useState, useCallback } from "react";
-import { List, Button, Input, Tag, Dropdown, theme } from "antd";
+import { List, Button, Input, Dropdown, theme } from "antd";
 import type { MenuProps } from "antd";
 import {
   DeleteOutlined,
@@ -12,6 +12,7 @@ import {
   LoadingOutlined,
   MoreOutlined,
   CloudSyncOutlined,
+  CompassOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { SidebarChatListItem } from "../../types/sidebarChat";
@@ -19,6 +20,7 @@ import type { SidebarChatListItem } from "../../types/sidebarChat";
 interface ChatItemProps {
   chat: SidebarChatListItem;
   isSelected: boolean;
+  compact?: boolean;
   onSelect: (sessionId: string) => void;
   onDelete: (sessionId: string) => void;
   onPin: (sessionId: string) => void;
@@ -34,6 +36,7 @@ interface ChatItemProps {
 const ChatItemComponent: React.FC<ChatItemProps> = ({
   chat,
   isSelected,
+  compact = false,
   onSelect,
   onDelete,
   onPin,
@@ -145,26 +148,22 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
 
   // Dynamic style calculation
   const itemStyle: React.CSSProperties = {
-    padding: "8px 12px",
+    padding: compact ? "4px 8px" : "5px 8px",
     borderRadius: token.borderRadiusSM,
-    marginBottom: token.marginXXS,
+    marginBottom: 0,
     cursor: "pointer",
-    transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+    transition: "background-color 0.2s ease, box-shadow 0.2s ease",
     backgroundColor: isSelected
       ? "var(--lotus-primary-soft)"
       : isHovered || dropdownOpen
         ? "var(--lotus-item-hover-bg)"
         : "transparent",
     border: "1px solid transparent",
-    borderColor: isSelected
-      ? "var(--lotus-tool-card-border)"
-      : isHovered || dropdownOpen
-        ? token.colorBorderSecondary
-        : "transparent",
+    borderColor: "transparent",
     position: "relative",
     overflow: "visible",
-    boxShadow: isSelected ? "var(--lotus-tool-card-shadow)" : "none",
-    transform: isHovered && !isSelected ? "translateX(2px)" : "none",
+    boxShadow: isSelected ? `inset 2px 0 0 ${token.colorPrimary}` : "none",
+    minHeight: compact ? 28 : 30,
   };
 
   const titleStyle: React.CSSProperties = {
@@ -172,7 +171,8 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
-    fontSize: 13,
+    fontSize: compact ? 12 : 12.5,
+    lineHeight: 1.3,
     fontWeight: isSelected ? 600 : 500,
     color: isSelected ? "var(--lotus-primary)" : token.colorText,
   };
@@ -223,9 +223,9 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               style={{
                 color: token.colorTextSecondary,
                 borderRadius: token.borderRadiusSM,
-                background: token.colorFillTertiary,
-                width: 24,
-                height: 24,
+                background: "transparent",
+                width: compact ? 16 : 18,
+                height: compact ? 16 : 18,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -265,60 +265,83 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
       aria-selected={isSelected}
       aria-label={chat.title || t("chat.sidebar.untitledChat")}
     >
-      <List.Item.Meta
-        title={
-          isEditing ? (
-            <Input
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              onPressEnter={(e) => {
-                e.preventDefault();
-                handleSave(e);
-              }}
-              autoFocus
-              style={editInputStyle}
-              variant="borderless"
-              size="small"
-            />
-          ) : (
-            <div
+      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
+        {isEditing ? (
+          <Input
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onPressEnter={(e) => {
+              e.preventDefault();
+              handleSave(e);
+            }}
+            autoFocus
+            style={editInputStyle}
+            variant="borderless"
+            size="small"
+          />
+        ) : (
+          <div
+            style={{
+              ...titleStyle,
+              display: "flex",
+              alignItems: "center",
+              gap: compact ? 4 : token.marginXS,
+              minWidth: 0,
+            }}
+          >
+            {chat.pinned && (
+              <PushpinFilled
+                style={{
+                  color: token.colorWarning,
+                  fontSize: 11,
+                  flexShrink: 0,
+                }}
+              />
+            )}
+            <span
               style={{
-                ...titleStyle,
-                display: "flex",
-                alignItems: "center",
-                gap: token.marginXS,
                 minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
-              {chat.pinned && (
-                <PushpinFilled
-                  style={{
-                    color: token.colorWarning,
-                    fontSize: 11,
-                    flexShrink: 0,
-                  }}
-                />
-              )}
+              {chat.title}
+            </span>
+            {chat.kind === "child" ? (
               <span
                 style={{
-                  minWidth: 0,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
+                  color: token.colorInfo,
+                  fontSize: compact ? 10 : 11,
+                  lineHeight: 1.2,
+                  flexShrink: 0,
                   whiteSpace: "nowrap",
                 }}
               >
-                {chat.title}
+                {t("chat.chatItem.childTag")}
               </span>
-              {chat.kind === "child" ? (
-                <Tag color="processing" style={{ marginInlineEnd: 0, flex: "0 0 auto" }}>
-                  {t("chat.chatItem.childTag")}
-                </Tag>
-              ) : null}
-            </div>
-          )
-        }
-      />
+            ) : null}
+            {chat.planMode ? (
+              <span
+                style={{
+                  color: "#722ed1",
+                  fontSize: compact ? 10 : 11,
+                  lineHeight: 1.2,
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 3,
+                }}
+              >
+                <CompassOutlined />
+                {t("chat.planMode.badge", "Plan")}
+              </span>
+            ) : null}
+          </div>
+        )}
+      </div>
     </List.Item>
   );
 };
@@ -329,7 +352,9 @@ const arePropsEqual = (prevProps: ChatItemProps, nextProps: ChatItemProps): bool
     prevProps.chat.id === nextProps.chat.id &&
     prevProps.chat.title === nextProps.chat.title &&
     prevProps.chat.pinned === nextProps.chat.pinned &&
+    prevProps.chat.planMode === nextProps.chat.planMode &&
     prevProps.isSelected === nextProps.isSelected &&
+    prevProps.compact === nextProps.compact &&
     prevProps.isGeneratingTitle === nextProps.isGeneratingTitle &&
     prevProps.isRunningProjectDream === nextProps.isRunningProjectDream &&
     prevProps.titleGenerationError === nextProps.titleGenerationError

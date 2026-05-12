@@ -1,6 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Flex, Space, Spin, Typography } from "antd";
+import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;
 
@@ -21,6 +22,7 @@ const MessageInputFooter: React.FC<MessageInputFooterProps> = ({
   isProcessingAttachments,
   token,
 }) => {
+  const { t } = useTranslation();
   const hasCharLimit =
     typeof maxCharCount === "number" && Number.isFinite(maxCharCount) && maxCharCount > 0;
 
@@ -45,7 +47,7 @@ const MessageInputFooter: React.FC<MessageInputFooterProps> = ({
       {isProcessingAttachments && (
         <Space size="small" style={{ marginTop: token.marginXS }}>
           <Spin size="small" />
-          <Text type="secondary">Processing files…</Text>
+          <Text type="secondary">{t("chat.input.processingFiles")}</Text>
         </Space>
       )}
     </>

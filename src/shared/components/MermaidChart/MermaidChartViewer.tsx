@@ -198,7 +198,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                     size="small"
                     type="text"
                     icon={<DownloadOutlined />}
-                    aria-label="Download chart"
+                    aria-label={t("components.mermaid.downloadChartAriaLabel")}
                     disabled={exportDisabled}
                     loading={isExporting}
                     onClick={() => {

@@ -10,6 +10,7 @@ const SCROLL_POSITION_THRESHOLD_PX = 150;
 const STREAMING_MESSAGE_PREFIX = "streaming-";
 const STREAMING_REASONING_MESSAGE_PREFIX = "streaming-reasoning-";
 const STREAMING_STATUS_MESSAGE_PREFIX = "streaming-status-";
+const STREAMING_SCROLL_MIN_INTERVAL_MS = 100;
 
 type UseChatViewScrollArgs = {
   currentSessionId: string | null;
@@ -52,6 +53,7 @@ export const useChatViewScroll = ({
   const isFirstLoadRef = useRef(true);
   const previousRenderableCountRef = useRef(renderableMessages.length);
   const countedStreamingUnreadIdsRef = useRef<Set<string>>(new Set());
+  const scrollAnimationIdRef = useRef(0);
 
   // Use scroll anchor persistence
   const { handleScroll: handleScrollPersistence } = useScrollAnchorPersistence({
@@ -131,6 +133,8 @@ export const useChatViewScroll = ({
 
   const scrollToBottom = useCallback(
     (options?: ScrollToBottomOptions) => {
+      cancelAnimationFrame(scrollAnimationIdRef.current);
+
       const el = messagesListRef.current;
       const anchorEl = bottomAnchorRef.current;
       if (!el || !anchorEl) return;
@@ -141,6 +145,7 @@ export const useChatViewScroll = ({
       let lastAnchorTop = Number.NaN;
 
       const finishScroll = () => {
+        scrollAnimationIdRef.current = 0;
         userHasScrolledUpRef.current = false;
         stickToBottomRef.current = true;
         clearUnreadState();
@@ -175,14 +180,14 @@ export const useChatViewScroll = ({
         frame += 1;
 
         if (frame < SCROLL_BOTTOM_MAX_FRAMES && shouldContinue) {
-          requestAnimationFrame(step);
+          scrollAnimationIdRef.current = requestAnimationFrame(step);
           return;
         }
 
         finishScroll();
       };
 
-      requestAnimationFrame(step);
+      scrollAnimationIdRef.current = requestAnimationFrame(step);
     },
     [
       bottomAnchorRef,
@@ -302,7 +307,10 @@ export const useChatViewScroll = ({
   }, [isThinking, resetUserScroll, scrollToBottom]);
 
   useEffect(() => {
-    return streamingMessageBus.subscribe((update) => {
+    let lastStreamingScrollAt = 0;
+    let pendingScrollRaf: number | null = null;
+
+    const unsubscribe = streamingMessageBus.subscribe((update) => {
       if (update.sessionId !== currentSessionId) return;
 
       if (userHasScrolledUpRef.current) {
@@ -323,7 +331,28 @@ export const useChatViewScroll = ({
         return;
       }
 
-      scrollToBottom();
+      const now = performance.now();
+      if (now - lastStreamingScrollAt >= STREAMING_SCROLL_MIN_INTERVAL_MS) {
+        lastStreamingScrollAt = now;
+        if (pendingScrollRaf !== null) {
+          cancelAnimationFrame(pendingScrollRaf);
+          pendingScrollRaf = null;
+        }
+        scrollToBottom();
+      } else if (pendingScrollRaf === null) {
+        pendingScrollRaf = requestAnimationFrame(() => {
+          pendingScrollRaf = null;
+          lastStreamingScrollAt = performance.now();
+          scrollToBottom();
+        });
+      }
+
+      return () => {
+        unsubscribe();
+        if (pendingScrollRaf !== null) {
+          cancelAnimationFrame(pendingScrollRaf);
+        }
+      };
     });
   }, [currentSessionId, refreshScrollIndicators, scrollToBottom]);
 

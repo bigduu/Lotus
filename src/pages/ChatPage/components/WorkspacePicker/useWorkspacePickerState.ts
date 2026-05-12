@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { App as AntApp } from "antd";
 import { workspaceValidator, type WorkspaceValidationResult } from "../../utils/workspaceValidator";
 import {
@@ -28,6 +29,7 @@ export const useWorkspacePickerState = ({
   onValidationChange,
 }: UseWorkspacePickerStateProps) => {
   const { message } = AntApp.useApp();
+  const { t } = useTranslation();
   const [path, setPath] = useState(value);
   const [validationStatus, setValidationStatus] = useState<ValidationStatus>({
     isValidating: false,
@@ -45,24 +47,6 @@ export const useWorkspacePickerState = ({
   useEffect(() => {
     setPath(value);
   }, [value]);
-
-  useEffect(() => {
-    if (showRecentWorkspaces) {
-      loadRecentWorkspaces();
-    }
-    if (showSuggestions) {
-      loadSuggestions();
-    }
-
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      if (debouncedValidateRef.current) {
-        debouncedValidateRef.current();
-      }
-    };
-  }, [showRecentWorkspaces, showSuggestions]);
 
   const loadRecentWorkspaces = useCallback(async () => {
     setIsLoadingRecent(true);
@@ -89,6 +73,26 @@ export const useWorkspacePickerState = ({
       setIsLoadingSuggestions(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (showRecentWorkspaces) {
+      loadRecentWorkspaces();
+    }
+    if (showSuggestions) {
+      loadSuggestions();
+    }
+
+    const controller = abortControllerRef.current;
+    const debouncedValidate = debouncedValidateRef.current;
+    return () => {
+      if (controller) {
+        controller.abort();
+      }
+      if (debouncedValidate) {
+        debouncedValidate();
+      }
+    };
+  }, [showRecentWorkspaces, showSuggestions, loadRecentWorkspaces, loadSuggestions]);
 
   const handlePathChange = useCallback(
     (newPath: string) => {
@@ -134,9 +138,9 @@ export const useWorkspacePickerState = ({
   const handleFolderSelect = useCallback(
     (selectedPath: string) => {
       handlePathChange(selectedPath);
-      message.success("Folder selected successfully");
+      message.success(t("chat.workspace.folderSelected"));
     },
-    [handlePathChange],
+    [handlePathChange, message, t],
   );
 
   const handleWorkspaceSelect = useCallback(

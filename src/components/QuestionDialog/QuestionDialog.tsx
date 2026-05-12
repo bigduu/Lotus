@@ -227,6 +227,9 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
     setIsLoading(true);
     setSelectedOption(null);
     setCollapsed(false);
+    // Clear stale polled question from the previous session so the store-sync
+    // effect below never writes old data into the new session's execution state.
+    setPolledQuestion(null);
   }, [sessionId]);
 
   // Listen for document visibility changes

@@ -89,8 +89,8 @@ export const ChatSidebar: React.FC = () => {
         justify="flex-end"
         style={{
           flexShrink: 0,
-          padding: "10px 12px 2px 12px",
-          minHeight: 40,
+          padding: "8px 10px 0 10px",
+          minHeight: 34,
         }}
       >
         <Button
@@ -105,10 +105,10 @@ export const ChatSidebar: React.FC = () => {
 
       <Flex
         vertical
-        gap="small"
+        gap={6}
         style={{
           flexShrink: 0,
-          padding: "10px 12px 8px 12px",
+          padding: "6px 10px 6px 10px",
         }}
       >
         <Input
@@ -118,7 +118,7 @@ export const ChatSidebar: React.FC = () => {
           prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
           placeholder={t("chat.sidebar.searchPlaceholder", "Search sessions")}
           aria-label={t("chat.sidebar.searchPlaceholder", "Search sessions")}
-          size={screens.xs ? "middle" : "large"}
+          size="small"
           style={{
             borderRadius: token.borderRadiusLG,
           }}
@@ -146,7 +146,7 @@ export const ChatSidebar: React.FC = () => {
           flex: 1,
           minHeight: 0,
           overflowY: "auto",
-          padding: "0 12px 0 12px",
+          padding: "0 10px",
         }}
       >
         <ChatSidebarDateGroups
@@ -177,7 +177,6 @@ export const ChatSidebar: React.FC = () => {
         collapsed={false}
         onNewChat={handleNewChat}
         onOpenSettings={handleOpenSettings}
-        screens={screens}
         token={token}
       />
 

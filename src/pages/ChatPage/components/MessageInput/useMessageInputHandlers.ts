@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { TextAreaRef } from "antd/es/input/TextArea";
+import i18n from "i18next";
 import type { ImageFile } from "../../utils/imageUtils";
 import type { MessageRetryMode } from "./types";
 
@@ -53,7 +54,7 @@ export const useMessageInputHandlers = ({
     if (isOverCharLimit) {
       const maxLengthLabel =
         typeof maxCharCount === "number" ? maxCharCount.toLocaleString() : "configured";
-      messageApi.error(`Message exceeds the maximum length of ${maxLengthLabel} characters.`);
+      messageApi.error(i18n.t("chat.input.charLimitExceeded", { max: maxLengthLabel }));
       return;
     }
 
@@ -61,7 +62,7 @@ export const useMessageInputHandlers = ({
       const validation = validateMessage(trimmedContent);
 
       if (!validation.isValid) {
-        messageApi.error(validation.errorMessage || "Message format is incorrect");
+        messageApi.error(validation.errorMessage || i18n.t("chat.input.messageFormatInvalid"));
         return;
       }
     }

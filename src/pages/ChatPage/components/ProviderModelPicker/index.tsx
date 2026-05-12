@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useEffect } from "react";
 import { Dropdown, Button, Space, Tag } from "antd";
 import { DownOutlined } from "@ant-design/icons";
+import i18n from "i18next";
 import { useProviderStore } from "../../store/slices/providerSlice";
 import type { ProviderModelRef } from "../../types/providerModelRef";
 import type { MenuProps } from "antd";
@@ -95,7 +96,7 @@ export function ProviderModelPicker({
           size="small"
           disabled={disabled}
           style={{ minWidth: 146, padding: "0 12px", height: 36, borderRadius: 18 }}
-          title={value ? `${value.provider}/${value.model}` : "Select model"}
+          title={value ? `${value.provider}/${value.model}` : i18n.t("chat.model.selectModel")}
         >
           <Space size={4}>
             <span
@@ -107,7 +108,7 @@ export function ProviderModelPicker({
                 fontSize: 13,
               }}
             >
-              {value ? `${value.provider}/${value.model}` : "Select model"}
+              {value ? `${value.provider}/${value.model}` : i18n.t("chat.model.selectModel")}
             </span>
             <DownOutlined style={{ fontSize: 10 }} />
           </Space>

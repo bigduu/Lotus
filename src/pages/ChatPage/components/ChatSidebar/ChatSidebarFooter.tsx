@@ -12,7 +12,6 @@ type ChatSidebarFooterProps = {
   collapsed: boolean;
   onNewChat: () => void;
   onOpenSettings: () => void;
-  screens: { xs?: boolean };
   token: GlobalToken;
 };
 
@@ -20,7 +19,6 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   collapsed,
   onNewChat,
   onOpenSettings,
-  screens,
   token,
 }) => {
   const { t } = useTranslation();
@@ -36,9 +34,9 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   return (
     <Flex
       vertical
-      gap={collapsed ? "small" : "middle"}
+      gap={collapsed ? "small" : 10}
       style={{
-        padding: collapsed ? 10 : 16,
+        padding: collapsed ? 10 : 12,
         background: "transparent",
         borderTop: `1px solid ${token.colorBorderSecondary}`,
       }}
@@ -51,21 +49,21 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
         onClick={onNewChat}
         block={!collapsed}
         shape="default"
-        size={collapsed ? "large" : screens.xs ? "small" : "middle"}
+        size="small"
         title={newChatLabel}
         aria-label={newChatLabel}
         className="lotus-primary-cta"
         style={{
-          ...(collapsed ? { width: "44px", height: "44px", margin: "0 auto" } : {}),
+          ...(collapsed ? { width: "40px", height: "40px", margin: "0 auto" } : {}),
           borderRadius: token.borderRadiusLG,
-          minHeight: collapsed ? 44 : 46,
+          minHeight: collapsed ? 40 : 38,
           fontWeight: 600,
         }}
       >
         {!collapsed && newChatLabel}
       </Button>
 
-      <Flex gap={8} align="center">
+      <Flex gap={6} align="center">
         <Button
           data-testid="open-settings"
           data-tour-id="open-settings"
@@ -73,14 +71,14 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
           onClick={onOpenSettings}
           block={!collapsed}
           shape="default"
-          size={collapsed ? "large" : screens.xs ? "small" : "middle"}
+          size="small"
           title={settingsLabel}
           aria-label={settingsLabel}
           className="lotus-secondary-button"
           style={{
-            ...(collapsed ? { width: "44px", height: "44px", margin: "0 auto" } : {}),
+            ...(collapsed ? { width: "40px", height: "40px", margin: "0 auto" } : {}),
             borderRadius: token.borderRadiusLG,
-            minHeight: collapsed ? 44 : 44,
+            minHeight: collapsed ? 40 : 36,
             flex: collapsed ? undefined : 1,
           }}
         >
@@ -97,8 +95,8 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
               aria-label={themeLabel}
               className="lotus-toolbar-icon"
               style={{
-                width: 44,
-                height: 44,
+                width: 36,
+                height: 36,
                 borderRadius: token.borderRadiusLG,
                 flexShrink: 0,
               }}
@@ -112,7 +110,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
           type="secondary"
           data-testid="app-version-badge"
           style={{
-            fontSize: token.fontSizeSM,
+            fontSize: 11,
             textAlign: "center",
             userSelect: "text",
           }}

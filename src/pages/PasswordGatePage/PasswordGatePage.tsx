@@ -18,7 +18,7 @@ export const PasswordGatePage = ({ onVerified, verifyPassword }: PasswordGatePag
   const handleSubmit = async () => {
     const trimmed = password.trim();
     if (!trimmed) {
-      setErrorMessage(t("app.passwordGate.validation.required", "请输入访问密码"));
+      setErrorMessage(t("app.passwordGate.validation.required"));
       return;
     }
 
@@ -30,9 +30,7 @@ export const PasswordGatePage = ({ onVerified, verifyPassword }: PasswordGatePag
       setPassword("");
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : t("app.passwordGate.validation.verifyFailed", "密码验证失败");
+        error instanceof Error ? error.message : t("app.passwordGate.validation.verifyFailed");
       setErrorMessage(message);
     } finally {
       setIsSubmitting(false);
@@ -53,32 +51,27 @@ export const PasswordGatePage = ({ onVerified, verifyPassword }: PasswordGatePag
         <Space direction="vertical" size={20} style={{ width: "100%" }}>
           <div>
             <Title level={3} style={{ marginBottom: 8 }}>
-              {t("app.passwordGate.title", "请输入访问密码")}
+              {t("app.passwordGate.title")}
             </Title>
-            <Text type="secondary">
-              {t(
-                "app.passwordGate.description",
-                "当前访问需要先通过密码验证，验证成功后才会进入应用。",
-              )}
-            </Text>
+            <Text type="secondary">{t("app.passwordGate.description")}</Text>
           </div>
 
           {errorMessage ? <Alert type="error" showIcon message={errorMessage} /> : null}
 
           <Space direction="vertical" size={8} style={{ width: "100%" }}>
-            <Text strong>{t("app.passwordGate.passwordLabel", "访问密码")}</Text>
+            <Text strong>{t("app.passwordGate.passwordLabel")}</Text>
             <Input.Password
               value={password}
               autoFocus
               autoComplete="current-password"
               onChange={(event) => setPassword(event.target.value)}
               onPressEnter={() => void handleSubmit()}
-              placeholder={t("app.passwordGate.passwordPlaceholder", "请输入访问密码")}
+              placeholder={t("app.passwordGate.passwordPlaceholder")}
             />
           </Space>
 
           <Button type="primary" block loading={isSubmitting} onClick={() => void handleSubmit()}>
-            {t("app.passwordGate.submit", "验证并进入")}
+            {t("app.passwordGate.submit")}
           </Button>
         </Space>
       </Card>
