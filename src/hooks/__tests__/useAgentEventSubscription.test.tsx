@@ -52,6 +52,15 @@ vi.mock("../../pages/ChatPage/store", () => {
   return { useAppStore: mockStore, selectShouldObserve, selectGeneration, selectChildren };
 });
 
+vi.mock("../../pages/ChatPage/store/slices/executionStateSlice", () => ({
+  isBusyPhase: (phase: string | undefined) =>
+    phase !== undefined &&
+    phase !== "idle" &&
+    phase !== "completed" &&
+    phase !== "error" &&
+    phase !== "cancelled",
+}));
+
 vi.mock("../../services/chat/AgentService", () => {
   // SSE subscriptions are long-lived; default to a never-resolving promise so the hook
   // doesn't interpret the stream as "ended" and attempt to reconnect in tests.
@@ -104,6 +113,7 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   executionBySession: {},
   addMessage: vi.fn(),
   applyAgentEvent: vi.fn(),
+  markStreamStarted: vi.fn(),
   updateTokenUsage: vi.fn(),
   setTruncationInfo: vi.fn(),
   updateSession: vi.fn(),
@@ -663,6 +673,200 @@ describe("useAgentEventSubscription", () => {
     );
     const lastCall = mockState.applyChildProgress.mock.calls.at(-1);
     expect(typeof lastCall?.[2]?.lastEventAt).toBe("string");
+  });
+
+  it("deduplicates nested runner_progress when roundCount does not change", async () => {
+    let subAgentEventHandler:
+      | ((parentSessionId: string, childSessionId: string, evt: any) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subAgentEventHandler = handlers.onSubAgentEvent;
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: { "child-1": { status: "running", roundCount: 0 } }, runningCount: 1 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      subAgentEventHandler?.("session-1", "child-1", {
+        type: "runner_progress",
+        session_id: "child-1",
+        round_count: 0,
+      });
+      subAgentEventHandler?.("session-1", "child-1", {
+        type: "runner_progress",
+        session_id: "child-1",
+        round_count: 0,
+      });
+    });
+
+    expect(mockState.applyChildProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it("throttles nested sub-agent heartbeat updates", async () => {
+    let subAgentHeartbeatHandler:
+      | ((parentSessionId: string, childSessionId: string, ts: string) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subAgentHeartbeatHandler = handlers.onSubAgentHeartbeat;
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: { "child-1": { status: "running" } }, runningCount: 1 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      subAgentHeartbeatHandler?.("session-1", "child-1", "2026-05-12T00:00:00.000Z");
+      subAgentHeartbeatHandler?.("session-1", "child-1", "2026-05-12T00:00:00.500Z");
+      subAgentHeartbeatHandler?.("session-1", "child-1", "2026-05-12T00:00:01.000Z");
+    });
+
+    expect(mockState.applyChildProgress).toHaveBeenCalledTimes(1);
+  });
+
+  it("flushes buffered child token preview before child completion", async () => {
+    let subAgentEventHandler:
+      | ((parentSessionId: string, childSessionId: string, evt: any) => void)
+      | undefined;
+    let subAgentCompletedHandler:
+      | ((parentSessionId: string, childSessionId: string, status: string, error?: string) => void)
+      | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      subAgentEventHandler = handlers.onSubAgentEvent;
+      subAgentCompletedHandler = handlers.onSubAgentCompleted;
+    });
+
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "running",
+        confidence: "live",
+        activeReasons: [],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: {
+          byId: { "child-1": { status: "running", outputPreview: "" } },
+          runningCount: 1,
+        },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      subAgentEventHandler?.("session-1", "child-1", {
+        type: "token",
+        content: "hello ",
+      });
+      subAgentEventHandler?.("session-1", "child-1", {
+        type: "token",
+        content: "world",
+      });
+      subAgentCompletedHandler?.("session-1", "child-1", "completed");
+    });
+
+    expect(mockState.applyChildProgress).toHaveBeenCalledWith(
+      "session-1",
+      "child-1",
+      expect.objectContaining({ outputPreview: "hello world", status: "running" }),
+    );
+    expect(mockState.applyChildProgress).toHaveBeenCalledWith(
+      "session-1",
+      "child-1",
+      expect.objectContaining({ status: "completed" }),
+    );
   });
 
   it("ignores nested runner_progress when child is in a terminal state", async () => {
@@ -1795,10 +1999,12 @@ describe("useAgentEventSubscription", () => {
     });
   });
 
-  it("should handle token streaming", async () => {
+  it("marks stream started once per generation while token text stays off execution state", async () => {
     let tokenHandler: any;
+    let reasoningTokenHandler: any;
     mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
       tokenHandler = handlers.onToken;
+      reasoningTokenHandler = handlers.onReasoningToken;
       return new Promise<void>(() => {});
     });
 
@@ -1840,15 +2046,25 @@ describe("useAgentEventSubscription", () => {
       expect(mockSubscribeToEvents).toHaveBeenCalled();
     });
 
-    // Simulate token events
     act(() => {
-      if (tokenHandler) {
-        tokenHandler("Hello ");
-        tokenHandler("World");
-      }
+      tokenHandler?.("Hello ");
+      tokenHandler?.("World");
+      reasoningTokenHandler?.("because ");
+      reasoningTokenHandler?.("reasons");
     });
 
-    // Should stream tokens (verified via streamingMessageBus, not mocked here)
+    expect(mockState.markStreamStarted).toHaveBeenCalledTimes(1);
+    expect(mockState.markStreamStarted).toHaveBeenCalledWith("session-1", 1);
+    expect(mockState.applyAgentEvent).not.toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ type: "token" }),
+      expect.any(Number),
+    );
+    expect(mockState.applyAgentEvent).not.toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ type: "reasoning_token" }),
+      expect.any(Number),
+    );
   });
 
   it("should append tool_token output to the matching tool_call card", async () => {

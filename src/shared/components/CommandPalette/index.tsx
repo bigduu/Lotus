@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useShallow } from "zustand/react/shallow";
 import { App as AntdApp, Input, Modal, Tag, Typography, theme } from "antd";
 import type { InputRef } from "antd";
 import {
@@ -16,7 +17,8 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { useAppStore, selectIsBusy } from "@pages/ChatPage/store";
+import { useAppStore } from "@pages/ChatPage/store";
+import { isBusyPhase } from "@pages/ChatPage/store/slices/executionStateSlice";
 import { openSession } from "@pages/ChatPage/utils/openSession";
 import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/settingsViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";
@@ -39,6 +41,62 @@ type CommandPaletteAction = {
   badge?: string;
   onSelect: () => Promise<void> | void;
 };
+
+type CommandPaletteSession = {
+  id: string;
+  title: string;
+  kind: ChatItem["kind"];
+  pinned?: boolean;
+  updatedAt?: string;
+  workspacePath?: string;
+};
+
+const projectCommandPaletteSessions = (() => {
+  let prevSource: ReadonlyArray<ChatItem> | null = null;
+  let prevProjected: CommandPaletteSession[] = [];
+  let prevById = new Map<string, CommandPaletteSession>();
+
+  return (source: ReadonlyArray<ChatItem>): CommandPaletteSession[] => {
+    if (source === prevSource) {
+      return prevProjected;
+    }
+
+    const next = source.map((chat) => {
+      const previous = prevById.get(chat.id);
+      const nextProjected: CommandPaletteSession = {
+        id: chat.id,
+        title: chat.title,
+        kind: chat.kind,
+        pinned: chat.pinned,
+        updatedAt: chat.updatedAt,
+        workspacePath: chat.config.workspacePath,
+      };
+      if (
+        previous &&
+        previous.title === nextProjected.title &&
+        previous.kind === nextProjected.kind &&
+        previous.pinned === nextProjected.pinned &&
+        previous.updatedAt === nextProjected.updatedAt &&
+        previous.workspacePath === nextProjected.workspacePath
+      ) {
+        return previous;
+      }
+      return nextProjected;
+    });
+
+    const unchanged =
+      next.length === prevProjected.length &&
+      next.every((item, index) => item === prevProjected[index]);
+
+    prevSource = source;
+    prevById = new Map(next.map((item) => [item.id, item]));
+    if (unchanged) {
+      return prevProjected;
+    }
+    prevProjected = next;
+    return next;
+  };
+})();
 
 const SETTINGS_ACTIONS: Array<{
   id: string;
@@ -192,17 +250,17 @@ const SETTINGS_ACTIONS: Array<{
   },
 ];
 
-const buildSessionKeywords = (chat: ChatItem, isRunning: boolean): string[] => {
+const buildSessionKeywords = (chat: CommandPaletteSession, isRunning: boolean): string[] => {
   const keywords = [chat.title, chat.id, chat.kind || "root"];
   if (chat.pinned) keywords.push("pinned", "pin");
   if (isRunning) keywords.push("running", "processing");
-  if (chat.config.workspacePath) keywords.push(chat.config.workspacePath);
+  if (chat.workspacePath) keywords.push(chat.workspacePath);
   if (chat.updatedAt) keywords.push(chat.updatedAt);
   return keywords.filter(Boolean);
 };
 
 const getSessionSubtitle = (
-  chat: ChatItem,
+  chat: CommandPaletteSession,
   childSessionLabel: string,
   rootSessionLabel: string,
 ) => {
@@ -212,8 +270,8 @@ const getSessionSubtitle = (
   } else {
     segments.push(rootSessionLabel);
   }
-  if (chat.config.workspacePath) {
-    segments.push(chat.config.workspacePath);
+  if (chat.workspacePath) {
+    segments.push(chat.workspacePath);
   }
   if (chat.updatedAt) {
     try {
@@ -254,11 +312,18 @@ export const CommandPalette: React.FC = () => {
   const isVdiSafeMode =
     typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { message } = AntdApp.useApp();
-  const chats = useAppStore((state) => state.chats);
+  const chats = useAppStore((state) => projectCommandPaletteSessions(state.chats));
   const addChat = useAppStore((state) => state.addChat);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
-  const executionBySession = useAppStore((state) => state.executionBySession);
+  const busySessionIds = useAppStore(
+    useShallow((state) =>
+      Object.entries(state.executionBySession)
+        .filter(([, entry]) => isBusyPhase(entry.phase))
+        .map(([sessionId]) => sessionId)
+        .sort(),
+    ),
+  );
   const [open, setOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     const shouldForceOpen = (
@@ -428,8 +493,12 @@ export const CommandPalette: React.FC = () => {
   ]);
 
   const sessionActions = useMemo<CommandPaletteAction[]>(() => {
+    if (!open) {
+      return [];
+    }
+    const busySessionIdSet = new Set(busySessionIds);
     return chats.map((chat) => {
-      const isRunning = selectIsBusy(chat.id)({ executionBySession });
+      const isRunning = busySessionIdSet.has(chat.id);
       return {
         id: `session-${chat.id}`,
         kind: "session",
@@ -453,7 +522,7 @@ export const CommandPalette: React.FC = () => {
         },
       };
     });
-  }, [chats, executionBySession, t]);
+  }, [open, busySessionIds, chats, t]);
 
   const actions = useMemo(() => [...baseActions, ...sessionActions], [baseActions, sessionActions]);
 

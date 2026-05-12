@@ -48,6 +48,46 @@ describe("executionStateSlice — Zustand no-op notifications", () => {
     expect(listener).not.toHaveBeenCalled();
     unsubscribe();
   });
+
+  it("notifies once for markStreamStarted and treats repeated calls as no-ops", () => {
+    const store = createExecutionTestStore();
+    store.getState().markOptimisticStart(SESSION);
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+
+    store.getState().markStreamStarted(SESSION, 1);
+    store.getState().markStreamStarted(SESSION, 1);
+    store.getState().markStreamStarted(SESSION, 1);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(store.getState().executionBySession[SESSION].phase).toBe("streaming");
+    expect(store.getState().executionBySession[SESSION].stream.hasTokens).toBe(true);
+    unsubscribe();
+  });
+
+  it("does not notify subscribers when applyChildProgress resolves to an identical patch", () => {
+    const store = createExecutionTestStore();
+    store.getState().applyChildProgress(SESSION, "child-1", {
+      status: "running",
+      roundCount: 1,
+      outputPreview: "hello",
+      lastHeartbeatAt: T1,
+      lastEventAt: T1,
+    });
+    const listener = vi.fn();
+    const unsubscribe = store.subscribe(listener);
+
+    store.getState().applyChildProgress(SESSION, "child-1", {
+      status: "running",
+      roundCount: 1,
+      outputPreview: "hello",
+      lastHeartbeatAt: T1,
+      lastEventAt: T1,
+    });
+
+    expect(listener).not.toHaveBeenCalled();
+    unsubscribe();
+  });
 });
 
 const startSession = (sessionId: string = SESSION): ExecutionMap => {
@@ -106,11 +146,11 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.activeReasons).toContain("optimistic:send");
   });
 
-  it("starting + token → streaming with token counts and firstTokenAt", () => {
+  it("starting + markStreamStarted → streaming with coarse token marker and firstTokenAt", () => {
     // §E.1.2
     const after = applyExecutionEvent(
       startSession(),
-      { type: "applyAgentEvent", sessionId: SESSION, event: tokenEvent, generation: 1 },
+      { type: "markStreamStarted", sessionId: SESSION, generation: 1 },
       fixedNow(T1),
     );
 

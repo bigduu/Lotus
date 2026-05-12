@@ -171,6 +171,7 @@ export type ExecutionAction =
   | { type: "markForceSubscribe"; sessionId: string }
   | { type: "markCancel"; sessionId: string }
   | { type: "markSettleTimeout"; sessionId: string }
+  | { type: "markStreamStarted"; sessionId: string; generation: number }
   | { type: "applyAgentEvent"; sessionId: string; event: AgentEvent; generation: number }
   | { type: "applyExecutionStarted"; sessionId: string; runId: string; generation: number }
   | { type: "applySessionSummary"; sessionId: string; summary: SessionSummary }
@@ -415,6 +416,31 @@ const applyTokenEvent = (
   return reconcileActivePhase(next);
 };
 
+const applyStreamStarted = (
+  entry: SessionExecutionState,
+  now: () => string,
+): SessionExecutionState => {
+  if (entry.stream.hasTokens && entry.timestamps.firstTokenAt !== null) {
+    return entry;
+  }
+
+  const firstTokenAt = entry.timestamps.firstTokenAt ?? now();
+  const next: SessionExecutionState = {
+    ...entry,
+    confidence: "live",
+    stream: {
+      ...entry.stream,
+      hasTokens: true,
+      // Token text stays on the RAF-batched streaming bus; this is only the
+      // coarse semantic marker used by phase selectors and completion logic.
+      tokenCount: Math.max(1, entry.stream.tokenCount),
+    },
+    timestamps: { ...entry.timestamps, firstTokenAt },
+    activeReasons: appendReason(entry.activeReasons, "sse:token"),
+  };
+  return reconcileActivePhase(next);
+};
+
 const applyToolStart = (
   entry: SessionExecutionState,
   toolCallId: string,
@@ -526,6 +552,18 @@ const applySubAgentUpdate = (
   const wasRunning =
     existing === undefined || existing.status === undefined || existing.status === "running";
   const merged: ChildProgress = { ...existing, ...patch };
+  if (
+    existing !== undefined &&
+    existing.title === merged.title &&
+    existing.status === merged.status &&
+    existing.error === merged.error &&
+    existing.lastHeartbeatAt === merged.lastHeartbeatAt &&
+    existing.lastEventAt === merged.lastEventAt &&
+    existing.outputPreview === merged.outputPreview &&
+    existing.roundCount === merged.roundCount
+  ) {
+    return entry;
+  }
   const isRunning = merged.status === undefined || merged.status === "running";
   let runningDelta = 0;
   if (existing !== undefined) {
@@ -1032,6 +1070,17 @@ export const applyExecutionEvent = (
       };
       return writeEntry(map, action.sessionId, next);
     }
+    case "markStreamStarted": {
+      const entry = ensureEntry(map, action.sessionId);
+      if (action.generation !== entry.generation) {
+        return map;
+      }
+      const next = applyStreamStarted(entry, now);
+      if (next === entry) {
+        return map;
+      }
+      return writeEntry(map, action.sessionId, next);
+    }
     case "applyAgentEvent": {
       const entry = ensureEntry(map, action.sessionId);
       if (action.generation !== entry.generation) {
@@ -1238,6 +1287,7 @@ export interface ExecutionStateSlice {
   markForceSubscribe: (sessionId: string) => void;
   markCancel: (sessionId: string) => void;
   markSettleTimeout: (sessionId: string) => void;
+  markStreamStarted: (sessionId: string, generation: number) => void;
   applyAgentEvent: (sessionId: string, event: AgentEvent, generation: number) => void;
   applyExecutionStarted: (sessionId: string, runId: string, generation: number) => void;
   applySessionSummary: (sessionId: string, summary: SessionSummary) => void;
@@ -1346,6 +1396,18 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
       const next = applyExecutionEvent(
         state.executionBySession,
         { type: "markSettleTimeout", sessionId },
+        sliceNow,
+      );
+      if (next === state.executionBySession) return state;
+      return { executionBySession: next };
+    });
+  },
+
+  markStreamStarted: (sessionId, generation) => {
+    set((state) => {
+      const next = applyExecutionEvent(
+        state.executionBySession,
+        { type: "markStreamStarted", sessionId, generation },
         sliceNow,
       );
       if (next === state.executionBySession) return state;

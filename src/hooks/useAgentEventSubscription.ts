@@ -14,6 +14,7 @@ import {
   selectGeneration,
   selectChildren,
 } from "../pages/ChatPage/store";
+import { isBusyPhase } from "../pages/ChatPage/store/slices/executionStateSlice";
 import { applyReplayableSessionEvent } from "../pages/ChatPage/store/slices/sessionMetadataSlice";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
@@ -81,6 +82,9 @@ const isTaskItemStatus = (status: AgentEvent["status"]): status is TaskListDelta
   status === "blocked";
 
 const TERMINAL_CHILD_STATUS = new Set(["completed", "error", "cancelled", "failed"]);
+const CHILD_HEARTBEAT_MIN_INTERVAL_MS = 1_500;
+const CHILD_PREVIEW_FLUSH_INTERVAL_MS = 120;
+const CHILD_PREVIEW_MAX_CHARS = 2_000;
 
 const getChildStatus = (parentSessionId: string, childSessionId: string): string | undefined => {
   return selectChildren(parentSessionId)(useAppStore.getState())?.[childSessionId]?.status;
@@ -149,6 +153,7 @@ export function useAgentEventSubscription() {
   const {
     addMessage,
     applyAgentEvent,
+    markStreamStarted,
     updateTokenUsage,
     setTruncationInfo,
     updateSession,
@@ -166,6 +171,7 @@ export function useAgentEventSubscription() {
     useShallow((state) => ({
       addMessage: state.addMessage,
       applyAgentEvent: state.applyAgentEvent,
+      markStreamStarted: state.markStreamStarted,
       updateTokenUsage: state.updateTokenUsage,
       setTruncationInfo: state.setTruncationInfo,
       updateSession: state.updateSession,
@@ -192,6 +198,7 @@ export function useAgentEventSubscription() {
     Map<string, { attempt: number; timer: ReturnType<typeof setTimeout> | null }>
   >(new Map());
   const taskCompletionNoticeKeyBySessionRef = useRef<Map<string, string>>(new Map());
+  const streamStartedGenerationBySessionRef = useRef<Map<string, number>>(new Map());
 
   // sessionId -> subscription
   const subscriptionsBySessionRef = useRef<Map<string, SubscriptionEntry>>(new Map());
@@ -215,6 +222,18 @@ export function useAgentEventSubscription() {
   // parentSessionId -> { children, parentDone }
   const backgroundChildrenByParentRef = useRef<
     Map<string, { children: Set<string>; parentDone: boolean }>
+  >(new Map());
+  const lastChildHeartbeatAtRef = useRef<Map<string, number>>(new Map());
+  const lastChildRoundCountRef = useRef<Map<string, number>>(new Map());
+  const pendingChildPreviewRef = useRef<
+    Map<
+      string,
+      {
+        content: string;
+        lastEventAt: string;
+        timer: ReturnType<typeof setTimeout> | null;
+      }
+    >
   >(new Map());
 
   // toolCallId -> toolName mapping for tracking tool names across start/complete
@@ -273,6 +292,14 @@ export function useAgentEventSubscription() {
         clearTitleRefreshRetry(sessionId);
       }
       pendingSessionIdsRef.current.delete(sessionId);
+      streamStartedGenerationBySessionRef.current.delete(sessionId);
+      for (const [key, pending] of pendingChildPreviewRef.current.entries()) {
+        if (!key.startsWith(`${sessionId}:`)) continue;
+        if (pending.timer) {
+          clearTimeout(pending.timer);
+        }
+        pendingChildPreviewRef.current.delete(key);
+      }
 
       const existing = subscriptionsBySessionRef.current.get(sessionId);
       if (!existing) return;
@@ -303,6 +330,43 @@ export function useAgentEventSubscription() {
       }
     },
     [clearParentSettleTimer, clearReconnect, clearTitleRefreshRetry],
+  );
+
+  const flushChildPreview = useCallback(
+    (parentSessionId: string, childSessionId: string) => {
+      const key = `${parentSessionId}:${childSessionId}`;
+      const pending = pendingChildPreviewRef.current.get(key);
+      if (!pending) return;
+      if (pending.timer) {
+        clearTimeout(pending.timer);
+      }
+      pendingChildPreviewRef.current.delete(key);
+      applyChildProgress(parentSessionId, childSessionId, {
+        status: "running",
+        outputPreview: pending.content,
+        lastEventAt: pending.lastEventAt,
+      });
+    },
+    [applyChildProgress],
+  );
+
+  const scheduleChildPreviewFlush = useCallback(
+    (parentSessionId: string, childSessionId: string, content: string, lastEventAt: string) => {
+      const key = `${parentSessionId}:${childSessionId}`;
+      const existing = pendingChildPreviewRef.current.get(key);
+      if (existing?.timer) {
+        clearTimeout(existing.timer);
+      }
+      const timer = setTimeout(() => {
+        flushChildPreview(parentSessionId, childSessionId);
+      }, CHILD_PREVIEW_FLUSH_INTERVAL_MS);
+      pendingChildPreviewRef.current.set(key, {
+        content,
+        lastEventAt,
+        timer,
+      });
+    },
+    [flushChildPreview],
   );
 
   const ensureTaskListBaseline = useCallback(
@@ -350,6 +414,17 @@ export function useAgentEventSubscription() {
       return !hasActiveQuestion;
     },
     [],
+  );
+
+  const markStreamStartedOnce = useCallback(
+    (sessionId: string, generation: number) => {
+      if (streamStartedGenerationBySessionRef.current.get(sessionId) === generation) {
+        return;
+      }
+      streamStartedGenerationBySessionRef.current.set(sessionId, generation);
+      markStreamStarted(sessionId, generation);
+    },
+    [markStreamStarted],
   );
 
   const startSubscription = useCallback(
@@ -681,11 +756,7 @@ export function useAgentEventSubscription() {
           sessionId,
           {
             onToken: (tokenContent: string) => {
-              applyAgentEvent(
-                sessionId,
-                { type: "token", content: tokenContent } as AgentEvent,
-                generation,
-              );
+              markStreamStartedOnce(sessionId, generation);
               const state = streamingStateBySessionRef.current.get(sessionId);
               if (!state) return;
               setStreamingStatus(null);
@@ -698,11 +769,7 @@ export function useAgentEventSubscription() {
             },
 
             onReasoningToken: (tokenContent: string) => {
-              applyAgentEvent(
-                sessionId,
-                { type: "reasoning_token", content: tokenContent } as AgentEvent,
-                generation,
-              );
+              markStreamStartedOnce(sessionId, generation);
               const state = streamingStateBySessionRef.current.get(sessionId);
               if (!state) return;
               state.reasoningContent += tokenContent;
@@ -1472,24 +1539,39 @@ export function useAgentEventSubscription() {
               }
 
               if (evt.type === "runner_progress") {
+                const nextRoundCount =
+                  typeof evt.round_count === "number" ? evt.round_count : current?.roundCount;
+                const roundKey = `${parentSessionId}:${childSessionId}`;
+                if (
+                  typeof nextRoundCount === "number" &&
+                  lastChildRoundCountRef.current.get(roundKey) === nextRoundCount
+                ) {
+                  return;
+                }
+                if (typeof nextRoundCount === "number") {
+                  lastChildRoundCountRef.current.set(roundKey, nextRoundCount);
+                }
                 applyChildProgress(parentSessionId, childSessionId, {
                   status: "running",
-                  roundCount:
-                    typeof evt.round_count === "number" ? evt.round_count : current?.roundCount,
+                  roundCount: nextRoundCount,
                   lastEventAt: new Date().toISOString(),
                 });
                 return;
               }
 
-              // Maintain a small rolling preview for fast UI feedback.
+              // Maintain a small rolling preview for fast UI feedback, but flush it in a
+              // throttled way so we don't write global execution state on every child token.
               if (evt.type === "token" && typeof evt.content === "string") {
-                const prev = current?.outputPreview || "";
-                const next = (prev + evt.content).slice(-2000);
-                applyChildProgress(parentSessionId, childSessionId, {
-                  status: "running",
-                  outputPreview: next,
-                  lastEventAt: new Date().toISOString(),
-                });
+                const previewKey = `${parentSessionId}:${childSessionId}`;
+                const pendingPreview = pendingChildPreviewRef.current.get(previewKey);
+                const prev = pendingPreview?.content ?? current?.outputPreview ?? "";
+                const next = (prev + evt.content).slice(-CHILD_PREVIEW_MAX_CHARS);
+                scheduleChildPreviewFlush(
+                  parentSessionId,
+                  childSessionId,
+                  next,
+                  new Date().toISOString(),
+                );
               } else {
                 applyChildProgress(parentSessionId, childSessionId, {
                   status: "running",
@@ -1502,6 +1584,13 @@ export function useAgentEventSubscription() {
               if (isTerminalChildStatus(getChildStatus(parentSessionId, childSessionId))) {
                 return;
               }
+              const heartbeatKey = `${parentSessionId}:${childSessionId}`;
+              const lastHeartbeatAt = lastChildHeartbeatAtRef.current.get(heartbeatKey) ?? 0;
+              const nextHeartbeatAt = Date.parse(ts || "") || Date.now();
+              if (nextHeartbeatAt - lastHeartbeatAt < CHILD_HEARTBEAT_MIN_INTERVAL_MS) {
+                return;
+              }
+              lastChildHeartbeatAtRef.current.set(heartbeatKey, nextHeartbeatAt);
               applyChildProgress(parentSessionId, childSessionId, {
                 status: "running",
                 lastHeartbeatAt: ts,
@@ -1519,6 +1608,10 @@ export function useAgentEventSubscription() {
                 parentDone: bg.parentDone,
               });
 
+              flushChildPreview(parentSessionId, childSessionId);
+              const childStateKey = `${parentSessionId}:${childSessionId}`;
+              lastChildHeartbeatAtRef.current.delete(childStateKey);
+              lastChildRoundCountRef.current.delete(childStateKey);
               applyChildProgress(parentSessionId, childSessionId, {
                 status,
                 error,
@@ -1717,6 +1810,7 @@ export function useAgentEventSubscription() {
       setEvaluationState,
       setPendingQuestion,
       applyAgentEvent,
+      markStreamStartedOnce,
       setTaskList,
       setTruncationInfo,
       updateMessage,
@@ -1724,6 +1818,8 @@ export function useAgentEventSubscription() {
       updateTaskListDelta,
       updateTokenUsage,
       applyChildProgress,
+      flushChildPreview,
+      scheduleChildPreviewFlush,
     ],
   );
 
@@ -1777,25 +1873,23 @@ export function useAgentEventSubscription() {
     [cleanupChat, startSubscription],
   );
 
-  // Effect A: reconcile active subscriptions when busy sessions change (NO global cleanup return)
-  const executionBySession = useAppStore((state) => state.executionBySession);
+  // Effect A: reconcile active subscriptions when busy session IDs change (NO global cleanup return).
+  // Do not subscribe to the full executionBySession map here: token/metadata updates must not rerun
+  // subscription coordination unless the observable session set actually changes.
+  const busySessionIds = useAppStore(
+    useShallow((state) =>
+      Object.entries(state.executionBySession)
+        .filter(([, entry]) => isBusyPhase(entry.phase))
+        .map(([sessionId]) => sessionId)
+        .sort(),
+    ),
+  );
+
   useEffect(() => {
-    const state = { executionBySession };
-    const busySessionIds = new Set(
-      Object.entries(executionBySession)
-        .filter(([id]) => selectShouldObserve(id)(state))
-        .map(([id]) => id),
-    );
+    const busySessionIdSet = new Set(busySessionIds);
 
     debugLog("[SSE]", "effect.busySessions", {
-      busySessionIds: Array.from(busySessionIds),
-      executionEntries: Object.entries(executionBySession).map(([sessionId, entry]) => ({
-        sessionId,
-        phase: entry.phase,
-        generation: entry.generation,
-        backendRunId: entry.backendRunId,
-        shouldObserve: selectShouldObserve(sessionId)(state),
-      })),
+      busySessionIds,
     });
 
     // Start needed subscriptions
@@ -1803,18 +1897,18 @@ export function useAgentEventSubscription() {
 
     // Stop subscriptions for chats no longer processing
     for (const sessionId of Array.from(subscriptionsBySessionRef.current.keys())) {
-      if (!busySessionIds.has(sessionId)) {
+      if (!busySessionIdSet.has(sessionId)) {
         cleanupChat(sessionId, { clearDraft: true });
       }
     }
 
     // Drop pending chats that are no longer processing
     for (const sessionId of Array.from(pendingSessionIdsRef.current)) {
-      if (!busySessionIds.has(sessionId)) {
+      if (!busySessionIdSet.has(sessionId)) {
         pendingSessionIdsRef.current.delete(sessionId);
       }
     }
-  }, [executionBySession, ensureSubscription, cleanupChat]);
+  }, [busySessionIds, ensureSubscription, cleanupChat]);
 
   // Retry pending processing chats when chats/config updates (e.g. sessionId arrives)
   useEffect(() => {

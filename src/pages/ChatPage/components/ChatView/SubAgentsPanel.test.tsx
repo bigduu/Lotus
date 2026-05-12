@@ -52,6 +52,10 @@ vi.mock("../../../../services/tool/ToolService", () => ({
   toolService: mockToolService,
 }));
 
+vi.mock("../../../../hooks/useSubagentProfiles", () => ({
+  useSubagentProfiles: () => ({ byId: new Map() }),
+}));
+
 vi.mock("../../hooks/useActiveModel", () => ({
   useActiveModel: () => mockUseActiveModel(),
 }));

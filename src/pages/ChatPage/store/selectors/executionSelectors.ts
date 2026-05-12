@@ -175,8 +175,6 @@ export interface RailModel {
   hasQuestion: boolean;
   hasError: boolean;
   errorMessage: string | null;
-  tokenCount: number;
-  hasTokens: boolean;
   generation: number;
 }
 
@@ -187,8 +185,6 @@ const IDLE_RAIL: RailModel = Object.freeze({
   hasQuestion: false,
   hasError: false,
   errorMessage: null,
-  tokenCount: 0,
-  hasTokens: false,
   generation: 0,
 });
 
@@ -206,8 +202,6 @@ export const selectRailModel =
       hasQuestion: entry.interaction.pendingQuestion !== null,
       hasError: entry.error !== null,
       errorMessage: entry.error?.message ?? null,
-      tokenCount: entry.stream.tokenCount,
-      hasTokens: entry.stream.hasTokens,
       generation: entry.generation,
     };
   };

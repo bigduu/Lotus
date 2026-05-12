@@ -20,6 +20,36 @@ describe("CommandPalette", () => {
 
     useAppStore.setState((state) => ({
       ...state,
+      executionBySession: {
+        "session-1": {
+          sessionId: "session-1",
+          phase: "running",
+          confidence: "live",
+          activeReasons: [],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: true,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: null,
+            runningChildCount: null,
+          },
+          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      },
       chats: [
         {
           id: "session-1",
@@ -80,6 +110,25 @@ describe("CommandPalette", () => {
 
     await waitFor(() => {
       expect(screen.getByText("Open MCP Settings")).toBeInTheDocument();
+    });
+  });
+
+  it("still includes busy sessions in the session action list", async () => {
+    render(
+      <AntdApp>
+        <CommandPalette />
+      </AntdApp>,
+    );
+
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+
+    const input = await screen.findByPlaceholderText("Search sessions, settings, and actions");
+    expect(input).toBeInTheDocument();
+    expect(screen.getByText("Investigate token budget")).toBeInTheDocument();
+
+    fireEvent.change(input, { target: { value: "running" } });
+    await waitFor(() => {
+      expect(screen.getByText("Investigate token budget")).toBeInTheDocument();
     });
   });
 });
