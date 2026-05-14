@@ -209,11 +209,24 @@ vi.mock("../../../utils/resultFormatters", () => ({
       return null;
     }
   },
+  createFocusedUnifiedDiffPreview: () => [
+    { kind: "meta", text: "--- a/demo.ts" },
+    { kind: "hunk", text: "@@ -10,4 +10,4 @@" },
+    { kind: "modified_remove", text: "-old line" },
+    { kind: "modified_add", text: "+new line" },
+    { kind: "gap", text: "⋯" },
+    { kind: "add", text: "+extra line" },
+  ],
 }));
 
 vi.mock("../../FileChangeViewer", () => ({
-  default: ({ payload, defaultViewMode }: any) => (
-    <div data-testid="file-change-viewer" data-default-view-mode={defaultViewMode}>
+  default: ({ payload, defaultViewMode, maxHeight, unifiedLinesOverride }: any) => (
+    <div
+      data-testid="file-change-viewer"
+      data-default-view-mode={defaultViewMode}
+      data-max-height={String(maxHeight ?? "")}
+      data-unified-lines-override={unifiedLinesOverride ? JSON.stringify(unifiedLinesOverride) : ""}
+    >
       {payload?.file_path}
     </div>
   ),
@@ -500,6 +513,13 @@ describe("ToolStepsCard", () => {
       expect(screen.getByTestId("file-change-viewer").getAttribute("data-default-view-mode")).toBe(
         "unified",
       );
+      expect(screen.getByTestId("file-change-viewer").getAttribute("data-max-height")).toBe("1760");
+      expect(
+        screen.getByTestId("file-change-viewer").getAttribute("data-unified-lines-override"),
+      ).toContain('"kind":"gap"');
+      expect(
+        screen.getByTestId("file-change-viewer").getAttribute("data-unified-lines-override"),
+      ).toContain('"kind":"modified_add"');
       expect(screen.getByText("components.toolSteps.viewFullDiff")).toBeDefined();
     });
 

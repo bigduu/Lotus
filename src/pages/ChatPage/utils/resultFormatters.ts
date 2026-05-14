@@ -97,7 +97,8 @@ export type DiffLineKind =
   | "add"
   | "remove"
   | "modified_add"
-  | "modified_remove";
+  | "modified_remove"
+  | "gap";
 
 export interface DiffLine {
   kind: DiffLineKind;
@@ -509,6 +510,117 @@ export const parseUnifiedDiffLines = (unified: string): DiffLine[] => {
   }
 
   return output;
+};
+
+export const createFocusedUnifiedDiffPreview = (
+  unified: string,
+  options?: {
+    contextLines?: number;
+    maxLines?: number;
+    preserveLeadingMeta?: boolean;
+  },
+): DiffLine[] => {
+  const parsed = parseUnifiedDiffLines(unified);
+  if (parsed.length === 0) {
+    return parsed;
+  }
+
+  const contextLines = Math.max(0, options?.contextLines ?? 2);
+  const maxLines = Math.max(1, options?.maxLines ?? 120);
+  const preserveLeadingMeta = options?.preserveLeadingMeta ?? true;
+  const changeKinds = new Set<DiffLineKind>(["add", "remove", "modified_add", "modified_remove"]);
+
+  const changeIndexes = parsed
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => changeKinds.has(line.kind))
+    .map(({ index }) => index);
+
+  if (changeIndexes.length === 0 || parsed.length <= maxLines) {
+    return parsed.slice(0, maxLines);
+  }
+
+  const leadingMetaIndexes: number[] = [];
+  if (preserveLeadingMeta) {
+    for (let i = 0; i < parsed.length; i += 1) {
+      if (parsed[i]?.kind !== "meta") {
+        break;
+      }
+      leadingMetaIndexes.push(i);
+    }
+  }
+
+  const buildMergedRanges = (
+    windowContext: number,
+    includeLeadingMeta: boolean,
+  ): Array<{ start: number; end: number }> => {
+    const ranges: Array<{ start: number; end: number }> = [];
+
+    if (includeLeadingMeta && leadingMetaIndexes.length > 0) {
+      ranges.push({
+        start: leadingMetaIndexes[0],
+        end: leadingMetaIndexes[leadingMetaIndexes.length - 1],
+      });
+    }
+
+    changeIndexes.forEach((index) => {
+      ranges.push({
+        start: Math.max(0, index - windowContext),
+        end: Math.min(parsed.length - 1, index + windowContext),
+      });
+    });
+
+    ranges.sort((a, b) => a.start - b.start);
+
+    return ranges.reduce<Array<{ start: number; end: number }>>((acc, current) => {
+      const last = acc[acc.length - 1];
+      if (!last) {
+        acc.push({ ...current });
+        return acc;
+      }
+      if (current.start <= last.end + 1) {
+        last.end = Math.max(last.end, current.end);
+        return acc;
+      }
+      acc.push({ ...current });
+      return acc;
+    }, []);
+  };
+
+  const renderRanges = (ranges: Array<{ start: number; end: number }>): DiffLine[] => {
+    const preview: DiffLine[] = [];
+
+    ranges.forEach((range, rangeIndex) => {
+      if (rangeIndex > 0) {
+        preview.push({ kind: "gap", text: "⋯" });
+      }
+      for (let i = range.start; i <= range.end; i += 1) {
+        preview.push(parsed[i]);
+      }
+    });
+
+    return preview;
+  };
+
+  let dynamicContext = contextLines;
+  let ranges = buildMergedRanges(dynamicContext, preserveLeadingMeta);
+  let preview = renderRanges(ranges);
+
+  while (preview.length > maxLines && dynamicContext > 0) {
+    dynamicContext -= 1;
+    ranges = buildMergedRanges(dynamicContext, preserveLeadingMeta);
+    preview = renderRanges(ranges);
+  }
+
+  if (preview.length > maxLines && preserveLeadingMeta) {
+    ranges = buildMergedRanges(dynamicContext, false);
+    preview = renderRanges(ranges);
+  }
+
+  if (preview.length > maxLines) {
+    return preview.slice(0, maxLines);
+  }
+
+  return preview;
 };
 
 const parseUnifiedHunkHeader = (line: string): { oldStart: number; newStart: number } | null => {

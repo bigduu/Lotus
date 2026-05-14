@@ -14,6 +14,7 @@ import {
   parseMemoryInspectRebuildPayload,
   parseUnifiedDiffLines,
   parseUnifiedDiffSideBySideRows,
+  createFocusedUnifiedDiffPreview,
   safeStringify,
   shouldCollapseContent,
 } from "../resultFormatters";
@@ -840,6 +841,50 @@ describe("parseUnifiedDiffLines", () => {
     expect(lines.some((l) => l.kind === "modified_add")).toBe(true);
     expect(lines.some((l) => l.kind === "add")).toBe(true);
     expect(lines.some((l) => l.kind === "remove")).toBe(true);
+  });
+});
+
+describe("createFocusedUnifiedDiffPreview", () => {
+  it("focuses preview around changed regions and inserts gap markers between distant hunks", () => {
+    const preview = createFocusedUnifiedDiffPreview(
+      [
+        "--- a/demo.ts",
+        "+++ b/demo.ts",
+        "@@ -1,12 +1,12 @@",
+        " context 1",
+        " context 2",
+        "-old 1",
+        "+new 1",
+        " context 3",
+        " context 4",
+        " context 5",
+        " context 6",
+        " context 7",
+        " context 8",
+        " context 9",
+        " context 10",
+        " context 11",
+        "-old 2",
+        "+new 2",
+        " context 12",
+      ].join("\n"),
+      { contextLines: 1, maxLines: 10, preserveLeadingMeta: true },
+    );
+
+    expect(preview.some((line) => line.kind === "modified_remove" && line.text === "-old 1")).toBe(
+      true,
+    );
+    expect(preview.some((line) => line.kind === "modified_add" && line.text === "+new 1")).toBe(
+      true,
+    );
+    expect(preview.some((line) => line.kind === "modified_remove" && line.text === "-old 2")).toBe(
+      true,
+    );
+    expect(preview.some((line) => line.kind === "modified_add" && line.text === "+new 2")).toBe(
+      true,
+    );
+    expect(preview.some((line) => line.kind === "gap")).toBe(true);
+    expect(preview.some((line) => line.text === " context 8")).toBe(false);
   });
 });
 

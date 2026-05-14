@@ -23,6 +23,7 @@ export interface FileChangeViewerProps {
   compact?: boolean;
   height?: number | string;
   maxHeight?: number | string;
+  unifiedLinesOverride?: DiffLine[];
 }
 
 const buildUnifiedLineStyle = (
@@ -56,6 +57,11 @@ const buildUnifiedLineStyle = (
   } else if (line.kind === "meta") {
     style.background = token.colorFillTertiary;
     style.color = token.colorTextSecondary;
+  } else if (line.kind === "gap") {
+    style.background = token.colorFillQuaternary;
+    style.color = token.colorTextTertiary;
+    style.textAlign = "center";
+    style.fontStyle = "italic";
   }
 
   return style;
@@ -103,6 +109,7 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
   compact = false,
   height,
   maxHeight = 400,
+  unifiedLinesOverride,
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
@@ -117,8 +124,8 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
   }, [payload]);
 
   const unifiedLines = useMemo(
-    () => parseUnifiedDiffLines(payload.diff.unified),
-    [payload.diff.unified],
+    () => unifiedLinesOverride ?? parseUnifiedDiffLines(payload.diff.unified),
+    [payload.diff.unified, unifiedLinesOverride],
   );
   const sideBySideRows = useMemo(
     () => parseUnifiedDiffSideBySideRows(payload.diff.unified),

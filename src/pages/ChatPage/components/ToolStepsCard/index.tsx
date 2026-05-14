@@ -14,6 +14,7 @@ import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../..
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import {
+  createFocusedUnifiedDiffPreview,
   formatResultContent,
   getFileChangeDiffStats,
   parseFileChangeResultPayload,
@@ -26,6 +27,8 @@ import FormattedContentPreview, { type FormattedContentMode } from "./FormattedC
 import "./styles.css";
 
 const { Text } = Typography;
+
+const INLINE_FILE_CHANGE_PREVIEW_MAX_HEIGHT = 1760;
 
 type ToolCallItem = AssistantToolCallMessage["toolCalls"][number];
 
@@ -181,6 +184,13 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           ? parseFileChangeResultPayload(resultContent)
           : null;
         const fileChangeStats = resultContent ? getFileChangeDiffStats(resultContent) : null;
+        const focusedInlineDiffLines = fileChangePayload
+          ? createFocusedUnifiedDiffPreview(fileChangePayload.diff.unified, {
+              contextLines: 2,
+              maxLines: 120,
+              preserveLeadingMeta: true,
+            })
+          : null;
         const summaryText =
           typeof entry.metadata?.summary === "string" && entry.metadata.summary.trim().length > 0
             ? entry.metadata.summary.trim()
@@ -331,7 +341,8 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
                       showHeader={false}
                       showViewToggle={false}
                       defaultViewMode="unified"
-                      maxHeight={108}
+                      maxHeight={INLINE_FILE_CHANGE_PREVIEW_MAX_HEIGHT}
+                      unifiedLinesOverride={focusedInlineDiffLines ?? undefined}
                     />
                     <Button
                       type="link"
