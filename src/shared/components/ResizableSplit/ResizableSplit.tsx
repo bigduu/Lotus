@@ -106,14 +106,17 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
     if (!Number.isFinite(first) || !Number.isFinite(second)) return null;
     const total = first + second;
     // When either pane is being persisted as an absolute pixel width
-    // (sidebar => [width, 0], inspector => [0, width]) we should not derive a ratio.
+    // (sidebar => [width, 0], collapsed sidebar => [0, 0], inspector => [0, width])
+    // we should not derive a ratio.
     if (total <= 0 || first <= 0 || second <= 0) return null;
     return clamp(first / total, 0, 1);
   }, [sizesPx]);
 
   const absoluteFirstPanePx = useMemo(() => {
     if (persistedFirstPx === null || persistedSecondPx === null) return null;
-    return persistedFirstPx > 0 && persistedSecondPx <= 0 ? persistedFirstPx : null;
+    // Treat `[width, 0]` and `[0, 0]` as an explicit first-pane width.
+    // A persisted zero is a real "fully collapsed" signal, not "unset".
+    return persistedSecondPx <= 0 ? Math.max(0, persistedFirstPx) : null;
   }, [persistedFirstPx, persistedSecondPx]);
 
   const absoluteSecondPanePx = useMemo(() => {

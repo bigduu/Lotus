@@ -50,6 +50,23 @@ describe("ResizableSplit", () => {
     expect(separator).toHaveStyle({ left: "397px" });
   });
 
+  it("treats a persisted zero-width first pane as collapsed instead of falling back to 50/50", () => {
+    render(
+      <ResizableSplit
+        layout="horizontal"
+        sizesPx={[0, 0]}
+        minFirstPx={0}
+        minSecondPx={320}
+        handleSizePx={0}
+        first={<div data-testid="collapsed-first-pane">left</div>}
+        second={<div data-testid="full-width-second-pane">right</div>}
+      />,
+    );
+
+    const firstOuterPane = screen.getByTestId("collapsed-first-pane").parentElement?.parentElement;
+    expect(firstOuterPane).toHaveStyle({ flex: "0 0 0px" });
+  });
+
   it("relaxes min pane constraints when the container is too small", () => {
     render(
       <ResizableSplit

@@ -343,7 +343,9 @@ export const MainLayout: React.FC<{
                       style={{
                         height: "100%",
                         minHeight: 0,
-                        borderRadius: `0 ${shellRadiusPx}px ${shellRadiusPx}px 0`,
+                        borderRadius: sidebarCollapsed
+                          ? `${shellRadiusPx}px`
+                          : `0 ${shellRadiusPx}px ${shellRadiusPx}px 0`,
                         border: surfaceBorder,
                         overflow: "hidden",
                         background: "var(--lotus-main-surface)",
