@@ -107,6 +107,7 @@ vi.mock("../ChatView/SubAgentsPanel", () => ({
 vi.mock("../ChatView/ActiveToolMessageCard", () => ({
   __esModule: true,
   default: () => null,
+  ActiveToolMessageCard: () => null,
 }));
 
 vi.mock("../EmptyTaskLauncher", () => ({

@@ -603,8 +603,8 @@ describe("useMessageStreaming", () => {
 
     expect(mockAgentExecute).toHaveBeenCalledTimes(3);
     expect(mockAgentApiGet).toHaveBeenCalledTimes(2);
-    expect(mockStoreState.loadChatHistory).toHaveBeenCalledTimes(3);
-    // Phase 3: after max sync recoveries, markSettleTimeout clears the state.
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledTimes(2);
+    // After the configured max sync recoveries, markSettleTimeout clears the state.
     expect(mockStoreState.markSettleTimeout).toHaveBeenCalledWith("chat-1");
   });
 });

@@ -136,12 +136,12 @@ describe("SystemSettingsSchedulesTab", () => {
     );
 
     expect(await screen.findByText("Daily report")).toBeInTheDocument();
-    expect(screen.getByText("interval · 300s")).toBeInTheDocument();
-    expect(screen.getByText("queued: 1")).toBeInTheDocument();
-    expect(screen.getByText("ok: 4")).toBeInTheDocument();
+    expect(screen.getByText("Interval · 300s")).toBeInTheDocument();
+    expect(screen.getByText("Queued: 1")).toBeInTheDocument();
+    expect(screen.getByText("OK: 4")).toBeInTheDocument();
     expect(screen.getByText("Weekly digest")).toBeInTheDocument();
-    expect(screen.getByText("weekly · mon, fri")).toBeInTheDocument();
-    expect(screen.getByText("failing")).toBeInTheDocument();
+    expect(screen.getByText("Weekly · mon, fri")).toBeInTheDocument();
+    expect(screen.getByText("Failing")).toBeInTheDocument();
   });
 
   it("disables quick interval editing for non-interval schedules", async () => {
