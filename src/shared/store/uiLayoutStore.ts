@@ -71,9 +71,9 @@ const DEFAULT_SIDEBAR: SidebarLayout = {
 };
 
 const DEFAULT_INSPECTOR: InspectorLayout = {
-  widthPx: 420,
-  minWidthPx: 320,
-  maxWidthPx: 680,
+  widthPx: 520,
+  minWidthPx: 420,
+  maxWidthPx: 840,
 };
 
 const DEFAULT_LAYOUT_V2: UILayoutSnapshotV2 = {
@@ -388,9 +388,39 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
         ...DEFAULT_SIDEBAR,
         ...(parsed.sidebar || {}),
       };
-      const inspector: InspectorLayout = {
+      const parsedInspector = parsed.inspector || {};
+      const mergedInspector: InspectorLayout = {
         ...DEFAULT_INSPECTOR,
-        ...(parsed.inspector || {}),
+        ...parsedInspector,
+      };
+      const inspectorMinWidthPx = Math.max(
+        DEFAULT_INSPECTOR.minWidthPx,
+        Number.isFinite(mergedInspector.minWidthPx)
+          ? mergedInspector.minWidthPx
+          : DEFAULT_INSPECTOR.minWidthPx,
+      );
+      const inspectorMaxWidthPx = Math.max(
+        inspectorMinWidthPx,
+        Math.max(
+          DEFAULT_INSPECTOR.maxWidthPx,
+          Number.isFinite(mergedInspector.maxWidthPx)
+            ? mergedInspector.maxWidthPx
+            : DEFAULT_INSPECTOR.maxWidthPx,
+        ),
+      );
+      const inspectorWidthPx = Math.max(
+        inspectorMinWidthPx,
+        Math.min(
+          inspectorMaxWidthPx,
+          Number.isFinite(mergedInspector.widthPx)
+            ? mergedInspector.widthPx
+            : DEFAULT_INSPECTOR.widthPx,
+        ),
+      );
+      const inspector: InspectorLayout = {
+        widthPx: inspectorWidthPx,
+        minWidthPx: inspectorMinWidthPx,
+        maxWidthPx: inspectorMaxWidthPx,
       };
       const tree: LayoutNode = parsed.tree || DEFAULT_LAYOUT_V2.tree;
       const leafIds = getLeafIdsFromTree(tree);

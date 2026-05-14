@@ -34,6 +34,8 @@ type ActiveToolMessageCardProps = {
 type SessionDiffSortMode = "magnitude" | "path";
 
 const EXIT_ANIMATION_MS = 220;
+const SESSION_DIFF_LIST_MAX_HEIGHT = 560;
+const SESSION_DIFF_LIST_MAX_HEIGHT_COMPACT = 420;
 
 const basename = (filePath: string): string => filePath.split(/[\\/]/).pop() || filePath;
 
@@ -245,7 +247,7 @@ const SessionDiffListView: React.FC<{
           gap: compact ? 4 : 6,
           width: "100%",
           minWidth: 0,
-          maxHeight: compact ? 248 : 320,
+          maxHeight: compact ? SESSION_DIFF_LIST_MAX_HEIGHT_COMPACT : SESSION_DIFF_LIST_MAX_HEIGHT,
           overflowY: "auto",
           overflowX: "hidden",
         }}
@@ -320,9 +322,8 @@ const SessionDiffListView: React.FC<{
                   {compact ? (
                     <InlineMetaText
                       block
-                      ellipsis={{ tooltip: file.filePath }}
                       items={compactMetaItems}
-                      style={{ minWidth: 0 }}
+                      style={{ minWidth: 0, whiteSpace: "normal", wordBreak: "break-word" }}
                     />
                   ) : (
                     <>
@@ -637,7 +638,7 @@ export const ActiveToolMessageCard: React.FC<ActiveToolMessageCardProps> = ({
         placement="right"
         open={Boolean(selectedFile)}
         onClose={() => setSelectedFilePath(null)}
-        width="min(1100px, calc(100vw - 24px))"
+        width="min(1280px, calc(100vw - 24px))"
         styles={{
           body: { padding: compact ? token.paddingXS : token.paddingLG, minWidth: 0 },
         }}

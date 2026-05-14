@@ -83,6 +83,15 @@ describe("ActiveToolMessageCard", () => {
     expect(rows[1]).toHaveAttribute("data-file-path", SECOND_FILE_PATH);
   });
 
+  it("renders a taller session diff list so more files remain visible", () => {
+    render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
+
+    expect(screen.getByTestId("session-diff-file-list")).toHaveStyle({
+      maxHeight: "560px",
+      overflowY: "auto",
+    });
+  });
+
   it("can switch file ordering to path sort", () => {
     render(<ActiveToolMessageCard sessionDiffSummary={createSummary()} sessionId={SESSION_ID} />);
 
