@@ -322,6 +322,7 @@ export {
   selectCanCancel,
   selectShouldObserve,
   selectActiveToolCalls,
+  selectPendingQuestion,
   selectRespondMode,
   selectChildren,
   selectChildrenSnapshot,

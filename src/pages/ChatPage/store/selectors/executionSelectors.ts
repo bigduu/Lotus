@@ -123,11 +123,30 @@ export const selectActiveToolCalls =
     return entry?.stream.activeToolCalls ?? NO_TOOL_CALLS;
   };
 
+export const selectPendingQuestion =
+  (sessionId: string | null) =>
+  (state: ExecutionStateView): SessionExecutionState["interaction"]["pendingQuestion"] => {
+    const entry = getEntry(state, sessionId);
+    return entry?.interaction.pendingQuestion ?? null;
+  };
+
 export const selectRespondMode =
   (sessionId: string | null) =>
   (state: ExecutionStateView): (PendingQuestionPayload & { sessionId: string }) | null => {
-    const entry = getEntry(state, sessionId);
-    return entry?.interaction.respondMode ?? null;
+    if (!sessionId) {
+      return null;
+    }
+    const pendingQuestion = selectPendingQuestion(sessionId)(state);
+    if (!pendingQuestion) {
+      return null;
+    }
+    return {
+      sessionId,
+      question: pendingQuestion.question,
+      options: pendingQuestion.options,
+      allowCustom: pendingQuestion.allowCustom,
+      toolCallId: pendingQuestion.toolCallId,
+    };
   };
 
 export const selectChildren =

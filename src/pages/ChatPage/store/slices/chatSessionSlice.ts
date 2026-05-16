@@ -1438,15 +1438,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
               messageCount: history.messages.length,
               lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
               hasPendingQuestion: Boolean(
-                get().executionBySession?.[sessionId]?.interaction.respondMode?.sessionId ===
-                  sessionId,
+                get().executionBySession?.[sessionId]?.interaction.pendingQuestion,
               ),
               pendingQuestionToolCallId:
-                get().executionBySession?.[sessionId]?.interaction.respondMode?.sessionId ===
-                sessionId
-                  ? (get().executionBySession?.[sessionId]?.interaction.respondMode?.toolCallId ??
-                    null)
-                  : null,
+                get().executionBySession?.[sessionId]?.interaction.pendingQuestion?.toolCallId ??
+                null,
             },
           },
         });

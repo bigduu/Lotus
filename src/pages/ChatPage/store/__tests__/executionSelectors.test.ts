@@ -5,6 +5,8 @@ import {
   selectIsStreaming,
   selectIsInputLocked,
   selectCanCancel,
+  selectPendingQuestion,
+  selectRespondMode,
 } from "../selectors/executionSelectors";
 
 const SESSION = "session-1";
@@ -57,5 +59,32 @@ describe("execution selectors", () => {
     expect(selectIsStreaming(SESSION)(state)).toBe(false);
     expect(selectIsInputLocked(SESSION)(state)).toBe(true);
     expect(selectCanCancel(SESSION)(state)).toBe(false);
+  });
+
+  it("derives respondMode from pendingQuestion so pendingQuestion is the single source of truth", () => {
+    const state = createState("waiting_user_answer");
+    state.executionBySession[SESSION].interaction.pendingQuestion = {
+      question: "Continue?",
+      options: ["Yes", "No"],
+      allowCustom: true,
+      toolCallId: "ask-1",
+      receivedAt: "2026-05-14T00:00:00.000Z",
+    };
+    state.executionBySession[SESSION].interaction.respondMode = null;
+
+    expect(selectPendingQuestion(SESSION)(state)).toEqual({
+      question: "Continue?",
+      options: ["Yes", "No"],
+      allowCustom: true,
+      toolCallId: "ask-1",
+      receivedAt: "2026-05-14T00:00:00.000Z",
+    });
+    expect(selectRespondMode(SESSION)(state)).toEqual({
+      sessionId: SESSION,
+      question: "Continue?",
+      options: ["Yes", "No"],
+      allowCustom: true,
+      toolCallId: "ask-1",
+    });
   });
 });

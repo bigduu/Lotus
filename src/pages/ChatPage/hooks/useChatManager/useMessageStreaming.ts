@@ -12,7 +12,7 @@ import {
 import type { ChatItem, Message, UserMessage } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
-import { useAppStore, selectRespondMode, selectGeneration } from "../../store";
+import { useAppStore, selectPendingQuestion, selectGeneration } from "../../store";
 import { getSystemPromptEnhancementText } from "@shared/utils/systemPromptEnhancement";
 import { isCopilotConclusionWithOptionsEnhancementEnabled } from "@shared/utils/copilotConclusionWithOptionsEnhancementUtils";
 import {
@@ -102,8 +102,16 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
     const state = useAppStore.getState();
     const chats = Array.isArray(state.chats) ? state.chats : [];
     const chat = chats.find((item) => item.id === sessionId);
-    const respondMode = selectRespondMode(sessionId)(state);
-    const pendingForSession = respondMode?.sessionId === sessionId ? respondMode : null;
+    const pendingQuestion = selectPendingQuestion(sessionId)(state);
+    const pendingForSession = pendingQuestion
+      ? {
+          sessionId,
+          question: pendingQuestion.question,
+          options: pendingQuestion.options,
+          allowCustom: pendingQuestion.allowCustom,
+          toolCallId: pendingQuestion.toolCallId,
+        }
+      : null;
     const syncCursor = chat?.config?.syncCursor;
     const hasPendingQuestion =
       Boolean(pendingForSession) || Boolean(syncCursor?.hasPendingQuestion);

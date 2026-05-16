@@ -82,13 +82,13 @@ vi.mock("../../store", () => {
     }
   ).getState = () => mockStoreState;
 
-  const selectRespondMode = (sessionId: string | null) => (state: typeof mockStoreState) =>
-    state.executionBySession?.[sessionId ?? ""]?.interaction?.respondMode ?? null;
+  const selectPendingQuestion = (sessionId: string | null) => (state: typeof mockStoreState) =>
+    state.executionBySession?.[sessionId ?? ""]?.interaction?.pendingQuestion ?? null;
 
   const selectGeneration = (sessionId: string | null) => (state: typeof mockStoreState) =>
     state.executionBySession?.[sessionId ?? ""]?.generation ?? 0;
 
-  return { useAppStore, selectRespondMode, selectGeneration };
+  return { useAppStore, selectPendingQuestion, selectGeneration };
 });
 
 import { useMessageStreaming } from "./useMessageStreaming";
