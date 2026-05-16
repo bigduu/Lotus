@@ -6,10 +6,48 @@ import { useProviderStore } from "../../../pages/ChatPage/store/slices/providerS
 
 // Mock dependencies
 vi.mock("../../../pages/ChatPage/store", async (importOriginal) => {
+  const React = await vi.importActual<typeof import("react")>("react");
   const actual = await importOriginal<typeof import("../../../pages/ChatPage/store")>();
+
+  let mockState: any = {};
+  const listeners = new Set<() => void>();
+  const notify = () => {
+    listeners.forEach((listener) => listener());
+  };
+
+  const useAppStore = ((selector?: (state: any) => any) => {
+    const subscribe = React.useCallback((listener: () => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    }, []);
+    const getSnapshot = React.useCallback(
+      () => (typeof selector === "function" ? selector(mockState) : mockState),
+      [selector],
+    );
+    return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  }) as ((selector?: (state: any) => any) => any) & {
+    getState: () => any;
+    __setState: (nextState: any) => void;
+    __patchState: (updater: any) => void;
+    __resetListeners: () => void;
+  };
+
+  useAppStore.getState = () => mockState;
+  useAppStore.__setState = (nextState: any) => {
+    mockState = nextState;
+    notify();
+  };
+  useAppStore.__patchState = (updater: any) => {
+    mockState = typeof updater === "function" ? updater(mockState) : { ...mockState, ...updater };
+    notify();
+  };
+  useAppStore.__resetListeners = () => {
+    listeners.clear();
+  };
+
   return {
     ...actual,
-    useAppStore: vi.fn(),
+    useAppStore,
   };
 });
 
@@ -61,12 +99,18 @@ describe("QuestionDialog", () => {
   const mockMarkSettleTimeout = vi.fn();
   const mockSetPendingQuestion = vi.fn();
   const mockClearPendingQuestion = vi.fn();
+  const mockApplyExecutionStarted = vi.fn();
   const defaultProps = {
     sessionId: "test-session-1",
   };
 
+  let testStoreState: any;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    // markRespondStart returns new generation (number) in production.
+    mockMarkRespondStart.mockReturnValue(2);
+    (useAppStore as any).__resetListeners?.();
     // Ensure provider store has a default model available (QuestionDialog uses it for resume).
     useProviderStore.setState({
       currentProvider: "openai",
@@ -80,25 +124,102 @@ describe("QuestionDialog", () => {
       error: null,
     } as any);
 
-    (useAppStore as any).mockImplementation((selector: (state: any) => any) => {
-      const state = {
-        markRespondStart: mockMarkRespondStart,
-        markSettleTimeout: mockMarkSettleTimeout,
-        setPendingQuestion: mockSetPendingQuestion,
-        clearPendingQuestion: mockClearPendingQuestion,
-        chats: [],
-        inputStates: {},
-        currentSessionId: "test-session-1",
-        executionBySession: {},
-        // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
-        // (it may auto-default to models[0] elsewhere).
-        selectedModel: "gpt-5-ultra-expensive",
+    testStoreState = {
+      markRespondStart: mockMarkRespondStart,
+      markSettleTimeout: mockMarkSettleTimeout,
+      applyExecutionStarted: mockApplyExecutionStarted,
+      setPendingQuestion: mockSetPendingQuestion,
+      clearPendingQuestion: mockClearPendingQuestion,
+      chats: [],
+      inputStates: {},
+      currentSessionId: "test-session-1",
+      executionBySession: {},
+      // Keep a "selectedModel" in the store to ensure the dialog does NOT use it
+      // (it may auto-default to models[0] elsewhere).
+      selectedModel: "gpt-5-ultra-expensive",
+    };
+
+    mockSetPendingQuestion.mockImplementation((sessionId: string, payload: any) => {
+      const existingEntry = testStoreState.executionBySession?.[sessionId];
+      testStoreState = {
+        ...testStoreState,
+        executionBySession: {
+          ...testStoreState.executionBySession,
+          [sessionId]: {
+            sessionId,
+            phase: existingEntry?.phase ?? "waiting_user_answer",
+            confidence: existingEntry?.confidence ?? "live",
+            activeReasons: existingEntry?.activeReasons ?? [],
+            generation: existingEntry?.generation ?? 0,
+            backendRunId: existingEntry?.backendRunId ?? null,
+            stream: existingEntry?.stream ?? {
+              hasTokens: false,
+              tokenCount: 0,
+              activeToolCalls: [],
+              lastStatusHint: null,
+            },
+            backend: existingEntry?.backend ?? {
+              isRunning: false,
+              lastRunStatus: null,
+              lastRunError: null,
+              syncedAt: null,
+              hasPendingQuestion: true,
+              runningChildCount: 0,
+            },
+            interaction: {
+              ...(existingEntry?.interaction ?? {}),
+              pendingQuestion: {
+                question: payload.question,
+                options: payload.options,
+                allowCustom: payload.allowCustom,
+                toolCallId: payload.toolCallId,
+                receivedAt:
+                  existingEntry?.interaction?.pendingQuestion?.receivedAt ??
+                  "2026-05-14T00:00:00.000Z",
+              },
+              respondMode: existingEntry?.interaction?.respondMode ?? null,
+            },
+            children: existingEntry?.children ?? { byId: {}, runningCount: 0 },
+            timestamps: existingEntry?.timestamps ?? {
+              optimisticAt: null,
+              confirmedAt: null,
+              firstTokenAt: null,
+              terminalAt: null,
+              settlingStartedAt: null,
+              settledAt: null,
+            },
+            error: existingEntry?.error ?? null,
+          },
+        },
       };
-      if (typeof selector === "function") {
-        return selector(state);
-      }
-      return state;
+      (useAppStore as any).__setState(testStoreState);
     });
+
+    mockClearPendingQuestion.mockImplementation((sessionId: string) => {
+      const existingEntry = testStoreState.executionBySession?.[sessionId];
+      testStoreState = {
+        ...testStoreState,
+        executionBySession: {
+          ...testStoreState.executionBySession,
+          [sessionId]: existingEntry
+            ? {
+                ...existingEntry,
+                interaction: {
+                  ...existingEntry.interaction,
+                  pendingQuestion: null,
+                  respondMode: existingEntry.interaction?.respondMode ?? null,
+                },
+              }
+            : {
+                sessionId,
+                interaction: { pendingQuestion: null, respondMode: null },
+              },
+        },
+      };
+      (useAppStore as any).__setState(testStoreState);
+    });
+
+    (useAppStore as any).__setState(testStoreState);
   });
 
   afterEach(() => {
@@ -292,8 +413,8 @@ describe("QuestionDialog", () => {
     let getCallCount = 0;
     (agentApiClient.get as any).mockImplementation(() => {
       getCallCount++;
-      // First 3 calls return first question (gives time for test to interact)
-      if (getCallCount <= 3) {
+      // Initial load returns the first question.
+      if (getCallCount === 1) {
         return Promise.resolve({
           has_pending_question: true,
           question: "Test?",
@@ -302,7 +423,7 @@ describe("QuestionDialog", () => {
           tool_call_id: "tool-1",
         });
       }
-      // Subsequent calls return second question
+      // Once the first question is cleared, polling should resume and pick up the next one.
       return Promise.resolve({
         has_pending_question: true,
         question: "Second question?",
@@ -348,6 +469,76 @@ describe("QuestionDialog", () => {
       },
       { timeout: 5000 },
     );
+  });
+
+  it("should ignore a stale pending poll response that resolves after submit", async () => {
+    const { agentApiClient } = await import("../../../services/api");
+
+    let resolveStalePoll: ((value: any) => void) | null = null;
+    let pollCallCount = 0;
+
+    (agentApiClient.get as any).mockImplementation(() => {
+      pollCallCount += 1;
+      if (pollCallCount === 1) {
+        return Promise.resolve({
+          has_pending_question: true,
+          question: "Original question?",
+          options: ["A"],
+          allow_custom: false,
+          tool_call_id: "tool-1",
+        });
+      }
+
+      if (pollCallCount === 2) {
+        return new Promise((resolve) => {
+          resolveStalePoll = resolve;
+        });
+      }
+
+      return Promise.resolve({ has_pending_question: false });
+    });
+
+    (agentApiClient.post as any).mockResolvedValueOnce({
+      auto_resume_status: "started",
+    });
+
+    await act(async () => {
+      render(<QuestionDialog {...defaultProps} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Original question?")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText("A"));
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Confirm"));
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Original question?")).not.toBeInTheDocument();
+    });
+
+    await waitFor(() => {
+      expect(pollCallCount).toBeGreaterThanOrEqual(2);
+      expect(resolveStalePoll).not.toBeNull();
+    });
+
+    await act(async () => {
+      resolveStalePoll?.({
+        has_pending_question: true,
+        question: "Original question?",
+        options: ["A"],
+        allow_custom: false,
+        tool_call_id: "tool-1",
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Original question?")).not.toBeInTheDocument();
+    });
   });
 
   it("should use adaptive backoff for idle sessions", async () => {
@@ -439,6 +630,72 @@ describe("QuestionDialog", () => {
     consoleSpy.mockRestore();
   });
 
+  it("should render from store pendingQuestion even when respondMode is absent", async () => {
+    const eventBackedState = {
+      markRespondStart: mockMarkRespondStart,
+      markSettleTimeout: mockMarkSettleTimeout,
+      setPendingQuestion: mockSetPendingQuestion,
+      clearPendingQuestion: mockClearPendingQuestion,
+      chats: [],
+      inputStates: {},
+      currentSessionId: "test-session-1",
+      executionBySession: {
+        "test-session-1": {
+          sessionId: "test-session-1",
+          phase: "waiting_user_answer",
+          confidence: "live",
+          activeReasons: ["sse:need_clarification"],
+          generation: 1,
+          backendRunId: null,
+          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+          backend: {
+            isRunning: false,
+            lastRunStatus: null,
+            lastRunError: null,
+            syncedAt: null,
+            hasPendingQuestion: true,
+            runningChildCount: 0,
+          },
+          interaction: {
+            pendingQuestion: {
+              question: "Store-backed question?",
+              options: ["A"],
+              allowCustom: true,
+              toolCallId: "ask-store-1",
+              receivedAt: "2026-05-06T00:00:00.000Z",
+            },
+            respondMode: null,
+          },
+          children: { byId: {}, runningCount: 0 },
+          timestamps: {
+            optimisticAt: null,
+            confirmedAt: null,
+            firstTokenAt: null,
+            terminalAt: null,
+            settlingStartedAt: null,
+            settledAt: null,
+          },
+          error: null,
+        },
+      },
+      selectedModel: "gpt-5-ultra-expensive",
+    };
+
+    testStoreState = eventBackedState;
+    (useAppStore as any).__setState(eventBackedState);
+
+    const { agentApiClient } = await import("../../../services/api");
+
+    render(<QuestionDialog {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Store-backed question?")).toBeInTheDocument();
+    });
+
+    expect(agentApiClient.get).not.toHaveBeenCalled();
+    expect(mockSetPendingQuestion).not.toHaveBeenCalled();
+  });
+
   it("should not mirror an event-backed pending question back into the execution store", async () => {
     const eventBackedState = {
       markRespondStart: mockMarkRespondStart,
@@ -473,13 +730,7 @@ describe("QuestionDialog", () => {
               toolCallId: "ask-1",
               receivedAt: "2026-05-06T00:00:00.000Z",
             },
-            respondMode: {
-              sessionId: "test-session-1",
-              question: "Event-backed question?",
-              options: ["A"],
-              allowCustom: true,
-              toolCallId: "ask-1",
-            },
+            respondMode: null,
           },
           children: { byId: {}, runningCount: 0 },
           timestamps: {
@@ -496,12 +747,8 @@ describe("QuestionDialog", () => {
       selectedModel: "gpt-5-ultra-expensive",
     };
 
-    (useAppStore as any).mockImplementation((selector: (state: any) => any) => {
-      if (typeof selector === "function") {
-        return selector(eventBackedState);
-      }
-      return eventBackedState;
-    });
+    testStoreState = eventBackedState;
+    (useAppStore as any).__setState(eventBackedState);
 
     const { agentApiClient } = await import("../../../services/api");
 
@@ -564,7 +811,11 @@ describe("QuestionDialog", () => {
     fireEvent.click(customOption);
 
     // Verify that setPendingQuestion was called with the correct payload
-    expect(mockSetPendingQuestion).toHaveBeenCalledWith("test-session-1", {
+    // Store-backed pending question remains the source of truth.
+    expect(
+      (useAppStore as any).getState().executionBySession["test-session-1"].interaction
+        .pendingQuestion,
+    ).toMatchObject({
       question: "Test?",
       options: ["A"],
       allowCustom: true,
@@ -577,12 +828,19 @@ describe("QuestionDialog", () => {
     // A hint should appear guiding the user to the input box below
     expect(screen.getByText(/Custom answer/)).toBeInTheDocument();
 
-    // Switching back to a predefined option keeps respond mode active
-    // for the current pending question lifecycle.
+    // Switching back to a predefined option keeps the same pending question active.
     const optionA = screen.getByText("A");
     fireEvent.click(optionA);
 
-    expect(mockSetPendingQuestion).not.toHaveBeenCalledWith(null);
+    expect(
+      (useAppStore as any).getState().executionBySession["test-session-1"].interaction
+        .pendingQuestion,
+    ).toMatchObject({
+      question: "Test?",
+      options: ["A"],
+      allowCustom: true,
+      toolCallId: "tool-1",
+    });
   });
 
   it("should clear processing when respond POST fails", async () => {

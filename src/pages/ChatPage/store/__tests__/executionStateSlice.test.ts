@@ -371,8 +371,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.interaction.pendingQuestion?.question).toBe("Which file?");
     expect(entry.interaction.pendingQuestion?.options).toEqual(["a.ts", "b.ts"]);
     expect(entry.interaction.pendingQuestion?.allowCustom).toBe(true);
-    expect(entry.interaction.respondMode?.sessionId).toBe(SESSION);
-    expect(entry.interaction.respondMode?.toolCallId).toBe("ask-1");
+    expect(entry.interaction.respondMode).toBeNull();
   });
 
   it("waiting_user_answer + markRespondStart → starting with bumped generation and cleared question", () => {
@@ -646,6 +645,33 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.phase).toBe<ExecutionPhase>("running");
     expect(entry.backendRunId).toBe("run-abc");
     expect(entry.timestamps.confirmedAt).toBe(T1);
+    expect(entry.confidence).toBe("live");
+  });
+
+  it("settling + applyExecutionStarted → running again for the same generation", () => {
+    let map = startSession();
+    map = applyExecutionEvent(
+      map,
+      { type: "applyAgentEvent", sessionId: SESSION, event: { type: "complete" }, generation: 1 },
+      fixedNow(T1),
+    );
+    expect(map[SESSION].phase).toBe<ExecutionPhase>("settling");
+
+    const next = applyExecutionEvent(
+      map,
+      {
+        type: "applyExecutionStarted",
+        sessionId: SESSION,
+        runId: "run-resumed",
+        generation: 1,
+      },
+      fixedNow(T2),
+    );
+
+    const entry = next[SESSION];
+    expect(entry.phase).toBe<ExecutionPhase>("running");
+    expect(entry.backendRunId).toBe("run-resumed");
+    expect(entry.timestamps.confirmedAt).toBe(T2);
     expect(entry.confidence).toBe("live");
   });
 

@@ -18,7 +18,7 @@ import {
   selectIsStreaming,
   selectIsInputLocked,
   selectCanCancel,
-  selectRespondMode,
+  selectPendingQuestion,
   useAppStore,
 } from "../../store";
 import { readPersistedInputReasoningEffort } from "../../store/slices/inputStateSlice";
@@ -68,6 +68,26 @@ const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ["low", "medium", "high", "x
 const EMPTY_ALLOWED_TOOLS: string[] = [];
 
 type ModelOption = { value: string; label: string };
+
+type RespondExecutionDebugSnapshot = {
+  phase: string;
+  generation: number;
+  backendRunId: string | null;
+  backendIsRunning: boolean;
+  hasPendingQuestion: boolean;
+  pendingQuestionToolCallId: string | null;
+  tokenCount: number;
+  hasTokens: boolean;
+  activeReasons: string[];
+};
+
+const debugRespondFlow = (event: string, payload: Record<string, unknown>): void => {
+  if (!import.meta.env.DEV) return;
+  if (typeof localStorage === "undefined") return;
+  if (localStorage.getItem("lotus_debug_respond") !== "1") return;
+  console.warn(`[RespondFlow] ${event}`, payload);
+};
+
 type ModelCachePayload = {
   timestamp: number;
   options: ModelOption[];
@@ -209,8 +229,25 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const canCancel = canCancelFromExecution || (currentChat?.isRunning === true && isInputLocked);
   const markRespondStart = useAppStore((state) => state.markRespondStart);
   const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
-  const respondMode = useAppStore(selectRespondMode(sessionId));
+  const applyExecutionStarted = useAppStore((state) => state.applyExecutionStarted);
+  const pendingQuestion = useAppStore(selectPendingQuestion(sessionId));
   const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
+  const getRespondExecutionDebugSnapshot = useCallback((): RespondExecutionDebugSnapshot | null => {
+    if (!sessionId) return null;
+    const entry = useAppStore.getState().executionBySession?.[sessionId];
+    if (!entry) return null;
+    return {
+      phase: entry.phase,
+      generation: entry.generation,
+      backendRunId: entry.backendRunId ?? null,
+      backendIsRunning: entry.backend.isRunning,
+      hasPendingQuestion: entry.interaction.pendingQuestion != null,
+      pendingQuestionToolCallId: entry.interaction.pendingQuestion?.toolCallId ?? null,
+      tokenCount: entry.stream.tokenCount,
+      hasTokens: entry.stream.hasTokens,
+      activeReasons: entry.activeReasons,
+    };
+  }, [sessionId]);
   const activeModel = useActiveModel(sessionId);
   const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
   const isFlagOn = useProviderStore((s) => s.isProviderModelRefEnabled);
@@ -427,7 +464,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   // Respond mode: when QuestionDialog activates "Other (custom input)",
   // InputContainer submits to the respond API instead of sending a new message.
-  const currentPendingRespond = respondMode;
+  const currentPendingRespond = pendingQuestion
+    ? {
+        sessionId: sessionId ?? "",
+        question: pendingQuestion.question,
+        options: pendingQuestion.options,
+        allowCustom: pendingQuestion.allowCustom,
+        toolCallId: pendingQuestion.toolCallId,
+      }
+    : null;
   const isRespondMode = Boolean(currentPendingRespond);
   const respondOptions = currentPendingRespond?.options || [];
   const respondAllowCustom = currentPendingRespond?.allowCustom ?? true;
@@ -436,8 +481,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     if (!targetSessionId) {
       return false;
     }
-    const latestRespondMode = selectRespondMode(targetSessionId)(useAppStore.getState());
-    return Boolean(latestRespondMode);
+    const latestPendingQuestion = selectPendingQuestion(targetSessionId)(useAppStore.getState());
+    return Boolean(latestPendingQuestion);
   }, []);
 
   const handleRespondSubmit = useCallback(
@@ -445,8 +490,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       const trimmed = responseText.trim();
       if (!trimmed || !sessionId) return;
 
-      const latestRespondMode = selectRespondMode(sessionId)(useAppStore.getState());
-      const currentRespondPayload = latestRespondMode;
+      const latestPendingQuestion = selectPendingQuestion(sessionId)(useAppStore.getState());
+      const currentRespondPayload = latestPendingQuestion;
       if (
         currentRespondPayload &&
         !currentRespondPayload.allowCustom &&
@@ -457,10 +502,23 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         return;
       }
 
+      debugRespondFlow("input.respond:start", {
+        sessionId,
+        trimmedLength: trimmed.length,
+        pendingQuestionToolCallId: currentPendingRespond?.toolCallId ?? null,
+        executionBefore: getRespondExecutionDebugSnapshot(),
+      });
+
       // Set processing state immediately so the UI shows feedback while the
       // outbound respond request is still in-flight.  This mirrors the send-path
       // fix that sets processing before the network call.
-      markRespondStart(sessionId, currentPendingRespond?.toolCallId ?? null);
+      // CRITICAL: This increases generation and returns the new generation value.
+      const newGeneration = markRespondStart(sessionId, currentPendingRespond?.toolCallId ?? null);
+      debugRespondFlow("input.respond:afterMarkRespondStart", {
+        sessionId,
+        newGeneration,
+        executionAfterMarkRespondStart: getRespondExecutionDebugSnapshot(),
+      });
       // Yield so React can flush the processing-state render before we block
       // the microtask queue with network I/O.
       await new Promise((resolve) => setTimeout(resolve, 0));
@@ -475,10 +533,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           respondPayload.provider = activeModelRef.provider;
         }
 
-        const result = await agentApiClient.post<{ auto_resume_status?: string }>(
-          `respond/${sessionId}`,
-          respondPayload,
-        );
+        const result = await agentApiClient.post<{
+          auto_resume_status?: string;
+          run_id?: string;
+        }>(`respond/${sessionId}`, respondPayload);
+        debugRespondFlow("input.respond:response", {
+          sessionId,
+          result,
+          executionAfterResponse: getRespondExecutionDebugSnapshot(),
+        });
 
         messageApi.success(t("components.questionDialog.responseSubmittedContinue"));
         setContent("");
@@ -492,10 +555,32 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
 
         // Processing was already set to true before the POST.  If the server
-        // did NOT start/resume execution, clear processing to avoid a stuck
-        // spinner.
+        // started/resumed execution, immediately advance the phase to running
+        // so the UI shows feedback without waiting for the SSE event (which may
+        // be delayed by network jitter or reconnect backoff).
         const resumeStatus = result?.auto_resume_status;
-        if (!resumeStatus || !["started", "already_running"].includes(resumeStatus)) {
+        const runId = result?.run_id;
+        debugRespondFlow("input.respond:resumeDecision", {
+          sessionId,
+          resumeStatus,
+          runId: runId ?? null,
+          newGeneration,
+          executionBeforeResumeDecision: getRespondExecutionDebugSnapshot(),
+        });
+        if (resumeStatus === "started" || resumeStatus === "already_running") {
+          // Use the newGeneration returned by markRespondStart to ensure SSE events
+          // will match. This is critical because markRespondStart increased generation,
+          // and all subsequent SSE events must use the matching generation.
+          applyExecutionStarted(sessionId, runId ?? "", newGeneration);
+          debugRespondFlow("input.respond:afterApplyExecutionStarted", {
+            sessionId,
+            resumeStatus,
+            runId: runId ?? null,
+            newGeneration,
+            executionAfterApplyExecutionStarted: getRespondExecutionDebugSnapshot(),
+          });
+        } else if (resumeStatus === "error" || !resumeStatus) {
+          console.error("[InputContainer] Failed to auto-resume agent execution");
           markSettleTimeout(sessionId);
         }
       } catch (err) {
@@ -517,6 +602,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       clearPendingQuestion,
       markRespondStart,
       markSettleTimeout,
+      applyExecutionStarted,
+      getRespondExecutionDebugSnapshot,
       currentPendingRespond?.toolCallId,
       t,
     ],

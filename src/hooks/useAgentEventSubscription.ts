@@ -407,8 +407,7 @@ export function useAgentEventSubscription() {
       const executionEntry = useAppStore.getState().executionBySession?.[sessionId];
       const hasActiveQuestion =
         executionEntry?.phase === "waiting_user_answer" ||
-        executionEntry?.interaction?.pendingQuestion != null ||
-        executionEntry?.interaction?.respondMode != null;
+        executionEntry?.interaction?.pendingQuestion != null;
 
       taskCompletionNoticeKeyBySessionRef.current.set(sessionId, noticeKey);
       return !hasActiveQuestion;
@@ -544,6 +543,11 @@ export function useAgentEventSubscription() {
       };
 
       let terminalEventSeen = false;
+      // `need_clarification` can be followed by a terminal stream close (and even a backend
+      // `complete` event) for the CURRENT SSE stream. That is not a true run completion: the
+      // session should remain in `waiting_user_answer` with its pending question intact until
+      // the user responds.
+      let rootClarificationSeen = false;
       const PARENT_SETTLE_DELAY_MS = 250;
       const TITLE_REFRESH_RETRY_DELAYS_MS = [1200, 3000] as const;
       const DEFAULT_SESSION_TITLES = new Set([
@@ -1213,6 +1217,16 @@ export function useAgentEventSubscription() {
             },
 
             onComplete: () => {
+              // A clarification stream may end with a backend `complete` event even though the
+              // root session is merely waiting for user input. Treat that as a terminal close for
+              // THIS SSE subscription only; do not run normal completion side effects.
+              if (rootClarificationSeen) {
+                terminalEventSeen = true;
+                setStreamingStatus(null);
+                streamingMessageBus.forceFlush();
+                return;
+              }
+
               terminalEventSeen = true;
               applyAgentEvent(sessionId, { type: "complete" } as AgentEvent, generation);
 
@@ -1647,6 +1661,19 @@ export function useAgentEventSubscription() {
 
             onNeedClarification: (event) => {
               const targetSessionId = event.session_id || sessionId;
+              // Only suppress subsequent root-session completion finalization when the
+              // clarification belongs to this subscription's own parent session.
+              if (targetSessionId === sessionId) {
+                rootClarificationSeen = true;
+              }
+              debugSse("event.needClarification", {
+                sessionId,
+                targetSessionId,
+                subscriptionGeneration: generation,
+                currentStoreGeneration: selectGeneration(targetSessionId)(useAppStore.getState()),
+                toolCallId: event.tool_call_id ?? null,
+                questionPreview: (event.question || "").slice(0, 120),
+              });
               setPendingQuestion(targetSessionId, {
                 question: event.question || "",
                 options: event.options || [],
@@ -1671,6 +1698,12 @@ export function useAgentEventSubscription() {
               debugLog("[SSE]", "event.executionStarted", {
                 sessionId,
                 generation,
+                runId,
+              });
+              debugSse("event.executionStarted.compareGeneration", {
+                sessionId,
+                subscriptionGeneration: generation,
+                currentStoreGeneration: selectGeneration(sessionId)(useAppStore.getState()),
                 runId,
               });
               applyAgentEvent(
@@ -1833,14 +1866,30 @@ export function useAgentEventSubscription() {
       pendingSessionIdsRef.current.delete(normalizedSessionId);
 
       const existing = subscriptionsBySessionRef.current.get(normalizedSessionId);
-      // Only skip if the existing subscription is truly live.
+
+      // Check current generation from store
+      const currentGeneration = selectGeneration(normalizedSessionId)(useAppStore.getState());
+      const generationMismatch = existing && existing.generation !== currentGeneration;
+      debugSse("ensureSubscription.check", {
+        sessionId: normalizedSessionId,
+        existingGeneration: existing?.generation ?? null,
+        currentGeneration,
+        hasExisting: Boolean(existing),
+        aborted: existing?.controller.signal.aborted ?? null,
+        streamEnded: existing?.streamEnded ?? null,
+        generationMismatch,
+      });
+
+      // Only skip if the existing subscription is truly live AND generation matches.
       // A controller can still be "not aborted" even after the SSE reader already ended,
       // while old onComplete/onError cleanup is still in flight. That stale entry must not
       // block the next execution generation for the same session.
+      // Also re-subscribe if generation changed (e.g., after markRespondStart -> applyExecutionStarted).
       if (
         existing?.sessionId === normalizedSessionId &&
         !existing.controller.signal.aborted &&
-        !existing.streamEnded
+        !existing.streamEnded &&
+        !generationMismatch
       ) {
         debugSse(
           "skipExistingSubscription",
@@ -1853,7 +1902,7 @@ export function useAgentEventSubscription() {
         return;
       }
 
-      // If we need to restart the SSE connection (e.g. sessionId changed or stale entry),
+      // If we need to restart the SSE connection (e.g. sessionId changed, stale entry, or generation mismatch),
       // keep any existing draft in-memory so the UI doesn't lose what it already rendered.
       if (existing) {
         debugSse(
@@ -1861,10 +1910,14 @@ export function useAgentEventSubscription() {
           normalizedSessionId,
           "generation:",
           existing.generation,
+          "currentGeneration:",
+          currentGeneration,
           "aborted:",
           existing.controller.signal.aborted,
           "streamEnded:",
           existing.streamEnded,
+          "generationMismatch:",
+          generationMismatch,
         );
         cleanupChat(normalizedSessionId, { clearDraft: false });
       }
@@ -1876,19 +1929,47 @@ export function useAgentEventSubscription() {
   // Effect A: reconcile active subscriptions when busy session IDs change (NO global cleanup return).
   // Do not subscribe to the full executionBySession map here: token/metadata updates must not rerun
   // subscription coordination unless the observable session set actually changes.
-  const busySessionIds = useAppStore(
+  //
+  // CRITICAL: the derived key includes generation so the effect re-runs when a busy session's
+  // generation changes (e.g. after markRespondStart bumps generation on respond/resume). Without
+  // this, the effect would not re-trigger because the session ID set stays the same, leaving
+  // ensureSubscription's generation-mismatch logic unreachable.
+  //
+  // Also include a coarse phase bucket so the effect re-runs for the same generation when a
+  // respond/resume flow crosses important recovery boundaries:
+  // - `starting` -> active running after applyExecutionStarted
+  // - premature `settling` -> recovered running after applyExecutionStarted
+  // This closes races where an early subscription ends before the backend resume actually starts.
+  const busySessionKeys = useAppStore(
     useShallow((state) =>
       Object.entries(state.executionBySession)
         .filter(([, entry]) => isBusyPhase(entry.phase))
-        .map(([sessionId]) => sessionId)
+        .map(([sessionId, entry]) => {
+          const phaseBucket =
+            entry.phase === "starting"
+              ? "starting"
+              : entry.phase === "settling"
+                ? "settling"
+                : "live";
+          return `${sessionId}\0${entry.generation}\0${phaseBucket}`;
+        })
         .sort(),
     ),
   );
 
   useEffect(() => {
+    // Extract session IDs from composite keys (format: "sessionId\0generation\0phaseBucket")
+    const busySessionIds = busySessionKeys.map((key) => {
+      const idx = key.indexOf("\0");
+      return idx >= 0 ? key.slice(0, idx) : key;
+    });
     const busySessionIdSet = new Set(busySessionIds);
 
     debugLog("[SSE]", "effect.busySessions", {
+      busySessionIds,
+    });
+    debugSse("effect.busySessionKeys", {
+      busySessionKeys,
       busySessionIds,
     });
 
@@ -1908,7 +1989,7 @@ export function useAgentEventSubscription() {
         pendingSessionIdsRef.current.delete(sessionId);
       }
     }
-  }, [busySessionIds, ensureSubscription, cleanupChat]);
+  }, [busySessionKeys, ensureSubscription, cleanupChat]);
 
   // Retry pending processing chats when chats/config updates (e.g. sessionId arrives)
   useEffect(() => {

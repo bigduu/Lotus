@@ -1235,6 +1235,69 @@ describe("useAgentEventSubscription", () => {
     });
   });
 
+  it("does not finalize a root clarification stream when onComplete follows need_clarification", async () => {
+    let completeHandler: (() => void) | undefined;
+    let needClarificationHandler: ((event: any) => void) | undefined;
+
+    mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
+      completeHandler = handlers.onComplete;
+      needClarificationHandler = handlers.onNeedClarification;
+      return new Promise<void>(() => {});
+    });
+
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry({
+        phase: "running",
+        confidence: "live",
+        generation: 1,
+        interaction: {
+          pendingQuestion: null,
+          respondMode: null,
+          pendingApproval: null,
+        },
+      }),
+    };
+    mockState.loadChatHistory = vi.fn().mockResolvedValue(undefined);
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      needClarificationHandler?.({
+        type: "need_clarification",
+        session_id: "session-1",
+        question: "Need more info",
+        options: ["A", "B"],
+        allow_custom: true,
+        tool_call_id: "call-clarify-1",
+      });
+    });
+
+    await act(async () => {
+      completeHandler?.();
+    });
+
+    expect(mockState.setPendingQuestion).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({
+        question: "Need more info",
+        toolCallId: "call-clarify-1",
+      }),
+    );
+    expect(mockState.applyAgentEvent).not.toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ type: "complete" }),
+      expect.any(Number),
+    );
+    expect(mockState.clearPendingQuestion).not.toHaveBeenCalled();
+    expect(mockState.loadChatHistory).not.toHaveBeenCalled();
+    expect(mockState.refreshChatsNow).not.toHaveBeenCalled();
+  });
+
   it("handles cancelled terminal events", async () => {
     let cancelledHandler: ((message?: string) => Promise<void>) | undefined;
     mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
@@ -2551,6 +2614,266 @@ describe("useAgentEventSubscription", () => {
       "session-1",
       true,
       "2026-01-15T13:00:00.000Z",
+    );
+  });
+
+  // ===========================================================================
+  // REGRESSION: generation change while session stays busy must resubscribe
+  // ===========================================================================
+
+  it("resubscribes when generation changes while session stays busy (respond/resume regression)", async () => {
+    // Simulate waiting_user_answer (busy phase) at generation 1
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "waiting_user_answer",
+        confidence: "live",
+        activeReasons: ["sse:need_clarification"],
+        generation: 1,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: true,
+          runningChildCount: null,
+        },
+        interaction: {
+          pendingQuestion: {
+            question: "What should I do?",
+            options: ["Option A", "Option B"],
+            allowCustom: true,
+            toolCallId: null,
+            receivedAt: "2026-01-15T12:00:00.000Z",
+          },
+          respondMode: null,
+          pendingApproval: null,
+        },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: null,
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+    mockSubscribeToEvents.mockImplementation(() => new Promise<void>(() => {}));
+
+    const { rerender } = renderHook(() => useAgentEventSubscription());
+
+    // Wait for initial subscription at generation 1
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
+    });
+    expect(mockSubscribeToEvents).toHaveBeenCalledWith(
+      "session-1",
+      expect.anything(),
+      expect.any(AbortController),
+    );
+
+    // Simulate markRespondStart bumping generation to 2 while remaining busy
+    // (phase transitions to "starting" which is also a busy phase).
+    // This is the exact scenario from the bug: same session ID stays busy,
+    // but generation changes. Without the fix, the coordinating effect would
+    // NOT re-run because busySessionIds didn't change.
+    mockState.executionBySession = {
+      "session-1": {
+        sessionId: "session-1",
+        phase: "starting",
+        confidence: "optimistic",
+        activeReasons: ["optimistic:respond"],
+        generation: 2,
+        backendRunId: null,
+        stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
+        backend: {
+          isRunning: true,
+          lastRunStatus: null,
+          lastRunError: null,
+          syncedAt: null,
+          hasPendingQuestion: null,
+          runningChildCount: null,
+        },
+        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        children: { byId: {}, runningCount: 0 },
+        timestamps: {
+          optimisticAt: "2026-01-15T12:01:00.000Z",
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+        error: null,
+      },
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    // Rerender triggers the effect with the new state
+    act(() => {
+      rerender();
+    });
+
+    // The key assertion: because generation changed (1 → 2), the effect must
+    // re-run and ensureSubscription must detect the generation mismatch,
+    // leading to a new subscription call.
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(2);
+    });
+
+    // The second call should be for the same session
+    expect(mockSubscribeToEvents).toHaveBeenNthCalledWith(
+      2,
+      "session-1",
+      expect.anything(),
+      expect.any(AbortController),
+    );
+  });
+
+  it("resubscribes when the same generation transitions from starting to live running after an early terminal stream", async () => {
+    let firstCall = true;
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry({
+        phase: "starting",
+        confidence: "optimistic",
+        generation: 7,
+        backendRunId: null,
+        activeReasons: ["optimistic:respond"],
+        timestamps: {
+          optimisticAt: "2026-01-15T12:01:00.000Z",
+          confirmedAt: null,
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+      }),
+    };
+    mockStore.getState.mockReturnValue(mockState);
+    mockSubscribeToEvents.mockImplementation(async () => {
+      if (firstCall) {
+        firstCall = false;
+        return;
+      }
+      return new Promise<void>(() => {});
+    });
+
+    const { rerender } = renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
+    });
+
+    // The initial optimistic `starting` subscription ended before the backend
+    // actually resumed. Now applyExecutionStarted moves the SAME generation into
+    // a truly live running state; coordination must resubscribe.
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry({
+        phase: "running",
+        confidence: "live",
+        generation: 7,
+        backendRunId: "run-7",
+        activeReasons: ["optimistic:respond", "sse:execution_started"],
+        timestamps: {
+          optimisticAt: "2026-01-15T12:01:00.000Z",
+          confirmedAt: "2026-01-15T12:01:01.000Z",
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+      }),
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    act(() => {
+      rerender();
+    });
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockSubscribeToEvents).toHaveBeenNthCalledWith(
+      2,
+      "session-1",
+      expect.anything(),
+      expect.any(AbortController),
+    );
+  });
+
+  it("resubscribes when the same generation recovers from settling back to running", async () => {
+    let firstCall = true;
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry({
+        phase: "settling",
+        confidence: "live",
+        generation: 9,
+        backendRunId: "run-stale",
+        activeReasons: ["sse:complete"],
+        timestamps: {
+          optimisticAt: "2026-01-15T12:01:00.000Z",
+          confirmedAt: "2026-01-15T12:01:01.000Z",
+          firstTokenAt: null,
+          terminalAt: "2026-01-15T12:01:02.000Z",
+          settlingStartedAt: "2026-01-15T12:01:02.000Z",
+          settledAt: null,
+        },
+      }),
+    };
+    mockStore.getState.mockReturnValue(mockState);
+    mockSubscribeToEvents.mockImplementation(async () => {
+      if (firstCall) {
+        firstCall = false;
+        return;
+      }
+      return new Promise<void>(() => {});
+    });
+
+    const { rerender } = renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
+    });
+
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry({
+        phase: "running",
+        confidence: "live",
+        generation: 9,
+        backendRunId: "run-recovered",
+        activeReasons: ["sse:complete", "sse:execution_started"],
+        timestamps: {
+          optimisticAt: "2026-01-15T12:01:00.000Z",
+          confirmedAt: "2026-01-15T12:01:03.000Z",
+          firstTokenAt: null,
+          terminalAt: null,
+          settlingStartedAt: null,
+          settledAt: null,
+        },
+      }),
+    };
+    mockStore.getState.mockReturnValue(mockState);
+
+    act(() => {
+      rerender();
+    });
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockSubscribeToEvents).toHaveBeenNthCalledWith(
+      2,
+      "session-1",
+      expect.anything(),
+      expect.any(AbortController),
     );
   });
 });

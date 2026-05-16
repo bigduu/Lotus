@@ -13,6 +13,13 @@ export const STALE_OPTIMISTIC_TIMEOUT_MS = 30_000;
 export const TOOL_PREVIEW_MAX_CHARS = 80;
 export const MAX_REASONS_KEPT = 16;
 
+const debugRespondState = (event: string, payload: Record<string, unknown>): void => {
+  if (!import.meta.env.DEV) return;
+  if (typeof localStorage === "undefined") return;
+  if (localStorage.getItem("lotus_debug_respond") !== "1") return;
+  console.warn(`[ExecutionState] ${event}`, payload);
+};
+
 export type ExecutionPhase =
   | "idle"
   | "starting"
@@ -87,7 +94,10 @@ export interface SessionInteractionSnapshot {
         receivedAt: string;
       })
     | null;
-  /** Set atomically with pendingQuestion by the execution-state slice; read by InputContainer for respond routing. */
+  /**
+   * @deprecated Legacy compatibility slot. Runtime readers should derive respondMode
+   * from pendingQuestion via selectors instead of treating this as independent truth.
+   */
   respondMode:
     | (PendingQuestionPayload & {
         sessionId: string;
@@ -305,25 +315,17 @@ const pendingQuestionPayloadEquals = (
 
 const applyPendingQuestionSnapshot = (
   entry: SessionExecutionState,
-  sessionId: string,
   payload: PendingQuestionPayload,
   receivedAt: string,
 ): SessionExecutionState => {
   const pendingQuestion = pendingQuestionPayloadEquals(entry.interaction.pendingQuestion, payload)
     ? entry.interaction.pendingQuestion
     : { ...payload, receivedAt };
-  const respondMode =
-    entry.interaction.respondMode &&
-    entry.interaction.respondMode.sessionId === sessionId &&
-    pendingQuestionPayloadEquals(entry.interaction.respondMode, payload)
-      ? entry.interaction.respondMode
-      : { ...payload, sessionId };
 
   if (
     entry.phase === "waiting_user_answer" &&
     entry.confidence === "live" &&
-    pendingQuestion === entry.interaction.pendingQuestion &&
-    respondMode === entry.interaction.respondMode
+    pendingQuestion === entry.interaction.pendingQuestion
   ) {
     return entry;
   }
@@ -335,7 +337,7 @@ const applyPendingQuestionSnapshot = (
     interaction: {
       ...entry.interaction,
       pendingQuestion,
-      respondMode,
+      respondMode: null,
     },
     activeReasons: appendReason(entry.activeReasons, "sse:need_clarification"),
   };
@@ -713,15 +715,18 @@ const applyAgentEventInner = (
         allowCustom: event.allow_custom ?? false,
         toolCallId: event.tool_call_id ?? null,
       };
-      return applyPendingQuestionSnapshot(entry, entry.sessionId, payload, now());
+      return applyPendingQuestionSnapshot(entry, payload, now());
     }
     case "execution_started": {
       const runId = event.run_id;
       if (!runId) {
         return entry;
       }
-      // Transition starting → running; set backendRunId.
-      if (entry.phase !== "starting") {
+      // A respond/resume race can deliver an early `complete` for the same client generation
+      // before the backend acknowledges the resumed run. If execution_started arrives while the
+      // entry is still in `starting` or has been prematurely pushed to `settling`, recover it
+      // back to an active running phase for the current generation.
+      if (entry.phase !== "starting" && entry.phase !== "settling") {
         return {
           ...entry,
           backendRunId: runId,
@@ -857,6 +862,17 @@ const applySummaryInner = (
     return merged;
   }
 
+  debugRespondState("summary.notRunning.evaluate", {
+    sessionId: summary.id,
+    phase: entry.phase,
+    generation: entry.generation,
+    backendRunId: entry.backendRunId,
+    summaryIsRunning: summary.is_running,
+    lastRunStatus,
+    optimisticAt: entry.timestamps.optimisticAt,
+    syncedAt,
+  });
+
   // is_running === false
   const inProgress: ReadonlySet<ExecutionPhase> = new Set([
     "starting",
@@ -868,6 +884,14 @@ const applySummaryInner = (
   ]);
   if (inProgress.has(entry.phase)) {
     if (lastRunStatus === "completed") {
+      debugRespondState("summary.notRunning.transition", {
+        sessionId: summary.id,
+        fromPhase: entry.phase,
+        toPhase: "completed",
+        generation: entry.generation,
+        backendRunId: entry.backendRunId,
+        lastRunStatus,
+      });
       return {
         ...merged,
         phase: "completed",
@@ -877,6 +901,14 @@ const applySummaryInner = (
       };
     }
     if (lastRunStatus === "error") {
+      debugRespondState("summary.notRunning.transition", {
+        sessionId: summary.id,
+        fromPhase: entry.phase,
+        toPhase: "error",
+        generation: entry.generation,
+        backendRunId: entry.backendRunId,
+        lastRunStatus,
+      });
       return {
         ...merged,
         phase: "error",
@@ -891,6 +923,14 @@ const applySummaryInner = (
       };
     }
     if (lastRunStatus === "cancelled") {
+      debugRespondState("summary.notRunning.transition", {
+        sessionId: summary.id,
+        fromPhase: entry.phase,
+        toPhase: "cancelled",
+        generation: entry.generation,
+        backendRunId: entry.backendRunId,
+        lastRunStatus,
+      });
       return {
         ...merged,
         phase: "cancelled",
@@ -903,9 +943,25 @@ const applySummaryInner = (
     if (entry.timestamps.optimisticAt) {
       const ageMs = Date.parse(syncedAt) - Date.parse(entry.timestamps.optimisticAt);
       if (Number.isFinite(ageMs) && ageMs < OPTIMISTIC_RACE_WINDOW_MS) {
+        debugRespondState("summary.notRunning.keepOptimistic", {
+          sessionId: summary.id,
+          phase: entry.phase,
+          generation: entry.generation,
+          backendRunId: entry.backendRunId,
+          ageMs,
+          windowMs: OPTIMISTIC_RACE_WINDOW_MS,
+        });
         return merged;
       }
     }
+    debugRespondState("summary.notRunning.transition", {
+      sessionId: summary.id,
+      fromPhase: entry.phase,
+      toPhase: "idle",
+      generation: entry.generation,
+      backendRunId: entry.backendRunId,
+      lastRunStatus,
+    });
     return {
       ...merged,
       phase: "idle",
@@ -1084,6 +1140,14 @@ export const applyExecutionEvent = (
     case "applyAgentEvent": {
       const entry = ensureEntry(map, action.sessionId);
       if (action.generation !== entry.generation) {
+        debugRespondState("drop.applyAgentEvent.generationMismatch", {
+          sessionId: action.sessionId,
+          actionGeneration: action.generation,
+          entryGeneration: entry.generation,
+          eventType: action.event.type,
+          phase: entry.phase,
+          backendRunId: entry.backendRunId ?? null,
+        });
         return map;
       }
       const next = applyAgentEventInner(entry, action.event, now);
@@ -1095,9 +1159,17 @@ export const applyExecutionEvent = (
     case "applyExecutionStarted": {
       const entry = ensureEntry(map, action.sessionId);
       if (action.generation !== entry.generation) {
+        debugRespondState("drop.applyExecutionStarted.generationMismatch", {
+          sessionId: action.sessionId,
+          actionGeneration: action.generation,
+          entryGeneration: entry.generation,
+          runId: action.runId,
+          phase: entry.phase,
+          backendRunId: entry.backendRunId ?? null,
+        });
         return map;
       }
-      if (entry.phase !== "starting") {
+      if (entry.phase !== "starting" && entry.phase !== "settling") {
         return writeEntry(map, action.sessionId, {
           ...entry,
           backendRunId: action.runId,
@@ -1215,7 +1287,7 @@ export const applyExecutionEvent = (
     }
     case "setPendingQuestion": {
       const entry = ensureEntry(map, action.sessionId);
-      const next = applyPendingQuestionSnapshot(entry, action.sessionId, action.payload, now());
+      const next = applyPendingQuestionSnapshot(entry, action.payload, now());
       if (next === entry) {
         return map;
       }
@@ -1281,9 +1353,9 @@ export const applyExecutionEvent = (
 export interface ExecutionStateSlice {
   executionBySession: ExecutionMap;
   ensureSession: (sessionId: string) => void;
-  markOptimisticStart: (sessionId: string) => void;
-  markRespondStart: (sessionId: string, toolCallId?: string | null) => void;
-  markRetryStart: (sessionId: string) => void;
+  markOptimisticStart: (sessionId: string) => number; // Returns new generation
+  markRespondStart: (sessionId: string, toolCallId?: string | null) => number; // Returns new generation
+  markRetryStart: (sessionId: string) => number; // Returns new generation
   markForceSubscribe: (sessionId: string) => void;
   markCancel: (sessionId: string) => void;
   markSettleTimeout: (sessionId: string) => void;
@@ -1332,7 +1404,11 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
   },
 
   markOptimisticStart: (sessionId) => {
+    let newGeneration = 0;
     set((state) => {
+      const entry = state.executionBySession[sessionId];
+      const nextGeneration = entry ? entry.generation + 1 : 1;
+      newGeneration = nextGeneration;
       const next = applyExecutionEvent(
         state.executionBySession,
         { type: "markOptimisticStart", sessionId },
@@ -1341,10 +1417,15 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
       if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
+    return newGeneration;
   },
 
   markRespondStart: (sessionId, toolCallId) => {
+    let newGeneration = 0;
     set((state) => {
+      const entry = state.executionBySession[sessionId];
+      const nextGeneration = entry ? entry.generation + 1 : 1;
+      newGeneration = nextGeneration;
       const next = applyExecutionEvent(
         state.executionBySession,
         { type: "markRespondStart", sessionId, toolCallId },
@@ -1353,10 +1434,15 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
       if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
+    return newGeneration;
   },
 
   markRetryStart: (sessionId) => {
+    let newGeneration = 0;
     set((state) => {
+      const entry = state.executionBySession[sessionId];
+      const nextGeneration = entry ? entry.generation + 1 : 1;
+      newGeneration = nextGeneration;
       const next = applyExecutionEvent(
         state.executionBySession,
         { type: "markRetryStart", sessionId },
@@ -1365,6 +1451,7 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
       if (next === state.executionBySession) return state;
       return { executionBySession: next };
     });
+    return newGeneration;
   },
 
   markForceSubscribe: (sessionId) => {
