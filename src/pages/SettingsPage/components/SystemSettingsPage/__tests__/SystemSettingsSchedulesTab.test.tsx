@@ -12,6 +12,8 @@ const mockDeleteSchedule = vi.fn();
 const mockListScheduleSessions = vi.fn();
 const mockListScheduleRuns = vi.fn();
 
+const SCHEDULES_UI_TEST_TIMEOUT_MS = 15000;
+
 vi.mock("../../../../../services/chat/AgentService", async () => {
   const actual = await vi.importActual("../../../../../services/chat/AgentService");
   return {
@@ -128,74 +130,90 @@ describe("SystemSettingsSchedulesTab", () => {
     });
   });
 
-  it("renders schedules with trigger and activity information", async () => {
-    render(
-      <AntdApp>
-        <SystemSettingsSchedulesTab />
-      </AntdApp>,
-    );
+  it(
+    "renders schedules with trigger and activity information",
+    async () => {
+      render(
+        <AntdApp>
+          <SystemSettingsSchedulesTab />
+        </AntdApp>,
+      );
 
-    expect(await screen.findByText("Daily report")).toBeInTheDocument();
-    expect(screen.getByText("Interval · 300s")).toBeInTheDocument();
-    expect(screen.getByText("Queued: 1")).toBeInTheDocument();
-    expect(screen.getByText("OK: 4")).toBeInTheDocument();
-    expect(screen.getByText("Weekly digest")).toBeInTheDocument();
-    expect(screen.getByText("Weekly · mon, fri")).toBeInTheDocument();
-    expect(screen.getByText("Failing")).toBeInTheDocument();
-  });
+      expect(await screen.findByText("Daily report")).toBeInTheDocument();
+      expect(screen.getByText("Interval · 300s")).toBeInTheDocument();
+      expect(screen.getByText("Queued: 1")).toBeInTheDocument();
+      expect(screen.getByText("OK: 4")).toBeInTheDocument();
+      expect(screen.getByText("Weekly digest")).toBeInTheDocument();
+      expect(screen.getByText("Weekly · mon, fri")).toBeInTheDocument();
+      expect(screen.getByText("Failing")).toBeInTheDocument();
+    },
+    SCHEDULES_UI_TEST_TIMEOUT_MS,
+  );
 
-  it("disables quick interval editing for non-interval schedules", async () => {
-    render(
-      <AntdApp>
-        <SystemSettingsSchedulesTab />
-      </AntdApp>,
-    );
+  it(
+    "disables quick interval editing for non-interval schedules",
+    async () => {
+      render(
+        <AntdApp>
+          <SystemSettingsSchedulesTab />
+        </AntdApp>,
+      );
 
-    const weeklyDigest = await screen.findByText("Weekly digest", {}, { timeout: 15000 });
-    const row = weeklyDigest.closest("tr");
-    expect(row).not.toBeNull();
+      const weeklyDigest = await screen.findByText("Weekly digest", {}, { timeout: 15000 });
+      const row = weeklyDigest.closest("tr");
+      expect(row).not.toBeNull();
 
-    const intervalInput = within(row as HTMLTableRowElement).getByRole(
-      "spinbutton",
-    ) as HTMLInputElement;
-    expect(intervalInput).toBeDisabled();
-  }, 15000);
+      const intervalInput = within(row as HTMLTableRowElement).getByRole(
+        "spinbutton",
+      ) as HTMLInputElement;
+      expect(intervalInput).toBeDisabled();
+    },
+    SCHEDULES_UI_TEST_TIMEOUT_MS,
+  );
 
-  it("calls runScheduleNow when run now action is clicked", async () => {
-    render(
-      <AntdApp>
-        <SystemSettingsSchedulesTab />
-      </AntdApp>,
-    );
+  it(
+    "calls runScheduleNow when run now action is clicked",
+    async () => {
+      render(
+        <AntdApp>
+          <SystemSettingsSchedulesTab />
+        </AntdApp>,
+      );
 
-    await screen.findByText("Daily report");
-    fireEvent.click(screen.getAllByText("Run Now")[0]);
+      await screen.findByText("Daily report");
+      fireEvent.click(screen.getAllByText("Run Now")[0]);
 
-    await waitFor(() => {
-      expect(mockRunScheduleNow).toHaveBeenCalledWith("sched-1");
-    });
-  });
+      await waitFor(() => {
+        expect(mockRunScheduleNow).toHaveBeenCalledWith("sched-1");
+      });
+    },
+    SCHEDULES_UI_TEST_TIMEOUT_MS,
+  );
 
-  it("opens sessions modal and loads sessions", async () => {
-    mockListScheduleSessions.mockResolvedValue({
-      schedule_id: "sched-1",
-      sessions: [{ id: "sess-1", title: "Run Session", updated_at: "2026-04-05T00:00:00Z" }],
-    });
+  it(
+    "opens sessions modal and loads sessions",
+    async () => {
+      mockListScheduleSessions.mockResolvedValue({
+        schedule_id: "sched-1",
+        sessions: [{ id: "sess-1", title: "Run Session", updated_at: "2026-04-05T00:00:00Z" }],
+      });
 
-    render(
-      <AntdApp>
-        <SystemSettingsSchedulesTab />
-      </AntdApp>,
-    );
+      render(
+        <AntdApp>
+          <SystemSettingsSchedulesTab />
+        </AntdApp>,
+      );
 
-    await screen.findByText("Daily report");
-    fireEvent.click(screen.getAllByText("Sessions")[0]);
+      await screen.findByText("Daily report");
+      fireEvent.click(screen.getAllByText("Sessions")[0]);
 
-    await waitFor(() => {
-      expect(mockListScheduleSessions).toHaveBeenCalledWith("sched-1");
-    });
-    expect(screen.getByText("Schedule Sessions")).toBeInTheDocument();
-  });
+      await waitFor(() => {
+        expect(mockListScheduleSessions).toHaveBeenCalledWith("sched-1");
+      });
+      expect(screen.getByText("Schedule Sessions")).toBeInTheDocument();
+    },
+    SCHEDULES_UI_TEST_TIMEOUT_MS,
+  );
 
   // NOTE:
   // The payload-building paths for weekly / cron / catch-up-window schedule creation

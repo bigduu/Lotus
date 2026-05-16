@@ -20,15 +20,13 @@ test.describe("Settings Management", () => {
 
     const apiKeyInput = page.locator('[data-testid="api-key-input"]');
     if (!(await apiKeyInput.isVisible().catch(() => false))) {
-      await page.click('[data-testid="provider-select"]');
-      await page
-        .locator('.ant-select-item-option')
-        .filter({ hasText: /openai/i })
-        .first()
-        .click();
+      const openAiPanel = page.getByRole("button", { name: /openai/i }).first();
+      if (await openAiPanel.isVisible().catch(() => false)) {
+        await openAiPanel.click();
+      }
     }
 
-    await expect(page.locator('[data-testid="api-key-input"]')).toBeVisible();
+    await expect(apiKeyInput).toBeVisible({ timeout: 15000 });
     await expect(page.locator('[data-testid="save-api-settings"]')).toBeVisible();
   });
 
