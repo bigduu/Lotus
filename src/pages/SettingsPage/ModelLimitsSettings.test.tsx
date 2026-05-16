@@ -73,7 +73,14 @@ describe("ModelLimitsSettings", () => {
     render(<ModelLimitsSettings />);
     await screen.findByDisplayValue("custom-model");
 
-    fireEvent.click(screen.getByRole("button", { name: /reset to defaults|恢复默认/i }));
+    const resetButton = await screen.findByRole("button", {
+      name: /reset to defaults|恢复默认/i,
+    });
+    await waitFor(() => {
+      expect(resetButton).not.toBeDisabled();
+    });
+
+    fireEvent.click(resetButton);
 
     await waitFor(() => {
       expect(mockSetBambooConfig).toHaveBeenCalled();
