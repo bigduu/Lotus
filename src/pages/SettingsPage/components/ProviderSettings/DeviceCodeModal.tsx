@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 const { Text, Paragraph } = Typography;
 
 export interface DeviceCodeInfo {
+  device_code: string;
   user_code: string;
   verification_uri: string;
   expires_in: number;

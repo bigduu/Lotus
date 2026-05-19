@@ -1,5 +1,5 @@
-import { ApiClient, ApiError } from "../api";
-import { getBackendBaseUrlSync } from "../../shared/utils/backendBaseUrl";
+import { ApiError } from "../api";
+import { settingsService } from "../config/SettingsService";
 
 export class ProxyAuthRequiredError extends Error {
   readonly code = "proxy_auth_required";
@@ -22,29 +22,27 @@ export class ModelService {
     return ModelService.instance;
   }
 
-  private resolveOpenAICompatBaseUrl(): string {
-    // The UI stores the "standard" backend base URL as ".../v1".
-    // OpenAI-compatible forwarding endpoints live under "/openai/v1/*".
-    const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
-
-    // If the override already targets the OpenAI prefix, keep it.
-    if (base.endsWith("/openai/v1")) return base;
-
-    // Strip the standard v1 suffix if present.
-    const origin = base.endsWith("/v1") ? base.slice(0, -"/v1".length) : base;
-
-    return `${origin}/openai/v1`;
-  }
-
-  async getModels(): Promise<string[]> {
+  async getModels(provider?: string): Promise<string[]> {
     try {
-      const openaiClient = new ApiClient({
-        baseUrl: this.resolveOpenAICompatBaseUrl(),
-      });
-      const data = await openaiClient.get<{ data: Array<{ id: string }> }>("models");
-      return data.data.map((model) => model.id);
+      const response = await settingsService.fetchCatalogModels(provider);
+
+      // Flatten all models from all providers into a single list of IDs
+      const modelIds: string[] = [];
+      for (const result of response.fetched) {
+        if (result.models && result.models.length > 0) {
+          for (const model of result.models) {
+            if (model.reference && model.reference.model) {
+              modelIds.push(model.reference.model);
+            }
+          }
+        }
+      }
+
+      // Remove duplicates and sort
+      const uniqueModelIds = [...new Set(modelIds)].sort();
+      return uniqueModelIds;
     } catch (error) {
-      console.error("Failed to fetch models from HTTP API:", error);
+      console.error("Failed to fetch models from Provider Catalog:", error);
 
       // Handle proxy auth error
       if (error instanceof ApiError) {

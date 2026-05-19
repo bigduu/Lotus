@@ -9,6 +9,7 @@ import type { ProviderModelRef } from "./providerModelRef";
 export interface DefaultsConfig {
   chat: ProviderModelRef;
   fast?: ProviderModelRef;
+  task_summary?: ProviderModelRef;
   vision?: ProviderModelRef;
   memory_background?: ProviderModelRef;
   planning?: ProviderModelRef;
@@ -133,6 +134,67 @@ export const PROVIDER_LABELS: Record<ProviderType, string> = {
   gemini: "Google Gemini",
   bodhi: "Bodhi",
 };
+
+// ── Provider Instance types (multi-instance) ─────────────────────
+
+/**
+ * Configuration payload for a single provider instance.
+ *
+ * The shape varies by `type` (mirrors the legacy OpenAIConfig / AnthropicConfig etc.)
+ * but is stored as a generic record so the backend can accept any provider type.
+ */
+export type ProviderInstanceConfig = Record<string, unknown>;
+
+/**
+ * A single configured provider instance.
+ *
+ * - `id` is the stable unique identifier used as the `provider` field in ProviderModelRef.
+ * - `type` is the provider kind (openai, anthropic, gemini, copilot, bodhi).
+ * - `label` is the user-visible display name.
+ */
+export interface ProviderInstance {
+  id: string;
+  type: ProviderType;
+  label: string;
+  enabled: boolean;
+  config: ProviderInstanceConfig;
+}
+
+/**
+ * Request body for creating a new provider instance.
+ */
+export interface CreateProviderInstanceRequest {
+  type: ProviderType;
+  label?: string;
+  enabled?: boolean;
+  config: ProviderInstanceConfig;
+}
+
+/**
+ * Request body for updating an existing provider instance.
+ */
+export interface UpdateProviderInstanceRequest {
+  label?: string;
+  enabled?: boolean;
+  config?: ProviderInstanceConfig;
+}
+
+/**
+ * Response shape from GET /bamboo/settings/provider-instances.
+ *
+ * Designed as a superset: existing fields from ProviderConfig are preserved
+ * alongside the new instance list, so legacy code paths keep working during
+ * the migration.
+ */
+export interface ProviderInstancesConfig {
+  /** The default provider instance id (replaces legacy `provider` string). */
+  default_provider_instance_id?: string;
+  instances: ProviderInstance[];
+  defaults?: DefaultsConfig;
+  features?: {
+    provider_model_ref?: boolean;
+  };
+}
 
 export const OPENAI_MODELS = [
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },

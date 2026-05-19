@@ -5,7 +5,13 @@
  */
 
 import { apiClient } from "../api";
-import type { ProviderConfig } from "../../pages/ChatPage/types/providerConfig";
+import type {
+  ProviderConfig,
+  ProviderInstance,
+  CreateProviderInstanceRequest,
+  UpdateProviderInstanceRequest,
+  ProviderInstancesConfig,
+} from "../../pages/ChatPage/types/providerConfig";
 import type {
   ProviderCatalog,
   ProviderModelDescriptor,
@@ -169,6 +175,53 @@ export class SettingsService {
   async fetchCatalogModels(provider?: string): Promise<FetchModelsResponse> {
     const body = provider ? { provider } : {};
     return apiClient.post<FetchModelsResponse>("/bamboo/provider-catalog/fetch-models", body);
+  }
+
+  // ── Provider Instances (multi-instance) ──────────────────────────
+
+  /**
+   * Get all provider instances and the default instance id.
+   */
+  async getProviderInstances(): Promise<ProviderInstancesConfig> {
+    return apiClient.get<ProviderInstancesConfig>("/bamboo/settings/provider-instances");
+  }
+
+  /**
+   * Create a new provider instance.
+   */
+  async createProviderInstance(request: CreateProviderInstanceRequest): Promise<ProviderInstance> {
+    return apiClient.post<ProviderInstance>("/bamboo/settings/provider-instances", request);
+  }
+
+  /**
+   * Update an existing provider instance.
+   */
+  async updateProviderInstance(
+    instanceId: string,
+    request: UpdateProviderInstanceRequest,
+  ): Promise<ProviderInstance> {
+    return apiClient.put<ProviderInstance>(
+      `/bamboo/settings/provider-instances/${encodeURIComponent(instanceId)}`,
+      request,
+    );
+  }
+
+  /**
+   * Delete a provider instance.
+   */
+  async deleteProviderInstance(instanceId: string): Promise<void> {
+    return apiClient.delete<void>(
+      `/bamboo/settings/provider-instances/${encodeURIComponent(instanceId)}`,
+    );
+  }
+
+  /**
+   * Set the default provider instance.
+   */
+  async setDefaultProviderInstance(instanceId: string): Promise<void> {
+    return apiClient.post<void>("/bamboo/settings/provider-instances/default", {
+      default_provider_instance_id: instanceId,
+    });
   }
 
   // ── Env Vars ────────────────────────────────────────────────────

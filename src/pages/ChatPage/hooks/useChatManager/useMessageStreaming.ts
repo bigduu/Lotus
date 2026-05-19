@@ -74,6 +74,8 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   const applyExecutionStarted = useAppStore((state) => state.applyExecutionStarted);
   const activeModel = useActiveModel(depsSessionId);
   const currentProvider = useProviderStore((state) => state.currentProvider);
+  const getProviderType = useProviderStore((state) => state.getProviderType);
+  const resolvedProviderType = getProviderType(currentProvider);
 
   // Fetch chat internally based on sessionId
   const currentChat = useAppStore((state) =>
@@ -382,10 +384,9 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       abortRef.current = controller;
 
       try {
-        const enhancePrompt = getSystemPromptEnhancementText(currentProvider).trim();
+        const enhancePrompt = getSystemPromptEnhancementText(resolvedProviderType).trim();
         const copilotConclusionWithOptionsEnhancementEnabled =
-          (currentProvider ?? "").trim().toLowerCase() === "copilot" &&
-          isCopilotConclusionWithOptionsEnhancementEnabled();
+          resolvedProviderType === "copilot" && isCopilotConclusionWithOptionsEnhancementEnabled();
         // Normalize workspace path: remove trailing slashes, handle cross-platform
         const rawWorkspacePath = currentChat?.config?.workspacePath || "";
         const workspacePath = rawWorkspacePath.trim().replace(/\/+$/, "").replace(/\\+$/, "");
@@ -491,6 +492,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       buildClientSync,
       currentChat,
       currentProvider,
+      resolvedProviderType,
       depsSessionId,
       handleExecuteResult,
       t,

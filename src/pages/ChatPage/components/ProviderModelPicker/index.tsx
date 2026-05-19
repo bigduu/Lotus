@@ -1,5 +1,5 @@
 import { useMemo, useCallback, useEffect } from "react";
-import { Dropdown, Button, Space, Tag } from "antd";
+import { Dropdown, Button, Space, Tag, theme } from "antd";
 import { DownOutlined } from "@ant-design/icons";
 import i18n from "i18next";
 import { useProviderStore } from "../../store/slices/providerSlice";
@@ -10,12 +10,18 @@ export function ProviderModelPicker({
   value,
   onChange,
   disabled,
+  dataTestId,
+  appearance = "default",
 }: {
   value?: ProviderModelRef | null;
   onChange: (ref: ProviderModelRef) => void | Promise<void>;
   disabled?: boolean;
+  dataTestId?: string;
+  appearance?: "default" | "contrast";
 }) {
+  const { token } = theme.useToken();
   const catalog = useProviderStore((s) => s.catalog);
+  const getProviderDisplayLabel = useProviderStore((s) => s.getProviderDisplayLabel);
 
   useEffect(() => {
     if (!catalog) {
@@ -65,6 +71,10 @@ export function ProviderModelPicker({
   }, [catalog]);
 
   const selectedKey = value ? `${value.provider}/${value.model}` : undefined;
+  const selectedProviderLabel = value ? getProviderDisplayLabel(value.provider) : undefined;
+  const selectedButtonLabel = value
+    ? `${selectedProviderLabel || value.provider}/${value.model}`
+    : i18n.t("chat.model.selectModel");
 
   const handleSelect = useCallback(
     (info: { key: string }) => {
@@ -76,6 +86,45 @@ export function ProviderModelPicker({
     },
     [onChange],
   );
+
+  const buttonStyle =
+    appearance === "contrast"
+      ? {
+          minWidth: 220,
+          width: "100%",
+          justifyContent: "space-between",
+          padding: "0 12px",
+          height: 36,
+          borderRadius: token.borderRadiusLG,
+          background: token.colorBgElevated,
+          border: `1px solid ${token.colorBorder}`,
+          boxShadow: "none",
+        }
+      : {
+          minWidth: 146,
+          padding: "0 12px",
+          height: 36,
+          borderRadius: 18,
+        };
+
+  const labelStyle =
+    appearance === "contrast"
+      ? {
+          flex: 1,
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          fontSize: 13,
+          textAlign: "left" as const,
+        }
+      : {
+          maxWidth: 150,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          fontSize: 13,
+        };
 
   return (
     <Space size={4} data-tour-id="model-picker">
@@ -92,24 +141,16 @@ export function ProviderModelPicker({
         disabled={disabled}
       >
         <Button
-          type="text"
+          data-testid={dataTestId}
+          type={appearance === "contrast" ? "default" : "text"}
           size="small"
+          block={appearance === "contrast"}
           disabled={disabled}
-          style={{ minWidth: 146, padding: "0 12px", height: 36, borderRadius: 18 }}
-          title={value ? `${value.provider}/${value.model}` : i18n.t("chat.model.selectModel")}
+          style={buttonStyle}
+          title={selectedButtonLabel}
         >
-          <Space size={4}>
-            <span
-              style={{
-                maxWidth: 150,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-                fontSize: 13,
-              }}
-            >
-              {value ? `${value.provider}/${value.model}` : i18n.t("chat.model.selectModel")}
-            </span>
+          <Space size={4} style={{ width: "100%", justifyContent: "space-between" }}>
+            <span style={labelStyle}>{selectedButtonLabel}</span>
             <DownOutlined style={{ fontSize: 10 }} />
           </Space>
         </Button>

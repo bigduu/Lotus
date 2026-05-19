@@ -687,6 +687,9 @@ export const zhCnTranslation = {
           "管理 Bamboo 的记忆层：会话记忆用于当前工作连续性，长期记忆用于沉淀 durable knowledge，而 Auto Dream 负责在后台更新 Dream Notebook 并提取长期记忆候选项。",
         autoDreamEnabled: "启用 Auto Dream",
         autoDreamEnabledHint: "在后台自动维护 Dream Notebook，并提取长期记忆候选项。",
+        memoryModelMovedTitle: "记忆模型已迁移到 Provider Settings",
+        memoryModelMovedDescription:
+          "记忆背景模型现在统一在 Provider Settings 的 Model Preferences 中配置，这里保留 Auto Dream 作为系统级开关。",
         backgroundModel: "后台记忆模型",
         backgroundModelPlaceholder: "留空则使用当前 Provider 的 fast model",
         backgroundModelHint:
@@ -1228,6 +1231,15 @@ export const zhCnTranslation = {
         invalidConfig: "配置无效",
         invalidConfigPrefix: "配置无效",
         invalidRequestOverridesJson: "{{provider}} 的 request_overrides JSON 无效：{{error}}",
+        // Copilot Auth Status
+        copilotAuth: "GitHub Copilot 认证",
+        authStatus: "状态：",
+        authenticated: "已认证",
+        notAuthenticated: "未认证",
+        unknown: "未知",
+        refreshStatus: "刷新",
+        copilotAuthHelp: "Copilot 需要 OAuth 认证。点击下方按钮开始设备码流程。",
+        authenticateCopilot: "认证 Copilot",
         fetchModelsCopilotFailed: "获取模型失败，请先完成 Copilot 认证后重试。",
         fetchModelsFailed: "获取模型失败，请检查 API Key 与 Base URL。",
         noModelsReturned: "未返回模型，请先完成 Copilot 认证后再获取。",
@@ -1262,6 +1274,12 @@ export const zhCnTranslation = {
         fastModel: "快速模型（可选）",
         fastModelHelp:
           "用于标题生成、Mermaid 修复、摘要等轻量任务的低成本/快速模型。未设置时使用默认模型。",
+        taskSummaryModel: "任务总结模型（可选）",
+        taskSummaryModelHelp:
+          "用于任务型总结与对话压缩的专用模型。未设置时依次回退到记忆背景模型、快速模型、默认模型。",
+        memoryBackgroundModel: "记忆背景模型（可选）",
+        memoryBackgroundModelHelp:
+          "用于记忆重排、回召后台任务与 Auto Dream 的专用模型。未设置时回退到快速模型。",
         subAgentModel: "Sub Agent 模型（可选）",
         subAgentModelHelp:
           "新建 Sub Agent 时默认使用的模型。未设置时使用快速模型，再回退到默认模型。",
@@ -1296,13 +1314,12 @@ export const zhCnTranslation = {
         geminiBaseUrlHelp: "留空将使用默认 Google AI 接口地址；必要时可填写完整路径。",
         copilotConfigTitle: "GitHub Copilot 配置",
         copilotConfigDescription:
-          "GitHub Copilot 使用 OAuth 认证，无需 API Key。请确保账号有有效订阅。",
+          "GitHub Copilot 默认使用 OAuth 认证，无需 API Key。或者，您可以提供个人访问令牌 (PAT) 进行直接 API 访问。",
+        copilotApiKey: "个人访问令牌 (可选)",
+        copilotApiKeyHelp: "GitHub 个人访问令牌，用于 API 访问（替代 OAuth 设备流）",
+        copilotApiKeyPlaceholder: "ghp_... 或 github_pat_...",
         authStatusTitle: "认证状态",
-        authenticated: "已认证",
-        notAuthenticated: "未认证",
         logoutCopilot: "退出 Copilot",
-        authenticateCopilot: "认证 Copilot",
-        refreshStatus: "刷新状态",
         headlessAuth: "无头认证",
         headlessAuthHelp: "在控制台输出登录链接，而不是自动打开浏览器",
         noModelsLoaded: "尚未加载模型，点击“从 backend 获取可用模型”。",

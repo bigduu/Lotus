@@ -7,6 +7,7 @@ import type { ProviderModelRef } from "../../../types/providerModelRef";
 vi.mock("@services/config/SettingsService", () => ({
   settingsService: {
     getProviderConfig: vi.fn(),
+    getProviderInstances: vi.fn(),
   },
 }));
 
@@ -32,6 +33,9 @@ describe("providerSlice", () => {
         provider: "copilot",
         providers: {},
       },
+      providerInstances: [],
+      defaultProviderInstanceId: null,
+      isInstancesLoaded: false,
       isLoading: false,
       error: null,
       selectedModelRef: null,
@@ -414,6 +418,118 @@ describe("providerSlice", () => {
         provider: "openai",
         model: "gpt-4o",
       });
+    });
+  });
+
+  describe("loadProviderInstances", () => {
+    it("should load provider instances successfully", async () => {
+      const mockResponse = {
+        default_provider_instance_id: "inst-openai-1",
+        instances: [
+          {
+            id: "inst-openai-1",
+            type: "openai" as const,
+            label: "My OpenAI",
+            enabled: true,
+            config: { api_key: "sk-test" },
+          },
+          {
+            id: "inst-anthropic-1",
+            type: "anthropic" as const,
+            label: "My Anthropic",
+            enabled: true,
+            config: { api_key: "sk-ant-test" },
+          },
+        ],
+        defaults: {
+          chat: { provider: "inst-openai-1", model: "gpt-4o" },
+        },
+      };
+      vi.mocked(settingsService.getProviderInstances).mockResolvedValueOnce(mockResponse);
+
+      await act(async () => {
+        await useProviderStore.getState().loadProviderInstances();
+      });
+
+      const state = useProviderStore.getState();
+      expect(state.providerInstances).toHaveLength(2);
+      expect(state.providerInstances[0].id).toBe("inst-openai-1");
+      expect(state.defaultProviderInstanceId).toBe("inst-openai-1");
+      expect(state.currentProvider).toBe("inst-openai-1");
+      expect(state.isInstancesLoaded).toBe(true);
+      expect(state.isLoading).toBe(false);
+    });
+
+    it("should build legacy-compatible providerConfig from instances", async () => {
+      const mockResponse = {
+        default_provider_instance_id: "inst-1",
+        instances: [
+          {
+            id: "inst-1",
+            type: "openai" as const,
+            label: "Test",
+            enabled: true,
+            config: { api_key: "sk-test", base_url: "https://example.com" },
+          },
+        ],
+        defaults: {
+          chat: { provider: "inst-1", model: "gpt-4o" },
+        },
+      };
+      vi.mocked(settingsService.getProviderInstances).mockResolvedValueOnce(mockResponse);
+
+      await act(async () => {
+        await useProviderStore.getState().loadProviderInstances();
+      });
+
+      const state = useProviderStore.getState();
+      // providerConfig.providers should map instance id → config
+      expect(state.providerConfig.provider).toBe("inst-1");
+      expect(state.providerConfig.defaults?.chat).toEqual({ provider: "inst-1", model: "gpt-4o" });
+    });
+
+    it("should handle load errors gracefully", async () => {
+      const error = new Error("Instance API not available");
+      vi.mocked(settingsService.getProviderInstances).mockRejectedValueOnce(error);
+
+      await act(async () => {
+        await useProviderStore.getState().loadProviderInstances();
+      });
+
+      const state = useProviderStore.getState();
+      expect(state.error).toBe("Instance API not available");
+      expect(state.isInstancesLoaded).toBe(false);
+      expect(state.isLoading).toBe(false);
+    });
+
+    it("should handle empty instances list", async () => {
+      vi.mocked(settingsService.getProviderInstances).mockResolvedValueOnce({
+        instances: [],
+      });
+
+      await act(async () => {
+        await useProviderStore.getState().loadProviderInstances();
+      });
+
+      const state = useProviderStore.getState();
+      expect(state.providerInstances).toEqual([]);
+      expect(state.defaultProviderInstanceId).toBeNull();
+      expect(state.isInstancesLoaded).toBe(true);
+    });
+  });
+
+  describe("getProviderInstance", () => {
+    it("should find instance by id", () => {
+      useProviderStore.setState({
+        providerInstances: [
+          { id: "a", type: "openai", label: "A", enabled: true, config: {} },
+          { id: "b", type: "anthropic", label: "B", enabled: true, config: {} },
+        ],
+      });
+
+      expect(useProviderStore.getState().getProviderInstance("a")?.label).toBe("A");
+      expect(useProviderStore.getState().getProviderInstance("b")?.label).toBe("B");
+      expect(useProviderStore.getState().getProviderInstance("c")).toBeUndefined();
     });
   });
 });

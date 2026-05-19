@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { mockApiGet, mockApiCtor, mockBackendBaseUrl } = vi.hoisted(() => ({
-  mockApiGet: vi.fn(),
-  mockApiCtor: vi.fn(),
-  mockBackendBaseUrl: vi.fn(() => "http://127.0.0.1:9562/v1"),
+const { fetchCatalogModels } = vi.hoisted(() => ({
+  fetchCatalogModels: vi.fn(),
 }));
 
 vi.mock("../../api", () => {
@@ -21,70 +19,72 @@ vi.mock("../../api", () => {
     }
   }
 
-  class ApiClient {
-    constructor(config?: { baseUrl?: string }) {
-      mockApiCtor(config);
-    }
-
-    get = mockApiGet;
-  }
-
-  return { ApiClient, ApiError };
+  return { ApiError };
 });
 
-vi.mock("../../../shared/utils/backendBaseUrl", () => ({
-  getBackendBaseUrlSync: mockBackendBaseUrl,
+vi.mock("../../config/SettingsService", () => ({
+  settingsService: {
+    fetchCatalogModels,
+  },
 }));
 
+import { ApiError } from "../../api";
 import { ModelService, ProxyAuthRequiredError } from "../ModelService";
 
 describe("ModelService", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (ModelService as any).instance = undefined;
-    mockBackendBaseUrl.mockReturnValue("http://127.0.0.1:9562/v1");
+    (ModelService as unknown as { instance?: ModelService }).instance = undefined;
     vi.spyOn(console, "error").mockImplementation(() => undefined);
   });
 
-  it("fetches models from OpenAI-compatible models endpoint", async () => {
-    mockApiGet.mockResolvedValueOnce({
-      data: [{ id: "gpt-5" }, { id: "gpt-4.1" }],
+  it("fetches and deduplicates catalog models", async () => {
+    fetchCatalogModels.mockResolvedValueOnce({
+      fetched: [
+        {
+          provider: "openai-main",
+          models: [
+            { reference: { provider: "openai-main", model: "gpt-4.1" } },
+            { reference: { provider: "openai-main", model: "gpt-4.1-mini" } },
+          ],
+        },
+        {
+          provider: "copilot-main",
+          models: [
+            { reference: { provider: "copilot-main", model: "gpt-4.1" } },
+            { reference: { provider: "copilot-main", model: "gpt-5.4" } },
+          ],
+        },
+      ],
     });
 
-    const service = ModelService.getInstance();
-    await expect(service.getModels()).resolves.toEqual(["gpt-5", "gpt-4.1"]);
-
-    expect(mockApiCtor).toHaveBeenCalledWith({
-      baseUrl: "http://127.0.0.1:9562/openai/v1",
-    });
-    expect(mockApiGet).toHaveBeenCalledWith("models");
+    await expect(ModelService.getInstance().getModels()).resolves.toEqual([
+      "gpt-4.1",
+      "gpt-4.1-mini",
+      "gpt-5.4",
+    ]);
   });
 
-  it("keeps base url unchanged when already on /openai/v1", async () => {
-    mockBackendBaseUrl.mockReturnValue("http://localhost:9562/openai/v1");
-    mockApiGet.mockResolvedValueOnce({ data: [] });
+  it("passes through the requested provider identifier", async () => {
+    fetchCatalogModels.mockResolvedValueOnce({ fetched: [] });
 
-    const service = ModelService.getInstance();
-    await service.getModels();
+    await ModelService.getInstance().getModels("copilot-main");
 
-    expect(mockApiCtor).toHaveBeenCalledWith({
-      baseUrl: "http://localhost:9562/openai/v1",
-    });
+    expect(fetchCatalogModels).toHaveBeenCalledWith("copilot-main");
   });
 
   it("maps HTTP 428 API errors to ProxyAuthRequiredError", async () => {
-    const { ApiError } = await import("../../api");
-    mockApiGet.mockRejectedValueOnce(
+    fetchCatalogModels.mockRejectedValueOnce(
       new ApiError("Proxy auth required", 428, "Precondition Required"),
     );
 
-    const service = ModelService.getInstance();
-    await expect(service.getModels()).rejects.toBeInstanceOf(ProxyAuthRequiredError);
+    await expect(ModelService.getInstance().getModels()).rejects.toBeInstanceOf(
+      ProxyAuthRequiredError,
+    );
   });
 
   it("maps proxy_auth_required error code to ProxyAuthRequiredError", async () => {
-    const { ApiError } = await import("../../api");
-    mockApiGet.mockRejectedValueOnce(
+    fetchCatalogModels.mockRejectedValueOnce(
       new ApiError(
         "Request failed",
         500,
@@ -98,18 +98,15 @@ describe("ModelService", () => {
       ),
     );
 
-    const service = ModelService.getInstance();
-    await expect(service.getModels()).rejects.toMatchObject({
+    await expect(ModelService.getInstance().getModels()).rejects.toMatchObject({
       message: "Proxy login needed",
       name: "ProxyAuthRequiredError",
     });
   });
 
   it("rethrows non-proxy errors", async () => {
-    const error = new Error("boom");
-    mockApiGet.mockRejectedValueOnce(error);
+    fetchCatalogModels.mockRejectedValueOnce(new Error("boom"));
 
-    const service = ModelService.getInstance();
-    await expect(service.getModels()).rejects.toThrow("boom");
+    await expect(ModelService.getInstance().getModels()).rejects.toThrow("boom");
   });
 });

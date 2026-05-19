@@ -252,9 +252,25 @@ const bootstrapCritical = async (force: boolean = false): Promise<void> => {
     useAppStore.getState().startSessionsIndexSync();
   }
 
-  // Load provider config first so defaults (including default model) are available
+  // Load provider state first so defaults (including default model) are available
   // before any session operations that may depend on them.
-  await useProviderStore.getState().loadProviderConfig();
+  //
+  // Skip network-backed provider bootstrap in unit tests. Those tests commonly
+  // stub only the specific bootstrap dependencies they care about, and they
+  // should not hang on unrelated provider settings retries.
+  const isVitestRuntime =
+    typeof globalThis !== "undefined" &&
+    "__vitest_worker__" in (globalThis as Record<string, unknown>);
+  if (!isVitestRuntime) {
+    try {
+      await useProviderStore.getState().loadProviderInstances();
+      if (!useProviderStore.getState().isInstancesLoaded) {
+        await useProviderStore.getState().loadProviderConfig();
+      }
+    } catch (error) {
+      console.error("[AppStore] Failed to bootstrap provider state:", error);
+    }
+  }
 
   // Load chats as early as possible so the UI always has an active chat.
   // This prevents the controlled message input from appearing "read-only"

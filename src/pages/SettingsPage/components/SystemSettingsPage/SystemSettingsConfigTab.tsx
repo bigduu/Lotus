@@ -25,7 +25,6 @@ interface ConfigFormState extends BambooConfig {
   https_proxy: string;
   memory: {
     auto_dream_enabled: boolean;
-    background_model: string;
   };
 }
 
@@ -68,7 +67,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     https_proxy: "",
     memory: {
       auto_dream_enabled: false,
-      background_model: "",
     },
   });
   const [backendBaseUrl, setBackendBaseUrl] = useState(DEFAULT_BACKEND_BASE_URL);
@@ -91,7 +89,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         https_proxy: bambooConfig.https_proxy || "",
         memory: {
           auto_dream_enabled: bambooConfig.memory?.auto_dream_enabled ?? false,
-          background_model: bambooConfig.memory?.background_model || "",
         },
       });
       const nextDisabled = readDisabledTools(bambooConfig);
@@ -125,16 +122,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       memory: {
         ...prev.memory,
         auto_dream_enabled: checked,
-      },
-    }));
-  };
-
-  const handleBackgroundModelChange = (value: string) => {
-    setConfig((prev) => ({
-      ...prev,
-      memory: {
-        ...prev.memory,
-        background_model: value,
       },
     }));
   };
@@ -235,14 +222,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
             label: t("settings.configTab.tabs.general"),
             children: (
               <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-                <Alert
-                  message={t("settings.configTab.providerMovedTitle")}
-                  description={t("settings.configTab.providerMovedDescription")}
-                  type="info"
-                  showIcon
-                  closable
-                />
-
                 <NetworkSettingsCard
                   httpProxy={config.http_proxy}
                   httpsProxy={config.https_proxy}
@@ -322,19 +301,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                         onChange={handleAutoDreamToggle}
                       />
                     </div>
-
-                    <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-                      <Text strong>{t("settings.configTab.backgroundModel")}</Text>
-                      <Input
-                        data-testid="auto-dream-background-model-input"
-                        value={config.memory.background_model}
-                        onChange={(e) => handleBackgroundModelChange(e.target.value)}
-                        placeholder={t("settings.configTab.backgroundModelPlaceholder")}
-                      />
-                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                        {t("settings.configTab.backgroundModelHint")}
-                      </Text>
-                    </Space>
 
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <Button

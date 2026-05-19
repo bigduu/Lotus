@@ -82,7 +82,9 @@ const SystemSettingsPage = ({
   ] = useState(isCopilotConclusionWithOptionsEnhancementEnabled());
   const [vdiSafeMode, setVdiSafeModeState] = useState(isVdiSafeModeEnabled());
   const currentProvider = useProviderStore((state) => state.currentProvider);
-  const showCopilotConclusionWithOptionsEnhancement = currentProvider === "copilot";
+  const getProviderType = useProviderStore((state) => state.getProviderType);
+  const showCopilotConclusionWithOptionsEnhancement =
+    getProviderType(currentProvider) === "copilot";
   const activeTabKey = useSettingsViewStore((state) => state.activeTabKey);
   const setActiveTabKey = useSettingsViewStore((state) => state.setActiveTabKey);
   const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);

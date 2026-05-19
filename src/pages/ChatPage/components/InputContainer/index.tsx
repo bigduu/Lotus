@@ -259,6 +259,14 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const setInputReasoningEffort = useAppStore((state) => state.setInputReasoningEffort);
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
+  const getProviderType = useProviderStore((s) => s.getProviderType);
+
+  // In instance mode currentProvider is an instance id; resolve to ProviderType.
+  const resolvedProviderType = useMemo<ProviderType>(
+    () => getProviderType(currentProvider),
+    [currentProvider, getProviderType],
+  );
+
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [isModelOptionsLoading, setIsModelOptionsLoading] = useState(false);
   const [modelOptionsError, setModelOptionsError] = useState<string | null>(null);
@@ -693,7 +701,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const currentProviderSettings = useMemo<
     OpenAIConfig | AnthropicConfig | GeminiConfig | CopilotConfig | undefined
   >(() => {
-    return providerConfig.providers[currentProvider];
+    // In instance mode, providerConfig.providers is keyed by instance id.
+    // In legacy mode, it is keyed by ProviderType. currentProvider matches either.
+    return providerConfig.providers[currentProvider as ProviderType];
   }, [providerConfig, currentProvider]);
 
   const isProviderConfigured = useMemo(() => {
@@ -701,7 +711,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       return false;
     }
 
-    if (currentProvider === "copilot") {
+    if (resolvedProviderType === "copilot") {
       return Object.keys(currentProviderSettings).length > 0;
     }
 
@@ -713,7 +723,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       typeof currentProviderSettings.api_key === "string" &&
       currentProviderSettings.api_key.trim().length > 0
     );
-  }, [currentProvider, currentProviderSettings]);
+  }, [resolvedProviderType, currentProviderSettings]);
 
   const redirectToProviderSettingsIfNeeded = useCallback(() => {
     if (isProviderConfigured) return false;
@@ -724,11 +734,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   useEffect(() => {
     void (async () => {
-      const cached = await readModelOptionsCache(currentProvider);
+      const cached = await readModelOptionsCache(resolvedProviderType);
       setModelOptions(cached ?? []);
       setModelOptionsError(null);
     })();
-  }, [currentProvider]);
+  }, [resolvedProviderType]);
 
   const getErrorMessage = useCallback(
     (error: unknown) => {
@@ -746,8 +756,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       copilot: [...COPILOT_MODELS],
       bodhi: [],
     };
-    return byProvider[currentProvider] || [];
-  }, [currentProvider]);
+    return byProvider[resolvedProviderType] || [];
+  }, [resolvedProviderType]);
 
   const resolvedModelOptions = useMemo(() => {
     const base = modelOptions.length > 0 ? modelOptions : fallbackModelOptions;
@@ -759,20 +769,22 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   }, [modelOptions, fallbackModelOptions, activeModel]);
 
   const fetchProviderModels = useCallback(
-    async (provider: ProviderType, options?: { force?: boolean }) => {
+    async (providerId: string, providerType: ProviderType, options?: { force?: boolean }) => {
       if (!options?.force && modelOptions.length > 0) return;
       try {
         setIsModelOptionsLoading(true);
         setModelOptionsError(null);
 
         const models =
-          provider === "copilot" ? await modelService.getModels() : fallbackModelOptions;
+          providerType === "copilot"
+            ? await modelService.getModels(providerId)
+            : fallbackModelOptions;
         const options = models.map((model: string | { value: string; label: string }) => ({
           value: typeof model === "string" ? model : model.value,
           label: typeof model === "string" ? model : model.label,
         }));
         setModelOptions(options);
-        await writeModelOptionsCache(provider, options);
+        await writeModelOptionsCache(providerType, options);
       } catch (error) {
         setModelOptionsError(getErrorMessage(error));
       } finally {
@@ -788,10 +800,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       if (redirectToProviderSettingsIfNeeded()) return;
       if (isModelOptionsLoading) return;
       if (modelOptions.length > 0) return;
-      void fetchProviderModels(currentProvider);
+      void fetchProviderModels(currentProvider, resolvedProviderType);
     },
     [
       currentProvider,
+      resolvedProviderType,
       fetchProviderModels,
       isModelOptionsLoading,
       modelOptions.length,

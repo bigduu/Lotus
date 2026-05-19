@@ -52,14 +52,11 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
       </AntdApp>,
     );
 
-    const input = await screen.findByTestId("auto-dream-background-model-input");
-    const toggle = screen.getByTestId("auto-dream-toggle");
+    const toggle = await screen.findByTestId("auto-dream-toggle");
 
     expect(toggle.getAttribute("aria-checked")).toBe("true");
-    expect(input).toHaveValue("gpt-4.1-mini");
 
     fireEvent.click(toggle);
-    fireEvent.change(input, { target: { value: "gemini-2.5-flash" } });
     fireEvent.click(screen.getByTestId("save-memory-settings"));
 
     await waitFor(() => {
@@ -68,7 +65,6 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
         https_proxy: "",
         memory: {
           auto_dream_enabled: false,
-          background_model: "gemini-2.5-flash",
         },
       });
       expect(mockSetBambooConfig).toHaveBeenCalledWith({
@@ -76,13 +72,12 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
         https_proxy: "",
         memory: {
           auto_dream_enabled: false,
-          background_model: "gemini-2.5-flash",
         },
       });
     });
   });
 
-  it("falls back to disabled and empty background model when memory config is missing", async () => {
+  it("falls back to disabled auto dream when memory config is missing", async () => {
     mockGetBambooConfig.mockResolvedValueOnce({
       http_proxy: "",
       https_proxy: "",
@@ -94,18 +89,16 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
       </AntdApp>,
     );
 
-    const input = await screen.findByTestId("auto-dream-background-model-input");
-    const toggle = screen.getByTestId("auto-dream-toggle");
+    const toggle = await screen.findByTestId("auto-dream-toggle");
 
     expect(toggle.getAttribute("aria-checked")).toBe("false");
-    expect(input).toHaveValue("");
   });
 
   it("does not save when validation fails", async () => {
     mockValidateBambooConfigPatch.mockResolvedValueOnce({
       valid: false,
       errors: {
-        memory: [{ path: "memory.background_model", message: "Invalid background model" }],
+        memory: [{ path: "memory.auto_dream_enabled", message: "Invalid auto dream setting" }],
       },
     });
 
@@ -115,7 +108,7 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
       </AntdApp>,
     );
 
-    await screen.findByTestId("auto-dream-background-model-input");
+    await screen.findByTestId("auto-dream-toggle");
     fireEvent.click(screen.getByTestId("save-memory-settings"));
 
     await waitFor(() => {

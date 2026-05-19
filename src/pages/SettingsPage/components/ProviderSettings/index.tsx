@@ -38,11 +38,14 @@ import type {
   ProviderConfig,
   ProviderType,
   DefaultsConfig,
+  ProviderInstance,
+  ProviderInstancesConfig,
 } from "../../../ChatPage/types/providerConfig";
 import { PROVIDER_LABELS } from "../../../ChatPage/types/providerConfig";
 import type { ProviderModelRef } from "../../../ChatPage/types/providerModelRef";
 import {
   ServiceFactory,
+  type BambooConfig,
   type BambooConfigValidationIssue,
 } from "../../../../services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
@@ -51,6 +54,7 @@ import type { TFunction } from "i18next";
 import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelPicker";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
 import type { ReasoningEffort } from "../../../ChatPage/services/AgentService";
+import { ProviderInstanceManager } from "./ProviderInstanceManager";
 
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
@@ -72,20 +76,26 @@ type AnyEditableProviderConfig =
   | EditableProviderConfig<"copilot">
   | EditableProviderConfig<"bodhi">;
 
-type EditableProviders = {
-  [K in ModelProvider]?: EditableProviderConfig<K>;
-};
+type EditableProviders = Partial<Record<string, AnyEditableProviderConfig>>;
 
-type EditableProvidersRecord = Partial<Record<ModelProvider, AnyEditableProviderConfig>>;
+type EditableProvidersRecord = EditableProviders;
 
-type EditableDefaults = DefaultsConfig & {
-  chat: ProviderModelRef;
+type EditableDefaults = Partial<DefaultsConfig> & {
+  chat?: ProviderModelRef;
   fast?: ProviderModelRef;
+  task_summary?: ProviderModelRef;
+  memory_background?: ProviderModelRef;
   sub_agent?: ProviderModelRef;
   vision?: ProviderModelRef;
 };
 
-type ProviderSettingsFormValues = ProviderConfig & {
+type ModelPreferenceField = keyof Pick<
+  EditableDefaults,
+  "chat" | "fast" | "task_summary" | "memory_background" | "sub_agent" | "vision"
+>;
+
+type ProviderSettingsFormValues = Omit<ProviderConfig, "provider" | "providers"> & {
+  provider?: string;
   providers: EditableProviders;
   defaults?: EditableDefaults;
 };
@@ -119,6 +129,24 @@ const setLegacyProviderModel = (
     ...(mutableProviders[provider] ?? {}),
     model,
   } as AnyEditableProviderConfig;
+};
+
+const getLegacyMemoryBackgroundModel = (config: BambooConfig): string | undefined => {
+  const legacyValue = config.memory?.background_model?.trim();
+  return legacyValue ? legacyValue : undefined;
+};
+
+const getMemoryBackgroundFallbackProvider = (
+  defaults: EditableDefaults | undefined,
+  fallbackProvider?: string | null,
+): string | undefined => {
+  return (
+    fallbackProvider ||
+    defaults?.chat?.provider ||
+    defaults?.fast?.provider ||
+    defaults?.memory_background?.provider ||
+    undefined
+  );
 };
 
 const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
@@ -184,10 +212,121 @@ export const ProviderSettings: React.FC = () => {
   const [envVarEntries, setEnvVarEntries] = useState<EnvVarResponse[]>([]);
   const [fetchingAllModels, setFetchingAllModels] = useState(false);
 
+  // ── Multi-instance state ──────────────────────────────────────
+  const [instances, setInstances] = useState<ProviderInstance[]>([]);
+  const [defaultInstanceId, setDefaultInstanceId] = useState<string | null>(null);
+  const [isInstanceMode, setIsInstanceMode] = useState(false);
+  const [expandedProviderPanels, setExpandedProviderPanels] = useState<string[]>([]);
+
   const [modelAutoSaveStatus, setModelAutoSaveStatus] = useState<
     "idle" | "saving" | "success" | "error"
   >("idle");
   const [modelAutoSaveError, setModelAutoSaveError] = useState<string | null>(null);
+
+  const buildInstanceModeFormState = useCallback(
+    (response: ProviderInstancesConfig, bambooConfig?: BambooConfig) => {
+      const instances = response.instances ?? [];
+      const providersWithEditorFields = instances.reduce<EditableProviders>((acc, instance) => {
+        const editableConfig = {
+          ...(instance.config as Record<string, unknown>),
+        } as AnyEditableProviderConfig;
+        if (
+          editableConfig.request_overrides &&
+          typeof editableConfig.request_overrides === "object"
+        ) {
+          editableConfig.request_overrides_json = JSON.stringify(
+            editableConfig.request_overrides,
+            null,
+            2,
+          );
+        }
+        acc[instance.id] = editableConfig;
+        return acc;
+      }, {});
+
+      let defaults = response.defaults ? ({ ...response.defaults } as EditableDefaults) : undefined;
+      const defaultInstanceId = response.default_provider_instance_id ?? null;
+      const defaultInstance = defaultInstanceId
+        ? instances.find((instance) => instance.id === defaultInstanceId)
+        : undefined;
+      const defaultModel =
+        typeof defaultInstance?.config.model === "string"
+          ? defaultInstance.config.model.trim()
+          : undefined;
+
+      if (!isCompleteProviderModelRef(defaults?.chat) && defaultInstanceId && defaultModel) {
+        defaults = {
+          ...(defaults || {}),
+          chat: { provider: defaultInstanceId, model: defaultModel },
+        };
+      }
+
+      const legacyMemoryBackgroundModel = bambooConfig
+        ? getLegacyMemoryBackgroundModel(bambooConfig)
+        : undefined;
+      const memoryBackgroundProvider = getMemoryBackgroundFallbackProvider(
+        defaults,
+        defaultInstanceId,
+      );
+      if (legacyMemoryBackgroundModel && !defaults?.memory_background && memoryBackgroundProvider) {
+        defaults = {
+          ...(defaults || {}),
+          memory_background: {
+            provider: memoryBackgroundProvider,
+            model: legacyMemoryBackgroundModel,
+          },
+        };
+      }
+
+      return {
+        defaults,
+        features: response.features,
+        providers: providersWithEditorFields,
+      };
+    },
+    [],
+  );
+
+  const syncInstanceModeState = useCallback(
+    (response: ProviderInstancesConfig, bambooConfig?: BambooConfig) => {
+      setInstances(response.instances ?? []);
+      setDefaultInstanceId(response.default_provider_instance_id ?? null);
+      setIsInstanceMode(true);
+      form.setFieldsValue(buildInstanceModeFormState(response, bambooConfig));
+      setConfigLoaded(true);
+    },
+    [buildInstanceModeFormState, form],
+  );
+
+  const getProviderDisplayLabel = useCallback(
+    (providerOrInstanceId?: string) => {
+      if (!providerOrInstanceId?.trim()) return undefined;
+      const instance = instances.find((item) => item.id === providerOrInstanceId);
+      if (instance) {
+        return instance.label || PROVIDER_LABELS[instance.type];
+      }
+      return PROVIDER_LABELS[providerOrInstanceId as ProviderType] || providerOrInstanceId;
+    },
+    [instances],
+  );
+
+  const getExpandedLegacyPanels = useCallback(
+    (provider: string | undefined, providers: EditableProviders | undefined) => {
+      const panels = new Set<string>();
+      if (provider?.trim()) {
+        panels.add(provider);
+      }
+      for (const key of MODEL_PROVIDERS) {
+        const config = providers?.[key];
+        if (!config) continue;
+        if (Object.keys(config).length > 0) {
+          panels.add(key);
+        }
+      }
+      return Array.from(panels);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (modelAutoSaveStatus !== "success") return;
@@ -220,17 +359,23 @@ export const ProviderSettings: React.FC = () => {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await settingsService.getProviderConfig();
+      const [response, bambooConfig] = await Promise.all([
+        settingsService.getProviderConfig(),
+        ServiceFactory.getInstance()
+          .getBambooConfig()
+          .catch(() => ({}) as BambooConfig),
+      ]);
 
       // Build defaults from providers.{provider}.model if defaults is missing
       // (backward compatibility with backend that stores model in providers).
-      let defaults = response.defaults;
+      let defaults = response.defaults ? ({ ...response.defaults } as EditableDefaults) : undefined;
       if (!defaults?.chat?.model && response.provider && response.providers) {
         const providerName = response.provider as ModelProvider;
         const providerCfg = response.providers[providerName];
         const legacyModel = (providerCfg as { model?: string } | undefined)?.model;
         if (legacyModel) {
           defaults = {
+            ...(defaults || {}),
             chat: {
               provider: providerName,
               model: legacyModel,
@@ -239,9 +384,28 @@ export const ProviderSettings: React.FC = () => {
         }
       }
 
+      const legacyMemoryBackgroundModel = getLegacyMemoryBackgroundModel(bambooConfig);
+      const memoryBackgroundProvider = getMemoryBackgroundFallbackProvider(
+        defaults,
+        response.provider || null,
+      );
+      if (legacyMemoryBackgroundModel && !defaults?.memory_background && memoryBackgroundProvider) {
+        defaults = {
+          ...(defaults || {}),
+          memory_background: {
+            provider: memoryBackgroundProvider,
+            model: legacyMemoryBackgroundModel,
+          },
+        };
+      }
+
+      const persistedDefaults = isCompleteProviderModelRef(defaults?.chat)
+        ? (defaults as DefaultsConfig)
+        : undefined;
+
       const config: ProviderConfig = {
         provider: response.provider,
-        defaults,
+        defaults: persistedDefaults,
         providers: response.providers || {},
         features: response.features,
       };
@@ -263,6 +427,10 @@ export const ProviderSettings: React.FC = () => {
       });
 
       setCurrentProvider(config.provider as ProviderType);
+      setIsInstanceMode(false);
+      setExpandedProviderPanels(
+        getExpandedLegacyPanels(config.provider, providersWithEditorFields),
+      );
       form.setFieldsValue({
         ...config,
         providers: providersWithEditorFields,
@@ -275,7 +443,7 @@ export const ProviderSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [form, message, t]);
+  }, [form, getExpandedLegacyPanels, message, t]);
 
   const loadEnvVars = useCallback(async () => {
     try {
@@ -285,6 +453,23 @@ export const ProviderSettings: React.FC = () => {
       console.warn("Failed to load env vars for provider overrides:", error);
     }
   }, []);
+
+  const handleInstancesChanged = useCallback(async () => {
+    try {
+      const [response, bambooConfig] = await Promise.all([
+        settingsService.getProviderInstances(),
+        ServiceFactory.getInstance()
+          .getBambooConfig()
+          .catch(() => ({}) as BambooConfig),
+      ]);
+      if (!Array.isArray(response.instances)) {
+        throw new Error("Provider instances API returned an invalid payload");
+      }
+      syncInstanceModeState(response, bambooConfig);
+    } catch {
+      // Will be reflected in empty state
+    }
+  }, [syncInstanceModeState]);
 
   const checkCopilotAuthStatus = useCallback(async () => {
     try {
@@ -303,11 +488,26 @@ export const ProviderSettings: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    void loadConfig();
     void loadEnvVars();
     void useProviderStore.getState().loadCatalog();
     void checkCopilotAuthStatus();
-  }, [loadConfig, loadEnvVars, checkCopilotAuthStatus]);
+    void (async () => {
+      try {
+        const [response, bambooConfig] = await Promise.all([
+          settingsService.getProviderInstances(),
+          ServiceFactory.getInstance()
+            .getBambooConfig()
+            .catch(() => ({}) as BambooConfig),
+        ]);
+        if (!Array.isArray(response.instances)) {
+          throw new Error("Provider instances API returned an invalid payload");
+        }
+        syncInstanceModeState(response, bambooConfig);
+      } catch {
+        await loadConfig();
+      }
+    })();
+  }, [loadConfig, loadEnvVars, checkCopilotAuthStatus, syncInstanceModeState]);
 
   // ── Copilot auth handlers ─────────────────────────────
 
@@ -456,6 +656,10 @@ export const ProviderSettings: React.FC = () => {
         provider: values.provider,
         providers: values.providers || {},
         defaults: values.defaults,
+        features: {
+          ...(values.features || {}),
+          provider_model_ref: true,
+        },
       });
       if (result.valid) return { valid: true };
       const providerIssues = result.errors?.provider || [];
@@ -481,7 +685,10 @@ export const ProviderSettings: React.FC = () => {
         provider: values.provider,
         defaults: values.defaults,
         providers: { ...(values.providers || {}) },
-        features: values.features,
+        features: {
+          ...(values.features || {}),
+          provider_model_ref: true,
+        },
       };
       const defaultChat = normalizedValues.defaults?.chat;
       if (!isCompleteProviderModelRef(defaultChat)) {
@@ -529,25 +736,41 @@ export const ProviderSettings: React.FC = () => {
         setLegacyProviderModel(providersWithModel, activeProvider, defaultChatModel.model);
       }
 
-      const payload: Record<string, unknown> = {
-        provider: normalizedValues.provider,
-        defaults: normalizedValues.defaults,
-        providers: providersWithModel,
-        features: normalizedValues.features,
-      };
+      if (isInstanceMode) {
+        const serviceFactory = ServiceFactory.getInstance();
+        const instancePayload: BambooConfig = {
+          defaults: normalizedValues.defaults,
+          features: {
+            ...(normalizedValues.features || {}),
+            provider_model_ref: true,
+          },
+        };
+        debugLog("[Provider]", "Saving instance-mode config:", instancePayload);
+        await serviceFactory.setBambooConfig(instancePayload);
+      } else {
+        // ── Legacy save path ───────────────────────────────────────
+        const provider = (normalizedValues.provider || currentProvider) as ProviderType;
+        const payload: Record<string, unknown> = {
+          provider,
+          defaults: normalizedValues.defaults,
+          providers: providersWithModel,
+          features: normalizedValues.features,
+        };
 
-      const validation = await validateProviderPatch(normalizedValues);
-      if (!validation.valid) {
-        const errorMessage = validation.message || t("settings.providerTab.invalidConfig");
-        if (options?.showMessage !== false) {
-          message.error(`${t("settings.providerTab.invalidConfigPrefix")}: ${errorMessage}`);
+        const validation = await validateProviderPatch(normalizedValues);
+        if (!validation.valid) {
+          const errorMessage = validation.message || t("settings.providerTab.invalidConfig");
+          if (options?.showMessage !== false) {
+            message.error(`${t("settings.providerTab.invalidConfigPrefix")}: ${errorMessage}`);
+          }
+          if (options?.throwOnError) throw new Error(errorMessage);
+          return;
         }
-        if (options?.throwOnError) throw new Error(errorMessage);
-        return;
+
+        debugLog("[Provider]", "Saving provider config:", payload);
+        await settingsService.saveProviderConfig(payload);
       }
 
-      debugLog("[Provider]", "Saving provider config:", payload);
-      await settingsService.saveProviderConfig(payload);
       if (options?.showMessage !== false) {
         message.success(t("settings.providerTab.saveConfigSuccess"));
       }
@@ -574,7 +797,14 @@ export const ProviderSettings: React.FC = () => {
       const { useAppStore } = await import("../../../ChatPage/store");
 
       const previousDefaultsChat = useProviderStore.getState().providerConfig.defaults?.chat;
-      await useProviderStore.getState().loadProviderConfig();
+
+      // In instance mode, reload instances; otherwise use the legacy endpoint.
+      if (isInstanceMode) {
+        await useProviderStore.getState().loadProviderInstances();
+      } else {
+        await useProviderStore.getState().loadProviderConfig();
+      }
+
       const nextDefaultsChat = useProviderStore.getState().providerConfig.defaults?.chat;
 
       useProviderStore.getState().setSelectedModelRef(null);
@@ -651,7 +881,7 @@ export const ProviderSettings: React.FC = () => {
   // ── Auto-save model preference changes ──────────────────────────
 
   const handleDefaultsModelChange = async (
-    field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_agent" | "vision">,
+    field: ModelPreferenceField,
     value: ProviderModelRef | undefined,
   ) => {
     if (field === "chat" && !value) return;
@@ -684,14 +914,29 @@ export const ProviderSettings: React.FC = () => {
     }
   };
 
-  const handleProviderReasoningEffortChange = async () => {
+  const handleProviderReasoningEffortChange = async (
+    providerIdOrType: string,
+    value?: ReasoningEffort,
+  ) => {
     if (modelAutoSaveStatus === "saving") return;
     setModelAutoSaveStatus("saving");
     setModelAutoSaveError(null);
     try {
-      const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
-      await handleSave(currentValues, { showMessage: false, throwOnError: true });
-      await handleApply({ showMessage: false, throwOnError: true });
+      if (isInstanceMode) {
+        const instance = instances.find((item) => item.id === providerIdOrType);
+        if (!instance) {
+          throw new Error(t("settings.providerTab.providerNotConfigured"));
+        }
+        await settingsService.updateProviderInstance(instance.id, {
+          config: { reasoning_effort: value ?? null },
+        });
+        await handleInstancesChanged();
+        await useProviderStore.getState().loadProviderInstances();
+      } else {
+        const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
+        await handleSave(currentValues, { showMessage: false, throwOnError: true });
+        await handleApply({ showMessage: false, throwOnError: true });
+      }
       setModelAutoSaveStatus("success");
       message.success(t("settings.providerTab.reasoningEffortUpdated"));
     } catch (error) {
@@ -707,7 +952,7 @@ export const ProviderSettings: React.FC = () => {
   };
 
   const renderInlineProviderReasoningControl = (
-    provider: ModelProvider | undefined,
+    provider: string | undefined,
     options?: {
       label?: string;
       helperText?: string;
@@ -715,37 +960,63 @@ export const ProviderSettings: React.FC = () => {
       size?: "small" | "middle" | "large";
       marginTop?: number;
       dataTestId?: string;
+      emphasis?: "default" | "subtle";
+      showProviderLabel?: boolean;
     },
   ) => {
     if (!provider) return null;
 
-    const providerLabel = PROVIDER_LABELS[provider as ProviderType];
+    const providerLabel = getProviderDisplayLabel(provider) || provider;
     const reasoningValue = form.getFieldValue(["providers", provider, "reasoning_effort"]) as
       | ReasoningEffort
       | undefined;
+    const isSubtle = options?.emphasis === "subtle";
+    const labelText = options?.label || t("settings.providerTab.reasoningEffortOptional");
+    const helperText = options?.helperText || t("settings.providerTab.reasoningEffortHelp");
 
     return (
-      <div style={{ marginTop: options?.marginTop ?? 8 }}>
-        <Space direction="vertical" size={4} style={{ width: "100%" }}>
-          <Text strong>
-            {options?.label ||
-              `${providerLabel} · ${t("settings.providerTab.reasoningEffortOptional")}`}
-          </Text>
+      <div style={{ marginTop: options?.marginTop ?? 8, width: "100%" }}>
+        <Space direction="vertical" size={isSubtle ? 6 : 4} style={{ width: "100%" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              flexWrap: "wrap",
+            }}
+          >
+            <Text
+              strong={!isSubtle}
+              type={isSubtle ? "secondary" : undefined}
+              style={isSubtle ? { fontSize: token.fontSizeSM, lineHeight: 1.4 } : undefined}
+            >
+              {labelText}
+            </Text>
+            {options?.showProviderLabel ? (
+              <Text type="secondary" style={{ fontSize: token.fontSizeSM, lineHeight: 1.4 }}>
+                {providerLabel}
+              </Text>
+            ) : null}
+          </div>
           {renderReasoningEffortSelect(t, {
             value: reasoningValue,
             disabled: modelAutoSaveStatus === "saving",
-            size: options?.size,
+            size: options?.size ?? (isSubtle ? "small" : undefined),
             style: { width: "100%" },
             "data-testid": options?.dataTestId,
             onChange: (value) => {
               form.setFieldValue(["providers", provider, "reasoning_effort"], value);
               if (options?.autoSave) {
-                void handleProviderReasoningEffortChange();
+                void handleProviderReasoningEffortChange(provider, value);
               }
             },
           })}
-          <Text type="secondary">
-            {options?.helperText || t("settings.providerTab.reasoningEffortHelp")}
+          <Text
+            type="secondary"
+            style={isSubtle ? { fontSize: token.fontSizeSM, lineHeight: 1.5 } : undefined}
+          >
+            {helperText}
           </Text>
         </Space>
       </div>
@@ -767,13 +1038,13 @@ export const ProviderSettings: React.FC = () => {
   // ── Unified model preferences ───────────────────────
 
   const renderModelPreferences = () => {
-    const renderPicker = (
-      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_agent" | "vision">,
-    ) => {
+    const renderPicker = (field: ModelPreferenceField) => {
       const value = form.getFieldValue(["defaults", field]) as ProviderModelRef | undefined;
       return (
         <ProviderModelPicker
           value={value}
+          dataTestId={`model-preference-${field}-picker`}
+          appearance="contrast"
           disabled={modelAutoSaveStatus === "saving"}
           onChange={(ref) => {
             form.setFieldValue(["defaults", field], ref);
@@ -784,32 +1055,46 @@ export const ProviderSettings: React.FC = () => {
     };
 
     const renderPreferenceSection = (
-      field: keyof Pick<EditableDefaults, "chat" | "fast" | "sub_agent" | "vision">,
+      field: ModelPreferenceField,
       title: string,
       helpText?: string,
     ) => (
-      <div>
-        <Text strong>{title}</Text>
-        <div style={{ marginTop: 8 }}>{renderPicker(field)}</div>
-        <Form.Item noStyle shouldUpdate>
-          {() => {
-            const selectedModelRef = form.getFieldValue(["defaults", field]) as
-              | ProviderModelRef
-              | undefined;
-            const selectedProvider = selectedModelRef?.provider as ModelProvider | undefined;
-            return renderInlineProviderReasoningControl(selectedProvider, {
-              autoSave: true,
-              dataTestId: `model-preference-${field}-reasoning-effort`,
-              label: selectedProvider
-                ? `${PROVIDER_LABELS[selectedProvider as ProviderType]} · ${t(
-                    "settings.providerTab.reasoningEffortOptional",
-                  )}`
-                : t("settings.providerTab.reasoningEffortOptional"),
-              helperText: t("settings.providerTab.reasoningEffortHelp"),
-            });
-          }}
-        </Form.Item>
-        {helpText ? <Text type="secondary">{helpText}</Text> : null}
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: token.marginLG,
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ flex: "1 1 420px", minWidth: 0 }}>
+          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+            <Text strong>{title}</Text>
+            {renderPicker(field)}
+            {helpText ? <Text type="secondary">{helpText}</Text> : null}
+          </Space>
+        </div>
+        <div style={{ flex: "0 1 320px", minWidth: 280 }}>
+          <Form.Item noStyle shouldUpdate>
+            {() => {
+              const selectedModelRef = form.getFieldValue(["defaults", field]) as
+                | ProviderModelRef
+                | undefined;
+              const selectedProvider = selectedModelRef?.provider;
+              return renderInlineProviderReasoningControl(selectedProvider, {
+                autoSave: true,
+                dataTestId: `model-preference-${field}-reasoning-effort`,
+                label: t("settings.providerTab.reasoningEffortOptional"),
+                helperText: t("settings.providerTab.reasoningEffortHelp"),
+                marginTop: 0,
+                size: "small",
+                emphasis: "subtle",
+                showProviderLabel: Boolean(selectedProvider),
+              });
+            }}
+          </Form.Item>
+        </div>
       </div>
     );
 
@@ -825,6 +1110,12 @@ export const ProviderSettings: React.FC = () => {
         <Form.Item name={["defaults", "fast"]} noStyle preserve>
           <ProviderModelRefField />
         </Form.Item>
+        <Form.Item name={["defaults", "task_summary"]} noStyle preserve>
+          <ProviderModelRefField />
+        </Form.Item>
+        <Form.Item name={["defaults", "memory_background"]} noStyle preserve>
+          <ProviderModelRefField />
+        </Form.Item>
         <Form.Item name={["defaults", "sub_agent"]} noStyle preserve>
           <ProviderModelRefField />
         </Form.Item>
@@ -837,6 +1128,16 @@ export const ProviderSettings: React.FC = () => {
             "fast",
             t("settings.providerTab.fastModel"),
             t("settings.providerTab.fastModelHelp"),
+          )}
+          {renderPreferenceSection(
+            "task_summary",
+            t("settings.providerTab.taskSummaryModel"),
+            t("settings.providerTab.taskSummaryModelHelp"),
+          )}
+          {renderPreferenceSection(
+            "memory_background",
+            t("settings.providerTab.memoryBackgroundModel"),
+            t("settings.providerTab.memoryBackgroundModelHelp"),
           )}
           {renderPreferenceSection(
             "sub_agent",
@@ -1240,42 +1541,48 @@ export const ProviderSettings: React.FC = () => {
         onFinish={handleSaveAndApply}
         disabled={loading && !configLoaded}
       >
-        {/* Active provider selector */}
-        <Form.Item
-          name="provider"
-          label={t("settings.providerTab.activeProvider")}
-          rules={[{ required: true, message: t("settings.providerTab.selectProviderRequired") }]}
-        >
-          <Select
-            data-testid="provider-select"
-            size="large"
-            onChange={(value) => setCurrentProvider(value as ProviderType)}
-          >
-            {(Object.keys(PROVIDER_LABELS) as ProviderType[]).map((key) => (
-              <Select.Option key={key} value={key}>
-                {PROVIDER_LABELS[key]}
-              </Select.Option>
-            ))}
-          </Select>
-        </Form.Item>
+        {!isInstanceMode && (
+          <>
+            {/* Active provider selector */}
+            <Form.Item
+              name="provider"
+              label={t("settings.providerTab.activeProvider")}
+              rules={[
+                { required: true, message: t("settings.providerTab.selectProviderRequired") },
+              ]}
+            >
+              <Select
+                data-testid="provider-select"
+                size="large"
+                onChange={(value) => setCurrentProvider(value as ProviderType)}
+              >
+                {(Object.keys(PROVIDER_LABELS) as ProviderType[]).map((key) => (
+                  <Select.Option key={key} value={key}>
+                    {PROVIDER_LABELS[key]}
+                  </Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
 
-        <Form.Item noStyle shouldUpdate>
-          {() =>
-            renderInlineProviderReasoningControl(
-              (form.getFieldValue("provider") || currentProvider) as ModelProvider | undefined,
-              {
-                autoSave: true,
-                size: "middle",
-                marginTop: 0,
-                dataTestId: "active-provider-reasoning-effort",
-                label: t("settings.providerTab.activeProviderReasoningEffort"),
-                helperText: t("settings.providerTab.reasoningEffortHelp"),
-              },
-            )
-          }
-        </Form.Item>
+            <Form.Item noStyle shouldUpdate>
+              {() =>
+                renderInlineProviderReasoningControl(
+                  form.getFieldValue("provider") || currentProvider,
+                  {
+                    autoSave: true,
+                    size: "middle",
+                    marginTop: 0,
+                    dataTestId: "active-provider-reasoning-effort",
+                    label: t("settings.providerTab.activeProviderReasoningEffort"),
+                    helperText: t("settings.providerTab.reasoningEffortHelp"),
+                  },
+                )
+              }
+            </Form.Item>
 
-        <Divider />
+            <Divider />
+          </>
+        )}
 
         {/* Fetch all models button */}
         <div style={{ marginBottom: 16 }}>
@@ -1301,17 +1608,34 @@ export const ProviderSettings: React.FC = () => {
 
         {renderModelPreferences()}
 
-        {/* All providers in collapsible panels */}
-        <Collapse
-          defaultActiveKey={MODEL_PROVIDERS.filter((p) => isProviderConfigured(p))}
-          ghost
-          style={{ marginBottom: 16 }}
-          items={MODEL_PROVIDERS.map((provider) => ({
-            key: provider,
-            label: renderPanelHeader(provider),
-            children: renderProviderPanel(provider),
-          }))}
-        />
+        {/* Provider instances or legacy provider panels */}
+        {isInstanceMode ? (
+          <ProviderInstanceManager
+            instances={instances}
+            defaultInstanceId={defaultInstanceId}
+            onInstancesChanged={handleInstancesChanged}
+          />
+        ) : (
+          <Collapse
+            activeKey={expandedProviderPanels}
+            onChange={(activeKey) =>
+              setExpandedProviderPanels(
+                Array.isArray(activeKey)
+                  ? activeKey.map(String)
+                  : activeKey
+                    ? [String(activeKey)]
+                    : [],
+              )
+            }
+            ghost
+            style={{ marginBottom: 16 }}
+            items={MODEL_PROVIDERS.map((provider) => ({
+              key: provider,
+              label: renderPanelHeader(provider),
+              children: renderProviderPanel(provider),
+            }))}
+          />
+        )}
 
         <Divider />
 

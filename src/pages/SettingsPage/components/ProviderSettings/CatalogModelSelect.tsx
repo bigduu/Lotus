@@ -22,6 +22,7 @@ export const CatalogModelSelect: React.FC<CatalogModelSelectProps> = ({
 }) => {
   const { t } = useTranslation();
   const catalog = useProviderStore((s) => s.catalog);
+  const getModelsForProvider = useProviderStore((s) => s.getModelsForProvider);
 
   useEffect(() => {
     if (!catalog) {
@@ -30,9 +31,8 @@ export const CatalogModelSelect: React.FC<CatalogModelSelectProps> = ({
   }, [catalog]);
 
   const models = useMemo(() => {
-    if (!catalog?.models) return [];
-    return catalog.models.filter((m) => m.reference.provider === provider);
-  }, [catalog, provider]);
+    return getModelsForProvider(provider);
+  }, [getModelsForProvider, provider]);
 
   return (
     <Select

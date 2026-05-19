@@ -705,6 +705,9 @@ export const enUsTranslation = {
         autoDreamEnabled: "Enable Auto Dream",
         autoDreamEnabledHint:
           "Automatically maintains the Dream Notebook and extracts long-term memory candidates in the background.",
+        memoryModelMovedTitle: "Memory model moved to Provider Settings",
+        memoryModelMovedDescription:
+          "Memory Background Model is now configured in Provider Settings under Model Preferences. Auto Dream remains here as a system-level switch.",
         backgroundModel: "Background Memory Model",
         backgroundModelPlaceholder: "Leave empty to use the provider fast model",
         backgroundModelHint:
@@ -1263,6 +1266,16 @@ export const enUsTranslation = {
         invalidConfig: "Invalid configuration",
         invalidConfigPrefix: "Invalid configuration",
         invalidRequestOverridesJson: "Invalid request_overrides JSON for {{provider}}: {{error}}",
+        // Copilot Auth Status
+        copilotAuth: "GitHub Copilot Authentication",
+        authStatus: "Status:",
+        authenticated: "Authenticated",
+        notAuthenticated: "Not Authenticated",
+        unknown: "Unknown",
+        refreshStatus: "Refresh",
+        copilotAuthHelp:
+          "Copilot requires OAuth authentication. Click the button below to start the Device Code Flow.",
+        authenticateCopilot: "Authenticate Copilot",
         fetchModelsCopilotFailed:
           "Failed to fetch models. Please authenticate Copilot and try again.",
         fetchModelsFailed: "Failed to fetch models. Please check your API key and base URL.",
@@ -1300,6 +1313,12 @@ export const enUsTranslation = {
         fastModel: "Fast Model (Optional)",
         fastModelHelp:
           "Cheaper/faster model for lightweight tasks like title generation, mermaid fix, and summarization. Uses default model when not set.",
+        taskSummaryModel: "Task Summary Model (Optional)",
+        taskSummaryModelHelp:
+          "Dedicated model for task-oriented summarization and conversation compression. Falls back to Memory Background Model, then Fast Model, then the default model.",
+        memoryBackgroundModel: "Memory Background Model (Optional)",
+        memoryBackgroundModelHelp:
+          "Dedicated model for memory reranking, recall background work, and Auto Dream. Falls back to Fast Model when not set.",
         subAgentModel: "Sub Agent Model (Optional)",
         subAgentModelHelp:
           "Default model for new Sub Agents. Uses Fast Model when not set, then falls back to the default model.",
@@ -1336,13 +1355,13 @@ export const enUsTranslation = {
           "Leave empty to use the default Google AI API endpoint. Include full path if needed.",
         copilotConfigTitle: "GitHub Copilot Configuration",
         copilotConfigDescription:
-          "GitHub Copilot uses OAuth authentication. No API key is required. Make sure you have an active GitHub Copilot subscription.",
+          "GitHub Copilot uses OAuth authentication by default. No API key is required. Alternatively, you can provide a Personal Access Token for direct API access.",
+        copilotApiKey: "Personal Access Token (Optional)",
+        copilotApiKeyHelp:
+          "GitHub Personal Access Token for API access (alternative to OAuth device flow)",
+        copilotApiKeyPlaceholder: "ghp_... or github_pat_...",
         authStatusTitle: "Authentication Status",
-        authenticated: "Authenticated",
-        notAuthenticated: "Not Authenticated",
         logoutCopilot: "Logout from Copilot",
-        authenticateCopilot: "Authenticate Copilot",
-        refreshStatus: "Refresh Status",
         headlessAuth: "Headless Authentication",
         headlessAuthHelp: "Print login URL in console instead of opening browser automatically",
         noModelsLoaded: 'No models loaded yet. Click "Fetch available models from backend".',
