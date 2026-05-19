@@ -106,14 +106,20 @@ export const selectCanCancel =
   };
 
 /**
- * True for any active execution phase. Same as selectIsBusy but named
- * explicitly for observability semantics (SSE reconnect, sidebar badge).
+ * True when the session still needs a live SSE subscription.
+ *
+ * This is intentionally narrower than `selectIsBusy()`: `waiting_user_answer`
+ * is a blocked/awaiting-input phase, not an actively executing phase, so we
+ * should preserve the busy rail semantics without continuously reconnecting SSE.
  */
 export const selectShouldObserve =
   (sessionId: string | null) =>
   (state: ExecutionStateView): boolean => {
     const entry = getEntry(state, sessionId);
-    return isBusyPhase(entry?.phase);
+    if (!isBusyPhase(entry?.phase)) {
+      return false;
+    }
+    return entry?.phase !== "waiting_user_answer";
   };
 
 export const selectActiveToolCalls =

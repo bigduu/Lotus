@@ -7,6 +7,7 @@ import {
   selectCanCancel,
   selectPendingQuestion,
   selectRespondMode,
+  selectShouldObserve,
 } from "../selectors/executionSelectors";
 
 const SESSION = "session-1";
@@ -86,5 +87,17 @@ describe("execution selectors", () => {
       allowCustom: true,
       toolCallId: "ask-1",
     });
+  });
+
+  it("does not observe waiting_user_answer over SSE even though the session remains busy", () => {
+    const state = createState("waiting_user_answer");
+
+    expect(selectShouldObserve(SESSION)(state)).toBe(false);
+  });
+
+  it("continues observing actively executing phases", () => {
+    expect(selectShouldObserve(SESSION)(createState("running"))).toBe(true);
+    expect(selectShouldObserve(SESSION)(createState("streaming"))).toBe(true);
+    expect(selectShouldObserve(SESSION)(createState("running_tools"))).toBe(true);
   });
 });

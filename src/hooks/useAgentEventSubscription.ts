@@ -14,7 +14,6 @@ import {
   selectGeneration,
   selectChildren,
 } from "../pages/ChatPage/store";
-import { isBusyPhase } from "../pages/ChatPage/store/slices/executionStateSlice";
 import { applyReplayableSessionEvent } from "../pages/ChatPage/store/slices/sessionMetadataSlice";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
@@ -1943,7 +1942,7 @@ export function useAgentEventSubscription() {
   const busySessionKeys = useAppStore(
     useShallow((state) =>
       Object.entries(state.executionBySession)
-        .filter(([, entry]) => isBusyPhase(entry.phase))
+        .filter(([sessionId]) => selectShouldObserve(sessionId)(state))
         .map(([sessionId, entry]) => {
           const phaseBucket =
             entry.phase === "starting"

@@ -35,13 +35,14 @@ vi.mock("../../pages/ChatPage/store", () => {
   });
   const selectShouldObserve = (sessionId: string | null) => (state: any) => {
     const entry = state.executionBySession?.[sessionId!];
-    if (entry) {
-      const phase = entry.phase;
-      return (
-        phase !== "idle" && phase !== "completed" && phase !== "error" && phase !== "cancelled"
-      );
+    if (!entry) {
+      return false;
     }
-    return false;
+    const phase = entry.phase;
+    if (phase === "idle" || phase === "completed" || phase === "error" || phase === "cancelled") {
+      return false;
+    }
+    return phase !== "waiting_user_answer";
   };
   const selectGeneration = (sessionId: string | null) => (state: any) => {
     return state.executionBySession?.[sessionId!]?.generation ?? 0;
@@ -472,9 +473,7 @@ describe("useAgentEventSubscription", () => {
 
     renderHook(() => useAgentEventSubscription());
 
-    await waitFor(() => {
-      expect(mockSubscribeToEvents).toHaveBeenCalled();
-    });
+    expect(mockSubscribeToEvents).not.toHaveBeenCalled();
 
     act(() => {
       taskCompletedHandler?.("session-1", 3, 8, "2026-05-07T07:00:00.000Z");
@@ -2618,10 +2617,10 @@ describe("useAgentEventSubscription", () => {
   });
 
   // ===========================================================================
-  // REGRESSION: generation change while session stays busy must resubscribe
+  // REGRESSION: respond/resume must only resubscribe after waiting_user_answer returns to an observable phase
   // ===========================================================================
 
-  it("resubscribes when generation changes while session stays busy (respond/resume regression)", async () => {
+  it("subscribes again only after waiting_user_answer transitions back to starting (respond/resume regression)", async () => {
     // Simulate waiting_user_answer (busy phase) at generation 1
     mockState.executionBySession = {
       "session-1": {
@@ -2668,15 +2667,8 @@ describe("useAgentEventSubscription", () => {
 
     const { rerender } = renderHook(() => useAgentEventSubscription());
 
-    // Wait for initial subscription at generation 1
-    await waitFor(() => {
-      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
-    });
-    expect(mockSubscribeToEvents).toHaveBeenCalledWith(
-      "session-1",
-      expect.anything(),
-      expect.any(AbortController),
-    );
+    await new Promise((r) => setTimeout(r, 50));
+    expect(mockSubscribeToEvents).toHaveBeenCalledTimes(0);
 
     // Simulate markRespondStart bumping generation to 2 while remaining busy
     // (phase transitions to "starting" which is also a busy phase).
@@ -2721,15 +2713,14 @@ describe("useAgentEventSubscription", () => {
     });
 
     // The key assertion: because generation changed (1 → 2), the effect must
-    // re-run and ensureSubscription must detect the generation mismatch,
-    // leading to a new subscription call.
+    // Once the session leaves waiting_user_answer and re-enters an observable phase,
+    // the hook should establish the live stream for the resumed generation.
     await waitFor(() => {
-      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(2);
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(1);
     });
 
-    // The second call should be for the same session
     expect(mockSubscribeToEvents).toHaveBeenNthCalledWith(
-      2,
+      1,
       "session-1",
       expect.anything(),
       expect.any(AbortController),
