@@ -376,6 +376,20 @@ export const zhCnTranslation = {
         tooltip: "最近一次压缩：{{time}}，已归档 {{count}} 条消息",
         archivedShort: "已归档 {{count}} 条",
       },
+      contextBar: {
+        workspace: "工作区",
+        workspaceTooltip: "工作区上下文：{{path}}",
+        files: "文件",
+        fileRefsTooltip: "当前会话中有 {{count}} 个文件引用",
+        prompt: "提示词",
+        promptTooltip: "系统提示词：{{name}}",
+        summary: "摘要",
+        summaryTooltip:
+          "对话摘要贡献了 {{tokens}} 个 tokens，并且已有 {{count}} 次压缩归档了较早消息。",
+        promptCache: "Prompt 缓存",
+        promptCacheTooltip:
+          "{{count}} 个工具输出已被压缩为 prompt 侧缓存摘要，共节省 {{tokens}} 个 tokens。",
+      },
       subAgents: {
         title: "子代理",
         expand: "展开",
@@ -1914,11 +1928,22 @@ export const zhCnTranslation = {
       tokenUsage: {
         title: "Token 使用",
         contextWindow: "上下文窗口",
+        contextPrepared: "已准备上下文",
+        promptCacheTitle: "Prompt 侧节省",
+        providerResult: "Provider 返回结果",
         summary: "汇总",
         system: "系统",
         messages: "消息",
         tokens: "tokens",
         usedPercent: "已使用 {{value}}%",
+        cachedToolOutputs: "已压缩工具输出：{{count}}",
+        promptSaved: "节省的 Prompt tokens",
+        cacheRead: "Provider 缓存命中",
+        thinking: "思考 tokens",
+        promptSavedBadge: "节省 {{value}}",
+        cacheReadBadge: "缓存 {{value}}",
+        thinkingBadge: "思考 {{value}}",
+        truncatedBadge: "截断 {{count}} 段",
       },
       approval: {
         workflow: "工作流",

@@ -3,10 +3,11 @@ import { Progress, Tooltip, Space } from "antd";
 import { useTranslation } from "react-i18next";
 import {
   TokenUsage,
+  formatCompactTokenCount,
+  formatTokenCount,
+  getUsageColor,
   getUsageDenominator,
   getUsagePercentage,
-  getUsageColor,
-  formatTokenCount,
 } from "../types/tokenBudget";
 
 interface TokenUsageDisplayProps {
@@ -20,12 +21,60 @@ interface TokenUsageDisplayProps {
   className?: string;
 }
 
+type MetricBadgeTone = "green" | "blue" | "purple";
+
+const METRIC_BADGE_STYLES: Record<
+  MetricBadgeTone,
+  { backgroundColor: string; borderColor: string; color: string }
+> = {
+  green: {
+    backgroundColor: "rgba(82, 196, 26, 0.12)",
+    borderColor: "rgba(82, 196, 26, 0.28)",
+    color: "#389e0d",
+  },
+  blue: {
+    backgroundColor: "rgba(22, 119, 255, 0.12)",
+    borderColor: "rgba(22, 119, 255, 0.28)",
+    color: "#1677ff",
+  },
+  purple: {
+    backgroundColor: "rgba(114, 46, 209, 0.12)",
+    borderColor: "rgba(114, 46, 209, 0.28)",
+    color: "#722ed1",
+  },
+};
+
+const MetricBadge: React.FC<{ label: string; tone: MetricBadgeTone }> = ({ label, tone }) => {
+  const style = METRIC_BADGE_STYLES[tone];
+
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "1px 6px",
+        borderRadius: 999,
+        fontSize: 10,
+        lineHeight: 1.4,
+        fontWeight: 600,
+        whiteSpace: "nowrap",
+        backgroundColor: style.backgroundColor,
+        border: `1px solid ${style.borderColor}`,
+        color: style.color,
+      }}
+    >
+      {label}
+    </span>
+  );
+};
+
 /**
  * Display token usage with a compact line progress bar.
  *
  * Shows:
  * - Line progress bar with color coding (green/yellow/red)
  * - Percentage text
+ * - Compact optimization badges
  * - Tooltip with detailed breakdown on hover
  */
 export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
@@ -37,11 +86,18 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   const { t } = useTranslation();
   const denominator = getUsageDenominator(usage);
   const percentage = getUsagePercentage(usage);
+  const color = getUsageColor(usage);
+  const promptCachedToolOutputs = usage.promptCachedToolOutputs ?? 0;
+  const promptCachedToolTokensSaved = usage.promptCachedToolTokensSaved ?? 0;
+  const thinkingTokens = usage.thinkingTokens ?? 0;
+  const cacheReadInputTokens = usage.cacheReadInputTokens ?? 0;
+  const hasPromptCacheDetails = promptCachedToolOutputs > 0 || promptCachedToolTokensSaved > 0;
+  const hasProviderResultDetails = thinkingTokens > 0 || cacheReadInputTokens > 0;
+
   const formatPercentageLabel = (value: number): string => {
     const rounded = Math.round(value * 10) / 10;
     return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
   };
-  const color = getUsageColor(usage);
 
   const getProgressStrokeColor = () => {
     if (percentage >= 90) return "var(--lotus-chart-danger)";
@@ -49,13 +105,52 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
     return "var(--lotus-chart-secondary)";
   };
 
+  const inlineBadges: Array<{ key: string; label: string; tone: MetricBadgeTone }> = [];
+
+  if (promptCachedToolTokensSaved > 0) {
+    inlineBadges.push({
+      key: "prompt-saved",
+      label: t("components.tokenUsage.promptSavedBadge", {
+        value: formatCompactTokenCount(promptCachedToolTokensSaved),
+      }),
+      tone: "green",
+    });
+  }
+
+  if (cacheReadInputTokens > 0) {
+    inlineBadges.push({
+      key: "cache-read",
+      label: t("components.tokenUsage.cacheReadBadge", {
+        value: formatCompactTokenCount(cacheReadInputTokens),
+      }),
+      tone: "blue",
+    });
+  }
+
+  if (thinkingTokens > 0) {
+    inlineBadges.push({
+      key: "thinking",
+      label: t("components.tokenUsage.thinkingBadge", {
+        value: formatCompactTokenCount(thinkingTokens),
+      }),
+      tone: "purple",
+    });
+  }
+
+  const sectionTitleStyle = {
+    marginTop: 8,
+    marginBottom: 4,
+    fontSize: 11,
+    fontWeight: 700,
+    color: "var(--lotus-metric-text-muted)",
+  } as const;
+
   const tooltipContent = (
-    <div style={{ minWidth: 180, color: "var(--lotus-metric-text-strong)" }}>
+    <div style={{ minWidth: 220, color: "var(--lotus-metric-text-strong)" }}>
       <div style={{ marginBottom: 4, fontWeight: "bold" }}>{t("components.tokenUsage.title")}</div>
       <div style={{ fontSize: 12 }}>
-        {t("components.tokenUsage.contextWindow")}:{" "}
-        {formatTokenCount(usage.totalTokens)} / {formatTokenCount(denominator)}{" "}
-        {t("components.tokenUsage.tokens")}
+        {t("components.tokenUsage.contextWindow")}: {formatTokenCount(usage.totalTokens)} /{" "}
+        {formatTokenCount(denominator)} {t("components.tokenUsage.tokens")}
       </div>
       <div style={{ fontSize: 12, color: "var(--lotus-metric-text-muted)" }}>
         {t("components.tokenUsage.usedPercent", { value: percentage.toFixed(1) })}
@@ -69,6 +164,7 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
             fontSize: 11,
           }}
         >
+          <div style={sectionTitleStyle}>{t("components.tokenUsage.contextPrepared")}</div>
           <div>
             {t("components.tokenUsage.system")}: {formatTokenCount(usage.systemTokens)}
           </div>
@@ -80,15 +176,41 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
           <div>
             {t("components.tokenUsage.messages")}: {formatTokenCount(usage.windowTokens)}
           </div>
-          {typeof usage.promptCachedToolOutputs === "number" &&
-            usage.promptCachedToolOutputs > 0 && (
-              <div style={{ color: "var(--lotus-metric-text-muted)" }}>
-                {t("components.tokenUsage.cachedToolOutputs", {
-                  count: usage.promptCachedToolOutputs,
-                  defaultValue: "Prompt cache: {{count}} tool outputs summarized",
-                })}
-              </div>
-            )}
+
+          {hasPromptCacheDetails ? (
+            <>
+              <div style={sectionTitleStyle}>{t("components.tokenUsage.promptCacheTitle")}</div>
+              {promptCachedToolOutputs > 0 && (
+                <div style={{ color: "var(--lotus-metric-text-muted)" }}>
+                  {t("components.tokenUsage.cachedToolOutputs", {
+                    count: promptCachedToolOutputs,
+                  })}
+                </div>
+              )}
+              {promptCachedToolTokensSaved > 0 && (
+                <div style={{ color: "var(--lotus-metric-text-muted)" }}>
+                  {t("components.tokenUsage.promptSaved")}:{" "}
+                  {formatTokenCount(promptCachedToolTokensSaved)}
+                </div>
+              )}
+            </>
+          ) : null}
+
+          {hasProviderResultDetails ? (
+            <>
+              <div style={sectionTitleStyle}>{t("components.tokenUsage.providerResult")}</div>
+              {cacheReadInputTokens > 0 && (
+                <div>
+                  {t("components.tokenUsage.cacheRead")}: {formatTokenCount(cacheReadInputTokens)}
+                </div>
+              )}
+              {thinkingTokens > 0 && (
+                <div>
+                  {t("components.tokenUsage.thinking")}: {formatTokenCount(thinkingTokens)}
+                </div>
+              )}
+            </>
+          ) : null}
         </div>
       )}
     </div>
@@ -125,6 +247,9 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
         >
           {formatPercentageLabel(percentage)}%
         </span>
+        {inlineBadges.map((badge) => (
+          <MetricBadge key={badge.key} label={badge.label} tone={badge.tone} />
+        ))}
       </Space>
     </Tooltip>
   );
@@ -140,11 +265,13 @@ export const TokenUsageBadge: React.FC<{
   const { t } = useTranslation();
   const denominator = getUsageDenominator(usage);
   const percentage = getUsagePercentage(usage);
+  const color = getUsageColor(usage);
+
   const formatPercentageLabel = (value: number): string => {
     const rounded = Math.round(value * 10) / 10;
     return Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1);
   };
-  const color = getUsageColor(usage);
+
   const badgeTitle = `${formatTokenCount(usage.totalTokens)} / ${formatTokenCount(
     denominator,
   )} ${t("components.tokenUsage.tokens")} (${percentage.toFixed(1)}%)`;

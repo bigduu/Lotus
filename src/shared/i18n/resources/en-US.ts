@@ -388,6 +388,20 @@ export const enUsTranslation = {
         tooltip: "Latest compression at {{time}}: {{count}} messages archived",
         archivedShort: "{{count}} archived",
       },
+      contextBar: {
+        workspace: "Workspace",
+        workspaceTooltip: "Workspace context: {{path}}",
+        files: "Files",
+        fileRefsTooltip: "{{count}} file reference(s) in this session",
+        prompt: "Prompt",
+        promptTooltip: "System prompt: {{name}}",
+        summary: "Summary",
+        summaryTooltip:
+          "Conversation summary contributes {{tokens}} tokens. {{count}} compression event(s) archived older messages.",
+        promptCache: "Prompt cache",
+        promptCacheTooltip:
+          "{{count}} tool output(s) were compacted into prompt-side cache notes, saving {{tokens}} tokens.",
+      },
       subAgents: {
         title: "Sub-agents",
         expand: "Expand",
@@ -1971,11 +1985,22 @@ export const enUsTranslation = {
       tokenUsage: {
         title: "Token Usage",
         contextWindow: "Context window",
+        contextPrepared: "Context prepared",
+        promptCacheTitle: "Prompt-side savings",
+        providerResult: "Provider-reported result",
         summary: "Summary",
         system: "System",
         messages: "Messages",
         tokens: "tokens",
         usedPercent: "Used {{value}}%",
+        cachedToolOutputs: "Tool outputs compacted: {{count}}",
+        promptSaved: "Prompt tokens saved",
+        cacheRead: "Provider cache read",
+        thinking: "Thinking tokens",
+        promptSavedBadge: "Saved {{value}}",
+        cacheReadBadge: "Cache {{value}}",
+        thinkingBadge: "Think {{value}}",
+        truncatedBadge: "{{count}} truncated",
       },
       approval: {
         workflow: "Workflow",

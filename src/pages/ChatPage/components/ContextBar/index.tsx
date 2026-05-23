@@ -4,9 +4,12 @@ import {
   CodeOutlined,
   FileOutlined,
   FolderOutlined,
+  InboxOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
+import { formatCompactTokenCount, formatTokenCount } from "../../types/tokenBudget";
 import { selectSessionById, useAppStore } from "../../store";
 
 import "./index.css";
@@ -30,9 +33,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
   const currentChat = useAppStore(selectSessionById(sessionId));
   const systemPrompts = useAppStore((state) => state.systemPrompts);
 
-  // Derive context info from session and store
   const workspacePath = currentChat?.config.workspacePath;
   const systemPromptId = currentChat?.config.systemPromptId;
+  const tokenUsage = currentChat?.config.tokenUsage;
+  const compressionEvents = currentChat?.config.compressionEvents ?? [];
 
   const systemPromptName = useMemo(() => {
     if (!systemPromptId) return null;
@@ -40,7 +44,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
     return prompt?.name || systemPromptId;
   }, [systemPromptId, systemPrompts]);
 
-  // Count file reference messages in current session
   const fileRefCount = useMemo(() => {
     if (!currentChat?.messages) return 0;
     return currentChat.messages.filter(
@@ -48,12 +51,17 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
     ).length;
   }, [currentChat?.messages]);
 
-  // Don't render if session not loaded
   if (!currentChat) return null;
 
-  // Check if there's any meaningful context to show
-  // (model & reasoning are already shown in InputContainer's interactive dropdowns)
-  const hasContext = workspacePath || systemPromptName || fileRefCount > 0;
+  const summaryTokens = tokenUsage?.summaryTokens ?? 0;
+  const compressionCount = compressionEvents.length;
+  const promptCachedToolOutputs = tokenUsage?.promptCachedToolOutputs ?? 0;
+  const promptCachedToolTokensSaved = tokenUsage?.promptCachedToolTokensSaved ?? 0;
+  const hasSummaryContext = summaryTokens > 0 || compressionCount > 0;
+  const hasPromptCache = promptCachedToolOutputs > 0 || promptCachedToolTokensSaved > 0;
+
+  const hasContext =
+    workspacePath || systemPromptName || fileRefCount > 0 || hasSummaryContext || hasPromptCache;
   if (!hasContext) return null;
 
   return (
@@ -65,20 +73,22 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
       }}
     >
       <Flex align="center" gap={6} wrap="wrap" className="lotus-context-bar__content">
-        {/* Workspace */}
         {workspacePath && (
-          <Tooltip title={workspacePath}>
-            <Tag
-              className="lotus-context-bar__tag"
-              icon={<FolderOutlined />}
-              bordered={false}
-            >
+          <Tooltip
+            title={t("chat.contextBar.workspaceTooltip", {
+              path: workspacePath,
+              defaultValue: "Workspace context: {{path}}",
+            })}
+          >
+            <Tag className="lotus-context-bar__tag" icon={<FolderOutlined />} bordered={false}>
+              <span className="lotus-context-bar__tag-label">
+                {t("chat.contextBar.workspace", { defaultValue: "Workspace" })}
+              </span>
               {shortenPath(workspacePath)}
             </Tag>
           </Tooltip>
         )}
 
-        {/* File references */}
         {fileRefCount > 0 && (
           <Tooltip
             title={t("chat.contextBar.fileRefsTooltip", {
@@ -86,17 +96,15 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
               defaultValue: "{{count}} file reference(s) in this session",
             })}
           >
-            <Tag
-              className="lotus-context-bar__tag"
-              icon={<FileOutlined />}
-              bordered={false}
-            >
-              {fileRefCount} {t("chat.contextBar.files", "files")}
+            <Tag className="lotus-context-bar__tag" icon={<FileOutlined />} bordered={false}>
+              <span className="lotus-context-bar__tag-label">
+                {t("chat.contextBar.files", { defaultValue: "Files" })}
+              </span>
+              {fileRefCount}
             </Tag>
           </Tooltip>
         )}
 
-        {/* System prompt */}
         {systemPromptName && (
           <Tooltip
             title={t("chat.contextBar.promptTooltip", {
@@ -104,12 +112,56 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
               defaultValue: "System prompt: {{name}}",
             })}
           >
-            <Tag
-              className="lotus-context-bar__tag"
-              icon={<CodeOutlined />}
-              bordered={false}
-            >
+            <Tag className="lotus-context-bar__tag" icon={<CodeOutlined />} bordered={false}>
+              <span className="lotus-context-bar__tag-label">
+                {t("chat.contextBar.prompt", { defaultValue: "Prompt" })}
+              </span>
               {systemPromptName}
+            </Tag>
+          </Tooltip>
+        )}
+
+        {hasSummaryContext && (
+          <Tooltip
+            title={t("chat.contextBar.summaryTooltip", {
+              tokens: formatTokenCount(summaryTokens),
+              count: compressionCount,
+              defaultValue:
+                "Conversation summary contributes {{tokens}} tokens. {{count}} compression event(s) archived older messages.",
+            })}
+          >
+            <Tag
+              className="lotus-context-bar__tag lotus-context-bar__tag--signal"
+              icon={<InboxOutlined />}
+              bordered={false}
+              color="gold"
+            >
+              {t("chat.contextBar.summary", { defaultValue: "Summary" })}
+            </Tag>
+          </Tooltip>
+        )}
+
+        {hasPromptCache && (
+          <Tooltip
+            title={t("chat.contextBar.promptCacheTooltip", {
+              count: promptCachedToolOutputs,
+              tokens: formatTokenCount(promptCachedToolTokensSaved),
+              defaultValue:
+                "{{count}} tool output(s) were compacted into prompt-side cache notes, saving {{tokens}} tokens.",
+            })}
+          >
+            <Tag
+              className="lotus-context-bar__tag lotus-context-bar__tag--signal"
+              icon={<ThunderboltOutlined />}
+              bordered={false}
+              color="green"
+            >
+              <span className="lotus-context-bar__tag-label">
+                {t("chat.contextBar.promptCache", { defaultValue: "Prompt cache" })}
+              </span>
+              {promptCachedToolTokensSaved > 0
+                ? formatCompactTokenCount(promptCachedToolTokensSaved)
+                : promptCachedToolOutputs}
             </Tag>
           </Tooltip>
         )}

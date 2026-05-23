@@ -122,16 +122,29 @@ describe("TokenUsageDisplay", () => {
     expect(screen.queryByText(/Messages:/)).toBeNull();
   });
 
-  it("shows summary detail row when summaryTokens is positive", () => {
+  it("shows prompt-side and provider-result metrics in both tooltip and inline badges", () => {
     render(
       <TokenUsageDisplay
-        usage={makeUsage({ totalTokens: 450, budgetLimit: 1000, summaryTokens: 30 })}
+        usage={makeUsage({
+          totalTokens: 520,
+          budgetLimit: 1000,
+          promptCachedToolOutputs: 3,
+          promptCachedToolTokensSaved: 4200,
+          cacheReadInputTokens: 2100,
+          thinkingTokens: 321,
+        })}
       />,
     );
 
-    expect(screen.getByText("Summary: 30")).toBeInTheDocument();
-    expect(screen.getByText("System: 100")).toBeInTheDocument();
-    expect(screen.getByText("Messages: 400")).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("components.tokenUsage.promptCacheTitle"))).toBeInTheDocument();
+    expect(screen.getByText(i18n.t("components.tokenUsage.providerResult"))).toBeInTheDocument();
+    expect(screen.getByText("Tool outputs compacted: 3")).toBeInTheDocument();
+    expect(screen.getByText("Prompt tokens saved: 4,200")).toBeInTheDocument();
+    expect(screen.getByText("Provider cache read: 2,100")).toBeInTheDocument();
+    expect(screen.getByText("Thinking tokens: 321")).toBeInTheDocument();
+    expect(screen.getByText("Saved 4.2K")).toBeInTheDocument();
+    expect(screen.getByText("Cache 2.1K")).toBeInTheDocument();
+    expect(screen.getByText("Think 321")).toBeInTheDocument();
   });
 });
 

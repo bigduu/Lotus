@@ -533,7 +533,12 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
               whiteSpace: "nowrap",
             }}
           >
-            ({currentSegmentsRemoved} truncated)
+            (
+            {t("components.tokenUsage.truncatedBadge", {
+              count: currentSegmentsRemoved,
+              defaultValue: "{{count}} truncated",
+            })}
+            )
           </span>
         )}
         {compressionIndicator}

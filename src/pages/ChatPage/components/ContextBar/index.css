@@ -21,10 +21,20 @@
 .lotus-context-bar__tag {
   font-size: 12px;
   cursor: default;
-  max-width: 200px;
+  max-width: 240px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.lotus-context-bar__tag-label {
+  display: inline-block;
+  margin-right: 4px;
+  opacity: 0.72;
+}
+
+.lotus-context-bar__tag--signal {
+  font-weight: 600;
 }
 
 @media (max-width: 768px) {
@@ -33,6 +43,6 @@
   }
 
   .lotus-context-bar__tag {
-    max-width: 140px;
+    max-width: 180px;
   }
 }
