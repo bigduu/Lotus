@@ -17,6 +17,7 @@ import {
 import { applyReplayableSessionEvent } from "../pages/ChatPage/store/slices/sessionMetadataSlice";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
+import { mapTokenBudgetUsage } from "../pages/ChatPage/types/tokenBudget";
 import { App as AntApp } from "antd";
 import {
   formatCompletionPolicyViolationMessage,
@@ -1080,26 +1081,10 @@ export function useAgentEventSubscription() {
             },
 
             onTokenBudgetUpdated: (usage: TokenBudgetUsage) => {
-              const maxContextTokens =
-                typeof usage.max_context_tokens === "number" && usage.max_context_tokens > 0
-                  ? usage.max_context_tokens
-                  : undefined;
-              const tokenUsage = {
-                systemTokens: usage.system_tokens,
-                summaryTokens: usage.summary_tokens,
-                windowTokens: usage.window_tokens,
-                totalTokens: usage.total_tokens,
-                budgetLimit: usage.budget_limit,
-                ...(maxContextTokens ? { maxContextTokens } : {}),
-                ...(typeof usage.prompt_cached_tool_outputs === "number" &&
-                usage.prompt_cached_tool_outputs > 0
-                  ? { promptCachedToolOutputs: usage.prompt_cached_tool_outputs }
-                  : {}),
-                ...(typeof usage.prompt_cached_tool_tokens_saved === "number" &&
-                usage.prompt_cached_tool_tokens_saved > 0
-                  ? { promptCachedToolTokensSaved: usage.prompt_cached_tool_tokens_saved }
-                  : {}),
-              };
+              const tokenUsage = mapTokenBudgetUsage(usage);
+              if (!tokenUsage) {
+                return;
+              }
 
               updateTokenUsage(sessionId, tokenUsage);
               setTruncationInfo(sessionId, usage.truncation_occurred, usage.segments_removed);

@@ -40,7 +40,8 @@ const createSummary = (overrides: Partial<SessionSummary> & { id: string }): Ses
   model: overrides.model ?? "gpt-test",
   model_ref: overrides.model_ref ?? null,
   reasoning_effort: overrides.reasoning_effort ?? null,
-  created_by_schedule_id: null,
+  created_by_schedule_id: overrides.created_by_schedule_id ?? null,
+  token_usage: overrides.token_usage,
   created_at: overrides.created_at ?? "2026-01-01T00:00:00.000Z",
   updated_at: overrides.updated_at ?? "2026-01-15T12:00:00.000Z",
   last_activity_at: overrides.last_activity_at ?? "2026-01-15T12:00:00.000Z",
@@ -185,6 +186,46 @@ describe("applySessionsList (via refreshChats)", () => {
     const chat = store.getState().chats.find((c) => c.id === "s1");
     expect(chat?.title).toBe("Remote With Version");
     expect(chat?.titleVersion).toBe(1);
+  });
+
+  it("maps remote token usage fields including thinking and provider cache hits", async () => {
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s-token",
+          token_usage: {
+            system_tokens: 10,
+            summary_tokens: 20,
+            window_tokens: 30,
+            total_tokens: 60,
+            max_context_tokens: 1000,
+            budget_limit: 900,
+            truncation_occurred: false,
+            segments_removed: 0,
+            prompt_cached_tool_outputs: 2,
+            prompt_cached_tool_tokens_saved: 111,
+            thinking_tokens: 45,
+            cache_read_input_tokens: 67,
+          },
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    const chat = store.getState().chats.find((c) => c.id === "s-token");
+    expect(chat?.config.tokenUsage).toEqual({
+      systemTokens: 10,
+      summaryTokens: 20,
+      windowTokens: 30,
+      totalTokens: 60,
+      maxContextTokens: 1000,
+      budgetLimit: 900,
+      promptCachedToolOutputs: 2,
+      promptCachedToolTokensSaved: 111,
+      thinkingTokens: 45,
+      cacheReadInputTokens: 67,
+    });
   });
 
   it("reuses the previous chat object when refresh summary does not change the merged session", async () => {

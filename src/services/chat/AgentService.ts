@@ -55,6 +55,8 @@ export interface TokenBudgetUsage {
   segments_removed: number;
   prompt_cached_tool_outputs?: number;
   prompt_cached_tool_tokens_saved?: number;
+  thinking_tokens?: number;
+  cache_read_input_tokens?: number;
 }
 
 export interface ContextSummaryInfo {
@@ -372,6 +374,34 @@ export interface SessionSystemPromptResponse {
   tool_guide_context?: string;
   dream_notebook?: string;
   session_memory_note?: string;
+  project_memory_index?: string;
+  relevant_durable_memories?: string;
+  project_dream?: string;
+  global_dream_fallback?: string;
+  prompt_memory_observability?: {
+    project_prompt_injection_enabled: boolean;
+    relevant_recall_enabled: boolean;
+    relevant_recall_rerank_enabled?: boolean;
+    project_first_dream_enabled: boolean;
+    latest_user_query_present: boolean;
+    resolved_project_key?: string;
+    session_notes_status: string;
+    project_memory_index_status: string;
+    relevant_memory_status: string;
+    project_dream_status: string;
+    global_dream_fallback_status: string;
+    dream_source: string;
+    session_topic_count?: number;
+    truncated_session_topic_count?: number;
+    relevant_memory_count?: number;
+    session_note_section_chars?: number;
+    project_memory_index_section_chars?: number;
+    relevant_memory_section_chars?: number;
+    project_dream_section_chars?: number;
+    global_dream_fallback_section_chars?: number;
+    context_pressure_warning_chars?: number;
+    external_memory_section_chars?: number;
+  };
   external_memory?: string;
   task_list?: string;
   effective_system_prompt: string;

@@ -434,6 +434,83 @@ describe("useAgentEventSubscription", () => {
     );
   });
 
+  it("maps token budget updates with thinking and cache metrics into store state", async () => {
+    let tokenBudgetUpdatedHandler: ((usage: any) => void) | undefined;
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      tokenBudgetUpdatedHandler = handlers.onTokenBudgetUpdated;
+    });
+
+    mockState.executionBySession = {
+      "session-1": createBusyExecutionEntry(),
+    };
+    mockState.chats = [
+      {
+        id: "session-1",
+        messages: [],
+        config: {
+          systemPromptId: "general_assistant",
+          baseSystemPrompt: "Base prompt",
+          lastUsedEnhancedPrompt: null,
+        },
+      },
+    ];
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockSubscribeToEvents).toHaveBeenCalled();
+    });
+
+    act(() => {
+      tokenBudgetUpdatedHandler?.({
+        system_tokens: 100,
+        summary_tokens: 50,
+        window_tokens: 600,
+        total_tokens: 750,
+        max_context_tokens: 1000,
+        budget_limit: 800,
+        truncation_occurred: true,
+        segments_removed: 2,
+        prompt_cached_tool_outputs: 3,
+        prompt_cached_tool_tokens_saved: 400,
+        thinking_tokens: 120,
+        cache_read_input_tokens: 90,
+      });
+    });
+
+    expect(mockState.updateTokenUsage).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({
+        systemTokens: 100,
+        summaryTokens: 50,
+        windowTokens: 600,
+        totalTokens: 750,
+        maxContextTokens: 1000,
+        budgetLimit: 800,
+        promptCachedToolOutputs: 3,
+        promptCachedToolTokensSaved: 400,
+        thinkingTokens: 120,
+        cacheReadInputTokens: 90,
+      }),
+    );
+    expect(mockState.setTruncationInfo).toHaveBeenCalledWith("session-1", true, 2);
+    expect(mockState.updateSession).toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({
+        config: expect.objectContaining({
+          tokenUsage: expect.objectContaining({
+            promptCachedToolTokensSaved: 400,
+            thinkingTokens: 120,
+            cacheReadInputTokens: 90,
+          }),
+          truncationOccurred: true,
+          segmentsRemoved: 2,
+        }),
+      }),
+    );
+  });
+
   it("suppresses task-list completion toast while waiting for QuestionDialog response", async () => {
     let taskCompletedHandler:
       | ((

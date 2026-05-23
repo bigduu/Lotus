@@ -19,6 +19,7 @@ import { applyExecutionEvent } from "./executionStateSlice";
 import { applyReplayableSessionEventToList, isSessionMetadataEvent } from "./sessionMetadataSlice";
 import i18n from "../../../../shared/i18n";
 import { debugLog } from "../../../../shared/utils/debugFlags";
+import { mapTokenBudgetUsage } from "../../types/tokenBudget";
 
 const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
@@ -54,9 +55,12 @@ const areTokenUsagesEqual = (
     a.summaryTokens === b.summaryTokens &&
     a.windowTokens === b.windowTokens &&
     a.totalTokens === b.totalTokens &&
-    a.maxContextTokens === b.maxContextTokens &&
+    (a.maxContextTokens ?? 0) === (b.maxContextTokens ?? 0) &&
     a.budgetLimit === b.budgetLimit &&
-    a.promptCachedToolOutputs === b.promptCachedToolOutputs
+    (a.promptCachedToolOutputs ?? 0) === (b.promptCachedToolOutputs ?? 0) &&
+    (a.promptCachedToolTokensSaved ?? 0) === (b.promptCachedToolTokensSaved ?? 0) &&
+    (a.thinkingTokens ?? 0) === (b.thinkingTokens ?? 0) &&
+    (a.cacheReadInputTokens ?? 0) === (b.cacheReadInputTokens ?? 0)
   );
 };
 
@@ -234,27 +238,7 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     ? Date.parse(s.created_at)
     : Date.now();
 
-  const tokenUsage = s.token_usage
-    ? {
-        systemTokens: s.token_usage.system_tokens,
-        summaryTokens: s.token_usage.summary_tokens,
-        windowTokens: s.token_usage.window_tokens,
-        totalTokens: s.token_usage.total_tokens,
-        budgetLimit: s.token_usage.budget_limit,
-        ...(typeof s.token_usage.max_context_tokens === "number" &&
-        s.token_usage.max_context_tokens > 0
-          ? { maxContextTokens: s.token_usage.max_context_tokens }
-          : {}),
-        ...(typeof s.token_usage.prompt_cached_tool_outputs === "number" &&
-        s.token_usage.prompt_cached_tool_outputs > 0
-          ? { promptCachedToolOutputs: s.token_usage.prompt_cached_tool_outputs }
-          : {}),
-        ...(typeof s.token_usage.prompt_cached_tool_tokens_saved === "number" &&
-        s.token_usage.prompt_cached_tool_tokens_saved > 0
-          ? { promptCachedToolTokensSaved: s.token_usage.prompt_cached_tool_tokens_saved }
-          : {}),
-      }
-    : undefined;
+  const tokenUsage = mapTokenBudgetUsage(s.token_usage);
   return {
     id: s.id,
     kind: s.kind,

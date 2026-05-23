@@ -1,3 +1,5 @@
+import type { TokenBudgetUsage as AgentTokenBudgetUsage } from "../../../services/chat/AgentService";
+
 /**
  * Token budget management types for the Bamboo chat application.
  *
@@ -45,6 +47,10 @@ export interface TokenUsage {
   promptCachedToolOutputs?: number;
   /** Tokens saved by prompt-side tool output compaction */
   promptCachedToolTokensSaved?: number;
+  /** Provider-reported reasoning / thinking tokens */
+  thinkingTokens?: number;
+  /** Provider-side cache hits on input tokens */
+  cacheReadInputTokens?: number;
 }
 
 /**
@@ -57,6 +63,42 @@ export interface PreparedContextInfo {
   segmentsRemoved: number;
   /** Token usage breakdown */
   tokenUsage: TokenUsage;
+}
+
+export function mapTokenBudgetUsage(usage?: AgentTokenBudgetUsage | null): TokenUsage | undefined {
+  if (!usage) {
+    return undefined;
+  }
+
+  const tokenUsage: TokenUsage = {
+    systemTokens: usage.system_tokens,
+    summaryTokens: usage.summary_tokens,
+    windowTokens: usage.window_tokens,
+    totalTokens: usage.total_tokens,
+    budgetLimit: usage.budget_limit,
+  };
+
+  if (typeof usage.max_context_tokens === "number" && usage.max_context_tokens > 0) {
+    tokenUsage.maxContextTokens = usage.max_context_tokens;
+  }
+
+  if (typeof usage.prompt_cached_tool_outputs === "number") {
+    tokenUsage.promptCachedToolOutputs = usage.prompt_cached_tool_outputs;
+  }
+
+  if (typeof usage.prompt_cached_tool_tokens_saved === "number") {
+    tokenUsage.promptCachedToolTokensSaved = usage.prompt_cached_tool_tokens_saved;
+  }
+
+  if (typeof usage.thinking_tokens === "number") {
+    tokenUsage.thinkingTokens = usage.thinking_tokens;
+  }
+
+  if (typeof usage.cache_read_input_tokens === "number") {
+    tokenUsage.cacheReadInputTokens = usage.cache_read_input_tokens;
+  }
+
+  return tokenUsage;
 }
 
 /**
