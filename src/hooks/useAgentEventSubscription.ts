@@ -16,6 +16,24 @@ import {
 } from "../pages/ChatPage/store";
 import { applyReplayableSessionEvent } from "../pages/ChatPage/store/slices/sessionMetadataSlice";
 import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
+import {
+  appendAssistantReasoningChunk,
+  appendAssistantStreamingChunk,
+  clearAssistantStreamingState,
+  getAssistantStreamingState,
+  setAssistantStreamingState,
+} from "../pages/ChatPage/streaming/assistantStreamingAtoms";
+import {
+  appendToolStreamingChunk,
+  clearToolStreamingStatesForSession,
+  setToolStreamingStatus,
+} from "../pages/ChatPage/streaming/toolStreamingAtoms";
+import {
+  clearChildPreviewState,
+  clearChildPreviewStatesForParent,
+  getChildPreviewState,
+  setChildPreviewState,
+} from "../pages/ChatPage/streaming/childPreviewAtoms";
 import type { Message } from "../pages/ChatPage/types/chatMessages";
 import { mapTokenBudgetUsage } from "../pages/ChatPage/types/tokenBudget";
 import { App as AntApp } from "antd";
@@ -302,7 +320,17 @@ export function useAgentEventSubscription() {
       }
 
       const existing = subscriptionsBySessionRef.current.get(sessionId);
-      if (!existing) return;
+      if (!existing) {
+        if (opts?.clearDraft) {
+          streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
+          streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
+          streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
+          clearAssistantStreamingState(sessionId);
+          clearToolStreamingStatesForSession(sessionId);
+          clearChildPreviewStatesForParent(sessionId);
+        }
+        return;
+      }
 
       subscriptionsBySessionRef.current.delete(sessionId);
 
@@ -328,6 +356,12 @@ export function useAgentEventSubscription() {
         streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
         streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
       }
+
+      if (opts?.clearDraft) {
+        clearAssistantStreamingState(sessionId);
+        clearToolStreamingStatesForSession(sessionId);
+        clearChildPreviewStatesForParent(sessionId);
+      }
     },
     [clearParentSettleTimer, clearReconnect, clearTitleRefreshRetry],
   );
@@ -341,6 +375,7 @@ export function useAgentEventSubscription() {
         clearTimeout(pending.timer);
       }
       pendingChildPreviewRef.current.delete(key);
+      setChildPreviewState(parentSessionId, childSessionId, pending.content);
       applyChildProgress(parentSessionId, childSessionId, {
         status: "running",
         outputPreview: pending.content,
@@ -454,15 +489,14 @@ export function useAgentEventSubscription() {
       const messageId = `streaming-${sessionId}`;
       const reasoningMessageId = `streaming-reasoning-${sessionId}`;
       const statusMessageId = `streaming-status-${sessionId}`;
-      const existingDraft = streamingMessageBus.getLatest(messageId);
-      const existingReasoningDraft = streamingMessageBus.getLatest(reasoningMessageId);
+      const existingAssistantDraft = getAssistantStreamingState(sessionId);
       const existingStatus = streamingMessageBus.getLatest(statusMessageId);
       streamingStateBySessionRef.current.set(sessionId, {
         sessionId,
         messageId,
-        content: existingDraft ?? "",
+        content: existingAssistantDraft.content,
         reasoningMessageId,
-        reasoningContent: existingReasoningDraft ?? "",
+        reasoningContent: existingAssistantDraft.reasoningContent,
         statusMessageId,
         status: existingStatus ?? "",
       });
@@ -488,11 +522,8 @@ export function useAgentEventSubscription() {
         });
       };
 
-      // Only publish an empty placeholder if we don't already have a draft.
-      // If we do, keep it as-is so remounting the view doesn't "blink" to empty.
-      if (existingDraft === null) {
-        streamingMessageBus.publish({ sessionId, messageId, content: "" });
-      }
+      // Assistant text/reasoning drafts live in Jotai now. Keep status on the bus,
+      // and let content updates emit transient bus notifications only for scroll behavior.
 
       const scheduleReconnect = () => {
         const prev = reconnectStateBySessionRef.current.get(sessionId);
@@ -668,6 +699,7 @@ export function useAgentEventSubscription() {
           streamingMessageBus.clear(sessionId, `streaming-${sessionId}`);
           streamingMessageBus.clear(sessionId, `streaming-reasoning-${sessionId}`);
           streamingMessageBus.clear(sessionId, `streaming-status-${sessionId}`);
+          clearAssistantStreamingState(sessionId);
           streamingStateBySessionRef.current.delete(entry.sessionId);
         }
       };
@@ -765,10 +797,12 @@ export function useAgentEventSubscription() {
               if (!state) return;
               setStreamingStatus(null);
               state.content += tokenContent;
+              appendAssistantStreamingChunk(state.sessionId, tokenContent);
               streamingMessageBus.publish({
                 sessionId: state.sessionId,
                 messageId: state.messageId,
-                content: state.content,
+                content: tokenContent,
+                transient: true,
               });
             },
 
@@ -777,10 +811,12 @@ export function useAgentEventSubscription() {
               const state = streamingStateBySessionRef.current.get(sessionId);
               if (!state) return;
               state.reasoningContent += tokenContent;
+              appendAssistantReasoningChunk(state.sessionId, tokenContent);
               streamingMessageBus.publish({
                 sessionId: state.sessionId,
                 messageId: state.reasoningMessageId,
-                content: state.reasoningContent,
+                content: tokenContent,
+                transient: true,
               });
             },
 
@@ -829,6 +865,10 @@ export function useAgentEventSubscription() {
                 if (streamingState) {
                   streamingState.content = "";
                   streamingState.reasoningContent = "";
+                  setAssistantStreamingState(streamingState.sessionId, {
+                    content: "",
+                    reasoningContent: "",
+                  });
                   if (streamingState.status) {
                     streamingState.status = "";
                     streamingMessageBus.clear(
@@ -836,16 +876,6 @@ export function useAgentEventSubscription() {
                       streamingState.statusMessageId,
                     );
                   }
-                  streamingMessageBus.publish({
-                    sessionId: streamingState.sessionId,
-                    messageId: streamingState.messageId,
-                    content: "",
-                  });
-                  streamingMessageBus.publish({
-                    sessionId: streamingState.sessionId,
-                    messageId: streamingState.reasoningMessageId,
-                    content: "",
-                  });
                 }
               }
 
@@ -888,50 +918,37 @@ export function useAgentEventSubscription() {
                 } as AgentEvent,
                 generation,
               );
-              const messageId = toolCallMessageIdByCallIdRef.current.get(toolCallId);
 
-              const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
-              if (!chat) return;
+              if (!toolNamesByCallIdRef.current.has(toolCallId)) {
+                const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
+                const matchingMessage =
+                  chat?.messages
+                    ?.slice()
+                    .reverse()
+                    .find(
+                      (message) =>
+                        "type" in message &&
+                        message.type === "tool_call" &&
+                        Array.isArray(message.toolCalls) &&
+                        message.toolCalls.some((call) => call.toolCallId === toolCallId),
+                    ) ?? null;
 
-              // Fallback to checking the most recent message if messageId isn't found exactly
-              // (e.g. if the tool call was started by another client and we just connected)
-              const msg =
-                (messageId ? chat?.messages.find((m) => m.id === messageId) : null) ||
-                chat?.messages[chat.messages.length - 1];
-
-              if (
-                !msg ||
-                !("type" in msg) ||
-                msg.type !== "tool_call" ||
-                !("toolCalls" in msg) ||
-                !Array.isArray(msg.toolCalls)
-              ) {
-                return;
+                if (
+                  matchingMessage &&
+                  "toolCalls" in matchingMessage &&
+                  Array.isArray(matchingMessage.toolCalls)
+                ) {
+                  const targetCall = matchingMessage.toolCalls.find(
+                    (call) => call.toolCallId === toolCallId,
+                  );
+                  if (targetCall) {
+                    toolNamesByCallIdRef.current.set(toolCallId, targetCall.toolName);
+                    toolCallMessageIdByCallIdRef.current.set(toolCallId, matchingMessage.id);
+                  }
+                }
               }
 
-              // If we didn't track the tool name yet (e.g. we just connected), infer it from the message
-              const targetCall = msg.toolCalls.find((c) => c.toolCallId === toolCallId);
-              if (targetCall && !toolNamesByCallIdRef.current.has(toolCallId)) {
-                toolNamesByCallIdRef.current.set(toolCallId, targetCall.toolName);
-                toolCallMessageIdByCallIdRef.current.set(toolCallId, msg.id);
-              }
-
-              const updatedToolCalls = msg.toolCalls.map(
-                (call: {
-                  toolCallId: string;
-                  toolName: string;
-                  parameters: Record<string, unknown>;
-                  streamingOutput?: string;
-                }) => {
-                  if (call.toolCallId !== toolCallId) return call;
-                  const next = (call.streamingOutput || "") + (tokenContent || "");
-                  return { ...call, streamingOutput: next };
-                },
-              );
-
-              updateMessage(sessionId, msg.id, {
-                toolCalls: updatedToolCalls,
-              });
+              appendToolStreamingChunk(sessionId, toolCallId, tokenContent);
             },
 
             onToolComplete: (toolCallId, result: AgentEvent["result"]) => {
@@ -942,6 +959,7 @@ export function useAgentEventSubscription() {
               );
               // Retrieve tool name tracked in onToolStart
               const toolName = toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
+              setToolStreamingStatus(sessionId, toolCallId, "completed");
               toolNamesByCallIdRef.current.delete(toolCallId);
               toolCallMessageIdByCallIdRef.current.delete(toolCallId);
 
@@ -979,6 +997,8 @@ export function useAgentEventSubscription() {
                 { type: "tool_error", tool_call_id: toolCallId } as AgentEvent,
                 generation,
               );
+              const toolName = toolNamesByCallIdRef.current.get(toolCallId) || "unknown";
+              setToolStreamingStatus(sessionId, toolCallId, "error");
               toolNamesByCallIdRef.current.delete(toolCallId);
               toolCallMessageIdByCallIdRef.current.delete(toolCallId);
               setStreamingStatus(null);
@@ -986,10 +1006,10 @@ export function useAgentEventSubscription() {
                 id: crypto.randomUUID(),
                 role: "assistant",
                 type: "tool_result",
-                toolName: "unknown",
+                toolName,
                 toolCallId,
                 result: {
-                  tool_name: "unknown",
+                  tool_name: toolName,
                   result: error,
                   display_preference: "Default",
                 },
@@ -1031,6 +1051,11 @@ export function useAgentEventSubscription() {
 
               // When a tool finishes, update its message card with timing metadata
               if (phase === "finished" || phase === "error" || phase === "cancelled") {
+                setToolStreamingStatus(
+                  sessionId,
+                  toolCallId,
+                  phase === "finished" ? "completed" : "error",
+                );
                 const messageId = toolCallMessageIdByCallIdRef.current.get(toolCallId);
                 if (messageId) {
                   const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
@@ -1248,8 +1273,10 @@ export function useAgentEventSubscription() {
                 if (isSuperseded()) return;
 
                 const state = streamingStateBySessionRef.current.get(sessionId);
-                const streamedRaw = state?.content || "";
-                const streamedReasoningRaw = state?.reasoningContent || "";
+                const liveAssistantDraft = getAssistantStreamingState(sessionId);
+                const streamedRaw = liveAssistantDraft.content || state?.content || "";
+                const streamedReasoningRaw =
+                  liveAssistantDraft.reasoningContent || state?.reasoningContent || "";
                 const hasStreamedContent = streamedRaw.trim().length > 0;
                 const hasStreamedReasoning = streamedReasoningRaw.trim().length > 0;
 
@@ -1562,8 +1589,14 @@ export function useAgentEventSubscription() {
               if (evt.type === "token" && typeof evt.content === "string") {
                 const previewKey = `${parentSessionId}:${childSessionId}`;
                 const pendingPreview = pendingChildPreviewRef.current.get(previewKey);
-                const prev = pendingPreview?.content ?? current?.outputPreview ?? "";
+                const livePreview = getChildPreviewState(parentSessionId, childSessionId);
+                const prev =
+                  pendingPreview?.content ??
+                  livePreview.outputPreview ??
+                  current?.outputPreview ??
+                  "";
                 const next = (prev + evt.content).slice(-CHILD_PREVIEW_MAX_CHARS);
+                setChildPreviewState(parentSessionId, childSessionId, next);
                 scheduleChildPreviewFlush(
                   parentSessionId,
                   childSessionId,
@@ -1607,6 +1640,7 @@ export function useAgentEventSubscription() {
               });
 
               flushChildPreview(parentSessionId, childSessionId);
+              clearChildPreviewState(parentSessionId, childSessionId);
               const childStateKey = `${parentSessionId}:${childSessionId}`;
               lastChildHeartbeatAtRef.current.delete(childStateKey);
               lastChildRoundCountRef.current.delete(childStateKey);

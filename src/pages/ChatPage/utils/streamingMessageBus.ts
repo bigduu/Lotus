@@ -2,6 +2,7 @@ type StreamingMessageUpdate = {
   sessionId: string;
   messageId: string;
   content: string | null;
+  transient?: boolean;
 };
 
 type StreamingMessageListener = (content: string | null) => void;
@@ -60,6 +61,14 @@ export const streamingMessageBus = {
     };
   },
   publish(update: StreamingMessageUpdate) {
+    if (update.transient) {
+      pendingUpdates.set(update.messageId, update);
+      if (rafHandle === null) {
+        rafHandle = requestAnimationFrame(flushPending);
+      }
+      return;
+    }
+
     if (update.content === null) {
       latestContent.delete(update.messageId);
     } else {

@@ -19,6 +19,10 @@ import {
   getFileChangeDiffStats,
   parseFileChangeResultPayload,
 } from "../../utils/resultFormatters";
+import {
+  getMergedToolStreamingOutput,
+  useToolStreamingStates,
+} from "../../streaming/useToolStreamingStates";
 import type { ToolCallCardProps } from "../ToolCallCard";
 import type { ToolSessionItem } from "../ToolSessionCard";
 import FileChangeViewer from "../FileChangeViewer";
@@ -30,9 +34,8 @@ const { Text } = Typography;
 
 const INLINE_FILE_CHANGE_PREVIEW_MAX_HEIGHT = 1760;
 
-type ToolCallItem = AssistantToolCallMessage["toolCalls"][number];
-
 export interface ToolStepsCardProps {
+  sessionId?: string | null;
   /** Old usage (MessageCardContent direct pass) */
   toolCalls?: AssistantToolCallMessage["toolCalls"];
   metadata?: ToolCallCardProps["metadata"];
@@ -50,39 +53,6 @@ interface StepInfo {
   icon: React.ReactNode;
 }
 
-/**
- * Derive step info from a bare ToolCallItem (no result available).
- * Used for the legacy `toolCalls` prop path.
- */
-function getStepInfoFromCall(call: ToolCallItem): StepInfo {
-  const hasOutput = !!call.streamingOutput?.trim();
-  if (!hasOutput) {
-    return { status: "wait", icon: <ClockCircleOutlined /> };
-  }
-  return { status: "process", icon: <LoadingOutlined spin /> };
-}
-
-/**
- * Derive step info from a ToolSessionItem (may include result).
- * Used for the new `tools` prop path.
- */
-function getStepInfoFromItem(item: ToolSessionItem): StepInfo {
-  const call = item.call.toolCalls[0];
-  if (item.result) {
-    if (item.result.isError) {
-      return { status: "error", icon: <CloseCircleOutlined /> };
-    }
-    return { status: "finish", icon: <CheckCircleOutlined /> };
-  }
-  // No result yet — check streamingOutput
-  const hasOutput = !!call?.streamingOutput?.trim();
-  if (!hasOutput) {
-    return { status: "wait", icon: <ClockCircleOutlined /> };
-  }
-  return { status: "process", icon: <LoadingOutlined spin /> };
-}
-
-/** Normalised step data used internally regardless of prop path. */
 interface StepEntry {
   key: string;
   toolName: string;
@@ -93,12 +63,41 @@ interface StepEntry {
   metadata?: ToolCallCardProps["metadata"];
 }
 
+function getResolvedStepInfo(
+  result: AssistantToolResultMessage | undefined,
+  streamingOutput: string | undefined,
+  liveStatus?: "idle" | "running" | "completed" | "error",
+): StepInfo {
+  if (result) {
+    if (result.isError) {
+      return { status: "error", icon: <CloseCircleOutlined /> };
+    }
+    return { status: "finish", icon: <CheckCircleOutlined /> };
+  }
+
+  if (liveStatus === "error") {
+    return { status: "error", icon: <CloseCircleOutlined /> };
+  }
+
+  if (liveStatus === "completed") {
+    return { status: "finish", icon: <CheckCircleOutlined /> };
+  }
+
+  const hasOutput = !!streamingOutput?.trim();
+  if (!hasOutput && liveStatus !== "running") {
+    return { status: "wait", icon: <ClockCircleOutlined /> };
+  }
+
+  return { status: "process", icon: <LoadingOutlined spin /> };
+}
+
 const formatElapsed = (ms: number | undefined): string => {
   if (ms == null) return "";
   return ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(1)}s`;
 };
 
 const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
+  sessionId = null,
   toolCalls,
   metadata,
   tools,
@@ -110,8 +109,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
 
   const [expanded, setExpanded] = useState(defaultExpanded);
 
-  // Normalise both prop paths into a single StepEntry[]
-  const entries: StepEntry[] = useMemo(() => {
+  const rawEntries: StepEntry[] = useMemo(() => {
     if (tools && tools.length > 0) {
       return tools.map((item) => {
         const call = item.call.toolCalls[0];
@@ -120,25 +118,45 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           toolName: call?.toolName || "tool",
           parameters: call?.parameters || {},
           streamingOutput: call?.streamingOutput,
-          info: getStepInfoFromItem(item),
+          info: { status: "wait", icon: <ClockCircleOutlined /> },
           result: item.result,
           metadata: (item.call.metadata as ToolCallCardProps["metadata"]) ?? metadata,
         };
       });
     }
-    // Legacy path: only toolCalls
+
     return (toolCalls || []).map((call) => ({
       key: call.toolCallId,
       toolName: call.toolName,
       parameters: call.parameters,
       streamingOutput: call.streamingOutput,
-      info: getStepInfoFromCall(call),
+      info: { status: "wait", icon: <ClockCircleOutlined /> },
       result: undefined,
       metadata,
     }));
   }, [tools, toolCalls, metadata]);
 
-  // Drawer state
+  const toolCallIds = useMemo(() => rawEntries.map((entry) => entry.key), [rawEntries]);
+  const liveStateMap = useToolStreamingStates(sessionId, toolCallIds);
+
+  const entries: StepEntry[] = useMemo(
+    () =>
+      rawEntries.map((entry) => {
+        const liveState = liveStateMap[entry.key];
+        const streamingOutput = getMergedToolStreamingOutput(
+          entry.key,
+          liveStateMap,
+          entry.streamingOutput,
+        );
+        return {
+          ...entry,
+          streamingOutput,
+          info: getResolvedStepInfo(entry.result, streamingOutput, liveState?.status),
+        };
+      }),
+    [rawEntries, liveStateMap],
+  );
+
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerEntry, setDrawerEntry] = useState<StepEntry | null>(null);
   const [drawerInitialTab, setDrawerInitialTab] = useState<
@@ -155,10 +173,9 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
     setDrawerOpen(false);
   };
 
-  // First non-finish step index
   const currentStep = useMemo(() => {
     const idx = entries.findIndex((e) => e.info.status !== "finish");
-    return idx === -1 ? entries.length - 1 : idx;
+    return idx === -1 ? Math.max(entries.length - 1, 0) : idx;
   }, [entries]);
 
   const hasError = entries.some((e) => e.info.status === "error");
@@ -199,9 +216,6 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           ? `${fileChangePayload.operation}(${fileChangePayload.file_path})`
           : null;
 
-        // Mini output preview — shown for process (live tail of streamingOutput)
-        // and for finish/error (head of the final result text). Use the same
-        // formatter as the detail drawer so JSON/object output is readable.
         let miniPreview: string | null = null;
         let miniPreviewMode: FormattedContentMode = "text";
         let miniPreviewKind: "live" | "result" | null = null;
@@ -219,8 +233,6 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           const text = formattedResult.formattedText.trimEnd();
           if (text.length > 0) {
             const lines = text.split("\n");
-            // For results we show the first 3 lines (head), which usually
-            // carries the most informative summary line.
             miniPreview = lines.slice(0, 3).join("\n");
             miniPreviewMode = formattedResult.isJson ? "json" : "text";
             miniPreviewKind = "result";
@@ -277,7 +289,6 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
               >
                 {truncatedIntent}
               </Text>
-              {/* Action links */}
               <div
                 style={{
                   marginTop: token.marginXXS,
@@ -355,7 +366,6 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
                   </div>
                 </div>
               )}
-              {/* Mini output preview (live streaming tail OR final result head) */}
               {miniPreview && (
                 <div style={{ marginTop: token.marginXS }}>
                   <FormattedContentPreview
@@ -392,7 +402,6 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
     [entries, token, t],
   );
 
-  // When embedded (hideHeader), drop the chrome — feels cleaner inside ToolSessionCard.
   const containerStyle: React.CSSProperties = hideHeader
     ? { background: "transparent" }
     : {
@@ -406,7 +415,6 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
 
   return (
     <div className="lotus-tool-steps" style={containerStyle}>
-      {/* Mini header — hidden when ToolSessionCard provides its own */}
       {!hideHeader && (
         <div
           style={{
@@ -437,14 +445,9 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
         </div>
       )}
 
-      {/* Steps body */}
       {(hideHeader || expanded) && (
         <div
           style={{
-            // Embedded mode: breathing room on all sides so content doesn't hug the header.
-            // Standalone mode: keep prior layout (header already supplies top padding).
-            // Inline mode: small top gap, no horizontal padding so Steps icons
-            // align with the inline header to the left of the conversation.
             padding: hideHeader
               ? `${token.paddingXS}px 0 0 0`
               : `${token.paddingXS}px ${token.paddingSM}px ${token.paddingSM}px`,
@@ -460,11 +463,11 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
         </div>
       )}
 
-      {/* Drawer */}
       {drawerEntry && (
         <ToolStepDetailDrawer
           open={drawerOpen}
           onClose={closeDrawer}
+          sessionId={sessionId}
           call={{
             toolCallId: drawerEntry.key,
             toolName: drawerEntry.toolName,

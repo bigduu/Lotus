@@ -11,11 +11,28 @@ vi.mock("../../../../shared/components/Markdown/MarkdownCodeBlock", () => ({
   )),
 }));
 
-const publishToBus = async (sessionId: string, content: string) => {
+const setAssistantLiveState = async (
+  sessionId: string,
+  patch: { content?: string; reasoningContent?: string },
+) => {
+  const { setAssistantStreamingState } = await import("../../streaming/assistantStreamingAtoms");
+  setAssistantStreamingState(sessionId, {
+    content: patch.content ?? "",
+    reasoningContent: patch.reasoningContent ?? "",
+    updatedAt: Date.now(),
+  });
+};
+
+const clearAssistantLiveState = async (sessionId: string) => {
+  const { clearAssistantStreamingState } = await import("../../streaming/assistantStreamingAtoms");
+  clearAssistantStreamingState(sessionId);
+};
+
+const publishStatusToBus = async (sessionId: string, content: string | null) => {
   const { streamingMessageBus } = await import("../../utils/streamingMessageBus");
   streamingMessageBus.publish({
     sessionId,
-    messageId: `streaming-${sessionId}`,
+    messageId: `streaming-status-${sessionId}`,
     content,
   });
   streamingMessageBus.forceFlush();
@@ -28,6 +45,7 @@ describe("StreamingMessageCard", () => {
   });
 
   afterEach(async () => {
+    await clearAssistantLiveState("session-1");
     const { streamingMessageBus } = await import("../../utils/streamingMessageBus");
     streamingMessageBus.clear("session-1", "streaming-session-1");
     streamingMessageBus.clear("session-1", "streaming-reasoning-session-1");
@@ -37,7 +55,9 @@ describe("StreamingMessageCard", () => {
   it("renders mermaid blocks as readable code during streaming instead of mounting a chart", async () => {
     const { default: StreamingMessageCard } = await import("./index");
 
-    await publishToBus("session-1", "```mermaid\ngraph TD\nA --> B\n```");
+    await setAssistantLiveState("session-1", {
+      content: "```mermaid\ngraph TD\nA --> B\n```",
+    });
 
     const { container } = render(
       <ConfigProvider
@@ -73,7 +93,9 @@ describe("StreamingMessageCard", () => {
   it("treats mermaid alias fenced blocks as plain code during streaming", async () => {
     const { default: StreamingMessageCard } = await import("./index");
 
-    await publishToBus("session-1", "```graph\nA --> B\n```");
+    await setAssistantLiveState("session-1", {
+      content: "```graph\nA --> B\n```",
+    });
 
     const { container } = render(
       <AntApp>
@@ -92,7 +114,9 @@ describe("StreamingMessageCard", () => {
   it("still delegates non-mermaid code blocks to shared renderCodeBlock", async () => {
     const { default: StreamingMessageCard } = await import("./index");
 
-    await publishToBus("session-1", "```ts\nconst value = 1;\n```");
+    await setAssistantLiveState("session-1", {
+      content: "```ts\nconst value = 1;\n```",
+    });
 
     render(
       <AntApp>
@@ -102,6 +126,22 @@ describe("StreamingMessageCard", () => {
 
     await waitFor(() => {
       expect(screen.getByTestId("render-code-block")).toHaveAttribute("data-language", "ts");
+    });
+  });
+
+  it("still renders thinking/status text from the streaming bus while assistant content comes from Jotai", async () => {
+    const { default: StreamingMessageCard } = await import("./index");
+
+    await publishStatusToBus("session-1", "memory_updating");
+
+    render(
+      <AntApp>
+        <StreamingMessageCard sessionId="session-1" />
+      </AntApp>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText(/memory/i)).toBeInTheDocument();
     });
   });
 });

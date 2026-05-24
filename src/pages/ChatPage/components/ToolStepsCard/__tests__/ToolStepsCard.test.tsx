@@ -5,9 +5,15 @@
  * and the new `tools` prop path (ToolSessionItem[]) with result-aware status.
  */
 import React from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import type { ToolSessionItem } from "../../ToolSessionCard";
+import {
+  buildToolStreamingKey,
+  toolStreamingAtomFamily,
+  toolStreamingStore,
+  type ToolStreamingState,
+} from "../../../streaming/toolStreamingAtoms";
 
 // Mock antd components
 vi.mock("antd", () => ({
@@ -234,6 +240,30 @@ vi.mock("../../FileChangeViewer", () => ({
 
 import { ToolStepsCard } from "../index";
 
+const EMPTY_LIVE_STATE: ToolStreamingState = {
+  output: "",
+  status: "idle",
+  updatedAt: 0,
+};
+
+const setLiveToolState = (
+  sessionId: string,
+  toolCallId: string,
+  patch: Partial<ToolStreamingState>,
+): void => {
+  const streamKey = buildToolStreamingKey(sessionId, toolCallId);
+  toolStreamingStore.set(toolStreamingAtomFamily(streamKey), {
+    ...EMPTY_LIVE_STATE,
+    ...patch,
+  });
+};
+
+const clearLiveToolState = (sessionId: string, toolCallId: string): void => {
+  const streamKey = buildToolStreamingKey(sessionId, toolCallId);
+  toolStreamingStore.set(toolStreamingAtomFamily(streamKey), EMPTY_LIVE_STATE);
+  toolStreamingAtomFamily.remove(streamKey);
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────
 
 const makeCall = (
@@ -298,6 +328,12 @@ const makeToolSessionItem = (
 // ── Tests ──────────────────────────────────────────────────────────────
 
 describe("ToolStepsCard", () => {
+  beforeEach(() => {
+    clearLiveToolState("session-1", "c1");
+    clearLiveToolState("session-1", "c2");
+    clearLiveToolState("session-1", "call-1");
+  });
+
   // ── Legacy toolCalls prop ─────────────────────────────────────────
 
   it("renders correct number of steps for multiple toolCalls", () => {
@@ -449,6 +485,31 @@ describe("ToolStepsCard", () => {
 
       const step = screen.getByTestId("step-c1");
       expect(step.getAttribute("data-status")).toBe("process");
+    });
+
+    it("prefers Jotai live output over persisted fallback for active tools", () => {
+      const tools = [
+        makeToolSessionItem({
+          toolCallId: "c1",
+          hasResult: false,
+          streamingOutput: "persisted fallback",
+        }),
+      ];
+      setLiveToolState("session-1", "c1", {
+        output: "lineA\nlineB\nlineC\nlineD",
+        status: "running",
+        updatedAt: Date.now(),
+      });
+
+      render(<ToolStepsCard sessionId="session-1" tools={tools} defaultExpanded={true} />);
+
+      const step = screen.getByTestId("step-c1");
+      const desc = screen.getByTestId("step-description-c1");
+      expect(step.getAttribute("data-status")).toBe("process");
+      expect(desc.textContent).toContain("lineB");
+      expect(desc.textContent).toContain("lineC");
+      expect(desc.textContent).toContain("lineD");
+      expect(desc.textContent).not.toContain("persisted fallback");
     });
 
     it("renders correct number of steps from tools array", () => {

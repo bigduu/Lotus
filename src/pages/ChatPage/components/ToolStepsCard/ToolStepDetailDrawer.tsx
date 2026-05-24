@@ -6,6 +6,10 @@ import { useTranslation } from "react-i18next";
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import { parseFileChangeResultPayload, safeStringify } from "../../utils/resultFormatters";
+import {
+  getMergedToolStreamingOutput,
+  useToolStreamingStates,
+} from "../../streaming/useToolStreamingStates";
 import { copyText } from "@shared/utils/clipboard";
 import type { AssistantToolResultMessage } from "../../types/chat";
 import FileChangeViewer from "../FileChangeViewer";
@@ -18,6 +22,7 @@ type ToolStepDrawerTab = "preview" | "parameters" | "result" | "diff";
 export interface ToolStepDetailDrawerProps {
   open: boolean;
   onClose: () => void;
+  sessionId?: string | null;
   call: {
     toolCallId: string;
     toolName: string;
@@ -41,6 +46,7 @@ const formatElapsed = (ms: number | undefined): string => {
 const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
   open,
   onClose,
+  sessionId = null,
   call,
   metadata,
   initialTab = "preview",
@@ -48,6 +54,13 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
+
+  const liveStateMap = useToolStreamingStates(sessionId, [call.toolCallId]);
+  const mergedStreamingOutput = getMergedToolStreamingOutput(
+    call.toolCallId,
+    liveStateMap,
+    call.streamingOutput,
+  );
 
   const mcpParts = useMemo(() => parseMcpToolAlias(call.toolName), [call.toolName]);
   const intentDescription = useMemo(
@@ -79,10 +92,10 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
     value: unknown;
     mode: FormattedContentMode;
   } | null>(() => {
-    if (call.streamingOutput?.trim()) {
+    if (mergedStreamingOutput?.trim()) {
       return {
         label: t("components.toolCall.liveOutput"),
-        value: call.streamingOutput,
+        value: mergedStreamingOutput,
         mode: "auto",
       };
     }
@@ -104,9 +117,8 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
     }
 
     return null;
-  }, [call.parameters, call.streamingOutput, fileChangePayload, resultContent, t]);
+  }, [call.parameters, fileChangePayload, mergedStreamingOutput, resultContent, t]);
 
-  // Key params sorted by priority (first 3)
   const keyParamsList = useMemo(() => {
     const priorityKeys = ["path", "file_path", "command", "pattern", "query", "limit"];
     const entries = Object.entries(call.parameters);
@@ -121,8 +133,7 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
     return sortedEntries.slice(0, 3);
   }, [call.parameters]);
 
-  // Status tag
-  const hasStreamingOutput = !!call.streamingOutput?.trim();
+  const hasStreamingOutput = !!mergedStreamingOutput?.trim();
   const statusTag = useMemo(() => {
     if (result) {
       if (result.isError) {

@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
+import { useAssistantStreamingState } from "../../streaming/useAssistantStreamingState";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { renderCodeBlock } from "../../../../shared/components/Markdown/MarkdownCodeBlock";
 import { openExternalLink } from "../../../../shared/utils/openExternalLink";
@@ -286,62 +287,13 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
   const isVdiSafeMode =
     typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { t } = useTranslation();
-  const messageId = `streaming-${sessionId}`;
-  const reasoningMessageId = `streaming-reasoning-${sessionId}`;
   const statusMessageId = `streaming-status-${sessionId}`;
-  const [content, setContent] = useState<string>(
-    () => streamingMessageBus.getLatest(messageId) ?? "",
-  );
-  const [reasoningContent, setReasoningContent] = useState<string>(
-    () => streamingMessageBus.getLatest(reasoningMessageId) ?? "",
-  );
+  const liveAssistantState = useAssistantStreamingState(sessionId);
+  const content = liveAssistantState.content;
+  const reasoningContent = liveAssistantState.reasoningContent;
   const [statusContent, setStatusContent] = useState<string>(
     () => streamingMessageBus.getLatest(statusMessageId) ?? "",
   );
-
-  useEffect(() => {
-    let animationFrameId: number | null = null;
-    let latestContent: string | null = null;
-
-    const unsubscribe = streamingMessageBus.subscribeMessage(messageId, (next) => {
-      latestContent = next;
-      if (animationFrameId === null) {
-        animationFrameId = requestAnimationFrame(() => {
-          setContent(latestContent ?? "");
-          animationFrameId = null;
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [messageId]);
-
-  useEffect(() => {
-    let animationFrameId: number | null = null;
-    let latestReasoning: string | null = null;
-
-    const unsubscribe = streamingMessageBus.subscribeMessage(reasoningMessageId, (next) => {
-      latestReasoning = next;
-      if (animationFrameId === null) {
-        animationFrameId = requestAnimationFrame(() => {
-          setReasoningContent(latestReasoning ?? "");
-          animationFrameId = null;
-        });
-      }
-    });
-
-    return () => {
-      unsubscribe();
-      if (animationFrameId !== null) {
-        cancelAnimationFrame(animationFrameId);
-      }
-    };
-  }, [reasoningMessageId]);
 
   useEffect(() => {
     let animationFrameId: number | null = null;

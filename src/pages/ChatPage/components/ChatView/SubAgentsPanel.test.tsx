@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  clearChildPreviewStatesForParent,
+  setChildPreviewState,
+} from "../../streaming/childPreviewAtoms";
 import { SubAgentsPanel } from "./SubAgentsPanel";
 
 const PARENT_SESSION_ID = "parent-session-1";
@@ -63,6 +67,7 @@ vi.mock("../../hooks/useActiveModel", () => ({
 describe("SubAgentsPanel", () => {
   beforeEach(() => {
     localStorage.clear();
+    clearChildPreviewStatesForParent(PARENT_SESSION_ID);
     mockStoreState.loadChatHistory.mockReset();
     mockStoreState.refreshChats.mockReset();
     mockStoreState.markOptimisticStart.mockReset();
@@ -259,6 +264,15 @@ describe("SubAgentsPanel", () => {
 
     expect(screen.getByTestId("sub-agents-list")).toBeInTheDocument();
     expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Collapse");
+  });
+
+  it("prefers live child preview from Jotai over store fallback", () => {
+    setChildPreviewState(PARENT_SESSION_ID, "child-session-1", "Live child output");
+
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    expect(screen.getByText("Live child output")).toBeInTheDocument();
+    expect(screen.queryByText("Working...")).not.toBeInTheDocument();
   });
 
   it("renders nothing when no child sessions exist", () => {

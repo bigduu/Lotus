@@ -3,6 +3,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useAgentEventSubscription } from "../useAgentEventSubscription";
 import { AgentClient } from "../../services/chat/AgentService";
 import { streamingMessageBus } from "../../pages/ChatPage/utils/streamingMessageBus";
+import {
+  clearAssistantStreamingState,
+  getAssistantStreamingState,
+} from "../../pages/ChatPage/streaming/assistantStreamingAtoms";
+import {
+  clearChildPreviewStatesForParent,
+  getChildPreviewState,
+} from "../../pages/ChatPage/streaming/childPreviewAtoms";
+import {
+  clearToolStreamingState,
+  getToolStreamingState,
+} from "../../pages/ChatPage/streaming/toolStreamingAtoms";
 
 const { mockAntdMessage } = vi.hoisted(() => ({
   mockAntdMessage: {
@@ -150,6 +162,11 @@ describe("useAgentEventSubscription", () => {
     streamingMessageBus.clear("session-1", "streaming-session-1");
     streamingMessageBus.clear("session-1", "streaming-reasoning-session-1");
     streamingMessageBus.clear("session-1", "streaming-status-session-1");
+    clearAssistantStreamingState("session-1");
+    clearChildPreviewStatesForParent("session-1");
+    clearToolStreamingState("session-1", "call_1");
+    clearToolStreamingState("session-1", "call-1");
+    clearToolStreamingState("session-1", "c1");
 
     mockAddMessage = vi.fn();
 
@@ -930,6 +947,7 @@ describe("useAgentEventSubscription", () => {
         type: "token",
         content: "world",
       });
+      expect(getChildPreviewState("session-1", "child-1").outputPreview).toBe("hello world");
       subAgentCompletedHandler?.("session-1", "child-1", "completed");
     });
 
@@ -938,6 +956,7 @@ describe("useAgentEventSubscription", () => {
       "child-1",
       expect.objectContaining({ outputPreview: "hello world", status: "running" }),
     );
+    expect(getChildPreviewState("session-1", "child-1").outputPreview).toBe("");
     expect(mockState.applyChildProgress).toHaveBeenCalledWith(
       "session-1",
       "child-1",
@@ -2194,6 +2213,11 @@ describe("useAgentEventSubscription", () => {
 
     expect(mockState.markStreamStarted).toHaveBeenCalledTimes(1);
     expect(mockState.markStreamStarted).toHaveBeenCalledWith("session-1", 1);
+
+    const liveAssistantState = getAssistantStreamingState("session-1");
+    expect(liveAssistantState.content).toBe("Hello World");
+    expect(liveAssistantState.reasoningContent).toBe("because reasons");
+
     expect(mockState.applyAgentEvent).not.toHaveBeenCalledWith(
       "session-1",
       expect.objectContaining({ type: "token" }),
@@ -2206,24 +2230,16 @@ describe("useAgentEventSubscription", () => {
     );
   });
 
-  it("should append tool_token output to the matching tool_call card", async () => {
+  it("should route tool_token output into Jotai live state instead of patching persisted tool_call cards", async () => {
     let capturedHandlers: any;
     mockSubscribeToEvents.mockImplementation((_sessionId: string, handlers: any) => {
       capturedHandlers = handlers;
       return new Promise<void>(() => {});
     });
 
-    const updateMessage = vi.fn((_sessionId: string, messageId: string, patch: any) => {
-      // Simulate store mutation so subsequent onToolToken calls can append.
-      const msg = mockState.chats[0].messages.find((m: any) => m.id === messageId);
-      if (!msg) return;
-      if (patch?.toolCalls) {
-        msg.toolCalls = patch.toolCalls;
-      }
-    });
+    const updateMessage = vi.fn();
     let toolCallMessageId: string | undefined;
     const addMessage = vi.fn((_sessionId: string, msg: any) => {
-      // Simulate store mutation so onToolToken can find the message.
       toolCallMessageId = msg?.id;
       mockState.chats[0].messages.push(msg);
     });
@@ -2290,10 +2306,14 @@ describe("useAgentEventSubscription", () => {
     await waitFor(() => {
       expect(typeof toolCallMessageId).toBe("string");
       expect((toolCallMessageId ?? "").length).toBeGreaterThan(0);
-      expect(updateMessage).toHaveBeenCalled();
+
+      const liveState = getToolStreamingState("session-1", "call_1");
+      expect(liveState.output).toBe("hello world");
+      expect(liveState.status).toBe("running");
 
       const toolMsg = mockState.chats[0].messages.find((m: any) => m.id === toolCallMessageId);
-      expect(toolMsg?.toolCalls?.[0]?.streamingOutput).toBe("hello world");
+      expect(toolMsg?.toolCalls?.[0]?.streamingOutput).toBe("");
+      expect(updateMessage).not.toHaveBeenCalled();
     });
   });
 

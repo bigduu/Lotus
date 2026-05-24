@@ -201,6 +201,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
 
     return (
       <ToolStepsCard
+        sessionId={sessionId}
         toolCalls={visibleToolCalls}
         metadata={message.metadata as ToolCallCardProps["metadata"]}
         defaultExpanded={false}

@@ -3,6 +3,7 @@ import { Button, Dropdown, Flex, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import type { SubagentProfile } from "../../../../services/subagent/types";
+import { useChildPreviewState, getMergedChildPreview } from "../../streaming/useChildPreviewState";
 import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
 import InlineMetaText from "../../../../shared/components/InlineMetaText";
 
@@ -30,6 +31,7 @@ export interface SubAgentRowData {
 }
 
 export interface SubAgentRowProps {
+  parentSessionId: string;
   item: SubAgentRowData;
   index: number;
   compact: boolean;
@@ -56,6 +58,7 @@ const normalizeSubAgentStatus = (status?: string): string => {
 
 export const SubAgentRow = memo<SubAgentRowProps>(
   ({
+    parentSessionId,
     item,
     index,
     compact,
@@ -71,6 +74,8 @@ export const SubAgentRow = memo<SubAgentRowProps>(
   }) => {
     const { token } = useToken();
     const { t } = useTranslation();
+    const livePreviewState = useChildPreviewState(parentSessionId, item.childSessionId);
+    const mergedOutputPreview = getMergedChildPreview(livePreviewState, item.outputPreview);
 
     const compactItemTagStyle = compact
       ? { marginInlineEnd: 0, flex: "0 0 auto", fontSize: 10, lineHeight: "16px", paddingInline: 6 }
@@ -202,7 +207,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
             </Text>
           )}
 
-          {item.outputPreview ? (
+          {mergedOutputPreview ? (
             <Text
               type="secondary"
               style={{
@@ -214,7 +219,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
               }}
               ellipsis
             >
-              {item.outputPreview}
+              {mergedOutputPreview}
             </Text>
           ) : null}
 
@@ -311,6 +316,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
     );
   },
   (prev, next) =>
+    prev.parentSessionId === next.parentSessionId &&
     prev.item === next.item &&
     prev.index === next.index &&
     prev.compact === next.compact &&

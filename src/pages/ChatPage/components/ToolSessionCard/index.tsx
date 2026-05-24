@@ -281,7 +281,9 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
 
   const allDeletableIds = useMemo(() => getAllDeletableMessageIds(tools), [tools]);
 
-  const stepsBody = <ToolStepsCard tools={tools} defaultExpanded={true} hideHeader={true} />;
+  const stepsBody = (
+    <ToolStepsCard sessionId={sessionId} tools={tools} defaultExpanded={true} hideHeader={true} />
+  );
 
   // Inline (no card chrome): tool sessions blend into the conversation rather
   // than appearing as another bordered message card.

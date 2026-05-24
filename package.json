@@ -60,6 +60,8 @@
     "html2canvas": "^1.4.1",
     "html2pdf.js": "^0.14.0",
     "i18next": "^25.8.18",
+    "jotai": "^2.20.0",
+    "jotai-family": "^1.0.2",
     "jspdf": "^4.1.0",
     "markdown-it": "^14.1.0",
     "mermaid": "^11.14.0",

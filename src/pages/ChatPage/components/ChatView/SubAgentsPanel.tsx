@@ -454,6 +454,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
       {mergedItems.map((it, index) => (
         <SubAgentRow
           key={it.childSessionId}
+          parentSessionId={parentSessionId}
           item={it}
           index={index}
           compact={compact}
