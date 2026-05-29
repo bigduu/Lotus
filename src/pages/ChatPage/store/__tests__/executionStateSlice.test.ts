@@ -452,6 +452,55 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.timestamps.settlingStartedAt).toBe(T2);
   });
 
+  it("idle + complete → stays idle (stray one-shot Complete cannot resurrect a settled session)", () => {
+    // Regression: a premature optimistic SSE subscription (e.g. a /goal control
+    // command opened before any runner exists) receives a one-shot `Complete`.
+    // It must NOT push an idle session into `settling` (→ busy → resubscribe loop).
+    let map = seedIdle();
+    const before = map[SESSION];
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "applyAgentEvent",
+        sessionId: SESSION,
+        event: { type: "complete" },
+        generation: 0,
+      },
+      fixedNow(T1),
+    );
+
+    // No-op: same map reference, phase unchanged.
+    expect(map[SESSION]).toBe(before);
+    expect(map[SESSION].phase).toBe<ExecutionPhase>("idle");
+  });
+
+  it("completed + complete → stays completed (idempotent terminal)", () => {
+    let map = startSession();
+    map = applyExecutionEvent(
+      map,
+      { type: "applyAgentEvent", sessionId: SESSION, event: { type: "complete" }, generation: 1 },
+      fixedNow(T1),
+    );
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "applySessionSummary",
+        sessionId: SESSION,
+        summary: summary({ is_running: false, last_run_status: "completed" }),
+      },
+      fixedNow(T2),
+    );
+    expect(map[SESSION].phase).toBe<ExecutionPhase>("completed");
+
+    // A stray late `complete` for the same generation must not reopen the session.
+    map = applyExecutionEvent(
+      map,
+      { type: "applyAgentEvent", sessionId: SESSION, event: { type: "complete" }, generation: 1 },
+      fixedNow(T3),
+    );
+    expect(map[SESSION].phase).toBe<ExecutionPhase>("completed");
+  });
+
   it("settling + applySessionSummary(completed) → completed with settledAt", () => {
     // §E.1.11
     let map = startSession();

@@ -744,6 +744,17 @@ const applyAgentEventInner = (
       };
     }
     case "complete": {
+      // Only an actively-observed run can transition to `settling` on `complete`.
+      // A one-shot terminal `Complete` can be delivered to a subscription that
+      // raced ahead of the real run (e.g. the optimistic subscription opened for a
+      // `/goal` control command before any runner exists). Without this guard such
+      // a stray `complete` would resurrect an already-settled session
+      // (idle/completed/error/cancelled) back into `settling`, marking it busy and
+      // triggering an endless resubscribe loop. `waiting_user_answer` is likewise
+      // preserved — a clarification stream's close is not a true completion.
+      if (ABSORBING_FOR_RECONCILE.has(entry.phase)) {
+        return entry;
+      }
       const terminalAt = now();
       return {
         ...entry,
