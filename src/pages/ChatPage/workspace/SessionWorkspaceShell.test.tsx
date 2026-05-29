@@ -88,6 +88,19 @@ vi.mock("@shared/store/uiLayoutStore", () => ({
 describe("SessionWorkspaceShell", () => {
   beforeEach(() => {
     mockStoreState.loadTaskList.mockClear();
+    mockStoreState.chats = [
+      {
+        id: "session-1",
+        kind: "root",
+        title: "Session 1",
+        messages: [
+          { id: "m1", role: "assistant", createdAt: new Date().toISOString(), content: "hello" },
+        ],
+        messageCount: 1,
+        isRunning: false,
+        config: {},
+      },
+    ];
   });
 
   it("keeps the conversation pane rendered in single-pane rail inspector mode", () => {
@@ -110,6 +123,41 @@ describe("SessionWorkspaceShell", () => {
       screen.getByTestId("conversation-pane"),
     );
     expect(screen.getByTestId("chat-input-area")).toBeInTheDocument();
+    expect(screen.getByTestId("session-inspector-pane")).toBeInTheDocument();
+  });
+
+  it("shows inspector when a session has goal config even without messages", () => {
+    mockStoreState.chats = [
+      {
+        id: "session-1",
+        kind: "root",
+        title: "Session 1",
+        messages: [],
+        messageCount: 0,
+        isRunning: false,
+        config: {
+          goldConfig: {
+            enabled: true,
+            evaluation_prompt: "Ship the goal migration",
+          },
+        },
+      },
+    ];
+
+    render(
+      <div style={{ width: 1200, height: 800 }}>
+        <SessionWorkspaceShell
+          sessionId="session-1"
+          workspaceState={{
+            isEmbedded: false,
+            isMultiPane: false,
+            inspectorMode: "rail",
+            inspectorTogglePlacement: "meta-strip",
+          }}
+        />
+      </div>,
+    );
+
     expect(screen.getByTestId("session-inspector-pane")).toBeInTheDocument();
   });
 });

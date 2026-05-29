@@ -169,6 +169,11 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
   const setInspectorWidthPx = useUILayoutStore((state) => state.setInspectorWidthPx);
 
   const hasMessages = currentMessages.length > 0;
+  const hasGoalConfig = Boolean(
+    currentChat?.config?.goldConfig &&
+      ((currentChat.config.goldConfig.evaluation_prompt?.trim()?.length ?? 0) > 0 ||
+        currentChat.config.goldConfig.enabled === true),
+  );
   const resolvedWorkspaceState = useMemo<ConversationWorkspaceState>(() => {
     if (workspaceStateProp) {
       return workspaceStateProp;
@@ -185,6 +190,7 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
   const inspectorEligible = Boolean(
     sessionId &&
       ((isAdvancedMode && hasMessages) ||
+        hasGoalConfig ||
         shouldShowTaskPanel ||
         hasSubAgents ||
         sessionDiffSummary),
