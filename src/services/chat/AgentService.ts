@@ -44,6 +44,21 @@ export type AgentEventType =
 
 export type ReasoningEffort = "low" | "medium" | "high" | "xhigh" | "max";
 
+export interface GoldConfig {
+  enabled: boolean;
+  auto_answer_enabled?: boolean;
+  auto_continue_enabled?: boolean;
+  model_name?: string | null;
+  /** The user's session goal, surfaced to the main agent and the evaluator. */
+  goal?: string | null;
+  /** Legacy field: tunes the evaluator only. Falls back to the goal when `goal` is unset. */
+  evaluation_prompt?: string | null;
+  max_output_tokens?: number;
+  max_auto_continuations?: number;
+  /** Minimum evaluator confidence required to auto-continue/auto-answer ("low" | "medium" | "high"). */
+  min_auto_continue_confidence?: "low" | "medium" | "high";
+}
+
 export interface TokenBudgetUsage {
   system_tokens: number;
   summary_tokens: number;
@@ -206,9 +221,18 @@ export interface ChatRequest {
   provider?: string;
 }
 
+export interface GoalCommandResponse {
+  action: string;
+  should_execute: boolean;
+  gold_config?: GoldConfig | null;
+}
+
 export interface ChatResponse {
   session_id: string;
   status: string;
+  stream_url?: string;
+  /** Present when the message was a /goal control command handled server-side. */
+  goal_command?: GoalCommandResponse | null;
 }
 
 export type ExecuteSyncReason =
@@ -258,6 +282,8 @@ export interface HistoryResponse {
     messages_compressed: number;
     segments_removed: number;
   }>;
+  /** Session-level gold config (from session metadata). */
+  gold_config?: GoldConfig | null;
   messages: Array<{
     id: string;
     role: "user" | "assistant" | "tool" | "system";
@@ -304,6 +330,7 @@ export interface SessionSummary {
   model: string;
   model_ref?: { provider: string; model: string } | null;
   reasoning_effort?: ReasoningEffort | null;
+  gold_config?: GoldConfig | null;
   created_by_schedule_id?: string | null;
   token_usage?: TokenBudgetUsage;
   created_at: string;
@@ -357,6 +384,7 @@ export interface CreateSessionRequest {
   model_ref?: { provider: string; model: string };
   provider?: string;
   reasoning_effort?: ReasoningEffort;
+  gold_config?: GoldConfig;
 }
 
 export interface CreateSessionResponse {
@@ -415,6 +443,7 @@ export interface PatchSessionRequest {
   model_ref?: { provider: string; model: string } | null;
   reasoning_effort?: ReasoningEffort;
   clear_reasoning_effort?: boolean;
+  gold_config?: GoldConfig;
 }
 
 export interface RunProjectDreamResponse {
