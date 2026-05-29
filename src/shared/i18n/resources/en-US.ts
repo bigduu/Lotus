@@ -336,6 +336,7 @@ export const enUsTranslation = {
           workflow: "Workflow",
           skill: "Skill",
           mcp: "MCP",
+          goal: "Goal",
         },
       },
       model: {

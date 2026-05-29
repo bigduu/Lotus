@@ -2,6 +2,27 @@ import { debugLog } from "@shared/utils/debugFlags";
 import { apiClient } from "@services/api";
 import type { CommandItem, CommandListResponse } from "../types/command";
 
+const BUILTIN_COMMANDS: CommandItem[] = [
+  {
+    id: "builtin-goal",
+    name: "goal",
+    displayName: "Goal",
+    description: "Set, inspect, or clear the session goal using /goal commands.",
+    type: "goal",
+    category: "session",
+    tags: ["goal", "session", "inspector"],
+    metadata: {},
+  },
+];
+
+const mergeBuiltinCommands = (commands: CommandItem[]): CommandItem[] => {
+  const builtins = BUILTIN_COMMANDS.filter(
+    (builtin) =>
+      !commands.some((command) => command.name === builtin.name && command.type === builtin.type),
+  );
+  return [...builtins, ...commands];
+};
+
 type CommandDetail = Record<string, unknown> & {
   content?: string;
 };
@@ -33,7 +54,7 @@ export class CommandService {
       if (!Array.isArray(response.commands)) {
         throw new Error("Invalid command list response");
       }
-      this.cache = response.commands;
+      this.cache = mergeBuiltinCommands(response.commands);
       this.cacheTime = now;
       debugLog("[CommandService]", "[CommandService] Loaded commands:", this.cache.length);
       return this.cache;

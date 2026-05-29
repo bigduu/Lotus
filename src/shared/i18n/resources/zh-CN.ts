@@ -326,6 +326,7 @@ export const zhCnTranslation = {
           workflow: "工作流",
           skill: "技能",
           mcp: "MCP",
+          goal: "目标",
         },
       },
       model: {

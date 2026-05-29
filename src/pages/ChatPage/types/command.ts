@@ -1,4 +1,4 @@
-export type CommandType = "workflow" | "skill" | "mcp";
+export type CommandType = "workflow" | "skill" | "mcp" | "goal";
 
 export interface CommandItem {
   id: string;

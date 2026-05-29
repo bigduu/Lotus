@@ -92,6 +92,7 @@ export const useInputContainerCommand = ({
       setShowCommandSelector(false);
 
       const getInsertToken = (cmd: CommandItem): string => {
+        if (cmd.type === "goal") return cmd.name;
         if (cmd.type !== "mcp") return cmd.name;
         // Prefer server-provided original tool name (short, user-friendly).
         const original = cmd.metadata?.originalName;
@@ -150,15 +151,13 @@ export const useInputContainerCommand = ({
         }
       }, 0);
 
-      // Only workflows need to load and preview content
-      // Skills and MCP tools don't need content preview
+      // Only workflows need to load and preview content.
+      // Skills, MCP tools, and built-in goal command only need token insertion.
       if (command.type !== "workflow") {
-        // For skills and MCP: just mark the selection, no content preview
-        // But we store the command info for use in submit
         const draft: WorkflowDraft = {
           id: `command-draft-${command.id}`,
           name: insertToken,
-          content: "", // No content preview for skills/mcp
+          content: "",
           createdAt: new Date().toISOString(),
           type: command.type,
           displayName: command.displayName,

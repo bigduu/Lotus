@@ -1,6 +1,6 @@
 import React from "react";
 import { Spin, Tag, theme } from "antd";
-import { FolderOutlined, ThunderboltOutlined, ApiOutlined } from "@ant-design/icons";
+import { FolderOutlined, ThunderboltOutlined, ApiOutlined, FlagOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useCommandSelectorState } from "./useCommandSelectorState";
 import type { CommandItem } from "../../types/command";
@@ -32,6 +32,11 @@ const TYPE_CONFIG = {
     color: "purple" as const,
     icon: <ApiOutlined />,
     labelKey: "chat.commandSelector.types.mcp",
+  },
+  goal: {
+    color: "gold" as const,
+    icon: <FlagOutlined />,
+    labelKey: "chat.commandSelector.types.goal",
   },
 };
 

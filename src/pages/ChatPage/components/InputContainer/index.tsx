@@ -35,7 +35,7 @@ import { resolveProviderDefaultReasoningEffort } from "../../utils/reasoningEffo
 import { useProviderStore } from "../../store/slices/providerSlice";
 import { ProviderModelPicker } from "../ProviderModelPicker";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
-import { agentClient, type ReasoningEffort } from "../../services/AgentService";
+import { agentClient, type GoldConfig, type ReasoningEffort } from "../../services/AgentService";
 import {
   type ProviderType,
   type OpenAIConfig,
@@ -66,6 +66,8 @@ const MODEL_OPTIONS_CACHE_PREFIX = "chat-model-options-cache-v1";
 const MODEL_OPTIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];
 const EMPTY_ALLOWED_TOOLS: string[] = [];
+const DEFAULT_GOAL_MAX_OUTPUT_TOKENS = 1024;
+const DEFAULT_GOAL_MAX_AUTO_CONTINUATIONS = 3;
 
 type ModelOption = { value: string; label: string };
 
@@ -189,7 +191,7 @@ export type WorkflowDraft = {
   name: string;
   content: string;
   createdAt: string;
-  type?: "workflow" | "skill" | "mcp"; // Add command type
+  type?: "workflow" | "skill" | "mcp" | "goal"; // Add command type
   displayName?: string; // Add display name for better prompts
   // For non-workflow commands (skill/mcp), keep additional identifiers.
   // `name` is the token shown in the input (e.g. "read_file"), while `mcpAlias`
@@ -294,6 +296,22 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     persistedReasoningEffort ??
     providerDefaultReasoningEffort ??
     "medium";
+  const sessionGoldConfig = currentChat?.config?.goldConfig ?? null;
+  const isGoalEnabled = sessionGoldConfig?.enabled === true;
+  const goalPrompt = sessionGoldConfig?.goal ?? sessionGoldConfig?.evaluation_prompt ?? "";
+  const buildSessionGoalConfig = useCallback(
+    (enabled: boolean, prompt: string): GoldConfig => ({
+      ...(sessionGoldConfig ?? {}),
+      enabled,
+      auto_answer_enabled: enabled,
+      auto_continue_enabled: enabled,
+      goal: prompt.trim() || undefined,
+      max_output_tokens: sessionGoldConfig?.max_output_tokens ?? DEFAULT_GOAL_MAX_OUTPUT_TOKENS,
+      max_auto_continuations:
+        sessionGoldConfig?.max_auto_continuations ?? DEFAULT_GOAL_MAX_AUTO_CONTINUATIONS,
+    }),
+    [sessionGoldConfig],
+  );
   const setContent = useCallback(
     (newContent: string) => {
       if (sessionId) {
@@ -309,6 +327,18 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
     },
     [sessionId, setReferenceText],
+  );
+  const persistGoalConfig = useCallback(
+    (nextConfig: GoldConfig) => {
+      if (!sessionId || !currentChat) return;
+      updateSession(sessionId, {
+        config: {
+          ...currentChat.config,
+          goldConfig: nextConfig,
+        },
+      });
+    },
+    [currentChat, sessionId, updateSession],
   );
   const setReasoningEffortPersisted = useCallback(
     async (nextEffort: ReasoningEffort) => {
@@ -617,8 +647,98 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     ],
   );
 
+  const clearGoalCommandInput = useCallback(() => {
+    setContent("");
+    commandState.clearCommandDraft();
+    requestAnimationFrame(() => {
+      textAreaRef.current?.focus();
+    });
+  }, [commandState, setContent]);
+
+  // NOTE: /goal commands are now handled server-side by Bamboo. This handler is
+  // retained for local-only UI feedback (toasts) in a future iteration.
+
+  const _handleGoalCommand = useCallback(
+    async (rawMessage: string): Promise<boolean> => {
+      const trimmed = rawMessage.trim();
+      if (!/^\/goal(?:\s|$)/i.test(trimmed)) {
+        return false;
+      }
+
+      if (!sessionId || !currentChat) {
+        messageApi.warning("Create or select a session before using /goal.");
+        return true;
+      }
+
+      const commandArg = trimmed.replace(/^\/goal(?:\s+)?/i, "").trim();
+      const normalizedArg = commandArg.toLowerCase();
+      recordEntry(trimmed);
+
+      if (!commandArg || normalizedArg === "status") {
+        const previewPrompt = goalPrompt.trim();
+        const clippedPrompt =
+          previewPrompt.length > 120 ? `${previewPrompt.slice(0, 120)}…` : previewPrompt;
+        messageApi.info(
+          isGoalEnabled
+            ? `Goal is enabled for this session${clippedPrompt ? `: ${clippedPrompt}` : "."}`
+            : "Goal is disabled for this session. Use /goal <prompt> to enable it.",
+        );
+        clearGoalCommandInput();
+        return true;
+      }
+
+      if (["off", "disable", "disabled"].includes(normalizedArg)) {
+        const nextPrompt = goalPrompt;
+        persistGoalConfig(buildSessionGoalConfig(false, nextPrompt));
+        messageApi.success("Goal disabled for this session.");
+        clearGoalCommandInput();
+        return true;
+      }
+
+      if (["clear", "reset"].includes(normalizedArg)) {
+        persistGoalConfig(buildSessionGoalConfig(false, ""));
+        messageApi.success("Goal cleared for this session.");
+        clearGoalCommandInput();
+        return true;
+      }
+
+      if (["on", "enable", "enabled"].includes(normalizedArg)) {
+        const nextPrompt = goalPrompt.trim();
+        if (!nextPrompt) {
+          messageApi.warning("Usage: /goal <prompt> to enable Goal for this session.");
+          return true;
+        }
+        persistGoalConfig(buildSessionGoalConfig(true, nextPrompt));
+        messageApi.success("Goal enabled for this session.");
+        clearGoalCommandInput();
+        return true;
+      }
+
+      persistGoalConfig(buildSessionGoalConfig(true, commandArg));
+      messageApi.success("Goal enabled for this session.");
+      clearGoalCommandInput();
+      return true;
+    },
+    [
+      buildSessionGoalConfig,
+      clearGoalCommandInput,
+      currentChat,
+      goalPrompt,
+      isGoalEnabled,
+      messageApi,
+      persistGoalConfig,
+      recordEntry,
+      sessionId,
+    ],
+  );
+
+  // Suppress TS6133 — retained for future local UI feedback integration.
+  void _handleGoalCommand;
+
   const submitMessageWithLiveMode = useCallback(
     async (message: string, images?: ImageFile[]) => {
+      // /goal commands are now handled server-side by Bamboo.
+      // They are sent as regular messages through the normal chat flow.
       const targetSessionId = sessionId;
       if (shouldUseRespondModeForSession(targetSessionId)) {
         await handleRespondSubmit(message);
@@ -627,7 +747,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
       await handleSubmit(message, images);
     },
-    [sessionId, shouldUseRespondModeForSession, handleRespondSubmit, handleSubmit],
+    [handleRespondSubmit, handleSubmit, sessionId, shouldUseRespondModeForSession],
   );
 
   // Wrap handleSubmit: check latest store state at submit time to avoid stale-mode races

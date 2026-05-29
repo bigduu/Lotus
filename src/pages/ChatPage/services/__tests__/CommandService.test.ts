@@ -13,7 +13,7 @@ describe("CommandService", () => {
   let service: CommandService;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     // Get a fresh instance for each test
     CommandService["instance"] = null;
     service = CommandService.getInstance();
@@ -78,8 +78,13 @@ describe("CommandService", () => {
       const result = await service.listCommands();
 
       expect(apiClient.get).toHaveBeenCalledWith("commands");
-      expect(result).toEqual(mockCommands);
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(3);
+      expect(result[0]).toMatchObject({
+        id: "builtin-goal",
+        name: "goal",
+        type: "goal",
+      });
+      expect(result.slice(1)).toEqual(mockCommands);
     });
 
     it("should cache commands and return from cache on second call", async () => {
@@ -139,12 +144,16 @@ describe("CommandService", () => {
 
       // First call
       const result1 = await service.listCommands();
-      expect(result1).toEqual(mockCommands1);
+      expect(result1).toHaveLength(2);
+      expect(result1[0]).toMatchObject({ id: "builtin-goal", name: "goal", type: "goal" });
+      expect(result1.slice(1)).toEqual(mockCommands1);
 
       // Force refresh
       const result2 = await service.listCommands(true);
       expect(apiClient.get).toHaveBeenCalledTimes(2);
-      expect(result2).toEqual(mockCommands2);
+      expect(result2).toHaveLength(2);
+      expect(result2[0]).toMatchObject({ id: "builtin-goal", name: "goal", type: "goal" });
+      expect(result2.slice(1)).toEqual(mockCommands2);
     });
 
     it("should refresh cache after TTL expires", async () => {
@@ -236,8 +245,12 @@ describe("CommandService", () => {
 
       const result = await service.listCommands();
 
-      expect(result).toEqual([]);
-      expect(result).toHaveLength(0);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: "builtin-goal",
+        name: "goal",
+        type: "goal",
+      });
     });
 
     it("should handle commands with different types", async () => {
@@ -275,8 +288,8 @@ describe("CommandService", () => {
 
       const result = await service.listCommands();
 
-      expect(result).toHaveLength(3);
-      expect(result.map((c) => c.type)).toEqual(["workflow", "skill", "mcp"]);
+      expect(result).toHaveLength(4);
+      expect(result.map((c) => c.type)).toEqual(["goal", "workflow", "skill", "mcp"]);
     });
   });
 
@@ -540,7 +553,9 @@ describe("CommandService", () => {
 
       // Should use cache from instance1
       expect(apiClient.get).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(mockCommands);
+      expect(result).toHaveLength(2);
+      expect(result[0]).toMatchObject({ id: "builtin-goal", name: "goal", type: "goal" });
+      expect(result.slice(1)).toEqual(mockCommands);
     });
 
     it("should share clearCache across instances", async () => {
@@ -646,7 +661,8 @@ describe("CommandService", () => {
 
       // User loads command list
       const commands = await service.listCommands();
-      expect(commands).toHaveLength(2);
+      expect(commands).toHaveLength(3);
+      expect(commands[0]).toMatchObject({ id: "builtin-goal", name: "goal", type: "goal" });
 
       // User selects a command
       const workflow = await service.getCommand("workflow", "workflow1");
@@ -657,7 +673,8 @@ describe("CommandService", () => {
 
       // User refreshes list
       const refreshed = await service.listCommands(true);
-      expect(refreshed).toHaveLength(2);
+      expect(refreshed).toHaveLength(3);
+      expect(refreshed[0]).toMatchObject({ id: "builtin-goal", name: "goal", type: "goal" });
 
       expect(apiClient.get).toHaveBeenCalledTimes(3);
     });
