@@ -109,6 +109,7 @@ const areChatConfigsEquivalent = (a: ChatItem["config"], b: ChatItem["config"]):
     a.model === b.model &&
     areModelRefsEqual(a.model_ref, b.model_ref) &&
     a.reasoningEffort === b.reasoningEffort &&
+    JSON.stringify(a.goldConfig ?? null) === JSON.stringify(b.goldConfig ?? null) &&
     areTokenUsagesEqual(a.tokenUsage, b.tokenUsage) &&
     a.truncationOccurred === b.truncationOccurred &&
     a.segmentsRemoved === b.segmentsRemoved &&
@@ -267,6 +268,7 @@ const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
       model: s.model,
       model_ref: s.model_ref ?? null,
       reasoningEffort: s.reasoning_effort ?? null,
+      goldConfig: s.gold_config ?? null,
       tokenUsage,
       truncationOccurred: s.token_usage?.truncation_occurred,
       segmentsRemoved: s.token_usage?.segments_removed,
@@ -654,6 +656,7 @@ function applySessionsList(
       const hasLocalModel = Object.prototype.hasOwnProperty.call(prevConfig, "model");
       const hasLocalModelRef = Object.prototype.hasOwnProperty.call(prevConfig, "model_ref");
       const hasLocalReasoning = Object.prototype.hasOwnProperty.call(prevConfig, "reasoningEffort");
+      const hasLocalGoldConfig = Object.prototype.hasOwnProperty.call(prevConfig, "goldConfig");
 
       // Ensure messageCount stays monotonic, as listSessions summary might briefly lag
       const effectiveMessageCount = Math.max(prev.messageCount ?? 0, c.messageCount ?? 0);
@@ -686,6 +689,11 @@ function applySessionsList(
             ? prevConfig.reasoningEffort
             : nextConfig.reasoningEffort
           : nextConfig.reasoningEffort,
+        goldConfig: preferLocalSessionFields
+          ? hasLocalGoldConfig
+            ? prevConfig.goldConfig
+            : nextConfig.goldConfig
+          : nextConfig.goldConfig,
         compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
         syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
       };
@@ -825,6 +833,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       model_ref: modelRef,
       provider: providerValue,
       reasoning_effort: reasoningEffort || undefined,
+      gold_config: chatData.config?.goldConfig ?? undefined,
     });
 
     const newChat: ChatItem = {
@@ -835,6 +844,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         model: created.session.model,
         model_ref: created.session.model_ref ?? null,
         reasoningEffort: created.session.reasoning_effort ?? null,
+        goldConfig: created.session.gold_config ?? chatData.config?.goldConfig ?? null,
         // If the caller provided a base prompt, keep it; otherwise fall back.
         baseSystemPrompt: basePrompt || DEFAULT_BASE_SYSTEM_PROMPT,
       },
@@ -905,7 +915,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const hasSessionLevelConfigUpdate =
       !!updates.config &&
       (Object.prototype.hasOwnProperty.call(updates.config, "model") ||
-        Object.prototype.hasOwnProperty.call(updates.config, "reasoningEffort"));
+        Object.prototype.hasOwnProperty.call(updates.config, "reasoningEffort") ||
+        Object.prototype.hasOwnProperty.call(updates.config, "goldConfig"));
     const hasSessionLevelTopLevelUpdate =
       typeof updates.title === "string" || typeof updates.pinned === "boolean";
     const shouldBumpUpdatedAt = hasSessionLevelConfigUpdate || hasSessionLevelTopLevelUpdate;
@@ -950,6 +961,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       } else {
         patch.clear_reasoning_effort = true;
       }
+    }
+    if (updates.config && Object.prototype.hasOwnProperty.call(updates.config, "goldConfig")) {
+      patch.gold_config = updates.config.goldConfig ?? {
+        enabled: false,
+        auto_answer_enabled: false,
+        auto_continue_enabled: false,
+      };
     }
     if (Object.keys(patch).length > 0) {
       // NOTE: `patchSession` returns void, so the backend's bumped
@@ -1412,6 +1430,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           messageCount: history.messages.length,
           config: {
             ...(chat.config || {}),
+            ...(history.gold_config != null ? { goldConfig: history.gold_config } : {}),
             compressionEvents: (history.compression_events || []).map((event) => ({
               id: event.id,
               createdAt: event.created_at,

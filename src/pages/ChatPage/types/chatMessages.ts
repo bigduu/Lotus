@@ -1,6 +1,7 @@
 import type { TaskListMsg } from "./todoList";
 import type { TokenUsage } from "./tokenBudget";
 import type { ProviderModelRef } from "./providerModelRef";
+import type { GoldConfig } from "../services/AgentService";
 
 export type AgentRole = "planner" | "actor";
 
@@ -222,6 +223,7 @@ export interface ChatItem {
     model?: string;
     model_ref?: ProviderModelRef | null;
     reasoningEffort?: import("../services/AgentService").ReasoningEffort | null;
+    goldConfig?: GoldConfig | null;
     tokenUsage?: TokenUsage;
     truncationOccurred?: boolean;
     segmentsRemoved?: number;
