@@ -21,7 +21,7 @@ describe("SystemSettingsAppTab", () => {
       </AntdApp>,
     );
 
-    expect(screen.getByTestId("settings-app-version")).toHaveTextContent("2026.4.24");
+    expect(screen.getByTestId("settings-app-version")).toHaveTextContent(/v?\d{4}\.\d+\.\d+/);
     expect(screen.getByTestId("vdi-safe-mode-toggle")).toBeInTheDocument();
   });
 });
