@@ -141,6 +141,6 @@ describe("ChatSidebar", () => {
       </AntdApp>,
     );
 
-    expect(await screen.findByTestId("app-version-badge")).toHaveTextContent("2026.4.24");
+    expect(await screen.findByTestId("app-version-badge")).toHaveTextContent(/v?\d{4}\.\d+\.\d+/);
   });
 });

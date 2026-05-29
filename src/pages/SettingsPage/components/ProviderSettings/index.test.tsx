@@ -780,7 +780,7 @@ describe("ProviderSettings", () => {
 
     render(<ProviderSettings />);
 
-    await screen.findByTestId("save-api-settings");
+    const saveButton = await screen.findByTestId("save-api-settings");
     await waitFor(() => {
       expect(
         (fetch as any).mock.calls.some(
