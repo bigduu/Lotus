@@ -17,7 +17,7 @@ import {
 
 // Mock antd components
 vi.mock("antd", () => ({
-  Steps: vi.fn(({ items, current, status, direction, size }: any) => (
+  Steps: ({ items, current, status, direction, size }: any) => (
     <div
       data-testid="steps"
       data-current={current}
@@ -25,7 +25,7 @@ vi.mock("antd", () => ({
       data-direction={direction}
       data-size={size}
     >
-      {items?.map((item: any, _idx: number) => (
+      {items?.map((item: any) => (
         <div key={item.key} data-testid={`step-${item.key}`} data-status={item.status}>
           <div data-testid={`step-title-${item.key}`}>{item.title}</div>
           <div data-testid={`step-subtitle-${item.key}`}>{item.subTitle}</div>
@@ -33,13 +33,20 @@ vi.mock("antd", () => ({
         </div>
       ))}
     </div>
-  )),
+  ),
   Typography: {
-    Text: vi.fn(({ children, ...props }: any) => (
-      <span data-testid="text" {...props}>
+    Text: ({ children, strong, ellipsis, type, code, ...props }: any) => (
+      <span
+        data-testid="text"
+        data-strong={strong ? "true" : undefined}
+        data-ellipsis={ellipsis ? "true" : undefined}
+        data-type={type}
+        data-code={code ? "true" : undefined}
+        {...props}
+      >
         {children}
       </span>
-    )),
+    ),
   },
   theme: {
     useToken: () => ({
@@ -47,10 +54,12 @@ vi.mock("antd", () => ({
         colorPrimary: "#1677ff",
         colorText: "#000",
         colorTextSecondary: "#666",
+        colorBorderSecondary: "#ddd",
         borderRadiusLG: 8,
         borderRadiusSM: 4,
         marginSM: 8,
         marginXS: 4,
+        marginXXS: 2,
         paddingSM: 8,
         paddingXS: 4,
         paddingLG: 16,
@@ -60,27 +69,45 @@ vi.mock("antd", () => ({
       },
     }),
   },
-  Tag: vi.fn(({ children, color, ...props }: any) => (
+  Tag: ({ children, color, ...props }: any) => (
     <span data-testid="tag" data-color={color} {...props}>
       {children}
     </span>
-  )),
-  Button: vi.fn(({ children, onClick, "data-testid": testId, ...props }: any) => (
-    <button data-testid={testId || "button"} onClick={onClick} {...props}>
+  ),
+  Button: ({
+    children,
+    onClick,
+    icon,
+    type,
+    size,
+    danger,
+    "data-testid": testId,
+    ...props
+  }: any) => (
+    <button
+      type="button"
+      data-testid={testId || "button"}
+      data-variant={type}
+      data-size={size}
+      data-danger={danger ? "true" : undefined}
+      onClick={onClick}
+      {...props}
+    >
+      {icon}
       {children}
     </button>
-  )),
-  Space: vi.fn(({ children }: any) => <div data-testid="space">{children}</div>),
-  Drawer: vi.fn(({ open, onClose, title, children }: any) => (
-    <div data-testid="drawer" data-open={open}>
+  ),
+  Space: ({ children }: any) => <div data-testid="space">{children}</div>,
+  Drawer: ({ open, onClose, title, children }: any) => (
+    <div data-testid="drawer" data-open={open ? "true" : "false"}>
       <div data-testid="drawer-title">{title}</div>
-      <button data-testid="drawer-close" onClick={onClose}>
+      <button type="button" data-testid="drawer-close" onClick={onClose}>
         Close
       </button>
-      {open && children}
+      {open ? children : null}
     </div>
-  )),
-  Tabs: vi.fn(({ items, defaultActiveKey }: any) => (
+  ),
+  Tabs: ({ items, defaultActiveKey }: any) => (
     <div data-testid="tabs" data-default-active-key={defaultActiveKey}>
       {items?.map((item: any) => (
         <div key={item.key} data-testid={`tab-${item.key}`}>
@@ -89,9 +116,9 @@ vi.mock("antd", () => ({
         </div>
       ))}
     </div>
-  )),
-  Empty: vi.fn(({ description }: any) => <div data-testid="empty">{description}</div>),
-  Tooltip: vi.fn(({ children }: any) => <div data-testid="tooltip">{children}</div>),
+  ),
+  Empty: ({ description }: any) => <div data-testid="empty">{description}</div>,
+  Tooltip: ({ children }: any) => <div data-testid="tooltip">{children}</div>,
 }));
 
 // Mock icons
@@ -115,7 +142,7 @@ vi.mock("react-i18next", () => ({
 
 // Mock syntax highlighter
 vi.mock("react-syntax-highlighter", () => ({
-  Prism: vi.fn(({ children }: any) => <pre data-testid="syntax-highlighter">{children}</pre>),
+  Prism: ({ children }: any) => <pre data-testid="syntax-highlighter">{children}</pre>,
 }));
 vi.mock("react-syntax-highlighter/dist/esm/styles/prism", () => ({
   oneDark: {},
@@ -238,6 +265,29 @@ vi.mock("../../FileChangeViewer", () => ({
   ),
 }));
 
+vi.mock("../FormattedContentPreview", () => ({
+  default: ({ value }: any) => (
+    <div data-testid="formatted-content-preview">{String(value ?? "")}</div>
+  ),
+}));
+
+vi.mock("../ToolStepDetailDrawer", () => ({
+  default: ({ open, onClose, initialTab = "preview", result }: any) =>
+    open ? (
+      <div data-testid="drawer" data-open="true">
+        <button type="button" data-testid="drawer-close" onClick={onClose}>
+          Close
+        </button>
+        <div data-testid="tabs" data-default-active-key={initialTab}>
+          <div data-testid="tab-preview">Preview</div>
+          <div data-testid="tab-parameters">Parameters</div>
+          <div data-testid="tab-result">Result</div>
+          <div data-testid="tab-diff">Diff</div>
+          <div data-testid="tab-content-result">{result?.result?.result ?? ""}</div>
+        </div>
+      </div>
+    ) : null,
+}));
 import { ToolStepsCard } from "../index";
 
 const EMPTY_LIVE_STATE: ToolStreamingState = {

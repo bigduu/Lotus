@@ -790,7 +790,9 @@ describe("ProviderSettings", () => {
         ),
       ).toBe(true);
     });
-    fireEvent.click(saveButton);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("save-api-settings"));
+    });
 
     await waitFor(() => {
       expect(
