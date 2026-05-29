@@ -71,6 +71,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
   const markOptimisticStart = useAppStore((state) => state.markOptimisticStart);
   const markRetryStart = useAppStore((state) => state.markRetryStart);
   const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
+  const resetSession = useAppStore((state) => state.resetSession);
   const applyExecutionStarted = useAppStore((state) => state.applyExecutionStarted);
   const activeModel = useActiveModel(depsSessionId);
   const currentProvider = useProviderStore((state) => state.currentProvider);
@@ -441,6 +442,53 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           );
         }
 
+        // ---- Goal command handling ----
+        // When the backend signals a /goal control command, update local goldConfig
+        // and decide whether to proceed with execute.
+        if (response.goal_command) {
+          const gc = response.goal_command;
+          debugLog("[Streaming]", "sendWithAgent.goalCommand", {
+            sessionId,
+            action: gc.action,
+            shouldExecute: gc.should_execute,
+            hasGoldConfig: gc.gold_config != null,
+          });
+
+          // Update local session config immediately from response.
+          if (gc.gold_config !== undefined) {
+            const currentChat = useAppStore.getState().chats.find((c) => c.id === sessionId);
+            if (currentChat?.config) {
+              useAppStore.getState().updateSession(sessionId, {
+                config: {
+                  ...currentChat.config,
+                  goldConfig: gc.gold_config ?? null,
+                },
+              });
+            }
+          }
+
+          if (!gc.should_execute) {
+            // Control-only command (status/off/clear/on): no runner is started
+            // server-side, so there is nothing to observe. Tear down the
+            // optimistically-started execution state authoritatively instead of
+            // relying on markSettleTimeout, which only nudges starting/settling →
+            // idle and loses the race against the premature one-shot `Complete`
+            // delivered to the optimistic SSE subscription (which would otherwise
+            // resurrect `settling` → busy → resubscribe, leaving the UI stuck in a
+            // "processing" loop). resetSession drops the execution entry, which the
+            // subscription effect treats as "no longer busy" and cleans up the SSE.
+            resetSession(sessionId);
+            await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
+            await useAppStore.getState().refreshChatsNow();
+            return;
+          }
+
+          // /goal <prompt> with should_execute=true: load history first so
+          // the optimistic /goal message is replaced by the server state,
+          // then proceed to execute (which will pick up the hidden resume).
+          await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
+        }
+
         // Refresh from persisted history once so execute uses a server-confirmed cursor
         debugLog("[Streaming]", "sendWithAgent.loadHistory.beforeExecute", {
           sessionId,
@@ -495,6 +543,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       resolvedProviderType,
       depsSessionId,
       handleExecuteResult,
+      resetSession,
       t,
     ],
   );

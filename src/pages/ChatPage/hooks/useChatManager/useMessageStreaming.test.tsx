@@ -25,6 +25,8 @@ const mockStoreState = {
   checkAgentAvailability: vi.fn<() => Promise<boolean>>(),
   setAgentAvailability: vi.fn(),
   loadChatHistory: vi.fn(),
+  refreshChatsNow: vi.fn(),
+  updateSession: vi.fn(),
   setPendingQuestion: vi.fn(),
   clearPendingQuestion: vi.fn(),
   executionBySession: {} as Record<string, any>,
@@ -32,6 +34,7 @@ const mockStoreState = {
   markOptimisticStart: vi.fn(),
   markRetryStart: vi.fn(),
   markSettleTimeout: vi.fn(),
+  resetSession: vi.fn(),
   beginSettle: vi.fn(),
 };
 
@@ -112,6 +115,8 @@ describe("useMessageStreaming", () => {
     mockStoreState.checkAgentAvailability.mockReset();
     mockStoreState.setAgentAvailability.mockReset();
     mockStoreState.loadChatHistory.mockReset();
+    mockStoreState.refreshChatsNow.mockReset();
+    mockStoreState.updateSession.mockReset();
     mockStoreState.setPendingQuestion.mockReset();
     mockStoreState.clearPendingQuestion.mockReset();
     mockStoreState.executionBySession = {};
@@ -119,6 +124,7 @@ describe("useMessageStreaming", () => {
     mockStoreState.markOptimisticStart.mockReset();
     mockStoreState.markRetryStart.mockReset();
     mockStoreState.markSettleTimeout.mockReset();
+    mockStoreState.resetSession.mockReset();
     mockStoreState.beginSettle.mockReset();
   });
 
@@ -606,5 +612,215 @@ describe("useMessageStreaming", () => {
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledTimes(2);
     // After the configured max sync recoveries, markSettleTimeout clears the state.
     expect(mockStoreState.markSettleTimeout).toHaveBeenCalledWith("chat-1");
+  });
+
+  // ===========================================================================
+  // /goal (Gold) command handling — regression coverage for the
+  // "stuck processing / double SSE subscription" bug.
+  //
+  // Root cause: markOptimisticStart opens an SSE subscription before POST /chat
+  // returns. For a control-only /goal command (status/on/off/clear) the server
+  // starts NO runner, so the optimistic subscription receives a premature
+  // one-shot `Complete`. The control-only branch must therefore tear down the
+  // optimistic execution state authoritatively (resetSession) rather than rely
+  // on markSettleTimeout, which races that stray `Complete` and leaves the UI
+  // stuck "processing".
+  // ===========================================================================
+  const goalMockChat = {
+    id: "chat-1",
+    title: "Test Chat",
+    createdAt: Date.now(),
+    messages: [],
+    config: {
+      systemPromptId: "general_assistant",
+      baseSystemPrompt: "",
+      lastUsedEnhancedPrompt: null,
+    },
+    currentInteraction: {
+      machineState: "idle",
+      streamingMessageId: null,
+      streamingContent: null,
+    },
+  };
+
+  it("control-only /goal command (should_execute=false) tears down via resetSession and does NOT execute", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
+    mockStoreState.refreshChatsNow.mockResolvedValue(undefined);
+    mockAgentSendMessage.mockResolvedValue({
+      session_id: "chat-1",
+      status: "accepted",
+      goal_command: {
+        action: "status",
+        should_execute: false,
+        gold_config: { enabled: true, goal: "ship the feature" },
+      },
+    });
+    mockStoreState.chats = [goalMockChat];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("/goal status");
+    });
+
+    // Authoritative teardown — NOT the racey markSettleTimeout.
+    expect(mockStoreState.resetSession).toHaveBeenCalledWith("chat-1");
+    expect(mockStoreState.markSettleTimeout).not.toHaveBeenCalled();
+    // No runner is started for a control command.
+    expect(mockAgentExecute).not.toHaveBeenCalled();
+    // History/session list are resynced so the (hidden) server state is reflected.
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("chat-1", { mode: "replace" });
+    expect(mockStoreState.refreshChatsNow).toHaveBeenCalled();
+  });
+
+  it.each([
+    ["/goal status", "status"],
+    ["/goal off", "off"],
+    ["/goal clear", "clear"],
+    ["/goal on", "on_no_prompt"],
+  ])("control-only command %s (action=%s) resets and never executes", async (input, action) => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
+    mockStoreState.refreshChatsNow.mockResolvedValue(undefined);
+    mockAgentSendMessage.mockResolvedValue({
+      session_id: "chat-1",
+      status: "accepted",
+      goal_command: {
+        action,
+        should_execute: false,
+        gold_config: { enabled: false },
+      },
+    });
+    mockStoreState.chats = [goalMockChat];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage(input);
+    });
+
+    expect(mockStoreState.resetSession).toHaveBeenCalledWith("chat-1");
+    expect(mockStoreState.markSettleTimeout).not.toHaveBeenCalled();
+    expect(mockAgentExecute).not.toHaveBeenCalled();
+  });
+
+  it("control-only /goal command updates local goldConfig from the response", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
+    mockStoreState.refreshChatsNow.mockResolvedValue(undefined);
+    const goldConfig = { enabled: false, auto_answer_enabled: false, auto_continue_enabled: false };
+    mockAgentSendMessage.mockResolvedValue({
+      session_id: "chat-1",
+      status: "accepted",
+      goal_command: { action: "off", should_execute: false, gold_config: goldConfig },
+    });
+    mockStoreState.chats = [goalMockChat];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("/goal off");
+    });
+
+    expect(mockStoreState.updateSession).toHaveBeenCalledWith(
+      "chat-1",
+      expect.objectContaining({
+        config: expect.objectContaining({ goldConfig }),
+      }),
+    );
+    expect(mockStoreState.resetSession).toHaveBeenCalledWith("chat-1");
+  });
+
+  it("executing /goal <prompt> (should_execute=true) does NOT reset and proceeds to execute", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
+    mockStoreState.refreshChatsNow.mockResolvedValue(undefined);
+    mockAgentSendMessage.mockResolvedValue({
+      session_id: "chat-1",
+      status: "accepted",
+      goal_command: {
+        action: "set_prompt",
+        should_execute: true,
+        gold_config: { enabled: true, goal: "ship the feature" },
+      },
+    });
+    // status "started" without run_id keeps handleExecuteResult side-effect-free.
+    mockAgentExecute.mockResolvedValue({
+      session_id: "chat-1",
+      status: "started",
+      events_url: "/api/v1/events/chat-1",
+    });
+    mockStoreState.chats = [goalMockChat];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("/goal ship the feature");
+    });
+
+    // Executing variant must keep the optimistic processing state alive for the run.
+    expect(mockStoreState.resetSession).not.toHaveBeenCalled();
+    expect(mockStoreState.markSettleTimeout).not.toHaveBeenCalled();
+    expect(mockAgentExecute).toHaveBeenCalledTimes(1);
+    // History is replaced once before execute so the optimistic /goal bubble is
+    // reconciled with the server's hidden resume message.
+    expect(mockStoreState.loadChatHistory).toHaveBeenCalledWith("chat-1", { mode: "replace" });
+  });
+
+  it("normal (non-/goal) message is unaffected: no resetSession, executes", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
+    mockAgentSendMessage.mockResolvedValue({
+      session_id: "chat-1",
+      status: "streaming",
+      // no goal_command field — normal path
+    });
+    mockAgentExecute.mockResolvedValue({
+      session_id: "chat-1",
+      status: "started",
+      events_url: "/api/v1/events/chat-1",
+    });
+    mockStoreState.chats = [goalMockChat];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("hello there");
+    });
+
+    expect(mockStoreState.resetSession).not.toHaveBeenCalled();
+    expect(mockStoreState.updateSession).not.toHaveBeenCalled();
+    expect(mockAgentExecute).toHaveBeenCalledTimes(1);
   });
 });
