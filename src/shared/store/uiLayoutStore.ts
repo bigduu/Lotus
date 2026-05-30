@@ -1,7 +1,17 @@
 import { create } from "zustand";
 
-import { storageService } from "@services/chat/StorageService";
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
+
+const LAYOUT_STORAGE_KEY = "copilot_ui_layout_v1";
+
+const readStoredLayout = (): string | null => {
+  try {
+    return localStorage.getItem(LAYOUT_STORAGE_KEY);
+  } catch (error) {
+    console.warn("[uiLayoutStore] Failed to read persisted layout:", error);
+    return null;
+  }
+};
 
 /**
  * UI Layout persistence for the chat workspace.
@@ -224,7 +234,7 @@ type PersistableLayoutState = Pick<
 
 const persistLayout = (snapshot: UILayoutSnapshotV2) => {
   try {
-    storageService.setLayout(JSON.stringify(snapshot));
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(snapshot));
   } catch (error) {
     console.warn("[uiLayoutStore] Failed to persist layout:", error);
   }
@@ -470,7 +480,7 @@ const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null => {
 };
 
 const loadInitialLayout = (): UILayoutSnapshotV2 => {
-  const stored = safeParseLayout(storageService.getLayout());
+  const stored = safeParseLayout(readStoredLayout());
   return stored ?? DEFAULT_LAYOUT_V2;
 };
 
