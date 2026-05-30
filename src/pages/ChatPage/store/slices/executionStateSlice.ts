@@ -1396,242 +1396,88 @@ export interface ExecutionStateSlice {
 
 const sliceNow = (): string => new Date().toISOString();
 
+type ExecutionSet = Parameters<StateCreator<AppState, [], [], ExecutionStateSlice>>[0];
+
+/**
+ * Run one ExecutionAction through the pure reducer and commit the result,
+ * skipping the state update when the reducer returns the same map (no-op).
+ */
+const runExecutionAction = (set: ExecutionSet, action: ExecutionAction): void => {
+  set((state) => {
+    const next = applyExecutionEvent(state.executionBySession, action, sliceNow);
+    if (next === state.executionBySession) return state;
+    return { executionBySession: next };
+  });
+};
+
 export const createExecutionStateSlice: StateCreator<AppState, [], [], ExecutionStateSlice> = (
   set,
   get,
 ) => ({
   executionBySession: {},
 
-  ensureSession: (sessionId) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "ensureSession", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  ensureSession: (sessionId) => runExecutionAction(set, { type: "ensureSession", sessionId }),
 
   markOptimisticStart: (sessionId) => {
-    let newGeneration = 0;
-    set((state) => {
-      const entry = state.executionBySession[sessionId];
-      const nextGeneration = entry ? entry.generation + 1 : 1;
-      newGeneration = nextGeneration;
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "markOptimisticStart", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
+    const entry = get().executionBySession[sessionId];
+    const newGeneration = entry ? entry.generation + 1 : 1;
+    runExecutionAction(set, { type: "markOptimisticStart", sessionId });
     return newGeneration;
   },
 
   markRespondStart: (sessionId, toolCallId) => {
-    let newGeneration = 0;
-    set((state) => {
-      const entry = state.executionBySession[sessionId];
-      const nextGeneration = entry ? entry.generation + 1 : 1;
-      newGeneration = nextGeneration;
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "markRespondStart", sessionId, toolCallId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
+    const entry = get().executionBySession[sessionId];
+    const newGeneration = entry ? entry.generation + 1 : 1;
+    runExecutionAction(set, { type: "markRespondStart", sessionId, toolCallId });
     return newGeneration;
   },
 
   markRetryStart: (sessionId) => {
-    let newGeneration = 0;
-    set((state) => {
-      const entry = state.executionBySession[sessionId];
-      const nextGeneration = entry ? entry.generation + 1 : 1;
-      newGeneration = nextGeneration;
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "markRetryStart", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
+    const entry = get().executionBySession[sessionId];
+    const newGeneration = entry ? entry.generation + 1 : 1;
+    runExecutionAction(set, { type: "markRetryStart", sessionId });
     return newGeneration;
   },
 
-  markForceSubscribe: (sessionId) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "markForceSubscribe", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  markForceSubscribe: (sessionId) =>
+    runExecutionAction(set, { type: "markForceSubscribe", sessionId }),
 
-  markCancel: (sessionId) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "markCancel", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  markCancel: (sessionId) => runExecutionAction(set, { type: "markCancel", sessionId }),
 
-  markSettleTimeout: (sessionId) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "markSettleTimeout", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  markSettleTimeout: (sessionId) =>
+    runExecutionAction(set, { type: "markSettleTimeout", sessionId }),
 
-  markStreamStarted: (sessionId, generation) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "markStreamStarted", sessionId, generation },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  markStreamStarted: (sessionId, generation) =>
+    runExecutionAction(set, { type: "markStreamStarted", sessionId, generation }),
 
-  applyAgentEvent: (sessionId, event, generation) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "applyAgentEvent", sessionId, event, generation },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  applyAgentEvent: (sessionId, event, generation) =>
+    runExecutionAction(set, { type: "applyAgentEvent", sessionId, event, generation }),
 
-  applyExecutionStarted: (sessionId, runId, generation) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "applyExecutionStarted", sessionId, runId, generation },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  applyExecutionStarted: (sessionId, runId, generation) =>
+    runExecutionAction(set, { type: "applyExecutionStarted", sessionId, runId, generation }),
 
-  applySessionSummary: (sessionId, summary) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "applySessionSummary", sessionId, summary },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  applySessionSummary: (sessionId, summary) =>
+    runExecutionAction(set, { type: "applySessionSummary", sessionId, summary }),
 
-  applyOneShotTerminal: (sessionId, generation, payload) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "applyOneShotTerminal", sessionId, generation, payload },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  applyOneShotTerminal: (sessionId, generation, payload) =>
+    runExecutionAction(set, { type: "applyOneShotTerminal", sessionId, generation, payload }),
 
-  beginSettle: (sessionId, generation) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "beginSettle", sessionId, generation },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  beginSettle: (sessionId, generation) =>
+    runExecutionAction(set, { type: "beginSettle", sessionId, generation }),
 
-  applyChildProgress: (sessionId, childId, patch) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "applyChildProgress", sessionId, childId, patch },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  applyChildProgress: (sessionId, childId, patch) =>
+    runExecutionAction(set, { type: "applyChildProgress", sessionId, childId, patch }),
 
-  clearChildProgress: (sessionId, childId) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "clearChildProgress", sessionId, childId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  clearChildProgress: (sessionId, childId) =>
+    runExecutionAction(set, { type: "clearChildProgress", sessionId, childId }),
 
-  setPendingQuestion: (sessionId, payload) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "setPendingQuestion", sessionId, payload },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  setPendingQuestion: (sessionId, payload) =>
+    runExecutionAction(set, { type: "setPendingQuestion", sessionId, payload }),
 
-  clearPendingQuestion: (sessionId) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "clearPendingQuestion", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  clearPendingQuestion: (sessionId) =>
+    runExecutionAction(set, { type: "clearPendingQuestion", sessionId }),
 
-  resetSession: (sessionId) => {
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "resetSession", sessionId },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
-  },
+  resetSession: (sessionId) => runExecutionAction(set, { type: "resetSession", sessionId }),
 
   applyRunningSnapshot: (sessions) => {
     // Partition replayable metadata events from execution events before
@@ -1652,14 +1498,6 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
       return { ...session, criticalEvents: executionOnly };
     });
 
-    set((state) => {
-      const next = applyExecutionEvent(
-        state.executionBySession,
-        { type: "applyRunningSnapshot", sessions: partitioned },
-        sliceNow,
-      );
-      if (next === state.executionBySession) return state;
-      return { executionBySession: next };
-    });
+    runExecutionAction(set, { type: "applyRunningSnapshot", sessions: partitioned });
   },
 });
