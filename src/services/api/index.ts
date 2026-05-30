@@ -8,6 +8,5 @@ export { ApiClient, apiClient, agentApiClient } from "./client";
 export type { ApiClientConfig } from "./client";
 
 export { ApiError, isApiError, getErrorMessage, withFallback } from "./errors";
-export type { ErrorResponse } from "./errors";
 
 export * from "./types";

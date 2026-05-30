@@ -47,16 +47,6 @@ export interface ParameterInfo {
   type: string;
 }
 
-export interface ToolsUIResponse {
-  tools: ToolUIInfo[];
-  is_strict_mode: boolean;
-}
-
-export interface ValidationResult {
-  isValid: boolean;
-  errorMessage?: string;
-}
-
 /**
  * ToolService handles business logic for tool invocations
  * Including tool call parsing, parameter processing, tool execution, etc.

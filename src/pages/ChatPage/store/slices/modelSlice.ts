@@ -44,11 +44,6 @@ export const createModelSlice: StateCreator<AppState, [], [], ModelSlice> = (set
       if (configModel) {
         set({ configModel });
         // Don't write to localStorage anymore - provider-specific models are used now
-        // const currentSelected = get().selectedModel;
-        // if (!currentSelected) {
-        //   set({ selectedModel: configModel });
-        //   localStorage.setItem(SELECTED_MODEL_LS_KEY, configModel);
-        // }
       }
     } catch (error) {
       console.error("Failed to load model from config:", error);

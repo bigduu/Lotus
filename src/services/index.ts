@@ -13,13 +13,7 @@
 
 // API Client (unified HTTP layer)
 export { ApiClient, apiClient, ApiError, isApiError, getErrorMessage, withFallback } from "./api";
-export type {
-  ApiClientConfig,
-  ErrorResponse,
-  ApiListResponse,
-  ApiPaginationParams,
-  ApiFilterParams,
-} from "./api";
+export type { ApiClientConfig, ApiListResponse } from "./api";
 
 // Skill Service
 export { SkillService, skillService } from "./skill/SkillService";
@@ -62,8 +56,6 @@ export type {
   ParameterValue,
   ToolUIInfo,
   ParameterInfo,
-  ToolsUIResponse,
-  ValidationResult,
 } from "./tool/ToolService";
 
 // Workspace Service

@@ -8,12 +8,6 @@ import { ApiError } from "./client";
 
 export { ApiError } from "./client";
 
-export interface ErrorResponse {
-  error: string;
-  message?: string;
-  code?: string;
-}
-
 /**
  * Check if error is an API error
  */
