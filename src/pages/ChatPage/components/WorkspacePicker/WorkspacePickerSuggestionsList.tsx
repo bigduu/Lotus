@@ -3,7 +3,7 @@ import React from "react";
 import { Button, Empty, Flex, List, Space, Spin, Typography } from "antd";
 import { FolderOutlined, HistoryOutlined, HomeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import type { PathSuggestion } from "../../services/WorkspaceApiService";
+import type { PathSuggestion } from "@services/workspace";
 
 const { Text } = Typography;
 

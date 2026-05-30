@@ -14,7 +14,7 @@ import {
 } from "antd";
 import { FolderOutlined, HomeOutlined, ArrowLeftOutlined, CheckOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { workspaceApiService, BrowseFolderResponse } from "../../services/WorkspaceApiService";
+import { workspaceService, type BrowseFolderResponse } from "@services/workspace";
 
 interface FolderItem {
   name: string;
@@ -49,7 +49,7 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
   const loadDirectory = async (path?: string) => {
     setLoading(true);
     try {
-      const result: BrowseFolderResponse = await workspaceApiService.browseFolder(path);
+      const result: BrowseFolderResponse = await workspaceService.browseFolder(path);
       setCurrentPath(result.current_path);
       setParentPath(result.parent_path);
       setFolders(result.folders);

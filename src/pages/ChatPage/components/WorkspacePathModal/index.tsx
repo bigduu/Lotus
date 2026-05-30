@@ -3,7 +3,7 @@ import { App as AntApp, Modal, Typography, Space, Alert } from "antd";
 import { useTranslation } from "react-i18next";
 import WorkspacePicker from "../WorkspacePicker";
 import { recentWorkspacesManager } from "../../services/RecentWorkspacesManager";
-import { WorkspaceValidationResult } from "../../services/WorkspaceApiService";
+import type { WorkspaceValidationResult } from "@services/workspace";
 
 const { Title } = Typography;
 

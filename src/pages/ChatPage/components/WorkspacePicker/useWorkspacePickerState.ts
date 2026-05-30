@@ -6,7 +6,7 @@ import {
   recentWorkspacesManager,
   type WorkspaceInfo,
 } from "../../services/RecentWorkspacesManager";
-import { workspaceApiService, type PathSuggestion } from "../../services/WorkspaceApiService";
+import { workspaceService, type PathSuggestion } from "@services/workspace";
 
 interface ValidationStatus {
   isValidating: boolean;
@@ -64,7 +64,7 @@ export const useWorkspacePickerState = ({
   const loadSuggestions = useCallback(async () => {
     setIsLoadingSuggestions(true);
     try {
-      const suggestionsData = await workspaceApiService.getPathSuggestions();
+      const suggestionsData = await workspaceService.getPathSuggestions();
       setSuggestions(suggestionsData.suggestions.slice(0, 8));
     } catch (error) {
       console.error("Failed to load suggestions:", error);

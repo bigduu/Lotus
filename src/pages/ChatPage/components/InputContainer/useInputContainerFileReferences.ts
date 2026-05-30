@@ -4,7 +4,7 @@ import i18n from "i18next";
 import type { FileReferenceInfo } from "../../utils/inputHighlight";
 import type { WorkspaceFileEntry } from "../../types/workspace";
 import type { ChatItem } from "../../types/chat";
-import { workspaceApiService } from "../../services/WorkspaceApiService";
+import { workspaceService } from "@services/workspace";
 
 interface UseInputContainerFileReferencesProps {
   content: string;
@@ -53,7 +53,7 @@ export const useInputContainerFileReferences = ({
     setWorkspaceFiles([]);
     setWorkspaceError(null);
     try {
-      const files = await workspaceApiService.listWorkspaceFiles(workspacePath);
+      const files = await workspaceService.listWorkspaceFiles(workspacePath);
       setWorkspaceFiles(files);
       lastWorkspacePathRef.current = workspacePath;
     } catch (error) {
