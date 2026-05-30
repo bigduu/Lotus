@@ -61,7 +61,7 @@ export default defineConfig(async ({ command }) => ({
           "vendor-charts": ["recharts"],
           "vendor-mermaid": ["mermaid"],
           "vendor-i18n": ["i18next", "react-i18next"],
-          "vendor-pdf": ["jspdf", "html2canvas", "html2pdf.js"],
+          "vendor-pdf": ["jspdf", "html2canvas"],
         },
       },
     },
