@@ -1,4 +1,5 @@
-import type { PrimitiveAtom } from "jotai";
+import { atom, type PrimitiveAtom } from "jotai";
+import { atomFamily } from "jotai-family";
 import { createStore } from "jotai/vanilla";
 
 export type AtomStore = ReturnType<typeof createStore>;
@@ -54,4 +55,35 @@ export const clearKeyedStreamingStatesByPrefix = <T>(
     if (!key.startsWith(prefix)) return;
     clearKeyedStreamingState(store, atomFamily, key, emptyState, activeKeys);
   });
+};
+
+export interface StreamingAtomModule<T> {
+  store: AtomStore;
+  atomFamily: KeyedAtomFamily<T>;
+  /** Keys that have received at least one write; used for prefix clears. */
+  activeKeys: Set<string>;
+  getState: (key: string) => T;
+  clearState: (key: string) => void;
+  clearStatesByPrefix: (prefix: string) => void;
+}
+
+/**
+ * Build a keyed streaming-state module: a vanilla jotai store, an atomFamily
+ * seeded with `emptyState`, an active-key registry, and read/clear helpers
+ * bound to all three. Callers layer on their own write atoms (which should
+ * `activeKeys.add(key)` on write) and key builders.
+ */
+export const createStreamingAtomModule = <T>(emptyState: T): StreamingAtomModule<T> => {
+  const store = createStore();
+  const family: KeyedAtomFamily<T> = atomFamily((_key: string) => atom<T>(emptyState));
+  const activeKeys = new Set<string>();
+  return {
+    store,
+    atomFamily: family,
+    activeKeys,
+    getState: (key) => getKeyedStreamingState(store, family, key, emptyState),
+    clearState: (key) => clearKeyedStreamingState(store, family, key, emptyState, activeKeys),
+    clearStatesByPrefix: (prefix) =>
+      clearKeyedStreamingStatesByPrefix(store, family, activeKeys, prefix, emptyState),
+  };
 };

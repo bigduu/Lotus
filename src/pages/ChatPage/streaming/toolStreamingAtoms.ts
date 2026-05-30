@@ -1,12 +1,8 @@
 import { atom } from "jotai";
-import { atomFamily } from "jotai-family";
-import { createStore } from "jotai/vanilla";
 
 import {
   buildStreamingCompositeKey,
-  clearKeyedStreamingState,
-  clearKeyedStreamingStatesByPrefix,
-  getKeyedStreamingState,
+  createStreamingAtomModule,
   normalizeStreamingKeyPart,
 } from "./streamingStateHelpers";
 
@@ -24,9 +20,10 @@ const EMPTY_TOOL_STREAMING_STATE: ToolStreamingState = {
   updatedAt: 0,
 };
 
-const activeStreamingKeys = new Set<string>();
+const toolModule = createStreamingAtomModule<ToolStreamingState>(EMPTY_TOOL_STREAMING_STATE);
 
-export const toolStreamingStore = createStore();
+export const toolStreamingStore = toolModule.store;
+export const toolStreamingAtomFamily = toolModule.atomFamily;
 
 export const buildToolStreamingKey = (
   sessionId: string | null | undefined,
@@ -34,10 +31,6 @@ export const buildToolStreamingKey = (
 ): string => {
   return buildStreamingCompositeKey(sessionId, toolCallId);
 };
-
-export const toolStreamingAtomFamily = atomFamily((_streamKey: string) =>
-  atom<ToolStreamingState>(EMPTY_TOOL_STREAMING_STATE),
-);
 
 export const appendToolStreamingChunkAtom = atom(
   null,
@@ -51,7 +44,7 @@ export const appendToolStreamingChunkAtom = atom(
     const chunk = payload.chunk ?? "";
     if (!chunk) return;
 
-    activeStreamingKeys.add(streamKey);
+    toolModule.activeKeys.add(streamKey);
     const targetAtom = toolStreamingAtomFamily(streamKey);
     const prev = get(targetAtom);
     set(targetAtom, {
@@ -76,7 +69,7 @@ export const setToolStreamingStatusAtom = atom(
     const streamKey = buildToolStreamingKey(payload.sessionId, payload.toolCallId);
     if (!streamKey) return;
 
-    activeStreamingKeys.add(streamKey);
+    toolModule.activeKeys.add(streamKey);
     const targetAtom = toolStreamingAtomFamily(streamKey);
     const prev = get(targetAtom);
     set(targetAtom, {
@@ -91,25 +84,13 @@ export const clearToolStreamingState = (
   sessionId: string | null | undefined,
   toolCallId: string | null | undefined,
 ): void => {
-  clearKeyedStreamingState(
-    toolStreamingStore,
-    toolStreamingAtomFamily,
-    buildToolStreamingKey(sessionId, toolCallId),
-    EMPTY_TOOL_STREAMING_STATE,
-    activeStreamingKeys,
-  );
+  toolModule.clearState(buildToolStreamingKey(sessionId, toolCallId));
 };
 
 export const clearToolStreamingStatesForSession = (sessionId: string | null | undefined): void => {
   const normalizedSessionId = normalizeStreamingKeyPart(sessionId);
   if (!normalizedSessionId) return;
-  clearKeyedStreamingStatesByPrefix(
-    toolStreamingStore,
-    toolStreamingAtomFamily,
-    activeStreamingKeys,
-    `${normalizedSessionId}::`,
-    EMPTY_TOOL_STREAMING_STATE,
-  );
+  toolModule.clearStatesByPrefix(`${normalizedSessionId}::`);
 };
 
 export const appendToolStreamingChunk = (
@@ -132,10 +113,5 @@ export const getToolStreamingState = (
   sessionId: string | null | undefined,
   toolCallId: string | null | undefined,
 ): ToolStreamingState => {
-  return getKeyedStreamingState(
-    toolStreamingStore,
-    toolStreamingAtomFamily,
-    buildToolStreamingKey(sessionId, toolCallId),
-    EMPTY_TOOL_STREAMING_STATE,
-  );
+  return toolModule.getState(buildToolStreamingKey(sessionId, toolCallId));
 };

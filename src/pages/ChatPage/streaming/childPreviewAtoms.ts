@@ -1,12 +1,8 @@
 import { atom } from "jotai";
-import { atomFamily } from "jotai-family";
-import { createStore } from "jotai/vanilla";
 
 import {
   buildStreamingCompositeKey,
-  clearKeyedStreamingState,
-  clearKeyedStreamingStatesByPrefix,
-  getKeyedStreamingState,
+  createStreamingAtomModule,
   normalizeStreamingKeyPart,
 } from "./streamingStateHelpers";
 
@@ -20,7 +16,10 @@ export const EMPTY_CHILD_PREVIEW_STATE: ChildPreviewState = {
   updatedAt: 0,
 };
 
-export const childPreviewStore = createStore();
+const childPreviewModule = createStreamingAtomModule<ChildPreviewState>(EMPTY_CHILD_PREVIEW_STATE);
+
+export const childPreviewStore = childPreviewModule.store;
+export const childPreviewAtomFamily = childPreviewModule.atomFamily;
 
 export const buildChildPreviewKey = (
   parentSessionId: string | null | undefined,
@@ -28,12 +27,6 @@ export const buildChildPreviewKey = (
 ): string => {
   return buildStreamingCompositeKey(parentSessionId, childSessionId);
 };
-
-const activeChildPreviewKeys = new Set<string>();
-
-export const childPreviewAtomFamily = atomFamily((_previewKey: string) =>
-  atom<ChildPreviewState>(EMPTY_CHILD_PREVIEW_STATE),
-);
 
 export const setChildPreviewStateAtom = atom(
   null,
@@ -49,7 +42,7 @@ export const setChildPreviewStateAtom = atom(
     const previewKey = buildChildPreviewKey(payload.parentSessionId, payload.childSessionId);
     if (!previewKey) return;
 
-    activeChildPreviewKeys.add(previewKey);
+    childPreviewModule.activeKeys.add(previewKey);
     const targetAtom = childPreviewAtomFamily(previewKey);
     const prev = get(targetAtom);
     set(targetAtom, {
@@ -76,13 +69,7 @@ export const clearChildPreviewState = (
   parentSessionId: string | null | undefined,
   childSessionId: string | null | undefined,
 ): void => {
-  clearKeyedStreamingState(
-    childPreviewStore,
-    childPreviewAtomFamily,
-    buildChildPreviewKey(parentSessionId, childSessionId),
-    EMPTY_CHILD_PREVIEW_STATE,
-    activeChildPreviewKeys,
-  );
+  childPreviewModule.clearState(buildChildPreviewKey(parentSessionId, childSessionId));
 };
 
 export const clearChildPreviewStatesForParent = (
@@ -90,23 +77,12 @@ export const clearChildPreviewStatesForParent = (
 ): void => {
   const normalizedParentSessionId = normalizeStreamingKeyPart(parentSessionId);
   if (!normalizedParentSessionId) return;
-  clearKeyedStreamingStatesByPrefix(
-    childPreviewStore,
-    childPreviewAtomFamily,
-    activeChildPreviewKeys,
-    `${normalizedParentSessionId}::`,
-    EMPTY_CHILD_PREVIEW_STATE,
-  );
+  childPreviewModule.clearStatesByPrefix(`${normalizedParentSessionId}::`);
 };
 
 export const getChildPreviewState = (
   parentSessionId: string | null | undefined,
   childSessionId: string | null | undefined,
 ): ChildPreviewState => {
-  return getKeyedStreamingState(
-    childPreviewStore,
-    childPreviewAtomFamily,
-    buildChildPreviewKey(parentSessionId, childSessionId),
-    EMPTY_CHILD_PREVIEW_STATE,
-  );
+  return childPreviewModule.getState(buildChildPreviewKey(parentSessionId, childSessionId));
 };

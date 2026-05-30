@@ -1,12 +1,6 @@
 import { atom } from "jotai";
-import { atomFamily } from "jotai-family";
-import { createStore } from "jotai/vanilla";
 
-import {
-  clearKeyedStreamingState,
-  getKeyedStreamingState,
-  normalizeStreamingKeyPart,
-} from "./streamingStateHelpers";
+import { createStreamingAtomModule, normalizeStreamingKeyPart } from "./streamingStateHelpers";
 
 export interface AssistantStreamingState {
   content: string;
@@ -20,11 +14,12 @@ export const EMPTY_ASSISTANT_STREAMING_STATE: AssistantStreamingState = {
   updatedAt: 0,
 };
 
-export const assistantStreamingStore = createStore();
-
-export const assistantStreamingAtomFamily = atomFamily((_sessionId: string) =>
-  atom<AssistantStreamingState>(EMPTY_ASSISTANT_STREAMING_STATE),
+const assistantModule = createStreamingAtomModule<AssistantStreamingState>(
+  EMPTY_ASSISTANT_STREAMING_STATE,
 );
+
+export const assistantStreamingStore = assistantModule.store;
+export const assistantStreamingAtomFamily = assistantModule.atomFamily;
 
 export const appendAssistantStreamingChunkAtom = atom(
   null,
@@ -119,21 +114,11 @@ export const setAssistantStreamingState = (
 };
 
 export const clearAssistantStreamingState = (sessionId: string | null | undefined): void => {
-  clearKeyedStreamingState(
-    assistantStreamingStore,
-    assistantStreamingAtomFamily,
-    normalizeStreamingKeyPart(sessionId),
-    EMPTY_ASSISTANT_STREAMING_STATE,
-  );
+  assistantModule.clearState(normalizeStreamingKeyPart(sessionId));
 };
 
 export const getAssistantStreamingState = (
   sessionId: string | null | undefined,
 ): AssistantStreamingState => {
-  return getKeyedStreamingState(
-    assistantStreamingStore,
-    assistantStreamingAtomFamily,
-    normalizeStreamingKeyPart(sessionId),
-    EMPTY_ASSISTANT_STREAMING_STATE,
-  );
+  return assistantModule.getState(normalizeStreamingKeyPart(sessionId));
 };
