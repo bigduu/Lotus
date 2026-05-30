@@ -174,7 +174,7 @@ export interface UtilityService {
   updateAccessPassword(payload: UpdateAccessPasswordRequest): Promise<UpdateAccessPasswordResponse>;
 }
 
-class HttpUtilityService implements Partial<UtilityService> {
+class HttpUtilityService implements UtilityService {
   async copyToClipboard(text: string): Promise<void> {
     await copyText(text);
   }
@@ -336,17 +336,16 @@ class HttpUtilityService implements Partial<UtilityService> {
 }
 
 /**
- * ServiceFactory - Simplified to use only Web/HTTP mode
- * All services now use HTTP API calls to the backend
+ * ServiceFactory - Simplified to use only Web/HTTP mode.
+ *
+ * All utility methods are inherited from HttpUtilityService (HTTP API calls
+ * to the backend); ServiceFactory only layers on the singleton accessor.
  */
-export class ServiceFactory {
+export class ServiceFactory extends HttpUtilityService {
   private static instance: ServiceFactory;
 
-  // Service instances
-  private httpUtilityService = new HttpUtilityService();
-
   private constructor() {
-    // No mode switching needed - always use Web/HTTP mode
+    super();
   }
 
   static getInstance(): ServiceFactory {
@@ -356,147 +355,12 @@ export class ServiceFactory {
     return ServiceFactory.instance;
   }
 
+  /**
+   * The factory itself fulfills the full UtilityService contract; exposed for
+   * callers that want to depend on the interface rather than the concrete class.
+   */
   getUtilityService(): UtilityService {
-    // All utility services are HTTP/web based.
-    return {
-      copyToClipboard: (text: string) => this.httpUtilityService.copyToClipboard(text),
-      getBambooConfig: () => this.httpUtilityService.getBambooConfig(),
-      getBambooTools: () => this.httpUtilityService.getBambooTools(),
-      getModelLimitDefaults: () => this.httpUtilityService.getModelLimitDefaults(),
-      setBambooConfig: (config: BambooConfig) => this.httpUtilityService.setBambooConfig(config),
-      validateBambooConfigPatch: (patch: BambooConfig) =>
-        this.httpUtilityService.validateBambooConfigPatch(patch),
-      setProxyAuth: (auth: { username: string; password: string }) =>
-        this.httpUtilityService.setProxyAuth(auth),
-      getProxyAuthStatus: () => this.httpUtilityService.getProxyAuthStatus(),
-      clearProxyAuth: () => this.httpUtilityService.clearProxyAuth(),
-      resetBambooConfig: () => this.httpUtilityService.resetBambooConfig(),
-      resetSetupStatus: () => this.httpUtilityService.resetSetupStatus(),
-      // Workflow management
-      saveWorkflow: (name: string, content: string) =>
-        this.httpUtilityService.saveWorkflow(name, content),
-      deleteWorkflow: (name: string) => this.httpUtilityService.deleteWorkflow(name),
-      // Keyword masking
-      getKeywordMaskingConfig: () => this.httpUtilityService.getKeywordMaskingConfig(),
-      updateKeywordMaskingConfig: (entries) =>
-        this.httpUtilityService.updateKeywordMaskingConfig(entries),
-      validateKeywordEntries: (entries) => this.httpUtilityService.validateKeywordEntries(entries),
-      // Setup status
-      getSetupStatus: () => this.httpUtilityService.getSetupStatus(),
-      markSetupComplete: () => this.httpUtilityService.markSetupComplete(),
-      // Access control
-      getAccessStatus: () => this.httpUtilityService.getAccessStatus(),
-      verifyAccessPassword: (password: string) =>
-        this.httpUtilityService.verifyAccessPassword(password),
-      updateAccessPassword: (payload: UpdateAccessPasswordRequest) =>
-        this.httpUtilityService.updateAccessPassword(payload),
-    };
-  }
-
-  // Convenience methods for direct access
-  async copyToClipboard(text: string): Promise<void> {
-    return this.getUtilityService().copyToClipboard(text);
-  }
-
-  async getBambooConfig(): Promise<BambooConfig> {
-    return this.getUtilityService().getBambooConfig();
-  }
-
-  async getBambooTools(): Promise<{ tools: string[] }> {
-    return this.getUtilityService().getBambooTools();
-  }
-
-  async getModelLimitDefaults(): Promise<{ model_limits: ModelLimitDefault[] }> {
-    return this.getUtilityService().getModelLimitDefaults();
-  }
-
-  async setBambooConfig(config: BambooConfig): Promise<BambooConfig> {
-    return this.getUtilityService().setBambooConfig(config);
-  }
-
-  async validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse> {
-    return this.getUtilityService().validateBambooConfigPatch(patch);
-  }
-
-  async setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse> {
-    return this.getUtilityService().setProxyAuth(auth);
-  }
-
-  async getProxyAuthStatus(): Promise<{
-    configured: boolean;
-    username: string | null;
-  }> {
-    return this.getUtilityService().getProxyAuthStatus();
-  }
-
-  async clearProxyAuth(): Promise<ApiSuccessResponse> {
-    return this.getUtilityService().clearProxyAuth();
-  }
-
-  async resetBambooConfig(): Promise<ApiSuccessResponse> {
-    return this.getUtilityService().resetBambooConfig();
-  }
-
-  async resetSetupStatus(): Promise<void> {
-    return this.getUtilityService().resetSetupStatus();
-  }
-
-  async saveWorkflow(name: string, content: string): Promise<{ success: boolean; path: string }> {
-    return this.getUtilityService().saveWorkflow(name, content);
-  }
-
-  async deleteWorkflow(name: string): Promise<ApiSuccessResponse> {
-    return this.getUtilityService().deleteWorkflow(name);
-  }
-
-  async getKeywordMaskingConfig(): Promise<{
-    entries: Array<{ pattern: string; match_type: string; enabled: boolean }>;
-  }> {
-    return this.getUtilityService().getKeywordMaskingConfig();
-  }
-
-  async updateKeywordMaskingConfig(
-    entries: Array<{ pattern: string; match_type: string; enabled: boolean }>,
-  ): Promise<{
-    entries: Array<{ pattern: string; match_type: string; enabled: boolean }>;
-  }> {
-    return this.getUtilityService().updateKeywordMaskingConfig(entries);
-  }
-
-  async validateKeywordEntries(
-    entries: Array<{ pattern: string; match_type: string; enabled: boolean }>,
-  ): Promise<{
-    valid: boolean;
-    errors?: Array<{ index: number; message: string }>;
-  }> {
-    return this.getUtilityService().validateKeywordEntries(entries);
-  }
-
-  async getSetupStatus(): Promise<{
-    is_complete: boolean;
-    has_proxy_config: boolean;
-    has_proxy_env: boolean;
-    message: string;
-  }> {
-    return this.getUtilityService().getSetupStatus();
-  }
-
-  async markSetupComplete(): Promise<ApiSuccessResponse> {
-    return this.getUtilityService().markSetupComplete();
-  }
-
-  async getAccessStatus(): Promise<AccessStatusResponse> {
-    return this.getUtilityService().getAccessStatus();
-  }
-
-  async verifyAccessPassword(password: string): Promise<ApiSuccessResponse> {
-    return this.getUtilityService().verifyAccessPassword(password);
-  }
-
-  async updateAccessPassword(
-    payload: UpdateAccessPasswordRequest,
-  ): Promise<UpdateAccessPasswordResponse> {
-    return this.getUtilityService().updateAccessPassword(payload);
+    return this;
   }
 }
 
