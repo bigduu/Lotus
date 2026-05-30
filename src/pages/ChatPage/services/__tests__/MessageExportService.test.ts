@@ -27,7 +27,7 @@ const {
   mockJsPDFOutput: vi.fn().mockReturnValue(new ArrayBuffer(4)),
 }));
 
-vi.mock("../FileOperationsService", () => ({
+vi.mock("@shared/services/FileOperationsService", () => ({
   FileOperationsService: {
     FILTERS: {
       MARKDOWN: [{ name: "Markdown", extensions: ["md"] }],

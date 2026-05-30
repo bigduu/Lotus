@@ -6,7 +6,7 @@ const { mockGetModels, mockGetSetupStatus, mockLoadConfig } = vi.hoisted(() => (
   mockLoadConfig: vi.fn(),
 }));
 
-vi.mock("../../../services/ModelService", () => {
+vi.mock("@services/chat/ModelService", () => {
   class ProxyAuthRequiredError extends Error {
     code = "proxy_auth_required";
   }
@@ -110,7 +110,7 @@ describe("modelSlice", () => {
   });
 
   it("keeps existing models when proxy auth is required", async () => {
-    const { ProxyAuthRequiredError } = await import("../../../services/ModelService");
+    const { ProxyAuthRequiredError } = await import("@services/chat/ModelService");
     mockGetSetupStatus.mockResolvedValueOnce({ is_complete: true });
     mockGetModels.mockRejectedValueOnce(new ProxyAuthRequiredError("Proxy login needed"));
     const harness = createSliceHarness<ModelSlice>(createModelSlice as any);

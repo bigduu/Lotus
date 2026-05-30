@@ -1,4 +1,4 @@
-import { FileOperationsService } from "./FileOperationsService";
+import { FileOperationsService } from "@shared/services/FileOperationsService";
 import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";

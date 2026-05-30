@@ -5,7 +5,7 @@ const { mockListSkills, mockGetSkill } = vi.hoisted(() => ({
   mockGetSkill: vi.fn(),
 }));
 
-vi.mock("../../../services/SkillService", () => ({
+vi.mock("@services/skill/SkillService", () => ({
   skillService: {
     listSkills: mockListSkills,
     getSkill: mockGetSkill,

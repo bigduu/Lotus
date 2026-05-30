@@ -1,4 +1,4 @@
-import { ToolService } from "../../services/ToolService";
+import { ToolService } from "@services/tool/ToolService";
 import type {
   AssistantTextMessage,
   AssistantToolCallMessage,

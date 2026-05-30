@@ -1,6 +1,6 @@
 import { StateCreator } from "zustand";
 import i18n from "../../../../shared/i18n";
-import { skillService } from "../../services/SkillService";
+import { skillService } from "@services/skill/SkillService";
 import type { SkillDefinition, SkillFilter } from "../../types/skill";
 import type { AppState } from "../";
 
