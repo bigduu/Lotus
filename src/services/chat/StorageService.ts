@@ -6,9 +6,11 @@
  *
  */
 
+import { THEME_STORAGE_KEY } from "@shared/theme/storageKeys";
+
 const STORAGE_KEYS = {
   // UI-only preferences
-  THEME: "copilot_ui_theme_v1",
+  THEME: THEME_STORAGE_KEY,
   LAYOUT: "copilot_ui_layout_v1",
 };
 

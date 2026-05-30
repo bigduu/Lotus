@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillManager } from "../SkillManager";
 import { skillService } from "../../../services/skill/SkillService";
-import { useBambooConfigStore } from "../../../shared/stores/bambooConfigStore";
+import { useBambooConfigStore } from "../../../shared/store/bambooConfigStore";
 
 vi.mock("../../../services/skill/SkillService", () => ({
   skillService: {

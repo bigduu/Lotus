@@ -14,10 +14,10 @@ import { changeLocale } from "@shared/i18n";
 import { getAntdLocale } from "@shared/i18n/antdLocale";
 import { APP_LOCALE_STORAGE_KEY, type AppLocale, resolveInitialLocale } from "@shared/i18n/types";
 import { isVdiSafeModeEnabled } from "@shared/utils/vdiSafeMode";
+import { THEME_STORAGE_KEY } from "@shared/theme/storageKeys";
 import { StorageManager } from "../services/storage/StorageManager";
 import { migrateFromLocalStorage } from "../services/storage/migrateFromLocalStorage";
 
-const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
 const LIGHT_THEME_TOKEN = {
   // Brand primary — Bodhi teal (zen / nature)
   colorPrimary: "#0d9488",

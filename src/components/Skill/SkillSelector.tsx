@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import { Alert, Select, Space } from "antd";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../pages/ChatPage/store";
-import { useBambooConfigStore } from "../../shared/stores/bambooConfigStore";
+import { useBambooConfigStore } from "../../shared/store/bambooConfigStore";
 
 interface SkillSelectorProps {
   selectedSkillIds: string[];

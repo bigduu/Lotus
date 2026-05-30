@@ -12,7 +12,7 @@ import { ExecutionStateSlice, createExecutionStateSlice } from "./slices/executi
 import { AgentClient } from "../services/AgentService";
 import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
-import { useBambooConfigStore } from "../../../shared/stores/bambooConfigStore";
+import { useBambooConfigStore } from "../../../shared/store/bambooConfigStore";
 import { useProviderStore } from "./slices/providerSlice";
 import type { ChatItem, Message } from "../types/chat";
 

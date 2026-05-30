@@ -25,7 +25,7 @@ vi.mock("@services/common/ServiceFactory", () => ({
   },
 }));
 
-vi.mock("@shared/stores/bambooConfigStore", () => ({
+vi.mock("@shared/store/bambooConfigStore", () => ({
   useBambooConfigStore: {
     getState: () => ({
       loadConfig: mockLoadConfig,

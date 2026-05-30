@@ -1,6 +1,5 @@
 import { create } from "zustand";
-
-const THEME_STORAGE_KEY = "copilot_ui_theme_v1";
+import { THEME_STORAGE_KEY } from "@shared/theme/storageKeys";
 
 type ThemeMode = "light" | "dark";
 

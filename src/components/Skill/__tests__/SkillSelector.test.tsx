@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillSelector } from "../SkillSelector";
-import { useBambooConfigStore } from "../../../shared/stores/bambooConfigStore";
+import { useBambooConfigStore } from "../../../shared/store/bambooConfigStore";
 
 const mockLoadSkills = vi.fn();
 const mockStoreState = {

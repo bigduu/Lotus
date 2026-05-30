@@ -4,7 +4,7 @@ import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { skillService } from "../../services/skill/SkillService";
 import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
-import { useBambooConfigStore } from "../../shared/stores/bambooConfigStore";
+import { useBambooConfigStore } from "../../shared/store/bambooConfigStore";
 import { SkillCard } from "./SkillCard";
 
 // Refresh interval in milliseconds (30 seconds)

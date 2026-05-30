@@ -2,7 +2,7 @@ import { debugLog } from "@shared/utils/debugFlags";
 import { StateCreator } from "zustand";
 import { modelService, ProxyAuthRequiredError } from "../../services/ModelService";
 import { serviceFactory } from "@services/common/ServiceFactory";
-import { useBambooConfigStore } from "../../../../shared/stores/bambooConfigStore";
+import { useBambooConfigStore } from "../../../../shared/store/bambooConfigStore";
 import type { AppState } from "../";
 
 let fetchModelsInFlight: Promise<void> | null = null;
