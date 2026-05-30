@@ -3,7 +3,7 @@ import { App as AntApp, Modal, Typography, Space, Alert } from "antd";
 import { useTranslation } from "react-i18next";
 import WorkspacePicker from "../WorkspacePicker";
 import { recentWorkspacesManager } from "../../services/RecentWorkspacesManager";
-import type { WorkspaceValidationResult } from "@services/workspace";
+import type { Workspace } from "@services/workspace";
 
 const { Title } = Typography;
 
@@ -25,7 +25,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
   const [path, setPath] = useState(initialPath);
-  const [validationResult, setValidationResult] = useState<WorkspaceValidationResult | null>(null);
+  const [validationResult, setValidationResult] = useState<Workspace | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -39,7 +39,7 @@ const WorkspacePathModal: React.FC<WorkspacePathModalProps> = ({
     setPath(newPath);
   };
 
-  const handleValidationChange = (result: WorkspaceValidationResult | null) => {
+  const handleValidationChange = (result: Workspace | null) => {
     setValidationResult(result);
   };
 
