@@ -27,6 +27,7 @@ import {
 } from "@ant-design/icons";
 import { isApiError } from "@services/api/client";
 import { settingsService } from "@services/config/SettingsService";
+import { isAntdFormError } from "@shared/utils/formError";
 import type {
   ProviderType,
   ProviderInstance,
@@ -542,10 +543,7 @@ export const ProviderInstanceManager: React.FC<{
     } catch (error) {
       if (isApiError(error)) {
         message.error(error.message);
-      } else if (
-        error instanceof Error &&
-        !(error as unknown as Record<string, unknown>).errorFields
-      ) {
+      } else if (error instanceof Error && !isAntdFormError(error)) {
         message.error(error.message);
       }
     } finally {

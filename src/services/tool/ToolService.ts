@@ -127,7 +127,16 @@ export class ToolService {
     );
     try {
       const data = await apiClient.post<{ result: string }>("tools/execute", request);
-      const structuredResult: ToolExecutionResult = JSON.parse(data.result);
+      const parsed: unknown = JSON.parse(data.result);
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        typeof (parsed as Record<string, unknown>).success !== "boolean" ||
+        typeof (parsed as Record<string, unknown>).result !== "string"
+      ) {
+        throw new Error("Tool execution returned a malformed result");
+      }
+      const structuredResult = parsed as ToolExecutionResult;
       debugLog(
         "[ToolService]",
         "[ToolService] executeTool: Parsed structured result:",

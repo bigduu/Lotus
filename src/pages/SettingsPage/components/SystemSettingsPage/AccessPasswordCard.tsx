@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Form, Input, Space, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import { serviceFactory } from "../../../../services/common/ServiceFactory";
+import { isAntdFormError } from "@shared/utils/formError";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -79,7 +80,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
       form.resetFields();
       await loadStatus();
     } catch (error) {
-      if ((error as { errorFields?: unknown }).errorFields) {
+      if (isAntdFormError(error)) {
         return;
       }
       const message =
