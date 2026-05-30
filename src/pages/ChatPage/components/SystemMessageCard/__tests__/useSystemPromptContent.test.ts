@@ -14,7 +14,7 @@ vi.mock("../../../services/SystemPromptService", () => ({
   },
 }));
 
-vi.mock("../../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   AgentClient: {
     getInstance: () => ({
       getSessionSystemPrompt: mockGetSessionSystemPrompt,

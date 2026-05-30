@@ -22,7 +22,7 @@
  * without touching the global store.
  */
 
-import type { AgentEvent } from "../../services/AgentService";
+import type { AgentEvent } from "@services/chat/AgentService";
 import type { ChatItem } from "../../types/chat";
 
 /**

@@ -40,7 +40,7 @@ const {
   patchSessionMock: vi.fn(async () => undefined),
 }));
 
-vi.mock("../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   AgentClient: {
     getInstance: vi.fn(() => ({
       deleteSession: deleteSessionMock,

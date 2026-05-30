@@ -3,7 +3,7 @@ import i18n from "i18next";
 
 import type { Message, UserSystemPrompt } from "../../types/chat";
 import { SystemPromptService } from "../../services/SystemPromptService";
-import { AgentClient, type SessionSystemPromptResponse } from "../../services/AgentService";
+import { AgentClient, type SessionSystemPromptResponse } from "@services/chat/AgentService";
 
 type UseSystemPromptContentArgs = {
   currentChat: {

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createStore, type StoreApi } from "zustand/vanilla";
 
-import type { AgentEvent, SessionSummary } from "../../services/AgentService";
+import type { AgentEvent, SessionSummary } from "@services/chat/AgentService";
 import {
   applyExecutionEvent,
   createExecutionStateSlice,

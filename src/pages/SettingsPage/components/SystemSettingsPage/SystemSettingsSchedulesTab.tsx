@@ -26,7 +26,7 @@ import {
   ScheduleEntry,
   ScheduleRunRecord,
   ScheduleTrigger,
-} from "../../../ChatPage/services/AgentService";
+} from "@services/chat/AgentService";
 import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
 import { openSession } from "../../../ChatPage/utils/openSession";
 

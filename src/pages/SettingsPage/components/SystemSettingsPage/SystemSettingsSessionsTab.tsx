@@ -3,7 +3,7 @@ import { App as AntApp } from "antd";
 import { Button, Card, Flex, Switch, Typography } from "antd";
 import { useTranslation } from "react-i18next";
 
-import { AgentClient } from "../../../ChatPage/services/AgentService";
+import { AgentClient } from "@services/chat/AgentService";
 import { useAppStore } from "../../../ChatPage/store";
 
 const { Text } = Typography;

@@ -1,4 +1,4 @@
-import type { ReasoningEffort } from "../services/AgentService";
+import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { ProviderConfig } from "../types/providerConfig";
 import type { ProviderModelRef } from "../types/providerModelRef";
 

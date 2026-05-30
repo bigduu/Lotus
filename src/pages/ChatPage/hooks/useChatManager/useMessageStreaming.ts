@@ -8,7 +8,7 @@ import {
   type ExecuteClientSync,
   type ExecuteResponse,
   type ReasoningEffort,
-} from "../../services/AgentService";
+} from "@services/chat/AgentService";
 import type { ChatItem, Message, UserMessage } from "../../types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";

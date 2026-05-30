@@ -1,4 +1,4 @@
-import type { ReasoningEffort } from "../../../ChatPage/services/AgentService";
+import type { ReasoningEffort } from "@services/chat/AgentService";
 
 export const RESERVED_INSTANCE_CONFIG_KEYS = new Set([
   "id",

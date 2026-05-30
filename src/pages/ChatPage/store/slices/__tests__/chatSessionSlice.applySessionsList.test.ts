@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ChatItem } from "../../../types/chat";
-import type { SessionSummary } from "../../../services/AgentService";
+import type { SessionSummary } from "@services/chat/AgentService";
 import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
 
 // Hoisted mock so per-test re-stubbing of `listSessions` reaches the slice's
@@ -11,7 +11,7 @@ const { mockListSessions } = vi.hoisted(() => ({
   mockListSessions: vi.fn<() => Promise<{ sessions: SessionSummary[] }>>(),
 }));
 
-vi.mock("../../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   AgentClient: {
     getInstance: vi.fn(() => ({
       deleteSession: vi.fn(),

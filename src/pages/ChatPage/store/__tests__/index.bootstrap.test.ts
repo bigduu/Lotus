@@ -16,7 +16,7 @@ const loadStoreContext = async () => {
   vi.resetModules();
 
   const storeModule = await import("../index");
-  const { AgentClient } = await import("../../services/AgentService");
+  const { AgentClient } = await import("@services/chat/AgentService");
   const { serviceFactory } = await import("../../../../services/common/ServiceFactory");
   const { useBambooConfigStore } = await import("../../../../shared/store/bambooConfigStore");
 

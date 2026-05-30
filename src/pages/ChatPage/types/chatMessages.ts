@@ -1,7 +1,7 @@
 import type { TaskListMsg } from "./todoList";
 import type { TokenUsage } from "./tokenBudget";
 import type { ProviderModelRef } from "./providerModelRef";
-import type { GoldConfig } from "../services/AgentService";
+import type { GoldConfig } from "@services/chat/AgentService";
 
 export type AgentRole = "planner" | "actor";
 
@@ -193,7 +193,7 @@ export interface ChatItem {
   lastRunStatus?: string;
   lastRunError?: string;
   /** Active plan mode runtime state mirrored from backend session summary/SSE. */
-  planMode?: import("../services/AgentService").SessionPlanModeState | null;
+  planMode?: import("@services/chat/AgentService").SessionPlanModeState | null;
   /**
    * SubAgent profile id for child sessions ("general-purpose", "plan", ...).
    * Mirrored from `session.metadata["subagent_type"]` into the backend
@@ -222,7 +222,7 @@ export interface ChatItem {
     workspacePath?: string;
     model?: string;
     model_ref?: ProviderModelRef | null;
-    reasoningEffort?: import("../services/AgentService").ReasoningEffort | null;
+    reasoningEffort?: import("@services/chat/AgentService").ReasoningEffort | null;
     goldConfig?: GoldConfig | null;
     tokenUsage?: TokenUsage;
     truncationOccurred?: boolean;

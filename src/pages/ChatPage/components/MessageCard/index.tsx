@@ -9,7 +9,7 @@ import { useTranslation } from "react-i18next";
 import { ImageGrid } from "../ImageGrid";
 import { ActionButtonGroup, createCopyButton, createReferenceButton } from "../ActionButtonGroup";
 import { selectIsBusy, useAppStore } from "../../store";
-import { agentClient } from "../../services/AgentService";
+import { agentClient } from "@services/chat/AgentService";
 import { isTaskListMessage, isUserFileReferenceMessage, type Message } from "../../types/chat";
 import PlanMessageCard from "../PlanMessageCard";
 import QuestionMessageCard from "../QuestionMessageCard";

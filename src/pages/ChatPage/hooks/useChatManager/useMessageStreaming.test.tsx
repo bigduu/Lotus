@@ -53,7 +53,7 @@ vi.mock("antd", () => ({
   },
 }));
 
-vi.mock("../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   AgentClient: class {
     sendMessage = mockAgentSendMessage;
     execute = mockAgentExecute;

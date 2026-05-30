@@ -5,7 +5,7 @@ import type {
   AgentEvent,
   RunningSessionsResponse,
   SessionSummary,
-} from "../../services/AgentService";
+} from "@services/chat/AgentService";
 import { createChatSlice, type ChatSlice } from "../slices/chatSessionSlice";
 
 // Hoisted mock for `listSessions` and `getRunningSessions` so the slice's
@@ -15,7 +15,7 @@ const { mockListSessions, mockGetRunningSessions } = vi.hoisted(() => ({
   mockGetRunningSessions: vi.fn<() => Promise<RunningSessionsResponse>>(),
 }));
 
-vi.mock("../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   AgentClient: {
     getInstance: vi.fn(() => ({
       deleteSession: vi.fn(),

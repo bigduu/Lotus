@@ -4,7 +4,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { ChatItem } from "../../../types/chat";
 import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
 
-vi.mock("../../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   AgentClient: {
     getInstance: vi.fn(() => ({
       deleteSession: vi.fn(),

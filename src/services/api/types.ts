@@ -8,6 +8,3 @@ export interface ApiListResponse<T> {
   items: T[];
   total: number;
 }
-
-// Re-export commonly used types from feature modules
-export * from "../chat/AgentService";

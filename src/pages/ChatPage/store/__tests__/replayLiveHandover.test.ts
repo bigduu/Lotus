@@ -8,7 +8,7 @@ import {
   type ReplayableSessionMetadataEvent,
 } from "../slices/sessionMetadataSlice";
 
-vi.mock("../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   AgentClient: {
     getInstance: vi.fn(() => ({
       deleteSession: vi.fn(),

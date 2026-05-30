@@ -1,6 +1,6 @@
 import { StateCreator } from "zustand";
 import type { AppState } from "../";
-import type { ReasoningEffort } from "../../services/AgentService";
+import type { ReasoningEffort } from "@services/chat/AgentService";
 import { StorageManager } from "../../../../services/storage/StorageManager";
 
 // Attachment type (same as in InputContainer)

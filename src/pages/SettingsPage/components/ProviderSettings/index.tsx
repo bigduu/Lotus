@@ -53,7 +53,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelPicker";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
-import type { ReasoningEffort } from "../../../ChatPage/services/AgentService";
+import type { ReasoningEffort } from "@services/chat/AgentService";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
 
 const { Password } = Input;

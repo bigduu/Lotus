@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AgentClient } from "../../../services/AgentService";
+import { AgentClient } from "@services/chat/AgentService";
 import { createTaskListSlice, type TaskList, type TaskListSlice } from "../todoListSlice";
 import { createSliceHarness } from "./sliceHarness";
 

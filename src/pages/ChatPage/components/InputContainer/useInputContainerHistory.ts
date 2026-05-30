@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import type { Message, ChatItem } from "../../types/chat";
-import type { ReasoningEffort } from "../../services/AgentService";
+import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { MessageRetryMode } from "../MessageInput/types";
 
 interface UseInputContainerHistoryProps {

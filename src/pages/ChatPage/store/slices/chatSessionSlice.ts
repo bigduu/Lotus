@@ -9,7 +9,7 @@ import {
   AssistantToolResultMessage,
   MessageImage,
 } from "../../types/chat";
-import { AgentClient, SessionSummary } from "../../services/AgentService";
+import { AgentClient, SessionSummary } from "@services/chat/AgentService";
 import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
 import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
 import { ApiError } from "../../../../services/api";

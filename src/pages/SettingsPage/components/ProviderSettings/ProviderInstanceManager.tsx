@@ -37,7 +37,7 @@ import { PROVIDER_LABELS } from "../../../ChatPage/types/providerConfig";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import type { ReasoningEffort } from "../../../ChatPage/services/AgentService";
+import type { ReasoningEffort } from "@services/chat/AgentService";
 import { DeviceCodeModal } from "./DeviceCodeModal";
 import { sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
 import { copyText } from "@shared/utils/clipboard";

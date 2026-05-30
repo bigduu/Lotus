@@ -38,7 +38,7 @@ vi.mock("../../services/openaiClient", () => ({
   }),
 }));
 
-vi.mock("../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   agentClient: {
     patchSessionMessage: mockPatchSessionMessage,
   },

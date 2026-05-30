@@ -8,7 +8,7 @@ import { selectIsBusy, selectPendingQuestion, useAppStore } from "../../pages/Ch
 import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef";
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
-import type { ReasoningEffort } from "../../pages/ChatPage/services/AgentService";
+import type { ReasoningEffort } from "@services/chat/AgentService";
 import { resolveProviderDefaultReasoningEffort } from "../../pages/ChatPage/utils/reasoningEffort";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
 import { buildPendingQuestionIdentity } from "../../pages/ChatPage/utils/pendingQuestionIdentity";

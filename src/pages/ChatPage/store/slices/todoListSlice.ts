@@ -1,6 +1,6 @@
 import { StateCreator } from "zustand";
 
-import { AgentClient } from "../../services/AgentService";
+import { AgentClient } from "@services/chat/AgentService";
 
 // Task item status
 export type TaskItemStatus = "pending" | "in_progress" | "completed" | "blocked";

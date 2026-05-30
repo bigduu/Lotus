@@ -3,7 +3,7 @@ import { getOpenAIClient } from "../../services/openaiClient";
 import { useAppStore } from "../../store";
 import { useFastModel } from "../../hooks/useActiveModel";
 import { useFastModelRef } from "../../hooks/useActiveModelRef";
-import { agentClient } from "../../services/AgentService";
+import { agentClient } from "@services/chat/AgentService";
 import type { AssistantTextMessage, Message } from "../../types/chat";
 
 const extractMermaidCode = (content: string) => {

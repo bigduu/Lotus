@@ -48,7 +48,7 @@ vi.mock("../../utils/openSession", () => ({
   openSession: vi.fn(),
 }));
 
-vi.mock("../../services/AgentService", () => ({
+vi.mock("@services/chat/AgentService", () => ({
   agentClient: mockAgentClient,
 }));
 

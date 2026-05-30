@@ -35,7 +35,7 @@ import { resolveProviderDefaultReasoningEffort } from "../../utils/reasoningEffo
 import { useProviderStore } from "../../store/slices/providerSlice";
 import { ProviderModelPicker } from "../ProviderModelPicker";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
-import { agentClient, type GoldConfig, type ReasoningEffort } from "../../services/AgentService";
+import { agentClient, type GoldConfig, type ReasoningEffort } from "@services/chat/AgentService";
 import {
   type ProviderType,
   type OpenAIConfig,

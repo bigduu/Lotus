@@ -9,7 +9,7 @@ import { TokenBudgetSlice, createTokenBudgetSlice } from "./slices/tokenBudgetSl
 import { TaskListSlice, createTaskListSlice } from "./slices/todoListSlice";
 import { InputStateSlice, createInputStateSlice } from "./slices/inputStateSlice";
 import { ExecutionStateSlice, createExecutionStateSlice } from "./slices/executionStateSlice";
-import { AgentClient } from "../services/AgentService";
+import { AgentClient } from "@services/chat/AgentService";
 import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
 import { useBambooConfigStore } from "../../../shared/store/bambooConfigStore";

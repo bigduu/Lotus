@@ -1,5 +1,5 @@
 import { StateCreator } from "zustand";
-import { AgentEvent, SessionSummary } from "../../services/AgentService";
+import { AgentEvent, SessionSummary } from "@services/chat/AgentService";
 import type { AppState } from "../";
 import { applyReplayableSessionEvent, isSessionMetadataEvent } from "./sessionMetadataSlice";
 

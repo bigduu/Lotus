@@ -15,6 +15,9 @@
 export { ApiClient, apiClient, ApiError, isApiError, getErrorMessage, withFallback } from "./api";
 export type { ApiClientConfig, ApiListResponse } from "./api";
 
+// Chat Services (agent runtime client + model resolution)
+export * from "./chat";
+
 // Skill Service
 export { SkillService, skillService } from "./skill/SkillService";
 export type { SkillDefinition, SkillFilter, SkillListResponse } from "./skill/types";
