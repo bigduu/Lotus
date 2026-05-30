@@ -241,6 +241,29 @@ function scheduleToFormValues(schedule: ScheduleEntry): ScheduleFormValues {
   return base;
 }
 
+/** Hour (0-23) + minute (0-59) form fields shared by the daily/weekly/monthly triggers. */
+function HourMinuteFields({ hourName, minuteName }: { hourName: string; minuteName: string }) {
+  const { t } = useTranslation();
+  return (
+    <Flex gap={12} wrap="wrap">
+      <Form.Item
+        label={t("settings.schedulesTab.form.dailyHour")}
+        name={hourName}
+        style={{ width: 180 }}
+      >
+        <InputNumber min={0} max={23} style={{ width: "100%" }} />
+      </Form.Item>
+      <Form.Item
+        label={t("settings.schedulesTab.form.dailyMinute")}
+        name={minuteName}
+        style={{ width: 180 }}
+      >
+        <InputNumber min={0} max={59} style={{ width: "100%" }} />
+      </Form.Item>
+    </Flex>
+  );
+}
+
 export default function SystemSettingsSchedulesTab() {
   const { t } = useTranslation();
   const [msgApi, contextHolder] = message.useMessage();
@@ -288,6 +311,20 @@ export default function SystemSettingsSchedulesTab() {
       setLoading(false);
     }
   }, [msgApi, t]);
+
+  // Run an async action, logging + surfacing a localized error toast on failure.
+  // `logMessage` is the bare action description (no "[Schedules]" prefix / colon).
+  const runWithScheduleError = useCallback(
+    async (logMessage: string, errorKey: string, fn: () => Promise<void>): Promise<void> => {
+      try {
+        await fn();
+      } catch (e) {
+        console.error(`[Schedules] ${logMessage}:`, e);
+        msgApi.error(t(errorKey));
+      }
+    },
+    [msgApi, t],
+  );
 
   useEffect(() => {
     void refresh();
@@ -378,22 +415,7 @@ export default function SystemSettingsSchedulesTab() {
       ) : null}
 
       {triggerType === "daily" ? (
-        <Flex gap={12} wrap="wrap">
-          <Form.Item
-            label={t("settings.schedulesTab.form.dailyHour")}
-            name="daily_hour"
-            style={{ width: 180 }}
-          >
-            <InputNumber min={0} max={23} style={{ width: "100%" }} />
-          </Form.Item>
-          <Form.Item
-            label={t("settings.schedulesTab.form.dailyMinute")}
-            name="daily_minute"
-            style={{ width: 180 }}
-          >
-            <InputNumber min={0} max={59} style={{ width: "100%" }} />
-          </Form.Item>
-        </Flex>
+        <HourMinuteFields hourName="daily_hour" minuteName="daily_minute" />
       ) : null}
 
       {triggerType === "weekly" ? (
@@ -405,22 +427,7 @@ export default function SystemSettingsSchedulesTab() {
           >
             <Select mode="multiple" options={WEEKDAY_OPTIONS} />
           </Form.Item>
-          <Flex gap={12} wrap="wrap">
-            <Form.Item
-              label={t("settings.schedulesTab.form.dailyHour")}
-              name="weekly_hour"
-              style={{ width: 180 }}
-            >
-              <InputNumber min={0} max={23} style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item
-              label={t("settings.schedulesTab.form.dailyMinute")}
-              name="weekly_minute"
-              style={{ width: 180 }}
-            >
-              <InputNumber min={0} max={59} style={{ width: "100%" }} />
-            </Form.Item>
-          </Flex>
+          <HourMinuteFields hourName="weekly_hour" minuteName="weekly_minute" />
         </>
       ) : null}
 
@@ -433,22 +440,7 @@ export default function SystemSettingsSchedulesTab() {
           >
             <Input placeholder={t("settings.schedulesTab.form.monthlyDaysPlaceholder")} />
           </Form.Item>
-          <Flex gap={12} wrap="wrap">
-            <Form.Item
-              label={t("settings.schedulesTab.form.dailyHour")}
-              name="monthly_hour"
-              style={{ width: 180 }}
-            >
-              <InputNumber min={0} max={23} style={{ width: "100%" }} />
-            </Form.Item>
-            <Form.Item
-              label={t("settings.schedulesTab.form.dailyMinute")}
-              name="monthly_minute"
-              style={{ width: 180 }}
-            >
-              <InputNumber min={0} max={59} style={{ width: "100%" }} />
-            </Form.Item>
-          </Flex>
+          <HourMinuteFields hourName="monthly_hour" minuteName="monthly_minute" />
         </>
       ) : null}
 
@@ -653,13 +645,14 @@ export default function SystemSettingsSchedulesTab() {
           <Switch
             checked={row.enabled}
             onChange={async (checked) => {
-              try {
-                await agentClient.patchSchedule(row.id, { enabled: checked });
-                await refresh();
-              } catch (e) {
-                console.error("[Schedules] Failed to toggle:", e);
-                msgApi.error(t("settings.schedulesTab.updateFailed"));
-              }
+              await runWithScheduleError(
+                "Failed to toggle",
+                "settings.schedulesTab.updateFailed",
+                async () => {
+                  await agentClient.patchSchedule(row.id, { enabled: checked });
+                  await refresh();
+                },
+              );
             }}
           />
         ),
@@ -676,15 +669,16 @@ export default function SystemSettingsSchedulesTab() {
               onChange={async (value) => {
                 const next = typeof value === "number" ? value : null;
                 if (!next || next <= 0) return;
-                try {
-                  await agentClient.patchSchedule(row.id, {
-                    trigger: buildIntervalTrigger(next),
-                  });
-                  await refresh();
-                } catch (e) {
-                  console.error("[Schedules] Failed to patch interval:", e);
-                  msgApi.error(t("settings.schedulesTab.updateFailed"));
-                }
+                await runWithScheduleError(
+                  "Failed to patch interval",
+                  "settings.schedulesTab.updateFailed",
+                  async () => {
+                    await agentClient.patchSchedule(row.id, {
+                      trigger: buildIntervalTrigger(next),
+                    });
+                    await refresh();
+                  },
+                );
               }}
             />
           );
@@ -704,14 +698,15 @@ export default function SystemSettingsSchedulesTab() {
                 <Button
                   size="small"
                   onClick={async () => {
-                    try {
-                      await agentClient.runScheduleNow(row.id);
-                      msgApi.success(t("settings.schedulesTab.enqueuedRun"));
-                      await refresh();
-                    } catch (e) {
-                      console.error("[Schedules] Failed to run now:", e);
-                      msgApi.error(t("settings.schedulesTab.runNowFailed"));
-                    }
+                    await runWithScheduleError(
+                      "Failed to run now",
+                      "settings.schedulesTab.runNowFailed",
+                      async () => {
+                        await agentClient.runScheduleNow(row.id);
+                        msgApi.success(t("settings.schedulesTab.enqueuedRun"));
+                        await refresh();
+                      },
+                    );
                   }}
                 >
                   {t("settings.schedulesTab.actions.runNow")}
@@ -780,14 +775,15 @@ export default function SystemSettingsSchedulesTab() {
                   danger
                   size="small"
                   onClick={async () => {
-                    try {
-                      await agentClient.deleteSchedule(row.id);
-                      msgApi.success(t("settings.schedulesTab.deleted"));
-                      await refresh();
-                    } catch (e) {
-                      console.error("[Schedules] Failed to delete:", e);
-                      msgApi.error(t("settings.schedulesTab.deleteFailed"));
-                    }
+                    await runWithScheduleError(
+                      "Failed to delete",
+                      "settings.schedulesTab.deleteFailed",
+                      async () => {
+                        await agentClient.deleteSchedule(row.id);
+                        msgApi.success(t("settings.schedulesTab.deleted"));
+                        await refresh();
+                      },
+                    );
                   }}
                 >
                   {t("settings.schedulesTab.actions.delete")}
@@ -808,7 +804,7 @@ export default function SystemSettingsSchedulesTab() {
         },
       },
     ],
-    [editForm, msgApi, refresh, t],
+    [editForm, msgApi, refresh, runWithScheduleError, t],
   );
 
   return (
