@@ -23,24 +23,26 @@ interface TokenUsageDisplayProps {
 
 type MetricBadgeTone = "green" | "blue" | "purple";
 
+// Tones map onto the《千里江山》palette via theme vars (no stock antd colors):
+// green → 石绿, blue → 石青 azure, purple → 泥金 gold (the warm accent).
 const METRIC_BADGE_STYLES: Record<
   MetricBadgeTone,
   { backgroundColor: string; borderColor: string; color: string }
 > = {
   green: {
-    backgroundColor: "rgba(82, 196, 26, 0.12)",
-    borderColor: "rgba(82, 196, 26, 0.28)",
-    color: "#389e0d",
+    backgroundColor: "color-mix(in srgb, var(--lotus-success) 14%, transparent)",
+    borderColor: "color-mix(in srgb, var(--lotus-success) 30%, transparent)",
+    color: "var(--lotus-success)",
   },
   blue: {
-    backgroundColor: "rgba(22, 119, 255, 0.12)",
-    borderColor: "rgba(22, 119, 255, 0.28)",
-    color: "#1677ff",
+    backgroundColor: "color-mix(in srgb, var(--lotus-accent-secondary) 14%, transparent)",
+    borderColor: "color-mix(in srgb, var(--lotus-accent-secondary) 30%, transparent)",
+    color: "var(--lotus-accent-secondary)",
   },
   purple: {
-    backgroundColor: "rgba(114, 46, 209, 0.12)",
-    borderColor: "rgba(114, 46, 209, 0.28)",
-    color: "#722ed1",
+    backgroundColor: "color-mix(in srgb, var(--lotus-gold) 16%, transparent)",
+    borderColor: "color-mix(in srgb, var(--lotus-gold) 32%, transparent)",
+    color: "var(--lotus-gold)",
   },
 };
 

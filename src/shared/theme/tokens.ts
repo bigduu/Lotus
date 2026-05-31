@@ -12,17 +12,20 @@ import { theme, type ThemeConfig } from "antd";
 type ThemeMode = "light" | "dark";
 
 const LIGHT_THEME_TOKEN = {
-  // Brand primary — Bodhi teal (zen / nature)
-  colorPrimary: "#0d9488",
-  colorPrimaryHover: "#14b8a6",
-  colorPrimaryActive: "#0f766e",
-  colorInfo: "#0d9488",
-  colorLink: "#0d9488",
-  colorLinkHover: "#14b8a6",
-  colorLinkActive: "#0f766e",
-  colorSuccess: "#10b981",
-  colorWarning: "#f59e0b",
-  colorError: "#ef4444",
+  // Brand primary — 石绿 (malachite) mineral 青绿, after《千里江山图》
+  colorPrimary: "#157f6b",
+  colorPrimaryHover: "#1b9a82",
+  colorPrimaryActive: "#0f5f51",
+  // Info / secondary — 石青 (azurite) mineral azure, the duotone partner to 石绿
+  colorInfo: "#2b6e8f",
+  colorLink: "#157f6b",
+  colorLinkHover: "#1b9a82",
+  colorLinkActive: "#0f5f51",
+  colorSuccess: "#2e9e6f",
+  // Warning — 泥金 (gold leaf)
+  colorWarning: "#c08a2e",
+  // Error — 朱砂 (cinnabar)
+  colorError: "#d24b3c",
 
   // Text colors — calmer premium contrast
   colorText: "#0f172a",
@@ -40,13 +43,13 @@ const LIGHT_THEME_TOKEN = {
   colorFillSecondary: "#f7fdfb",
   colorFillTertiary: "rgba(255, 255, 255, 0.82)",
   colorFillQuaternary: "transparent",
-  colorBgLayout: "#f0fdfa",
+  colorBgLayout: "#eef5f1",
   colorBgContainer: "rgba(255, 255, 255, 0.82)",
   colorBgElevated: "rgba(255, 255, 255, 0.9)",
-  colorBgSpotlight: "rgba(13, 148, 136, 0.16)",
-  colorPrimaryBg: "#f0fdfa",
-  colorPrimaryBgHover: "#ccfbf1",
-  colorPrimaryBorder: "#99f6e4",
+  colorBgSpotlight: "rgba(21, 127, 107, 0.16)",
+  colorPrimaryBg: "#e6f1ec",
+  colorPrimaryBgHover: "#cfe6dd",
+  colorPrimaryBorder: "#9fd0c1",
 
   // Shape
   borderRadius: 10,
@@ -59,17 +62,20 @@ const LIGHT_THEME_TOKEN = {
 };
 
 const DARK_THEME_TOKEN = {
-  // Brand primary — Bodhi teal for dark mode
-  colorPrimary: "#2dd4bf",
-  colorPrimaryHover: "#5eead4",
-  colorPrimaryActive: "#0d9488",
-  colorInfo: "#2dd4bf",
-  colorLink: "#2dd4bf",
-  colorLinkHover: "#5eead4",
-  colorLinkActive: "#0d9488",
-  colorSuccess: "#34d399",
-  colorWarning: "#fbbf24",
-  colorError: "#f87171",
+  // Brand primary — 石绿 (malachite) lifted for dark mode, after《千里江山图》
+  colorPrimary: "#46c2a0",
+  colorPrimaryHover: "#6ad7b8",
+  colorPrimaryActive: "#2e9e7f",
+  // Info / secondary — 石青 (azurite) azure
+  colorInfo: "#5aa9cf",
+  colorLink: "#46c2a0",
+  colorLinkHover: "#6ad7b8",
+  colorLinkActive: "#2e9e7f",
+  colorSuccess: "#4cc08c",
+  // Warning — 泥金 (gold leaf)
+  colorWarning: "#dcae4c",
+  // Error — 朱砂 (cinnabar)
+  colorError: "#ef6a5c",
 
   // Text colors for dark mode
   colorText: "#e5edf8",
@@ -86,13 +92,13 @@ const DARK_THEME_TOKEN = {
   colorFillSecondary: "#091412",
   colorFillTertiary: "rgba(15, 23, 42, 0.74)",
   colorFillQuaternary: "transparent",
-  colorBgLayout: "#070e0c",
-  colorBgContainer: "rgba(11, 22, 18, 0.76)",
-  colorBgElevated: "rgba(15, 30, 25, 0.9)",
-  colorBgSpotlight: "rgba(13, 148, 136, 0.20)",
-  colorPrimaryBg: "rgba(13, 148, 136, 0.14)",
-  colorPrimaryBgHover: "rgba(13, 148, 136, 0.18)",
-  colorPrimaryBorder: "rgba(45, 212, 191, 0.28)",
+  colorBgLayout: "#070f0d",
+  colorBgContainer: "rgba(11, 23, 20, 0.76)",
+  colorBgElevated: "rgba(15, 31, 27, 0.9)",
+  colorBgSpotlight: "rgba(21, 127, 107, 0.22)",
+  colorPrimaryBg: "rgba(21, 127, 107, 0.16)",
+  colorPrimaryBgHover: "rgba(21, 127, 107, 0.22)",
+  colorPrimaryBorder: "rgba(70, 194, 160, 0.30)",
 
   // Shape
   borderRadius: 10,
@@ -106,21 +112,21 @@ const DARK_THEME_TOKEN = {
 
 const LIGHT_THEME_COMPONENT_TOKEN = {
   Tag: {
-    defaultBg: "rgba(13, 148, 136, 0.1)",
-    defaultColor: "#0f766e",
+    defaultBg: "rgba(21, 127, 107, 0.10)",
+    defaultColor: "#0f5f51",
   },
   Table: {
-    bodySortBg: "rgba(13, 148, 136, 0.08)",
+    bodySortBg: "rgba(21, 127, 107, 0.08)",
   },
 } as const;
 
 const DARK_THEME_COMPONENT_TOKEN = {
   Tag: {
-    defaultBg: "rgba(45, 212, 191, 0.18)",
-    defaultColor: "#ccfbf1",
+    defaultBg: "rgba(70, 194, 160, 0.18)",
+    defaultColor: "#c8efe2",
   },
   Table: {
-    bodySortBg: "rgba(45, 212, 191, 0.14)",
+    bodySortBg: "rgba(70, 194, 160, 0.14)",
   },
 } as const;
 

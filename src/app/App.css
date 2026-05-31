@@ -184,15 +184,20 @@ body,
   --color-gray-800: #0f172a;
   --color-gray-900: #060814;
 
-  --lotus-primary: #0d9488;
-  --lotus-primary-strong: #0f766e;
-  --lotus-primary-soft: rgba(13, 148, 136, 0.22);
-  --lotus-accent: #059669;
-  --lotus-accent-secondary: #0891b2;
-  --lotus-success: #10b981;
-  --lotus-warning: #d97706;
-  --lotus-danger: #dc2626;
-  --lotus-focus-ring: rgba(13, 148, 136, 0.22);
+  /* 《千里江山图》mineral palette: 石绿 malachite primary, 石青 azurite accent */
+  --lotus-primary: #157f6b;
+  --lotus-primary-strong: #0f5f51;
+  --lotus-primary-soft: rgba(21, 127, 107, 0.22);
+  --lotus-accent: #2e9e6f;
+  --lotus-accent-secondary: #2b6e8f;
+  --lotus-success: #2e9e6f;
+  --lotus-warning: #c08a2e;
+  --lotus-danger: #d24b3c;
+  --lotus-focus-ring: rgba(21, 127, 107, 0.22);
+  /* Warm accents — 泥金 (gold leaf) & 赭石 (ochre), used sparingly for
+     highlights/treasured states the way gold appears in the painting. */
+  --lotus-gold: #bf9b30;
+  --lotus-ochre: #a8693a;
 
   --lotus-metric-card-bg: linear-gradient(
     180deg,
@@ -205,17 +210,17 @@ body,
   --lotus-metric-grid: rgba(148, 163, 184, 0.26);
   --lotus-metric-tooltip-bg: rgba(255, 255, 255, 0.96);
   --lotus-metric-tooltip-border: rgba(148, 163, 184, 0.28);
-  --lotus-chart-primary: #0d9488;
-  --lotus-chart-secondary: #10b981;
-  --lotus-chart-accent: #d97706;
-  --lotus-chart-danger: #dc2626;
-  --lotus-chart-purple: #7c3aed;
-  --lotus-chart-cyan: #0891b2;
-  --lotus-heat-0: #f0fdfa;
-  --lotus-heat-1: #ccfbf1;
-  --lotus-heat-2: #5eead4;
-  --lotus-heat-3: #2dd4bf;
-  --lotus-heat-4: #0d9488;
+  --lotus-chart-primary: #157f6b;
+  --lotus-chart-secondary: #2e9e6f;
+  --lotus-chart-accent: #c08a2e;
+  --lotus-chart-danger: #d24b3c;
+  --lotus-chart-purple: #6b8f4f;
+  --lotus-chart-cyan: #2b6e8f;
+  --lotus-heat-0: #eef5f1;
+  --lotus-heat-1: #cfe6dd;
+  --lotus-heat-2: #7cc4ad;
+  --lotus-heat-3: #3aa98c;
+  --lotus-heat-4: #157f6b;
 
   --lotus-blur-sm: 12px;
   --lotus-blur-md: 18px;
@@ -231,6 +236,12 @@ body,
     rgba(255, 255, 255, 0.9) 0%,
     rgba(255, 255, 255, 0.76) 100%
   );
+  /* Conversation pane wash — 青绿 over a faintly celadon base (石青 upper-left,
+     石绿 lower-right) so the empty chat area reads as a 青绿 gradient. */
+  --lotus-chat-pane-bg:
+    radial-gradient(105% 68% at 20% 12%, rgba(43, 110, 143, 0.2) 0%, transparent 60%),
+    radial-gradient(115% 75% at 88% 96%, rgba(21, 127, 107, 0.22) 0%, transparent 62%),
+    linear-gradient(165deg, rgba(232, 245, 240, 0.94) 0%, rgba(244, 251, 248, 0.88) 100%);
   --lotus-sidebar-bg: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.84) 0%,
@@ -275,8 +286,8 @@ body,
   --lotus-divider-color: rgba(13, 148, 136, 0.12);
 
   /* ── Avatar tokens (light) ──────────────────────────────────── */
-  --lotus-avatar-user-bg: linear-gradient(135deg, #0d9488 0%, #0891b2 100%);
-  --lotus-avatar-assistant-bg: linear-gradient(135deg, #059669 0%, #06b6d4 100%);
+  --lotus-avatar-user-bg: linear-gradient(135deg, #157f6b 0%, #2b6e8f 100%);
+  --lotus-avatar-assistant-bg: linear-gradient(135deg, #2e9e6f 0%, #3a87a8 100%);
   --lotus-avatar-system-bg: linear-gradient(
     135deg,
     rgba(148, 163, 184, 0.9) 0%,
@@ -366,10 +377,10 @@ body::after {
 
 body[data-theme="dark"] {
   color: #e2e8f0;
-  background-color: #070e0c;
+  background-color: #070f0d;
   background-image:
-    radial-gradient(circle at top left, rgba(13, 148, 136, 0.2), transparent 28%),
-    radial-gradient(circle at top right, rgba(5, 150, 105, 0.14), transparent 24%),
+    radial-gradient(circle at top left, rgba(21, 127, 107, 0.22), transparent 28%),
+    radial-gradient(circle at top right, rgba(43, 110, 143, 0.16), transparent 24%),
     linear-gradient(180deg, #091410 0%, #081210 42%, #070b14 100%);
 
   --lotus-surface-border: rgba(255, 255, 255, 0.12);
@@ -379,6 +390,12 @@ body[data-theme="dark"] {
     rgba(12, 24, 20, 0.96) 0%,
     rgba(9, 18, 15, 0.92) 100%
   );
+  /* Conversation pane wash (dark) — stronger 石青/石绿 glows over deep ink so
+     the empty chat area reads as a 青绿 gradient against the dark base. */
+  --lotus-chat-pane-bg:
+    radial-gradient(92% 58% at 26% 18%, rgba(43, 110, 143, 0.24) 0%, transparent 58%),
+    radial-gradient(104% 70% at 84% 92%, rgba(26, 138, 116, 0.26) 0%, transparent 60%),
+    rgba(11, 23, 20, 0.9);
   --lotus-sidebar-bg: linear-gradient(
     180deg,
     rgba(10, 20, 17, 0.96) 0%,
@@ -410,7 +427,7 @@ body[data-theme="dark"] {
   --lotus-tool-badge-shadow: 0 8px 18px rgba(2, 6, 23, 0.22);
   --lotus-send-btn-shadow: 0 10px 24px rgba(13, 148, 136, 0.35);
   --lotus-card-hover-shadow: 0 14px 28px rgba(2, 6, 23, 0.26);
-  --lotus-card-hover-border: rgba(45, 212, 191, 0.2);
+  --lotus-card-hover-border: rgba(70, 194, 160, 0.2);
   --lotus-purple-shadow: 0 4px 12px rgba(139, 92, 246, 0.22);
   --lotus-item-hover-bg: rgba(30, 41, 59, 0.68);
   --lotus-item-active-bg: rgba(30, 41, 59, 0.48);
@@ -419,8 +436,8 @@ body[data-theme="dark"] {
     rgba(13, 148, 136, 0.12) 0%,
     rgba(5, 150, 105, 0.1) 100%
   );
-  --lotus-message-user-border: rgba(13, 148, 136, 0.22);
-  --lotus-divider-color: rgba(45, 212, 191, 0.12);
+  --lotus-message-user-border: rgba(21, 127, 107, 0.22);
+  --lotus-divider-color: rgba(70, 194, 160, 0.12);
 
   --lotus-metric-card-bg: linear-gradient(
     180deg,
@@ -433,21 +450,24 @@ body[data-theme="dark"] {
   --lotus-metric-grid: rgba(148, 163, 184, 0.18);
   --lotus-metric-tooltip-bg: rgba(15, 23, 42, 0.96);
   --lotus-metric-tooltip-border: rgba(148, 163, 184, 0.18);
-  --lotus-chart-primary: #2dd4bf;
-  --lotus-chart-secondary: #34d399;
-  --lotus-chart-accent: #f59e0b;
-  --lotus-chart-danger: #f87171;
-  --lotus-chart-purple: #a78bfa;
-  --lotus-chart-cyan: #22d3ee;
-  --lotus-heat-0: #0f2422;
-  --lotus-heat-1: #0f766e;
-  --lotus-heat-2: #0d9488;
-  --lotus-heat-3: #059669;
-  --lotus-heat-4: #2dd4bf;
+  /* Warm accents lifted for dark ink */
+  --lotus-gold: #d8b450;
+  --lotus-ochre: #c2814a;
+  --lotus-chart-primary: #46c2a0;
+  --lotus-chart-secondary: #4cc08c;
+  --lotus-chart-accent: #dcae4c;
+  --lotus-chart-danger: #ef6a5c;
+  --lotus-chart-purple: #9bb87a;
+  --lotus-chart-cyan: #5aa9cf;
+  --lotus-heat-0: #0c211d;
+  --lotus-heat-1: #145e50;
+  --lotus-heat-2: #1f8a72;
+  --lotus-heat-3: #2ea98a;
+  --lotus-heat-4: #46c2a0;
 
   /* ── Avatar tokens (dark) ──────────────────────────────────── */
-  --lotus-avatar-user-bg: linear-gradient(135deg, #0f766e 0%, #0e7490 100%);
-  --lotus-avatar-assistant-bg: linear-gradient(135deg, #047857 0%, #0891b2 100%);
+  --lotus-avatar-user-bg: linear-gradient(135deg, #157f6b 0%, #2b6e8f 100%);
+  --lotus-avatar-assistant-bg: linear-gradient(135deg, #2e9e6f 0%, #3a87a8 100%);
   --lotus-avatar-system-bg: linear-gradient(
     135deg,
     rgba(100, 116, 139, 0.9) 0%,
@@ -1052,6 +1072,39 @@ body[data-vdi-safe="true"] .lotus-sidebar-actions-dropdown .ant-dropdown-menu-it
 
 .ant-btn:not(.ant-btn-text):not(.ant-btn-link):hover {
   transform: translateY(-1px);
+}
+
+/* ── Restrained micro-interactions ──────────────────────────────── */
+/* Tactile press feedback on solid buttons */
+.ant-btn:not(.ant-btn-text):not(.ant-btn-link):active {
+  transform: translateY(0) scale(0.985);
+}
+
+/* The streaming reply card mounts once per turn — ease it in gently.
+   (Not applied to .messageEnter rows, which remount on every scroll
+   under virtualization and would flicker.) */
+@keyframes streamingCardEnter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.streaming-card-enter {
+  animation: streamingCardEnter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ant-btn:not(.ant-btn-text):not(.ant-btn-link):active {
+    transform: none !important;
+  }
+  .streaming-card-enter {
+    animation: none !important;
+  }
 }
 
 .ant-btn:focus-visible,

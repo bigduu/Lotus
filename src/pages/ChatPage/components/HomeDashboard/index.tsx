@@ -181,7 +181,7 @@ export const HomeDashboard: React.FC<{
               <div className="lotus-home-section-title" style={{ color: token.colorTextSecondary }}>
                 <ThunderboltOutlined
                   className="lotus-home-section-icon"
-                  style={{ color: "#52c41a" }}
+                  style={{ color: token.colorSuccess }}
                 />
                 <span>{t("home.sections.running", "Running Now")}</span>
               </div>
@@ -201,7 +201,10 @@ export const HomeDashboard: React.FC<{
           {pinnedSessions.length > 0 ? (
             <div className="lotus-home-section">
               <div className="lotus-home-section-title" style={{ color: token.colorTextSecondary }}>
-                <PushpinOutlined className="lotus-home-section-icon" style={{ color: "#faad14" }} />
+                <PushpinOutlined
+                  className="lotus-home-section-icon"
+                  style={{ color: "var(--lotus-gold)" }}
+                />
                 <span>{t("home.sections.pinned", "Pinned")}</span>
               </div>
               <div className="lotus-home-session-list">

@@ -38,7 +38,7 @@ export const colors = {
   fillQuaternary: "var(--ant-color-fill-quaternary)",
 
   // Custom colors (maintaining existing functionality)
-  pinned: "#faad14", // Pinned status color
+  pinned: "var(--lotus-gold)", // Pinned status — 泥金 (gold leaf)
   selected: {
     light: "#dddddd",
     dark: "#2b2b2b",
