@@ -2,6 +2,38 @@ import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { ProviderConfig, ProviderInstance } from "../types/providerConfig";
 import type { ProviderModelRef } from "../types/providerModelRef";
 
+/**
+ * The single terminal default for reasoning effort, used when nothing is
+ * configured anywhere in the resolution chain. This is the ONE place the
+ * `"medium"` default lives on the frontend — mirror of the backend's
+ * `DEFAULT_REASONING_EFFORT`. Do not hardcode a level at call sites.
+ */
+export const DEFAULT_REASONING_EFFORT: ReasoningEffort = "medium";
+
+/**
+ * Resolve the *effective* reasoning effort a session will use right now, from
+ * the layered sources, most specific first:
+ *   session config → pending input selection → persisted input → provider
+ *   default → {@link DEFAULT_REASONING_EFFORT}.
+ *
+ * This is the single source of the precedence order. Every display/use site
+ * (input box, question dialog) must call this instead of re-spelling the chain,
+ * so they can never drift apart. (Session *creation* is intentionally separate:
+ * it seeds from the provider default and may pass `undefined`, letting the
+ * backend decide — it must NOT force a terminal default.)
+ */
+export const resolveEffectiveReasoningEffort = (sources: {
+  sessionEffort?: ReasoningEffort | null;
+  inputEffort?: ReasoningEffort | null;
+  persistedEffort?: ReasoningEffort | null;
+  providerDefault?: ReasoningEffort | null;
+}): ReasoningEffort =>
+  sources.sessionEffort ??
+  sources.inputEffort ??
+  sources.persistedEffort ??
+  sources.providerDefault ??
+  DEFAULT_REASONING_EFFORT;
+
 const readEffort = (cfg: Record<string, unknown> | undefined): ReasoningEffort | undefined =>
   cfg?.reasoning_effort as ReasoningEffort | undefined;
 

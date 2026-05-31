@@ -31,7 +31,10 @@ import { useInputContainerHistory } from "./useInputContainerHistory";
 import { getInputContainerPlaceholder } from "./inputContainerPlaceholder";
 import { useActiveModel } from "../../hooks/useActiveModel";
 import { useActiveModelRef } from "../../hooks/useActiveModelRef";
-import { resolveProviderDefaultReasoningEffort } from "../../utils/reasoningEffort";
+import {
+  resolveEffectiveReasoningEffort,
+  resolveProviderDefaultReasoningEffort,
+} from "../../utils/reasoningEffort";
 import { useProviderStore } from "../../store/slices/providerSlice";
 import { ProviderModelPicker } from "../ProviderModelPicker";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
@@ -298,12 +301,12 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
     [sessionId],
   );
-  const reasoningEffort: ReasoningEffort =
-    currentChat?.config?.reasoningEffort ??
-    inputState?.reasoningEffort ??
-    persistedReasoningEffort ??
-    providerDefaultReasoningEffort ??
-    "medium";
+  const reasoningEffort: ReasoningEffort = resolveEffectiveReasoningEffort({
+    sessionEffort: currentChat?.config?.reasoningEffort,
+    inputEffort: inputState?.reasoningEffort,
+    persistedEffort: persistedReasoningEffort,
+    providerDefault: providerDefaultReasoningEffort,
+  });
   const sessionGoldConfig = currentChat?.config?.goldConfig ?? null;
   const isGoalEnabled = sessionGoldConfig?.enabled === true;
   const goalPrompt = sessionGoldConfig?.goal ?? sessionGoldConfig?.evaluation_prompt ?? "";
@@ -362,12 +365,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
       try {
         await agentClient.patchSession(sessionId, { reasoning_effort: nextEffort });
-        updateSession(sessionId, {
-          config: {
-            ...currentChat.config,
-            reasoningEffort: nextEffort,
+        // Backend already persisted above; this is a local-state update only.
+        updateSession(
+          sessionId,
+          {
+            config: {
+              ...currentChat.config,
+              reasoningEffort: nextEffort,
+            },
           },
-        });
+          { skipBackendPatch: true },
+        );
       } catch (error) {
         console.warn("[InputContainer] Failed to persist reasoning effort:", error);
       }
@@ -965,12 +973,17 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
 
         await agentClient.patchSession(sessionId, { model: value });
-        updateSession(sessionId, {
-          config: {
-            ...currentChat.config,
-            model: value,
+        // Backend already persisted above; this is a local-state update only.
+        updateSession(
+          sessionId,
+          {
+            config: {
+              ...currentChat.config,
+              model: value,
+            },
           },
-        });
+          { skipBackendPatch: true },
+        );
         messageApi.success(t("settings.providerTab.modelUpdated"));
       } catch (error) {
         messageApi.error(
@@ -1013,15 +1026,20 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           provider: ref.provider,
         });
 
-        // 2. Update local state only after backend confirms.
+        // 2. Update local state only after backend confirms (step 1 already
+        //    persisted these fields, so skip the store's redundant PATCH).
         useProviderStore.getState().setSelectedModelRef(ref);
-        updateSession(sessionId, {
-          config: {
-            ...currentChat.config,
-            model: ref.model,
-            model_ref: ref,
+        updateSession(
+          sessionId,
+          {
+            config: {
+              ...currentChat.config,
+              model: ref.model,
+              model_ref: ref,
+            },
           },
-        });
+          { skipBackendPatch: true },
+        );
 
         messageApi.success(t("settings.providerTab.modelUpdated"));
       } catch (error) {

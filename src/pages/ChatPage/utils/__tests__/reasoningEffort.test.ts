@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
+  DEFAULT_REASONING_EFFORT,
   getReasoningEffortForProvider,
+  resolveEffectiveReasoningEffort,
   resolveProviderDefaultReasoningEffort,
 } from "../reasoningEffort";
 import type { ProviderConfig, ProviderInstance } from "../../types/providerConfig";
@@ -77,5 +79,45 @@ describe("reasoningEffort resolver", () => {
     const instances = [instance("anthropic-work", "anthropic", "high")];
     const ref = { provider: "anthropic-work", model: "claude" };
     expect(resolveProviderDefaultReasoningEffort(config, ref, "openai", instances)).toBe("high");
+  });
+});
+
+describe("resolveEffectiveReasoningEffort", () => {
+  it("prefers session, then input, then persisted, then provider default", () => {
+    expect(
+      resolveEffectiveReasoningEffort({
+        sessionEffort: "max",
+        inputEffort: "high",
+        persistedEffort: "low",
+        providerDefault: "xhigh",
+      }),
+    ).toBe("max");
+    expect(
+      resolveEffectiveReasoningEffort({
+        inputEffort: "high",
+        persistedEffort: "low",
+        providerDefault: "xhigh",
+      }),
+    ).toBe("high");
+    expect(
+      resolveEffectiveReasoningEffort({ persistedEffort: "low", providerDefault: "xhigh" }),
+    ).toBe("low");
+    expect(resolveEffectiveReasoningEffort({ providerDefault: "xhigh" })).toBe("xhigh");
+  });
+
+  it("treats null and undefined sources as absent (falls through)", () => {
+    expect(
+      resolveEffectiveReasoningEffort({
+        sessionEffort: null,
+        inputEffort: undefined,
+        persistedEffort: null,
+        providerDefault: "max",
+      }),
+    ).toBe("max");
+  });
+
+  it("falls back to the single DEFAULT_REASONING_EFFORT when nothing is set", () => {
+    expect(resolveEffectiveReasoningEffort({})).toBe(DEFAULT_REASONING_EFFORT);
+    expect(DEFAULT_REASONING_EFFORT).toBe("medium");
   });
 });

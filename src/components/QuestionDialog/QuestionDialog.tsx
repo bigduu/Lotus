@@ -9,7 +9,10 @@ import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef"
 import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
 import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
 import type { ReasoningEffort } from "@services/chat/AgentService";
-import { resolveProviderDefaultReasoningEffort } from "../../pages/ChatPage/utils/reasoningEffort";
+import {
+  resolveEffectiveReasoningEffort,
+  resolveProviderDefaultReasoningEffort,
+} from "../../pages/ChatPage/utils/reasoningEffort";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
 import { buildPendingQuestionIdentity } from "../../pages/ChatPage/utils/pendingQuestionIdentity";
 import styles from "./QuestionDialog.module.css";
@@ -131,25 +134,27 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
   // Resolve reasoning effort (same priority as InputContainer)
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
+  const providerInstances = useProviderStore((state) => state.providerInstances);
   const providerDefaultReasoningEffort = useMemo<ReasoningEffort | undefined>(
     () =>
       resolveProviderDefaultReasoningEffort(
         providerConfig,
         activeModelRef,
         sessionModelRef?.provider ?? currentProvider,
+        providerInstances,
       ),
-    [activeModelRef, sessionModelRef?.provider, providerConfig, currentProvider],
+    [activeModelRef, sessionModelRef?.provider, providerConfig, currentProvider, providerInstances],
   );
   const persistedReasoningEffort = useMemo<ReasoningEffort | undefined>(
     () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
     [sessionId],
   );
-  const reasoningEffort: ReasoningEffort =
-    sessionReasoningEffort ??
-    inputReasoningEffort ??
-    persistedReasoningEffort ??
-    providerDefaultReasoningEffort ??
-    "medium";
+  const reasoningEffort: ReasoningEffort = resolveEffectiveReasoningEffort({
+    sessionEffort: sessionReasoningEffort,
+    inputEffort: inputReasoningEffort,
+    persistedEffort: persistedReasoningEffort,
+    providerDefault: providerDefaultReasoningEffort,
+  });
 
   const getExecutionDebugSnapshot = useCallback(() => {
     const entry = useAppStore.getState().executionBySession?.[sessionId];

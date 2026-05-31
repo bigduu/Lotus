@@ -20,6 +20,7 @@ import { applyReplayableSessionEventToList, isSessionMetadataEvent } from "./ses
 import i18n from "../../../../shared/i18n";
 import { debugLog } from "../../../../shared/utils/debugFlags";
 import { mapTokenBudgetUsage } from "../../types/tokenBudget";
+import { resolveProviderDefaultReasoningEffort } from "../../utils/reasoningEffort";
 
 const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
@@ -515,7 +516,11 @@ export interface ChatSlice {
   selectSession: (sessionId: string | null) => void;
   deleteSession: (sessionId: string) => Promise<void>;
   deleteSessions: (sessionIds: string[]) => Promise<void>;
-  updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
+  updateSession: (
+    sessionId: string,
+    updates: Partial<ChatItem>,
+    options?: { skipBackendPatch?: boolean },
+  ) => void;
   persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   /**
    * Apply an authoritative server title (from a `session_title_updated` SSE event).
@@ -797,7 +802,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const basePrompt = chatData.config?.baseSystemPrompt?.trim() || "";
     const activeModel = useProviderStore.getState().getActiveModel()?.trim();
     const model = chatData.config?.model?.trim() || activeModel || undefined;
-    const reasoningEffort = chatData.config?.reasoningEffort ?? undefined;
 
     // Resolve model_ref when feature flag is ON
     // Always use provider defaults for new sessions, not the global selectedModelRef.
@@ -825,6 +829,19 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         }
       }
     }
+
+    // Resolve the reasoning effort for the new session. An explicit value from
+    // the caller wins; otherwise inherit the provider's configured default
+    // (e.g. "Max") so a new session matches what the input box shows, instead
+    // of letting the backend silently fall back to its own default ("medium").
+    const reasoningEffort =
+      chatData.config?.reasoningEffort ??
+      resolveProviderDefaultReasoningEffort(
+        useProviderStore.getState().providerConfig,
+        modelRef ?? null,
+        providerValue ?? null,
+        useProviderStore.getState().providerInstances,
+      );
 
     const created = await agentClient.createSession({
       title,
@@ -911,7 +928,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     }
   },
 
-  updateSession: (sessionId, updates) => {
+  updateSession: (sessionId, updates, options) => {
     const hasSessionLevelConfigUpdate =
       !!updates.config &&
       (Object.prototype.hasOwnProperty.call(updates.config, "model") ||
@@ -969,7 +986,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         auto_continue_enabled: false,
       };
     }
-    if (Object.keys(patch).length > 0) {
+    // Callers that already persisted these fields via an awaited direct
+    // `patchSession` (e.g. the model / reasoning-effort handlers) pass
+    // `skipBackendPatch` so we update local state only — otherwise this would
+    // fire a redundant second PATCH for the same change.
+    if (!options?.skipBackendPatch && Object.keys(patch).length > 0) {
       // NOTE: `patchSession` returns void, so the backend's bumped
       // `title_version` (and any other authoritative server fields) is not
       // available here. The backend emits SSE events (e.g. `session_title_updated`)
