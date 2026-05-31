@@ -56,7 +56,8 @@ describe("theme constants", () => {
     });
 
     it("should have custom colors", () => {
-      expect(colors.pinned).toBe("#faad14");
+      // `pinned` moved to a CSS variable in the 《千里江山图》palette (泥金).
+      expect(colors.pinned).toBe("var(--lotus-gold)");
       expect(colors.selected.light).toBe("#dddddd");
       expect(colors.selected.dark).toBe("#2b2b2b");
     });
