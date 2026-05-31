@@ -261,6 +261,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const setInputReasoningEffort = useAppStore((state) => state.setInputReasoningEffort);
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
+  const providerInstances = useProviderStore((state) => state.providerInstances);
   const getProviderType = useProviderStore((s) => s.getProviderType);
 
   // In instance mode currentProvider is an instance id; resolve to ProviderType.
@@ -283,8 +284,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         providerConfig,
         activeModelRef,
         currentChat?.config?.model_ref?.provider ?? currentProvider,
+        providerInstances,
       ),
-    [activeModelRef, currentChat?.config?.model_ref?.provider, providerConfig, currentProvider],
+    [
+      activeModelRef,
+      currentChat?.config?.model_ref?.provider,
+      providerConfig,
+      currentProvider,
+      providerInstances,
+    ],
   );
   const persistedReasoningEffort = useMemo<ReasoningEffort | undefined>(
     () => (sessionId ? readPersistedInputReasoningEffort(sessionId) : undefined),
