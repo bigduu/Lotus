@@ -39,6 +39,7 @@ export const ChatSidebar: React.FC = () => {
     handleRunProjectDream,
     handleSearchQueryChange,
     handleStatusFilterChange,
+    handleClearFilters,
     handleSystemPromptSelect,
     hasActiveFilters,
     isNewChatSelectorOpen,
@@ -170,6 +171,7 @@ export const ChatSidebar: React.FC = () => {
           projectDreamState={projectDreamState}
           token={token}
           hasActiveFilters={hasActiveFilters}
+          onClearFilters={handleClearFilters}
         />
       </Flex>
 

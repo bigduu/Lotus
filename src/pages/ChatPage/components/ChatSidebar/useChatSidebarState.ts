@@ -460,6 +460,11 @@ export const useChatSidebarState = () => {
     setStatusFilter(value);
   }, []);
 
+  const handleClearFilters = useCallback(() => {
+    setSearchQuery("");
+    setStatusFilter("all");
+  }, []);
+
   const handleEditTitle = (sessionId: string, newTitle: string) => {
     updateSession(sessionId, { title: newTitle });
   };
@@ -652,6 +657,7 @@ export const useChatSidebarState = () => {
     handleRunProjectDream,
     handleSearchQueryChange,
     handleStatusFilterChange,
+    handleClearFilters,
     handleSystemPromptSelect,
     isNewChatSelectorOpen,
     pinSession: handlePinChat,

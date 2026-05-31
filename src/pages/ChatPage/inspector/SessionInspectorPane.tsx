@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Button, Drawer, Flex, theme, Typography } from "antd";
-import { AppstoreOutlined, CloseOutlined, FlagOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, CloseOutlined, FlagOutlined, RobotOutlined } from "@ant-design/icons";
 
 import InlineMetaText from "@shared/components/InlineMetaText";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
@@ -9,7 +9,17 @@ import type { SessionDiffSummary } from "../components/ChatView/ActiveToolMessag
 import { ActiveToolMessageCard } from "../components/ChatView/ActiveToolMessageCard";
 import { CHAT_FOCUS_INPUT_EVENT } from "../components/ChatView/events";
 import { selectSessionById, useAppStore } from "../store";
+import { useProviderStore } from "../store/slices/providerSlice";
+import { PROVIDER_LABELS, type ProviderType } from "../types/providerConfig";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
+
+const REASONING_EFFORT_LABELS: Record<string, string> = {
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra high",
+  max: "Max",
+};
 
 const LazySessionSummaryCard = React.lazy(() =>
   import("../components/SessionSummaryCard").then((m) => ({ default: m.SessionSummaryCard })),
@@ -95,6 +105,89 @@ const SessionGoalCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
   );
 };
 
+/**
+ * Shows the session's effective run configuration — model, provider and
+ * reasoning effort — which previously were only visible by opening the
+ * composer. Read-only; "Edit" focuses the composer where these are editable.
+ */
+const SessionConfigCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
+  const { token } = theme.useToken();
+  const chat = useAppStore(selectSessionById(sessionId));
+  const providerInstances = useProviderStore((state) => state.providerInstances);
+
+  const config = chat?.config;
+  const modelName = config?.model_ref?.model ?? config?.model ?? null;
+  const providerKey = config?.model_ref?.provider ?? null;
+
+  const providerLabel = useMemo(() => {
+    if (!providerKey) return null;
+    const instance = providerInstances.find((inst) => inst.id === providerKey);
+    if (instance) return instance.label || instance.id;
+    return PROVIDER_LABELS[providerKey as ProviderType] ?? providerKey;
+  }, [providerKey, providerInstances]);
+
+  // Show the card whenever a model is known (effectively always for real sessions).
+  if (!chat || !modelName) {
+    return null;
+  }
+
+  const reasoningRaw = config?.reasoningEffort ?? null;
+  const reasoningLabel = reasoningRaw
+    ? (REASONING_EFFORT_LABELS[reasoningRaw] ?? reasoningRaw)
+    : "Provider default";
+  const roleLabel = config?.agentRole ?? null;
+
+  const rows: Array<{ label: string; value: string; muted?: boolean }> = [
+    { label: "Model", value: modelName },
+    ...(providerLabel ? [{ label: "Provider", value: providerLabel }] : []),
+    { label: "Reasoning", value: reasoningLabel, muted: !reasoningRaw },
+    ...(roleLabel ? [{ label: "Role", value: roleLabel }] : []),
+  ];
+
+  return (
+    <div
+      data-testid="session-config-card"
+      style={{
+        padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+        borderRadius: token.borderRadiusLG,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        background: token.colorFillQuaternary,
+      }}
+    >
+      <Flex vertical gap={4} style={{ width: "100%", minWidth: 0 }}>
+        <Flex align="center" gap={6} style={{ minWidth: 0 }}>
+          <RobotOutlined style={{ color: token.colorTextSecondary }} />
+          <Text strong style={{ fontSize: 12 }}>
+            Configuration
+          </Text>
+        </Flex>
+        <Flex vertical gap={2} style={{ width: "100%", minWidth: 0 }}>
+          {rows.map((row) => (
+            <Flex key={row.label} align="center" justify="space-between" gap={8}>
+              <Text type="secondary" style={{ fontSize: 12, flexShrink: 0 }}>
+                {row.label}
+              </Text>
+              <Text
+                style={{
+                  fontSize: 12,
+                  textAlign: "right",
+                  color: row.muted ? token.colorTextTertiary : token.colorText,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+                title={row.value}
+              >
+                {row.value}
+              </Text>
+            </Flex>
+          ))}
+        </Flex>
+      </Flex>
+    </div>
+  );
+};
+
 export type SessionInspectorPaneProps = {
   sessionId: string | null;
   auxReady: boolean;
@@ -131,6 +224,7 @@ const InspectorBody: React.FC<{
         0) > 0 ||
         chat.config.goldConfig.enabled === true),
   );
+  const hasConfigSection = Boolean(chat?.config?.model_ref?.model || chat?.config?.model);
 
   const sections = useMemo(
     () =>
@@ -141,6 +235,13 @@ const InspectorBody: React.FC<{
           showTitle: false,
           visible: hasGoalSection,
           node: <SessionGoalCard sessionId={sessionId} />,
+        },
+        {
+          key: "config",
+          title: "Configuration",
+          showTitle: false,
+          visible: hasConfigSection,
+          node: <SessionConfigCard sessionId={sessionId} />,
         },
         {
           key: "overview",
@@ -191,6 +292,7 @@ const InspectorBody: React.FC<{
       ].filter((section) => section.visible),
     [
       auxReady,
+      hasConfigSection,
       hasGoalSection,
       hasSubAgents,
       isAdvancedMode,

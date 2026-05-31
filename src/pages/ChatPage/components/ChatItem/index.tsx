@@ -245,7 +245,8 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
           e.preventDefault();
           onSelect(chat.id);
         } else if (e.key === "Delete" || e.key === "Backspace") {
-          if (!isEditing && e.metaKey) {
+          // metaKey on macOS, ctrlKey on Windows/Linux.
+          if (!isEditing && (e.metaKey || e.ctrlKey)) {
             e.preventDefault();
             onDelete(chat.id);
           }
@@ -325,7 +326,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
             {chat.planMode ? (
               <span
                 style={{
-                  color: "#722ed1",
+                  color: token.colorPrimary,
                   fontSize: compact ? 10 : 11,
                   lineHeight: 1.2,
                   flexShrink: 0,

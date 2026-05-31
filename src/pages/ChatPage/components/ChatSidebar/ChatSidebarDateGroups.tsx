@@ -30,6 +30,7 @@ type ChatSidebarDateGroupsProps = {
   projectDreamState: Record<string, { status: "loading" | "idle" }>;
   token: GlobalToken;
   hasActiveFilters: boolean;
+  onClearFilters: () => void;
 };
 
 export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
@@ -53,6 +54,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   projectDreamState,
   token,
   hasActiveFilters,
+  onClearFilters,
 }) => {
   const { t } = useTranslation();
 
@@ -90,24 +92,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 : t("chat.sidebar.empty.hint")}
             </span>
             {hasActiveFilters && (
-              <Button
-                size="small"
-                type="link"
-                onClick={() => {
-                  // Clear search by triggering sidebar search clear event
-                  const searchInput = document.querySelector<HTMLInputElement>(
-                    '[data-testid="sidebar-search-input"] input, .lotus-sidebar-search input',
-                  );
-                  if (searchInput) {
-                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                      window.HTMLInputElement.prototype,
-                      "value",
-                    )?.set;
-                    nativeInputValueSetter?.call(searchInput, "");
-                    searchInput.dispatchEvent(new Event("input", { bubbles: true }));
-                  }
-                }}
-              >
+              <Button size="small" type="link" onClick={onClearFilters}>
                 {t("chat.sidebar.empty.clearFilters", "Clear filters")}
               </Button>
             )}
