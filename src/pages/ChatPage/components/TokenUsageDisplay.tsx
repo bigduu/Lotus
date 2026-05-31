@@ -219,7 +219,14 @@ export const TokenUsageDisplay: React.FC<TokenUsageDisplayProps> = ({
   );
 
   return (
-    <Tooltip title={tooltipContent} placement="top" arrow>
+    <Tooltip
+      title={tooltipContent}
+      placement="top"
+      arrow
+      // Background must follow the theme to match the themed text colors inside
+      // (dark text in light mode would otherwise sit on antd's default dark tooltip).
+      color="var(--lotus-metric-tooltip-bg)"
+    >
       <Space
         className={`token-usage-display ${className}`}
         size={4}

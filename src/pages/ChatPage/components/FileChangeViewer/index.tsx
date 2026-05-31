@@ -255,14 +255,13 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
                       whiteSpace: "pre-wrap",
                       wordBreak: "break-word",
                       fontSize: compact ? 11 : token.fontSizeSM,
-                      lineHeight: compact ? 1.35 : 1.5,
-                      padding: compact ? "2px 4px" : "4px 8px",
+                      lineHeight: compact ? 1.4 : 1.5,
+                      padding: compact ? "0 4px" : "1px 8px",
                       fontFamily:
                         "Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
                       background:
                         row.kind === "meta" ? token.colorFillTertiary : token.colorFillSecondary,
                       color: token.colorTextSecondary,
-                      borderBottom: `1px solid ${token.colorBorderSecondary}`,
                     }}
                   >
                     {row.text || " "}
@@ -271,9 +270,12 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
               }
 
               const rowFontSize = compact ? 11 : token.fontSizeSM;
-              const linePadding = compact ? "2px 4px" : "4px 8px";
+              // Tight vertical padding so rows read like a code editor (more lines per screen).
+              const linePadding = compact ? "0 4px" : "0 8px";
+              const rowLineHeight = compact ? 1.4 : 1.5;
               const lineNumberStyle: React.CSSProperties = {
                 padding: linePadding,
+                lineHeight: rowLineHeight,
                 textAlign: "right",
                 color: token.colorTextTertiary,
                 fontFamily: "Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
@@ -283,6 +285,7 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
               };
               const lineTextStyle: React.CSSProperties = {
                 padding: linePadding,
+                lineHeight: rowLineHeight,
                 whiteSpace: "pre-wrap",
                 wordBreak: "break-word",
                 fontFamily: "Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
@@ -295,7 +298,6 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
                   style={{
                     display: "grid",
                     gridTemplateColumns: compact ? "48px 1fr 48px 1fr" : "64px 1fr 64px 1fr",
-                    borderBottom: `1px solid ${token.colorBorderSecondary}`,
                   }}
                 >
                   <div
