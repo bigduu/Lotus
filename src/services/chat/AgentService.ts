@@ -32,6 +32,10 @@ export type AgentEventType =
   | "sub_agent_completed"
   | "session_title_updated"
   | "session_pinned_updated"
+  | "session_created"
+  | "session_deleted"
+  | "session_cleared"
+  | "message_appended"
   | "plan_mode_entered"
   | "plan_mode_exited"
   | "plan_file_updated"
@@ -195,11 +199,42 @@ export interface AgentEvent {
   updated_at?: string;
   // SessionPinnedUpdated event
   pinned?: boolean;
+  // MessageAppended / SessionCreated events
+  message_id?: string;
+  role?: "user" | "assistant" | "tool" | "system";
+  created_at?: string;
+  kind?: SessionKind;
   // Plan mode events
   pre_permission_mode?: string;
   restored_mode?: string;
   plan?: string | null;
   plan_file_path?: string | null;
+}
+
+/**
+ * A sequenced change-feed event from `GET /api/v1/stream`: an {@link AgentEvent}
+ * stamped with a global monotonic `seq` (the resume cursor) and a routing
+ * `session_id`.
+ */
+export interface ChangeEvent {
+  seq: number;
+  ts: string;
+  session_id?: string;
+  event: AgentEvent;
+}
+
+/** Control frame telling the client to drop local state and full-resync. */
+export interface FeedResetFrame {
+  type: "feed_reset";
+  from_seq: number;
+}
+
+/** Callbacks for {@link AgentClient.subscribeToAccountStream}. */
+export interface AccountStreamHandlers {
+  onChange: (change: ChangeEvent) => void;
+  onReset?: () => void;
+  onOpen?: () => void;
+  onError?: () => void;
 }
 
 export interface ChatRequest {
@@ -1195,6 +1230,63 @@ export class AgentClient {
   }
 
   /**
+   * Subscribe to the account-wide change feed (`GET /api/v1/stream`).
+   *
+   * A single long-lived SSE connection multiplexing durable change events
+   * across all sessions (session created/deleted/cleared, title/pinned, message
+   * appended, task updates, terminal status). Replaces the old session-index
+   * and health polling: the browser `EventSource` auto-reconnects and resends
+   * `Last-Event-ID`, so the backend replays only what was missed.
+   *
+   * Returns the live `EventSource` so the caller can close it; reconnection is
+   * handled natively by the browser.
+   */
+  subscribeToAccountStream(
+    handlers: AccountStreamHandlers,
+    opts?: { since?: number },
+  ): EventSource {
+    const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
+    const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
+    const since = opts?.since && opts.since > 0 ? `?since=${opts.since}` : "";
+    const url = `${origin}/api/v1/stream${since}`;
+    debugLog("[AgentClient]", "stream.subscribe.url", { url });
+
+    const eventSource = new EventSource(url, { withCredentials: true });
+
+    eventSource.onopen = () => {
+      debugLog("[AgentClient]", "stream.subscribe.open", {});
+      handlers.onOpen?.();
+    };
+
+    eventSource.onmessage = (messageEvent) => {
+      const data = messageEvent.data;
+      if (data === "[KEEPALIVE]") {
+        return;
+      }
+      try {
+        const parsed = JSON.parse(data) as ChangeEvent | FeedResetFrame;
+        if ((parsed as FeedResetFrame).type === "feed_reset") {
+          debugLog("[AgentClient]", "stream.subscribe.feed_reset", parsed);
+          handlers.onReset?.();
+          return;
+        }
+        handlers.onChange(parsed as ChangeEvent);
+      } catch (error) {
+        console.warn("Failed to parse change-feed event:", data, error);
+      }
+    };
+
+    eventSource.onerror = () => {
+      // The browser will auto-reconnect (resending Last-Event-ID). Surface the
+      // transient disconnect so the UI can reflect availability.
+      debugLog("[AgentClient]", "stream.subscribe.error", {});
+      handlers.onError?.();
+    };
+
+    return eventSource;
+  }
+
+  /**
    * Handle a single agent event
    */
   private handleEvent(event: AgentEvent, handlers: AgentEventHandlers): void {
@@ -1435,9 +1527,15 @@ export class AgentClient {
   /**
    * Get chat history
    */
-  async getHistory(sessionId: string): Promise<HistoryResponse> {
-    debugLog("[AgentClient]", "history.request", { sessionId });
-    const response = await agentApiClient.get<HistoryResponse>(`history/${sessionId}`);
+  async getHistory(sessionId: string, sinceMessageId?: string): Promise<HistoryResponse> {
+    debugLog("[AgentClient]", "history.request", { sessionId, sinceMessageId });
+    // Delta mode: when a cursor is supplied, the backend returns only messages
+    // appended after it (`is_delta: true`), so a client that already has most
+    // of the history only transfers the tail.
+    const path = sinceMessageId
+      ? `history/${sessionId}?since_message_id=${encodeURIComponent(sinceMessageId)}`
+      : `history/${sessionId}`;
+    const response = await agentApiClient.get<HistoryResponse>(path);
     debugLog("[AgentClient]", "history.response", summarizeHistoryResponse(response));
     return response;
   }

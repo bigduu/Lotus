@@ -10,6 +10,7 @@ import { TaskListSlice, createTaskListSlice } from "./slices/todoListSlice";
 import { InputStateSlice, createInputStateSlice } from "./slices/inputStateSlice";
 import { ExecutionStateSlice, createExecutionStateSlice } from "./slices/executionStateSlice";
 import { AgentClient } from "@services/chat/AgentService";
+import { startAccountFeed } from "@services/chat/accountFeed";
 import { serviceFactory } from "../../../services/common/ServiceFactory";
 import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
 import { useBambooConfigStore } from "../../../shared/store/bambooConfigStore";
@@ -244,11 +245,13 @@ const bootstrapCritical = async (force: boolean = false): Promise<void> => {
   isInitialized = true;
 
   if (import.meta.env.MODE !== "test") {
+    // Primary real-time channel: one resumable account change-feed that pushes
+    // cross-session updates (created/deleted/cleared/title/pinned/message/task)
+    // and drives agent availability from its connection state.
+    startAccountFeed();
+    // Retained as a low-frequency self-healing fallback alongside the feed —
+    // recovers from any missed window without the old high-frequency polling.
     useAppStore.getState().startAgentHealthCheck();
-    // Keep a low-frequency self-healing session-index sync running alongside
-    // event-driven updates. This is intentionally much less frequent than the
-    // old 2-second polling loop, but it helps recover from missed SSE windows,
-    // reconnect gaps, and late task/sub-agent state propagation.
     useAppStore.getState().startSessionsIndexSync();
   }
 
