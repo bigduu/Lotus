@@ -109,7 +109,7 @@ export function getVirtualizationWeight(entries: readonly RenderableEntry[]): nu
   }, 0);
 }
 
-export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
+const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
   currentChat,
   currentSessionId,
   convertRenderableEntry,
@@ -371,3 +371,12 @@ export const ChatMessagesList: React.FC<ChatMessagesListProps> = ({
     </Content>
   );
 };
+
+/**
+ * Memoized so it skips re-renders driven by parent state it does not consume
+ * (scroll indicators, unread counts, hover, token-usage ticks). All props from
+ * ConversationPane are referentially stable (useCallback/useMemo/refs); the one
+ * exception, `screens`, is stabilized at the call site. Default shallow compare
+ * is intentional — a custom comparator that missed a prop would render stale UI.
+ */
+export const ChatMessagesList = React.memo(ChatMessagesListComponent);

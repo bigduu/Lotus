@@ -223,6 +223,9 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   const bottomAnchorRef = useRef<HTMLDivElement>(null);
   const { token } = useToken();
   const screens = useBreakpoint();
+  // antd's useBreakpoint returns a fresh object each render; narrow it to the
+  // only field ChatMessagesList reads so its React.memo can hit on identity.
+  const screensForList = useMemo(() => ({ xs: screens.xs }), [screens.xs]);
   const isMobile = useIsMobile();
   const [workflowDraft, setWorkflowDraft] = useState<WorkflowDraft | null>(null);
   const [selectionMode, setSelectionMode] = useState(false);
@@ -624,7 +627,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
           renderableMessages={renderableMessagesWithDraft}
           rowGap={rowGap}
           showMessagesView={Boolean(showMessagesView)}
-          screens={screens}
+          screens={screensForList}
           workflowDraftId={workflowDraft?.id}
           isThinking={isThinking}
           padding={getContainerPadding()}

@@ -360,7 +360,10 @@ const MessageCard = memo(MessageCardComponent, (prevProps, nextProps) => {
   return (
     prevProps.message === nextProps.message &&
     prevProps.messageType === nextProps.messageType &&
-    prevProps.onDelete === nextProps.onDelete
+    prevProps.onDelete === nextProps.onDelete &&
+    // sessionId drives the busy selector, state-restore, mermaid fix and child
+    // contextId — skipping a render when it changes would leave a stale binding.
+    prevProps.sessionId === nextProps.sessionId
   );
 });
 
