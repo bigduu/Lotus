@@ -15,7 +15,23 @@ import {
 } from "@shared/utils/reasoningEffort";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
 import { buildPendingQuestionIdentity } from "../../pages/ChatPage/utils/pendingQuestionIdentity";
-import styles from "./QuestionDialog.module.css";
+import "./QuestionDialog.css";
+
+// Plain global CSS (qd- namespaced) replaces the former CSS Module; this map
+// keeps the styles.X call sites unchanged.
+const styles = {
+  questionCard: "qd-questionCard",
+  questionHeader: "qd-questionHeader",
+  headerLeft: "qd-headerLeft",
+  questionIcon: "qd-questionIcon",
+  questionText: "qd-questionText",
+  collapseBtn: "qd-collapseBtn",
+  questionBody: "qd-questionBody",
+  optionsGroup: "qd-optionsGroup",
+  optionItem: "qd-optionItem",
+  customHint: "qd-customHint",
+  questionFooter: "qd-questionFooter",
+} as const;
 
 const { Text } = Typography;
 const { useToken } = theme;

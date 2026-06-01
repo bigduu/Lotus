@@ -1,11 +1,11 @@
-.questionCard {
+.qd-questionCard {
   margin: 4px 0;
   border-radius: 8px;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
   overflow: hidden;
 }
 
-.questionHeader {
+.qd-questionHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -15,16 +15,16 @@
   gap: 8px;
 }
 
-.questionHeader:hover {
+.qd-questionHeader:hover {
   opacity: 1;
   background: rgba(204, 251, 241, 0.88);
 }
 
-:global(body[data-theme="dark"]) .questionHeader:hover {
+body[data-theme="dark"] .qd-questionHeader:hover {
   background: rgba(13, 148, 136, 0.18);
 }
 
-.headerLeft {
+.qd-headerLeft {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -32,37 +32,37 @@
   flex: 1;
 }
 
-.questionIcon {
+.qd-questionIcon {
   font-size: 14px;
   flex-shrink: 0;
 }
 
-.questionText {
+.qd-questionText {
   font-size: 13px;
   line-height: 1.4;
 }
 
 /* Truncate only when collapsed (parent applies this via data-collapsed) */
-.questionHeader[data-collapsed="true"] .questionText {
+.qd-questionHeader[data-collapsed="true"] .qd-questionText {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.collapseBtn {
+.qd-collapseBtn {
   flex-shrink: 0;
   opacity: 0.6;
 }
 
-.questionBody {
+.qd-questionBody {
   padding: 4px 12px 8px;
 }
 
-.optionsGroup {
+.qd-optionsGroup {
   width: 100%;
 }
 
-.optionItem {
+.qd-optionItem {
   padding: 3px 8px;
   border-radius: 6px;
   width: 100%;
@@ -70,15 +70,15 @@
   font-size: 13px;
 }
 
-.optionItem:hover {
+.qd-optionItem:hover {
   background: rgba(204, 251, 241, 0.88);
 }
 
-:global(body[data-theme="dark"]) .optionItem:hover {
+body[data-theme="dark"] .qd-optionItem:hover {
   background: rgba(13, 148, 136, 0.18);
 }
 
-.customHint {
+.qd-customHint {
   margin-top: 4px;
   padding: 4px 8px;
   border-radius: 4px;
@@ -86,11 +86,11 @@
   text-align: center;
 }
 
-:global(body[data-theme="dark"]) .customHint {
+body[data-theme="dark"] .qd-customHint {
   background: rgba(13, 148, 136, 0.14);
 }
 
-.questionFooter {
+.qd-questionFooter {
   display: flex;
   justify-content: flex-end;
   padding-top: 4px;
