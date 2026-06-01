@@ -9,7 +9,7 @@ import {
   type ExecuteResponse,
   type ReasoningEffort,
 } from "@services/chat/AgentService";
-import type { ChatItem, Message, UserMessage } from "@shared/types/chat";
+import type { ChatItem, UserMessage } from "@shared/types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { useAppStore, selectPendingQuestion, selectGeneration } from "@shared/store/appStore";
@@ -23,32 +23,14 @@ import { useActiveModel } from "../useActiveModel";
 import { useActiveModelRef } from "../useActiveModelRef";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
+import {
+  executeWithOptionalReasoning,
+  type PendingQuestionResponse,
+  type UseMessageStreaming,
+  type UseMessageStreamingDeps,
+} from "./useMessageStreaming.helpers";
 
-export interface UseMessageStreaming {
-  sendMessage: (
-    content: string,
-    images?: ImageFile[],
-    reasoningEffort?: ReasoningEffort,
-    selectedSkillIds?: string[],
-  ) => Promise<void>;
-  retryLastTurn: (reasoningEffort?: ReasoningEffort, mode?: MessageRetryMode) => Promise<void>;
-  cancel: () => void;
-  agentAvailable: boolean | null;
-}
-
-interface UseMessageStreamingDeps {
-  sessionId: string | null;
-  addMessage: (sessionId: string, message: Message) => Promise<void>;
-  updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
-}
-
-type PendingQuestionResponse = {
-  has_pending_question: boolean;
-  question?: string;
-  options?: string[];
-  allow_custom?: boolean;
-  tool_call_id?: string;
-};
+export type { UseMessageStreaming } from "./useMessageStreaming.helpers";
 
 /**
  * Unified chat streaming hook
@@ -260,21 +242,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       });
       markOptimisticStart(sessionId);
       await new Promise((resolve) => setTimeout(resolve, 0));
-      const retryResult = reasoningEffort
-        ? await agentClientRef.current.execute(
-            sessionId,
-            undefined,
-            reasoningEffort,
-            buildClientSync(sessionId),
-            activeModelRef ?? undefined,
-          )
-        : await agentClientRef.current.execute(
-            sessionId,
-            undefined,
-            undefined,
-            buildClientSync(sessionId),
-            activeModelRef ?? undefined,
-          );
+      const retryResult = await executeWithOptionalReasoning(
+        agentClientRef.current,
+        sessionId,
+        reasoningEffort,
+        buildClientSync(sessionId),
+        activeModelRef ?? undefined,
+      );
       debugLog("[Streaming]", "recoverAfterNeedSync.retryExecute.result", {
         sessionId,
         generation: selectGeneration(sessionId)(useAppStore.getState()),
@@ -501,21 +475,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
 
         // Step 2: Trigger execution. The optimistic start (markOptimisticStart) was
         // already emitted by the caller (sendMessage) before entering this path.
-        const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(
-              sessionId,
-              undefined,
-              reasoningEffort,
-              buildClientSync(sessionId),
-              activeModelRef ?? undefined,
-            )
-          : await agentClientRef.current.execute(
-              sessionId,
-              undefined,
-              undefined,
-              buildClientSync(sessionId),
-              activeModelRef ?? undefined,
-            );
+        const executeResult = await executeWithOptionalReasoning(
+          agentClientRef.current,
+          sessionId,
+          reasoningEffort,
+          buildClientSync(sessionId),
+          activeModelRef ?? undefined,
+        );
         debugLog("[Streaming]", "sendWithAgent.executeResponse", {
           sessionId,
           generation: selectGeneration(sessionId)(useAppStore.getState()),
@@ -760,21 +726,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
 
         markRetryStart(sessionId);
 
-        const executeResult = reasoningEffort
-          ? await agentClientRef.current.execute(
-              sessionId,
-              undefined,
-              reasoningEffort,
-              buildClientSync(sessionId),
-              activeModelRef ?? undefined,
-            )
-          : await agentClientRef.current.execute(
-              sessionId,
-              undefined,
-              undefined,
-              buildClientSync(sessionId),
-              activeModelRef ?? undefined,
-            );
+        const executeResult = await executeWithOptionalReasoning(
+          agentClientRef.current,
+          sessionId,
+          reasoningEffort,
+          buildClientSync(sessionId),
+          activeModelRef ?? undefined,
+        );
         await handleExecuteResult(sessionId, executeResult, reasoningEffort);
       } catch (error) {
         console.error("[useMessageStreaming] Retry failed:", error);
