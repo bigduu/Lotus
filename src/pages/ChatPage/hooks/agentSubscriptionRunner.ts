@@ -14,6 +14,11 @@ import { sendDesktopNotification } from "@services/notification/desktopNotificat
 import i18n from "@shared/i18n";
 import { debugLog } from "@shared/utils/debugFlags";
 import { debugSse, isAbortError } from "./useAgentEventSubscription.helpers";
+import {
+  PARENT_SETTLE_DELAY_MS,
+  TITLE_REFRESH_RETRY_DELAYS_MS,
+  isUntitledChatTitle,
+} from "./agentSubscriptionRunner.helpers";
 import type { SubscriptionContext, RunContext } from "./subscriptionContext";
 import { createStreamingHandlers } from "./subscriptionHandlers/streamingHandlers";
 import { createToolHandlers } from "./subscriptionHandlers/toolHandlers";
@@ -166,35 +171,6 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
   // session should remain in `waiting_user_answer` with its pending question intact until
   // the user responds.
   let rootClarificationSeen = false;
-  const PARENT_SETTLE_DELAY_MS = 250;
-  const TITLE_REFRESH_RETRY_DELAYS_MS = [1200, 3000] as const;
-  const DEFAULT_SESSION_TITLES = new Set([
-    "New Session",
-    "新建会话",
-    "新建會話",
-    "Nouvelle session",
-    "新しいセッション",
-    "नया सत्र",
-  ]);
-
-  const isUntitledChatTitle = (title: string | undefined | null): boolean => {
-    const normalized = (title || "").trim();
-    if (!normalized) return true;
-    if (DEFAULT_SESSION_TITLES.has(normalized)) return true;
-    const prefixed =
-      normalized.startsWith("New Session - ") ||
-      normalized.startsWith("New Session with ") ||
-      normalized.startsWith("New session - ") ||
-      normalized.startsWith("New session with ");
-    if (!prefixed) return false;
-    const suffix = normalized
-      .replace(/^New Session - /, "")
-      .replace(/^New Session with /, "")
-      .replace(/^New session - /, "")
-      .replace(/^New session with /, "")
-      .trim();
-    return suffix.length > 0;
-  };
 
   const shouldRetryTitleRefresh = (): boolean => {
     const state = useAppStore.getState();
