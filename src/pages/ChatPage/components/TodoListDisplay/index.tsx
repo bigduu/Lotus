@@ -7,7 +7,7 @@ import {
   LoadingOutlined,
   MinusCircleOutlined,
 } from "@ant-design/icons";
-import { TaskListMsg, TaskItemStatus } from "../../types/todoList";
+import { TaskListMsg, TaskItemStatus } from "@shared/types/todoList";
 import { useTranslation } from "react-i18next";
 
 interface TaskListDisplayProps {

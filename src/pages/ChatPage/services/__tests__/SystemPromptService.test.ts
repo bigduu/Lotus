@@ -18,7 +18,7 @@ vi.mock("../../../../services/api", () => ({
   },
 }));
 
-import type { UserSystemPrompt } from "../../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 import { SystemPromptService } from "../SystemPromptService";
 
 describe("SystemPromptService", () => {

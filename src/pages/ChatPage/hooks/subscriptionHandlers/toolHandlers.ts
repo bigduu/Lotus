@@ -6,7 +6,7 @@ import {
   appendToolStreamingChunk,
   setToolStreamingStatus,
 } from "../../streaming/toolStreamingAtoms";
-import type { Message } from "../../types/chatMessages";
+import type { Message } from "@shared/types/chatMessages";
 import { sendDesktopNotification } from "@services/notification/desktopNotification";
 import i18n from "@shared/i18n";
 import { isMemoryStatusTool } from "../useAgentEventSubscription.helpers";

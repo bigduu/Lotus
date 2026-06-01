@@ -33,8 +33,8 @@ import type {
   ProviderInstance,
   CreateProviderInstanceRequest,
   UpdateProviderInstanceRequest,
-} from "../../../ChatPage/types/providerConfig";
-import { PROVIDER_LABELS } from "../../../ChatPage/types/providerConfig";
+} from "@shared/types/providerConfig";
+import { PROVIDER_LABELS } from "@shared/types/providerConfig";
 import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";

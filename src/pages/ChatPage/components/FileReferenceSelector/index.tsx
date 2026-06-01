@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, List, Typography, Space, Button, Empty, Spin, theme, Alert } from "antd";
 import { FileTextOutlined, FolderOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { WorkspaceFileEntry } from "../../types/workspace";
+import { WorkspaceFileEntry } from "@shared/types/workspace";
 
 const { Text } = Typography;
 const { useToken } = theme;

@@ -8,7 +8,7 @@ import {
   InfoCircleOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { QuestionMessage } from "../../types/chat";
+import { QuestionMessage } from "@shared/types/chat";
 
 const { Title, Text, Paragraph } = Typography;
 const { useToken } = theme;

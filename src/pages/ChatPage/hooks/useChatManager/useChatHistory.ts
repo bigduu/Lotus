@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from "react";
-import type { Message, UserFileReferenceMessage } from "../../types/chat";
+import type { Message, UserFileReferenceMessage } from "@shared/types/chat";
 import type { UseChatState } from "./types";
 
 export interface UseChatHistory {

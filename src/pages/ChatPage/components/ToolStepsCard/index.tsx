@@ -10,7 +10,7 @@ import {
   RightOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../../types/chat";
+import type { AssistantToolCallMessage, AssistantToolResultMessage } from "@shared/types/chat";
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import {

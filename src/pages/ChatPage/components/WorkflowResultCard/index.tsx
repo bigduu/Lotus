@@ -29,7 +29,7 @@ import {
   getStatusColor,
   safeStringify,
 } from "../../utils/resultFormatters";
-import { ExecutionStatus } from "../../types/chat";
+import { ExecutionStatus } from "@shared/types/chat";
 import { copyText } from "@shared/utils/clipboard";
 
 const { Text } = Typography;

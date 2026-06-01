@@ -1,7 +1,7 @@
 import { debugLog } from "@shared/utils/debugFlags";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CommandService } from "../../services/CommandService";
-import type { CommandItem } from "../../types/command";
+import type { CommandItem } from "@shared/types/command";
 
 interface UseCommandSelectorStateProps {
   visible: boolean;

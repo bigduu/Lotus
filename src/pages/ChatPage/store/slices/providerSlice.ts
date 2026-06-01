@@ -1,11 +1,11 @@
 import { create } from "zustand";
 import { settingsService } from "@services/config/SettingsService";
-import type { ProviderConfig, ProviderType, ProviderInstance } from "../../types/providerConfig";
+import type { ProviderConfig, ProviderType, ProviderInstance } from "@shared/types/providerConfig";
 import type {
   ProviderModelRef,
   ProviderCatalog,
   ProviderModelDescriptor,
-} from "../../types/providerModelRef";
+} from "@shared/types/providerModelRef";
 
 const filterCatalogModelsForProvider = (
   catalog: ProviderCatalog | null,

@@ -10,7 +10,7 @@ import { ActiveToolMessageCard } from "../components/ChatView/ActiveToolMessageC
 import { CHAT_FOCUS_INPUT_EVENT } from "../components/ChatView/events";
 import { selectSessionById, useAppStore } from "../store";
 import { useProviderStore } from "../store/slices/providerSlice";
-import { PROVIDER_LABELS, type ProviderType } from "../types/providerConfig";
+import { PROVIDER_LABELS, type ProviderType } from "@shared/types/providerConfig";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
 
 const REASONING_EFFORT_LABELS: Record<string, string> = {

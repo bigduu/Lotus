@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { UserSystemPrompt } from "../../../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 import { createSliceHarness } from "./sliceHarness";
 
 const {

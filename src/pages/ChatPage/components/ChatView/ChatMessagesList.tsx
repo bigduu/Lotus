@@ -9,7 +9,7 @@ import MessageCard from "../MessageCard";
 import StreamingMessageCard from "../StreamingMessageCard";
 import ToolSessionCard from "../ToolSessionCard";
 import type { RenderableEntry, ConvertedEntry } from "./useChatViewMessages";
-import type { ChatItem } from "../../types/chat";
+import type { ChatItem } from "@shared/types/chat";
 
 const { Content } = Layout;
 const { Text } = Typography;

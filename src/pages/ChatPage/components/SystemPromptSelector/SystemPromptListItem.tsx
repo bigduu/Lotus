@@ -4,7 +4,7 @@ import { Button, List, Radio, Space, Tag, Typography } from "antd";
 import { CopyOutlined, EyeInvisibleOutlined, EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import type { UserSystemPrompt } from "../../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 import { SystemPromptPreview } from "./SystemPromptPreview";
 
 const { Text, Paragraph } = Typography;

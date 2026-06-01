@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { useAppStore, selectSessionById, selectCurrentChat, selectCurrentMessages } from "../index";
-import type { ChatItem } from "../../types/chat";
+import type { ChatItem } from "@shared/types/chat";
 
 describe("ChatPage Store", () => {
   beforeEach(() => {

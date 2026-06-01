@@ -3,7 +3,7 @@ import { App as AntApp, Card, Input, List, Spin, Empty, Row, Button } from "antd
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { skillService } from "../../services/skill/SkillService";
-import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
+import type { SkillDefinition } from "@shared/types/skill";
 import { useBambooConfigStore } from "../../shared/store/bambooConfigStore";
 import { SkillCard } from "./SkillCard";
 

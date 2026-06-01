@@ -5,7 +5,7 @@ import {
   clearAssistantStreamingState,
   getAssistantStreamingState,
 } from "../streaming/assistantStreamingAtoms";
-import type { Message } from "../types/chatMessages";
+import type { Message } from "@shared/types/chatMessages";
 import {
   formatCompletionPolicyViolationMessage,
   isCompletionPolicyViolationError,

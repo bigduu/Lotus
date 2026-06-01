@@ -1,7 +1,7 @@
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemPromptSelector from "../SystemPromptSelector";
-import type { UserSystemPrompt } from "../../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 
 // Mock the zustand store
 const mockSetLastSelectedPromptId = vi.fn();

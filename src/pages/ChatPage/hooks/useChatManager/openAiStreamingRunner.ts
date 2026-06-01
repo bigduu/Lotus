@@ -3,7 +3,7 @@ import type {
   AssistantTextMessage,
   AssistantToolCallMessage,
   AssistantToolResultMessage,
-} from "../../types/chat";
+} from "@shared/types/chat";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import type OpenAI from "openai";
 

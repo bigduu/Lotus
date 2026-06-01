@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { selectCurrentChat, selectIsBusy, useAppStore } from "../../store";
-import type { ChatItem, Message } from "../../types/chat";
+import type { ChatItem, Message } from "@shared/types/chat";
 import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
 
 /**

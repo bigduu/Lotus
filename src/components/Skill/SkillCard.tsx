@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, Space, Switch, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
-import type { SkillDefinition } from "../../pages/ChatPage/types/skill";
+import type { SkillDefinition } from "@shared/types/skill";
 
 const { Text } = Typography;
 

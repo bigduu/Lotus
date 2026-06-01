@@ -1,5 +1,5 @@
 import { agentApiClient } from "../../../services/api";
-import type { UserSystemPrompt } from "../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 import { getDefaultSystemPrompts } from "../utils/defaultSystemPrompts";
 
 const DEPRECATED_PROMPT_STORAGE_KEYS = ["system_prompt", "system_prompt_selected_id"];

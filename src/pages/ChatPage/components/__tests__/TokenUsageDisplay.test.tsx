@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import i18n from "@shared/i18n";
 import { TokenUsageBadge, TokenUsageDisplay } from "../TokenUsageDisplay";
-import type { TokenUsage } from "../../types/tokenBudget";
+import type { TokenUsage } from "@shared/types/tokenBudget";
 
 vi.mock("antd", () => ({
   Progress: vi.fn((props: any) => (

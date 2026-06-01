@@ -1,8 +1,8 @@
 import { act } from "@testing-library/react";
 import { useProviderStore } from "../providerSlice";
 import { settingsService } from "@services/config/SettingsService";
-import type { ProviderConfig } from "../../../types/providerConfig";
-import type { ProviderModelRef } from "../../../types/providerModelRef";
+import type { ProviderConfig } from "@shared/types/providerConfig";
+import type { ProviderModelRef } from "@shared/types/providerModelRef";
 
 vi.mock("@services/config/SettingsService", () => ({
   settingsService: {

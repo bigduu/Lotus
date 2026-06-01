@@ -5,7 +5,7 @@ import {
   resolveEffectiveReasoningEffort,
   resolveProviderDefaultReasoningEffort,
 } from "../reasoningEffort";
-import type { ProviderConfig, ProviderInstance } from "../../types/providerConfig";
+import type { ProviderConfig, ProviderInstance } from "@shared/types/providerConfig";
 
 const instance = (
   id: string,

@@ -27,7 +27,7 @@ import {
   useExperienceModeStore,
   ADVANCED_ONLY_SETTINGS_TABS,
 } from "@shared/store/experienceModeStore";
-import type { ChatItem } from "@pages/ChatPage/types/chatMessages";
+import type { ChatItem } from "@shared/types/chatMessages";
 
 import "./index.css";
 

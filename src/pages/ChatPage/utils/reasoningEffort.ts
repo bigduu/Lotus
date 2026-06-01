@@ -1,6 +1,6 @@
 import type { ReasoningEffort } from "@services/chat/AgentService";
-import type { ProviderConfig, ProviderInstance } from "../types/providerConfig";
-import type { ProviderModelRef } from "../types/providerModelRef";
+import type { ProviderConfig, ProviderInstance } from "@shared/types/providerConfig";
+import type { ProviderModelRef } from "@shared/types/providerModelRef";
 
 /**
  * The single terminal default for reasoning effort, used when nothing is

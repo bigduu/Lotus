@@ -3,7 +3,7 @@ import type { ImageFile } from "../../utils/imageUtils";
 import { summarizeAttachments, type ProcessedFile } from "../../utils/fileUtils";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { WorkflowDraft } from "./index";
-import type { WorkspaceFileEntry } from "../../types/workspace";
+import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import { useAppStore } from "../../store";
 import { recordUsedModel } from "../../utils/usedModels";
 

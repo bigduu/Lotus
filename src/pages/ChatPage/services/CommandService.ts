@@ -1,6 +1,6 @@
 import { debugLog } from "@shared/utils/debugFlags";
 import { apiClient } from "@services/api";
-import type { CommandItem, CommandListResponse } from "../types/command";
+import type { CommandItem, CommandListResponse } from "@shared/types/command";
 
 const BUILTIN_COMMANDS: CommandItem[] = [
   {

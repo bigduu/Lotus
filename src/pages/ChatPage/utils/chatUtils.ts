@@ -1,4 +1,4 @@
-import { ChatItem } from "../types/chat";
+import { ChatItem } from "@shared/types/chat";
 
 export const generateChatTitle = (chatNumber: number): string => {
   const now = new Date();

@@ -1,4 +1,4 @@
-import type { UserSystemPrompt } from "../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 import i18n from "../../../shared/i18n";
 
 const createDefaultSystemPrompt = (): UserSystemPrompt => ({

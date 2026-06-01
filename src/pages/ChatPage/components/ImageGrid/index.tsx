@@ -2,7 +2,7 @@ import React from "react";
 import { Card, Collapse, Flex, Image, theme, Typography } from "antd";
 import { EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { MessageImage } from "../../types/chat";
+import { MessageImage } from "@shared/types/chat";
 
 const { useToken } = theme;
 const { Text } = Typography;

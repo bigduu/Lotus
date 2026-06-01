@@ -4,7 +4,7 @@ import { ToolOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { ModalFooter, createCancelButton, createOkButton } from "../ModalFooter";
-import type { UserSystemPrompt } from "../../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 import { useAppStore } from "../../store";
 import { SystemPromptListItem } from "./SystemPromptListItem";
 import { copyText } from "@shared/utils/clipboard";

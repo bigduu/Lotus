@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { mapHistoryMessagesToUi } from "../chatSessionSlice";
-import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../../../types/chatMessages";
+import type { AssistantToolCallMessage, AssistantToolResultMessage } from "@shared/types/chatMessages";
 
 // ── Helpers ────────────────────────────────────────────────────────────
 

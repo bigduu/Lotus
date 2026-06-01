@@ -3,7 +3,7 @@ import { Dropdown, Button, Space, Tag, theme } from "antd";
 import { DownOutlined } from "@ant-design/icons";
 import i18n from "i18next";
 import { useProviderStore } from "../../store/slices/providerSlice";
-import type { ProviderModelRef } from "../../types/providerModelRef";
+import type { ProviderModelRef } from "@shared/types/providerModelRef";
 import type { MenuProps } from "antd";
 
 export function ProviderModelPicker({

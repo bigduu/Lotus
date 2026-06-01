@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { estimateChatEntrySize, getVirtualizationWeight } from "../ChatMessagesList";
 import type { RenderableEntry } from "../useChatViewMessages";
 import type { ToolSessionItem } from "../../ToolSessionCard";
-import type { AssistantToolCallMessage } from "../../../types/chat";
+import type { AssistantToolCallMessage } from "@shared/types/chat";
 
 const buildToolCallMessage = (id: string, toolCallIds: string[]): AssistantToolCallMessage => ({
   id,

@@ -4,7 +4,7 @@ import { useAppStore } from "../../store";
 import { useFastModel } from "../../hooks/useActiveModel";
 import { useFastModelRef } from "../../hooks/useActiveModelRef";
 import { agentClient } from "@services/chat/AgentService";
-import type { AssistantTextMessage, Message } from "../../types/chat";
+import type { AssistantTextMessage, Message } from "@shared/types/chat";
 
 const extractMermaidCode = (content: string) => {
   const match = content.match(/```mermaid\s*([\s\S]*?)```/i);

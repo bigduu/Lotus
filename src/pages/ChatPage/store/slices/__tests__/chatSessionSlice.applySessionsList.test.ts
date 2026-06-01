@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
-import type { ChatItem } from "../../../types/chat";
+import type { ChatItem } from "@shared/types/chat";
 import type { SessionSummary } from "@services/chat/AgentService";
 import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
 

@@ -40,9 +40,9 @@ import type {
   DefaultsConfig,
   ProviderInstance,
   ProviderInstancesConfig,
-} from "../../../ChatPage/types/providerConfig";
-import { PROVIDER_LABELS } from "../../../ChatPage/types/providerConfig";
-import type { ProviderModelRef } from "../../../ChatPage/types/providerModelRef";
+} from "@shared/types/providerConfig";
+import { PROVIDER_LABELS } from "@shared/types/providerConfig";
+import type { ProviderModelRef } from "@shared/types/providerModelRef";
 import {
   ServiceFactory,
   type BambooConfig,

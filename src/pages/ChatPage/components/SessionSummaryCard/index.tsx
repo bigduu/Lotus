@@ -20,8 +20,8 @@ import type {
   AssistantToolCallMessage,
   AssistantToolResultMessage,
   Message,
-} from "../../types/chatMessages";
-import { formatCompactTokenCount, formatTokenCount } from "../../types/tokenBudget";
+} from "@shared/types/chatMessages";
+import { formatCompactTokenCount, formatTokenCount } from "@shared/types/tokenBudget";
 
 import "./index.css";
 

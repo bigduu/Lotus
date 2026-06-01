@@ -4,8 +4,8 @@ import type {
   Message,
   AssistantToolCallMessage,
   AssistantToolResultMessage,
-} from "../../types/chat";
-import type { ChatItem } from "../../types/chat";
+} from "@shared/types/chat";
+import type { ChatItem } from "@shared/types/chat";
 import type { ToolSessionItem } from "../ToolSessionCard";
 
 export type MessageType = "text" | "plan" | "question" | "tool_call" | "tool_result";

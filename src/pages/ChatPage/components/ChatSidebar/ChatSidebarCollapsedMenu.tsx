@@ -2,7 +2,7 @@ import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
 import { Avatar, Flex } from "antd";
 
-import type { ChatItem } from "../../types/chat";
+import type { ChatItem } from "@shared/types/chat";
 
 type ChatSidebarCollapsedMenuProps = {
   chats: ChatItem[];

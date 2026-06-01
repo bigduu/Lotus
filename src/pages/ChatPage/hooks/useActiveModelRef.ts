@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useProviderStore } from "../store/slices/providerSlice";
-import type { ProviderModelRef } from "../types/providerModelRef";
+import type { ProviderModelRef } from "@shared/types/providerModelRef";
 
 /**
  * Returns the active ProviderModelRef when the feature flag is enabled.

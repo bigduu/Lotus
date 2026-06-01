@@ -9,7 +9,7 @@ import {
   type ExecuteResponse,
   type ReasoningEffort,
 } from "@services/chat/AgentService";
-import type { ChatItem, Message, UserMessage } from "../../types/chat";
+import type { ChatItem, Message, UserMessage } from "@shared/types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { useAppStore, selectPendingQuestion, selectGeneration } from "../../store";

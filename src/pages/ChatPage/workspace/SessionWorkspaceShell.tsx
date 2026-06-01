@@ -9,7 +9,7 @@ import { ConversationPane } from "../conversation/ConversationPane";
 import { SessionInspectorPane } from "../inspector/SessionInspectorPane";
 import { selectChildren, selectIsBusy, selectSessionById, useAppStore } from "../store";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
-import { isAssistantToolResultMessage } from "../types/chat";
+import { isAssistantToolResultMessage } from "@shared/types/chat";
 import type { SessionDiffSummary } from "../components/ChatView/ActiveToolMessageCard";
 import { getFileChangeDiffStats, parseFileChangeResultPayload } from "../utils/resultFormatters";
 import { useIsMobile } from "@shared/hooks/useMediaQuery";

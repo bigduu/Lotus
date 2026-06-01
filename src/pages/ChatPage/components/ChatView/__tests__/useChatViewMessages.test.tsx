@@ -7,7 +7,7 @@ import type {
   AssistantToolResultMessage,
   ChatItem,
   Message,
-} from "../../../types/chat";
+} from "@shared/types/chat";
 
 const buildChat = (): ChatItem => ({
   id: "session-1",

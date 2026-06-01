@@ -14,7 +14,7 @@ import {
   getSessionIdsByDate,
   getChatCountByDate,
 } from "../chatUtils";
-import { ChatItem } from "../../types/chat";
+import { ChatItem } from "@shared/types/chat";
 
 describe("chatUtils", () => {
   describe("generateChatTitle", () => {

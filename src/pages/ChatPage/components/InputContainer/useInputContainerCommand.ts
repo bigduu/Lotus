@@ -3,7 +3,7 @@ import type { TextAreaRef } from "antd/es/input/TextArea";
 import { CommandService } from "../../services/CommandService";
 import type { WorkflowCommandInfo } from "../../utils/inputHighlight";
 import type { WorkflowDraft } from "./index";
-import type { CommandItem } from "../../types/command";
+import type { CommandItem } from "@shared/types/command";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 
 interface UseInputContainerCommandProps {

@@ -2,7 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Space, Typography, theme, Badge, Button, Tooltip } from "antd";
 import { ToolOutlined, DownOutlined, RightOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import type { AssistantToolCallMessage, AssistantToolResultMessage } from "../../types/chat";
+import type { AssistantToolCallMessage, AssistantToolResultMessage } from "@shared/types/chat";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import { getFileChangeDiffStats } from "../../utils/resultFormatters";
 import { StorageManager } from "../../../../services/storage/StorageManager";

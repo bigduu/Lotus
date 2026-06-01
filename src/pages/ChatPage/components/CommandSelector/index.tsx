@@ -3,7 +3,7 @@ import { Spin, Tag, theme } from "antd";
 import { FolderOutlined, ThunderboltOutlined, ApiOutlined, FlagOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useCommandSelectorState } from "./useCommandSelectorState";
-import type { CommandItem } from "../../types/command";
+import type { CommandItem } from "@shared/types/command";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import "./index.css";
 

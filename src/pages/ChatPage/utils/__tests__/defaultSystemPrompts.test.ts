@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getDefaultSystemPrompts } from "../defaultSystemPrompts";
-import type { UserSystemPrompt } from "../../types/chat";
+import type { UserSystemPrompt } from "@shared/types/chat";
 
 describe("defaultSystemPrompts", () => {
   describe("getDefaultSystemPrompts", () => {

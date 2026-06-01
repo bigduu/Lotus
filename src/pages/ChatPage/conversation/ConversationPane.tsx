@@ -3,7 +3,7 @@ import { App as AntApp, Grid, Layout, theme, Flex, Tag, Tooltip } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 
 import { selectIsBusy, selectSessionById, useAppStore } from "../store";
-import type { Message } from "../types/chat";
+import type { Message } from "@shared/types/chat";
 import { ChatInputArea } from "../components/ChatView/ChatInputArea";
 import { ChatMessagesList } from "../components/ChatView/ChatMessagesList";
 import { TokenUsageDisplay } from "../components/TokenUsageDisplay";

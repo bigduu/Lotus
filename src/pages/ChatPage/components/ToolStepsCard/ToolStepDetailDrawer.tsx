@@ -11,7 +11,7 @@ import {
   useToolStreamingStates,
 } from "../../streaming/useToolStreamingStates";
 import { copyText } from "@shared/utils/clipboard";
-import type { AssistantToolResultMessage } from "../../types/chat";
+import type { AssistantToolResultMessage } from "@shared/types/chat";
 import FileChangeViewer from "../FileChangeViewer";
 import FormattedContentPreview, { type FormattedContentMode } from "./FormattedContentPreview";
 

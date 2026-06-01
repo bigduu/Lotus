@@ -1,4 +1,4 @@
-import type { Message, MessageType, PlanMessage, QuestionMessage } from "../../types/chat";
+import type { Message, MessageType, PlanMessage, QuestionMessage } from "@shared/types/chat";
 import { formatConclusionToolResultAsMarkdown } from "../../utils/resultFormatters";
 
 const extractJsonFromText = (text: string): string | null => {

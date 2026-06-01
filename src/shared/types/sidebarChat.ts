@@ -1,4 +1,4 @@
-import type { SessionPlanModeState } from "../../../services/chat/AgentService";
+import type { SessionPlanModeState } from "@services/chat/AgentService";
 
 export type SidebarChatListItem = {
   id: string;

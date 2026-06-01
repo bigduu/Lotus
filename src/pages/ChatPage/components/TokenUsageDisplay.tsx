@@ -8,7 +8,7 @@ import {
   getUsageColor,
   getUsageDenominator,
   getUsagePercentage,
-} from "../types/tokenBudget";
+} from "@shared/types/tokenBudget";
 
 interface TokenUsageDisplayProps {
   /** Token usage information */

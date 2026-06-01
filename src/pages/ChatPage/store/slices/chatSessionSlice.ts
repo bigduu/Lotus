@@ -8,7 +8,7 @@ import {
   AssistantToolCallMessage,
   AssistantToolResultMessage,
   MessageImage,
-} from "../../types/chat";
+} from "@shared/types/chat";
 import { AgentClient, SessionSummary } from "@services/chat/AgentService";
 import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
 import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
@@ -19,7 +19,7 @@ import { applyExecutionEvent } from "./executionStateSlice";
 import { applyReplayableSessionEventToList, isSessionMetadataEvent } from "./sessionMetadataSlice";
 import i18n from "../../../../shared/i18n";
 import { debugLog } from "../../../../shared/utils/debugFlags";
-import { mapTokenBudgetUsage } from "../../types/tokenBudget";
+import { mapTokenBudgetUsage } from "@shared/types/tokenBudget";
 import { resolveProviderDefaultReasoningEffort } from "../../utils/reasoningEffort";
 
 const agentClient = AgentClient.getInstance();

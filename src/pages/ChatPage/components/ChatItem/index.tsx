@@ -15,7 +15,7 @@ import {
   CompassOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import type { SidebarChatListItem } from "../../types/sidebarChat";
+import type { SidebarChatListItem } from "@shared/types/sidebarChat";
 
 interface ChatItemProps {
   chat: SidebarChatListItem;

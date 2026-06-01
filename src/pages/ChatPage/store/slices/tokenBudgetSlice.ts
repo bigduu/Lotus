@@ -1,5 +1,5 @@
 import { StateCreator } from "zustand";
-import { TokenUsage } from "../../types/tokenBudget";
+import { TokenUsage } from "@shared/types/tokenBudget";
 
 export interface TokenBudgetState {
   // Map of chat ID to token usage

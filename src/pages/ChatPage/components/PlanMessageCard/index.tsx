@@ -20,7 +20,7 @@ import {
   ToolOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { PlanMessage } from "../../types/chat";
+import { PlanMessage } from "@shared/types/chat";
 
 const { Title, Text, Paragraph } = Typography;
 const { useToken } = theme;

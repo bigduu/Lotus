@@ -1,4 +1,4 @@
-import type { TokenBudgetUsage as AgentTokenBudgetUsage } from "../../../services/chat/AgentService";
+import type { TokenBudgetUsage as AgentTokenBudgetUsage } from "@services/chat/AgentService";
 
 /**
  * Token budget management types for the Bamboo chat application.

@@ -5,7 +5,7 @@ import { DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { ChatItem as ChatItemComponent } from "../ChatItem";
-import type { SidebarChatItem } from "../../types/sidebarChat";
+import type { SidebarChatItem } from "@shared/types/sidebarChat";
 import { getChatCountByDate } from "../../utils/chatUtils";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
 

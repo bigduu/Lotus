@@ -49,7 +49,7 @@ import {
   ANTHROPIC_MODELS,
   GEMINI_MODELS,
   COPILOT_MODELS,
-} from "../../types/providerConfig";
+} from "@shared/types/providerConfig";
 import { modelService } from "@services/chat/ModelService";
 import { agentApiClient } from "../../../../services/api";
 import { StorageManager } from "../../../../services/storage/StorageManager";

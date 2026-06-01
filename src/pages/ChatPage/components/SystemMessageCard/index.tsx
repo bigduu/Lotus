@@ -3,7 +3,7 @@ import { Button, Card, Collapse, Divider, Flex, Space, Typography, theme } from 
 import { CopyOutlined, EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import type { ChatItem, Message } from "../../types/chat";
+import type { ChatItem, Message } from "@shared/types/chat";
 import { useAppStore } from "../../store";
 import { SystemPromptMarkdown } from "./SystemPromptMarkdown";
 import { type PromptSnapshotSection, useSystemPromptContent } from "./useSystemPromptContent";

@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { useInputContainerSubmit } from "./useInputContainerSubmit";
 import type { WorkflowDraft } from "./index";
-import type { WorkspaceFileEntry } from "../../types/workspace";
+import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import type { ProcessedFile } from "../../utils/fileUtils";
 import { useAppStore } from "../../store";
 import { clearUsedModels, getUsedModels } from "../../utils/usedModels";

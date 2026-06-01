@@ -3,7 +3,7 @@ import { App as AntApp, Button, List, Modal, Form, Input, Popconfirm, Tag } from
 import { EditOutlined, DeleteOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "../../../ChatPage/store";
-import { UserSystemPrompt } from "../../../ChatPage/types/chat";
+import { UserSystemPrompt } from "@shared/types/chat";
 
 const SystemPromptManager = () => {
   const { t } = useTranslation();

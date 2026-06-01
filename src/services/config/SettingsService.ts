@@ -11,11 +11,11 @@ import type {
   CreateProviderInstanceRequest,
   UpdateProviderInstanceRequest,
   ProviderInstancesConfig,
-} from "../../pages/ChatPage/types/providerConfig";
+} from "@shared/types/providerConfig";
 import type {
   ProviderCatalog,
   ProviderModelDescriptor,
-} from "../../pages/ChatPage/types/providerModelRef";
+} from "@shared/types/providerModelRef";
 
 // ── Fetch Models response types ─────────────────────────────────
 

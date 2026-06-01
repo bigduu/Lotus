@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { Message } from "../../types/chat";
+import type { Message } from "@shared/types/chat";
 import {
   detectMessageType,
   parsePlanMessage,

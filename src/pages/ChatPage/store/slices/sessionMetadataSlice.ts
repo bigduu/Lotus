@@ -23,7 +23,7 @@
  */
 
 import type { AgentEvent } from "@services/chat/AgentService";
-import type { ChatItem } from "../../types/chat";
+import type { ChatItem } from "@shared/types/chat";
 
 /**
  * The subset of `AgentEvent` types that are persisted as session metadata and

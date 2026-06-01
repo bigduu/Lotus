@@ -10,7 +10,7 @@ import {
   isAssistantToolResultMessage,
   isWorkflowResultMessage,
   type Message,
-} from "../../types/chat";
+} from "@shared/types/chat";
 import ToolResultCard from "../ToolResultCard";
 import { type ToolCallCardProps } from "../ToolCallCard";
 import ToolStepsCard from "../ToolStepsCard";

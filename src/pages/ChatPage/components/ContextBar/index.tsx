@@ -9,7 +9,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { formatCompactTokenCount, formatTokenCount } from "../../types/tokenBudget";
+import { formatCompactTokenCount, formatTokenCount } from "@shared/types/tokenBudget";
 import { selectSessionById, useAppStore } from "../../store";
 
 import "./index.css";

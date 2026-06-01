@@ -1,4 +1,4 @@
-import { ExecutionStatus } from "../types/chat";
+import { ExecutionStatus } from "@shared/types/chat";
 
 export interface FormattedResult {
   isJson: boolean;
