@@ -9,7 +9,7 @@ import {
   type DiffLine,
   type FileChangeResultPayload,
   type SideBySideDiffRow,
-} from "../../utils/resultFormatters";
+} from "@shared/utils/resultFormatters";
 
 const { Text } = Typography;
 

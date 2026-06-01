@@ -79,7 +79,7 @@ export const SkillManager = () => {
   const handleRefresh = useCallback(async () => {
     await loadSkillSettings(true);
     message.success(t("components.skillManager.skillsRefreshed"));
-  }, [loadSkillSettings, t]);
+  }, [loadSkillSettings, message, t]);
 
   // Show error message
   useEffect(() => {
@@ -87,7 +87,7 @@ export const SkillManager = () => {
       message.error(skillsError);
       setSkillsError(null);
     }
-  }, [skillsError]);
+  }, [skillsError, message]);
 
   const handleToggleDisabled = useCallback(
     async (skillId: string, nextDisabled: boolean) => {
@@ -122,7 +122,7 @@ export const SkillManager = () => {
         setSavingSkillId(null);
       }
     },
-    [loadConfig, saveConfig, t],
+    [loadConfig, message, saveConfig, t],
   );
 
   // Filter skills

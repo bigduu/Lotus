@@ -67,6 +67,7 @@ const SystemPromptSelector: React.FC<SystemPromptSelectorProps> = ({
         (validPrompts.length > 0 ? validPrompts[0].id : null);
       setSelectedId(initialId);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: depend on validPrompts.length to avoid re-running on array identity changes
   }, [open, lastSelectedPromptId, validPrompts.length]); // Use validPrompts.length instead of validPrompts to avoid unnecessary re-runs
 
   const handleSelect = (prompt: UserSystemPrompt) => {

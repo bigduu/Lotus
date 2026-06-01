@@ -1,8 +1,9 @@
 import React, { useMemo } from "react";
 import { Descriptions, Table, Typography, theme } from "antd";
+import type { DescriptionsProps, TableProps } from "antd";
 import { useTranslation } from "react-i18next";
 
-import { safeStringify } from "../../../pages/ChatPage/utils/resultFormatters";
+import { safeStringify } from "@shared/utils/resultFormatters";
 import { summarizeJsonSchema, type JsonSchemaField } from "../../utils/jsonSchema";
 
 const { Text } = Typography;
@@ -104,14 +105,14 @@ export const JsonSchemaViewer: React.FC<JsonSchemaViewerProps> = ({ schema }) =>
                   children: <Text>{summary.additionalProperties ? "true" : "false"}</Text>,
                 }
               : null,
-          ].filter(Boolean) as any
+          ].filter(Boolean) as DescriptionsProps["items"]
         }
       />
 
       <Table
         size="small"
         pagination={false}
-        columns={columns as any}
+        columns={columns as unknown as TableProps["columns"]}
         dataSource={dataSource}
         locale={{ emptyText: t("components.jsonSchema.noProperties") }}
         style={{ marginTop: token.marginSM }}

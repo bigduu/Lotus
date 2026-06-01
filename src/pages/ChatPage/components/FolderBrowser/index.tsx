@@ -135,7 +135,11 @@ export const FolderBrowser: React.FC<FolderBrowserProps> = ({ visible, onClose, 
 
         <Breadcrumb>
           {getPathSegments().map((segment, index) => (
-            <Breadcrumb.Item key={index}>
+            <Breadcrumb.Item
+              key={getPathSegments()
+                .slice(0, index + 1)
+                .join("/")}
+            >
               <Button
                 type="link"
                 size="small"

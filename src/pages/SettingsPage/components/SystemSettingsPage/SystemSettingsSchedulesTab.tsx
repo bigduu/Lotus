@@ -28,7 +28,7 @@ import {
   ScheduleTrigger,
 } from "@services/chat/AgentService";
 import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
-import { openSession } from "../../../ChatPage/utils/openSession";
+import { openSession } from "@shared/utils/openSession";
 import {
   type ScheduleFormValues,
   normalizedString,

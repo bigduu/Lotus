@@ -4,7 +4,7 @@ import { ToolOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
-import { safeStringify } from "../../utils/resultFormatters";
+import { safeStringify } from "@shared/utils/resultFormatters";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { copyText } from "@shared/utils/clipboard";

@@ -19,7 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAppStore } from "@shared/store/appStore";
 import { isBusyPhase } from "@shared/store/appStore/slices/executionStateSlice";
-import { openSession } from "@pages/ChatPage/utils/openSession";
+import { openSession } from "@shared/utils/openSession";
 import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/settingsViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";
 import { useThemeStore } from "@shared/store/themeStore";

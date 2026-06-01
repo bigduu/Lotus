@@ -133,7 +133,7 @@ export const TodoListDisplay: React.FC<TaskListDisplayProps> = ({ taskList }) =>
                   </Flex>
                   {item.status === "failed" && item.metadata?.error ? (
                     <Text type="danger" style={{ fontSize: 12 }}>
-                      {item.metadata.error}
+                      {String(item.metadata.error)}
                     </Text>
                   ) : null}
                   {item.status === "completed" && item.summary ? (

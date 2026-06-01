@@ -18,7 +18,7 @@ import {
   formatResultContent,
   getFileChangeDiffStats,
   parseFileChangeResultPayload,
-} from "../../utils/resultFormatters";
+} from "@shared/utils/resultFormatters";
 import {
   getMergedToolStreamingOutput,
   useToolStreamingStates,

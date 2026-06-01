@@ -21,7 +21,7 @@ import {
   formatConclusionWithOptionsConclusionAsMarkdown,
   formatConclusionToolResultAsMarkdown,
   parseInteractiveQuestionToolResultPayload,
-} from "../../utils/resultFormatters";
+} from "@shared/utils/resultFormatters";
 
 const { Text } = Typography;
 

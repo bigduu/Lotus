@@ -176,7 +176,7 @@ vi.mock("../../../utils/toolIntent", () => ({
 }));
 
 // Mock resultFormatters
-vi.mock("../../../utils/resultFormatters", () => ({
+vi.mock("@shared/utils/resultFormatters", () => ({
   safeStringify: (obj: unknown, indent = 2) =>
     typeof obj === "string" ? obj : JSON.stringify(obj, null, indent),
   formatResultContent: (content: string) => {

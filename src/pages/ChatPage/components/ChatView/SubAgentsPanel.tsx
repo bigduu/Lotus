@@ -4,7 +4,7 @@ import { Button, Card, Flex, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { selectChildren, useAppStore } from "@shared/store/appStore";
-import { openSession } from "../../utils/openSession";
+import { openSession } from "@shared/utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
 import { useSubagentProfiles } from "../../hooks/useSubagentProfiles";
 import InlineMetaText from "../../../../shared/components/InlineMetaText";

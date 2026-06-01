@@ -1,5 +1,5 @@
 import type { Message, MessageType, PlanMessage, QuestionMessage } from "@shared/types/chat";
-import { formatConclusionToolResultAsMarkdown } from "../../utils/resultFormatters";
+import { formatConclusionToolResultAsMarkdown } from "@shared/utils/resultFormatters";
 
 const extractJsonFromText = (text: string): string | null => {
   if (text.includes("```json")) {

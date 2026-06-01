@@ -3,7 +3,7 @@ import { Button, Card, Drawer, Flex, Space, Tag, Typography, theme } from "antd"
 import { ArrowLeftOutlined, DiffOutlined, LeftOutlined, RightOutlined } from "@ant-design/icons";
 
 import FileChangeViewer from "../FileChangeViewer";
-import type { FileChangeResultPayload } from "../../utils/resultFormatters";
+import type { FileChangeResultPayload } from "@shared/utils/resultFormatters";
 import InlineMetaText from "../../../../shared/components/InlineMetaText";
 
 const { Text } = Typography;

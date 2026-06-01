@@ -28,7 +28,7 @@ import {
   createContentPreview,
   getStatusColor,
   safeStringify,
-} from "../../utils/resultFormatters";
+} from "@shared/utils/resultFormatters";
 import { ExecutionStatus } from "@shared/types/chat";
 import { copyText } from "@shared/utils/clipboard";
 

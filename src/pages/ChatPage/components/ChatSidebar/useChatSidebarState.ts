@@ -17,7 +17,7 @@ import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { SidebarChatItem } from "@shared/types/sidebarChat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
-import { openSession } from "../../utils/openSession";
+import { openSession } from "@shared/utils/openSession";
 import { selectIsBusy } from "@shared/store/appStore";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";

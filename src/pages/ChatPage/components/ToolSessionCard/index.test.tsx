@@ -130,7 +130,8 @@ vi.mock("../../../utils/mcpAlias", () => ({
   parseMcpToolAlias: (_name: string) => null,
 }));
 
-vi.mock("../../../utils/resultFormatters", () => ({
+vi.mock("@shared/utils/resultFormatters", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@shared/utils/resultFormatters")>()),
   getFileChangeDiffStats: vi.fn(() => null),
   parseFileChangeResultPayload: vi.fn(() => null),
 }));

@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
-import { parseFileChangeResultPayload, safeStringify } from "../../utils/resultFormatters";
+import { parseFileChangeResultPayload, safeStringify } from "@shared/utils/resultFormatters";
 import {
   getMergedToolStreamingOutput,
   useToolStreamingStates,

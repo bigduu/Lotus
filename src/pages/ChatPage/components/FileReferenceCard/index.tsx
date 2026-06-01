@@ -26,14 +26,14 @@ const FileReferenceCardComponent: React.FC<FileReferenceCardProps> = ({ paths, d
     >
       {/* File/Folder list */}
       <Space direction="vertical" size={token.marginXXS}>
-        {paths.map((path, index) => {
+        {paths.map((path) => {
           const fileName = path.split("/").pop() || path;
           const directory = path.substring(0, path.lastIndexOf("/")) || "";
           // Simple heuristic: if no extension, treat as folder
           const isFolder = !fileName.includes(".");
 
           return (
-            <Flex key={index} vertical>
+            <Flex key={path} vertical>
               {/* File/Folder name row */}
               <Space size={token.marginXS} align="center" wrap>
                 {isFolder ? (

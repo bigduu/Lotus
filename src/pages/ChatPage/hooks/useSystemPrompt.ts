@@ -81,11 +81,13 @@ export const useSystemPrompt = (currentSystemPromptId?: string | null): UseSyste
   // Load presets on mount
   useEffect(() => {
     loadPresets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reload presets on mount and locale change only
   }, [t]);
 
   // Load current system prompt info when ID changes
   useEffect(() => {
     loadCurrentSystemPromptInfo();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reload when the active prompt id or locale changes
   }, [currentSystemPromptId, t]);
 
   // Methods to expose

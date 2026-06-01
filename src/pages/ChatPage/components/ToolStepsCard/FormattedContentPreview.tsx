@@ -4,7 +4,7 @@ import { Empty, theme } from "antd";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
-import { formatResultContent, safeStringify } from "../../utils/resultFormatters";
+import { formatResultContent, safeStringify } from "@shared/utils/resultFormatters";
 
 export type FormattedContentMode = "auto" | "json" | "text";
 

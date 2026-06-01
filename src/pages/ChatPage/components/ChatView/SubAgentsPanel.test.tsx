@@ -44,7 +44,7 @@ vi.mock("@shared/store/appStore", () => ({
   },
 }));
 
-vi.mock("../../utils/openSession", () => ({
+vi.mock("@shared/utils/openSession", () => ({
   openSession: vi.fn(),
 }));
 

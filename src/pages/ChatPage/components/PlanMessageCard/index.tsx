@@ -108,8 +108,8 @@ const PlanMessageCardComponent: React.FC<PlanMessageCardProps> = ({
                   <Text type="secondary">
                     <ToolOutlined /> {t("components.plan.tools")}:
                   </Text>
-                  {step.tools_needed.map((tool, idx) => (
-                    <Tag key={idx} color="processing">
+                  {step.tools_needed.map((tool) => (
+                    <Tag key={tool} color="processing">
                       {tool}
                     </Tag>
                   ))}

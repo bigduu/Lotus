@@ -86,7 +86,7 @@ vi.mock("../../../utils/mcpAlias", () => ({
 }));
 
 // Mock resultFormatters
-vi.mock("../../../utils/resultFormatters", () => ({
+vi.mock("@shared/utils/resultFormatters", () => ({
   safeStringify: (obj: unknown, indent?: number) => JSON.stringify(obj, null, indent),
 }));
 

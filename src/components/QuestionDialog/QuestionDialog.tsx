@@ -579,8 +579,8 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
             onChange={(e) => handleOptionChange(e.target.value)}
           >
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
-              {options?.map((option, index) => (
-                <Radio key={index} value={option} className={styles.optionItem}>
+              {options?.map((option) => (
+                <Radio key={option} value={option} className={styles.optionItem}>
                   <Text style={{ color: token.colorText }}>{option}</Text>
                 </Radio>
               ))}

@@ -37,7 +37,7 @@ vi.mock("../../../../shared/store/settingsViewStore", () => ({
     selector({ close: vi.fn() }),
 }));
 
-vi.mock("../../../ChatPage/utils/openSession", () => ({
+vi.mock("@shared/utils/openSession", () => ({
   openSession: vi.fn(),
 }));
 

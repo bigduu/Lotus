@@ -6,7 +6,7 @@ import { CommandPalette } from "../index";
 import { useAppStore } from "@shared/store/appStore";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 
-vi.mock("@pages/ChatPage/utils/openSession", () => ({
+vi.mock("@shared/utils/openSession", () => ({
   openSession: vi.fn(),
 }));
 
