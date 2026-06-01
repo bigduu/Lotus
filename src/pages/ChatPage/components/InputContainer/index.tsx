@@ -38,24 +38,33 @@ import {
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { ProviderModelPicker } from "../ProviderModelPicker";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
-import { agentClient, type GoldConfig, type ReasoningEffort } from "@services/chat/AgentService";
+import { agentClient, type ReasoningEffort } from "@services/chat/AgentService";
 import {
   type ProviderType,
   type OpenAIConfig,
   type AnthropicConfig,
   type GeminiConfig,
   type CopilotConfig,
-  OPENAI_MODELS,
-  ANTHROPIC_MODELS,
-  GEMINI_MODELS,
-  COPILOT_MODELS,
 } from "@shared/types/providerConfig";
-import { modelService } from "@services/chat/ModelService";
-import { agentApiClient } from "../../../../services/api";
-import { StorageManager } from "../../../../services/storage/StorageManager";
 import type { ImageFile } from "../../utils/imageUtils";
-import { CHAT_FOCUS_INPUT_EVENT, CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
+import { CHAT_FOCUS_INPUT_EVENT } from "../ChatView/events";
 import { useIsMobile } from "@shared/hooks/useMediaQuery";
+import {
+  CHAT_SEND_MESSAGE_EVENT,
+  CHAT_REFERENCE_TEXT_EVENT,
+  REASONING_EFFORT_OPTIONS,
+  EMPTY_ALLOWED_TOOLS,
+} from "./constants";
+import { useInputContainerModelOptions } from "./useInputContainerModelOptions";
+import { useInputContainerRespond } from "./useInputContainerRespond";
+import { useInputContainerGoalCommand } from "./useInputContainerGoalCommand";
+import type {
+  ChatSendMessageEventDetail,
+  ChatReferenceTextEventDetail,
+  WorkflowDraft,
+} from "./types";
+
+export type { WorkflowDraft } from "./types";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const CommandSelector = lazy(() => import("../CommandSelector"));
@@ -63,147 +72,6 @@ const WorkspacePathModal = lazy(() => import("../WorkspacePathModal"));
 const FileReferenceSelector = lazy(() => import("../FileReferenceSelector"));
 
 const { useToken } = theme;
-const CHAT_SEND_MESSAGE_EVENT = "chat-send-message";
-const CHAT_REFERENCE_TEXT_EVENT = "reference-text";
-const MODEL_OPTIONS_CACHE_PREFIX = "chat-model-options-cache-v1";
-const MODEL_OPTIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];
-const EMPTY_ALLOWED_TOOLS: string[] = [];
-const DEFAULT_GOAL_MAX_OUTPUT_TOKENS = 1024;
-const DEFAULT_GOAL_MAX_AUTO_CONTINUATIONS = 3;
-
-type ModelOption = { value: string; label: string };
-
-type RespondExecutionDebugSnapshot = {
-  phase: string;
-  generation: number;
-  backendRunId: string | null;
-  backendIsRunning: boolean;
-  hasPendingQuestion: boolean;
-  pendingQuestionToolCallId: string | null;
-  tokenCount: number;
-  hasTokens: boolean;
-  activeReasons: string[];
-};
-
-const debugRespondFlow = (event: string, payload: Record<string, unknown>): void => {
-  if (!import.meta.env.DEV) return;
-  if (typeof localStorage === "undefined") return;
-  if (localStorage.getItem("lotus_debug_respond") !== "1") return;
-  console.warn(`[RespondFlow] ${event}`, payload);
-};
-
-type ModelCachePayload = {
-  timestamp: number;
-  options: ModelOption[];
-};
-
-const getModelOptionsCacheKey = (provider: ProviderType) =>
-  `${MODEL_OPTIONS_CACHE_PREFIX}:${provider}`;
-
-// localStorage helpers for model options cache
-const readModelOptionsCacheFromLocalStorage = (provider: ProviderType): ModelOption[] | null => {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(getModelOptionsCacheKey(provider));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as ModelCachePayload;
-    if (!parsed || !Array.isArray(parsed.options)) return null;
-    if (Date.now() - parsed.timestamp > MODEL_OPTIONS_CACHE_TTL_MS) return null;
-    return parsed.options
-      .filter(
-        (item) =>
-          item &&
-          typeof item.value === "string" &&
-          item.value.trim().length > 0 &&
-          typeof item.label === "string",
-      )
-      .map((item) => ({ value: item.value, label: item.label }));
-  } catch {
-    return null;
-  }
-};
-
-const writeModelOptionsCacheToLocalStorage = (
-  provider: ProviderType,
-  options: ModelOption[],
-): void => {
-  if (typeof window === "undefined") return;
-  try {
-    const payload: ModelCachePayload = {
-      timestamp: Date.now(),
-      options,
-    };
-    localStorage.setItem(getModelOptionsCacheKey(provider), JSON.stringify(payload));
-  } catch {
-    // Ignore cache write failures.
-  }
-};
-
-const readModelOptionsCache = async (provider: ProviderType): Promise<ModelOption[] | null> => {
-  const manager = StorageManager.getInstance();
-  try {
-    const cached = await manager.loadModelOptionsCache(provider);
-    if (cached) {
-      if (Date.now() - cached.timestamp > MODEL_OPTIONS_CACHE_TTL_MS) return null;
-      return cached.options.filter(
-        (item) =>
-          item &&
-          typeof item.value === "string" &&
-          item.value.trim().length > 0 &&
-          typeof item.label === "string",
-      );
-    }
-  } catch {
-    // Fall through to localStorage
-  }
-  // Fallback to localStorage if IndexedDB is unavailable
-  return readModelOptionsCacheFromLocalStorage(provider);
-};
-
-const writeModelOptionsCache = async (
-  provider: ProviderType,
-  options: ModelOption[],
-): Promise<void> => {
-  const manager = StorageManager.getInstance();
-  try {
-    await manager.saveModelOptionsCache(provider, options, Date.now());
-  } catch {
-    // Ignore IndexedDB write failures
-  }
-  // Also keep writing to localStorage for backward compatibility
-  writeModelOptionsCacheToLocalStorage(provider, options);
-};
-
-type ChatSendMessageEventDetail = {
-  content: string;
-  sessionId?: string | null;
-  handled?: boolean;
-  resolve?: () => void;
-  reject?: (error: unknown) => void;
-};
-
-type ChatReferenceTextEventDetail = {
-  text: string;
-  sessionId?: string | null;
-  handled?: boolean;
-};
-
-export type WorkflowDraft = {
-  id: string;
-  name: string;
-  content: string;
-  createdAt: string;
-  type?: "workflow" | "skill" | "mcp" | "goal"; // Add command type
-  displayName?: string; // Add display name for better prompts
-  // For non-workflow commands (skill/mcp), keep additional identifiers.
-  // `name` is the token shown in the input (e.g. "read_file"), while `mcpAlias`
-  // can be the fully-qualified MCP tool name (e.g. "mcp__filesystem__read_file").
-  mcpAlias?: string;
-  mcpServerId?: string;
-  mcpServerName?: string;
-  mcpOriginalName?: string;
-};
 
 interface InputContainerProps {
   sessionId?: string | null;
@@ -232,27 +100,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const isInputLocked = useAppStore(selectIsInputLocked(sessionId));
   const canCancelFromExecution = useAppStore(selectCanCancel(sessionId));
   const canCancel = canCancelFromExecution || (currentChat?.isRunning === true && isInputLocked);
-  const markRespondStart = useAppStore((state) => state.markRespondStart);
-  const markSettleTimeout = useAppStore((state) => state.markSettleTimeout);
-  const applyExecutionStarted = useAppStore((state) => state.applyExecutionStarted);
   const pendingQuestion = useAppStore(selectPendingQuestion(sessionId));
-  const clearPendingQuestion = useAppStore((state) => state.clearPendingQuestion);
-  const getRespondExecutionDebugSnapshot = useCallback((): RespondExecutionDebugSnapshot | null => {
-    if (!sessionId) return null;
-    const entry = useAppStore.getState().executionBySession?.[sessionId];
-    if (!entry) return null;
-    return {
-      phase: entry.phase,
-      generation: entry.generation,
-      backendRunId: entry.backendRunId ?? null,
-      backendIsRunning: entry.backend.isRunning,
-      hasPendingQuestion: entry.interaction.pendingQuestion != null,
-      pendingQuestionToolCallId: entry.interaction.pendingQuestion?.toolCallId ?? null,
-      tokenCount: entry.stream.tokenCount,
-      hasTokens: entry.stream.hasTokens,
-      activeReasons: entry.activeReasons,
-    };
-  }, [sessionId]);
   const activeModel = useActiveModel(sessionId);
   const activeModelRef = useActiveModelRef(currentChat?.config?.model_ref);
   const isFlagOn = useProviderStore((s) => s.isProviderModelRefEnabled);
@@ -273,9 +121,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [currentProvider, getProviderType],
   );
 
-  const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
-  const [isModelOptionsLoading, setIsModelOptionsLoading] = useState(false);
-  const [modelOptionsError, setModelOptionsError] = useState<string | null>(null);
   const [isSavingModel, setIsSavingModel] = useState(false);
 
   // Use persisted state or empty defaults
@@ -307,22 +152,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     persistedEffort: persistedReasoningEffort,
     providerDefault: providerDefaultReasoningEffort,
   });
-  const sessionGoldConfig = currentChat?.config?.goldConfig ?? null;
-  const isGoalEnabled = sessionGoldConfig?.enabled === true;
-  const goalPrompt = sessionGoldConfig?.goal ?? sessionGoldConfig?.evaluation_prompt ?? "";
-  const buildSessionGoalConfig = useCallback(
-    (enabled: boolean, prompt: string): GoldConfig => ({
-      ...(sessionGoldConfig ?? {}),
-      enabled,
-      auto_answer_enabled: enabled,
-      auto_continue_enabled: enabled,
-      goal: prompt.trim() || undefined,
-      max_output_tokens: sessionGoldConfig?.max_output_tokens ?? DEFAULT_GOAL_MAX_OUTPUT_TOKENS,
-      max_auto_continuations:
-        sessionGoldConfig?.max_auto_continuations ?? DEFAULT_GOAL_MAX_AUTO_CONTINUATIONS,
-    }),
-    [sessionGoldConfig],
-  );
   const setContent = useCallback(
     (newContent: string) => {
       if (sessionId) {
@@ -338,18 +167,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
     },
     [sessionId, setReferenceText],
-  );
-  const persistGoalConfig = useCallback(
-    (nextConfig: GoldConfig) => {
-      if (!sessionId || !currentChat) return;
-      updateSession(sessionId, {
-        config: {
-          ...currentChat.config,
-          goldConfig: nextConfig,
-        },
-      });
-    },
-    [currentChat, sessionId, updateSession],
   );
   const setReasoningEffortPersisted = useCallback(
     async (nextEffort: ReasoningEffort) => {
@@ -533,225 +350,33 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const respondOptions = currentPendingRespond?.options || [];
   const respondAllowCustom = currentPendingRespond?.allowCustom ?? true;
 
-  const shouldUseRespondModeForSession = useCallback((targetSessionId?: string | null): boolean => {
-    if (!targetSessionId) {
-      return false;
-    }
-    const latestPendingQuestion = selectPendingQuestion(targetSessionId)(useAppStore.getState());
-    return Boolean(latestPendingQuestion);
-  }, []);
+  const { handleRespondSubmit, shouldUseRespondModeForSession } = useInputContainerRespond({
+    sessionId,
+    reasoningEffort,
+    activeModelRef,
+    isFlagOn,
+    messageApi,
+    setContent,
+    pendingQuestionToolCallId: currentPendingRespond?.toolCallId ?? null,
+    t,
+  });
 
-  const handleRespondSubmit = useCallback(
-    async (responseText: string) => {
-      const trimmed = responseText.trim();
-      if (!trimmed || !sessionId) return;
-
-      const latestPendingQuestion = selectPendingQuestion(sessionId)(useAppStore.getState());
-      const currentRespondPayload = latestPendingQuestion;
-      if (
-        currentRespondPayload &&
-        !currentRespondPayload.allowCustom &&
-        currentRespondPayload.options.length > 0 &&
-        !currentRespondPayload.options.includes(trimmed)
-      ) {
-        messageApi.warning(t("components.questionDialog.selectOptionWarning"));
-        return;
-      }
-
-      debugRespondFlow("input.respond:start", {
-        sessionId,
-        trimmedLength: trimmed.length,
-        pendingQuestionToolCallId: currentPendingRespond?.toolCallId ?? null,
-        executionBefore: getRespondExecutionDebugSnapshot(),
-      });
-
-      // Set processing state immediately so the UI shows feedback while the
-      // outbound respond request is still in-flight.  This mirrors the send-path
-      // fix that sets processing before the network call.
-      // CRITICAL: This increases generation and returns the new generation value.
-      const newGeneration = markRespondStart(sessionId, currentPendingRespond?.toolCallId ?? null);
-      debugRespondFlow("input.respond:afterMarkRespondStart", {
-        sessionId,
-        newGeneration,
-        executionAfterMarkRespondStart: getRespondExecutionDebugSnapshot(),
-      });
-      // Yield so React can flush the processing-state render before we block
-      // the microtask queue with network I/O.
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      try {
-        const respondPayload: Record<string, unknown> = {
-          response: trimmed,
-          reasoning_effort: reasoningEffort,
-        };
-        if (isFlagOn() && activeModelRef) {
-          respondPayload.model_ref = activeModelRef;
-          respondPayload.provider = activeModelRef.provider;
-        }
-
-        const result = await agentApiClient.post<{
-          auto_resume_status?: string;
-          run_id?: string;
-        }>(`respond/${sessionId}`, respondPayload);
-        debugRespondFlow("input.respond:response", {
-          sessionId,
-          result,
-          executionAfterResponse: getRespondExecutionDebugSnapshot(),
-        });
-
-        messageApi.success(t("components.questionDialog.responseSubmittedContinue"));
-        setContent("");
-        clearPendingQuestion(sessionId);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(
-            new CustomEvent(CHAT_PENDING_QUESTION_RESOLVED_EVENT, {
-              detail: { sessionId },
-            }),
-          );
-        }
-
-        // Processing was already set to true before the POST.  If the server
-        // started/resumed execution, immediately advance the phase to running
-        // so the UI shows feedback without waiting for the SSE event (which may
-        // be delayed by network jitter or reconnect backoff).
-        const resumeStatus = result?.auto_resume_status;
-        const runId = result?.run_id;
-        debugRespondFlow("input.respond:resumeDecision", {
-          sessionId,
-          resumeStatus,
-          runId: runId ?? null,
-          newGeneration,
-          executionBeforeResumeDecision: getRespondExecutionDebugSnapshot(),
-        });
-        if (resumeStatus === "started" || resumeStatus === "already_running") {
-          // Use the newGeneration returned by markRespondStart to ensure SSE events
-          // will match. This is critical because markRespondStart increased generation,
-          // and all subsequent SSE events must use the matching generation.
-          applyExecutionStarted(sessionId, runId ?? "", newGeneration);
-          debugRespondFlow("input.respond:afterApplyExecutionStarted", {
-            sessionId,
-            resumeStatus,
-            runId: runId ?? null,
-            newGeneration,
-            executionAfterApplyExecutionStarted: getRespondExecutionDebugSnapshot(),
-          });
-        } else if (resumeStatus === "error" || !resumeStatus) {
-          console.error("[InputContainer] Failed to auto-resume agent execution");
-          markSettleTimeout(sessionId);
-        }
-      } catch (err) {
-        console.error("[InputContainer] Failed to submit respond:", err);
-        messageApi.error(
-          err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
-        );
-        // Clear processing on error to avoid stuck spinner.
-        markSettleTimeout(sessionId);
-      }
-    },
-    [
-      sessionId,
-      reasoningEffort,
-      activeModelRef,
-      isFlagOn,
-      messageApi,
-      setContent,
-      clearPendingQuestion,
-      markRespondStart,
-      markSettleTimeout,
-      applyExecutionStarted,
-      getRespondExecutionDebugSnapshot,
-      currentPendingRespond?.toolCallId,
-      t,
-    ],
-  );
-
-  const clearGoalCommandInput = useCallback(() => {
-    setContent("");
-    commandState.clearCommandDraft();
-    requestAnimationFrame(() => {
-      textAreaRef.current?.focus();
-    });
-  }, [commandState, setContent]);
-
-  // NOTE: /goal commands are now handled server-side by Bamboo. This handler is
-  // retained for local-only UI feedback (toasts) in a future iteration.
-
-  const _handleGoalCommand = useCallback(
-    async (rawMessage: string): Promise<boolean> => {
-      const trimmed = rawMessage.trim();
-      if (!/^\/goal(?:\s|$)/i.test(trimmed)) {
-        return false;
-      }
-
-      if (!sessionId || !currentChat) {
-        messageApi.warning("Create or select a session before using /goal.");
-        return true;
-      }
-
-      const commandArg = trimmed.replace(/^\/goal(?:\s+)?/i, "").trim();
-      const normalizedArg = commandArg.toLowerCase();
-      recordEntry(trimmed);
-
-      if (!commandArg || normalizedArg === "status") {
-        const previewPrompt = goalPrompt.trim();
-        const clippedPrompt =
-          previewPrompt.length > 120 ? `${previewPrompt.slice(0, 120)}…` : previewPrompt;
-        messageApi.info(
-          isGoalEnabled
-            ? `Goal is enabled for this session${clippedPrompt ? `: ${clippedPrompt}` : "."}`
-            : "Goal is disabled for this session. Use /goal <prompt> to enable it.",
-        );
-        clearGoalCommandInput();
-        return true;
-      }
-
-      if (["off", "disable", "disabled"].includes(normalizedArg)) {
-        const nextPrompt = goalPrompt;
-        persistGoalConfig(buildSessionGoalConfig(false, nextPrompt));
-        messageApi.success("Goal disabled for this session.");
-        clearGoalCommandInput();
-        return true;
-      }
-
-      if (["clear", "reset"].includes(normalizedArg)) {
-        persistGoalConfig(buildSessionGoalConfig(false, ""));
-        messageApi.success("Goal cleared for this session.");
-        clearGoalCommandInput();
-        return true;
-      }
-
-      if (["on", "enable", "enabled"].includes(normalizedArg)) {
-        const nextPrompt = goalPrompt.trim();
-        if (!nextPrompt) {
-          messageApi.warning("Usage: /goal <prompt> to enable Goal for this session.");
-          return true;
-        }
-        persistGoalConfig(buildSessionGoalConfig(true, nextPrompt));
-        messageApi.success("Goal enabled for this session.");
-        clearGoalCommandInput();
-        return true;
-      }
-
-      persistGoalConfig(buildSessionGoalConfig(true, commandArg));
-      messageApi.success("Goal enabled for this session.");
-      clearGoalCommandInput();
-      return true;
-    },
-    [
-      buildSessionGoalConfig,
-      clearGoalCommandInput,
-      currentChat,
-      goalPrompt,
-      isGoalEnabled,
-      messageApi,
-      persistGoalConfig,
-      recordEntry,
-      sessionId,
-    ],
-  );
+  // /goal commands are now handled server-side by Bamboo. This hook is retained
+  // for local-only UI feedback (toasts) in a future iteration; `handleGoalCommand`
+  // is not yet wired into the submit path.
+  const { handleGoalCommand } = useInputContainerGoalCommand({
+    sessionId,
+    currentChat,
+    updateSession,
+    messageApi,
+    recordEntry,
+    clearCommandDraft: commandState.clearCommandDraft,
+    textAreaRef,
+    setContent,
+  });
 
   // Suppress TS6133 — retained for future local UI feedback integration.
-  void _handleGoalCommand;
+  void handleGoalCommand;
 
   const submitMessageWithLiveMode = useCallback(
     async (message: string, images?: ImageFile[]) => {
@@ -870,14 +495,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     return true;
   }, [isProviderConfigured, messageApi, openSettings, t]);
 
-  useEffect(() => {
-    void (async () => {
-      const cached = await readModelOptionsCache(resolvedProviderType);
-      setModelOptions(cached ?? []);
-      setModelOptionsError(null);
-    })();
-  }, [resolvedProviderType]);
-
   const getErrorMessage = useCallback(
     (error: unknown) => {
       if (error instanceof Error && error.message.trim()) return error.message;
@@ -886,69 +503,18 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [t],
   );
 
-  const fallbackModelOptions = useMemo(() => {
-    const byProvider: Record<ProviderType, ModelOption[]> = {
-      openai: [...OPENAI_MODELS],
-      anthropic: [...ANTHROPIC_MODELS],
-      gemini: [...GEMINI_MODELS],
-      copilot: [...COPILOT_MODELS],
-      bodhi: [],
-    };
-    return byProvider[resolvedProviderType] || [];
-  }, [resolvedProviderType]);
-
-  const resolvedModelOptions = useMemo(() => {
-    const base = modelOptions.length > 0 ? modelOptions : fallbackModelOptions;
-    const normalized = [...base];
-    if (activeModel && !normalized.some((item) => item.value === activeModel)) {
-      normalized.unshift({ value: activeModel, label: activeModel });
-    }
-    return normalized;
-  }, [modelOptions, fallbackModelOptions, activeModel]);
-
-  const fetchProviderModels = useCallback(
-    async (providerId: string, providerType: ProviderType, options?: { force?: boolean }) => {
-      if (!options?.force && modelOptions.length > 0) return;
-      try {
-        setIsModelOptionsLoading(true);
-        setModelOptionsError(null);
-
-        const models =
-          providerType === "copilot"
-            ? await modelService.getModels(providerId)
-            : fallbackModelOptions;
-        const options = models.map((model: string | { value: string; label: string }) => ({
-          value: typeof model === "string" ? model : model.value,
-          label: typeof model === "string" ? model : model.label,
-        }));
-        setModelOptions(options);
-        await writeModelOptionsCache(providerType, options);
-      } catch (error) {
-        setModelOptionsError(getErrorMessage(error));
-      } finally {
-        setIsModelOptionsLoading(false);
-      }
-    },
-    [fallbackModelOptions, getErrorMessage, modelOptions.length],
-  );
-
-  const handleModelDropdownVisibleChange = useCallback(
-    (open: boolean) => {
-      if (!open) return;
-      if (redirectToProviderSettingsIfNeeded()) return;
-      if (isModelOptionsLoading) return;
-      if (modelOptions.length > 0) return;
-      void fetchProviderModels(currentProvider, resolvedProviderType);
-    },
-    [
-      currentProvider,
-      resolvedProviderType,
-      fetchProviderModels,
-      isModelOptionsLoading,
-      modelOptions.length,
-      redirectToProviderSettingsIfNeeded,
-    ],
-  );
+  const {
+    isModelOptionsLoading,
+    modelOptionsError,
+    resolvedModelOptions,
+    handleModelDropdownVisibleChange,
+  } = useInputContainerModelOptions({
+    resolvedProviderType,
+    currentProvider,
+    activeModel,
+    getErrorMessage,
+    redirectToProviderSettingsIfNeeded,
+  });
 
   const handleModelSelect = useCallback(
     async (value: string) => {
