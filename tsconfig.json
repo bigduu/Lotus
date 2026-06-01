@@ -22,7 +22,6 @@
       "@pages/*": ["src/pages/*"],
       "@components/*": ["src/components/*"],
       "@app/*": ["src/app/*"],
-      "@hooks/*": ["src/hooks/*"],
       "@test/*": ["src/test/*"]
     },
 

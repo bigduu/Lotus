@@ -18,7 +18,7 @@ import {
   subagentProfileService,
   type SubagentProfile,
   type SubagentProfileListResponse,
-} from "../services/subagent";
+} from "@services/subagent";
 
 export interface UseSubagentProfilesOptions {
   /**

@@ -1,18 +1,18 @@
-import { AgentEvent } from "../services/chat/AgentService";
-import { useAppStore, selectShouldObserve, selectGeneration } from "../pages/ChatPage/store";
-import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
+import { AgentEvent } from "@services/chat/AgentService";
+import { useAppStore, selectShouldObserve, selectGeneration } from "../store";
+import { streamingMessageBus } from "../utils/streamingMessageBus";
 import {
   clearAssistantStreamingState,
   getAssistantStreamingState,
-} from "../pages/ChatPage/streaming/assistantStreamingAtoms";
-import type { Message } from "../pages/ChatPage/types/chatMessages";
+} from "../streaming/assistantStreamingAtoms";
+import type { Message } from "../types/chatMessages";
 import {
   formatCompletionPolicyViolationMessage,
   isCompletionPolicyViolationError,
-} from "../shared/utils/completionPolicyViolation";
-import { sendDesktopNotification } from "../services/notification/desktopNotification";
-import i18n from "../shared/i18n";
-import { debugLog } from "../shared/utils/debugFlags";
+} from "@shared/utils/completionPolicyViolation";
+import { sendDesktopNotification } from "@services/notification/desktopNotification";
+import i18n from "@shared/i18n";
+import { debugLog } from "@shared/utils/debugFlags";
 import { debugSse, isAbortError } from "./useAgentEventSubscription.helpers";
 import type { SubscriptionContext, RunContext } from "./subscriptionContext";
 import { createStreamingHandlers } from "./subscriptionHandlers/streamingHandlers";

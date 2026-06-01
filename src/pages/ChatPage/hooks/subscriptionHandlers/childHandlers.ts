@@ -1,12 +1,12 @@
-import type { AgentEvent, AgentEventHandlers } from "../../services/chat/AgentService";
-import { useAppStore, selectChildren } from "../../pages/ChatPage/store";
+import type { AgentEvent, AgentEventHandlers } from "@services/chat/AgentService";
+import { useAppStore, selectChildren } from "../../store";
 import {
   clearChildPreviewState,
   getChildPreviewState,
   setChildPreviewState,
-} from "../../pages/ChatPage/streaming/childPreviewAtoms";
-import { sendDesktopNotification } from "../../services/notification/desktopNotification";
-import i18n from "../../shared/i18n";
+} from "../../streaming/childPreviewAtoms";
+import { sendDesktopNotification } from "@services/notification/desktopNotification";
+import i18n from "@shared/i18n";
 import {
   compactEvaluationReasoning,
   getChildStatus,

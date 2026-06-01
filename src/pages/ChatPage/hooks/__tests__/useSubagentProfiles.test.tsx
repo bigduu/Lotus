@@ -1,14 +1,14 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../../services/subagent", () => ({
+vi.mock("@services/subagent", () => ({
   subagentProfileService: {
     listProfiles: vi.fn(),
   },
 }));
 
 import { useSubagentProfiles } from "../useSubagentProfiles";
-import { subagentProfileService } from "../../services/subagent";
+import { subagentProfileService } from "@services/subagent";
 
 const mockListProfiles = subagentProfileService.listProfiles as unknown as ReturnType<typeof vi.fn>;
 

@@ -1,20 +1,17 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useAgentEventSubscription } from "../useAgentEventSubscription";
-import { AgentClient } from "../../services/chat/AgentService";
-import { streamingMessageBus } from "../../pages/ChatPage/utils/streamingMessageBus";
+import { AgentClient } from "@services/chat/AgentService";
+import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import {
   clearAssistantStreamingState,
   getAssistantStreamingState,
-} from "../../pages/ChatPage/streaming/assistantStreamingAtoms";
+} from "../../streaming/assistantStreamingAtoms";
 import {
   clearChildPreviewStatesForParent,
   getChildPreviewState,
-} from "../../pages/ChatPage/streaming/childPreviewAtoms";
-import {
-  clearToolStreamingState,
-  getToolStreamingState,
-} from "../../pages/ChatPage/streaming/toolStreamingAtoms";
+} from "../../streaming/childPreviewAtoms";
+import { clearToolStreamingState, getToolStreamingState } from "../../streaming/toolStreamingAtoms";
 
 const { mockAntdMessage } = vi.hoisted(() => ({
   mockAntdMessage: {
@@ -38,7 +35,7 @@ vi.mock("antd", () => ({
 type MockSelector = (state: any) => any;
 
 // Mock dependencies - all variables must be inside the factory function
-vi.mock("../../pages/ChatPage/store", () => {
+vi.mock("../../store", () => {
   const mockStore = Object.assign(vi.fn(), {
     getState: vi.fn(),
     subscribe: vi.fn(() => vi.fn()),
@@ -65,7 +62,7 @@ vi.mock("../../pages/ChatPage/store", () => {
   return { useAppStore: mockStore, selectShouldObserve, selectGeneration, selectChildren };
 });
 
-vi.mock("../../pages/ChatPage/store/slices/executionStateSlice", () => ({
+vi.mock("../../store/slices/executionStateSlice", () => ({
   isBusyPhase: (phase: string | undefined) =>
     phase !== undefined &&
     phase !== "idle" &&
@@ -74,7 +71,7 @@ vi.mock("../../pages/ChatPage/store/slices/executionStateSlice", () => ({
     phase !== "cancelled",
 }));
 
-vi.mock("../../services/chat/AgentService", () => {
+vi.mock("@services/chat/AgentService", () => {
   // SSE subscriptions are long-lived; default to a never-resolving promise so the hook
   // doesn't interpret the stream as "ended" and attempt to reconnect in tests.
   const mockSubscribeToEvents = vi.fn().mockImplementation(() => new Promise<void>(() => {}));
@@ -175,7 +172,7 @@ describe("useAgentEventSubscription", () => {
     });
 
     // Import the mocked modules to get the mocks
-    const storeModule = await import("../../pages/ChatPage/store");
+    const storeModule = await import("../../store");
     mockStore = storeModule.useAppStore;
 
     // Set up mock implementations

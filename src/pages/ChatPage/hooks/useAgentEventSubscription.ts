@@ -1,16 +1,16 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { AgentClient } from "../services/chat/AgentService";
-import { useAppStore, selectShouldObserve, selectGeneration } from "../pages/ChatPage/store";
-import { streamingMessageBus } from "../pages/ChatPage/utils/streamingMessageBus";
-import { clearAssistantStreamingState } from "../pages/ChatPage/streaming/assistantStreamingAtoms";
-import { clearToolStreamingStatesForSession } from "../pages/ChatPage/streaming/toolStreamingAtoms";
+import { AgentClient } from "@services/chat/AgentService";
+import { useAppStore, selectShouldObserve, selectGeneration } from "../store";
+import { streamingMessageBus } from "../utils/streamingMessageBus";
+import { clearAssistantStreamingState } from "../streaming/assistantStreamingAtoms";
+import { clearToolStreamingStatesForSession } from "../streaming/toolStreamingAtoms";
 import {
   clearChildPreviewStatesForParent,
   setChildPreviewState,
-} from "../pages/ChatPage/streaming/childPreviewAtoms";
+} from "../streaming/childPreviewAtoms";
 import { App as AntApp } from "antd";
-import { debugLog } from "../shared/utils/debugFlags";
+import { debugLog } from "@shared/utils/debugFlags";
 import {
   type SubscriptionEntry,
   debugSse,

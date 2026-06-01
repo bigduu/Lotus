@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import { selectChildren, useAppStore } from "../../store";
 import { openSession } from "../../utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
-import { useSubagentProfiles } from "../../../../hooks/useSubagentProfiles";
+import { useSubagentProfiles } from "../../hooks/useSubagentProfiles";
 import InlineMetaText from "../../../../shared/components/InlineMetaText";
 import { SubAgentRow, type SubAgentRetryMode, type SubAgentRowData } from "./SubAgentRow";
 

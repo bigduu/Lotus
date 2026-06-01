@@ -2,11 +2,11 @@ import type {
   AgentEventHandlers,
   ContextSummaryInfo,
   TokenBudgetUsage,
-} from "../../services/chat/AgentService";
-import { useAppStore } from "../../pages/ChatPage/store";
-import { mapTokenBudgetUsage } from "../../pages/ChatPage/types/tokenBudget";
-import { sendDesktopNotification } from "../../services/notification/desktopNotification";
-import i18n from "../../shared/i18n";
+} from "@services/chat/AgentService";
+import { useAppStore } from "../../store";
+import { mapTokenBudgetUsage } from "../../types/tokenBudget";
+import { sendDesktopNotification } from "@services/notification/desktopNotification";
+import i18n from "@shared/i18n";
 import type { RunContext } from "../subscriptionContext";
 
 /** Context-window + token-budget handlers (compression / budget / summary / pressure). */

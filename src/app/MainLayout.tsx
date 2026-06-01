@@ -10,7 +10,7 @@ import { useMermaidTheme } from "../shared/components/MermaidChart/useMermaidThe
 import { mermaidCache } from "../shared/components/MermaidChart/mermaidConfig";
 import { clearMermaidRenderCache } from "../shared/components/MermaidChart/mermaidRenderManager";
 import { useMermaidSettings } from "../shared/store/mermaidSettingsStore";
-import { useAgentEventSubscription } from "@hooks/useAgentEventSubscription";
+import { useAgentEventSubscription } from "@pages/ChatPage/hooks/useAgentEventSubscription";
 import { MultiPaneChatView } from "../pages/ChatPage/components/MultiPaneChatView";
 import { useUILayoutStore } from "../shared/store/uiLayoutStore";
 import { ResizableSplit } from "../shared/components/ResizableSplit";

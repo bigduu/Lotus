@@ -1,14 +1,14 @@
-import type { AgentEvent, AgentEventHandlers } from "../../services/chat/AgentService";
-import { useAppStore } from "../../pages/ChatPage/store";
-import { streamingMessageBus } from "../../pages/ChatPage/utils/streamingMessageBus";
-import { setAssistantStreamingState } from "../../pages/ChatPage/streaming/assistantStreamingAtoms";
+import type { AgentEvent, AgentEventHandlers } from "@services/chat/AgentService";
+import { useAppStore } from "../../store";
+import { streamingMessageBus } from "../../utils/streamingMessageBus";
+import { setAssistantStreamingState } from "../../streaming/assistantStreamingAtoms";
 import {
   appendToolStreamingChunk,
   setToolStreamingStatus,
-} from "../../pages/ChatPage/streaming/toolStreamingAtoms";
-import type { Message } from "../../pages/ChatPage/types/chatMessages";
-import { sendDesktopNotification } from "../../services/notification/desktopNotification";
-import i18n from "../../shared/i18n";
+} from "../../streaming/toolStreamingAtoms";
+import type { Message } from "../../types/chatMessages";
+import { sendDesktopNotification } from "@services/notification/desktopNotification";
+import i18n from "@shared/i18n";
 import { isMemoryStatusTool } from "../useAgentEventSubscription.helpers";
 import type { RunContext } from "../subscriptionContext";
 

@@ -1,9 +1,9 @@
-import type { AgentEventHandlers } from "../../services/chat/AgentService";
-import { streamingMessageBus } from "../../pages/ChatPage/utils/streamingMessageBus";
+import type { AgentEventHandlers } from "@services/chat/AgentService";
+import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import {
   appendAssistantReasoningChunk,
   appendAssistantStreamingChunk,
-} from "../../pages/ChatPage/streaming/assistantStreamingAtoms";
+} from "../../streaming/assistantStreamingAtoms";
 import type { RunContext } from "../subscriptionContext";
 
 /** Assistant text/reasoning token handlers. */
