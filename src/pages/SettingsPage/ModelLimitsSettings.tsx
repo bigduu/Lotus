@@ -1,354 +1,398 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Table, Input, InputNumber, Button, Space, Card, Typography, Divider, message } from "antd";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Table,
+  Input,
+  InputNumber,
+  Button,
+  Space,
+  Card,
+  Typography,
+  Divider,
+  Tag,
+  Tooltip,
+  Empty,
+  message,
+} from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { SaveOutlined, ReloadOutlined } from "@ant-design/icons";
+import { SaveOutlined, ReloadOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import {
   serviceFactory,
   type BambooConfig,
   type ModelLimitDefault,
 } from "../../services/common/ServiceFactory";
+import { getUsedModels, removeUsedModel } from "../ChatPage/utils/usedModels";
 
 const { Title, Text, Paragraph } = Typography;
 
 const MODEL_LIMITS_KEY = "model_limits";
-const LEGACY_MODEL_LIMITS_KEY = "modelLimitsConfigs";
-const LEGACY_BUDGET_STRATEGY_KEY = "defaultBudgetStrategy";
-const DEFAULT_SAFETY_MARGIN = 1000;
 
-interface ModelLimitConfig {
-  vendor: string;
-  model_pattern: string;
+/** Global default mirrored from the backend; used until a model is customized. */
+interface GlobalDefault {
   max_context_tokens: number;
   max_output_tokens: number;
   safety_margin: number;
-  note: string;
 }
 
-function createFallbackDefaultConfigs(
-  t: (key: string, options?: Record<string, unknown>) => string,
-): ModelLimitConfig[] {
-  return [
-    {
-      vendor: "OpenAI (GPT-5)",
-      model_pattern: "gpt-5.4-thinking",
-      max_context_tokens: 1_000_000,
-      max_output_tokens: 128_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.gpt54"),
-    },
-    {
-      vendor: "OpenAI (GPT-5)",
-      model_pattern: "gpt-5.3-codex",
-      max_context_tokens: 400_000,
-      max_output_tokens: 128_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.gpt53Codex"),
-    },
-    {
-      vendor: "OpenAI (GPT-5)",
-      model_pattern: "gpt-5.2-pro",
-      max_context_tokens: 256_000,
-      max_output_tokens: 64_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.gpt52Pro"),
-    },
-    {
-      vendor: "OpenAI (GPT-5)",
-      model_pattern: "gpt-5-mini",
-      max_context_tokens: 400_000,
-      max_output_tokens: 128_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.gpt5Mini"),
-    },
-    {
-      vendor: "OpenAI (Legacy)",
-      model_pattern: "gpt-4.1",
-      max_context_tokens: 128_000,
-      max_output_tokens: 16_384,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.gpt41"),
-    },
-    {
-      vendor: "OpenAI (Legacy)",
-      model_pattern: "gpt-4o",
-      max_context_tokens: 128_000,
-      max_output_tokens: 16_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.gpt4o"),
-    },
-    {
-      vendor: "Google",
-      model_pattern: "gemini-2.5-pro",
-      max_context_tokens: 128_000,
-      max_output_tokens: 16_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.gemini25Pro"),
-    },
-    {
-      vendor: "Moonshot",
-      model_pattern: "kimi-k2.5",
-      max_context_tokens: 256_000,
-      max_output_tokens: 64_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.kimiK25"),
-    },
-    {
-      vendor: "Moonshot",
-      model_pattern: "kimi-for-coding",
-      max_context_tokens: 256_000,
-      max_output_tokens: 64_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.kimiCoding"),
-    },
-    {
-      vendor: "Zhipu",
-      model_pattern: "glm-5",
-      max_context_tokens: 200_000,
-      max_output_tokens: 128_000,
-      safety_margin: DEFAULT_SAFETY_MARGIN,
-      note: t("settings.modelLimits.defaults.glm5"),
-    },
-  ];
+const FALLBACK_DEFAULT: GlobalDefault = {
+  max_context_tokens: 200_000,
+  max_output_tokens: 64_000,
+  safety_margin: 2_000,
+};
+
+/** A persisted user override (source = user) sent to the backend on save. */
+interface OverrideConfig {
+  model_pattern: string;
+  max_context_tokens: number;
+  max_output_tokens: number;
+  safety_margin?: number;
 }
 
-function parseModelLimitDefaults(defaults: ModelLimitDefault[] | unknown): ModelLimitConfig[] {
-  if (!Array.isArray(defaults)) {
-    return [];
-  }
-  return parseModelLimits(defaults);
+/** A row in the editable table — either a default (unchanged) or an override. */
+interface LimitRow {
+  /** Stable synthetic id (never derived from editable fields → no focus loss). */
+  id: string;
+  model_pattern: string;
+  /** User-added row (model pattern is editable) vs a discovered/used model. */
+  isCustom: boolean;
+  /** Has a real override (source = user). `false` = default, unchanged. */
+  customized: boolean;
+  max_context_tokens: number;
+  max_output_tokens: number;
+  safety_margin?: number;
 }
 
-function toSafePositiveInteger(value: unknown, fallback: number): number {
+function toPositiveInt(value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback;
+    return null;
   }
-
   const next = Math.floor(value);
-  return next > 0 ? next : fallback;
+  return next > 0 ? next : null;
 }
 
-function toSafeNonNegativeInteger(value: unknown, fallback: number): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    return fallback;
+function parseGlobalDefault(response: { model_limits?: ModelLimitDefault[] }): GlobalDefault {
+  const first = Array.isArray(response?.model_limits) ? response.model_limits[0] : undefined;
+  if (!first) {
+    return FALLBACK_DEFAULT;
   }
-
-  const next = Math.floor(value);
-  return next >= 0 ? next : fallback;
+  return {
+    max_context_tokens:
+      toPositiveInt(first.max_context_tokens) ?? FALLBACK_DEFAULT.max_context_tokens,
+    max_output_tokens: toPositiveInt(first.max_output_tokens) ?? FALLBACK_DEFAULT.max_output_tokens,
+    safety_margin: toPositiveInt(first.safety_margin) ?? FALLBACK_DEFAULT.safety_margin,
+  };
 }
 
-function normalizeModelLimit(value: unknown): ModelLimitConfig | null {
+function normalizeOverride(value: unknown): OverrideConfig | null {
   if (!value || typeof value !== "object") {
     return null;
   }
-
   const row = value as Record<string, unknown>;
   const patternValue = row.model_pattern ?? row.model;
   if (typeof patternValue !== "string" || !patternValue.trim()) {
     return null;
   }
-
-  const maxContextTokens = toSafePositiveInteger(
-    row.max_context_tokens ?? row.maxContextTokens,
-    128000,
-  );
-  const maxOutputTokens = toSafePositiveInteger(
-    row.max_output_tokens ?? row.maxOutputTokens,
-    Math.min(4096, Math.floor(maxContextTokens / 4)),
-  );
-  const safetyMargin = toSafeNonNegativeInteger(
-    row.safety_margin ?? row.safetyMargin,
-    DEFAULT_SAFETY_MARGIN,
-  );
-
+  const ctx = toPositiveInt(row.max_context_tokens ?? row.maxContextTokens);
+  const out = toPositiveInt(row.max_output_tokens ?? row.maxOutputTokens);
+  if (ctx === null || out === null) {
+    return null;
+  }
+  const marginRaw = row.safety_margin ?? row.safetyMargin;
+  const margin =
+    typeof marginRaw === "number" && Number.isFinite(marginRaw) && marginRaw >= 0
+      ? Math.floor(marginRaw)
+      : undefined;
   return {
-    vendor: typeof row.vendor === "string" && row.vendor.trim() ? row.vendor.trim() : "",
     model_pattern: patternValue.trim(),
-    max_context_tokens: maxContextTokens,
-    max_output_tokens: maxOutputTokens,
-    safety_margin: safetyMargin,
-    note: typeof row.note === "string" ? row.note : "",
+    max_context_tokens: ctx,
+    max_output_tokens: out,
+    safety_margin: margin,
   };
 }
 
-function parseModelLimits(value: unknown): ModelLimitConfig[] {
-  if (!Array.isArray(value)) {
+function parseOverrides(config: BambooConfig): OverrideConfig[] {
+  const raw = config?.[MODEL_LIMITS_KEY];
+  if (!Array.isArray(raw)) {
     return [];
   }
-
-  return value
-    .map((row) => normalizeModelLimit(row))
-    .filter((row): row is ModelLimitConfig => Boolean(row));
+  return raw
+    .map((row) => normalizeOverride(row))
+    .filter((row): row is OverrideConfig => row !== null);
 }
 
-function migrateLegacyModelLimitConfigs(): ModelLimitConfig[] {
-  const raw = localStorage.getItem(LEGACY_MODEL_LIMITS_KEY);
-  if (!raw) {
-    return [];
+/** Build display rows = persisted overrides ∪ models the user has used. */
+function buildRows(
+  def: GlobalDefault,
+  overrides: OverrideConfig[],
+  usedModels: string[],
+): LimitRow[] {
+  const overrideMap = new Map(overrides.map((o) => [o.model_pattern, o]));
+  const ordered: string[] = [];
+  const seen = new Set<string>();
+
+  for (const o of overrides) {
+    if (!seen.has(o.model_pattern)) {
+      seen.add(o.model_pattern);
+      ordered.push(o.model_pattern);
+    }
+  }
+  for (const model of usedModels) {
+    const trimmed = model.trim();
+    if (trimmed && !seen.has(trimmed)) {
+      seen.add(trimmed);
+      ordered.push(trimmed);
+    }
   }
 
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    return parseModelLimits(parsed);
-  } catch {
-    return [];
-  }
+  return ordered.map((pattern) => {
+    const override = overrideMap.get(pattern);
+    return {
+      id: pattern,
+      model_pattern: pattern,
+      isCustom: false,
+      customized: Boolean(override),
+      max_context_tokens: override?.max_context_tokens ?? def.max_context_tokens,
+      max_output_tokens: override?.max_output_tokens ?? def.max_output_tokens,
+      safety_margin: override?.safety_margin,
+    };
+  });
 }
 
-function getConfigModelLimits(config: BambooConfig): {
-  hasModelLimitsKey: boolean;
-  modelLimits: ModelLimitConfig[];
-} {
-  const hasModelLimitsKey = Object.prototype.hasOwnProperty.call(config, MODEL_LIMITS_KEY);
-
-  if (!hasModelLimitsKey) {
-    return { hasModelLimitsKey: false, modelLimits: [] };
-  }
-
-  return {
-    hasModelLimitsKey,
-    modelLimits: parseModelLimits(config[MODEL_LIMITS_KEY]),
-  };
-}
-
-function validateModelLimits(
-  configs: ModelLimitConfig[],
+function validateOverrides(
+  overrides: OverrideConfig[],
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string | null {
-  if (configs.length === 0) {
-    return t("settings.modelLimits.validation.atLeastOneRow");
-  }
-
-  const seenPatterns = new Set<string>();
-
-  for (const config of configs) {
-    const pattern = config.model_pattern.trim();
+  const seen = new Set<string>();
+  for (const o of overrides) {
+    const pattern = o.model_pattern.trim();
     if (!pattern) {
       return t("settings.modelLimits.validation.modelPatternEmpty");
     }
-
-    const normalizedPattern = pattern.toLowerCase();
-    if (seenPatterns.has(normalizedPattern)) {
-      return t("settings.modelLimits.validation.duplicateModelPattern", {
-        pattern,
-      });
+    const key = pattern.toLowerCase();
+    if (seen.has(key)) {
+      return t("settings.modelLimits.validation.duplicateModelPattern", { pattern });
     }
-    seenPatterns.add(normalizedPattern);
+    seen.add(key);
 
-    if (config.max_context_tokens < 1000) {
+    if (o.max_context_tokens < 1000) {
       return t("settings.modelLimits.validation.contextWindowMin", { pattern });
     }
-
-    if (config.max_output_tokens < 1) {
+    if (o.max_output_tokens < 1) {
       return t("settings.modelLimits.validation.maxOutputMin", { pattern });
     }
-
-    if (config.max_output_tokens > config.max_context_tokens) {
-      return t("settings.modelLimits.validation.maxOutputExceedsContext", {
-        pattern,
-      });
+    if (o.max_output_tokens > o.max_context_tokens) {
+      return t("settings.modelLimits.validation.maxOutputExceedsContext", { pattern });
     }
-
-    if (config.safety_margin < 0) {
-      return t("settings.modelLimits.validation.safetyMarginNegative", {
-        pattern,
-      });
-    }
-
-    if (config.safety_margin >= config.max_context_tokens) {
-      return t("settings.modelLimits.validation.safetyMarginTooLarge", {
-        pattern,
-      });
+    if (typeof o.safety_margin === "number") {
+      if (o.safety_margin < 0) {
+        return t("settings.modelLimits.validation.safetyMarginNegative", { pattern });
+      }
+      if (o.safety_margin >= o.max_context_tokens) {
+        return t("settings.modelLimits.validation.safetyMarginTooLarge", { pattern });
+      }
     }
   }
-
   return null;
 }
 
 /**
- * Settings component for configuring model limits for token budgets.
+ * Number cell with LOCAL draft state committed on blur. Typing never writes to
+ * shared state and is never clamped mid-keystroke — that is what fixes the old
+ * "type one digit and lose focus / value jumps" bug.
+ */
+const NumberCell = memo(function NumberCell({
+  value,
+  min,
+  max,
+  step,
+  disabled,
+  ariaLabel,
+  onCommit,
+}: {
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  disabled?: boolean;
+  ariaLabel?: string;
+  onCommit: (next: number) => void;
+}) {
+  const [local, setLocal] = useState<number | null>(value);
+  useEffect(() => {
+    setLocal(value);
+  }, [value]);
+
+  return (
+    <InputNumber
+      aria-label={ariaLabel}
+      value={local}
+      min={min}
+      max={max}
+      step={step}
+      disabled={disabled}
+      onChange={(next) => setLocal(typeof next === "number" ? next : null)}
+      onBlur={() => {
+        const next = typeof local === "number" && Number.isFinite(local) ? local : value;
+        setLocal(next);
+        if (next !== value) {
+          onCommit(next);
+        }
+      }}
+      style={{ width: "100%" }}
+    />
+  );
+});
+
+/** Text cell with local draft state committed on blur (stable focus). */
+const TextCell = memo(function TextCell({
+  value,
+  placeholder,
+  ariaLabel,
+  onCommit,
+}: {
+  value: string;
+  placeholder?: string;
+  ariaLabel?: string;
+  onCommit: (next: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  useEffect(() => {
+    setLocal(value);
+  }, [value]);
+
+  return (
+    <Input
+      aria-label={ariaLabel}
+      value={local}
+      placeholder={placeholder}
+      onChange={(event) => setLocal(event.target.value)}
+      onBlur={() => {
+        if (local !== value) {
+          onCommit(local);
+        }
+      }}
+    />
+  );
+});
+
+/**
+ * Settings component for per-model token-budget overrides.
  *
- * Persisted in `config.json` under the root key `model_limits`.
+ * - The list shows only models you've actually used (plus existing overrides),
+ *   so it stays short.
+ * - Every model uses the backend global default until you customize it; default
+ *   rows are badged "unchanged" and follow future default changes.
+ * - Only real overrides are saved (diff-only) — see backend `limits.rs`.
  */
 export const ModelLimitsSettings: React.FC = () => {
   const { t } = useTranslation();
-  const [configs, setConfigs] = useState<ModelLimitConfig[]>(() => createFallbackDefaultConfigs(t));
+  const [globalDefault, setGlobalDefault] = useState<GlobalDefault>(FALLBACK_DEFAULT);
+  const [rows, setRows] = useState<LimitRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [msgApi, contextHolder] = message.useMessage();
-
-  const updateConfig = useCallback((index: number, updates: Partial<ModelLimitConfig>) => {
-    setConfigs((prev) =>
-      prev.map((config, rowIndex) => (rowIndex === index ? { ...config, ...updates } : config)),
-    );
-  }, []);
-
-  const addConfigRow = useCallback(() => {
-    setConfigs((prev) => [
-      ...prev,
-      {
-        vendor: "",
-        model_pattern: "",
-        max_context_tokens: 128000,
-        max_output_tokens: 4096,
-        safety_margin: DEFAULT_SAFETY_MARGIN,
-        note: "",
-      },
-    ]);
-  }, []);
-
-  const removeConfigRow = useCallback((index: number) => {
-    setConfigs((prev) => prev.filter((_, rowIndex) => rowIndex !== index));
-  }, []);
-
-  const loadDefaultConfigs = useCallback(async (): Promise<ModelLimitConfig[]> => {
-    const fallbackDefaults = createFallbackDefaultConfigs(t);
-    const response = await serviceFactory.getModelLimitDefaults();
-    const backendDefaults = parseModelLimitDefaults(response.model_limits);
-    return backendDefaults.length > 0 ? backendDefaults : fallbackDefaults;
-  }, [t]);
+  const didLoad = useRef(false);
+  const customCounter = useRef(0);
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
     try {
-      const bambooConfig = await serviceFactory.getBambooConfig();
-      const { hasModelLimitsKey, modelLimits } = getConfigModelLimits(bambooConfig);
-
-      if (modelLimits.length > 0) {
-        setConfigs(modelLimits);
-        return;
-      }
-
-      if (hasModelLimitsKey) {
-        setConfigs(await loadDefaultConfigs());
-        return;
-      }
-
-      const migrated = migrateLegacyModelLimitConfigs();
-      if (migrated.length > 0) {
-        await serviceFactory.setBambooConfig({ model_limits: migrated });
-        localStorage.removeItem(LEGACY_MODEL_LIMITS_KEY);
-        localStorage.removeItem(LEGACY_BUDGET_STRATEGY_KEY);
-        setConfigs(migrated);
-        msgApi.info(t("settings.modelLimits.migratedFromLocalStorage"));
-        return;
-      }
-
-      setConfigs(await loadDefaultConfigs());
+      const [config, defaultsResponse] = await Promise.all([
+        serviceFactory.getBambooConfig(),
+        serviceFactory.getModelLimitDefaults(),
+      ]);
+      const def = parseGlobalDefault(defaultsResponse);
+      setGlobalDefault(def);
+      setRows(buildRows(def, parseOverrides(config), getUsedModels()));
     } catch (error) {
       console.error("Failed to load model limits settings:", error);
       msgApi.error(t("settings.modelLimits.loadFailed"));
-      setConfigs(await loadDefaultConfigs());
+      setGlobalDefault(FALLBACK_DEFAULT);
+      setRows(buildRows(FALLBACK_DEFAULT, [], getUsedModels()));
     } finally {
       setLoading(false);
     }
-  }, [loadDefaultConfigs, msgApi, t]);
+  }, [msgApi, t]);
 
+  // Load exactly once on mount. A ran-once guard prevents the effect from
+  // re-firing (and reloading from the backend) mid-edit.
   useEffect(() => {
+    if (didLoad.current) {
+      return;
+    }
+    didLoad.current = true;
     void loadSettings();
   }, [loadSettings]);
 
+  const updateRow = useCallback((id: string, patch: Partial<LimitRow>) => {
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  }, []);
+
+  const customizeRow = useCallback((id: string) => {
+    setRows((prev) => prev.map((row) => (row.id === id ? { ...row, customized: true } : row)));
+  }, []);
+
+  const revertRow = useCallback(
+    (id: string) => {
+      setRows((prev) => {
+        const target = prev.find((row) => row.id === id);
+        if (target?.isCustom) {
+          // User-added row: removing the override removes the row entirely.
+          return prev.filter((row) => row.id !== id);
+        }
+        return prev.map((row) =>
+          row.id === id
+            ? {
+                ...row,
+                customized: false,
+                max_context_tokens: globalDefault.max_context_tokens,
+                max_output_tokens: globalDefault.max_output_tokens,
+                safety_margin: undefined,
+              }
+            : row,
+        );
+      });
+    },
+    [globalDefault],
+  );
+
+  const removeRow = useCallback((id: string) => {
+    setRows((prev) => {
+      const target = prev.find((row) => row.id === id);
+      // Discovered (non-custom) rows live in the usedModels registry; drop it
+      // there too so it doesn't reappear. removeUsedModel is idempotent.
+      if (target && !target.isCustom && target.model_pattern.trim()) {
+        removeUsedModel(target.model_pattern);
+      }
+      return prev.filter((row) => row.id !== id);
+    });
+  }, []);
+
+  const addCustomRow = useCallback(() => {
+    setRows((prev) => [
+      ...prev,
+      {
+        id: `custom-${customCounter.current++}`,
+        model_pattern: "",
+        isCustom: true,
+        customized: true,
+        max_context_tokens: globalDefault.max_context_tokens,
+        max_output_tokens: globalDefault.max_output_tokens,
+        safety_margin: undefined,
+      },
+    ]);
+  }, [globalDefault]);
+
   const saveSettings = async () => {
-    const validationError = validateModelLimits(configs, t);
+    const overrides: OverrideConfig[] = rows
+      .filter((row) => row.customized)
+      .map((row) => ({
+        model_pattern: row.model_pattern.trim(),
+        max_context_tokens: row.max_context_tokens,
+        max_output_tokens: row.max_output_tokens,
+        ...(typeof row.safety_margin === "number" ? { safety_margin: row.safety_margin } : {}),
+      }));
+
+    const validationError = validateOverrides(overrides, t);
     if (validationError) {
       msgApi.error(validationError);
       return;
@@ -356,7 +400,7 @@ export const ModelLimitsSettings: React.FC = () => {
 
     setLoading(true);
     try {
-      await serviceFactory.setBambooConfig({ model_limits: configs });
+      await serviceFactory.setBambooConfig({ [MODEL_LIMITS_KEY]: overrides });
       msgApi.success(t("settings.modelLimits.saveSuccess"));
     } catch (error) {
       console.error("Failed to save model limits settings:", error);
@@ -369,11 +413,18 @@ export const ModelLimitsSettings: React.FC = () => {
   const resetToDefaults = async () => {
     setLoading(true);
     try {
-      const defaults = await loadDefaultConfigs();
-      await serviceFactory.setBambooConfig({ model_limits: defaults });
-      setConfigs(defaults);
-      localStorage.removeItem(LEGACY_MODEL_LIMITS_KEY);
-      localStorage.removeItem(LEGACY_BUDGET_STRATEGY_KEY);
+      await serviceFactory.setBambooConfig({ [MODEL_LIMITS_KEY]: [] });
+      setRows((prev) =>
+        prev
+          .filter((row) => !row.isCustom)
+          .map((row) => ({
+            ...row,
+            customized: false,
+            max_context_tokens: globalDefault.max_context_tokens,
+            max_output_tokens: globalDefault.max_output_tokens,
+            safety_margin: undefined,
+          })),
+      );
       msgApi.success(t("settings.modelLimits.resetSuccess"));
     } catch (error) {
       console.error("Failed to reset model limits settings:", error);
@@ -383,51 +434,39 @@ export const ModelLimitsSettings: React.FC = () => {
     }
   };
 
-  const columns: ColumnsType<ModelLimitConfig> = useMemo(
+  const columns: ColumnsType<LimitRow> = useMemo(
     () => [
-      {
-        title: t("settings.modelLimits.columns.vendor"),
-        dataIndex: "vendor",
-        key: "vendor",
-        width: 170,
-        render: (value: string, _record, index) => (
-          <Input
-            value={value}
-            placeholder={t("settings.modelLimits.placeholders.vendor")}
-            onChange={(event) => updateConfig(index, { vendor: event.target.value })}
-          />
-        ),
-      },
       {
         title: t("settings.modelLimits.columns.model"),
         dataIndex: "model_pattern",
         key: "model_pattern",
-        width: 220,
-        render: (value: string, _record, index) => (
-          <Input
-            value={value}
-            placeholder={t("settings.modelLimits.placeholders.model")}
-            onChange={(event) => updateConfig(index, { model_pattern: event.target.value })}
-          />
-        ),
+        width: 240,
+        render: (value: string, row) =>
+          row.isCustom ? (
+            <TextCell
+              value={value}
+              ariaLabel={`model-${row.id}`}
+              placeholder={t("settings.modelLimits.placeholders.model")}
+              onCommit={(next) => updateRow(row.id, { model_pattern: next })}
+            />
+          ) : (
+            <Text strong>{value}</Text>
+          ),
       },
       {
         title: t("settings.modelLimits.columns.contextWindow"),
         dataIndex: "max_context_tokens",
         key: "max_context_tokens",
-        width: 180,
-        render: (value: number, _record, index) => (
-          <InputNumber
+        width: 170,
+        render: (value: number, row) => (
+          <NumberCell
             value={value}
-            onChange={(next) =>
-              updateConfig(index, {
-                max_context_tokens: Math.max(1000, Number(next) || 128000),
-              })
-            }
+            ariaLabel={`context-${row.id}`}
             min={1000}
-            max={2000000}
+            max={5_000_000}
             step={1000}
-            style={{ width: "100%" }}
+            disabled={!row.customized}
+            onCommit={(next) => updateRow(row.id, { max_context_tokens: next })}
           />
         ),
       },
@@ -435,47 +474,73 @@ export const ModelLimitsSettings: React.FC = () => {
         title: t("settings.modelLimits.columns.maxOutput"),
         dataIndex: "max_output_tokens",
         key: "max_output_tokens",
-        width: 160,
-        render: (value: number, _record, index) => (
-          <InputNumber
+        width: 150,
+        render: (value: number, row) => (
+          <NumberCell
             value={value}
-            onChange={(next) =>
-              updateConfig(index, {
-                max_output_tokens: Math.max(1, Number(next) || 4096),
-              })
-            }
+            ariaLabel={`output-${row.id}`}
             min={1}
-            max={2000000}
+            max={5_000_000}
             step={256}
-            style={{ width: "100%" }}
+            disabled={!row.customized}
+            onCommit={(next) => updateRow(row.id, { max_output_tokens: next })}
           />
         ),
       },
       {
-        title: t("settings.modelLimits.columns.notes"),
-        dataIndex: "note",
-        key: "note",
-        width: 240,
-        render: (value: string, _record, index) => (
-          <Input
-            value={value}
-            placeholder={t("settings.modelLimits.placeholders.optional")}
-            onChange={(event) => updateConfig(index, { note: event.target.value })}
+        title: t("settings.modelLimits.columns.safetyMargin"),
+        dataIndex: "safety_margin",
+        key: "safety_margin",
+        width: 150,
+        render: (value: number | undefined, row) => (
+          <NumberCell
+            value={value ?? globalDefault.safety_margin}
+            ariaLabel={`safety-${row.id}`}
+            min={0}
+            max={1_000_000}
+            step={100}
+            disabled={!row.customized}
+            onCommit={(next) => updateRow(row.id, { safety_margin: next })}
           />
         ),
+      },
+      {
+        title: t("settings.modelLimits.columns.status"),
+        key: "status",
+        width: 150,
+        render: (_value, row) =>
+          row.customized ? (
+            <Tag color="blue">{t("settings.modelLimits.badge.customized")}</Tag>
+          ) : (
+            <Tooltip title={t("settings.modelLimits.badge.defaultTooltip")}>
+              <Tag>{t("settings.modelLimits.badge.default")}</Tag>
+            </Tooltip>
+          ),
       },
       {
         title: t("settings.modelLimits.columns.actions"),
         key: "actions",
-        width: 100,
-        render: (_value, _record, index) => (
-          <Button danger size="small" onClick={() => removeConfigRow(index)}>
-            {t("settings.modelLimits.actions.remove")}
-          </Button>
+        width: 200,
+        render: (_value, row) => (
+          <Space size="small">
+            {!row.customized && (
+              <Button size="small" type="link" onClick={() => customizeRow(row.id)}>
+                {t("settings.modelLimits.actions.customize")}
+              </Button>
+            )}
+            {row.customized && !row.isCustom && (
+              <Button size="small" onClick={() => revertRow(row.id)}>
+                {t("settings.modelLimits.actions.revert")}
+              </Button>
+            )}
+            <Button size="small" type="text" danger onClick={() => removeRow(row.id)}>
+              {t("settings.modelLimits.actions.remove")}
+            </Button>
+          </Space>
         ),
       },
     ],
-    [removeConfigRow, t, updateConfig],
+    [t, globalDefault.safety_margin, updateRow, customizeRow, revertRow, removeRow],
   );
 
   return (
@@ -484,7 +549,7 @@ export const ModelLimitsSettings: React.FC = () => {
       <Card>
         <Title level={4}>{t("settings.modelLimits.title")}</Title>
         <Paragraph type="secondary">
-          {t("settings.modelLimits.descriptionPrefix")} <Text code>config.json</Text>{" "}
+          {t("settings.modelLimits.descriptionPrefix")}{" "}
           {t("settings.modelLimits.descriptionSuffix")}
         </Paragraph>
 
@@ -493,20 +558,31 @@ export const ModelLimitsSettings: React.FC = () => {
         <Space direction="vertical" size="small" style={{ width: "100%" }}>
           <Text strong>{t("settings.modelLimits.defaultsTitle")}</Text>
           <Text type="secondary">{t("settings.modelLimits.defaultsDescription")}</Text>
+          <Text type="secondary">
+            {t("settings.modelLimits.globalDefault", {
+              context: globalDefault.max_context_tokens.toLocaleString(),
+              output: globalDefault.max_output_tokens.toLocaleString(),
+            })}
+          </Text>
         </Space>
 
         <Table
-          dataSource={configs}
+          dataSource={rows}
           columns={columns}
-          rowKey={(row, index) => `${row.model_pattern}-${index}`}
+          rowKey={(row) => row.id}
           pagination={false}
           size="small"
           style={{ margin: "16px 0" }}
-          scroll={{ x: 1150 }}
+          scroll={{ x: 1060 }}
+          locale={{
+            emptyText: <Empty description={t("settings.modelLimits.emptyState")} />,
+          }}
         />
 
-        <Space>
-          <Button onClick={addConfigRow}>{t("settings.modelLimits.actions.addRow")}</Button>
+        <Space wrap>
+          <Button icon={<PlusOutlined />} onClick={addCustomRow}>
+            {t("settings.modelLimits.actions.addModel")}
+          </Button>
           <Button
             type="primary"
             icon={<SaveOutlined />}

@@ -507,6 +507,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     matchesWorkflowToken: commandState.matchesCommandToken,
     fileReferences: fileReferenceState.fileReferences,
     reasoningEffort,
+    // The model this session actually sends with (resolved ref or session model).
+    usedModelName: activeModelRef?.model ?? currentChat?.config?.model_ref?.model,
     sendMessage,
     recordEntry,
     clearWorkflowDraft: commandState.clearCommandDraft,

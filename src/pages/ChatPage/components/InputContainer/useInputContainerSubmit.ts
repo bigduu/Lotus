@@ -4,6 +4,8 @@ import { summarizeAttachments, type ProcessedFile } from "../../utils/fileUtils"
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "../../types/workspace";
+import { useAppStore } from "../../store";
+import { recordUsedModel } from "../../utils/usedModels";
 
 interface UseInputContainerSubmitProps {
   attachments: ProcessedFile[];
@@ -12,6 +14,12 @@ interface UseInputContainerSubmitProps {
   matchesWorkflowToken: (value: string, workflowName: string) => boolean;
   fileReferences: Map<string, WorkspaceFileEntry>;
   reasoningEffort: ReasoningEffort;
+  /**
+   * The model actually used for this session's send (resolved ProviderModelRef
+   * or session model), recorded for Model Limits discovery. Falls back to the
+   * legacy global `selectedModel` when not provided.
+   */
+  usedModelName?: string;
   sendMessage: (
     content: string,
     images?: ImageFile[],
@@ -33,6 +41,7 @@ export const useInputContainerSubmit = ({
   matchesWorkflowToken,
   fileReferences,
   reasoningEffort,
+  usedModelName,
   sendMessage,
   recordEntry,
   clearWorkflowDraft,
@@ -92,6 +101,10 @@ export const useInputContainerSubmit = ({
         .join("\n\n");
 
       recordEntry(composedMessage);
+      // Discovery: remember the model actually used (select + send) so it shows
+      // up in Model Limits settings. Prefer the resolved session model passed in;
+      // fall back to the legacy global selection. Best-effort; never blocks send.
+      recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
       setContent("");
       clearWorkflowDraft();
 
@@ -138,6 +151,7 @@ export const useInputContainerSubmit = ({
       reasoningEffort,
       selectedWorkflow,
       sendMessage,
+      usedModelName,
       setAttachments,
       setContent,
       setFileReferences,

@@ -4,6 +4,8 @@ import { useInputContainerSubmit } from "./useInputContainerSubmit";
 import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "../../types/workspace";
 import type { ProcessedFile } from "../../utils/fileUtils";
+import { useAppStore } from "../../store";
+import { clearUsedModels, getUsedModels } from "../../utils/usedModels";
 
 const createWorkflow = (overrides: Partial<WorkflowDraft> = {}): WorkflowDraft => ({
   id: "workflow-1",
@@ -292,5 +294,58 @@ describe("useInputContainerSubmit", () => {
       "medium",
       undefined,
     );
+  });
+
+  it("records the selected model as used on submit (select + use → discovery)", async () => {
+    clearUsedModels();
+    act(() => {
+      useAppStore.getState().setSelectedModel("gpt-4o");
+    });
+
+    const props = createBaseProps();
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+
+    await act(async () => {
+      await result.current.handleSubmit("hello there");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalled();
+    expect(getUsedModels()).toContain("gpt-4o");
+  });
+
+  it("records the resolved session model (usedModelName) over the stale global selection", async () => {
+    // Repro: global selectedModel is a stale default, but the session actually
+    // uses glm-5.1 — we must record glm-5.1, not the default.
+    clearUsedModels();
+    act(() => {
+      useAppStore.getState().setSelectedModel("claude-haiku-4-5-20251001");
+    });
+
+    const props = { ...createBaseProps(), usedModelName: "glm-5.1" };
+    const { result } = renderHook(() => useInputContainerSubmit(props));
+
+    await act(async () => {
+      await result.current.handleSubmit("hi");
+    });
+
+    expect(getUsedModels()).toEqual(["glm-5.1"]);
+  });
+
+  it("does not record anything when no message is sent", async () => {
+    clearUsedModels();
+    act(() => {
+      useAppStore.getState().setSelectedModel("gpt-4o");
+    });
+
+    const props = createBaseProps();
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+
+    // Empty input with no attachments/images returns early before recording.
+    await act(async () => {
+      await result.current.handleSubmit("   ");
+    });
+
+    expect(props.sendMessage).not.toHaveBeenCalled();
+    expect(getUsedModels()).toEqual([]);
   });
 });

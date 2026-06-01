@@ -101,80 +101,11 @@ export function mapTokenBudgetUsage(usage?: AgentTokenBudgetUsage | null): Token
   return tokenUsage;
 }
 
-/**
- * Known model context window sizes.
- * These are the default context window limits for popular models.
- */
-export const KNOWN_MODEL_LIMITS: Record<string, number> = {
-  // OpenAI (GPT-5)
-  "gpt-5.4-thinking": 1000000,
-  "gpt-5.3-codex": 1000000,
-  "gpt-5.2-pro": 256000,
-  "gpt-5-mini": 400000,
-  // OpenAI (Legacy)
-  "gpt-4.1": 1000000,
-  "gpt-4o": 128000,
-  // Google
-  "gemini-2.5-pro": 1000000,
-  // China (Moonshot)
-  "kimi-k2.5": 256000,
-  "kimi-for-coding": 256000,
-  // China (Zhipu)
-  "glm-5": 200000,
-  // Compatibility fallbacks
-  "gpt-4o-mini": 128000,
-  "gpt-4-turbo": 128000,
-  "gpt-4": 8192,
-  "gpt-3.5-turbo": 16385,
-  "claude-3-5-sonnet": 200000,
-  "claude-3-5-sonnet-20241022": 200000,
-  "claude-3-opus": 200000,
-  "claude-3-sonnet": 200000,
-  "claude-3-haiku": 200000,
-  "copilot-chat": 128000,
-};
-
-/**
- * Get the default budget for a model with the given context window.
- */
-export function createBudgetForModel(
-  maxContextTokens: number,
-  strategy?: BudgetStrategy,
-): TokenBudget {
-  // Reserve ~25% for output by default
-  const maxOutputTokens = Math.min(4096, Math.floor(maxContextTokens / 4));
-  return {
-    maxContextTokens,
-    maxOutputTokens,
-    strategy: strategy || {
-      type: "hybrid",
-      windowSize: 20,
-      enableSummarization: true,
-    },
-    safetyMargin: Math.max(100, Math.floor(maxContextTokens * 0.01)),
-  };
-}
-
-/**
- * Get the context limit for a model name.
- * Supports partial matching.
- */
-export function getModelContextLimit(model: string): number {
-  // Exact match
-  if (model in KNOWN_MODEL_LIMITS) {
-    return KNOWN_MODEL_LIMITS[model];
-  }
-
-  // Partial match
-  for (const [pattern, limit] of Object.entries(KNOWN_MODEL_LIMITS)) {
-    if (model.includes(pattern) || pattern.includes(model)) {
-      return limit;
-    }
-  }
-
-  // Default fallback
-  return 128000;
-}
+// NOTE: Per-model context-window limits are no longer hardcoded in the
+// frontend. The backend is the single source of truth: it sends the resolved
+// `max_context_tokens` in the token-budget usage payload (see
+// `mapTokenBudgetUsage` / `getUsageDenominator`). Anything else falls back to a
+// global default on the backend (see bamboo-compression `limits.rs`).
 
 export function getUsageDenominator(usage: TokenUsage): number {
   if (typeof usage.maxContextTokens === "number" && usage.maxContextTokens > 0) {
@@ -254,8 +185,3 @@ export function estimateTokens(text: string): number {
   const adjustedTokens = baseTokens * 1.1; // 10% safety margin
   return Math.ceil(adjustedTokens);
 }
-
-/**
- * Default token budget using GPT-4o-mini context window.
- */
-export const DEFAULT_TOKEN_BUDGET: TokenBudget = createBudgetForModel(128000);

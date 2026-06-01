@@ -1,43 +1,50 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  createBudgetForModel,
   estimateTokens,
   formatCompactTokenCount,
   formatTokenCount,
-  getModelContextLimit,
   getUsageColor,
+  getUsageDenominator,
   getUsagePercentage,
-  KNOWN_MODEL_LIMITS,
   mapTokenBudgetUsage,
 } from "../tokenBudget";
 
 describe("tokenBudget utilities", () => {
-  it("creates budget with defaults and clamps output/safety values", () => {
-    const tiny = createBudgetForModel(1200);
-    expect(tiny.maxOutputTokens).toBe(300);
-    expect(tiny.safetyMargin).toBe(100);
-    expect(tiny.strategy).toEqual({
-      type: "hybrid",
-      windowSize: 20,
-      enableSummarization: true,
-    });
+  it("derives the usage denominator from backend max context, then budget limit", () => {
+    // Prefer the backend-resolved context window when present.
+    expect(
+      getUsageDenominator({
+        systemTokens: 0,
+        summaryTokens: 0,
+        windowTokens: 0,
+        totalTokens: 0,
+        budgetLimit: 900,
+        maxContextTokens: 200000,
+      }),
+    ).toBe(200000);
 
-    const huge = createBudgetForModel(1_000_000);
-    expect(huge.maxOutputTokens).toBe(4096);
-    expect(huge.safetyMargin).toBe(10_000);
-  });
+    // Legacy fallback for older payloads missing max_context_tokens.
+    expect(
+      getUsageDenominator({
+        systemTokens: 0,
+        summaryTokens: 0,
+        windowTokens: 0,
+        totalTokens: 0,
+        budgetLimit: 900,
+      }),
+    ).toBe(900);
 
-  it("uses custom strategy when provided", () => {
-    const strategy = { type: "window", size: 42 } as const;
-    const budget = createBudgetForModel(128000, strategy);
-    expect(budget.strategy).toEqual(strategy);
-  });
-
-  it("resolves model context by exact, partial and fallback matching", () => {
-    expect(getModelContextLimit("gpt-4o")).toBe(KNOWN_MODEL_LIMITS["gpt-4o"]);
-    expect(getModelContextLimit("openai/gpt-4o-mini")).toBe(KNOWN_MODEL_LIMITS["gpt-4o-mini"]);
-    expect(getModelContextLimit("unknown-model")).toBe(128000);
+    // Nothing usable → 0 (callers guard against divide-by-zero).
+    expect(
+      getUsageDenominator({
+        systemTokens: 0,
+        summaryTokens: 0,
+        windowTokens: 0,
+        totalTokens: 0,
+        budgetLimit: 0,
+      }),
+    ).toBe(0);
   });
 
   it("calculates usage percentage and color thresholds", () => {
