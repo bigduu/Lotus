@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Select, Tag, Space } from "antd";
 import { useTranslation } from "react-i18next";
-import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 
 const { Option } = Select;
 

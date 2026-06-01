@@ -6,7 +6,7 @@ import { buildPromptSnapshotSections, useSystemPromptContent } from "../useSyste
 const mockFindPresetById = vi.fn();
 const mockGetSessionSystemPrompt = vi.fn();
 
-vi.mock("../../../services/SystemPromptService", () => ({
+vi.mock("@shared/services/SystemPromptService", () => ({
   SystemPromptService: {
     getInstance: () => ({
       findPresetById: mockFindPresetById,

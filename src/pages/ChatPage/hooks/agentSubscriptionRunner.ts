@@ -1,5 +1,5 @@
 import { AgentEvent } from "@services/chat/AgentService";
-import { useAppStore, selectShouldObserve, selectGeneration } from "../store";
+import { useAppStore, selectShouldObserve, selectGeneration } from "@shared/store/appStore";
 import { streamingMessageBus } from "../utils/streamingMessageBus";
 import {
   clearAssistantStreamingState,

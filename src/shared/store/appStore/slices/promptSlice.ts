@@ -1,7 +1,7 @@
 import { StateCreator } from "zustand";
 import { UserSystemPrompt } from "@shared/types/chat";
-import { SystemPromptService } from "../../services/SystemPromptService";
-import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
+import { SystemPromptService } from "@shared/services/SystemPromptService";
+import { getDefaultSystemPrompts } from "@shared/utils/defaultSystemPrompts";
 import type { AppState } from "../";
 
 const LAST_SELECTED_PROMPT_ID_LS_KEY = "copilot_last_selected_prompt_id";

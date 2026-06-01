@@ -7,7 +7,7 @@ import { ErrorBoundary } from "@shared/components/ErrorBoundary";
 import { useThemeStore } from "@shared/store/themeStore";
 import { SetupPage } from "../pages/SetupPage";
 import { PasswordGatePage } from "../pages/PasswordGatePage";
-import { bootstrapCritical, bootstrapDeferred } from "../pages/ChatPage/store";
+import { bootstrapCritical, bootstrapDeferred } from "@shared/store/appStore";
 import { ServiceFactory } from "../services/common/ServiceFactory";
 import { getBackendBaseUrlSync } from "../shared/utils/backendBaseUrl";
 import { changeLocale } from "@shared/i18n";

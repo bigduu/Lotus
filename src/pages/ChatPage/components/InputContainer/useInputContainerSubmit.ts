@@ -4,7 +4,7 @@ import { summarizeAttachments, type ProcessedFile } from "../../utils/fileUtils"
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "@shared/types/workspace";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { recordUsedModel } from "../../utils/usedModels";
 
 interface UseInputContainerSubmitProps {

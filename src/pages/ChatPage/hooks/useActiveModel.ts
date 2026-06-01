@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { useProviderStore } from "../store/slices/providerSlice";
-import { selectSessionById, useAppStore } from "../store";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
+import { selectSessionById, useAppStore } from "@shared/store/appStore";
 
 /**
  * Hook to get the active model for the current session.

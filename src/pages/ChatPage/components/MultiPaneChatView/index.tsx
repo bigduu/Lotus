@@ -8,7 +8,7 @@ import {
   CloseOutlined,
 } from "@ant-design/icons";
 
-import { selectSessionById, useAppStore } from "../../store";
+import { selectSessionById, useAppStore } from "@shared/store/appStore";
 import { ChatView } from "../ChatView";
 const LazyHomeDashboard = React.lazy(() =>
   import("../HomeDashboard").then((m) => ({ default: m.HomeDashboard })),

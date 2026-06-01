@@ -19,7 +19,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { selectSessionById, useAppStore } from "../../store";
+import { selectSessionById, useAppStore } from "@shared/store/appStore";
 import { assignSessionToActiveLeaf } from "../../utils/assignSessionToActiveLeaf";
 import { CHAT_FOCUS_INPUT_EVENT } from "../ChatView/events";
 

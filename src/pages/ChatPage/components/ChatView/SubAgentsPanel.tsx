@@ -3,7 +3,7 @@ import { DownOutlined, UpOutlined } from "@ant-design/icons";
 import { Button, Card, Flex, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
-import { selectChildren, useAppStore } from "../../store";
+import { selectChildren, useAppStore } from "@shared/store/appStore";
 import { openSession } from "../../utils/openSession";
 import { toolService } from "../../../../services/tool/ToolService";
 import { useSubagentProfiles } from "../../hooks/useSubagentProfiles";

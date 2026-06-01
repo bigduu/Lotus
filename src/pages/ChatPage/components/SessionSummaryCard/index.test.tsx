@@ -61,7 +61,7 @@ vi.mock("../../../../services/metrics", () => ({
   },
 }));
 
-vi.mock("../../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: (selector: any) => mockUseAppStore(selector),
   selectSessionById: (...args: any[]) => mockSelectSessionById(...args),
 }));

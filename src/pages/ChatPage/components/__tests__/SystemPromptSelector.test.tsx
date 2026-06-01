@@ -6,7 +6,7 @@ import type { UserSystemPrompt } from "@shared/types/chat";
 // Mock the zustand store
 const mockSetLastSelectedPromptId = vi.fn();
 
-vi.mock("../../../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: (selector: (state: any) => any) => {
     const state = {
       lastSelectedPromptId: null,

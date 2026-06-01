@@ -25,7 +25,7 @@ vi.mock("./AgentService", () => ({
   },
 }));
 
-vi.mock("../../pages/ChatPage/store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: { getState: () => storeActions },
 }));
 

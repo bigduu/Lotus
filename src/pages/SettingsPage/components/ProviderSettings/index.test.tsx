@@ -2,8 +2,8 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProviderSettings } from "./index";
-import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
-import { useAppStore } from "../../../ChatPage/store";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
+import { useAppStore } from "@shared/store/appStore";
 
 // Mock fetch globally for HTTP API calls.
 global.fetch = vi.fn();

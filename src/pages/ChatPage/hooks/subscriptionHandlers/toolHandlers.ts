@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentEventHandlers } from "@services/chat/AgentService";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { setAssistantStreamingState } from "../../streaming/assistantStreamingAtoms";
 import {

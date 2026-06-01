@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { SystemPromptService } from "../services/SystemPromptService";
+import { SystemPromptService } from "@shared/services/SystemPromptService";
 import { UserSystemPrompt } from "@shared/types/chat";
 
 /**

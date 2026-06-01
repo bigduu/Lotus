@@ -7,7 +7,7 @@ import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { CHAT_OPEN_INSPECTOR_EVENT } from "../components/ChatView/events";
 import { ConversationPane } from "../conversation/ConversationPane";
 import { SessionInspectorPane } from "../inspector/SessionInspectorPane";
-import { selectChildren, selectIsBusy, selectSessionById, useAppStore } from "../store";
+import { selectChildren, selectIsBusy, selectSessionById, useAppStore } from "@shared/store/appStore";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
 import { isAssistantToolResultMessage } from "@shared/types/chat";
 import type { SessionDiffSummary } from "../components/ChatView/ActiveToolMessageCard";

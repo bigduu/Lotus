@@ -15,7 +15,7 @@
  * (`agentSubscriptionRunner`); this feed is the cross-session sync channel.
  */
 import { AgentClient, type ChangeEvent } from "./AgentService";
-import { useAppStore } from "../../pages/ChatPage/store";
+import { useAppStore } from "@shared/store/appStore";
 
 const CURSOR_STORAGE_KEY = "lotus_account_feed_cursor_v1";
 const REFRESH_DEBOUNCE_MS = 400;

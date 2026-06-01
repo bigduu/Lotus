@@ -35,7 +35,7 @@ vi.mock("antd", () => ({
 type MockSelector = (state: any) => any;
 
 // Mock dependencies - all variables must be inside the factory function
-vi.mock("../../store", () => {
+vi.mock("@shared/store/appStore", () => {
   const mockStore = Object.assign(vi.fn(), {
     getState: vi.fn(),
     subscribe: vi.fn(() => vi.fn()),
@@ -62,7 +62,7 @@ vi.mock("../../store", () => {
   return { useAppStore: mockStore, selectShouldObserve, selectGeneration, selectChildren };
 });
 
-vi.mock("../../store/slices/executionStateSlice", () => ({
+vi.mock("@shared/store/appStore/slices/executionStateSlice", () => ({
   isBusyPhase: (phase: string | undefined) =>
     phase !== undefined &&
     phase !== "idle" &&
@@ -172,7 +172,7 @@ describe("useAgentEventSubscription", () => {
     });
 
     // Import the mocked modules to get the mocks
-    const storeModule = await import("../../store");
+    const storeModule = await import("@shared/store/appStore");
     mockStore = storeModule.useAppStore;
 
     // Set up mock implementations

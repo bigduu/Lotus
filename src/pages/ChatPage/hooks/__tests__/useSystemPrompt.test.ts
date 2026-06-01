@@ -1,9 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useSystemPrompt } from "../useSystemPrompt";
-import { SystemPromptService } from "../../services/SystemPromptService";
+import { SystemPromptService } from "@shared/services/SystemPromptService";
 
-vi.mock("../../services/SystemPromptService");
+vi.mock("@shared/services/SystemPromptService");
 
 describe("useSystemPrompt", () => {
   let mockService: any;

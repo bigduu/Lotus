@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { useActiveModelRef } from "../useActiveModelRef";
-import { useProviderStore } from "../../store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 
 /**
  * Covers the *resolution* half of the "wrong model recorded" fix: InputContainer

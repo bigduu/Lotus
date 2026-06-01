@@ -4,7 +4,7 @@ import { useInputContainerSubmit } from "./useInputContainerSubmit";
 import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import type { ProcessedFile } from "../../utils/fileUtils";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { clearUsedModels, getUsedModels } from "../../utils/usedModels";
 
 const createWorkflow = (overrides: Partial<WorkflowDraft> = {}): WorkflowDraft => ({

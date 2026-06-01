@@ -8,8 +8,8 @@ import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import type { SessionDiffSummary } from "../components/ChatView/ActiveToolMessageCard";
 import { ActiveToolMessageCard } from "../components/ChatView/ActiveToolMessageCard";
 import { CHAT_FOCUS_INPUT_EVENT } from "../components/ChatView/events";
-import { selectSessionById, useAppStore } from "../store";
-import { useProviderStore } from "../store/slices/providerSlice";
+import { selectSessionById, useAppStore } from "@shared/store/appStore";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { PROVIDER_LABELS, type ProviderType } from "@shared/types/providerConfig";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
 

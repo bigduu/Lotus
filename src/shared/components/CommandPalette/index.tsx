@@ -17,8 +17,8 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { useAppStore } from "@pages/ChatPage/store";
-import { isBusyPhase } from "@pages/ChatPage/store/slices/executionStateSlice";
+import { useAppStore } from "@shared/store/appStore";
+import { isBusyPhase } from "@shared/store/appStore/slices/executionStateSlice";
 import { openSession } from "@pages/ChatPage/utils/openSession";
 import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/settingsViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";

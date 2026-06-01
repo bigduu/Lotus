@@ -36,7 +36,7 @@ const { mockAgentClient, mockUseActiveModel, mockToolService } = vi.hoisted(() =
   mockUseActiveModel: vi.fn<() => string | undefined>(() => "test-model"),
 }));
 
-vi.mock("../../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: (selector: (state: typeof mockStoreState) => unknown) => selector(mockStoreState),
   selectChildren: (sessionId: string | null) => (state: typeof mockStoreState) => {
     const entry = state.executionBySession?.[sessionId ?? ""];

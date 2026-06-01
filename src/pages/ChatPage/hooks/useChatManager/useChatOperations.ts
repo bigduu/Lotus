@@ -1,10 +1,10 @@
 import { debugLog } from "@shared/utils/debugFlags";
 import { useCallback } from "react";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { UseChatState } from "./types";
 import { AgentClient } from "@services/chat/AgentService";
-import { useProviderStore } from "../../store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 
 /**
  * Hook for chat CRUD operations

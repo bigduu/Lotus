@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { App as AntdApp } from "antd";
 
 import { ChatSidebar } from "../ChatSidebar";
-import { useAppStore } from "@pages/ChatPage/store";
+import { useAppStore } from "@shared/store/appStore";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 
 vi.mock("antd", async () => {

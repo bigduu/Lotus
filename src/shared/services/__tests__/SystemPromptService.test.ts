@@ -9,7 +9,7 @@ const { mockAgentApiGet, mockAgentApiPost, mockAgentApiPatch, mockAgentApiDelete
   }),
 );
 
-vi.mock("../../../../services/api", () => ({
+vi.mock("@services/api", () => ({
   agentApiClient: {
     get: mockAgentApiGet,
     post: mockAgentApiPost,

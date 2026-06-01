@@ -1,13 +1,13 @@
 import { renderHook } from "@testing-library/react";
 import { useActiveModel, useActiveModelInfo } from "../useActiveModel";
-import { useProviderStore } from "../../store/slices/providerSlice";
-import { useAppStore } from "../../store";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
+import { useAppStore } from "@shared/store/appStore";
 
-vi.mock("../../store/slices/providerSlice", () => ({
+vi.mock("@shared/store/appStore/slices/providerSlice", () => ({
   useProviderStore: vi.fn(),
 }));
 
-vi.mock("../../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: vi.fn(),
   selectSessionById:
     (sessionId: string | null) =>

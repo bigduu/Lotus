@@ -1,6 +1,6 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useState } from "react";
-import { useAppStore } from "../../pages/ChatPage/store";
+import { useAppStore } from "@shared/store/appStore";
 import {
   Alert,
   Badge,

@@ -1,5 +1,5 @@
 import type { UserSystemPrompt } from "@shared/types/chat";
-import i18n from "../../../shared/i18n";
+import i18n from "@shared/i18n";
 
 const createDefaultSystemPrompt = (): UserSystemPrompt => ({
   // Keep this aligned with the app-wide default prompt id used in chat configs.

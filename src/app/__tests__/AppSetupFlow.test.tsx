@@ -17,7 +17,7 @@ vi.mock("../../pages/SetupPage", () => ({
   SetupPage: () => <div>SetupPage</div>,
 }));
 
-vi.mock("../../pages/ChatPage/store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   bootstrapCritical: mockBootstrapCritical,
   bootstrapDeferred: mockBootstrapDeferred,
 }));

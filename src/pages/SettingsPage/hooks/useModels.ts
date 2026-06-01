@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useAppStore } from "../../ChatPage/store";
+import { useAppStore } from "@shared/store/appStore";
 
 export const useModels = () => {
   // Select model-related state from the global Zustand store

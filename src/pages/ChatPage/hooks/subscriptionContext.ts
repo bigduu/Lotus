@@ -1,7 +1,7 @@
 import type { MutableRefObject } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { AgentClient } from "@services/chat/AgentService";
-import type { AppState } from "../store";
+import type { AppState } from "@shared/store/appStore";
 import type { SubscriptionEntry } from "./useAgentEventSubscription.helpers";
 
 type TimerHandle = ReturnType<typeof setTimeout>;

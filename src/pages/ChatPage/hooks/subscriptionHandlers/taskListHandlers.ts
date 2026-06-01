@@ -1,5 +1,5 @@
 import type { AgentEventHandlers, TaskList, TaskListDelta } from "@services/chat/AgentService";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import i18n from "@shared/i18n";
 import { compactEvaluationReasoning } from "../useAgentEventSubscription.helpers";
 import type { RunContext } from "../subscriptionContext";

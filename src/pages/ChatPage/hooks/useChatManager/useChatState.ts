@@ -1,8 +1,8 @@
 import { useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
-import { selectCurrentChat, selectIsBusy, useAppStore } from "../../store";
+import { selectCurrentChat, selectIsBusy, useAppStore } from "@shared/store/appStore";
 import type { ChatItem, Message } from "@shared/types/chat";
-import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
+import type { DeleteMessageResult } from "@shared/store/appStore/slices/chatSessionSlice";
 
 /**
  * Hook for chat state selection and derived state

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem } from "@shared/types/chat";
 
 interface UseMessageCardPlanActionsProps {

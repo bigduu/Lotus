@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { App as AntApp, Grid, Layout, theme, Flex, Tag, Tooltip } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 
-import { selectIsBusy, selectSessionById, useAppStore } from "../store";
+import { selectIsBusy, selectSessionById, useAppStore } from "@shared/store/appStore";
 import type { Message } from "@shared/types/chat";
 import { ChatInputArea } from "../components/ChatView/ChatInputArea";
 import { ChatMessagesList } from "../components/ChatView/ChatMessagesList";
@@ -21,7 +21,7 @@ import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "../components/ChatView
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
-import type { DeleteMessageResult } from "../store/slices/chatSessionSlice";
+import type { DeleteMessageResult } from "@shared/store/appStore/slices/chatSessionSlice";
 import { useIsMobile } from "@shared/hooks/useMediaQuery";
 import { MessageSelectionToolbar } from "./MessageSelectionToolbar";
 import { ScrollCapsule } from "./ScrollCapsule";

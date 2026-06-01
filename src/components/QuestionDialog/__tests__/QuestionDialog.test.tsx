@@ -1,13 +1,13 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QuestionDialog, formatPendingQuestionText } from "../QuestionDialog";
-import { useAppStore } from "../../../pages/ChatPage/store";
-import { useProviderStore } from "../../../pages/ChatPage/store/slices/providerSlice";
+import { useAppStore } from "@shared/store/appStore";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 
 // Mock dependencies
-vi.mock("../../../pages/ChatPage/store", async (importOriginal) => {
+vi.mock("@shared/store/appStore", async (importOriginal) => {
   const React = await vi.importActual<typeof import("react")>("react");
-  const actual = await importOriginal<typeof import("../../../pages/ChatPage/store")>();
+  const actual = await importOriginal<typeof import("@shared/store/appStore")>();
 
   let mockState: any = {};
   const listeners = new Set<() => void>();

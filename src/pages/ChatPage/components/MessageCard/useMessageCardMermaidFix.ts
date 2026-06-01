@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { getOpenAIClient } from "../../services/openaiClient";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { useFastModel } from "../../hooks/useActiveModel";
 import { useFastModelRef } from "../../hooks/useActiveModelRef";
 import { agentClient } from "@services/chat/AgentService";

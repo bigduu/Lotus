@@ -3,7 +3,7 @@ import { App as AntdApp } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HomeDashboard } from "./index";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 

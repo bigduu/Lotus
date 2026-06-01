@@ -51,7 +51,7 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("../../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: Object.assign(
     (selector: (state: typeof mockStoreState) => unknown) => selector(mockStoreState),
     {

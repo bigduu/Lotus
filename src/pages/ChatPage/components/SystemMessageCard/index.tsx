@@ -4,7 +4,7 @@ import { CopyOutlined, EyeOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import type { ChatItem, Message } from "@shared/types/chat";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { SystemPromptMarkdown } from "./SystemPromptMarkdown";
 import { type PromptSnapshotSection, useSystemPromptContent } from "./useSystemPromptContent";
 import { copyText } from "@shared/utils/clipboard";

@@ -1,5 +1,5 @@
 import type { ChatItem, Message, UserSystemPrompt } from "@shared/types/chat";
-import type { DeleteMessageResult } from "../../store/slices/chatSessionSlice";
+import type { DeleteMessageResult } from "@shared/store/appStore/slices/chatSessionSlice";
 
 export interface UseChatState {
   chats: ChatItem[];

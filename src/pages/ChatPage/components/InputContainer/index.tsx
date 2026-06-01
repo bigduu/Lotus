@@ -20,8 +20,8 @@ import {
   selectCanCancel,
   selectPendingQuestion,
   useAppStore,
-} from "../../store";
-import { readPersistedInputReasoningEffort } from "../../store/slices/inputStateSlice";
+} from "@shared/store/appStore";
+import { readPersistedInputReasoningEffort } from "@shared/store/appStore/slices/inputStateSlice";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
 import { useInputContainerFileReferences } from "./useInputContainerFileReferences";
@@ -34,8 +34,8 @@ import { useActiveModelRef } from "../../hooks/useActiveModelRef";
 import {
   resolveEffectiveReasoningEffort,
   resolveProviderDefaultReasoningEffort,
-} from "../../utils/reasoningEffort";
-import { useProviderStore } from "../../store/slices/providerSlice";
+} from "@shared/utils/reasoningEffort";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { ProviderModelPicker } from "../ProviderModelPicker";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { agentClient, type GoldConfig, type ReasoningEffort } from "@services/chat/AgentService";

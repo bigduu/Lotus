@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import i18n from "i18next";
 
 import type { Message, UserSystemPrompt } from "@shared/types/chat";
-import { SystemPromptService } from "../../services/SystemPromptService";
+import { SystemPromptService } from "@shared/services/SystemPromptService";
 import { AgentClient, type SessionSystemPromptResponse } from "@services/chat/AgentService";
 
 type UseSystemPromptContentArgs = {

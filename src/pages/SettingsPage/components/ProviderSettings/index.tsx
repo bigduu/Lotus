@@ -52,7 +52,7 @@ import { copyText } from "@shared/utils/clipboard";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelPicker";
-import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
 
@@ -793,8 +793,8 @@ export const ProviderSettings: React.FC = () => {
   const handleApply = async (options?: { showMessage?: boolean; throwOnError?: boolean }) => {
     try {
       setApplyingConfig(true);
-      const { useProviderStore } = await import("../../../ChatPage/store/slices/providerSlice");
-      const { useAppStore } = await import("../../../ChatPage/store");
+      const { useProviderStore } = await import("@shared/store/appStore/slices/providerSlice");
+      const { useAppStore } = await import("@shared/store/appStore");
 
       const previousDefaultsChat = useProviderStore.getState().providerConfig.defaults?.chat;
 

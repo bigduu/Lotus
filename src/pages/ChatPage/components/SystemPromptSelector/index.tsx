@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { ModalFooter, createCancelButton, createOkButton } from "../ModalFooter";
 import type { UserSystemPrompt } from "@shared/types/chat";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { SystemPromptListItem } from "./SystemPromptListItem";
 import { copyText } from "@shared/utils/clipboard";
 

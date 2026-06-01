@@ -44,7 +44,7 @@ vi.mock("@services/chat/AgentService", () => ({
   },
 }));
 
-vi.mock("../../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: Object.assign(() => mockStoreState, {
     getState: mockGetState,
   }),

@@ -11,9 +11,9 @@ import { InputStateSlice, createInputStateSlice } from "./slices/inputStateSlice
 import { ExecutionStateSlice, createExecutionStateSlice } from "./slices/executionStateSlice";
 import { AgentClient } from "@services/chat/AgentService";
 import { startAccountFeed } from "@services/chat/accountFeed";
-import { serviceFactory } from "../../../services/common/ServiceFactory";
-import { readStoredProxyAuth } from "../../../shared/utils/proxyAuth";
-import { useBambooConfigStore } from "../../../shared/store/bambooConfigStore";
+import { serviceFactory } from "@services/common/ServiceFactory";
+import { readStoredProxyAuth } from "@shared/utils/proxyAuth";
+import { useBambooConfigStore } from "@shared/store/bambooConfigStore";
 import { useProviderStore } from "./slices/providerSlice";
 import type { ChatItem, Message } from "@shared/types/chat";
 

@@ -12,7 +12,7 @@ import {
 import type { ChatItem, Message, UserMessage } from "@shared/types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
-import { useAppStore, selectPendingQuestion, selectGeneration } from "../../store";
+import { useAppStore, selectPendingQuestion, selectGeneration } from "@shared/store/appStore";
 import { getSystemPromptEnhancementText } from "@shared/utils/systemPromptEnhancement";
 import { isCopilotConclusionWithOptionsEnhancementEnabled } from "@shared/utils/copilotConclusionWithOptionsEnhancementUtils";
 import {
@@ -21,7 +21,7 @@ import {
 } from "@shared/utils/completionPolicyViolation";
 import { useActiveModel } from "../useActiveModel";
 import { useActiveModelRef } from "../useActiveModelRef";
-import { useProviderStore } from "../../store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
 
 export interface UseMessageStreaming {

@@ -13,12 +13,12 @@ import {
   groupChatsByDate,
 } from "../../utils/chatUtils";
 import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { SidebarChatItem } from "@shared/types/sidebarChat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { openSession } from "../../utils/openSession";
-import { selectIsBusy } from "../../store";
+import { selectIsBusy } from "@shared/store/appStore";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
 

@@ -4,15 +4,15 @@ import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import { agentApiClient } from "../../services/api";
-import { selectIsBusy, selectPendingQuestion, useAppStore } from "../../pages/ChatPage/store";
+import { selectIsBusy, selectPendingQuestion, useAppStore } from "@shared/store/appStore";
 import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef";
-import { readPersistedInputReasoningEffort } from "../../pages/ChatPage/store/slices/inputStateSlice";
-import { useProviderStore } from "../../pages/ChatPage/store/slices/providerSlice";
+import { readPersistedInputReasoningEffort } from "@shared/store/appStore/slices/inputStateSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import {
   resolveEffectiveReasoningEffort,
   resolveProviderDefaultReasoningEffort,
-} from "../../pages/ChatPage/utils/reasoningEffort";
+} from "@shared/utils/reasoningEffort";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
 import { buildPendingQuestionIdentity } from "../../pages/ChatPage/utils/pendingQuestionIdentity";
 import styles from "./QuestionDialog.module.css";

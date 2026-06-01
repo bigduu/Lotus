@@ -10,7 +10,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { selectRailModel, useAppStore } from "../../store";
+import { selectRailModel, useAppStore } from "@shared/store/appStore";
 
 import "./index.css";
 

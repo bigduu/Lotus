@@ -4,7 +4,7 @@ import { Button, Card, Flex, Switch, Typography } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { AgentClient } from "@services/chat/AgentService";
-import { useAppStore } from "../../../ChatPage/store";
+import { useAppStore } from "@shared/store/appStore";
 
 const { Text } = Typography;
 

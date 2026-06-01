@@ -1,6 +1,6 @@
 import type { AgentEventHandlers } from "@services/chat/AgentService";
-import { useAppStore } from "../../store";
-import { applyReplayableSessionEvent } from "../../store/slices/sessionMetadataSlice";
+import { useAppStore } from "@shared/store/appStore";
+import { applyReplayableSessionEvent } from "@shared/store/appStore/slices/sessionMetadataSlice";
 import { planModeStateFromEvent } from "../useAgentEventSubscription.helpers";
 import type { RunContext } from "../subscriptionContext";
 

@@ -10,17 +10,17 @@ import {
   MessageImage,
 } from "@shared/types/chat";
 import { AgentClient, SessionSummary } from "@services/chat/AgentService";
-import { getDefaultSystemPrompts } from "../../utils/defaultSystemPrompts";
+import { getDefaultSystemPrompts } from "@shared/utils/defaultSystemPrompts";
 import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
-import { ApiError } from "../../../../services/api";
+import { ApiError } from "@services/api";
 import type { AppState } from "../";
 import { useProviderStore } from "./providerSlice";
 import { applyExecutionEvent } from "./executionStateSlice";
 import { applyReplayableSessionEventToList, isSessionMetadataEvent } from "./sessionMetadataSlice";
-import i18n from "../../../../shared/i18n";
-import { debugLog } from "../../../../shared/utils/debugFlags";
+import i18n from "@shared/i18n";
+import { debugLog } from "@shared/utils/debugFlags";
 import { mapTokenBudgetUsage } from "@shared/types/tokenBudget";
-import { resolveProviderDefaultReasoningEffort } from "../../utils/reasoningEffort";
+import { resolveProviderDefaultReasoningEffort } from "@shared/utils/reasoningEffort";
 
 const agentClient = AgentClient.getInstance();
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];

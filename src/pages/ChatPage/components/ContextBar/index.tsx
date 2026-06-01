@@ -10,7 +10,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { formatCompactTokenCount, formatTokenCount } from "@shared/types/tokenBudget";
-import { selectSessionById, useAppStore } from "../../store";
+import { selectSessionById, useAppStore } from "@shared/store/appStore";
 
 import "./index.css";
 

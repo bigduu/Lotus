@@ -3,7 +3,7 @@ import type {
   ContextSummaryInfo,
   TokenBudgetUsage,
 } from "@services/chat/AgentService";
-import { useAppStore } from "../../store";
+import { useAppStore } from "@shared/store/appStore";
 import { mapTokenBudgetUsage } from "@shared/types/tokenBudget";
 import { sendDesktopNotification } from "@services/notification/desktopNotification";
 import i18n from "@shared/i18n";

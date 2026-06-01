@@ -1,4 +1,4 @@
-import { useAppStore } from "../store";
+import { useAppStore } from "@shared/store/appStore";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 
 /**

@@ -63,7 +63,7 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("../../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: (selector: (state: any) => any) =>
     selector({
       systemPrompts: [],

@@ -17,8 +17,8 @@ const loadStoreContext = async () => {
 
   const storeModule = await import("../index");
   const { AgentClient } = await import("@services/chat/AgentService");
-  const { serviceFactory } = await import("../../../../services/common/ServiceFactory");
-  const { useBambooConfigStore } = await import("../../../../shared/store/bambooConfigStore");
+  const { serviceFactory } = await import("@services/common/ServiceFactory");
+  const { useBambooConfigStore } = await import("@shared/store/bambooConfigStore");
 
   return {
     ...storeModule,

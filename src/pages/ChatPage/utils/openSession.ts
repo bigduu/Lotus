@@ -1,7 +1,7 @@
 import { findLeafIdBySessionId, useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
 
-import { useAppStore } from "../store";
+import { useAppStore } from "@shared/store/appStore";
 
 type OpenSessionOptions = {
   // For schedule-created sessions, the UI may not be subscribed to background events.

@@ -2,7 +2,7 @@ import { useMemo, useCallback, useEffect } from "react";
 import { Dropdown, Button, Space, Tag, theme } from "antd";
 import { DownOutlined } from "@ant-design/icons";
 import i18n from "i18next";
-import { useProviderStore } from "../../store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
 import type { MenuProps } from "antd";
 

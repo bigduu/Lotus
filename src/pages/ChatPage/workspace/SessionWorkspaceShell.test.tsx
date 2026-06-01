@@ -44,7 +44,7 @@ vi.mock("@shared/store/experienceModeStore", () => ({
     selector({ isAdvanced: true }),
 }));
 
-vi.mock("../store", () => ({
+vi.mock("@shared/store/appStore", () => ({
   useAppStore: (selector: (state: typeof mockStoreState) => unknown) => selector(mockStoreState),
   selectSessionById: (sessionId: string | null) => (state: typeof mockStoreState) =>
     sessionId ? state.chats.find((c: any) => c.id === sessionId) || null : null,

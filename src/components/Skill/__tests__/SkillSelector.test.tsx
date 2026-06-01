@@ -27,7 +27,7 @@ const mockStoreState = {
   loadSkills: mockLoadSkills,
 };
 
-vi.mock("../../../pages/ChatPage/store", () => {
+vi.mock("@shared/store/appStore", () => {
   const useAppStore = (selector: (state: typeof mockStoreState) => unknown) =>
     selector(mockStoreState);
   return { useAppStore };

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo } from "react";
 import { Alert, Select, Space } from "antd";
 import { useTranslation } from "react-i18next";
-import { useAppStore } from "../../pages/ChatPage/store";
+import { useAppStore } from "@shared/store/appStore";
 import { useBambooConfigStore } from "../../shared/store/bambooConfigStore";
 
 interface SkillSelectorProps {

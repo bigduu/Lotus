@@ -2,9 +2,9 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProviderModelPicker } from "./index";
-import { useProviderStore } from "../../store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 
-vi.mock("../../store/slices/providerSlice", () => ({
+vi.mock("@shared/store/appStore/slices/providerSlice", () => ({
   useProviderStore: vi.fn(),
 }));
 

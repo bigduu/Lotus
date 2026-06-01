@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useProviderStore } from "../store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
 
 /**

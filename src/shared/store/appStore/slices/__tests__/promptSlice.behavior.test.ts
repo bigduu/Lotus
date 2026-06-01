@@ -15,7 +15,7 @@ const {
   mockDeleteSystemPromptPreset: vi.fn(),
 }));
 
-vi.mock("../../../services/SystemPromptService", () => ({
+vi.mock("@shared/services/SystemPromptService", () => ({
   SystemPromptService: {
     getInstance: () => ({
       getSystemPromptPresets: mockGetSystemPromptPresets,

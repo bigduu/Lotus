@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { App as AntdApp } from "antd";
 
 import { CommandPalette } from "../index";
-import { useAppStore } from "@pages/ChatPage/store";
+import { useAppStore } from "@shared/store/appStore";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 
 vi.mock("@pages/ChatPage/utils/openSession", () => ({

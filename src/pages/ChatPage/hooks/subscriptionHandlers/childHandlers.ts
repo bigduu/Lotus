@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentEventHandlers } from "@services/chat/AgentService";
-import { useAppStore, selectChildren } from "../../store";
+import { useAppStore, selectChildren } from "@shared/store/appStore";
 import {
   clearChildPreviewState,
   getChildPreviewState,

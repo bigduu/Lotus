@@ -36,7 +36,7 @@ import SystemSettingsSessionsTab from "./SystemSettingsSessionsTab";
 import SystemSettingsNotificationsTab from "./SystemSettingsNotificationsTab";
 import { ProviderSettings } from "../ProviderSettings";
 import { SkillManager } from "../../../../components/Skill";
-import { useProviderStore } from "../../../ChatPage/store/slices/providerSlice";
+import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import ModelLimitsSettings from "../../ModelLimitsSettings";
 import type { AppLocale } from "../../../../shared/i18n/types";
 import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";

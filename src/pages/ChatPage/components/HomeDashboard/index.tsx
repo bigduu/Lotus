@@ -12,7 +12,7 @@ import {
 import { useTranslation } from "react-i18next";
 import i18n from "i18next";
 
-import { selectIsBusy, useAppStore } from "../../store";
+import { selectIsBusy, useAppStore } from "@shared/store/appStore";
 import type { ChatItem } from "@shared/types/chatMessages";
 import EmptyTaskLauncher from "../EmptyTaskLauncher";
 

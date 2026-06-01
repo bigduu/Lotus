@@ -1,5 +1,5 @@
 import { AgentClient, AgentEvent, TaskListDelta } from "@services/chat/AgentService";
-import { useAppStore, selectChildren } from "../store";
+import { useAppStore, selectChildren } from "@shared/store/appStore";
 
 export type SubscriptionEntry = {
   sessionId: string;

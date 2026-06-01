@@ -76,7 +76,7 @@ vi.mock("../../utils/streamingMessageBus", () => ({
   },
 }));
 
-vi.mock("../../store", () => {
+vi.mock("@shared/store/appStore", () => {
   const useAppStore = (selector: (state: typeof mockStoreState) => unknown) =>
     selector(mockStoreState);
   (
