@@ -1,10 +1,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsKeywordMaskingTab from "../SystemSettingsKeywordMaskingTab";
-import { ServiceFactory } from "../../../../../services/common/ServiceFactory";
+import { ServiceFactory } from "@services/common/ServiceFactory";
 
 // Mock ServiceFactory
-vi.mock("../../../../../services/common/ServiceFactory");
+vi.mock("@services/common/ServiceFactory");
 
 // Mock antd message
 vi.mock("antd", async () => {
@@ -334,10 +334,6 @@ describe("SystemSettingsKeywordMaskingTab", () => {
       const input = screen.getByTestId("keyword-pattern-input");
       fireEvent.change(input, { target: { value: "secret" } });
 
-      // Find match type select and set to exact
-      const selects = screen.getAllByRole("combobox");
-      const matchTypeSelect = selects.find((s) => s.textContent?.includes("Exact"));
-
       // Preview should show masked text
       await waitFor(() => {
         const previewInputs = screen.getAllByRole("textbox");
@@ -355,10 +351,6 @@ describe("SystemSettingsKeywordMaskingTab", () => {
 
       const input = screen.getByTestId("keyword-pattern-input");
       fireEvent.change(input, { target: { value: "invalid[regex" } });
-
-      // Find match type select and set to regex
-      const selects = screen.getAllByRole("combobox");
-      const regexOption = selects.find((s) => s.textContent?.includes("Regex"));
 
       await waitFor(() => {
         const errorText = screen.queryByText(/invalid/i);

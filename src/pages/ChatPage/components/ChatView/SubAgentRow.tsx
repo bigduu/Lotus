@@ -2,10 +2,10 @@ import { memo } from "react";
 import { Button, Dropdown, Flex, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
-import type { SubagentProfile } from "../../../../services/subagent/types";
+import type { SubagentProfile } from "@services/subagent/types";
 import { useChildPreviewState, getMergedChildPreview } from "../../streaming/useChildPreviewState";
 import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
-import InlineMetaText from "../../../../shared/components/InlineMetaText";
+import InlineMetaText from "@shared/components/InlineMetaText";
 
 const { Text } = Typography;
 const { useToken } = theme;

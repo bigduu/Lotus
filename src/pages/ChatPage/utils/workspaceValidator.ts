@@ -3,8 +3,8 @@
  * Provides real-time validation, debouncing, and caching for workspace paths
  */
 
-import { apiClient } from "../../../services/api";
-import i18n from "../../../shared/i18n";
+import { apiClient } from "@services/api";
+import i18n from "@shared/i18n";
 
 export interface WorkspaceValidationResult {
   path: string;
@@ -87,8 +87,6 @@ class WorkspaceValidator {
     path: string,
     callback: (result: WorkspaceValidationResult) => void,
   ): () => void {
-    let timeoutId: NodeJS.Timeout;
-
     const debouncedValidation = async () => {
       try {
         const result = await this.validateWorkspace(path);
@@ -104,7 +102,7 @@ class WorkspaceValidator {
       }
     };
 
-    timeoutId = setTimeout(debouncedValidation, this.options.debounceMs);
+    const timeoutId = setTimeout(debouncedValidation, this.options.debounceMs);
 
     // Return cancel function
     return () => {

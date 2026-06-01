@@ -6,7 +6,7 @@ import {
   getNotificationPreferences,
   setNotificationPreferences,
   type NotificationPreferences,
-} from "../../../../services/notification/desktopNotification";
+} from "@services/notification/desktopNotification";
 import { isTauriEnvironment } from "../../../../utils/environment";
 
 const { Text } = Typography;

@@ -1,8 +1,4 @@
-import type {
-  MisfirePolicy,
-  OverlapPolicy,
-  ScheduleTrigger,
-} from "../../../../services/chat/AgentService";
+import type { MisfirePolicy, OverlapPolicy, ScheduleTrigger } from "@services/chat/AgentService";
 
 type TriggerType = ScheduleTrigger["type"];
 type WeeklyWeekday = Extract<ScheduleTrigger, { type: "weekly" }>["weekdays"][number];

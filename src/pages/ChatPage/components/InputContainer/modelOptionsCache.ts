@@ -1,5 +1,5 @@
 import { type ProviderType } from "@shared/types/providerConfig";
-import { StorageManager } from "../../../../services/storage/StorageManager";
+import { StorageManager } from "@services/storage/StorageManager";
 import { MODEL_OPTIONS_CACHE_PREFIX, MODEL_OPTIONS_CACHE_TTL_MS } from "./constants";
 import type { ModelCachePayload, ModelOption } from "./types";
 

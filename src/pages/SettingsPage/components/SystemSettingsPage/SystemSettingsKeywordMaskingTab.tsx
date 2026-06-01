@@ -13,9 +13,9 @@ import {
   theme,
 } from "antd";
 import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
-import { ServiceFactory } from "../../../../services/common/ServiceFactory";
+import { ServiceFactory } from "@services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
-import i18n from "../../../../shared/i18n";
+import i18n from "@shared/i18n";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -104,7 +104,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [message, t]);
 
   // Load keyword masking config on mount
   useEffect(() => {

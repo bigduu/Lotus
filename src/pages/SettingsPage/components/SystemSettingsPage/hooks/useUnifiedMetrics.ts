@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { metricsService } from "../../../../../services/metrics";
+import { metricsService } from "@services/metrics";
 import type {
   CombinedSummary,
   ForwardEndpointMetrics,
@@ -14,7 +14,7 @@ import type {
   SessionDetail,
   SessionMetrics,
   UnifiedTimelinePoint,
-} from "../../../../../services/metrics";
+} from "@services/metrics";
 import { resolveMetricsRange } from "./resolveMetricsRange";
 
 export interface UnifiedMetricsFilters {

@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 
 import { renderSubagentTypeTag } from "../renderSubagentTypeTag";
-import type { SubagentProfile } from "../../../../../services/subagent/types";
+import type { SubagentProfile } from "@services/subagent/types";
 
 const planProfile: SubagentProfile = {
   id: "plan",

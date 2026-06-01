@@ -1,7 +1,7 @@
 import React from "react";
 import { Tag } from "antd";
 
-import type { SubagentProfile } from "../../../../services/subagent/types";
+import type { SubagentProfile } from "@services/subagent/types";
 
 /**
  * Render a small Tag showing the subagent profile (role) of a child session.

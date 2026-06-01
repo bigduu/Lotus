@@ -4,7 +4,7 @@ import { ArrowLeftOutlined, DiffOutlined, LeftOutlined, RightOutlined } from "@a
 
 import FileChangeViewer from "../FileChangeViewer";
 import type { FileChangeResultPayload } from "@shared/utils/resultFormatters";
-import InlineMetaText from "../../../../shared/components/InlineMetaText";
+import InlineMetaText from "@shared/components/InlineMetaText";
 
 const { Text } = Typography;
 

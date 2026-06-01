@@ -3,9 +3,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App as AntdApp } from "antd";
 
 import SystemSettingsConfigTab from "../SystemSettingsConfigTab";
-import { serviceFactory } from "../../../../../services/common/ServiceFactory";
+import { serviceFactory } from "@services/common/ServiceFactory";
 
-vi.mock("../../../../../services/common/ServiceFactory", () => ({
+vi.mock("@services/common/ServiceFactory", () => ({
   serviceFactory: {
     getBambooConfig: vi.fn(),
     getBambooTools: vi.fn(),

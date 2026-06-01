@@ -1,6 +1,6 @@
 import { Card, Collapse, Empty, List, Space, Typography } from "antd";
-import type { McpServer, McpToolInfo } from "../../../../../services/mcp";
-import JsonSchemaViewer from "../../../../../shared/components/JsonSchemaViewer";
+import type { McpServer, McpToolInfo } from "@services/mcp";
+import JsonSchemaViewer from "@shared/components/JsonSchemaViewer";
 import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;

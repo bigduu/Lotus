@@ -7,7 +7,7 @@ import type {
   MetricsSummary,
   SessionMetrics,
   ForwardMetricsSummary,
-} from "../../../../../services/metrics";
+} from "@services/metrics";
 
 const { useToken } = theme;
 

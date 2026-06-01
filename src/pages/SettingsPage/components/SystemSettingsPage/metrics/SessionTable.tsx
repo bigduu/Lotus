@@ -2,7 +2,7 @@ import { Button, Table, Tag, Tooltip } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
 
-import type { SessionMetrics } from "../../../../../services/metrics";
+import type { SessionMetrics } from "@services/metrics";
 import { renderMetricNumber } from "./metricNumberFormatting";
 
 interface SessionTableProps {

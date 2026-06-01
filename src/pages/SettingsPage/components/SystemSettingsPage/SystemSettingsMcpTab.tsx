@@ -15,12 +15,7 @@ import {
 } from "antd";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  ServerStatus,
-  mcpService,
-  type McpServer,
-  type McpImportResponse,
-} from "../../../../services/mcp";
+import { ServerStatus, mcpService, type McpServer, type McpImportResponse } from "@services/mcp";
 import { useMcpSettings } from "./hooks/useMcpSettings";
 import { McpServerTable } from "./mcp/McpServerTable";
 import { McpServerFormModal } from "./mcp/McpServerFormModal";

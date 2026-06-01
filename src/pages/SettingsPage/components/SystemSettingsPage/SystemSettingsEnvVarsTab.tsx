@@ -19,7 +19,7 @@ import {
   settingsService,
   EnvVarResponse,
   UpsertEnvVarRequest,
-} from "../../../../services/config/SettingsService";
+} from "@services/config/SettingsService";
 
 const { Text, Paragraph } = Typography;
 
@@ -53,7 +53,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [message, t]);
 
   useEffect(() => {
     fetchEntries();

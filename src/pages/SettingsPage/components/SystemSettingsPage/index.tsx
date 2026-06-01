@@ -4,24 +4,24 @@ import type { TabsProps } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useChatManager } from "../../../ChatPage/hooks/useChatManager";
-import { serviceFactory } from "../../../../services/common/ServiceFactory";
+import { serviceFactory } from "@services/common/ServiceFactory";
 import {
   getSystemPromptEnhancement,
   setSystemPromptEnhancement,
-} from "../../../../shared/utils/systemPromptEnhancement";
+} from "@shared/utils/systemPromptEnhancement";
 import {
   isMermaidEnhancementEnabled,
   setMermaidEnhancementEnabled,
-} from "../../../../shared/utils/mermaidUtils";
+} from "@shared/utils/mermaidUtils";
 import {
   isTaskEnhancementEnabled,
   setTaskEnhancementEnabled,
-} from "../../../../shared/utils/taskEnhancementUtils";
+} from "@shared/utils/taskEnhancementUtils";
 import {
   isCopilotConclusionWithOptionsEnhancementEnabled,
   setCopilotConclusionWithOptionsEnhancementEnabled,
-} from "../../../../shared/utils/copilotConclusionWithOptionsEnhancementUtils";
-import { isVdiSafeModeEnabled, setVdiSafeModeEnabled } from "../../../../shared/utils/vdiSafeMode";
+} from "@shared/utils/copilotConclusionWithOptionsEnhancementUtils";
+import { isVdiSafeModeEnabled, setVdiSafeModeEnabled } from "@shared/utils/vdiSafeMode";
 import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
@@ -35,16 +35,16 @@ import SystemSettingsSchedulesTab from "./SystemSettingsSchedulesTab";
 import SystemSettingsSessionsTab from "./SystemSettingsSessionsTab";
 import SystemSettingsNotificationsTab from "./SystemSettingsNotificationsTab";
 import { ProviderSettings } from "../ProviderSettings";
-import { SkillManager } from "../../../../components/Skill";
+import { SkillManager } from "@components/Skill";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import ModelLimitsSettings from "../../ModelLimitsSettings";
-import type { AppLocale } from "../../../../shared/i18n/types";
-import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
+import type { AppLocale } from "@shared/i18n/types";
+import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import {
   useExperienceModeStore,
   ADVANCED_ONLY_SETTINGS_TABS,
-} from "../../../../shared/store/experienceModeStore";
-import { APP_VERSION } from "../../../../shared/constants/appVersion";
+} from "@shared/store/experienceModeStore";
+import { APP_VERSION } from "@shared/constants/appVersion";
 
 const { Text } = Typography;
 const { useToken } = theme;

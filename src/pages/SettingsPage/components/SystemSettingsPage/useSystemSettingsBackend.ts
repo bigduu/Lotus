@@ -6,8 +6,8 @@ import {
   hasBackendBaseUrlOverride,
   normalizeBackendBaseUrl,
   setBackendBaseUrl,
-} from "../../../../shared/utils/backendBaseUrl";
-import i18n from "../../../../shared/i18n";
+} from "@shared/utils/backendBaseUrl";
+import i18n from "@shared/i18n";
 
 interface UseSystemSettingsBackendProps {
   msgApi: {

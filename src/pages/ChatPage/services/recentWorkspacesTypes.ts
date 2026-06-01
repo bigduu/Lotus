@@ -6,7 +6,7 @@ export type {
   Workspace as WorkspaceInfo,
   WorkspaceMetadata,
   WorkspaceServiceOptions as RecentWorkspacesManagerOptions,
-} from "../../../services/workspace";
+} from "@services/workspace";
 
 // Also export Workspace itself
-export type { Workspace } from "../../../services/workspace";
+export type { Workspace } from "@services/workspace";

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { metricsService } from "../../../../../services/metrics";
-import type { MetricsUsageBreakdownResponse } from "../../../../../services/metrics";
+import { metricsService } from "@services/metrics";
+import type { MetricsUsageBreakdownResponse } from "@services/metrics";
 import { resolveMetricsRange } from "./resolveMetricsRange";
 
 export interface MetricsUsageFilters {

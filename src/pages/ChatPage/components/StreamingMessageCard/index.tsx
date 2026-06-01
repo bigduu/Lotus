@@ -9,8 +9,8 @@ import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
 import { useAssistantStreamingState } from "../../streaming/useAssistantStreamingState";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
-import { renderCodeBlock } from "../../../../shared/components/Markdown/MarkdownCodeBlock";
-import { openExternalLink } from "../../../../shared/utils/openExternalLink";
+import { renderCodeBlock } from "@shared/components/Markdown/MarkdownCodeBlock";
+import { openExternalLink } from "@shared/utils/openExternalLink";
 
 const { Text } = Typography;
 const { useToken } = theme;

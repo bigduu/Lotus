@@ -16,9 +16,9 @@ import {
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
 import AccessPasswordCard from "./AccessPasswordCard";
-import { serviceFactory } from "../../../../services/common/ServiceFactory";
-import type { BambooConfig } from "../../../../services/common/ServiceFactory";
-import type { AppLocale } from "../../../../shared/i18n/types";
+import { serviceFactory } from "@services/common/ServiceFactory";
+import type { BambooConfig } from "@services/common/ServiceFactory";
+import type { AppLocale } from "@shared/i18n/types";
 
 interface ConfigFormState extends BambooConfig {
   http_proxy: string;

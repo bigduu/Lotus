@@ -1,15 +1,15 @@
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsEnvVarsTab from "../SystemSettingsEnvVarsTab";
 import {
   settingsService,
   EnvVarsListResponse,
   EnvVarResponse,
-} from "../../../../../services/config/SettingsService";
+} from "@services/config/SettingsService";
 
 // Mock settingsService
-vi.mock("../../../../../services/config/SettingsService", async () => {
-  const actual = await vi.importActual("../../../../../services/config/SettingsService");
+vi.mock("@services/config/SettingsService", async () => {
+  const actual = await vi.importActual("@services/config/SettingsService");
   return {
     ...actual,
     settingsService: {
@@ -270,7 +270,6 @@ describe("SystemSettingsEnvVarsTab", () => {
 
   describe("error handling", () => {
     it("should show error message on upsert failure", async () => {
-      const { message } = await import("antd");
       mockUpsertEnvVar.mockRejectedValue(new Error("Validation failed"));
 
       render(<SystemSettingsEnvVarsTab />);
@@ -281,7 +280,6 @@ describe("SystemSettingsEnvVarsTab", () => {
     });
 
     it("should show error message on delete failure", async () => {
-      const { message } = await import("antd");
       mockGetEnvVars.mockResolvedValue(sampleList);
       mockDeleteEnvVar.mockRejectedValue(new Error("Not found"));
 

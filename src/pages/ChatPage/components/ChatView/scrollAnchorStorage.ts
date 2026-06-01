@@ -1,4 +1,4 @@
-import { StorageManager } from "../../../../services/storage/StorageManager";
+import { StorageManager } from "@services/storage/StorageManager";
 
 const LEGACY_STORAGE_KEY = "chat_scroll_anchors_v1";
 const V2_PREFIX = "chat_scroll_anchor_v2:";

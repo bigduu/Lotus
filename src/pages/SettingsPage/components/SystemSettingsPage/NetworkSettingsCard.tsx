@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button, Card, Input, Space, Typography, Alert, theme } from "antd";
 import { useTranslation } from "react-i18next";
-import { useBambooConfigStore } from "../../../../shared/store/bambooConfigStore";
+import { useBambooConfigStore } from "@shared/store/bambooConfigStore";
 
 const { Text } = Typography;
 const { useToken } = theme;

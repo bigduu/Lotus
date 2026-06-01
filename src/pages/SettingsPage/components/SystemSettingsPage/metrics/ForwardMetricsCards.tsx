@@ -1,7 +1,7 @@
 import { Card, Col, Row, Skeleton, Statistic, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
-import type { ForwardMetricsSummary } from "../../../../../services/metrics";
+import type { ForwardMetricsSummary } from "@services/metrics";
 import { statisticNumberFormatter } from "./metricNumberFormatting";
 
 const { useToken } = theme;

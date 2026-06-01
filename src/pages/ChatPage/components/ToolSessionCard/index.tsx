@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { AssistantToolCallMessage, AssistantToolResultMessage } from "@shared/types/chat";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import { getFileChangeDiffStats } from "@shared/utils/resultFormatters";
-import { StorageManager } from "../../../../services/storage/StorageManager";
+import { StorageManager } from "@services/storage/StorageManager";
 import ToolStepsCard from "../ToolStepsCard";
 
 const { Text } = Typography;

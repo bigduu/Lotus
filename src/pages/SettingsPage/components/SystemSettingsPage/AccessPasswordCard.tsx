@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Card, Form, Input, Space, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
-import { serviceFactory } from "../../../../services/common/ServiceFactory";
+import { serviceFactory } from "@services/common/ServiceFactory";
 import { isAntdFormError } from "@shared/utils/formError";
 
 const { Text } = Typography;

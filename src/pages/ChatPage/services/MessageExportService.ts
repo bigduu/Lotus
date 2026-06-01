@@ -4,8 +4,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
-import i18n from "../../../shared/i18n";
-import { createMarkdownComponents } from "../../../shared/components/Markdown/markdownComponents";
+import i18n from "@shared/i18n";
+import { createMarkdownComponents } from "@shared/components/Markdown/markdownComponents";
 
 export type MessageExportFormat = "markdown" | "pdf";
 

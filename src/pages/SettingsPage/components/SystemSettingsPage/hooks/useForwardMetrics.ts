@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { metricsService } from "../../../../../services/metrics";
+import { metricsService } from "@services/metrics";
 import type {
   ForwardEndpointMetrics,
   ForwardMetricsQuery,
   ForwardMetricsSummary,
   ForwardRequestMetrics,
-} from "../../../../../services/metrics";
+} from "@services/metrics";
 import { resolveMetricsRange } from "./resolveMetricsRange";
 
 export interface ForwardMetricsFilters {

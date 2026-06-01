@@ -5,9 +5,9 @@ import { useTranslation } from "react-i18next";
 
 import { selectChildren, useAppStore } from "@shared/store/appStore";
 import { openSession } from "@shared/utils/openSession";
-import { toolService } from "../../../../services/tool/ToolService";
+import { toolService } from "@services/tool/ToolService";
 import { useSubagentProfiles } from "../../hooks/useSubagentProfiles";
-import InlineMetaText from "../../../../shared/components/InlineMetaText";
+import InlineMetaText from "@shared/components/InlineMetaText";
 import { SubAgentRow, type SubAgentRetryMode, type SubAgentRowData } from "./SubAgentRow";
 
 const { Text } = Typography;

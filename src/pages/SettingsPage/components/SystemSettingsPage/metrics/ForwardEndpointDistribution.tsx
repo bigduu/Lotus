@@ -11,7 +11,7 @@ import {
 } from "recharts";
 import { useTranslation } from "react-i18next";
 
-import type { ForwardEndpointMetrics } from "../../../../../services/metrics";
+import type { ForwardEndpointMetrics } from "@services/metrics";
 
 interface ForwardEndpointDistributionProps {
   data: ForwardEndpointMetrics[];

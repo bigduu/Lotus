@@ -1,10 +1,10 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { metricsService } from "../../../../../../services/metrics";
+import { metricsService } from "@services/metrics";
 import { useForwardMetrics } from "../useForwardMetrics";
 
-vi.mock("../../../../../../services/metrics", () => ({
+vi.mock("@services/metrics", () => ({
   metricsService: {
     getForwardSummary: vi.fn(),
     getForwardByEndpoint: vi.fn(),

@@ -17,7 +17,7 @@ import {
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { useTranslation } from "react-i18next";
-import i18n from "../../../../shared/i18n";
+import i18n from "@shared/i18n";
 
 import {
   AgentClient,
@@ -27,7 +27,7 @@ import {
   ScheduleRunRecord,
   ScheduleTrigger,
 } from "@services/chat/AgentService";
-import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
+import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { openSession } from "@shared/utils/openSession";
 import {
   type ScheduleFormValues,

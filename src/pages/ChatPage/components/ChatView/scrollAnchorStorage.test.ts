@@ -5,7 +5,7 @@ import {
   clearScrollAnchor,
   type ScrollAnchorV1,
 } from "./scrollAnchorStorage";
-import { storageDb } from "../../../../services/storage/StorageDb";
+import { storageDb } from "@services/storage/StorageDb";
 
 const SESSION_ID = "test-session-123";
 const LEGACY_KEY = "chat_scroll_anchors_v1";
@@ -155,7 +155,7 @@ describe("scrollAnchorStorage", () => {
 
       // Simulate quota exceeded on IndexedDB write by mocking StorageManager
       const manager = (
-        await import("../../../../services/storage/StorageManager")
+        await import("@services/storage/StorageManager")
       ).StorageManager.getInstance();
       const originalSave = manager.saveScrollAnchor.bind(manager);
       manager.saveScrollAnchor = async () => {

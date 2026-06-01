@@ -11,7 +11,7 @@ import {
   WorkflowManagerService,
   type WorkflowMetadata,
 } from "../../../ChatPage/services/WorkflowManagerService";
-import { ServiceFactory } from "../../../../services/common/ServiceFactory";
+import { ServiceFactory } from "@services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;

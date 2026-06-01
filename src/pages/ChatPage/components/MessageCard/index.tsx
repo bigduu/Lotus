@@ -15,7 +15,7 @@ import PlanMessageCard from "../PlanMessageCard";
 import QuestionMessageCard from "../QuestionMessageCard";
 import FileReferenceCard from "../FileReferenceCard";
 import TodoListDisplay from "../TodoListDisplay";
-import { createMarkdownComponents } from "../../../../shared/components/Markdown/markdownComponents";
+import { createMarkdownComponents } from "@shared/components/Markdown/markdownComponents";
 import MessageCardContent from "./MessageCardContent";
 import MessageCardHeader from "./MessageCardHeader";
 import {

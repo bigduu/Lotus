@@ -20,7 +20,7 @@ import {
   useMermaidSettings,
   useUpdateMermaidSettings,
   useResetMermaidSettings,
-} from "../../../../shared/store/mermaidSettingsStore";
+} from "@shared/store/mermaidSettingsStore";
 
 const { Title, Text } = Typography;
 const { useToken } = theme;

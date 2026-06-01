@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import type { TFunction } from "i18next";
 import { selectPendingQuestion, useAppStore } from "@shared/store/appStore";
-import { agentApiClient } from "../../../../services/api";
+import { agentApiClient } from "@services/api";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";

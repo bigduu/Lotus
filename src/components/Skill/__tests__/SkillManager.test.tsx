@@ -3,10 +3,10 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillManager } from "../SkillManager";
-import { skillService } from "../../../services/skill/SkillService";
-import { useBambooConfigStore } from "../../../shared/store/bambooConfigStore";
+import { skillService } from "@services/skill/SkillService";
+import { useBambooConfigStore } from "@shared/store/bambooConfigStore";
 
-vi.mock("../../../services/skill/SkillService", () => ({
+vi.mock("@services/skill/SkillService", () => ({
   skillService: {
     listSkills: vi.fn(),
   },

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, Flex, Select, Switch, Typography, message, theme } from "antd";
-import { serviceFactory } from "../../../../services/common/ServiceFactory";
+import { serviceFactory } from "@services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
 
 const { Text } = Typography;

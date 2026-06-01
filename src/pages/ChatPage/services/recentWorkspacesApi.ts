@@ -1,5 +1,5 @@
 import type { WorkspaceInfo, WorkspaceMetadata } from "./recentWorkspacesTypes";
-import i18n from "../../../shared/i18n";
+import i18n from "@shared/i18n";
 
 export const fetchRecentWorkspaces = async (
   baseUrl: string,

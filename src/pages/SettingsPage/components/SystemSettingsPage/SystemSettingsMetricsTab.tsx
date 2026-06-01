@@ -27,7 +27,7 @@ import type {
   MetricsGranularity,
   PeriodMetrics,
   RoundMetrics,
-} from "../../../../services/metrics";
+} from "@services/metrics";
 import { useForwardMetrics } from "./hooks/useForwardMetrics";
 import { useMetrics } from "./hooks/useMetrics";
 import { useMetricsUsage } from "./hooks/useMetricsUsage";

@@ -13,7 +13,7 @@ import {
   type SseTransportConfig,
   type StdioTransportConfig,
   type TransportConfig,
-} from "../../../../../services/mcp";
+} from "@services/mcp";
 
 const { Text } = Typography;
 const { TextArea } = Input;

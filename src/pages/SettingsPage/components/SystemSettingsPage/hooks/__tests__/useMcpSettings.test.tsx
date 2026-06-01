@@ -6,7 +6,7 @@ import {
   type McpServer,
   type McpServerConfig,
   type McpToolInfo,
-} from "../../../../../../services/mcp/types";
+} from "@services/mcp/types";
 import { useMcpSettings } from "../useMcpSettings";
 
 const makeServer = (id: string): McpServer => ({

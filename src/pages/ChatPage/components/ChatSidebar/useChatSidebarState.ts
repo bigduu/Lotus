@@ -12,7 +12,7 @@ import {
   getSortedDateKeys,
   groupChatsByDate,
 } from "../../utils/chatUtils";
-import { useSettingsViewStore } from "../../../../shared/store/settingsViewStore";
+import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { SidebarChatItem } from "@shared/types/sidebarChat";

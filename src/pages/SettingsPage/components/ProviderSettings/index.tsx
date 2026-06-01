@@ -47,7 +47,7 @@ import {
   ServiceFactory,
   type BambooConfig,
   type BambooConfigValidationIssue,
-} from "../../../../services/common/ServiceFactory";
+} from "@services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";

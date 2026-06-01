@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 
-import type { UnifiedTimelinePoint } from "../../../../../services/metrics";
+import type { UnifiedTimelinePoint } from "@services/metrics";
 import { formatMetricCompactNumber, formatMetricTooltipValue } from "./metricNumberFormatting";
 
 const { Text } = Typography;

@@ -12,8 +12,8 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import InlineMetaText from "../../../../shared/components/InlineMetaText";
-import { metricsService, type SessionMetrics } from "../../../../services/metrics";
+import InlineMetaText from "@shared/components/InlineMetaText";
+import { metricsService, type SessionMetrics } from "@services/metrics";
 import { selectSessionById, useAppStore } from "@shared/store/appStore";
 import type {
   AssistantTextMessage,

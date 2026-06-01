@@ -18,7 +18,7 @@ import type { ColumnsType } from "antd/es/table";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { MetricsGranularity, RoundMetrics } from "../../../../services/metrics";
+import type { MetricsGranularity, RoundMetrics } from "@services/metrics";
 import { useUnifiedMetrics } from "./hooks/useUnifiedMetrics";
 import UnifiedMetricsCards from "./metrics/UnifiedMetricsCards";
 import UnifiedTimelineChart from "./metrics/UnifiedTimelineChart";
