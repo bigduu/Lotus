@@ -50,6 +50,18 @@ export const enUsTranslation = {
         evaluationCompleteNoUpdates: "Evaluation complete: No updates needed",
       },
       defaultSessionTitle: "New Session",
+      skipToContent: "Skip to main content",
+    },
+    feedback: {
+      helpful: "Helpful",
+      notHelpful: "Not helpful",
+    },
+    sessionSummary: {
+      title: "Session Summary",
+    },
+    inspector: {
+      title: "Inspector",
+      configuration: "Configuration",
     },
     layout: {
       showSidebar: "Show sidebar",
@@ -174,6 +186,7 @@ export const enUsTranslation = {
           noMatches: "No matching sessions",
           hint: 'Click "New Session" to get started',
           filterHint: "Try adjusting your search or filters",
+          clearFilters: "Clear filters",
         },
         dateGroups: {
           today: "Today",
@@ -584,6 +597,7 @@ export const enUsTranslation = {
           hooks: "Hooks",
           masking: "Masking",
           envVars: "Env Vars",
+          notifications: "Notifications",
         },
         groups: {
           ai: "AI",

@@ -95,9 +95,11 @@ const SystemSettingsPage = ({
     key,
     label: (
       <Text
-        type="secondary"
         style={{
-          fontSize: 11,
+          // Inline color wins over antd's disabled-tab dimming so the section
+          // header stays legible instead of fading into the background.
+          color: token.colorTextSecondary,
+          fontSize: 12,
           fontWeight: 600,
           textTransform: "uppercase",
           letterSpacing: "0.05em",

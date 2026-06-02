@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Button, Drawer, Flex, theme, Typography } from "antd";
 import { AppstoreOutlined, CloseOutlined, FlagOutlined, RobotOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 
 import InlineMetaText from "@shared/components/InlineMetaText";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
@@ -112,6 +113,7 @@ const SessionGoalCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
  */
 const SessionConfigCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const chat = useAppStore(selectSessionById(sessionId));
   const providerInstances = useProviderStore((state) => state.providerInstances);
 
@@ -158,7 +160,7 @@ const SessionConfigCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
         <Flex align="center" gap={6} style={{ minWidth: 0 }}>
           <RobotOutlined style={{ color: token.colorTextSecondary }} />
           <Text strong style={{ fontSize: 12 }}>
-            Configuration
+            {t("inspector.configuration", "Configuration")}
           </Text>
         </Flex>
         <Flex vertical gap={2} style={{ width: "100%", minWidth: 0 }}>
@@ -361,6 +363,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
   sessionDiffSummary,
 }) => {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const inspectorWidthPx = useUILayoutStore((state) => state.inspector.widthPx);
   const inspectorMinWidthPx = useUILayoutStore((state) => state.inspector.minWidthPx);
   const inspectorMaxWidthPx = useUILayoutStore((state) => state.inspector.maxWidthPx);
@@ -383,7 +386,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
   if (mode === "drawer") {
     return (
       <Drawer
-        title="Inspector"
+        title={t("inspector.title", "Inspector")}
         placement="right"
         open={open}
         onClose={() => onOpenChange(false)}
@@ -426,7 +429,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
       >
         <Flex align="center" gap={token.marginXS}>
           <AppstoreOutlined />
-          <Text strong>Inspector</Text>
+          <Text strong>{t("inspector.title", "Inspector")}</Text>
         </Flex>
         <Button
           type="text"

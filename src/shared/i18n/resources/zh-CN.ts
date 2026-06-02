@@ -48,6 +48,18 @@ export const zhCnTranslation = {
         evaluationCompleteNoUpdates: "评估完成：无需更新",
       },
       defaultSessionTitle: "新建会话",
+      skipToContent: "跳转到主内容",
+    },
+    feedback: {
+      helpful: "有帮助",
+      notHelpful: "无帮助",
+    },
+    sessionSummary: {
+      title: "会话摘要",
+    },
+    inspector: {
+      title: "检查器",
+      configuration: "配置",
     },
     layout: {
       showSidebar: "显示侧边栏",
@@ -167,6 +179,7 @@ export const zhCnTranslation = {
           noMatches: "没有匹配的会话",
           hint: "点击「新建会话」开始",
           filterHint: "请尝试调整搜索词或筛选条件",
+          clearFilters: "清除筛选",
         },
         dateGroups: {
           today: "今天",
@@ -571,6 +584,7 @@ export const zhCnTranslation = {
           hooks: "Hooks",
           masking: "脱敏",
           envVars: "环境变量",
+          notifications: "通知",
         },
         groups: {
           ai: "AI",

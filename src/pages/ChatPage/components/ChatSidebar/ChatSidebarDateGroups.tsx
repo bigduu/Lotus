@@ -1,7 +1,7 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useMemo } from "react";
 import { Button, Empty, Flex, List, Space } from "antd";
-import { DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
+import { ApartmentOutlined, DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { ChatItem as ChatItemComponent } from "../ChatItem";
@@ -222,10 +222,22 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                     <div key={chat.id}>
                       <Flex align="center" gap={6} style={{ padding: "4px 8px" }}>
                         {childrenByRoot[chat.id]?.length ? (
+                          // A conversation that spawned sub-agents. Use a hierarchy
+                          // icon + child count in the accent color rather than a bare
+                          // chevron, so it reads as "a chat with N sub-agents" instead
+                          // of being mistaken for a collapsible date/category group
+                          // (which owns the plain ▶/▼ chevron affordance).
                           <Button
                             size="small"
                             type="text"
-                            style={{ padding: 0, width: 18, minWidth: 18, height: 18 }}
+                            style={{
+                              padding: 0,
+                              minWidth: 18,
+                              height: 18,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 2,
+                            }}
                             aria-label={
                               expandedRootIds.has(chat.id)
                                 ? t("chat.sidebar.actions.collapseChildren")
@@ -237,11 +249,23 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                               onToggleRootExpanded(chat.id);
                             }}
                           >
-                            {expandedRootIds.has(chat.id) ? (
-                              <DownOutlined style={{ fontSize: 12 }} />
-                            ) : (
-                              <RightOutlined style={{ fontSize: 12 }} />
-                            )}
+                            <ApartmentOutlined
+                              style={{
+                                fontSize: 12,
+                                color: "var(--lotus-primary)",
+                                opacity: expandedRootIds.has(chat.id) ? 1 : 0.85,
+                              }}
+                            />
+                            <span
+                              style={{
+                                fontSize: 9,
+                                fontWeight: 600,
+                                lineHeight: 1,
+                                color: "var(--lotus-primary)",
+                              }}
+                            >
+                              {childrenByRoot[chat.id].length}
+                            </span>
                           </Button>
                         ) : (
                           <div style={{ width: 18 }} />
