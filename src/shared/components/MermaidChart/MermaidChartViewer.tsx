@@ -1,10 +1,11 @@
 import type { GlobalToken } from "antd/es/theme/interface";
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { DownloadOutlined } from "@ant-design/icons";
 import { App as AntApp, Button, Tooltip } from "antd";
 import { TransformComponent, TransformWrapper } from "react-zoom-pan-pinch";
 import { useTranslation } from "react-i18next";
 import { FileOperationsService } from "@shared/services/FileOperationsService";
+import { sanitizeSvgMarkup } from "./sanitizeSvg";
 
 interface MermaidChartViewerProps {
   svg: string;
@@ -51,6 +52,14 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
   const { t } = useTranslation();
   const { message: appMessage } = AntApp.useApp();
   const [isExporting, setIsExporting] = useState(false);
+
+  const sanitizedSvg = useMemo(() => {
+    if (!svg) return "";
+    return sanitizeSvgMarkup(svg).replace(
+      /<svg([^>]*)>/,
+      '<svg$1 style="display: block; max-width: 100%; max-height: 100%;">',
+    );
+  }, [svg]);
 
   const handleExportSvg = useCallback(async () => {
     if (!svg || isExporting) {
@@ -228,10 +237,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                     lineHeight: 0,
                   }}
                   dangerouslySetInnerHTML={{
-                    __html: svg.replace(
-                      /<svg([^>]*)>/,
-                      '<svg$1 style=\"display: block; max-width: 100%; max-height: 100%;\">',
-                    ),
+                    __html: sanitizedSvg,
                   }}
                 />
               </TransformComponent>

@@ -1,5 +1,6 @@
 import { FileOperationsService } from "@shared/services/FileOperationsService";
 import React from "react";
+import { addLandscapeDiagram, addPortraitRange, collectWideDiagrams } from "./pdfPaginator";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
@@ -108,8 +109,11 @@ export class MessageExportService {
     const { createRoot } = await import("react-dom/client");
     const { flushSync } = await import("react-dom");
 
+    // "static" renders each Mermaid diagram as a high-DPI PNG (see
+    // StaticMermaidChart) so html2canvas embeds a crisp bitmap instead of
+    // re-rasterizing the SVG at capture scale.
     const markdownComponents = createMarkdownComponents(PDF_EXPORT_TOKEN, {
-      mermaidRenderMode: "eager",
+      mermaidRenderMode: "static",
     });
 
     const overlay = document.createElement("div");
@@ -191,60 +195,49 @@ export class MessageExportService {
 
     try {
       await this.waitForExportRenderReady(container);
+      await this.awaitMermaidImagesDecoded(container);
       const canvas = await this.renderCanvasWithFallback(html2canvas, container);
 
-      // Render canvas into A4 pages (pt units).
-      const doc = new jsPDF({
-        unit: "pt",
-        format: "a4",
-        orientation: "portrait",
-      });
-      const pageWidthPt = doc.internal.pageSize.getWidth();
-      const pageHeightPt = doc.internal.pageSize.getHeight();
+      const doc = new jsPDF({ unit: "pt", format: "a4", orientation: "portrait" });
       const marginPt = 24;
-      const contentWidthPt = pageWidthPt - marginPt * 2;
-      const contentHeightPt = pageHeightPt - marginPt * 2;
 
+      // Portrait page geometry (page 1 is portrait at this point).
+      const contentWidthPt = doc.internal.pageSize.getWidth() - marginPt * 2;
+      const contentHeightPt = doc.internal.pageSize.getHeight() - marginPt * 2;
       const pxPerPt = canvas.width / contentWidthPt;
-      const sliceHeightPx = Math.max(1, Math.floor(contentHeightPt * pxPerPt));
+      const portraitGeom = {
+        marginPt,
+        contentWidthPt,
+        pxPerPt,
+        sliceHeightPx: Math.max(1, Math.floor(contentHeightPt * pxPerPt)),
+      };
 
-      let offsetY = 0;
-      let pageIndex = 0;
-      while (offsetY < canvas.height) {
-        const computedSliceHeight = this.computeSmartSliceHeight(canvas, offsetY, sliceHeightPx);
-        const sliceHeight = Math.max(1, Math.min(computedSliceHeight, canvas.height - offsetY));
+      // jsPDF always opens with one portrait page; we add a page before drawing
+      // each one (portrait or landscape) and delete the initial blank at the end.
+      let pageCount = 0;
+      const addPortraitPage = () => {
+        doc.addPage("a4", "portrait");
+        pageCount += 1;
+      };
+      const addLandscapePage = () => {
+        doc.addPage("a4", "landscape");
+        pageCount += 1;
+      };
 
-        const sliceCanvas = document.createElement("canvas");
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = sliceHeight;
+      // Wide diagrams (aspect > 1.4 and too wide for the portrait column) get a
+      // dedicated landscape page drawn from their own high-DPI PNG; everything
+      // else flows down portrait pages around them, preserving document order.
+      const wideDiagrams = collectWideDiagrams(container, canvas);
 
-        const ctx = sliceCanvas.getContext("2d");
-        if (!ctx) throw new Error("PDF render failed (no canvas context)");
-
-        // White background to avoid transparency issues.
-        ctx.fillStyle = "#ffffff";
-        ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
-        ctx.drawImage(
-          canvas,
-          0,
-          offsetY,
-          canvas.width,
-          sliceHeight,
-          0,
-          0,
-          canvas.width,
-          sliceHeight,
-        );
-
-        const imgData = sliceCanvas.toDataURL("image/jpeg", 0.92);
-        const sliceHeightPt = sliceHeight / pxPerPt;
-
-        if (pageIndex > 0) doc.addPage();
-        doc.addImage(imgData, "JPEG", marginPt, marginPt, contentWidthPt, sliceHeightPt);
-
-        offsetY += sliceHeight;
-        pageIndex += 1;
+      let cursorPx = 0;
+      for (const diagram of wideDiagrams) {
+        addPortraitRange(doc, canvas, cursorPx, diagram.topPx, addPortraitPage, portraitGeom);
+        addLandscapeDiagram(doc, diagram, marginPt, addLandscapePage);
+        cursorPx = diagram.bottomPx;
       }
+      addPortraitRange(doc, canvas, cursorPx, canvas.height, addPortraitPage, portraitGeom);
+
+      if (pageCount > 0) doc.deletePage(1);
 
       const buffer = doc.output("arraybuffer") as ArrayBuffer;
       return new Uint8Array(buffer);
@@ -315,105 +308,21 @@ export class MessageExportService {
     return fallbackCanvas;
   }
 
-  private static computeSmartSliceHeight(
-    canvas: HTMLCanvasElement,
-    offsetY: number,
-    targetSliceHeight: number,
-  ): number {
-    const remainingHeight = canvas.height - offsetY;
-    if (remainingHeight <= targetSliceHeight) {
-      return remainingHeight;
-    }
-
-    const preferredBreakY = offsetY + targetSliceHeight;
-    const minSliceHeight = Math.max(1, Math.floor(targetSliceHeight * 0.72));
-    const searchRadius = Math.max(8, Math.floor(targetSliceHeight * 0.12));
-    const minBreakY = Math.max(offsetY + minSliceHeight, preferredBreakY - searchRadius);
-    const maxBreakY = Math.min(canvas.height - 1, preferredBreakY + searchRadius);
-
-    const breakY = this.findWhitespaceBreakY(canvas, preferredBreakY, minBreakY, maxBreakY);
-    if (breakY === null || breakY <= offsetY) {
-      return targetSliceHeight;
-    }
-
-    return breakY - offsetY;
-  }
-
-  private static findWhitespaceBreakY(
-    canvas: HTMLCanvasElement,
-    preferredBreakY: number,
-    minBreakY: number,
-    maxBreakY: number,
-  ): number | null {
-    if (minBreakY > maxBreakY || canvas.width <= 0) {
-      return null;
-    }
-
-    try {
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx || typeof ctx.getImageData !== "function") {
-        return null;
-      }
-
-      const height = maxBreakY - minBreakY + 1;
-      const imageData = ctx.getImageData(0, minBreakY, canvas.width, height).data;
-      const rowStride = canvas.width * 4;
-      const sampleStep = Math.max(1, Math.floor(canvas.width / 320));
-      const whiteThreshold = 245;
-      const alphaThreshold = 16;
-      const maxInkRatioForWhitespace = 0.03;
-
-      let bestY: number | null = null;
-      let bestInkRatio = Number.POSITIVE_INFINITY;
-      let bestDistance = Number.POSITIVE_INFINITY;
-
-      for (let row = 0; row < height; row += 1) {
-        let inkSamples = 0;
-        let totalSamples = 0;
-        const rowOffset = row * rowStride;
-
-        for (let x = 0; x < canvas.width; x += sampleStep) {
-          const index = rowOffset + x * 4;
-          const alpha = imageData[index + 3];
-          totalSamples += 1;
-
-          if (alpha <= alphaThreshold) {
-            continue;
-          }
-
-          const r = imageData[index];
-          const g = imageData[index + 1];
-          const b = imageData[index + 2];
-          if (r < whiteThreshold || g < whiteThreshold || b < whiteThreshold) {
-            inkSamples += 1;
-          }
+  private static async awaitMermaidImagesDecoded(container: HTMLElement): Promise<void> {
+    // collectWideDiagrams needs naturalWidth/Height; ensure the PNG <img>s the
+    // StaticMermaidChart produced have actually decoded before we measure them.
+    const imgs = Array.from(
+      container.querySelectorAll<HTMLImageElement>("[data-mermaid-loading] img"),
+    );
+    await Promise.all(
+      imgs.map(async (img) => {
+        if (img.complete && img.naturalWidth) return;
+        try {
+          await img.decode();
+        } catch {
+          // Leave undecoded; collectWideDiagrams skips zero-size images.
         }
-
-        if (totalSamples === 0) {
-          continue;
-        }
-
-        const inkRatio = inkSamples / totalSamples;
-        const y = minBreakY + row;
-        const distance = Math.abs(y - preferredBreakY);
-        const isBetter =
-          inkRatio < bestInkRatio || (inkRatio === bestInkRatio && distance < bestDistance);
-
-        if (isBetter) {
-          bestInkRatio = inkRatio;
-          bestDistance = distance;
-          bestY = y;
-        }
-      }
-
-      if (bestY === null || bestInkRatio > maxInkRatioForWhitespace) {
-        return null;
-      }
-
-      return bestY;
-    } catch {
-      // Cross-origin images can taint canvas and block pixel reads.
-      return null;
-    }
+      }),
+    );
   }
 }

@@ -38,7 +38,12 @@ export const useMermaidTheme = () => {
     mermaid.initialize({
       startOnLoad: false,
       theme: activeTheme,
-      securityLevel: "loose",
+      // Keep in sync with mermaidConfig.ts: strict + TOP-LEVEL htmlLabels:false
+      // so labels render as native SVG <text> (survive DOMPurify, capture
+      // cleanly when rasterized for PDF). The per-diagram flowchart.htmlLabels
+      // below is not sufficient on its own in mermaid 11.15.
+      securityLevel: "strict",
+      htmlLabels: false,
       suppressErrorRendering: true,
       fontSize: userSettings.fontSize,
 
@@ -51,7 +56,9 @@ export const useMermaidTheme = () => {
       // Flowchart with user settings
       flowchart: {
         useMaxWidth: userSettings.useMaxWidth,
-        htmlLabels: true,
+        // false: native SVG <text> labels. HTML (<foreignObject>) labels get
+        // stripped by DOMPurify and rasterize unreliably in PDF export.
+        htmlLabels: false,
         curve: userSettings.flowchartCurve,
         nodeSpacing: userSettings.flowchartNodeSpacing,
         rankSpacing: userSettings.flowchartRankSpacing,

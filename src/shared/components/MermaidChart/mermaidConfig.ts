@@ -4,7 +4,16 @@ import mermaid from "mermaid";
 mermaid.initialize({
   startOnLoad: false,
   theme: "dark", // Default, will be overridden by useMermaidTheme
-  securityLevel: "loose",
+  // strict: encode tags in diagram text + disable click handlers. Paired with
+  // DOMPurify sanitization at injection time (MermaidChartViewer).
+  securityLevel: "strict",
+  // TOP-LEVEL htmlLabels:false is the switch that forces native SVG <text>
+  // node labels. In mermaid 11.15 the per-diagram flowchart.htmlLabels:false is
+  // NOT enough — flowchart-v2 still emits <foreignObject> unless this is set.
+  // Native <text> is required so labels survive DOMPurify and render when the
+  // SVG is rasterized via <img> for PDF export (img-loaded SVGs never paint
+  // foreignObject HTML).
+  htmlLabels: false,
   suppressErrorRendering: true,
 });
 

@@ -5,10 +5,11 @@ import { CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import LazyMermaidChart from "../MermaidChart/LazyMermaidChart";
 import MermaidChart from "../MermaidChart";
+import StaticMermaidChart from "../MermaidChart/StaticMermaidChart";
 import { copyText } from "@shared/utils/clipboard";
 import { getSyntaxTheme, registeredLanguages, SyntaxHighlighter } from "./markdownSyntax";
 
-export type MermaidRenderMode = "lazy" | "eager";
+export type MermaidRenderMode = "lazy" | "eager" | "static";
 
 interface CodeBlockWithCopyProps {
   language: string;
@@ -280,6 +281,9 @@ export const renderCodeBlock = (
       if (!trimmedChart) {
         console.warn("Empty Mermaid chart content");
         return null;
+      }
+      if (mermaidRenderMode === "static") {
+        return <StaticMermaidChart chart={trimmedChart} />;
       }
       if (mermaidRenderMode === "eager") {
         return <MermaidChart chart={trimmedChart} onFix={onFixMermaid} />;

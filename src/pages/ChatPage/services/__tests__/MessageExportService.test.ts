@@ -12,6 +12,7 @@ const {
   mockJsPDFConstructor,
   mockJsPDFAddPage,
   mockJsPDFAddImage,
+  mockJsPDFDeletePage,
   mockJsPDFOutput,
 } = vi.hoisted(() => ({
   mockGenerateTimestampedFilename: vi.fn(),
@@ -24,6 +25,7 @@ const {
   mockJsPDFConstructor: vi.fn(),
   mockJsPDFAddPage: vi.fn(),
   mockJsPDFAddImage: vi.fn(),
+  mockJsPDFDeletePage: vi.fn(),
   mockJsPDFOutput: vi.fn().mockReturnValue(new ArrayBuffer(4)),
 }));
 
@@ -70,11 +72,13 @@ vi.mock("jspdf", () => ({
 
     addPage = (...args: unknown[]) => mockJsPDFAddPage(...args);
     addImage = (...args: unknown[]) => mockJsPDFAddImage(...args);
+    deletePage = (...args: unknown[]) => mockJsPDFDeletePage(...args);
     output = (...args: unknown[]) => mockJsPDFOutput(...args);
   },
 }));
 
 import { MessageExportService } from "../MessageExportService";
+import { collectWideDiagrams, computeSmartSliceHeight } from "../pdfPaginator";
 
 describe("MessageExportService", () => {
   const originalRequestAnimationFrame = globalThis.requestAnimationFrame;
@@ -340,7 +344,7 @@ describe("MessageExportService", () => {
       }),
     } as unknown as HTMLCanvasElement;
 
-    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(canvas, 0, 400);
+    const sliceHeight = computeSmartSliceHeight(canvas, 0, 400);
 
     expect(sliceHeight).toBe(highlightedWhitespaceRow);
   });
@@ -352,7 +356,7 @@ describe("MessageExportService", () => {
       getContext: vi.fn().mockReturnValue(null),
     } as unknown as HTMLCanvasElement;
 
-    const sliceHeight = (MessageExportService as any).computeSmartSliceHeight(canvas, 0, 500);
+    const sliceHeight = computeSmartSliceHeight(canvas, 0, 500);
 
     expect(sliceHeight).toBe(500);
   });
@@ -420,5 +424,52 @@ describe("MessageExportService", () => {
       Uint8Array,
     );
     expect(getContextSpy).toHaveBeenCalled();
+  });
+
+  it("collectWideDiagrams flags only wide-and-oversized diagrams and maps them to canvas y", () => {
+    const rect = (top: number, bottom: number, width: number): DOMRect =>
+      ({
+        top,
+        bottom,
+        left: 0,
+        right: width,
+        width,
+        height: bottom - top,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    const container = document.createElement("div");
+    Object.defineProperty(container, "clientWidth", { value: 794, configurable: true });
+    container.getBoundingClientRect = () => rect(0, 1000, 794); // 1000 CSS px tall
+
+    const addImg = (top: number, bottom: number, natW: number, natH: number, cssW: number) => {
+      const wrap = document.createElement("div");
+      wrap.setAttribute("data-mermaid-loading", "false");
+      const img = document.createElement("img");
+      Object.defineProperty(img, "naturalWidth", { value: natW, configurable: true });
+      Object.defineProperty(img, "naturalHeight", { value: natH, configurable: true });
+      img.style.width = `${cssW}px`;
+      img.src = "data:image/png;base64,AAAA";
+      img.getBoundingClientRect = () => rect(top, bottom, cssW);
+      wrap.appendChild(img);
+      container.appendChild(wrap);
+    };
+
+    addImg(100, 300, 2500, 1000, 1000); // wide (2.5) + oversized (1000 > 746) → divert
+    addImg(400, 700, 500, 1000, 500); // tall (0.5) → keep inline
+    addImg(800, 900, 800, 400, 400); // wide ratio but small (400 ≤ 746) → keep inline
+
+    // canvas is 2x the container height → scaleY = 2.
+    const result = collectWideDiagrams(container, {
+      height: 2000,
+    } as HTMLCanvasElement);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].ratio).toBeCloseTo(2.5);
+    expect(result[0].topPx).toBe(200);
+    expect(result[0].bottomPx).toBe(600);
+    expect(result[0].src).toContain("data:image/png");
   });
 });
