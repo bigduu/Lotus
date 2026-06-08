@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Drawer, Tabs, Tag, Typography, Button, Space, Tooltip, theme } from "antd";
+import { Drawer, Tabs, Tag, Typography, Button, Space, Tooltip, theme, Image } from "antd";
 import { CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -251,6 +251,29 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
               minHeight: 0,
             }}
           >
+            {result?.images && result.images.length > 0 ? (
+              <div style={{ flexShrink: 0, marginBottom: token.marginXS }}>
+                <Image.PreviewGroup>
+                  <Space size={token.marginXS} wrap>
+                    {result.images.map((img) => (
+                      <Image
+                        key={img.id}
+                        src={img.url}
+                        alt={img.name}
+                        style={{
+                          maxHeight: 360,
+                          maxWidth: "100%",
+                          objectFit: "contain",
+                          borderRadius: token.borderRadius,
+                          border: `1px solid ${token.colorBorderSecondary}`,
+                        }}
+                      />
+                    ))}
+                  </Space>
+                </Image.PreviewGroup>
+              </div>
+            ) : null}
+
             {fileChangePayload ? (
               <>
                 <Text strong style={{ fontSize: token.fontSizeSM }}>

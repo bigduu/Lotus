@@ -330,6 +330,21 @@ export const mapHistoryMessagesToUi = (
         (msg.tool_success == null &&
           typeof msg.content === "string" &&
           msg.content.trimStart().startsWith("Error:"));
+      // Images returned by the tool (e.g. an MCP screenshot) arrive in
+      // content_parts, same as user-attached images — surface them for preview.
+      const toolImages: MessageImage[] = [];
+      for (const part of msg.content_parts || []) {
+        if (part.type !== "image_url") continue;
+        const rawUrl = part.image_url?.url || "";
+        if (!rawUrl) continue;
+        toolImages.push({
+          id: safeRandomId(),
+          url: resolveImageUrlForRender(rawUrl),
+          name: "screenshot",
+          size: 0,
+          type: "image/*",
+        });
+      }
       const toolResult: AssistantToolResultMessage = {
         role: "assistant",
         type: "tool_result",
@@ -343,6 +358,7 @@ export const mapHistoryMessagesToUi = (
           display_preference: "Default",
         },
         isError: inferredError,
+        images: toolImages.length ? toolImages : undefined,
         isCompressed: Boolean(msg.compressed),
         compressedEventId: msg.compressed_by_event_id,
       };

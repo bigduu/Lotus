@@ -150,6 +150,8 @@ export interface AssistantToolResultMessage extends BaseMessage {
   toolCallId: string;
   result: ToolExecutionResult;
   isError: boolean;
+  /** Images returned by the tool (e.g. an MCP screenshot), for inline preview. */
+  images?: MessageImage[];
 }
 
 export interface WorkflowResultMessage extends BaseMessage {
