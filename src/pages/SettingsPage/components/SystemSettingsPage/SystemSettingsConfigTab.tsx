@@ -4,6 +4,7 @@ import {
   Space,
   Typography,
   Input,
+  InputNumber,
   Button,
   theme,
   Alert,
@@ -31,6 +32,8 @@ interface ConfigFormState extends BambooConfig {
     max_concurrent?: number;
   };
 }
+
+type ConfigSaveSection = "network" | "memory" | "subagents";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -147,23 +150,39 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     }));
   };
 
-  const handleSubagentMaxConcurrentChange = (raw: string) => {
-    const trimmed = raw.trim();
-    const parsed = Number.parseInt(trimmed, 10);
+  const handleSubagentMaxConcurrentChange = (value: number | null) => {
     setConfig((prev) => ({
       ...prev,
       subagents: {
         ...prev.subagents,
-        max_concurrent:
-          trimmed.length > 0 && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+        max_concurrent: value !== null && Number.isFinite(value) && value > 0 ? value : undefined,
       },
     }));
   };
 
-  const handleSaveConfig = async () => {
+  const handleSaveConfig = async (section: ConfigSaveSection) => {
     setIsLoading(true);
     try {
-      const validation = await serviceFactory.validateBambooConfigPatch(config);
+      let patch: BambooConfig;
+      if (section === "network") {
+        patch = {
+          http_proxy: config.http_proxy,
+          https_proxy: config.https_proxy,
+        };
+      } else if (section === "memory") {
+        patch = {
+          memory: { auto_dream_enabled: config.memory.auto_dream_enabled },
+        };
+      } else {
+        patch = {
+          subagents: {
+            runtime: config.subagents.runtime,
+            max_concurrent: config.subagents.max_concurrent,
+          },
+        };
+      }
+
+      const validation = await serviceFactory.validateBambooConfigPatch(patch);
       if (!validation.valid) {
         const proxyIssue = validation.errors?.proxy?.[0];
         const issue =
@@ -175,7 +194,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         return;
       }
 
-      await serviceFactory.setBambooConfig(config);
+      await serviceFactory.setBambooConfig(patch);
       msgApi.success(t("settings.configTab.saveConfigSuccess"));
     } catch (error) {
       console.error("Failed to save config:", error);
@@ -262,7 +281,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                   onHttpProxyChange={handleHttpProxyChange}
                   onHttpsProxyChange={handleHttpsProxyChange}
                   onReload={loadConfig}
-                  onSave={handleSaveConfig}
+                  onSave={() => handleSaveConfig("network")}
                   isLoading={isLoading}
                 />
 
@@ -340,7 +359,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                       <Button
                         data-testid="save-memory-settings"
                         type="primary"
-                        onClick={handleSaveConfig}
+                        onClick={() => handleSaveConfig("memory")}
                         loading={isLoading}
                       >
                         {t("settings.configTab.save")}
@@ -410,13 +429,19 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                             </Text>
                           </div>
                         </div>
-                        <Input
+                        <InputNumber
                           data-testid="subagent-max-concurrent"
                           style={{ width: 120 }}
-                          inputMode="numeric"
+                          min={1}
+                          step={1}
+                          precision={0}
                           placeholder="8"
-                          value={config.subagents.max_concurrent?.toString() ?? ""}
-                          onChange={(e) => handleSubagentMaxConcurrentChange(e.target.value)}
+                          value={config.subagents.max_concurrent ?? null}
+                          onChange={(value) =>
+                            handleSubagentMaxConcurrentChange(
+                              typeof value === "number" ? value : null,
+                            )
+                          }
                         />
                       </div>
                     )}
@@ -425,7 +450,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                       <Button
                         data-testid="save-subagent-settings"
                         type="primary"
-                        onClick={handleSaveConfig}
+                        onClick={() => handleSaveConfig("subagents")}
                         loading={isLoading}
                       >
                         {t("settings.configTab.save")}

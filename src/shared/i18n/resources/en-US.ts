@@ -432,6 +432,8 @@ export const enUsTranslation = {
         statusPending: "pending",
         statusError: "error",
         statusCancelled: "cancelled",
+        steeredLive: "Steering message delivered to the running sub-agent",
+        queuedNextTurn: "Queued — takes effect at the next turn",
         statusFailed: "failed",
         pinned: "Pinned",
         heartbeat: "heartbeat",

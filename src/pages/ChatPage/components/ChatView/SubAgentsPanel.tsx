@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
-import { Button, Card, Flex, Typography, theme } from "antd";
+import { App as AntApp, Button, Card, Flex, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { selectChildren, useAppStore } from "@shared/store/appStore";
@@ -104,6 +104,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
+  const { message } = AntApp.useApp();
   const [isCollapsed, setIsCollapsed] = useState<boolean>(
     () => readCollapsedState(parentSessionId) ?? false,
   );
@@ -286,8 +287,8 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
       );
       if (followUp === null) return;
 
-      const message = followUp.trim();
-      if (!message) {
+      const text = followUp.trim();
+      if (!text) {
         applyChildProgress(parentSessionId, childSessionId, {
           status: "error",
           error: "Follow-up message cannot be empty.",
@@ -311,7 +312,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
           parameters: [
             { name: "action", value: "send_message" },
             { name: "child_session_id", value: childSessionId },
-            { name: "message", value: message },
+            { name: "message", value: text },
             { name: "auto_run", value: "true" },
           ],
         });
@@ -323,7 +324,13 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         let optimisticStatus = "running";
         try {
           const payload = JSON.parse(executeResult.result) as { status?: string };
-          if (payload.status === "pending") {
+          if (payload.status === "message_delivered_live") {
+            optimisticStatus = "running";
+            message.success(t("chat.subAgents.steeredLive"));
+          } else if (payload.status === "message_queued") {
+            optimisticStatus = "pending";
+            message.info(t("chat.subAgents.queuedNextTurn"));
+          } else if (payload.status === "pending") {
             optimisticStatus = "pending";
           }
         } catch {
@@ -350,7 +357,15 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         setContinuingChildId((prev) => (prev === childSessionId ? null : prev));
       }
     },
-    [parentSessionId, refreshChats, markOptimisticStart, markSettleTimeout, applyChildProgress, t],
+    [
+      parentSessionId,
+      refreshChats,
+      markOptimisticStart,
+      markSettleTimeout,
+      applyChildProgress,
+      t,
+      message,
+    ],
   );
 
   const removeChildSession = useCallback(
@@ -535,16 +550,19 @@ const SubAgentsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> = 
       if (s === "completed") acc.completed++;
       else if (s === "running") acc.running++;
       else if (s === "error" || s === "failed") acc.error++;
+      else if (s === "cancelled") acc.cancelled++;
       else acc.pending++;
       return acc;
     },
-    { completed: 0, running: 0, error: 0, pending: 0 },
+    { completed: 0, running: 0, error: 0, pending: 0, cancelled: 0 },
   );
   const parts: string[] = [];
   if (counts.completed > 0)
     parts.push(t("chat.subAgents.summaryCompleted", { count: counts.completed }));
   if (counts.running > 0) parts.push(t("chat.subAgents.summaryRunning", { count: counts.running }));
   if (counts.pending > 0) parts.push(t("chat.subAgents.summaryPending", { count: counts.pending }));
+  if (counts.cancelled > 0)
+    parts.push(`${counts.cancelled} ${t("chat.subAgents.statusCancelled")}`);
   if (counts.error > 0) parts.push(t("chat.subAgents.summaryFailed", { count: counts.error }));
   if (parts.length === 0) return null;
   return <InlineMetaText block items={parts} style={{ marginTop: token.marginXS }} />;

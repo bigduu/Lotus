@@ -258,7 +258,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
             type={compact ? "text" : "default"}
             style={compactActionButtonStyle}
             loading={isContinuing}
-            disabled={isDeleting || isRetrying || isRunning}
+            disabled={isDeleting || isRetrying}
             data-testid={`sub-agent-continue-${item.childSessionId}`}
             onClick={() => onContinueChild(item.childSessionId)}
           >

@@ -420,6 +420,8 @@ export const zhCnTranslation = {
         statusPending: "等待中",
         statusError: "错误",
         statusCancelled: "已取消",
+        steeredLive: "已实时转向运行中的子代理",
+        queuedNextTurn: "已排队，下一轮生效",
         statusFailed: "失败",
         pinned: "已固定",
         heartbeat: "心跳",
