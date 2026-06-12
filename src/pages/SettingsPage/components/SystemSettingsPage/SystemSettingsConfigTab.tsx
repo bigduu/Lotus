@@ -26,6 +26,10 @@ interface ConfigFormState extends BambooConfig {
   memory: {
     auto_dream_enabled: boolean;
   };
+  subagents: {
+    runtime: "in_process" | "actor";
+    max_concurrent?: number;
+  };
 }
 
 const { Text } = Typography;
@@ -68,6 +72,9 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     memory: {
       auto_dream_enabled: false,
     },
+    subagents: {
+      runtime: "in_process",
+    },
   });
   const [backendBaseUrl, setBackendBaseUrl] = useState(DEFAULT_BACKEND_BASE_URL);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
@@ -89,6 +96,10 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         https_proxy: bambooConfig.https_proxy || "",
         memory: {
           auto_dream_enabled: bambooConfig.memory?.auto_dream_enabled ?? false,
+        },
+        subagents: {
+          runtime: bambooConfig.subagents?.runtime === "actor" ? "actor" : "in_process",
+          max_concurrent: bambooConfig.subagents?.max_concurrent,
         },
       });
       const nextDisabled = readDisabledTools(bambooConfig);
@@ -122,6 +133,29 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       memory: {
         ...prev.memory,
         auto_dream_enabled: checked,
+      },
+    }));
+  };
+
+  const handleSubagentRuntimeChange = (runtime: "in_process" | "actor") => {
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        runtime,
+      },
+    }));
+  };
+
+  const handleSubagentMaxConcurrentChange = (raw: string) => {
+    const trimmed = raw.trim();
+    const parsed = Number.parseInt(trimmed, 10);
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        max_concurrent:
+          trimmed.length > 0 && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
       },
     }));
   };
@@ -305,6 +339,91 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <Button
                         data-testid="save-memory-settings"
+                        type="primary"
+                        onClick={handleSaveConfig}
+                        loading={isLoading}
+                      >
+                        {t("settings.configTab.save")}
+                      </Button>
+                    </div>
+                  </Space>
+                </Card>
+
+                <Card
+                  size="small"
+                  className="lotus-settings-card"
+                  title={<Text strong>{t("settings.configTab.subagentsTitle")}</Text>}
+                >
+                  <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+                    <Text type="secondary">{t("settings.configTab.subagentsDescription")}</Text>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: token.marginMD,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <Text strong>{t("settings.configTab.subagentRuntime")}</Text>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                            {t("settings.configTab.subagentRuntimeHint")}
+                          </Text>
+                        </div>
+                      </div>
+                      <Select
+                        data-testid="subagent-runtime-select"
+                        style={{ minWidth: 220 }}
+                        value={config.subagents.runtime}
+                        onChange={handleSubagentRuntimeChange}
+                        options={[
+                          {
+                            label: t("settings.configTab.subagentRuntimeInProcess"),
+                            value: "in_process",
+                          },
+                          {
+                            label: t("settings.configTab.subagentRuntimeActor"),
+                            value: "actor",
+                          },
+                        ]}
+                      />
+                    </div>
+
+                    {config.subagents.runtime === "actor" && (
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: token.marginMD,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <Text strong>{t("settings.configTab.subagentMaxConcurrent")}</Text>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                              {t("settings.configTab.subagentMaxConcurrentHint")}
+                            </Text>
+                          </div>
+                        </div>
+                        <Input
+                          data-testid="subagent-max-concurrent"
+                          style={{ width: 120 }}
+                          inputMode="numeric"
+                          placeholder="8"
+                          value={config.subagents.max_concurrent?.toString() ?? ""}
+                          onChange={(e) => handleSubagentMaxConcurrentChange(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <Button
+                        data-testid="save-subagent-settings"
                         type="primary"
                         onClick={handleSaveConfig}
                         loading={isLoading}

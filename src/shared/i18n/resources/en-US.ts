@@ -728,6 +728,17 @@ export const enUsTranslation = {
         toolsTitle: "Tool Availability",
         toolsDescription:
           "Toggle whether each tool can be sent to the AI model. Disabled tools are hidden from model tool schemas.",
+        subagentsTitle: "Sub-agents",
+        subagentsDescription:
+          "How sub-agents (child agents spawned by the main agent) execute. Actor mode runs each one as an isolated OS process: crash isolation, true parallelism, and independent cancellation.",
+        subagentRuntime: "Runtime",
+        subagentRuntimeHint:
+          "Actor: isolated process per sub-agent (recommended). In-process: run inside the server (legacy).",
+        subagentRuntimeInProcess: "In-process (legacy)",
+        subagentRuntimeActor: "Actor process (isolated)",
+        subagentMaxConcurrent: "Max concurrent actors",
+        subagentMaxConcurrentHint:
+          "Upper bound on actor processes running at once; further spawns wait their turn. Empty = default (8).",
         memoryTitle: "Memory & Auto Dream",
         memoryDescription:
           "Manage Bamboo's memory layers: session memory for current-work continuity, long-term memory for durable knowledge, and Auto Dream for background Dream Notebook updates and durable memory extraction.",

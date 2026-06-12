@@ -711,6 +711,17 @@ export const zhCnTranslation = {
         toolsTitle: "工具可用性",
         toolsDescription:
           "控制每个工具是否可以发送给 AI 模型。关闭后，该工具不会出现在模型可用工具列表中。",
+        subagentsTitle: "子代理 (Sub-agents)",
+        subagentsDescription:
+          "主代理派生的子代理以何种形态执行。Actor 模式让每个子代理以独立的操作系统进程运行：崩溃隔离、真并行、可独立取消。",
+        subagentRuntime: "运行时",
+        subagentRuntimeHint:
+          "Actor：每个子代理一个隔离进程（推荐）。In-process：在服务进程内运行（旧行为）。",
+        subagentRuntimeInProcess: "进程内（旧行为）",
+        subagentRuntimeActor: "Actor 进程（隔离）",
+        subagentMaxConcurrent: "最大并发 Actor 数",
+        subagentMaxConcurrentHint:
+          "同时运行的 actor 进程上限，超出的派生请求排队等待。留空使用默认值（8）。",
         memoryTitle: "Memory 与 Auto Dream",
         memoryDescription:
           "管理 Bamboo 的记忆层：会话记忆用于当前工作连续性，长期记忆用于沉淀 durable knowledge，而 Auto Dream 负责在后台更新 Dream Notebook 并提取长期记忆候选项。",

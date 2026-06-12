@@ -17,6 +17,16 @@ export interface BambooMemoryConfig {
   auto_dream_enabled?: boolean;
 }
 
+/** Sub-agent execution settings (mirrors the backend's typed `subagents` section). */
+export interface BambooSubagentsConfig {
+  /** Where sub-agents run: isolated OS actor processes or inside the server. */
+  runtime?: "in_process" | "actor";
+  /** Max actor processes running at once (backend default: 8). */
+  max_concurrent?: number;
+  /** Per-role exceptions to `runtime`. */
+  overrides?: Record<string, "in_process" | "actor">;
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -27,6 +37,7 @@ export interface BambooConfig {
   tools?: BambooToolsConfig;
   skills?: BambooSkillsConfig;
   memory?: BambooMemoryConfig;
+  subagents?: BambooSubagentsConfig;
   [key: string]: unknown;
 }
 
