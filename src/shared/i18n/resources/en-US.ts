@@ -442,6 +442,9 @@ export const enUsTranslation = {
         summaryRunning: "{{count}} running",
         summaryPending: "{{count}} pending",
         summaryFailed: "{{count}} failed",
+        previewExpand: "Expand",
+        previewOpenSession: "Open session",
+        previewClose: "Close",
       },
       chatItem: {
         edit: "Edit",

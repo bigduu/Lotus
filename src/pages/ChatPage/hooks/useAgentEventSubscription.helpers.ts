@@ -58,7 +58,7 @@ export const isTaskItemStatus = (status: AgentEvent["status"]): status is TaskLi
 const TERMINAL_CHILD_STATUS = new Set(["completed", "error", "cancelled", "failed"]);
 export const CHILD_HEARTBEAT_MIN_INTERVAL_MS = 1_500;
 export const CHILD_PREVIEW_FLUSH_INTERVAL_MS = 120;
-export const CHILD_PREVIEW_MAX_CHARS = 2_000;
+export const CHILD_PREVIEW_MAX_CHARS = 8_000;
 
 export const getChildStatus = (
   parentSessionId: string,

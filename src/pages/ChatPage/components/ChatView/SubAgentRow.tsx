@@ -6,6 +6,7 @@ import type { SubagentProfile } from "@services/subagent/types";
 import { useChildPreviewState, getMergedChildPreview } from "../../streaming/useChildPreviewState";
 import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
 import InlineMetaText from "@shared/components/InlineMetaText";
+import { ChildPreviewPopover } from "./ChildPreviewPopover";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -208,19 +209,27 @@ export const SubAgentRow = memo<SubAgentRowProps>(
           )}
 
           {mergedOutputPreview ? (
-            <Text
-              type="secondary"
-              style={{
-                display: "block",
-                minWidth: 0,
-                marginTop: compact ? 4 : token.marginXS,
-                fontSize: compact ? 11 : 13,
-                lineHeight: compact ? 1.35 : undefined,
-              }}
-              ellipsis
+            <ChildPreviewPopover
+              parentSessionId={parentSessionId}
+              childSessionId={item.childSessionId}
+              childTitle={item.title}
+              status={status}
+              onOpenChild={onOpenChild}
             >
-              {mergedOutputPreview}
-            </Text>
+              <Text
+                type="secondary"
+                style={{
+                  display: "block",
+                  minWidth: 0,
+                  marginTop: compact ? 4 : token.marginXS,
+                  fontSize: compact ? 11 : 13,
+                  lineHeight: compact ? 1.35 : undefined,
+                }}
+                ellipsis
+              >
+                {mergedOutputPreview}
+              </Text>
+            </ChildPreviewPopover>
           ) : null}
 
           {item.error ? (

@@ -430,6 +430,9 @@ export const zhCnTranslation = {
         summaryRunning: "{{count}} 运行中",
         summaryPending: "{{count}} 等待中",
         summaryFailed: "{{count}} 失败",
+        previewExpand: "展开",
+        previewOpenSession: "进入会话",
+        previewClose: "关闭",
       },
       chatItem: {
         edit: "编辑",
