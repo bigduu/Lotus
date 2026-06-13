@@ -15,7 +15,9 @@ on:
         type: boolean
 
 permissions:
-  contents: read
+  # write: the publish records the released (date-based) version back to lotus main
+  # so the source version tracks each release instead of freezing.
+  contents: write
   id-token: write
 
 jobs:
@@ -106,3 +108,21 @@ jobs:
           exit ${STATUS}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Record the released version back to main
+        # The nightly only bumps the Zenith config and cannot push into this repo,
+        # so lotus's source version would otherwise drift. After a successful
+        # publish, commit the (date-based) release version here so the source tracks.
+        if: github.event.inputs.version != '' && github.event.inputs.version != 'latest'
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "Source version already ${VERSION}; nothing to commit."
+            exit 0
+          fi
+          git commit -m "chore: set version to ${VERSION} [release]"
+          git push origin HEAD:main
