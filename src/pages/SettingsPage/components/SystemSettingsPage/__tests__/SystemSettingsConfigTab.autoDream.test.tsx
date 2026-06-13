@@ -60,16 +60,14 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
     fireEvent.click(screen.getByTestId("save-memory-settings"));
 
     await waitFor(() => {
+      // The Memory save is a section-scoped patch (handleSaveConfig("memory")),
+      // so it carries only the memory block — not the network/proxy fields.
       expect(mockValidateBambooConfigPatch).toHaveBeenCalledWith({
-        http_proxy: "",
-        https_proxy: "",
         memory: {
           auto_dream_enabled: false,
         },
       });
       expect(mockSetBambooConfig).toHaveBeenCalledWith({
-        http_proxy: "",
-        https_proxy: "",
         memory: {
           auto_dream_enabled: false,
         },
