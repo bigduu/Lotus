@@ -133,6 +133,9 @@ export interface AgentEvent {
     success: boolean;
     result: string;
     display_preference?: string;
+    // Images returned by image-producing tools (e.g. an MCP `screenshot`),
+    // raw base64 + mime — surfaced for inline preview in the tool detail view.
+    images?: Array<{ mime_type: string; data: string }>;
   };
   error?: string;
   message?: string; // For Error events
@@ -386,6 +389,13 @@ export interface SessionSummary {
    * children created before subagent profiles were introduced.
    */
   subagent_type?: string | null;
+  /**
+   * Child lifecycle mirrored from `session.metadata["lifecycle"]`: `"resident"`
+   * for a reusable resident agent, else undefined (one-shot child).
+   */
+  lifecycle?: string | null;
+  /** For a resident agent, its stable reuse key (e.g. "essayist"). */
+  resident_name?: string | null;
   /** Whether the session currently has a pending question awaiting user response. */
   has_pending_question?: boolean;
   /** Number of child sessions currently running under this session. */

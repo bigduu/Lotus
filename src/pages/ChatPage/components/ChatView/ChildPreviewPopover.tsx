@@ -3,6 +3,7 @@ import { Button, Flex, Modal, Popover, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import { useChildPreviewState } from "../../streaming/useChildPreviewState";
+import { useChildLivePreview } from "../../streaming/useChildLivePreview";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -76,8 +77,13 @@ export const ChildPreviewPopover = ({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
-  const livePreviewState = useChildPreviewState(parentSessionId, childSessionId);
-  const preview = livePreviewState.outputPreview;
+  // Shared atom: fed by the parent stream while the parent turn is alive — used
+  // as the initial frame and a fallback before the dedicated stream connects.
+  const sharedPreviewState = useChildPreviewState(parentSessionId, childSessionId);
+  // Dedicated child stream: active only while the preview is open, decoupled
+  // from the parent SSE (which tears down when the parent turn completes).
+  const live = useChildLivePreview(parentSessionId, childSessionId, popoverOpen || modalOpen);
+  const preview = live.preview || sharedPreviewState.outputPreview;
 
   const statusTagColor =
     status === "running"

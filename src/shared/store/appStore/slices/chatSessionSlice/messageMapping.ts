@@ -109,6 +109,8 @@ export const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     lastRunError: s.last_run_error,
     planMode: s.plan_mode ?? null,
     subagentType: s.subagent_type ?? null,
+    lifecycle: s.lifecycle ?? null,
+    residentName: s.resident_name ?? null,
     title: s.title || i18n.t("chat.session.defaultTitle"),
     titleVersion: s.title_version ?? 0,
     createdAt: createdAtMs,

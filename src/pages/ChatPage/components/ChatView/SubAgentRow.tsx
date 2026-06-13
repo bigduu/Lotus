@@ -29,6 +29,10 @@ export interface SubAgentRowData {
   lastRunError?: string;
   subagentType?: string | null;
   roundCount?: number;
+  /** `"resident"` for a reusable resident agent, else one-shot. */
+  lifecycle?: string | null;
+  /** For a resident agent, its stable reuse key (e.g. "essayist"). */
+  residentName?: string | null;
 }
 
 export interface SubAgentRowProps {
@@ -86,6 +90,11 @@ export const SubAgentRow = memo<SubAgentRowProps>(
     const status = normalizeSubAgentStatus(item.status);
     const isRunning = status === "running";
     const isBusy = isRetrying || isContinuing || isDeleting;
+    // A child worth offering a hover-preview for: one that has run or is running
+    // (a brand-new pending child has nothing to show yet).
+    const canPreviewChild = ["running", "completed", "cancelled", "error", "failed"].includes(
+      status,
+    );
 
     const getStatusLabel = (value: string) =>
       value === "running"
@@ -132,7 +141,12 @@ export const SubAgentRow = memo<SubAgentRowProps>(
               ellipsis
               style={{ minWidth: 0, flex: "1 1 180px", fontSize: compact ? 13 : undefined }}
             >
-              {item.title || t("chat.subAgents.fallbackTitle")}
+              {/* A resident agent is a stable identity reused across tasks, so
+                  show its name (e.g. "essayist") rather than whichever task it
+                  happens to be running right now. */}
+              {(item.lifecycle === "resident" ? item.residentName : null) ||
+                item.title ||
+                t("chat.subAgents.fallbackTitle")}
             </Text>
             {compact ? (
               <InlineMetaText
@@ -140,6 +154,10 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                 items={[
                   <span style={{ color: getStatusColor(status) }}>{getStatusLabel(status)}</span>,
                   item.pinned ? t("chat.subAgents.pinned") : null,
+                  // Resident marker for compact mode (the purple badge only renders
+                  // in the non-compact branch, so without this a resident is
+                  // indistinguishable in compact view).
+                  item.lifecycle === "resident" ? t("chat.subAgents.residentBadge") : null,
                   renderSubagentTypeTag(item.subagentType, subagentProfilesById, {
                     compact: true,
                   }),
@@ -166,6 +184,11 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                 {item.pinned ? (
                   <Tag color="warning" style={compactItemTagStyle}>
                     {t("chat.subAgents.pinned")}
+                  </Tag>
+                ) : null}
+                {item.lifecycle === "resident" ? (
+                  <Tag color="purple" style={compactItemTagStyle}>
+                    {t("chat.subAgents.residentBadge")}
                   </Tag>
                 ) : null}
                 {renderSubagentTypeTag(item.subagentType, subagentProfilesById)}
@@ -228,6 +251,34 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                 ellipsis
               >
                 {mergedOutputPreview}
+              </Text>
+            </ChildPreviewPopover>
+          ) : canPreviewChild ? (
+            // No live preview tail (e.g. a completed child whose rolling preview
+            // was cleared) — still offer a hover affordance. The popover seeds
+            // from the child's transcript via its own event stream, so finished
+            // children stay previewable without opening their session.
+            <ChildPreviewPopover
+              parentSessionId={parentSessionId}
+              childSessionId={item.childSessionId}
+              childTitle={item.title}
+              status={status}
+              onOpenChild={onOpenChild}
+            >
+              <Text
+                type="secondary"
+                italic
+                style={{
+                  display: "block",
+                  minWidth: 0,
+                  marginTop: compact ? 4 : token.marginXS,
+                  fontSize: compact ? 11 : 12,
+                  lineHeight: compact ? 1.35 : undefined,
+                  opacity: 0.65,
+                  cursor: "pointer",
+                }}
+              >
+                {t("chat.subAgents.previewHint")}
               </Text>
             </ChildPreviewPopover>
           ) : null}

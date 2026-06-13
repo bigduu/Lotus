@@ -157,14 +157,14 @@ describe("SubAgentsPanel", () => {
     ];
   });
 
-  const setChildrenCount = (count: number) => {
+  const setChildrenCount = (count: number, status: string = "running") => {
     const childEntries = Array.from({ length: count }).map((_, i) => {
       const id = `child-session-${i + 1}`;
       return [
         id,
         {
           title: `Child Session ${i + 1}`,
-          status: "running",
+          status,
           outputPreview: "Working...",
         },
       ] as const;
@@ -247,13 +247,139 @@ describe("SubAgentsPanel", () => {
     expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Expand");
   });
 
-  it("auto-collapses when child sessions exceed threshold and no preference is saved", () => {
-    setChildrenCount(4);
+  it("keeps active children visible regardless of count (no blanket auto-collapse)", () => {
+    // 4 RUNNING children — previously auto-collapsed behind "N hidden", which
+    // hid the very work the panel exists to surface. They must stay visible.
+    setChildrenCount(4, "running");
 
     render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
 
-    expect(screen.queryByTestId("sub-agents-list")).not.toBeInTheDocument();
-    expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Expand");
+    expect(screen.getByTestId("sub-agents-list")).toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Collapse");
+    expect(screen.getByText("Child Session 1")).toBeInTheDocument();
+    expect(screen.getByText("Child Session 4")).toBeInTheDocument();
+  });
+
+  it("folds completed children behind a toggle when there are many", () => {
+    // 5 COMPLETED children, none active: they fold behind a "Completed (5)"
+    // toggle so a long history can't bury / overwhelm the panel.
+    setChildrenCount(5, "completed");
+
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    // Panel is expanded (not blanket-collapsed) and offers the completed toggle.
+    expect(screen.getByTestId("sub-agents-list")).toBeInTheDocument();
+    const toggle = screen.getByTestId("sub-agents-completed-toggle");
+    expect(toggle).toHaveTextContent("Completed (5)");
+    // Rows are hidden until the user expands the group.
+    expect(screen.queryByText("Child Session 1")).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+    expect(screen.getByText("Child Session 1")).toBeInTheDocument();
+    expect(screen.getByText("Child Session 5")).toBeInTheDocument();
+  });
+
+  it("shows a few completed children inline when nothing is active", () => {
+    setChildrenCount(2, "completed");
+
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    // Few enough to show without folding.
+    expect(screen.queryByTestId("sub-agents-completed-toggle")).not.toBeInTheDocument();
+    expect(screen.getByText("Child Session 1")).toBeInTheDocument();
+    expect(screen.getByText("Child Session 2")).toBeInTheDocument();
+  });
+
+  it("shows resident agents in a separate always-visible group with a badge", () => {
+    mockStoreState.executionBySession = {};
+    mockStoreState.chats = [
+      ...Array.from({ length: 4 }).map((_, i) => ({
+        id: `oneshot-${i + 1}`,
+        kind: "child",
+        parentSessionId: PARENT_SESSION_ID,
+        title: `OneShot ${i + 1}`,
+        lastRunStatus: "completed",
+        messageCount: 3,
+        updatedAt: "2026-03-12T00:00:00Z",
+        pinned: false,
+      })),
+      {
+        id: "resident-essayist",
+        kind: "child",
+        parentSessionId: PARENT_SESSION_ID,
+        title: "Essay: 溪流",
+        lifecycle: "resident",
+        residentName: "essayist",
+        lastRunStatus: "completed",
+        messageCount: 3,
+        updatedAt: "2026-03-12T00:00:00Z",
+        pinned: false,
+      },
+    ];
+
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    // Resident agent has its own always-visible group + badge, even though the
+    // four completed one-shots fold away. It shows its stable NAME ("essayist"),
+    // not the per-task title.
+    expect(screen.getByTestId("sub-agents-resident-label")).toHaveTextContent(
+      "Resident agents (1)",
+    );
+    expect(screen.getByText("essayist")).toBeInTheDocument();
+    expect(screen.queryByText("Essay: 溪流")).not.toBeInTheDocument();
+    expect(screen.getByText("Resident")).toBeInTheDocument();
+    expect(screen.getByTestId("sub-agents-completed-toggle")).toHaveTextContent("Completed (4)");
+    expect(screen.queryByText("OneShot 1")).not.toBeInTheDocument();
+  });
+
+  it("partitions resident + active + completed together (mixed case)", () => {
+    mockStoreState.executionBySession = {};
+    mockStoreState.chats = [
+      {
+        id: "resident-essayist",
+        kind: "child",
+        parentSessionId: PARENT_SESSION_ID,
+        title: "Essay task",
+        lifecycle: "resident",
+        residentName: "essayist",
+        isRunning: true,
+        updatedAt: "2026-03-12T00:00:03Z",
+        pinned: false,
+      },
+      ...Array.from({ length: 2 }).map((_, i) => ({
+        id: `running-${i + 1}`,
+        kind: "child",
+        parentSessionId: PARENT_SESSION_ID,
+        title: `Running ${i + 1}`,
+        isRunning: true,
+        updatedAt: "2026-03-12T00:00:02Z",
+        pinned: false,
+      })),
+      ...Array.from({ length: 4 }).map((_, i) => ({
+        id: `done-${i + 1}`,
+        kind: "child",
+        parentSessionId: PARENT_SESSION_ID,
+        title: `Done ${i + 1}`,
+        lastRunStatus: "completed",
+        messageCount: 3,
+        updatedAt: "2026-03-12T00:00:01Z",
+        pinned: false,
+      })),
+    ];
+
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    // Resident group (the running resident lives here, sorted to the top of it).
+    expect(screen.getByTestId("sub-agents-resident-label")).toHaveTextContent(
+      "Resident agents (1)",
+    );
+    expect(screen.getByText("essayist")).toBeInTheDocument();
+    // The two running one-shots are visible (active).
+    expect(screen.getByText("Running 1")).toBeInTheDocument();
+    expect(screen.getByText("Running 2")).toBeInTheDocument();
+    // The four completed fold behind the count even though work is active.
+    expect(screen.getByTestId("sub-agents-completed-toggle")).toHaveTextContent("Completed (4)");
+    expect(screen.queryByText("Done 1")).not.toBeInTheDocument();
   });
 
   it("respects persisted expanded preference even when child sessions exceed threshold", () => {

@@ -13,7 +13,10 @@ import { SubAgentRow, type SubAgentRetryMode, type SubAgentRowData } from "./Sub
 const { Text } = Typography;
 const { useToken } = theme;
 const SUB_AGENTS_COLLAPSE_STORAGE_KEY_PREFIX = "chat-session-sub-agents-collapsed:";
-const AUTO_COLLAPSE_CHILD_THRESHOLD = 3;
+// Completed children are shown inline only when there are few of them; beyond
+// this they fold behind a "Completed (N)" toggle so the panel stays focused on
+// active work. Active children are ALWAYS shown regardless of this.
+const COMPLETED_INLINE_MAX = 3;
 const SUB_AGENTS_LIST_MAX_HEIGHT_PX = 600;
 
 const normalizeSubAgentStatus = (status?: string): string => {
@@ -47,6 +50,26 @@ const deriveFallbackStatus = (
     return "pending";
   }
   return "pending";
+};
+
+const ACTIVE_SUB_AGENT_STATUSES = new Set(["running", "pending"]);
+
+const isActiveSubAgentStatus = (status?: string): boolean =>
+  ACTIVE_SUB_AGENT_STATUSES.has(normalizeSubAgentStatus(status));
+
+/** Running first, then pending; within a group most-recently-active first. */
+const compareActive = (a: MergedSubAgentItem, b: MergedSubAgentItem): number => {
+  const rank = (s?: string) => (normalizeSubAgentStatus(s) === "running" ? 0 : 1);
+  const byRank = rank(a.status) - rank(b.status);
+  if (byRank !== 0) return byRank;
+  const ts = (x: MergedSubAgentItem) => {
+    const n = Date.parse(x.lastEventAt || x.updatedAt || "");
+    return Number.isFinite(n) ? n : 0;
+  };
+  const byTime = ts(b) - ts(a);
+  if (byTime !== 0) return byTime;
+  // Stable tiebreak so equal/missing timestamps don't shuffle across renders.
+  return a.childSessionId.localeCompare(b.childSessionId);
 };
 
 const getSubAgentsCollapseStorageKey = (parentSessionId: string) =>
@@ -96,7 +119,9 @@ const areMergedItemsEqual = (a: MergedSubAgentItem, b: MergedSubAgentItem): bool
   a.lastRunStatus === b.lastRunStatus &&
   a.lastRunError === b.lastRunError &&
   a.subagentType === b.subagentType &&
-  a.roundCount === b.roundCount;
+  a.roundCount === b.roundCount &&
+  a.lifecycle === b.lifecycle &&
+  a.residentName === b.residentName;
 
 export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   parentSessionId,
@@ -111,6 +136,9 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   const [retryingChildId, setRetryingChildId] = useState<string | null>(null);
   const [continuingChildId, setContinuingChildId] = useState<string | null>(null);
   const [deletingChildId, setDeletingChildId] = useState<string | null>(null);
+  // Completed/cancelled/errored children are folded away by default so the panel
+  // stays focused on what is actively running — they expand on demand.
+  const [showCompleted, setShowCompleted] = useState<boolean>(false);
 
   const childrenById = useAppStore((s) => selectChildren(parentSessionId)(s));
   const chats = useAppStore((s) => s.chats);
@@ -167,6 +195,8 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         lastRunStatus: child.lastRunStatus,
         lastRunError: child.lastRunError,
         subagentType: child.subagentType ?? null,
+        lifecycle: child.lifecycle ?? null,
+        residentName: child.residentName ?? null,
       };
       const previous = previousById.get(child.id);
       out.push(previous && areMergedItemsEqual(previous, nextItem) ? previous : nextItem);
@@ -192,14 +222,34 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
     return out;
   }, [persistedChildren, progressItems]);
 
+  // Concentrate the panel: resident agents are stable, always-visible entries
+  // (one per reusable agent); the remaining one-shot children split into active
+  // (running/pending, front-and-center) and completed (folded behind a count).
+  const { residentItems, activeItems, completedItems } = useMemo(() => {
+    const resident: MergedSubAgentItem[] = [];
+    const active: MergedSubAgentItem[] = [];
+    const completed: MergedSubAgentItem[] = [];
+    for (const it of mergedItems) {
+      if (it.lifecycle === "resident") resident.push(it);
+      else if (isActiveSubAgentStatus(it.status)) active.push(it);
+      else completed.push(it);
+    }
+    resident.sort(compareActive);
+    active.sort(compareActive);
+    // Completed are all terminal (no "running"), so compareActive sorts them
+    // most-recently-active first with the same stable tiebreak — consistent
+    // ordering with the other groups (and deterministic across renders).
+    completed.sort(compareActive);
+    return { residentItems: resident, activeItems: active, completedItems: completed };
+  }, [mergedItems]);
+
+  // Only an explicit, persisted user preference collapses the whole panel. We no
+  // longer auto-collapse on child count: that hid actively-running children
+  // (the whole point of the panel) behind an "N hidden" line. Concentration is
+  // handled instead by folding only COMPLETED children below.
   useEffect(() => {
     setIsCollapsed(readCollapsedState(parentSessionId) ?? false);
   }, [parentSessionId]);
-
-  useEffect(() => {
-    if (readCollapsedState(parentSessionId) !== null) return;
-    setIsCollapsed(mergedItems.length > AUTO_COLLAPSE_CHILD_THRESHOLD);
-  }, [parentSessionId, mergedItems.length]);
 
   const toggleCollapsed = useCallback(() => {
     setIsCollapsed((prev) => {
@@ -435,7 +485,15 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
 
   const headerTitle = (
     <Text strong>
-      {t("chat.subAgents.title")} <Text type="secondary">({mergedItems.length})</Text>
+      {t("chat.subAgents.title")}{" "}
+      <Text type="secondary">
+        {activeItems.length > 0
+          ? t("chat.subAgents.headerCount", {
+              active: activeItems.length,
+              total: mergedItems.length,
+            })
+          : `(${mergedItems.length})`}
+      </Text>
     </Text>
   );
 
@@ -452,6 +510,32 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
     </Button>
   );
 
+  const renderRow = (it: MergedSubAgentItem, index: number) => (
+    <SubAgentRow
+      key={it.childSessionId}
+      parentSessionId={parentSessionId}
+      item={it}
+      index={index}
+      compact={compact}
+      isRetrying={retryingChildId === it.childSessionId}
+      isContinuing={continuingChildId === it.childSessionId}
+      isDeleting={deletingChildId === it.childSessionId}
+      subagentProfilesById={subagentProfilesById}
+      onOpenChild={handleOpenChild}
+      onContinueChild={handleContinueChild}
+      onRetryChild={handleRetryChild}
+      onTogglePin={handleTogglePin}
+      onDeleteChild={handleDeleteChild}
+    />
+  );
+
+  // Show completed inline when there are only a few; fold behind a count only
+  // when there are genuinely many. (Previously this also folded when ANY child
+  // was active, which hid even a single just-finished sibling behind a
+  // "Completed (1)" toggle — over-aggressive. Concentration is about volume,
+  // not the mere presence of active work.)
+  const completedInline = completedItems.length <= COMPLETED_INLINE_MAX;
+
   const listContent = !isCollapsed ? (
     <Flex
       vertical
@@ -466,24 +550,50 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         paddingRight: compact ? 0 : token.paddingXS,
       }}
     >
-      {mergedItems.map((it, index) => (
-        <SubAgentRow
-          key={it.childSessionId}
-          parentSessionId={parentSessionId}
-          item={it}
-          index={index}
-          compact={compact}
-          isRetrying={retryingChildId === it.childSessionId}
-          isContinuing={continuingChildId === it.childSessionId}
-          isDeleting={deletingChildId === it.childSessionId}
-          subagentProfilesById={subagentProfilesById}
-          onOpenChild={handleOpenChild}
-          onContinueChild={handleContinueChild}
-          onRetryChild={handleRetryChild}
-          onTogglePin={handleTogglePin}
-          onDeleteChild={handleDeleteChild}
-        />
-      ))}
+      {residentItems.length > 0 ? (
+        <>
+          <Text
+            type="secondary"
+            data-testid="sub-agents-resident-label"
+            style={{ fontSize: 12, opacity: 0.75 }}
+          >
+            {t("chat.subAgents.residentGroup", { count: residentItems.length })}
+          </Text>
+          {residentItems.map((it, index) => renderRow(it, index))}
+        </>
+      ) : null}
+
+      {activeItems.length > 0 ? (
+        activeItems.map((it, index) => renderRow(it, index))
+      ) : residentItems.length === 0 && completedItems.length > 0 && !completedInline ? (
+        <Text type="secondary" data-testid="sub-agents-no-active">
+          {t("chat.subAgents.noActive")}
+        </Text>
+      ) : null}
+
+      {completedItems.length > 0 ? (
+        completedInline ? (
+          completedItems.map((it, index) => renderRow(it, index))
+        ) : (
+          <>
+            <Button
+              type="text"
+              size="small"
+              data-testid="sub-agents-completed-toggle"
+              icon={showCompleted ? <UpOutlined /> : <DownOutlined />}
+              onClick={() => setShowCompleted((prev) => !prev)}
+              style={{
+                alignSelf: "flex-start",
+                paddingInline: 4,
+                color: token.colorTextSecondary,
+              }}
+            >
+              {t("chat.subAgents.completedGroup", { count: completedItems.length })}
+            </Button>
+            {showCompleted ? completedItems.map((it, index) => renderRow(it, index)) : null}
+          </>
+        )
+      ) : null}
     </Flex>
   ) : (
     <Text type="secondary" data-testid="sub-agents-collapsed-hint">

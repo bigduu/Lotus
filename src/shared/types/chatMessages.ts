@@ -204,6 +204,15 @@ export interface ChatItem {
    * legacy children created before subagent profiles were introduced.
    */
   subagentType?: string | null;
+  /**
+   * Child lifecycle, mirrored from `session.metadata["lifecycle"]`:
+   * `"resident"` for a reusable resident agent (one stable agent reused for
+   * successive tasks), else undefined (one-shot). Lets the Sub-agents panel
+   * group residents separately from throwaway children.
+   */
+  lifecycle?: string | null;
+  /** For a resident agent, its stable reuse key (e.g. "essayist"). */
+  residentName?: string | null;
   title: string;
   /**
    * Monotonic title version mirrored from the backend `SessionSummary.title_version`.
