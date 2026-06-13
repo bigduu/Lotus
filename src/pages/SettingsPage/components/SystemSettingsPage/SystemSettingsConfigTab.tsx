@@ -28,7 +28,6 @@ interface ConfigFormState extends BambooConfig {
     auto_dream_enabled: boolean;
   };
   subagents: {
-    runtime: "in_process" | "actor";
     max_concurrent?: number;
   };
 }
@@ -75,9 +74,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     memory: {
       auto_dream_enabled: false,
     },
-    subagents: {
-      runtime: "in_process",
-    },
+    subagents: {},
   });
   const [backendBaseUrl, setBackendBaseUrl] = useState(DEFAULT_BACKEND_BASE_URL);
   const [availableTools, setAvailableTools] = useState<string[]>([]);
@@ -101,7 +98,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           auto_dream_enabled: bambooConfig.memory?.auto_dream_enabled ?? false,
         },
         subagents: {
-          runtime: bambooConfig.subagents?.runtime === "actor" ? "actor" : "in_process",
           max_concurrent: bambooConfig.subagents?.max_concurrent,
         },
       });
@@ -140,16 +136,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     }));
   };
 
-  const handleSubagentRuntimeChange = (runtime: "in_process" | "actor") => {
-    setConfig((prev) => ({
-      ...prev,
-      subagents: {
-        ...prev.subagents,
-        runtime,
-      },
-    }));
-  };
-
   const handleSubagentMaxConcurrentChange = (value: number | null) => {
     setConfig((prev) => ({
       ...prev,
@@ -176,7 +162,6 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       } else {
         patch = {
           subagents: {
-            runtime: config.subagents.runtime,
             max_concurrent: config.subagents.max_concurrent,
           },
         };
@@ -386,65 +371,28 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                       }}
                     >
                       <div>
-                        <Text strong>{t("settings.configTab.subagentRuntime")}</Text>
+                        <Text strong>{t("settings.configTab.subagentMaxConcurrent")}</Text>
                         <div>
                           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                            {t("settings.configTab.subagentRuntimeHint")}
+                            {t("settings.configTab.subagentMaxConcurrentHint")}
                           </Text>
                         </div>
                       </div>
-                      <Select
-                        data-testid="subagent-runtime-select"
-                        style={{ minWidth: 220 }}
-                        value={config.subagents.runtime}
-                        onChange={handleSubagentRuntimeChange}
-                        options={[
-                          {
-                            label: t("settings.configTab.subagentRuntimeInProcess"),
-                            value: "in_process",
-                          },
-                          {
-                            label: t("settings.configTab.subagentRuntimeActor"),
-                            value: "actor",
-                          },
-                        ]}
+                      <InputNumber
+                        data-testid="subagent-max-concurrent"
+                        style={{ width: 120 }}
+                        min={1}
+                        step={1}
+                        precision={0}
+                        placeholder="8"
+                        value={config.subagents.max_concurrent ?? null}
+                        onChange={(value) =>
+                          handleSubagentMaxConcurrentChange(
+                            typeof value === "number" ? value : null,
+                          )
+                        }
                       />
                     </div>
-
-                    {config.subagents.runtime === "actor" && (
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: token.marginMD,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <div>
-                          <Text strong>{t("settings.configTab.subagentMaxConcurrent")}</Text>
-                          <div>
-                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                              {t("settings.configTab.subagentMaxConcurrentHint")}
-                            </Text>
-                          </div>
-                        </div>
-                        <InputNumber
-                          data-testid="subagent-max-concurrent"
-                          style={{ width: 120 }}
-                          min={1}
-                          step={1}
-                          precision={0}
-                          placeholder="8"
-                          value={config.subagents.max_concurrent ?? null}
-                          onChange={(value) =>
-                            handleSubagentMaxConcurrentChange(
-                              typeof value === "number" ? value : null,
-                            )
-                          }
-                        />
-                      </div>
-                    )}
 
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <Button
