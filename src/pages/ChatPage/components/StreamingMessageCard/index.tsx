@@ -217,7 +217,7 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
         style={{
           width: "100%",
           borderCollapse: "collapse",
-          border: "1px solid var(--ant-color-border, #d9d9d9)",
+          border: `1px solid ${token.colorBorder}`,
         }}
       >
         {children}
@@ -226,13 +226,15 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
   ),
 
   thead: ({ children }) => (
-    <thead style={{ backgroundColor: "var(--ant-color-bg-container, #ffffff)" }}>{children}</thead>
+    <thead style={{ backgroundColor: token.colorFillTertiary, color: token.colorText }}>
+      {children}
+    </thead>
   ),
 
   tbody: ({ children }) => <tbody>{children}</tbody>,
 
   tr: ({ children }) => (
-    <tr style={{ borderBottom: "1px solid var(--ant-color-border, #d9d9d9)" }}>{children}</tr>
+    <tr style={{ borderBottom: `1px solid ${token.colorBorderSecondary}` }}>{children}</tr>
   ),
 
   th: ({ children }) => (
@@ -241,7 +243,8 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
         padding: "4px 8px",
         textAlign: "left",
         fontWeight: "bold",
-        borderRight: "1px solid var(--ant-color-border, #d9d9d9)",
+        color: token.colorText,
+        borderRight: `1px solid ${token.colorBorder}`,
       }}
     >
       {children}
@@ -252,7 +255,7 @@ const createStreamingMarkdownComponents = (token: GlobalToken): Components => ({
     <td
       style={{
         padding: "4px 8px",
-        borderRight: "1px solid var(--ant-color-border, #d9d9d9)",
+        borderRight: `1px solid ${token.colorBorder}`,
       }}
     >
       {children}

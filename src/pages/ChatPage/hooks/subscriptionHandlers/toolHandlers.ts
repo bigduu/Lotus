@@ -6,7 +6,7 @@ import {
   appendToolStreamingChunk,
   setToolStreamingStatus,
 } from "../../streaming/toolStreamingAtoms";
-import type { Message } from "@shared/types/chatMessages";
+import type { Message, MessageImage } from "@shared/types/chatMessages";
 import { sendDesktopNotification } from "@services/notification/desktopNotification";
 import i18n from "@shared/i18n";
 import { isMemoryStatusTool } from "../useAgentEventSubscription.helpers";
@@ -176,6 +176,20 @@ export function createToolHandlers(run: RunContext): Partial<AgentEventHandlers>
       const displayPreference =
         (result?.display_preference as "Default" | "Collapsible" | "Hidden") || "Default";
 
+      // Images returned by an image-producing tool (e.g. an MCP `screenshot`)
+      // arrive as raw base64 + mime on the live event; turn them into data-URL
+      // MessageImages so the tool detail view can preview them inline — matching
+      // the persisted path in messageMapping.ts.
+      const images: MessageImage[] = (result?.images ?? [])
+        .filter((img) => img?.data)
+        .map((img) => ({
+          id: crypto.randomUUID(),
+          url: `data:${img.mime_type || "image/png"};base64,${img.data}`,
+          name: "screenshot",
+          size: 0,
+          type: img.mime_type || "image/*",
+        }));
+
       void addMessage(sessionId, {
         id: crypto.randomUUID(),
         role: "assistant",
@@ -189,6 +203,7 @@ export function createToolHandlers(run: RunContext): Partial<AgentEventHandlers>
         },
         isError: !result?.success,
         createdAt: new Date().toISOString(),
+        ...(images.length ? { images } : {}),
       });
     },
 

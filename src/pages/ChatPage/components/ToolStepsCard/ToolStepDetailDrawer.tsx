@@ -357,6 +357,28 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
       label: t("components.toolSteps.result"),
       children: (
         <div className="lotus-tool-step-drawer-pane">
+          {result?.images && result.images.length > 0 ? (
+            <div style={{ flexShrink: 0, marginBottom: token.marginSM }}>
+              <Image.PreviewGroup>
+                <Space size={token.marginXS} wrap>
+                  {result.images.map((img) => (
+                    <Image
+                      key={img.id}
+                      src={img.url}
+                      alt={img.name}
+                      style={{
+                        maxHeight: 480,
+                        maxWidth: "100%",
+                        objectFit: "contain",
+                        borderRadius: token.borderRadius,
+                        border: `1px solid ${token.colorBorderSecondary}`,
+                      }}
+                    />
+                  ))}
+                </Space>
+              </Image.PreviewGroup>
+            </div>
+          ) : null}
           <FormattedContentPreview
             value={resultContent}
             mode="auto"
