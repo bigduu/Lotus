@@ -30,16 +30,16 @@ jobs:
       NPM_CONFIG_PROGRESS: "false"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Checkout Bamboo backend
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: bigduu/Bamboo-agent
           path: bamboo-backend
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -52,7 +52,7 @@ jobs:
 
       - name: Cache frontend node_modules
         id: cache-node-modules-frontend
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules
           key: ${{ runner.os }}-node-modules-${{ hashFiles('package-lock.json') }}
@@ -66,7 +66,7 @@ jobs:
 
       - name: Cache E2E node_modules
         id: cache-node-modules-e2e
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: e2e/node_modules
           key: ${{ runner.os }}-e2e-node-modules-${{ hashFiles('e2e/package-lock.json') }}
@@ -77,7 +77,7 @@ jobs:
 
       - name: Cache Playwright browsers
         id: cache-playwright
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
@@ -118,7 +118,7 @@ jobs:
 
       - name: Upload Playwright report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-browser
           path: e2e/playwright-report/
