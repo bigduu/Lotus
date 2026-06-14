@@ -5,6 +5,7 @@ import { App as AntdApp } from "antd";
 import { ChatSidebar } from "../ChatSidebar";
 import { useAppStore } from "@shared/store/appStore";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
+import { APP_VERSION } from "@shared/constants/appVersion";
 
 vi.mock("antd", async () => {
   const actual = await vi.importActual<typeof import("antd")>("antd");
@@ -141,6 +142,9 @@ describe("ChatSidebar", () => {
       </AntdApp>,
     );
 
-    expect(await screen.findByTestId("app-version-badge")).toHaveTextContent(/v?\d{4}\.\d+\.\d+/);
+    // Assert the footer renders the running version (whatever it is — `0.0.0`
+    // placeholder locally / in CI, real date version at publish). The "must be
+    // a real version" check is the publish refuse-0.0.0 guard's job.
+    expect(await screen.findByTestId("app-version-badge")).toHaveTextContent(`v${APP_VERSION}`);
   });
 });
