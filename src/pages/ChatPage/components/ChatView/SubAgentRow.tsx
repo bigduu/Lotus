@@ -23,6 +23,12 @@ export interface SubAgentRowData {
   outputPreview?: string;
   pinned?: boolean;
   updatedAt?: string;
+  /**
+   * Creation timestamp (ms epoch) from the backend session. Used for stable
+   * sorting — unlike `updatedAt`/`lastEventAt`, it never changes as content
+   * updates, so the sub-agent list order stays fixed once a child is created.
+   */
+  createdAt?: number;
   isRunning?: boolean;
   messageCount?: number;
   lastRunStatus?: string;

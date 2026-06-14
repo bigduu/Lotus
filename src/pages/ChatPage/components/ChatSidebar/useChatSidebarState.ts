@@ -331,9 +331,9 @@ export const useChatSidebarState = () => {
     Object.keys(map).forEach((rootId) => {
       map[rootId].sort((a, b) => {
         if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-        const aTime = Date.parse(a.updatedAt || "") || a.createdAt || 0;
-        const bTime = Date.parse(b.updatedAt || "") || b.createdAt || 0;
-        return bTime - aTime;
+        // Sort by creation time (stable) instead of updatedAt which changes
+        // on every content update and causes constant reshuffling.
+        return (b.createdAt ?? 0) - (a.createdAt ?? 0);
       });
     });
     return map;

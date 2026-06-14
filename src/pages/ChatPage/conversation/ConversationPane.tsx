@@ -636,7 +636,10 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
           selectableMessageIds={selectableMessageIds}
           onToggleMessageSelection={handleToggleMessageSelection}
         />
-        <div className="chat-bottom-stack" data-testid="chat-bottom-stack">
+        <div
+          className={`chat-bottom-stack ${showMessagesView ? "" : "is-empty-centered"}`}
+          data-testid="chat-bottom-stack"
+        >
           <ScrollCapsule
             visible={showMessagesView}
             showScrollToTop={showScrollToTop}

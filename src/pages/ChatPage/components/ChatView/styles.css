@@ -49,13 +49,38 @@
 }
 
 .chat-view-input-container-wrapper.centered-view {
-  position: absolute;
-  /* Center the input area more in "empty" chat view to avoid a large unused region. */
-  top: 55%;
-  left: 0;
-  transform: translateY(-50%);
+  /* Normal flow inside the centered chat-bottom-stack (see .is-empty-centered).
+     Was position:absolute + top:55% + translateY(-50%), which sized against a
+     collapsed containing block (.chat-bottom-stack) and clipped the launcher's
+     top whenever its content was taller than the pane. */
+  position: static;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  min-height: 0;
+  max-height: 100%;
   opacity: 1;
-  z-index: 10;
+}
+
+/* Launcher + composer block: never taller than the pane, so centering never
+   pushes its top out of view. */
+.chat-view-input-container-wrapper.centered-view > div {
+  min-height: 0;
+  max-height: 100%;
+}
+
+/* Launcher takes the room above the composer and scrolls internally, so its top
+   (header, search, first category) is always reachable. It was capped to
+   calc(100vh - 240px) — taller than the (shorter) pane — which clipped the top. */
+.chat-view-input-container-wrapper.centered-view > div > .lotus-empty-task-launcher {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+/* Keep the composer fully visible below the scrolling launcher. */
+.chat-view-input-container-wrapper.centered-view > div > :last-child {
+  flex-shrink: 0;
 }
 
 .chat-view-input-container-wrapper.messages-view {
@@ -230,6 +255,20 @@
 .chat-bottom-stack {
   position: relative;
   width: 100%;
+}
+
+/* Empty/centered chat view: fill the pane below the meta strip and vertically
+   center the launcher + composer in normal flow. This gives the launcher a real,
+   pane-bounded height to scroll within, instead of the old absolutely-positioned
+   wrapper whose top overflowed (and was clipped) above the pane. */
+.chat-bottom-stack.is-empty-centered {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
 }
 
 .chat-scroll-capsule-wrapper {

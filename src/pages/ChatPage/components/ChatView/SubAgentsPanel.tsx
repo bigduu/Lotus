@@ -57,18 +57,15 @@ const ACTIVE_SUB_AGENT_STATUSES = new Set(["running", "pending"]);
 const isActiveSubAgentStatus = (status?: string): boolean =>
   ACTIVE_SUB_AGENT_STATUSES.has(normalizeSubAgentStatus(status));
 
-/** Running first, then pending; within a group most-recently-active first. */
-const compareActive = (a: MergedSubAgentItem, b: MergedSubAgentItem): number => {
-  const rank = (s?: string) => (normalizeSubAgentStatus(s) === "running" ? 0 : 1);
-  const byRank = rank(a.status) - rank(b.status);
-  if (byRank !== 0) return byRank;
-  const ts = (x: MergedSubAgentItem) => {
-    const n = Date.parse(x.lastEventAt || x.updatedAt || "");
-    return Number.isFinite(n) ? n : 0;
-  };
-  const byTime = ts(b) - ts(a);
+/**
+ * Sort by creation time descending (newest first). Unlike `lastEventAt` /
+ * `updatedAt`, `createdAt` never changes as a child updates its content, so
+ * the sub-agent list order stays stable instead of reshuffling on every
+ * progress event. Stable tiebreak on `childSessionId` for deterministic order.
+ */
+const compareByCreatedAt = (a: MergedSubAgentItem, b: MergedSubAgentItem): number => {
+  const byTime = (b.createdAt ?? 0) - (a.createdAt ?? 0);
   if (byTime !== 0) return byTime;
-  // Stable tiebreak so equal/missing timestamps don't shuffle across renders.
   return a.childSessionId.localeCompare(b.childSessionId);
 };
 
@@ -114,6 +111,7 @@ const areMergedItemsEqual = (a: MergedSubAgentItem, b: MergedSubAgentItem): bool
   a.outputPreview === b.outputPreview &&
   a.pinned === b.pinned &&
   a.updatedAt === b.updatedAt &&
+  a.createdAt === b.createdAt &&
   a.isRunning === b.isRunning &&
   a.messageCount === b.messageCount &&
   a.lastRunStatus === b.lastRunStatus &&
@@ -165,11 +163,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   const persistedChildren = useMemo(() => {
     return chats
       .filter((c) => c.kind === "child" && c.parentSessionId === parentSessionId)
-      .sort((a, b) => {
-        const aTime = Date.parse(a.updatedAt || "") || 0;
-        const bTime = Date.parse(b.updatedAt || "") || 0;
-        return bTime - aTime;
-      });
+      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
   }, [chats, parentSessionId]);
 
   const mergedItems = useMemo(() => {
@@ -190,6 +184,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         roundCount: p?.roundCount,
         pinned: child.pinned,
         updatedAt: child.updatedAt,
+        createdAt: child.createdAt,
         isRunning: child.isRunning,
         messageCount: child.messageCount,
         lastRunStatus: child.lastRunStatus,
@@ -213,6 +208,9 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         lastEventAt: p.lastEventAt,
         outputPreview: p.outputPreview,
         roundCount: p.roundCount,
+        // Progress-only children haven't been persisted yet — treat them as
+        // just-created so they appear at the top (newest first).
+        createdAt: Date.now(),
       };
       const previous = previousById.get(p.childSessionId);
       out.push(previous && areMergedItemsEqual(previous, nextItem) ? previous : nextItem);
@@ -234,12 +232,9 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
       else if (isActiveSubAgentStatus(it.status)) active.push(it);
       else completed.push(it);
     }
-    resident.sort(compareActive);
-    active.sort(compareActive);
-    // Completed are all terminal (no "running"), so compareActive sorts them
-    // most-recently-active first with the same stable tiebreak — consistent
-    // ordering with the other groups (and deterministic across renders).
-    completed.sort(compareActive);
+    resident.sort(compareByCreatedAt);
+    active.sort(compareByCreatedAt);
+    completed.sort(compareByCreatedAt);
     return { residentItems: resident, activeItems: active, completedItems: completed };
   }, [mergedItems]);
 
