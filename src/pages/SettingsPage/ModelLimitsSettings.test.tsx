@@ -35,9 +35,9 @@ const GLOBAL_DEFAULT_RESPONSE = {
     {
       vendor: "",
       model_pattern: "default",
-      max_context_tokens: 200000,
+      max_context_tokens: 1000000,
       max_output_tokens: 64000,
-      safety_margin: 2000,
+      safety_margin: 10000,
       note: "",
     },
   ],
@@ -71,8 +71,8 @@ describe("ModelLimitsSettings", () => {
 
     expect(await screen.findByText("gpt-4o")).toBeInTheDocument();
 
-    // The context cell shows the global default (200000) and is read-only until customized.
-    const contextInput = await screen.findByDisplayValue("200000");
+    // The context cell shows the global default (1000000) and is read-only until customized.
+    const contextInput = await screen.findByDisplayValue("1000000");
     expect(contextInput).toBeDisabled();
     expect(screen.getByText("Default · unchanged")).toBeInTheDocument();
   });
@@ -100,7 +100,7 @@ describe("ModelLimitsSettings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /customize/i }));
 
-    const contextInput = await screen.findByDisplayValue("200000");
+    const contextInput = await screen.findByDisplayValue("1000000");
     expect(contextInput).toBeEnabled();
     fireEvent.change(contextInput, { target: { value: "128000" } });
     fireEvent.blur(contextInput);
@@ -139,7 +139,7 @@ describe("ModelLimitsSettings", () => {
     });
 
     // The row reverts to the global default and becomes read-only again.
-    const contextInput = await screen.findByDisplayValue("200000");
+    const contextInput = await screen.findByDisplayValue("1000000");
     expect(contextInput).toBeDisabled();
   });
 

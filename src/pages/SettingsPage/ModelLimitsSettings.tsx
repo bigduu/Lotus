@@ -35,9 +35,9 @@ interface GlobalDefault {
 }
 
 const FALLBACK_DEFAULT: GlobalDefault = {
-  max_context_tokens: 200_000,
+  max_context_tokens: 1_000_000,
   max_output_tokens: 64_000,
-  safety_margin: 2_000,
+  safety_margin: 10_000,
 };
 
 /** A persisted user override (source = user) sent to the backend on save. */
