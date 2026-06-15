@@ -276,6 +276,17 @@ export const parseInteractiveQuestionToolResultPayload = (
   };
 };
 
+/**
+ * Returns true when a tool result is a permission-approval prompt synthesized by
+ * the backend permission gate (`status === "awaiting_permission_approval"`). Such
+ * results should render as an interactive Approve/Deny question regardless of
+ * which tool was gated (e.g. a gated `Bash` call), not as raw JSON.
+ */
+export const isPermissionApprovalResult = (content: string): boolean => {
+  const parsed = parseJsonRecord(content);
+  return normalizeOptionalText(parsed?.status) === "awaiting_permission_approval";
+};
+
 export const formatConclusionWithOptionsConclusionAsMarkdown = (
   conclusion: ConclusionWithOptionsConclusionPayload | undefined,
 ): string | null => {

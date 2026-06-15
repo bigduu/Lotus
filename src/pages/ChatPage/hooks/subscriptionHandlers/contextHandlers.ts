@@ -5,7 +5,6 @@ import type {
 } from "@services/chat/AgentService";
 import { useAppStore } from "@shared/store/appStore";
 import { mapTokenBudgetUsage } from "@shared/types/tokenBudget";
-import { sendDesktopNotification } from "@services/notification/desktopNotification";
 import i18n from "@shared/i18n";
 import type { RunContext } from "../subscriptionContext";
 
@@ -66,14 +65,10 @@ export function createContextHandlers(run: RunContext): Partial<AgentEventHandle
     },
 
     onContextPressureNotification: (_percent, level, msg) => {
+      // In-app toast stays here; the desktop notification (when warranted) is
+      // delivered by the backend via the `notification` event.
       if (level === "critical") {
         message.error(msg, 6);
-        void sendDesktopNotification({
-          title: i18n.t("app.notifications.contextPressure.title"),
-          body: msg,
-          sessionId,
-          eventType: "context_pressure",
-        });
       } else {
         message.warning(msg, 5);
       }

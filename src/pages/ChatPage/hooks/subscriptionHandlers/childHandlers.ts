@@ -5,8 +5,6 @@ import {
   getChildPreviewState,
   setChildPreviewState,
 } from "../../streaming/childPreviewAtoms";
-import { sendDesktopNotification } from "@services/notification/desktopNotification";
-import i18n from "@shared/i18n";
 import {
   compactEvaluationReasoning,
   getChildStatus,
@@ -204,22 +202,8 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
         error,
         lastEventAt: new Date().toISOString(),
       });
-
-      // Notify when a background sub-agent completes successfully
-      if (status === "completed") {
-        const child = selectChildren(parentSessionId)(useAppStore.getState())?.[childSessionId];
-        void sendDesktopNotification({
-          title: i18n.t("app.notifications.backgroundTask.completedTitle"),
-          body: child?.title
-            ? i18n.t("app.notifications.backgroundTask.completedBody", {
-                title: child.title,
-              })
-            : i18n.t("app.notifications.backgroundTask.completedFallback"),
-          sessionId: parentSessionId,
-          eventType: "subagent_completed",
-          eventId: childSessionId,
-        });
-      }
+      // Desktop notification on sub-agent completion is delivered by the backend
+      // via the `notification` event (see agentSubscriptionRunner.onNotification).
 
       // If parent already completed and no more background children, wait briefly
       // for any backend auto-resume/root-resume handoff before tearing down the stream.

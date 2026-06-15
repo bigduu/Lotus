@@ -1,112 +1,13 @@
 /**
  * Desktop notification service for Tauri environment.
  *
- * Sends OS-level notifications via Bodhi Rust backend when the app is in
- * the background and user action is required. Silently skips when running
- * in browser mode.
+ * Sends OS-level notifications via the Bodhi Rust backend. The decision of
+ * *whether* to notify — category, priority, preference gating, and dedup — is
+ * made server-side in `bamboo-notification` and delivered as a single
+ * `notification` SSE event. The frontend only applies the local window-focus
+ * check before showing the OS notification. Silently skips in browser mode.
  */
 import { isTauriEnvironment } from "../../utils/environment";
-
-export interface DesktopNotificationOptions {
-  /** Notification title */
-  title: string;
-  /** Notification body text */
-  body: string;
-  /** Session identifier for deduplication */
-  sessionId?: string;
-  /** Event type for deduplication */
-  eventType: string;
-  /** Optional unique identifier within the event type (e.g. toolCallId) */
-  eventId?: string;
-}
-
-// ── Preferences ────────────────────────────────────────────────────────
-
-const NOTIFICATION_PREFS_KEY = "bodhi_notification_prefs";
-
-export interface NotificationPreferences {
-  /** Master switch for all desktop notifications */
-  enabled: boolean;
-  /** Notify when agent needs clarification */
-  onClarification: boolean;
-  /** Notify when a mutating tool needs approval */
-  onToolApproval: boolean;
-  /** Notify on critical context pressure */
-  onContextPressure: boolean;
-  /** Notify when a background sub-agent completes */
-  onSubAgentComplete: boolean;
-}
-
-const DEFAULT_PREFS: NotificationPreferences = {
-  enabled: true,
-  onClarification: true,
-  onToolApproval: true,
-  onContextPressure: true,
-  onSubAgentComplete: false,
-};
-
-export function getNotificationPreferences(): NotificationPreferences {
-  if (typeof localStorage === "undefined") return DEFAULT_PREFS;
-  try {
-    const raw = localStorage.getItem(NOTIFICATION_PREFS_KEY);
-    if (!raw) return DEFAULT_PREFS;
-    const parsed = JSON.parse(raw) as Partial<NotificationPreferences>;
-    return { ...DEFAULT_PREFS, ...parsed };
-  } catch {
-    return DEFAULT_PREFS;
-  }
-}
-
-export function setNotificationPreferences(prefs: Partial<NotificationPreferences>): void {
-  if (typeof localStorage === "undefined") return;
-  const current = getNotificationPreferences();
-  const next = { ...current, ...prefs };
-  localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(next));
-}
-
-function isNotificationEnabledForEventType(eventType: string): boolean {
-  const prefs = getNotificationPreferences();
-  if (!prefs.enabled) return false;
-
-  switch (eventType) {
-    case "clarification":
-      return prefs.onClarification;
-    case "tool_approval":
-      return prefs.onToolApproval;
-    case "context_pressure":
-      return prefs.onContextPressure;
-    case "subagent_completed":
-      return prefs.onSubAgentComplete;
-    default:
-      return true;
-  }
-}
-
-// ── Dedup ──────────────────────────────────────────────────────────────
-
-const sentNotifications = new Set<string>();
-const NOTIFICATION_DEDUP_WINDOW_MS = 30_000;
-
-export function buildDedupKey(options: DesktopNotificationOptions): string {
-  const parts = [options.sessionId ?? "global", options.eventType];
-  if (options.eventId) {
-    parts.push(options.eventId);
-  }
-  return parts.join("::");
-}
-
-function scheduleDedupCleanup(key: string): void {
-  setTimeout(() => {
-    sentNotifications.delete(key);
-  }, NOTIFICATION_DEDUP_WINDOW_MS);
-}
-
-// ── Public API ─────────────────────────────────────────────────────────
-
-export function isAppInBackground(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.hidden;
-}
 
 /**
  * Check if the Tauri main window is focused via Rust backend.
@@ -162,7 +63,22 @@ export async function sendTestNotification(
   }
 }
 
-export async function sendDesktopNotification(options: DesktopNotificationOptions): Promise<void> {
+export function isAppInBackground(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.hidden;
+}
+
+/**
+ * Show an OS desktop notification for a backend-delivered notification event.
+ *
+ * This is the *only* client-side gate: the backend has already classified the
+ * event, applied user preferences, and deduplicated within its window, so we
+ * just render it unless the main window is currently focused (presence check).
+ */
+export async function fireDesktopNotification(input: {
+  title: string;
+  body: string;
+}): Promise<void> {
   if (!isTauriEnvironment()) {
     return;
   }
@@ -172,25 +88,9 @@ export async function sendDesktopNotification(options: DesktopNotificationOption
     return;
   }
 
-  if (!isNotificationEnabledForEventType(options.eventType)) {
-    return;
-  }
-
-  const dedupKey = buildDedupKey(options);
-  if (sentNotifications.has(dedupKey)) {
-    return;
-  }
-
   try {
-    await invokeShowNotification(options.title, options.body);
-
-    sentNotifications.add(dedupKey);
-    scheduleDedupCleanup(dedupKey);
+    await invokeShowNotification(input.title, input.body);
   } catch {
     // Silently skip if backend is unavailable
   }
-}
-
-export function clearNotificationDedupCache(): void {
-  sentNotifications.clear();
 }

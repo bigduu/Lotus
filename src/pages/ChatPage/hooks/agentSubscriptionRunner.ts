@@ -10,8 +10,8 @@ import {
   formatCompletionPolicyViolationMessage,
   isCompletionPolicyViolationError,
 } from "@shared/utils/completionPolicyViolation";
-import { sendDesktopNotification } from "@services/notification/desktopNotification";
-import i18n from "@shared/i18n";
+import { fireDesktopNotification } from "@services/notification/desktopNotification";
+import { notificationTitleForCategory } from "./subscriptionHandlers/notificationCopy";
 import { debugLog } from "@shared/utils/debugFlags";
 import { debugSse, isAbortError } from "./useAgentEventSubscription.helpers";
 import {
@@ -582,17 +582,17 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
             allowCustom: event.allow_custom ?? true,
             toolCallId: event.tool_call_id ?? null,
           });
+          // Desktop notification (if any) is delivered by the backend via the
+          // `notification` event handled in onNotification below.
+        },
 
-          // Notify user when a clarification is needed while app is in background
-          const questionText = event.question || "";
-          const truncatedQuestion =
-            questionText.length > 80 ? `${questionText.slice(0, 80)}...` : questionText;
-          void sendDesktopNotification({
-            title: i18n.t("app.notifications.clarification.title"),
-            body: truncatedQuestion || i18n.t("app.notifications.clarification.fallbackBody"),
-            sessionId: targetSessionId,
-            eventType: "clarification",
-            eventId: event.tool_call_id ?? undefined,
+        onNotification: (event) => {
+          // The backend already classified this event, applied user preferences,
+          // and deduplicated it; we only apply the local window-focus check.
+          const title = notificationTitleForCategory(event.category) || event.title || "";
+          void fireDesktopNotification({
+            title,
+            body: event.body || "",
           });
         },
 

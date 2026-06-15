@@ -26,6 +26,7 @@ export const enUsTranslation = {
       notifications: {
         toolApproval: {
           title: "Approval Required: {{tool}}",
+          genericTitle: "Approval required",
           body: "Tool {{tool}} needs your approval before execution",
           unknownTool: "Unknown Tool",
         },

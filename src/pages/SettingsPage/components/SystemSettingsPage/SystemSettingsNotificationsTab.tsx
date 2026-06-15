@@ -1,35 +1,79 @@
 import React, { useEffect, useState } from "react";
-import { Card, Flex, Switch, Typography, theme, Divider, Alert } from "antd";
+import { App as AntApp, Card, Flex, Switch, Typography, theme, Divider, Alert } from "antd";
 import { useTranslation } from "react-i18next";
 import { DesktopOutlined, BellOutlined } from "@ant-design/icons";
 import {
   getNotificationPreferences,
   setNotificationPreferences,
   type NotificationPreferences,
-} from "@services/notification/desktopNotification";
+} from "@services/notification/notificationPreferencesApi";
 import { isTauriEnvironment } from "../../../../utils/environment";
 
 const { Text } = Typography;
 const { useToken } = theme;
 
+const DEFAULT_PREFS: NotificationPreferences = {
+  enabled: true,
+  onClarification: true,
+  onToolApproval: true,
+  onContextPressure: true,
+  onSubAgentComplete: true,
+};
+
 const SystemSettingsNotificationsTab: React.FC = () => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const [prefs, setPrefsState] = useState<NotificationPreferences>(getNotificationPreferences());
+  const { message } = AntApp.useApp();
+  const [prefs, setPrefsState] = useState<NotificationPreferences>(DEFAULT_PREFS);
+  const [loading, setLoading] = useState(true);
   const isTauri = isTauriEnvironment();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const loaded = await getNotificationPreferences();
+        if (!cancelled) {
+          setPrefsState(loaded);
+        }
+      } catch {
+        if (!cancelled) {
+          message.error(
+            t("settings.notificationsTab.loadError", "Failed to load notification preferences"),
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [message, t]);
 
   const updatePref = <K extends keyof NotificationPreferences>(
     key: K,
     value: NotificationPreferences[K],
   ) => {
+    const previous = prefs;
     const next = { ...prefs, [key]: value };
+    // Optimistic update; revert on failure.
     setPrefsState(next);
-    setNotificationPreferences({ [key]: value });
+    void setNotificationPreferences(next)
+      .then((saved) => {
+        setPrefsState(saved);
+      })
+      .catch(() => {
+        setPrefsState(previous);
+        message.error(
+          t("settings.notificationsTab.saveError", "Failed to save notification preferences"),
+        );
+      });
   };
 
-  useEffect(() => {
-    setPrefsState(getNotificationPreferences());
-  }, []);
+  const controlsDisabled = !isTauri || loading;
 
   return (
     <Card size="small" className="lotus-settings-card">
@@ -65,7 +109,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
             data-testid="notification-enabled-toggle"
             checked={prefs.enabled}
             onChange={(checked) => updatePref("enabled", checked)}
-            disabled={!isTauri}
+            disabled={controlsDisabled}
           />
         </Flex>
 
@@ -91,7 +135,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
               data-testid="notification-clarification-toggle"
               checked={prefs.onClarification}
               onChange={(checked) => updatePref("onClarification", checked)}
-              disabled={!isTauri}
+              disabled={controlsDisabled}
             />
           </Flex>
 
@@ -103,7 +147,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
               data-testid="notification-tool-approval-toggle"
               checked={prefs.onToolApproval}
               onChange={(checked) => updatePref("onToolApproval", checked)}
-              disabled={!isTauri}
+              disabled={controlsDisabled}
             />
           </Flex>
 
@@ -118,7 +162,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
               data-testid="notification-context-pressure-toggle"
               checked={prefs.onContextPressure}
               onChange={(checked) => updatePref("onContextPressure", checked)}
-              disabled={!isTauri}
+              disabled={controlsDisabled}
             />
           </Flex>
 
@@ -130,7 +174,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
               data-testid="notification-subagent-complete-toggle"
               checked={prefs.onSubAgentComplete}
               onChange={(checked) => updatePref("onSubAgentComplete", checked)}
-              disabled={!isTauri}
+              disabled={controlsDisabled}
             />
           </Flex>
         </Flex>

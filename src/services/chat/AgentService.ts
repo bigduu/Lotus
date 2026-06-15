@@ -40,6 +40,7 @@ export type AgentEventType =
   | "plan_mode_exited"
   | "plan_file_updated"
   | "need_clarification"
+  | "notification"
   | "execution_started"
   | "runner_progress"
   | "complete"
@@ -212,6 +213,12 @@ export interface AgentEvent {
   restored_mode?: string;
   plan?: string | null;
   plan_file_path?: string | null;
+  // Notification event (backend-classified, preference-gated, deduped server-side)
+  id?: string;
+  category?: string;
+  priority?: string;
+  body?: string;
+  dedup_key?: string;
 }
 
 /**
@@ -742,6 +749,7 @@ export interface AgentEventHandlers {
     error?: string,
   ) => void;
   onNeedClarification?: (event: AgentEvent) => void;
+  onNotification?: (event: AgentEvent) => void;
   onSessionTitleUpdated?: (event: SessionTitleUpdatedEvent) => void;
   onSessionPinnedUpdated?: (event: SessionPinnedUpdatedEvent) => void;
   onPlanModeEntered?: (event: AgentEvent) => void;
@@ -1459,6 +1467,9 @@ export class AgentClient {
         break;
       case "need_clarification":
         handlers.onNeedClarification?.(event);
+        break;
+      case "notification":
+        handlers.onNotification?.(event);
         break;
       case "session_title_updated":
         if (

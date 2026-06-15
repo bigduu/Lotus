@@ -25,6 +25,7 @@ export const zhCnTranslation = {
       notifications: {
         toolApproval: {
           title: "需要审批：{{tool}}",
+          genericTitle: "需要审批",
           body: "工具 {{tool}} 需要您的审批后才能执行",
           unknownTool: "未知工具",
         },

@@ -21,6 +21,7 @@ import {
   formatConclusionWithOptionsConclusionAsMarkdown,
   formatConclusionToolResultAsMarkdown,
   parseInteractiveQuestionToolResultPayload,
+  isPermissionApprovalResult,
 } from "@shared/utils/resultFormatters";
 
 const { Text } = Typography;
@@ -117,7 +118,10 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
     const shouldRenderInteractiveQuestion =
       (normalizedToolName === "conclusion_with_options" ||
         normalizedToolName === "exitplanmode" ||
-        normalizedToolName === "request_permissions") &&
+        normalizedToolName === "request_permissions" ||
+        // A permission gate can synthesize an Approve/Deny prompt for ANY tool
+        // (e.g. a gated Bash call); render it interactively, not as raw JSON.
+        isPermissionApprovalResult(toolResultContent)) &&
       !message.isError &&
       interactiveQuestionPayload;
     const formattedConclusion =

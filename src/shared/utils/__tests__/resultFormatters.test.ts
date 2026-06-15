@@ -9,6 +9,7 @@ import {
   getFileChangeDiffStats,
   getStatusColor,
   parseInteractiveQuestionToolResultPayload,
+  isPermissionApprovalResult,
   parseConclusionToolResultPayload,
   parseFileChangeResultPayload,
   parseMemoryInspectRebuildPayload,
@@ -1149,5 +1150,25 @@ describe("createCompactPreview", () => {
     expect(preview.length).toBeLessThanOrEqual(61);
     expect(preview.endsWith("…")).toBe(true);
     expect(preview).toContain("Edit:");
+  });
+});
+
+describe("isPermissionApprovalResult", () => {
+  it("detects a permission-approval payload from any gated tool", () => {
+    const payload = JSON.stringify({
+      status: "awaiting_permission_approval",
+      question: "**Permission required**\n\nThe `Bash` tool needs approval…",
+      options: ["Approve", "Deny"],
+      allow_custom: false,
+    });
+    expect(isPermissionApprovalResult(payload)).toBe(true);
+  });
+
+  it("returns false for non-permission results", () => {
+    expect(isPermissionApprovalResult(JSON.stringify({ result: "ok" }))).toBe(false);
+    expect(isPermissionApprovalResult("plain text output")).toBe(false);
+    expect(isPermissionApprovalResult(JSON.stringify({ status: "awaiting_user_input" }))).toBe(
+      false,
+    );
   });
 });

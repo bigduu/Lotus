@@ -1,60 +1,38 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
-  getNotificationPreferences,
-  setNotificationPreferences,
-  clearNotificationDedupCache,
+  fireDesktopNotification,
   isAppInBackground,
-  buildDedupKey,
-  type DesktopNotificationOptions,
+  sendTestNotification,
 } from "../desktopNotification";
 
-const PREFS_KEY = "bodhi_notification_prefs";
+type InvokeMock = ReturnType<typeof vi.fn>;
+
+/**
+ * Install a fake Tauri `invoke` on `window.__TAURI_INTERNALS__`.
+ *
+ * `isMainWindowFocused` calls `invoke("is_main_window_focused")` and
+ * `invokeShowNotification` calls `invoke("show_desktop_notification", ...)`.
+ * `focused` controls the former; the latter is recorded for assertions.
+ */
+function installTauri(focused: boolean): InvokeMock {
+  const invoke: InvokeMock = vi.fn(async (cmd: string) => {
+    if (cmd === "is_main_window_focused") {
+      return focused;
+    }
+    return undefined;
+  });
+  (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = { invoke };
+  return invoke;
+}
+
+function uninstallTauri(): void {
+  delete (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__;
+}
 
 describe("desktopNotification", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    clearNotificationDedupCache();
-  });
-
   afterEach(() => {
-    localStorage.clear();
-    clearNotificationDedupCache();
+    uninstallTauri();
     vi.restoreAllMocks();
-  });
-
-  describe("getNotificationPreferences", () => {
-    it("returns defaults when localStorage is empty", () => {
-      const prefs = getNotificationPreferences();
-      expect(prefs.enabled).toBe(true);
-      expect(prefs.onClarification).toBe(true);
-      expect(prefs.onToolApproval).toBe(true);
-      expect(prefs.onContextPressure).toBe(true);
-      expect(prefs.onSubAgentComplete).toBe(false);
-    });
-
-    it("returns stored preferences", () => {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ enabled: false, onClarification: false }));
-      const prefs = getNotificationPreferences();
-      expect(prefs.enabled).toBe(false);
-      expect(prefs.onClarification).toBe(false);
-      // Other fields keep defaults
-      expect(prefs.onToolApproval).toBe(true);
-    });
-
-    it("falls back to defaults on invalid JSON", () => {
-      localStorage.setItem(PREFS_KEY, "not-json");
-      const prefs = getNotificationPreferences();
-      expect(prefs.enabled).toBe(true);
-    });
-  });
-
-  describe("setNotificationPreferences", () => {
-    it("merges partial updates with existing prefs", () => {
-      setNotificationPreferences({ onSubAgentComplete: true });
-      const prefs = getNotificationPreferences();
-      expect(prefs.onSubAgentComplete).toBe(true);
-      expect(prefs.enabled).toBe(true); // unchanged
-    });
   });
 
   describe("isAppInBackground", () => {
@@ -63,35 +41,51 @@ describe("desktopNotification", () => {
     });
   });
 
-  describe("buildDedupKey", () => {
-    it("builds key with sessionId and eventType", () => {
-      const opts: DesktopNotificationOptions = {
-        title: "test",
-        body: "body",
-        sessionId: "sess-1",
-        eventType: "clarification",
-      };
-      expect(buildDedupKey(opts)).toBe("sess-1::clarification");
+  describe("fireDesktopNotification", () => {
+    it("does nothing in browser mode (no Tauri)", async () => {
+      // No __TAURI_INTERNALS__ installed.
+      await fireDesktopNotification({ title: "T", body: "B" });
+      // Nothing to assert beyond no throw; absence of Tauri short-circuits.
+      expect(isAppInBackground()).toBe(document.hidden);
     });
 
-    it("builds key with eventId when provided", () => {
-      const opts: DesktopNotificationOptions = {
-        title: "test",
-        body: "body",
-        sessionId: "sess-1",
-        eventType: "tool_approval",
-        eventId: "tool-123",
-      };
-      expect(buildDedupKey(opts)).toBe("sess-1::tool_approval::tool-123");
+    it("shows the notification when the window is not focused", async () => {
+      const invoke = installTauri(false);
+      await fireDesktopNotification({ title: "Hello", body: "World" });
+      expect(invoke).toHaveBeenCalledWith("show_desktop_notification", {
+        title: "Hello",
+        body: "World",
+      });
     });
 
-    it("uses global when sessionId is missing", () => {
-      const opts: DesktopNotificationOptions = {
-        title: "test",
-        body: "body",
-        eventType: "context_pressure",
-      };
-      expect(buildDedupKey(opts)).toBe("global::context_pressure");
+    it("suppresses the notification when the window is focused", async () => {
+      const invoke = installTauri(true);
+      await fireDesktopNotification({ title: "Hello", body: "World" });
+      expect(invoke).not.toHaveBeenCalledWith("show_desktop_notification", expect.anything());
+    });
+
+    it("swallows backend errors", async () => {
+      const invoke: InvokeMock = vi.fn(async (cmd: string) => {
+        if (cmd === "is_main_window_focused") return false;
+        throw new Error("backend unavailable");
+      });
+      (window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = { invoke };
+      await expect(fireDesktopNotification({ title: "T", body: "B" })).resolves.toBeUndefined();
+    });
+  });
+
+  describe("sendTestNotification", () => {
+    it("does nothing in browser mode", async () => {
+      await expect(sendTestNotification()).resolves.toBeUndefined();
+    });
+
+    it("invokes the backend with the provided title/body", async () => {
+      const invoke = installTauri(true);
+      await sendTestNotification("My Title", "My Body");
+      expect(invoke).toHaveBeenCalledWith("show_desktop_notification", {
+        title: "My Title",
+        body: "My Body",
+      });
     });
   });
 });

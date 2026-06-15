@@ -7,8 +7,6 @@ import {
   setToolStreamingStatus,
 } from "../../streaming/toolStreamingAtoms";
 import type { Message, MessageImage } from "@shared/types/chatMessages";
-import { sendDesktopNotification } from "@services/notification/desktopNotification";
-import i18n from "@shared/i18n";
 import { isMemoryStatusTool } from "../useAgentEventSubscription.helpers";
 import type { RunContext } from "../subscriptionContext";
 
@@ -240,7 +238,7 @@ export function createToolHandlers(run: RunContext): Partial<AgentEventHandlers>
       phase,
       elapsedMs,
       isMutating,
-      autoApproved,
+      _autoApproved,
       summary,
     ) => {
       if (phase === "begin") {
@@ -250,19 +248,8 @@ export function createToolHandlers(run: RunContext): Partial<AgentEventHandlers>
         } else {
           setStreamingStatus(`tool_running:${normalizedToolName || "tool"}`);
         }
-
-        // Notify when a mutating tool needs user approval
-        if (autoApproved === false) {
-          void sendDesktopNotification({
-            title: i18n.t("app.notifications.toolApproval.title", {
-              tool: _toolName || i18n.t("app.notifications.toolApproval.unknownTool"),
-            }),
-            body: i18n.t("app.notifications.toolApproval.body", { tool: _toolName || "" }),
-            sessionId,
-            eventType: "tool_approval",
-            eventId: toolCallId,
-          });
-        }
+        // Desktop notification for tool approval is delivered by the backend via
+        // the `notification` event (see agentSubscriptionRunner.onNotification).
       }
 
       // When a tool finishes, update its message card with timing metadata
