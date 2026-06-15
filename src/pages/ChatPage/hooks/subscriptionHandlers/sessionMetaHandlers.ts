@@ -37,6 +37,24 @@ export function createSessionMetaHandlers(run: RunContext): Partial<AgentEventHa
       void refreshChatsNow();
     },
 
+    onGoalStatusChanged: (event) => {
+      const targetSessionId = event.session_id || sessionId;
+      const goalState = event.goal_state ?? null;
+      const currentSession = useAppStore
+        .getState()
+        .chats.find((chat) => chat.id === targetSessionId);
+      if (!currentSession) {
+        void refreshChatsNow();
+        return;
+      }
+      updateSession(targetSessionId, {
+        config: {
+          ...(currentSession.config || {}),
+          goalState,
+        },
+      });
+    },
+
     onPlanFileUpdated: (event) => {
       const targetSessionId = event.session_id || sessionId;
       const currentSession = useAppStore

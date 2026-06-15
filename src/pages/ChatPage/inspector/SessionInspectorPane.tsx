@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Button, Drawer, Flex, theme, Typography } from "antd";
+import { Button, Drawer, Flex, Tag, theme, Typography } from "antd";
 import { AppstoreOutlined, CloseOutlined, FlagOutlined, RobotOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
@@ -34,14 +34,25 @@ const LazySubAgentsPanel = React.lazy(() =>
 
 const { Title, Text } = Typography;
 
+/** Display metadata for each runtime goal status (antd Tag color presets). */
+const GOAL_STATUS_META: Record<string, { label: string; color: string }> = {
+  active: { label: "Active", color: "processing" },
+  complete: { label: "Complete", color: "success" },
+  blocked: { label: "Blocked", color: "error" },
+  need_input: { label: "Needs input", color: "warning" },
+  budget_limited: { label: "Budget limited", color: "warning" },
+};
+
 const SessionGoalCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
   const { token } = theme.useToken();
   const chat = useAppStore(selectSessionById(sessionId));
   const setInputContent = useAppStore((state) => state.setInputContent);
   const goldConfig = chat?.config?.goldConfig ?? null;
+  const goalState = chat?.config?.goalState ?? null;
   const goalPrompt = (goldConfig?.goal ?? goldConfig?.evaluation_prompt)?.trim() ?? "";
   const isGoalEnabled = goldConfig?.enabled === true;
   const hasGoalPrompt = goalPrompt.length > 0;
+  const lastEval = goalState?.eval_history?.[goalState.eval_history.length - 1] ?? null;
 
   if (!chat || !goldConfig || (!hasGoalPrompt && !isGoalEnabled)) {
     return null;
@@ -101,6 +112,38 @@ const SessionGoalCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
         >
           {hasGoalPrompt ? goalPrompt : "Use /goal <prompt> in the composer to set a session goal."}
         </Text>
+        {goalState ? (
+          <Flex vertical gap={4} style={{ marginTop: 2 }}>
+            <Flex align="center" gap={6} wrap="wrap">
+              <Tag
+                color={GOAL_STATUS_META[goalState.status]?.color ?? "default"}
+                style={{ marginInlineEnd: 0 }}
+              >
+                {GOAL_STATUS_META[goalState.status]?.label ?? goalState.status}
+              </Tag>
+              {goalState.continuation_count > 0 ? (
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  {goalState.continuation_count} continuation
+                  {goalState.continuation_count === 1 ? "" : "s"}
+                </Text>
+              ) : null}
+              {goalState.eval_history?.length ? (
+                <Text type="secondary" style={{ fontSize: 11 }}>
+                  {goalState.eval_history.length} double-check
+                  {goalState.eval_history.length === 1 ? "" : "s"}
+                </Text>
+              ) : null}
+            </Flex>
+            {lastEval ? (
+              <Text
+                type="secondary"
+                style={{ fontSize: 11, lineHeight: 1.4, whiteSpace: "pre-wrap" }}
+              >
+                {`Last check [${lastEval.checkpoint}] ${lastEval.decision}/${lastEval.confidence}: ${lastEval.reasoning}`}
+              </Text>
+            ) : null}
+          </Flex>
+        ) : null}
       </Flex>
     </div>
   );

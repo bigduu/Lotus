@@ -697,6 +697,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           config: {
             ...(chat.config || {}),
             ...(history.gold_config != null ? { goldConfig: history.gold_config } : {}),
+            ...(history.goal_state != null ? { goalState: history.goal_state } : {}),
             compressionEvents: (history.compression_events || []).map((event) => ({
               id: event.id,
               createdAt: event.created_at,

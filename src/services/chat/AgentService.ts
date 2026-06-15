@@ -43,6 +43,7 @@ export type AgentEventType =
   | "notification"
   | "execution_started"
   | "runner_progress"
+  | "goal_status_changed"
   | "complete"
   | "cancelled"
   | "error";
@@ -62,6 +63,35 @@ export interface GoldConfig {
   max_auto_continuations?: number;
   /** Minimum evaluator confidence required to auto-continue/auto-answer ("low" | "medium" | "high"). */
   min_auto_continue_confidence?: "low" | "medium" | "high";
+}
+
+/** One persisted side-channel double-check verdict in the goal's eval trail. */
+export interface GoalEvalRecord {
+  checkpoint: string;
+  iteration: number;
+  decision: "continue" | "achieved" | "blocked" | "need_input" | "exhausted" | string;
+  confidence: "low" | "medium" | "high" | string;
+  reasoning: string;
+  missing_information?: string[];
+  next_action?: string | null;
+  recorded_at: string;
+}
+
+/**
+ * Runtime goal state (Codex-style goal loop). Distinct from {@link GoldConfig}:
+ * the config is what the user SET; this is where the goal actually IS — its
+ * live status, how many autonomous continuations have fired, and the trail of
+ * double-check verdicts.
+ */
+export interface GoalState {
+  objective: string;
+  status: "active" | "complete" | "blocked" | "need_input" | "budget_limited" | string;
+  declared_status?: "complete" | "blocked" | null;
+  declared_at_round?: number | null;
+  continuation_count: number;
+  eval_history: GoalEvalRecord[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TokenBudgetUsage {
@@ -153,6 +183,8 @@ export interface AgentEvent {
   task_list?: TaskList;
   // TaskList delta
   session_id?: string;
+  // Goal status event: full runtime goal state (status, continuation count, eval trail).
+  goal_state?: GoalState | null;
   item_id?: string;
   status?:
     | TaskItemStatus
@@ -329,6 +361,8 @@ export interface HistoryResponse {
   }>;
   /** Session-level gold config (from session metadata). */
   gold_config?: GoldConfig | null;
+  /** Runtime goal state (status + continuation count + double-check eval history). */
+  goal_state?: GoalState | null;
   messages: Array<{
     id: string;
     role: "user" | "assistant" | "tool" | "system";
@@ -757,6 +791,7 @@ export interface AgentEventHandlers {
   onPlanFileUpdated?: (event: AgentEvent) => void;
   onExecutionStarted?: (runId: string, startedAt?: string) => void;
   onRunnerProgress?: (sessionId: string, roundCount: number) => void;
+  onGoalStatusChanged?: (event: AgentEvent) => void;
 }
 
 const summarizeClientSync = (clientSync?: ExecuteClientSync): Record<string, unknown> | null => {
@@ -1511,6 +1546,9 @@ export class AgentClient {
         break;
       case "plan_file_updated":
         handlers.onPlanFileUpdated?.(event);
+        break;
+      case "goal_status_changed":
+        handlers.onGoalStatusChanged?.(event);
         break;
       case "complete":
         debugLog("[AgentClient]", "events.dispatch.complete", summarizeStreamControlEvent(event));
