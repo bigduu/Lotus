@@ -123,6 +123,7 @@ export const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
       model: s.model,
       model_ref: s.model_ref ?? null,
       reasoningEffort: s.reasoning_effort ?? null,
+      bypassPermissions: s.bypass_permissions ?? false,
       goldConfig: s.gold_config ?? null,
       tokenUsage,
       truncationOccurred: s.token_usage?.truncation_occurred,

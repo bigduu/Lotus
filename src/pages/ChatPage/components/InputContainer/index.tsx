@@ -8,6 +8,8 @@ import {
   ExperimentOutlined,
   LoadingOutlined,
   DownOutlined,
+  ThunderboltOutlined,
+  ThunderboltFilled,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { MessageInput } from "../MessageInput";
@@ -198,6 +200,43 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
     },
     [currentChat, sessionId, setInputReasoningEffort, updateSession],
+  );
+
+  const bypassPermissions = currentChat?.config?.bypassPermissions ?? false;
+  const setBypassPermissionsPersisted = useCallback(
+    async (next: boolean) => {
+      if (!sessionId || !currentChat) {
+        return;
+      }
+      // Optimistic local update; backend already persists to runtime.json.
+      updateSession(
+        sessionId,
+        {
+          config: {
+            ...currentChat.config,
+            bypassPermissions: next,
+          },
+        },
+        { skipBackendPatch: true },
+      );
+      try {
+        await agentClient.patchSession(sessionId, { bypass_permissions: next });
+      } catch (error) {
+        console.warn("[InputContainer] Failed to persist bypass permissions:", error);
+        // Roll back the optimistic update on failure.
+        updateSession(
+          sessionId,
+          {
+            config: {
+              ...currentChat.config,
+              bypassPermissions: !next,
+            },
+          },
+          { skipBackendPatch: true },
+        );
+      }
+    },
+    [currentChat, sessionId, updateSession],
   );
 
   const {
@@ -835,14 +874,53 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     modelButton,
   ]);
 
+  const bypassControl = useMemo(
+    () => (
+      <Button
+        type="text"
+        size="small"
+        disabled={isInputLocked}
+        onClick={() => setBypassPermissionsPersisted(!bypassPermissions)}
+        aria-pressed={bypassPermissions}
+        style={{
+          minWidth: isMobile ? 40 : undefined,
+          padding: isMobile ? "0 8px" : "0 12px",
+          height: 36,
+          borderRadius: 18,
+          color: bypassPermissions ? token.colorError : token.colorTextSecondary,
+        }}
+        title={
+          bypassPermissions
+            ? t("chat.input.bypassPermissions.onTitle")
+            : t("chat.input.bypassPermissions.offTitle")
+        }
+      >
+        <Space size={6}>
+          {bypassPermissions ? <ThunderboltFilled /> : <ThunderboltOutlined />}
+          {!isMobile && <span>{t("chat.input.bypassPermissions.label")}</span>}
+        </Space>
+      </Button>
+    ),
+    [
+      bypassPermissions,
+      isInputLocked,
+      isMobile,
+      setBypassPermissionsPersisted,
+      t,
+      token.colorError,
+      token.colorTextSecondary,
+    ],
+  );
+
   const leftControlsExtra = useMemo(
     () => (
       <Space size={0} wrap>
         {modelControl}
         {reasoningControl}
+        {bypassControl}
       </Space>
     ),
-    [modelControl, reasoningControl],
+    [modelControl, reasoningControl, bypassControl],
   );
 
   const validateMessage = useCallback(

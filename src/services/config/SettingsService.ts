@@ -12,10 +12,7 @@ import type {
   UpdateProviderInstanceRequest,
   ProviderInstancesConfig,
 } from "@shared/types/providerConfig";
-import type {
-  ProviderCatalog,
-  ProviderModelDescriptor,
-} from "@shared/types/providerModelRef";
+import type { ProviderCatalog, ProviderModelDescriptor } from "@shared/types/providerModelRef";
 
 // ── Fetch Models response types ─────────────────────────────────
 
@@ -109,6 +106,26 @@ export class SettingsService {
    */
   async reloadConfig(): Promise<void> {
     return apiClient.post<void>("/bamboo/settings/reload");
+  }
+
+  /**
+   * Get the configured "always ask" permission rules — tool-call patterns that
+   * force a user confirmation even under bypass mode (e.g. "Bash(rm -rf *)").
+   */
+  async getPermissionAskRules(): Promise<string[]> {
+    const response = await apiClient.get<{ rules: string[] }>("/bamboo/permission/ask-rules");
+    return response.rules;
+  }
+
+  /**
+   * Replace the "always ask" permission rules. Returns the persisted list
+   * (blank entries are dropped server-side).
+   */
+  async updatePermissionAskRules(rules: string[]): Promise<string[]> {
+    const response = await apiClient.put<{ rules: string[] }>("/bamboo/permission/ask-rules", {
+      rules,
+    });
+    return response.rules;
   }
 
   /**
