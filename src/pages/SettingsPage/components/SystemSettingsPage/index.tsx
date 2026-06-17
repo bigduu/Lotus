@@ -26,6 +26,7 @@ import SystemSettingsConfigTab from "./SystemSettingsConfigTab";
 import SystemSettingsPromptsTab from "./SystemSettingsPromptsTab";
 import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
+import SystemSettingsPermissionsTab from "./SystemSettingsPermissionsTab";
 import SystemSettingsEnvVarsTab from "./SystemSettingsEnvVarsTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
@@ -302,6 +303,11 @@ const SystemSettingsPage = ({
             },
             // ── Security ──
             groupLabel("group-security", t("settings.page.groups.securityAndPrivacy")),
+            {
+              key: "permissions",
+              label: tabLabel("permissions", t("settings.page.tabs.permissions")),
+              children: <SystemSettingsPermissionsTab />,
+            },
             {
               key: "masking",
               label: tabLabel("masking", t("settings.page.tabs.masking")),

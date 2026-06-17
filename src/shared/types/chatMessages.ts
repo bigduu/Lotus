@@ -234,6 +234,10 @@ export interface ChatItem {
     model?: string;
     model_ref?: ProviderModelRef | null;
     reasoningEffort?: import("@services/chat/AgentService").ReasoningEffort | null;
+    /** Per-session "bypass permissions" toggle, mirrored from the backend
+     * session detail (`SessionSummary.bypass_permissions`). When true, tool
+     * permission checks are skipped for this session only. */
+    bypassPermissions?: boolean;
     goldConfig?: GoldConfig | null;
     goalState?: GoalState | null;
     tokenUsage?: TokenUsage;

@@ -10,6 +10,7 @@ export type SettingsTabKey =
   | "mcp"
   | "workflows"
   | "hooks"
+  | "permissions"
   | "masking"
   | "env-vars"
   | "metrics"

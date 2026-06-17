@@ -441,6 +441,12 @@ export interface SessionSummary {
   has_pending_question?: boolean;
   /** Number of child sessions currently running under this session. */
   running_child_count?: number;
+  /**
+   * Per-session "bypass permissions" toggle, read from the session's runtime
+   * state. Only populated by the detail endpoint (`GET /v1/sessions/{id}`);
+   * list endpoints leave it `false`.
+   */
+  bypass_permissions?: boolean;
 }
 
 export interface RunningSessionEntry {
@@ -530,6 +536,9 @@ export interface PatchSessionRequest {
   reasoning_effort?: ReasoningEffort;
   clear_reasoning_effort?: boolean;
   gold_config?: GoldConfig;
+  /** Per-session "bypass permissions" toggle: when true, tool permission
+   * checks are skipped for this session only. */
+  bypass_permissions?: boolean;
 }
 
 export interface RunProjectDreamResponse {

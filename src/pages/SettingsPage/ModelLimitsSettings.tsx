@@ -36,7 +36,7 @@ interface GlobalDefault {
 
 const FALLBACK_DEFAULT: GlobalDefault = {
   max_context_tokens: 1_000_000,
-  max_output_tokens: 64_000,
+  max_output_tokens: 128_000,
   safety_margin: 10_000,
 };
 

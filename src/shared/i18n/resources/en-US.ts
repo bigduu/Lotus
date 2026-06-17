@@ -272,6 +272,14 @@ export const enUsTranslation = {
           xhigh: "Very high",
           max: "Max",
         },
+        bypassPermissions: {
+          label: "Bypass",
+          onTitle:
+            "Bypass permissions is ON — this session runs tools without asking for approval. Click to turn off.",
+          offTitle:
+            "Bypass permissions is OFF — risky tools ask for approval. Click to skip approvals for this session.",
+          error: "Failed to update bypass permissions",
+        },
         strictToolOnlyMode: "Strict tool-only mode",
         toolSpecificModeLabel: "Tool-specific mode",
         allowedTools: "Allowed tools:",
@@ -607,6 +615,7 @@ export const enUsTranslation = {
           app: "App",
           provider: "Provider",
           hooks: "Hooks",
+          permissions: "Permissions",
           masking: "Masking",
           envVars: "Env Vars",
           notifications: "Notifications",
@@ -1044,6 +1053,20 @@ export const enUsTranslation = {
           ocr: "OCR (Windows)",
           vision: "Vision (LLM)",
         },
+      },
+      permissionsTab: {
+        title: "Always-ask Commands",
+        description:
+          "Tool calls matching these rules always prompt for your approval — even when a session has bypass permissions enabled. Built-in detection of hard-dangerous shell commands (code injection, writes to sensitive paths) is always on; add patterns here for destructive commands like deletes or pushes. Syntax: Tool(pattern), e.g. Bash(rm -rf *), Bash(git push *), Write(/etc/**).",
+        placeholder: "e.g. Bash(rm -rf *)",
+        add: "Add rule",
+        remove: "Remove rule",
+        examples: "Quick add:",
+        empty: "No always-ask rules. Built-in dangerous-command detection is still active.",
+        duplicate: "That rule is already in the list.",
+        loadFailed: "Failed to load permission rules",
+        saveSuccess: "Permission rules saved",
+        saveFailed: "Failed to save permission rules",
       },
       keywordMaskingTab: {
         title: "Keyword Masking",
