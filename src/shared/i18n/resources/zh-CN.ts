@@ -1997,6 +1997,11 @@ export const zhCnTranslation = {
         workflow: "工作流",
         executionRequest: "执行请求",
         aiWantsExecute: "AI 想执行以下操作",
+        childTitle: "子代理需要审批",
+        childQuestion: "一个子代理想执行需要你审批的工具。",
+        approve: "批准",
+        deny: "拒绝",
+        toolName: "工具",
       },
       toolSession: {
         title: "工具会话",

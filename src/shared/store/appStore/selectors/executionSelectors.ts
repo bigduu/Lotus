@@ -136,6 +136,13 @@ export const selectPendingQuestion =
     return entry?.interaction.pendingQuestion ?? null;
   };
 
+export const selectPendingChildApproval =
+  (sessionId: string | null) =>
+  (state: ExecutionStateView): SessionExecutionState["interaction"]["pendingChildApproval"] => {
+    const entry = getEntry(state, sessionId);
+    return entry?.interaction.pendingChildApproval ?? null;
+  };
+
 export const selectRespondMode =
   (sessionId: string | null) =>
   (state: ExecutionStateView): (PendingQuestionPayload & { sessionId: string }) | null => {

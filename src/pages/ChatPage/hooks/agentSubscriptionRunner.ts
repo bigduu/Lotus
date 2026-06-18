@@ -687,43 +687,34 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
       // If we explicitly aborted, do nothing (normal cleanup path).
       if (controller.signal.aborted) return;
 
-      // Some runtimes surface network disconnects as AbortError even when we didn't abort.
-      // In that case, attempt to resubscribe instead of tearing down processing state.
-      if (isAbortError(err)) {
-        if (shouldSkipReconnectAfterTerminal()) return;
+      // We already saw a terminal event (complete/error/cancelled) for this run — the
+      // stream is supposed to close, so don't resurrect it with a reconnect.
+      if (shouldSkipReconnectAfterTerminal()) return;
 
-        // selectShouldObserve = any active execution; attempt reconnect while session is alive
-        const stillBusy = selectShouldObserve(sessionId)(useAppStore.getState());
-        debugLog("[SSE]", "streamError.abortError.busyCheck", {
-          sessionId,
-          generation,
-          stillBusy,
-          phase: useAppStore.getState().executionBySession?.[sessionId]?.phase ?? null,
-          backendRunId:
-            useAppStore.getState().executionBySession?.[sessionId]?.backendRunId ?? null,
-        });
-        if (!stillBusy) {
-          cleanupChat(sessionId, { clearDraft: true });
-          return;
-        }
-
-        scheduleReconnect();
+      // Any other rejection here is a non-terminal disconnect. EventSource surfaces these
+      // in two shapes: an AbortError (some runtimes report network drops this way) OR a
+      // plain `EventSource connection failed` Error — which is what macOS WKWebView raises
+      // as "The network connection was lost" when it kills an idle long-lived connection.
+      // Both are recoverable: the backend run may still be live, so reconnect with backoff
+      // instead of tearing down processing state. (Native EventSource auto-reconnect was
+      // already defeated by `close()` in the client, so we must drive it ourselves.)
+      // Truly-terminal failures still settle via terminal events on reconnect or the
+      // periodic summary reconcile, so we no longer synthesize a local `error` here — that
+      // risked flipping a session to `error` on a transient blip.
+      const stillBusy = selectShouldObserve(sessionId)(useAppStore.getState());
+      debugLog("[SSE]", "streamError.busyCheck", {
+        sessionId,
+        generation,
+        stillBusy,
+        isAbortError: isAbortError(err),
+        phase: useAppStore.getState().executionBySession?.[sessionId]?.phase ?? null,
+        backendRunId: useAppStore.getState().executionBySession?.[sessionId]?.backendRunId ?? null,
+      });
+      if (!stillBusy) {
+        cleanupChat(sessionId, { clearDraft: true });
         return;
       }
 
-      if (shouldSkipReconnectAfterTerminal()) return;
-
-      console.error("[useAgentEventSubscription] Subscription error:", err);
-      cleanupChat(sessionId, { clearDraft: true });
-      const currentGen = selectGeneration(sessionId)(useAppStore.getState());
-      // selectShouldObserve = any active execution; only emit error if session is still alive
-      const currentBusy = selectShouldObserve(sessionId)(useAppStore.getState());
-      if (currentGen === generation && currentBusy) {
-        applyAgentEvent(
-          sessionId,
-          { type: "error", message: String(err) } as AgentEvent,
-          generation,
-        );
-      }
+      scheduleReconnect();
     });
 }

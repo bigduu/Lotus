@@ -35,6 +35,10 @@ const LazyQuestionDialog = React.lazy(() =>
   import("@components/QuestionDialog").then((m) => ({ default: m.QuestionDialog })),
 );
 
+const LazyChildApprovalDialog = React.lazy(() =>
+  import("@components/ChildApprovalDialog").then((m) => ({ default: m.ChildApprovalDialog })),
+);
+
 const { useToken } = theme;
 const { useBreakpoint } = Grid;
 
@@ -666,6 +670,12 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
             >
               <React.Suspense fallback={null}>
                 <LazyQuestionDialog key={sessionId} sessionId={sessionId} />
+              </React.Suspense>
+              <React.Suspense fallback={null}>
+                <LazyChildApprovalDialog
+                  key={`child-approval-${sessionId}`}
+                  sessionId={sessionId}
+                />
               </React.Suspense>
             </div>
           )}

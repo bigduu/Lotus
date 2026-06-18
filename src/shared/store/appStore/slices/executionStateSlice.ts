@@ -21,6 +21,7 @@ export type {
   SessionStreamSnapshot,
   SessionBackendSnapshot,
   PendingQuestionPayload,
+  PendingChildApprovalPayload,
   SessionInteractionSnapshot,
   ChildProgress,
   SessionChildrenSnapshot,
@@ -126,6 +127,12 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
 
   clearPendingQuestion: (sessionId) =>
     runExecutionAction(set, { type: "clearPendingQuestion", sessionId }),
+
+  setPendingChildApproval: (sessionId, payload) =>
+    runExecutionAction(set, { type: "setPendingChildApproval", sessionId, payload }),
+
+  clearPendingChildApproval: (sessionId) =>
+    runExecutionAction(set, { type: "clearPendingChildApproval", sessionId }),
 
   resetSession: (sessionId) => runExecutionAction(set, { type: "resetSession", sessionId }),
 

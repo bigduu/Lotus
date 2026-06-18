@@ -39,6 +39,7 @@ export interface SubscriptionContext
     | "refreshChatsNow"
     | "setPendingQuestion"
     | "clearPendingQuestion"
+    | "setPendingChildApproval"
   > {
   message: MessageInstance;
   cleanupChat: (

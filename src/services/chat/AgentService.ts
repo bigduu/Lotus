@@ -30,6 +30,7 @@ export type AgentEventType =
   | "sub_agent_event"
   | "sub_agent_heartbeat"
   | "sub_agent_completed"
+  | "child_approval_requested"
   | "session_title_updated"
   | "session_pinned_updated"
   | "session_created"
@@ -215,6 +216,12 @@ export interface AgentEvent {
   title?: string;
   event?: AgentEvent;
   timestamp?: string;
+  // ChildApprovalRequested event: an out-of-process child sub-agent hit a gated
+  // tool and is blocked awaiting a human approve/deny decision. `tool_name` is
+  // reused from the tool-event fields above.
+  request_id?: string;
+  permission?: string;
+  resource?: string;
   // ContextPressureNotification events
   percent?: number;
   level?: string;
@@ -553,6 +560,11 @@ export interface RunProjectDreamResponse {
   message?: string;
 }
 
+/** Response from POST /api/v1/child-approval/{child_session_id}. */
+export interface ChildApprovalResponse {
+  delivered: boolean;
+}
+
 export type TruncateSessionMessagesRequest = {
   mode: "after_last_user" | "error_retry";
 };
@@ -790,6 +802,15 @@ export interface AgentEventHandlers {
     childSessionId: string,
     status: string,
     error?: string,
+  ) => void;
+  onChildApprovalRequested?: (
+    childSessionId: string,
+    requestId: string,
+    request: {
+      toolName?: string;
+      permission?: string;
+      resource?: string;
+    },
   ) => void;
   onNeedClarification?: (event: AgentEvent) => void;
   onNotification?: (event: AgentEvent) => void;
@@ -1106,6 +1127,24 @@ export class AgentClient {
       mode,
       keep_pinned: keepPinned,
     });
+  }
+
+  /**
+   * Deliver a human approve/deny decision for a blocked out-of-process child
+   * sub-agent (surfaced via the `child_approval_requested` SSE event).
+   *
+   * Returns `{ delivered: true }` on success, or `{ delivered: false }` (HTTP
+   * 404) if the child is no longer live.
+   */
+  async respondToChildApproval(
+    childSessionId: string,
+    requestId: string,
+    approved: boolean,
+  ): Promise<ChildApprovalResponse> {
+    return agentApiClient.post<ChildApprovalResponse>(
+      `child-approval/${encodeURIComponent(childSessionId)}`,
+      { request_id: requestId, approved },
+    );
   }
 
   /**
@@ -1499,6 +1538,15 @@ export class AgentClient {
             typeof event.status === "string" ? event.status : "completed",
             event.error,
           );
+        }
+        break;
+      case "child_approval_requested":
+        if (event.child_session_id && event.request_id) {
+          handlers.onChildApprovalRequested?.(event.child_session_id, event.request_id, {
+            toolName: event.tool_name,
+            permission: event.permission,
+            resource: event.resource,
+          });
         }
         break;
       case "execution_started":

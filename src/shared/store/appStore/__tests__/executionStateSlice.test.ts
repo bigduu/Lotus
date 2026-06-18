@@ -427,6 +427,46 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(next[SESSION].interaction.pendingQuestion?.receivedAt).toBe(T1);
   });
 
+  it("setPendingChildApproval stores the request without changing phase; clear removes it", () => {
+    let map = seedIdle();
+    const payload = {
+      childSessionId: "child-9",
+      requestId: "req-42",
+      toolName: "Bash",
+      permission: "execute",
+      resource: "rm -rf /tmp/x",
+    };
+
+    map = applyExecutionEvent(
+      map,
+      { type: "setPendingChildApproval", sessionId: SESSION, payload },
+      fixedNow(T1),
+    );
+
+    const afterSet = map[SESSION];
+    // Out-of-band approval does not move the parent off its current phase.
+    expect(afterSet.phase).toBe<ExecutionPhase>("idle");
+    expect(afterSet.interaction.pendingChildApproval).not.toBeNull();
+    expect(afterSet.interaction.pendingChildApproval?.childSessionId).toBe("child-9");
+    expect(afterSet.interaction.pendingChildApproval?.requestId).toBe("req-42");
+    expect(afterSet.interaction.pendingChildApproval?.receivedAt).toBe(T1);
+
+    // Duplicate payload is a no-op (returns the same map reference).
+    const dup = applyExecutionEvent(
+      map,
+      { type: "setPendingChildApproval", sessionId: SESSION, payload: { ...payload } },
+      fixedNow(T2),
+    );
+    expect(dup).toBe(map);
+
+    map = applyExecutionEvent(
+      map,
+      { type: "clearPendingChildApproval", sessionId: SESSION },
+      fixedNow(T3),
+    );
+    expect(map[SESSION].interaction.pendingChildApproval).toBeNull();
+  });
+
   it("streaming + complete → settling with terminalAt populated", () => {
     // §E.1.10
     let map = startSession();

@@ -78,6 +78,19 @@ export interface PendingQuestionPayload {
   toolCallId: string | null;
 }
 
+/**
+ * An out-of-process child sub-agent that hit a gated tool and is blocked
+ * awaiting a human approve/deny decision (surfaced via the
+ * `child_approval_requested` SSE event on the parent's stream).
+ */
+export interface PendingChildApprovalPayload {
+  childSessionId: string;
+  requestId: string;
+  toolName: string | null;
+  permission: string | null;
+  resource: string | null;
+}
+
 export interface SessionInteractionSnapshot {
   pendingQuestion:
     | (PendingQuestionPayload & {
@@ -91,6 +104,11 @@ export interface SessionInteractionSnapshot {
   respondMode:
     | (PendingQuestionPayload & {
         sessionId: string;
+      })
+    | null;
+  pendingChildApproval:
+    | (PendingChildApprovalPayload & {
+        receivedAt: string;
       })
     | null;
 }
@@ -191,6 +209,12 @@ export type ExecutionAction =
   | { type: "clearChildProgress"; sessionId: string; childId: string }
   | { type: "setPendingQuestion"; sessionId: string; payload: PendingQuestionPayload }
   | { type: "clearPendingQuestion"; sessionId: string }
+  | {
+      type: "setPendingChildApproval";
+      sessionId: string;
+      payload: PendingChildApprovalPayload;
+    }
+  | { type: "clearPendingChildApproval"; sessionId: string }
   | { type: "resetSession"; sessionId: string }
   | {
       type: "applyRunningSnapshot";
@@ -224,6 +248,8 @@ export interface ExecutionStateSlice {
   clearChildProgress: (sessionId: string, childId: string) => void;
   setPendingQuestion: (sessionId: string, payload: PendingQuestionPayload) => void;
   clearPendingQuestion: (sessionId: string) => void;
+  setPendingChildApproval: (sessionId: string, payload: PendingChildApprovalPayload) => void;
+  clearPendingChildApproval: (sessionId: string) => void;
   resetSession: (sessionId: string) => void;
   applyRunningSnapshot: (
     sessions: Array<{
