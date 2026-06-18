@@ -2063,6 +2063,10 @@ export const enUsTranslation = {
         approve: "Approve",
         deny: "Deny",
         toolName: "Tool",
+        permission: "Permission",
+        target: "Target",
+        childGone: "The sub-agent is no longer waiting; the request was dismissed.",
+        deliverFailed: "Couldn't deliver your decision. Please try again.",
       },
       toolSession: {
         title: "Tool Session",

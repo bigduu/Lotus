@@ -3,6 +3,7 @@ import { App as AntApp, Button, Space, Typography, theme } from "antd";
 import { CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { agentClient } from "@services/chat/AgentService";
+import { isApiError } from "@services/api/client";
 import { selectPendingChildApproval, useAppStore } from "@shared/store/appStore";
 import "../QuestionDialog/QuestionDialog.css";
 
@@ -45,26 +46,36 @@ const ChildApprovalDialogComponent: React.FC<ChildApprovalDialogProps> = ({ sess
     setIsSubmitting(true);
     try {
       const result = await agentClient.respondToChildApproval(childSessionId, requestId, approved);
-      if (!result.delivered) {
-        // The child is no longer live (HTTP 404 → { delivered: false }).
-        message.warning(t("components.questionDialog.submitFailed"));
+      if (result.delivered) {
+        // Decision delivered to the live child — terminal, dismiss the prompt.
+        clearPendingChildApproval(sessionId);
+      } else {
+        // Backend contract A: 200 + { delivered: false } means the child is no
+        // longer waiting. Retrying won't help, so warn and clear.
+        message.warning(t("components.approval.childGone"));
+        clearPendingChildApproval(sessionId);
       }
     } catch (err) {
       console.error("Failed to respond to child approval:", err);
-      message.error(
-        err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),
-      );
+      if (isApiError(err) && err.status === 404) {
+        // Backend contract B: a thrown 404 also means the child is gone.
+        // Terminal — warn and clear (retry won't help).
+        message.warning(t("components.approval.childGone"));
+        clearPendingChildApproval(sessionId);
+      } else {
+        // Transient failure (network/5xx/etc): KEEP the prompt so the user can
+        // retry. Do NOT clear, or the child stays blocked with no recourse.
+        message.error(t("components.approval.deliverFailed"));
+      }
     } finally {
-      // Dismiss the prompt regardless of outcome so it does not get stuck.
-      clearPendingChildApproval(sessionId);
       setIsSubmitting(false);
     }
   };
 
   const detail = [
     toolName ? `${t("components.approval.toolName")}: ${toolName}` : null,
-    permission,
-    resource,
+    permission ? `${t("components.approval.permission")}: ${permission}` : null,
+    resource ? `${t("components.approval.target")}: ${resource}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -111,6 +122,7 @@ const ChildApprovalDialogComponent: React.FC<ChildApprovalDialogProps> = ({ sess
               icon={<CheckOutlined />}
               onClick={() => void respond(true)}
               loading={isSubmitting}
+              disabled={isSubmitting}
             >
               {t("components.approval.approve")}
             </Button>
@@ -120,6 +132,7 @@ const ChildApprovalDialogComponent: React.FC<ChildApprovalDialogProps> = ({ sess
               icon={<CloseOutlined />}
               onClick={() => void respond(false)}
               loading={isSubmitting}
+              disabled={isSubmitting}
             >
               {t("components.approval.deny")}
             </Button>

@@ -41,6 +41,7 @@ export function useAgentEventSubscription() {
     setPendingQuestion,
     clearPendingQuestion,
     setPendingChildApproval,
+    clearPendingChildApproval,
   } = useAppStore(
     useShallow((state) => ({
       addMessage: state.addMessage,
@@ -60,6 +61,7 @@ export function useAgentEventSubscription() {
       setPendingQuestion: state.setPendingQuestion,
       clearPendingQuestion: state.clearPendingQuestion,
       setPendingChildApproval: state.setPendingChildApproval,
+      clearPendingChildApproval: state.clearPendingChildApproval,
     })),
   );
 
@@ -336,6 +338,7 @@ export function useAgentEventSubscription() {
         setPendingQuestion,
         clearPendingQuestion,
         setPendingChildApproval,
+        clearPendingChildApproval,
         message,
         cleanupChat,
         clearReconnect,
@@ -366,6 +369,7 @@ export function useAgentEventSubscription() {
       cleanupChat,
       clearParentSettleTimer,
       clearPendingQuestion,
+      clearPendingChildApproval,
       clearReconnect,
       clearTitleRefreshRetry,
       ensureTaskListBaseline,
