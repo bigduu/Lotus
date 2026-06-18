@@ -40,6 +40,7 @@ export interface SubscriptionContext
     | "setPendingQuestion"
     | "clearPendingQuestion"
     | "setPendingChildApproval"
+    | "clearPendingChildApproval"
   > {
   message: MessageInstance;
   cleanupChat: (

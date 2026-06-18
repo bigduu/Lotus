@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentEventHandlers } from "@services/chat/AgentService";
-import { useAppStore, selectChildren } from "@shared/store/appStore";
+import { useAppStore, selectChildren, selectPendingChildApproval } from "@shared/store/appStore";
 import {
   clearChildPreviewState,
   getChildPreviewState,
@@ -27,6 +27,7 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
     scheduleChildPreviewFlush,
     setEvaluationState,
     setPendingChildApproval,
+    clearPendingChildApproval,
     setTaskList,
     updateTaskListDelta,
     backgroundChildrenByParentRef,
@@ -76,6 +77,22 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
       // A blocked out-of-process child sub-agent hit a gated tool and is
       // awaiting a human approve/deny decision. Surface the prompt on the
       // parent session (the one whose SSE stream we are subscribed to).
+      //
+      // TODO #23: the store holds a SINGLE pendingChildApproval slot per
+      // session, so a second request from a *different* child (or a different
+      // requestId on the same child) overwrites a still-pending one — the
+      // earlier child then waits forever. A FIFO queue would be the proper fix
+      // but touches the reducer/types/selector/resume-snapshot layers; warn
+      // here for now so the drop is at least observable.
+      const existing = selectPendingChildApproval(parentSessionId)(useAppStore.getState());
+      if (existing && existing.requestId !== requestId) {
+        console.warn(
+          "[childHandlers] Overwriting a still-pending child approval " +
+            `(child=${existing.childSessionId}, request=${existing.requestId}) with a new ` +
+            `one (child=${childSessionId}, request=${requestId}); the earlier child will ` +
+            "no longer be prompted. See TODO #23 (single-slot vs FIFO queue).",
+        );
+      }
       setPendingChildApproval(parentSessionId, {
         childSessionId,
         requestId,
@@ -205,6 +222,15 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
         children,
         parentDone: bg.parentDone,
       });
+
+      // If this child had a pending human approve/deny prompt and it resolved
+      // on its own (completed/errored/timed-out) without a click, the prompt is
+      // now stale — clear it so the parent UI doesn't strand a dead request.
+      // Guard on childSessionId so we don't drop a DIFFERENT child's prompt.
+      const pendingApproval = selectPendingChildApproval(parentSessionId)(useAppStore.getState());
+      if (pendingApproval && pendingApproval.childSessionId === childSessionId) {
+        clearPendingChildApproval(parentSessionId);
+      }
 
       flushChildPreview(parentSessionId, childSessionId);
       clearChildPreviewState(parentSessionId, childSessionId);

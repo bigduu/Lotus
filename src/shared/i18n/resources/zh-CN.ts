@@ -2002,6 +2002,10 @@ export const zhCnTranslation = {
         approve: "批准",
         deny: "拒绝",
         toolName: "工具",
+        permission: "权限",
+        target: "目标",
+        childGone: "子代理已不再等待，该请求已关闭。",
+        deliverFailed: "无法发送你的决定，请重试。",
       },
       toolSession: {
         title: "工具会话",
