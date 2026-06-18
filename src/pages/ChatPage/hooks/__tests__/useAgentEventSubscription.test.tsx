@@ -323,7 +323,7 @@ describe("useAgentEventSubscription", () => {
     // (Hard to test directly without access to abort controller)
   });
 
-  it("should handle subscription errors and reset state", async () => {
+  it("reconnects (does not tear down or emit error) on a transient subscription disconnect", async () => {
     mockState.executionBySession = {
       "session-1": {
         sessionId: "session-1",
@@ -354,60 +354,58 @@ describe("useAgentEventSubscription", () => {
         error: null,
       },
     };
-    mockState.refreshChatsNow = vi.fn().mockImplementation(async () => {
-      mockState.executionBySession = {
-        "session-1": {
-          sessionId: "session-1",
-          phase: "idle",
-          confidence: "optimistic",
-          activeReasons: [],
-          generation: 1,
-          backendRunId: null,
-          stream: { hasTokens: false, tokenCount: 0, activeToolCalls: [], lastStatusHint: null },
-          backend: {
-            isRunning: false,
-            lastRunStatus: null,
-            lastRunError: null,
-            syncedAt: null,
-            hasPendingQuestion: null,
-            runningChildCount: null,
-          },
-          interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
-          children: { byId: {}, runningCount: 0 },
-          timestamps: {
-            optimisticAt: null,
-            confirmedAt: null,
-            firstTokenAt: null,
-            terminalAt: null,
-            settlingStartedAt: null,
-            settledAt: null,
-          },
-          error: null,
-        },
-      };
-      mockStore.getState.mockReturnValue(mockState);
-    });
+    // Keep the session "running" across the reconnect — refreshChatsNow must not reset it.
+    mockState.refreshChatsNow = vi.fn().mockResolvedValue(undefined);
+    mockState.chats = [
+      { id: "session-1", title: "Bodhi", titleVersion: 0, isRunning: true, messages: [] },
+    ];
     mockStore.getState.mockReturnValue(mockState);
 
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    mockSubscribeToEvents.mockRejectedValue(new Error("Connection failed"));
-
-    renderHook(() => useAgentEventSubscription());
-
-    await waitFor(() => {
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[useAgentEventSubscription] Subscription error:",
-        expect.any(Error),
-      );
-
-      // Should emit error event to execution state
-      expect(mockState.applyAgentEvent).toHaveBeenCalledWith(
-        "session-1",
-        expect.objectContaining({ type: "error" }),
-        expect.any(Number),
-      );
+    // A non-terminal EventSource disconnect (e.g. macOS WKWebView "network connection was
+    // lost") rejects the subscription with a plain Error. The first attempt fails; the
+    // reconnect attempt stays connected so we don't loop forever in the test.
+    let callCount = 0;
+    mockSubscribeToEvents.mockImplementation(() => {
+      callCount += 1;
+      if (callCount === 1) {
+        return Promise.reject(new Error("EventSource connection failed for session session-1"));
+      }
+      return new Promise<void>(() => {});
     });
+
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useAgentEventSubscription());
+
+      // Flush the rejection's `.catch`, then advance past the first backoff (250ms) so the
+      // scheduled reconnect fires. The session is still running, so the runner must
+      // reconnect instead of tearing down processing state.
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        vi.advanceTimersByTime(300);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockSubscribeToEvents).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    // It must NOT log the old fatal-error message or flip the session into `error` on a
+    // transient blip — terminal events / summary reconcile own that transition.
+    expect(consoleSpy).not.toHaveBeenCalledWith(
+      "[useAgentEventSubscription] Subscription error:",
+      expect.any(Error),
+    );
+    expect(mockState.applyAgentEvent).not.toHaveBeenCalledWith(
+      "session-1",
+      expect.objectContaining({ type: "error" }),
+      expect.any(Number),
+    );
 
     consoleSpy.mockRestore();
   });

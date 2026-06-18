@@ -212,6 +212,43 @@ describe("AgentClient", () => {
     );
   });
 
+  it("posts a child-approval decision to the right path and body", async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({ delivered: true }));
+
+    const client = AgentClient.getInstance();
+    const result = await client.respondToChildApproval("child/with space", "req-1", true);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/child-approval/child%2Fwith%20space"),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"request_id":"req-1"'),
+      }),
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"approved":true'),
+      }),
+    );
+    expect(result.delivered).toBe(true);
+  });
+
+  it("surfaces a not-delivered child-approval response when the child is gone", async () => {
+    fetchMock.mockResolvedValue(mockFetchResponse({ delivered: false }));
+
+    const client = AgentClient.getInstance();
+    const result = await client.respondToChildApproval("child-1", "req-1", false);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"approved":false'),
+      }),
+    );
+    expect(result.delivered).toBe(false);
+  });
+
   it("gets a session system prompt snapshot with aligned fields", async () => {
     fetchMock.mockResolvedValue(
       mockFetchResponse({
@@ -824,6 +861,7 @@ describe("AgentClient", () => {
       onSubAgentEvent: vi.fn(),
       onSubAgentHeartbeat: vi.fn(),
       onSubAgentCompleted: vi.fn(),
+      onChildApprovalRequested: vi.fn(),
       onError: vi.fn(),
     };
 
@@ -921,6 +959,17 @@ describe("AgentClient", () => {
       },
       handlers,
     );
+    (client as any).handleEvent(
+      {
+        type: "child_approval_requested",
+        child_session_id: "c",
+        request_id: "req-1",
+        tool_name: "Bash",
+        permission: "execute",
+        resource: "rm -rf /tmp/x",
+      },
+      handlers,
+    );
     (client as any).handleEvent({ type: "error", message: "boom" }, handlers);
 
     expect(handlers.onTaskListItemProgress).toHaveBeenCalledTimes(1);
@@ -937,6 +986,11 @@ describe("AgentClient", () => {
     expect(handlers.onSubAgentEvent).toHaveBeenCalledTimes(1);
     expect(handlers.onSubAgentHeartbeat).toHaveBeenCalledTimes(1);
     expect(handlers.onSubAgentCompleted).toHaveBeenCalledWith("p", "c", "completed", undefined);
+    expect(handlers.onChildApprovalRequested).toHaveBeenCalledWith("c", "req-1", {
+      toolName: "Bash",
+      permission: "execute",
+      resource: "rm -rf /tmp/x",
+    });
     expect(handlers.onError).toHaveBeenCalledWith("boom");
   });
 

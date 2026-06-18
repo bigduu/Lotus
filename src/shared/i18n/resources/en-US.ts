@@ -2058,6 +2058,11 @@ export const enUsTranslation = {
         workflow: "Workflow",
         executionRequest: "Execution Request",
         aiWantsExecute: "AI wants to execute the following action",
+        childTitle: "Sub-agent approval needed",
+        childQuestion: "A sub-agent wants to run a tool that requires your approval.",
+        approve: "Approve",
+        deny: "Deny",
+        toolName: "Tool",
       },
       toolSession: {
         title: "Tool Session",

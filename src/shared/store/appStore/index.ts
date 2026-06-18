@@ -342,6 +342,7 @@ export {
   selectShouldObserve,
   selectActiveToolCalls,
   selectPendingQuestion,
+  selectPendingChildApproval,
   selectRespondMode,
   selectChildren,
   selectChildrenSnapshot,

@@ -17,7 +17,7 @@ import type { RunContext } from "../subscriptionContext";
 
 /** Sub-agent (background child) lifecycle + preview handlers. */
 export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers> {
-  const { scheduleParentSettleCheck } = run;
+  const { scheduleParentSettleCheck, sessionId: parentSessionId } = run;
   const {
     applyChildProgress,
     ensureTaskListBaseline,
@@ -26,6 +26,7 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
     refreshChatsNow,
     scheduleChildPreviewFlush,
     setEvaluationState,
+    setPendingChildApproval,
     setTaskList,
     updateTaskListDelta,
     backgroundChildrenByParentRef,
@@ -69,6 +70,19 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
 
       // Ensure the child session appears in the session list immediately.
       void refreshChatsNow();
+    },
+
+    onChildApprovalRequested: (childSessionId, requestId, request) => {
+      // A blocked out-of-process child sub-agent hit a gated tool and is
+      // awaiting a human approve/deny decision. Surface the prompt on the
+      // parent session (the one whose SSE stream we are subscribed to).
+      setPendingChildApproval(parentSessionId, {
+        childSessionId,
+        requestId,
+        toolName: request.toolName ?? null,
+        permission: request.permission ?? null,
+        resource: request.resource ?? null,
+      });
     },
 
     onSubAgentEvent: (parentSessionId, childSessionId, evt: AgentEvent) => {

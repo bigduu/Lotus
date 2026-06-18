@@ -9,6 +9,7 @@ import {
   type ExecutionMap,
   type ExecutionPhase,
   type ExecutionReason,
+  type PendingChildApprovalPayload,
   type PendingQuestionPayload,
   type SessionExecutionState,
 } from "./types";
@@ -72,6 +73,7 @@ export const createInitialExecutionState = (sessionId: string): SessionExecution
   interaction: {
     pendingQuestion: null,
     respondMode: null,
+    pendingChildApproval: null,
   },
   children: {
     byId: {},
@@ -149,6 +151,45 @@ const applyPendingQuestionSnapshot = (
       respondMode: null,
     },
     activeReasons: appendReason(entry.activeReasons, "sse:need_clarification"),
+  };
+};
+
+const pendingChildApprovalEquals = (
+  current: (PendingChildApprovalPayload & { receivedAt: string }) | null,
+  payload: PendingChildApprovalPayload,
+): boolean => {
+  if (!current) {
+    return false;
+  }
+  return (
+    current.childSessionId === payload.childSessionId &&
+    current.requestId === payload.requestId &&
+    current.toolName === payload.toolName &&
+    current.permission === payload.permission &&
+    current.resource === payload.resource
+  );
+};
+
+/**
+ * Surface a blocked child sub-agent's approval request. Unlike a pending
+ * question, this does NOT change the parent session's execution phase — the
+ * parent keeps running while the child waits; the prompt is purely an
+ * out-of-band approve/deny affordance.
+ */
+const applyPendingChildApprovalSnapshot = (
+  entry: SessionExecutionState,
+  payload: PendingChildApprovalPayload,
+  receivedAt: string,
+): SessionExecutionState => {
+  if (pendingChildApprovalEquals(entry.interaction.pendingChildApproval, payload)) {
+    return entry;
+  }
+  return {
+    ...entry,
+    interaction: {
+      ...entry.interaction,
+      pendingChildApproval: { ...payload, receivedAt },
+    },
   };
 };
 
@@ -1124,6 +1165,28 @@ export const applyExecutionEvent = (
           ...entry.interaction,
           pendingQuestion: null,
           respondMode: null,
+        },
+      };
+      return writeEntry(map, action.sessionId, next);
+    }
+    case "setPendingChildApproval": {
+      const entry = ensureEntry(map, action.sessionId);
+      const next = applyPendingChildApprovalSnapshot(entry, action.payload, now());
+      if (next === entry) {
+        return map;
+      }
+      return writeEntry(map, action.sessionId, next);
+    }
+    case "clearPendingChildApproval": {
+      const entry = ensureEntry(map, action.sessionId);
+      if (entry.interaction.pendingChildApproval === null) {
+        return map;
+      }
+      const next: SessionExecutionState = {
+        ...entry,
+        interaction: {
+          ...entry.interaction,
+          pendingChildApproval: null,
         },
       };
       return writeEntry(map, action.sessionId, next);
