@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { AgentClient, ChatRequest } from "../AgentService";
+import { __resetV2StreamForTests } from "../v2Stream";
 import { mockFetchError, mockFetchResponse } from "@test/helpers";
 
 describe("AgentClient", () => {
@@ -1028,5 +1029,121 @@ describe("AgentClient", () => {
     await expect(pending).resolves.toBeUndefined();
     expect(onToken).toHaveBeenCalledWith("hello");
     expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
+  });
+
+  // --- Opt-in v2 WebSocket transport (apiV2Ws flag) ------------------------
+
+  describe("apiV2Ws feature flag (default OFF)", () => {
+    // A minimal global WebSocket so the v2 path can construct a socket.
+    let wsInstances: MockWS[];
+
+    class MockWS {
+      static readonly CONNECTING = 0;
+      static readonly OPEN = 1;
+      static readonly CLOSED = 3;
+      readyState = 0; // CONNECTING; call open() to flush subscribes
+      sent: string[] = [];
+      onopen: (() => void) | null = null;
+      onmessage: ((e: MessageEvent) => void) | null = null;
+      onerror: (() => void) | null = null;
+      onclose: (() => void) | null = null;
+      constructor(public url: string) {
+        wsInstances.push(this);
+      }
+      send(d: string): void {
+        this.sent.push(d);
+      }
+      close(): void {
+        this.readyState = 3;
+      }
+      open(): void {
+        this.readyState = 1;
+        this.onopen?.();
+      }
+      emit(frame: unknown): void {
+        this.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent);
+      }
+      parsed(): Array<Record<string, unknown>> {
+        return this.sent.map((s) => JSON.parse(s) as Record<string, unknown>);
+      }
+    }
+
+    beforeEach(() => {
+      wsInstances = [];
+      vi.stubGlobal("WebSocket", MockWS as unknown as typeof WebSocket);
+    });
+
+    afterEach(() => {
+      __resetV2StreamForTests();
+      localStorage.removeItem("bodhi_api_v2_ws");
+    });
+
+    it("stays on EventSource when the flag is OFF (default)", () => {
+      const client = AgentClient.getInstance();
+      client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+      expect(eventSourceInstances).toHaveLength(1);
+      expect(wsInstances).toHaveLength(0);
+    });
+
+    it("routes the account feed over the WS when the flag is ON", () => {
+      localStorage.setItem("bodhi_api_v2_ws", "1");
+      const client = AgentClient.getInstance();
+      const onChange = vi.fn();
+
+      const handle = client.subscribeToAccountStream({ onChange }, { since: 3 });
+      expect(eventSourceInstances).toHaveLength(0);
+      expect(wsInstances).toHaveLength(1);
+      wsInstances[0]?.open();
+      expect(wsInstances[0]?.parsed()).toContainEqual({ type: "subscribe", ch: "feed", since: 3 });
+
+      const ev = { seq: 4, ts: "t", session_id: "s1", event: { type: "message_appended" } };
+      wsInstances[0]?.emit({ ch: "feed", seq: 4, event: ev });
+      expect(onChange).toHaveBeenCalledWith(ev);
+
+      expect(typeof handle.close).toBe("function");
+      handle.close();
+    });
+
+    it("routes agent events over the WS and resolves on terminal when the flag is ON", async () => {
+      localStorage.setItem("bodhi_api_v2_ws", "1");
+      const client = AgentClient.getInstance();
+      const onToken = vi.fn();
+
+      const pending = client.subscribeToEvents("session-1", { onToken });
+      expect(eventSourceInstances).toHaveLength(0);
+      expect(wsInstances).toHaveLength(1);
+      wsInstances[0]?.open();
+      expect(wsInstances[0]?.parsed()).toContainEqual({
+        type: "subscribe",
+        ch: "agent.session-1",
+      });
+
+      wsInstances[0]?.emit({
+        ch: "agent.session-1",
+        seq: 1,
+        event: { type: "token", content: "hi" },
+      });
+      expect(onToken).toHaveBeenCalledWith("hi");
+
+      wsInstances[0]?.emit({ ch: "agent.session-1", seq: 2, control: { type: "terminal" } });
+      await expect(pending).resolves.toBeUndefined();
+    });
+
+    it("closes the WS agent subscription when the abort signal fires", async () => {
+      localStorage.setItem("bodhi_api_v2_ws", "1");
+      const client = AgentClient.getInstance();
+      const controller = new AbortController();
+
+      const pending = client.subscribeToEvents("session-1", {}, controller);
+      expect(wsInstances).toHaveLength(1);
+      wsInstances[0]?.open();
+
+      controller.abort();
+      await expect(pending).resolves.toBeUndefined();
+      expect(wsInstances[0]?.parsed()).toContainEqual({
+        type: "unsubscribe",
+        ch: "agent.session-1",
+      });
+    });
   });
 });

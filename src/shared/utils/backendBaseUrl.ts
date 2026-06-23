@@ -287,6 +287,28 @@ export const buildBackendUrl = (path: string): string => {
   return `${baseUrl}/${cleanPath}`;
 };
 
+/**
+ * Derive the unified v2 WebSocket stream URL (`ws(s)://host[:port]/v2/stream`)
+ * from the current backend base.
+ *
+ * Reuses the same host/port the HTTP `/v1` base points at, swapping the scheme
+ * to `ws:` for `http:` bases and `wss:` for `https:` bases, and replacing the
+ * `/v1` suffix with the `/v2/stream` path. This is the opt-in (flag-gated)
+ * transport for the feed + agent event channels.
+ */
+export const getV2StreamUrl = (): string => {
+  const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
+  // The stored base looks like "http://host:port/v1"; strip the "/v1" suffix to
+  // get the origin, then append the v2 path.
+  const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
+  const parsed = new URL(origin);
+  const wsProtocol = parsed.protocol.toLowerCase() === "https:" ? "wss:" : "ws:";
+  parsed.protocol = wsProtocol;
+  // `host` preserves an explicit port; the URL constructor drops a default port
+  // for the original scheme, which is the desired behavior here.
+  return `${wsProtocol}//${parsed.host}/v2/stream`;
+};
+
 // Global type for Tauri sidecar port injection
 declare global {
   interface Window {

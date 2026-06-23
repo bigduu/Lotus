@@ -33,3 +33,27 @@ export const debugLog = (tag: string, message: string, ...args: unknown[]): void
   // eslint-disable-next-line no-console -- dev-only debug trace
   console.log(`${tag} ${message}`, ...args);
 };
+
+/** localStorage key for the opt-in v2 WebSocket transport feature flag. */
+const API_V2_WS_FLAG_KEY = "bodhi_api_v2_ws";
+
+/**
+ * Opt-in feature flag: route the account feed + per-session agent event streams
+ * over the unified `/v2/stream` WebSocket instead of the two legacy SSE
+ * connections.
+ *
+ * Default OFF (zero behavior change). Unlike the dev-only debug flags above this
+ * is honored in any build so the WS transport can be exercised against a running
+ * backend, but it must be explicitly enabled.
+ *
+ * Enable: `localStorage.setItem("bodhi_api_v2_ws", "1")` then reload.
+ * Disable: `localStorage.removeItem("bodhi_api_v2_ws")` (or set to anything but
+ * "1") then reload.
+ */
+export const isApiV2WsEnabled = (): boolean => {
+  try {
+    return localStorage.getItem(API_V2_WS_FLAG_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
