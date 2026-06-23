@@ -1,4 +1,4 @@
-import { debugLog } from "@shared/utils/debugFlags";
+import { debugLog, isApiV2WsEnabled } from "@shared/utils/debugFlags";
 /**
  * Agent Client Service
  *
@@ -7,6 +7,10 @@ import { debugLog } from "@shared/utils/debugFlags";
  */
 import { agentApiClient } from "../api";
 import { getBackendBaseUrlSync } from "../../shared/utils/backendBaseUrl";
+import * as v2Stream from "./v2Stream";
+import type { FeedSubscription } from "./v2Stream";
+
+export type { FeedSubscription } from "./v2Stream";
 
 // Agent Event Types (matching Rust backend)
 export type AgentEventType =
@@ -1210,6 +1214,32 @@ export class AgentClient {
     const signal = abortController?.signal;
     debugLog("[AgentClient]", "events.subscribe.request", { sessionId });
 
+    // Opt-in v2 WebSocket transport (default OFF). When enabled, route this
+    // per-session agent stream over the shared `/v2/stream` socket. The handle's
+    // Promise resolves on the agent `terminal` control or when the abort signal
+    // fires; a transient WS disconnect does not reject (the WS client reconnects
+    // and re-subscribes internally), so `agentSubscriptionRunner` needs no change.
+    if (isApiV2WsEnabled()) {
+      if (signal?.aborted) {
+        debugLog("[AgentClient]", "events.subscribe.ws.aborted_before_connect", { sessionId });
+        return;
+      }
+      const { promise, close } = v2Stream.subscribeAgent(sessionId, handlers, (event, h) =>
+        this.handleEvent(event, h),
+      );
+      const abortListener = () => {
+        debugLog("[AgentClient]", "events.subscribe.ws.abort", { sessionId });
+        close();
+      };
+      signal?.addEventListener("abort", abortListener, { once: true });
+      try {
+        await promise;
+      } finally {
+        signal?.removeEventListener("abort", abortListener);
+      }
+      return;
+    }
+
     const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
     const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
     const eventsUrl = `${origin}/api/v1/events/${encodeURIComponent(sessionId)}`;
@@ -1339,13 +1369,22 @@ export class AgentClient {
    * and health polling: the browser `EventSource` auto-reconnects and resends
    * `Last-Event-ID`, so the backend replays only what was missed.
    *
-   * Returns the live `EventSource` so the caller can close it; reconnection is
-   * handled natively by the browser.
+   * Returns a small `{ close() }` handle so the caller can tear it down. With
+   * the legacy SSE transport this is the live `EventSource` (which structurally
+   * satisfies the handle) and reconnection is handled natively by the browser;
+   * with the opt-in v2 WebSocket transport it is the v2 feed subscription.
    */
   subscribeToAccountStream(
     handlers: AccountStreamHandlers,
     opts?: { since?: number },
-  ): EventSource {
+  ): FeedSubscription {
+    // Opt-in v2 WebSocket transport (default OFF). When enabled, route the
+    // account feed over the shared `/v2/stream` socket; the returned handle's
+    // `close()` is all `accountFeed.ts` uses.
+    if (isApiV2WsEnabled()) {
+      return v2Stream.subscribeFeed(handlers, opts?.since ?? 0);
+    }
+
     const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
     const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
     const since = opts?.since && opts.since > 0 ? `?since=${opts.since}` : "";

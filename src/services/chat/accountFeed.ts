@@ -14,13 +14,17 @@
  * session still flows through the per-session `/events/{id}` SSE
  * (`agentSubscriptionRunner`); this feed is the cross-session sync channel.
  */
-import { AgentClient, type ChangeEvent } from "./AgentService";
+import { AgentClient, type ChangeEvent, type FeedSubscription } from "./AgentService";
 import { useAppStore } from "@shared/store/appStore";
+import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
 
 const CURSOR_STORAGE_KEY = "lotus_account_feed_cursor_v1";
 const REFRESH_DEBOUNCE_MS = 400;
 
-let eventSource: EventSource | null = null;
+// The feed transport is either a browser `EventSource` (legacy SSE, default) or
+// the opt-in v2 WebSocket handle; both expose `close()`, so we only depend on
+// the narrow `FeedSubscription` interface.
+let eventSource: FeedSubscription | null = null;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 const readCursor = (): number => {
@@ -101,9 +105,15 @@ const applyChange = (change: ChangeEvent): void => {
  */
 export const startAccountFeed = (): void => {
   if (eventSource) return;
-  // The feed requires a browser/webview EventSource. In SSR/node/test
-  // environments it is absent — skip rather than throw.
-  if (typeof EventSource === "undefined") return;
+  // The feed requires a browser/webview transport: an EventSource for the
+  // legacy SSE path, or a WebSocket for the opt-in v2 path. In SSR/node/test
+  // environments both may be absent — skip rather than throw.
+  const wsEnabled = isApiV2WsEnabled();
+  if (wsEnabled) {
+    if (typeof WebSocket === "undefined") return;
+  } else if (typeof EventSource === "undefined") {
+    return;
+  }
   const client = AgentClient.getInstance();
 
   eventSource = client.subscribeToAccountStream(
