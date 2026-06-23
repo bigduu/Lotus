@@ -38,22 +38,28 @@ export const debugLog = (tag: string, message: string, ...args: unknown[]): void
 const API_V2_WS_FLAG_KEY = "bodhi_api_v2_ws";
 
 /**
- * Opt-in feature flag: route the account feed + per-session agent event streams
- * over the unified `/v2/stream` WebSocket instead of the two legacy SSE
- * connections.
+ * Feature flag: route the account feed + per-session agent event streams over
+ * the unified `/v2/stream` WebSocket instead of the two legacy SSE connections.
  *
- * Default OFF (zero behavior change). Unlike the dev-only debug flags above this
- * is honored in any build so the WS transport can be exercised against a running
- * backend, but it must be explicitly enabled.
+ * Default ON. This is safe because the v2 transport auto-degrades: if the WS's
+ * very first connection never opens (an old backend with no `/v2/stream`, or an
+ * unreachable host), `AgentService` transparently falls back to the legacy SSE
+ * paths — so default-on never strands a client on a backend that lacks the WS.
  *
- * Enable: `localStorage.setItem("bodhi_api_v2_ws", "1")` then reload.
- * Disable: `localStorage.removeItem("bodhi_api_v2_ws")` (or set to anything but
- * "1") then reload.
+ * Exact values (honored in any build, not just dev):
+ *  - key unset / any value EXCEPT "0"/"false" → v2 WS ON (default).
+ *  - "0" or "false" → forced OFF (byte-for-byte the original SSE behavior, the
+ *    escape hatch if the WS path ever misbehaves).
+ *
+ * Force OFF: `localStorage.setItem("bodhi_api_v2_ws", "0")` then reload.
+ * Re-enable: `localStorage.removeItem("bodhi_api_v2_ws")` then reload.
  */
 export const isApiV2WsEnabled = (): boolean => {
   try {
-    return localStorage.getItem(API_V2_WS_FLAG_KEY) === "1";
+    const value = localStorage.getItem(API_V2_WS_FLAG_KEY);
+    return value !== "0" && value !== "false";
   } catch {
-    return false;
+    // Storage unavailable (e.g. SSR/private-mode): default ON.
+    return true;
   }
 };

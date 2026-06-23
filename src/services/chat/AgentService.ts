@@ -1214,38 +1214,81 @@ export class AgentClient {
     const signal = abortController?.signal;
     debugLog("[AgentClient]", "events.subscribe.request", { sessionId });
 
-    // Opt-in v2 WebSocket transport (default OFF). When enabled, route this
-    // per-session agent stream over the shared `/v2/stream` socket. The handle's
-    // Promise resolves on the agent `terminal` control or when the abort signal
-    // fires; a transient WS disconnect does not reject (the WS client reconnects
-    // and re-subscribes internally), so `agentSubscriptionRunner` needs no change.
+    // v2 WebSocket transport (default ON; force OFF with bodhi_api_v2_ws="0").
+    // Route this per-session agent stream over the shared `/v2/stream` socket.
+    // The handle's Promise resolves on the agent `terminal` control or when the
+    // abort signal fires; a transient WS disconnect does not reject (the WS
+    // client reconnects and re-subscribes internally), so
+    // `agentSubscriptionRunner` needs no change.
+    //
+    // If the WS's very FIRST connection never opens (old backend without
+    // `/v2/stream`, or unreachable host), `onConnectFailed` fires once and we
+    // transparently fall back to the legacy SSE agent path below — the caller
+    // sees identical Promise/abort semantics regardless of which transport won.
     if (isApiV2WsEnabled()) {
       if (signal?.aborted) {
         debugLog("[AgentClient]", "events.subscribe.ws.aborted_before_connect", { sessionId });
         return;
       }
-      const { promise, close } = v2Stream.subscribeAgent(sessionId, handlers, (event, h) =>
-        this.handleEvent(event, h),
-      );
-      const abortListener = () => {
-        debugLog("[AgentClient]", "events.subscribe.ws.abort", { sessionId });
-        close();
-      };
-      signal?.addEventListener("abort", abortListener, { once: true });
-      try {
-        await promise;
-      } finally {
-        signal?.removeEventListener("abort", abortListener);
-      }
+
+      let fellBack = false;
+      const fallbackPromise = new Promise<void>((resolve, reject) => {
+        const { promise, close } = v2Stream.subscribeAgent(
+          sessionId,
+          handlers,
+          (event, h) => this.handleEvent(event, h),
+          () => {
+            // Initial WS connect failed: tear down the WS subscription (already
+            // torn down internally by the client) and fall back to SSE. Mark so
+            // the WS promise's resolution below is ignored.
+            fellBack = true;
+            debugLog("[AgentClient]", "events.subscribe.ws.connect_failed_fallback", { sessionId });
+            close();
+            this.subscribeToEventsSse(sessionId, handlers, signal).then(resolve, reject);
+          },
+        );
+        const abortListener = () => {
+          debugLog("[AgentClient]", "events.subscribe.ws.abort", { sessionId });
+          close();
+        };
+        signal?.addEventListener("abort", abortListener, { once: true });
+        promise
+          .then(() => {
+            signal?.removeEventListener("abort", abortListener);
+            // Resolve the WS leg only if we did NOT fall back; otherwise the SSE
+            // leg owns resolution.
+            if (!fellBack) resolve();
+          })
+          .catch((error) => {
+            signal?.removeEventListener("abort", abortListener);
+            if (!fellBack) reject(error);
+          });
+      });
+      await fallbackPromise;
       return;
     }
 
+    return this.subscribeToEventsSse(sessionId, handlers, signal);
+  }
+
+  /**
+   * Legacy SSE per-session agent subscription (`GET /api/v1/events/{id}`).
+   *
+   * This is the original `subscribeToEvents` body, factored out so it can be
+   * invoked from BOTH the flag-off path AND the v2 WS connect-failure fallback,
+   * with byte-for-byte identical behavior in the force-OFF case.
+   */
+  private subscribeToEventsSse(
+    sessionId: string,
+    handlers: AgentEventHandlers,
+    signal?: AbortSignal,
+  ): Promise<void> {
     const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
     const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
     const eventsUrl = `${origin}/api/v1/events/${encodeURIComponent(sessionId)}`;
     debugLog("[AgentClient]", "events.subscribe.url", { sessionId, eventsUrl });
 
-    return await new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       if (signal?.aborted) {
         debugLog("[AgentClient]", "events.subscribe.aborted_before_connect", { sessionId });
         resolve();
@@ -1372,19 +1415,54 @@ export class AgentClient {
    * Returns a small `{ close() }` handle so the caller can tear it down. With
    * the legacy SSE transport this is the live `EventSource` (which structurally
    * satisfies the handle) and reconnection is handled natively by the browser;
-   * with the opt-in v2 WebSocket transport it is the v2 feed subscription.
+   * with the v2 WebSocket transport it is the v2 feed subscription.
+   *
+   * v2 WebSocket transport is default ON (force OFF with bodhi_api_v2_ws="0").
+   * If the WS's very FIRST connection never opens (old backend without
+   * `/v2/stream`, or unreachable host), we transparently fall back to the legacy
+   * SSE feed below. The returned handle closes whichever transport ended up
+   * active; `accountFeed.ts` needs no change.
    */
   subscribeToAccountStream(
     handlers: AccountStreamHandlers,
     opts?: { since?: number },
   ): FeedSubscription {
-    // Opt-in v2 WebSocket transport (default OFF). When enabled, route the
-    // account feed over the shared `/v2/stream` socket; the returned handle's
-    // `close()` is all `accountFeed.ts` uses.
     if (isApiV2WsEnabled()) {
-      return v2Stream.subscribeFeed(handlers, opts?.since ?? 0);
+      // The handle must close whichever transport is active. It starts holding
+      // the WS feed subscription and swaps to the SSE handle if the initial WS
+      // connect fails. If the caller closes BEFORE any fallback, the `closed`
+      // guard prevents a late fallback from opening a leaked EventSource.
+      let active: FeedSubscription = v2Stream.subscribeFeed(handlers, opts?.since ?? 0, () => {
+        if (closed) return;
+        debugLog("[AgentClient]", "stream.subscribe.ws.connect_failed_fallback", {});
+        // The WS subscription is already torn down internally by the client;
+        // swap to the legacy SSE feed with the same handlers + since.
+        active = this.subscribeAccountStreamSse(handlers, opts);
+      });
+      let closed = false;
+      return {
+        close() {
+          if (closed) return;
+          closed = true;
+          active.close();
+        },
+      };
     }
 
+    return this.subscribeAccountStreamSse(handlers, opts);
+  }
+
+  /**
+   * Legacy SSE account change-feed (`GET /api/v1/stream`).
+   *
+   * This is the original `subscribeToAccountStream` body, factored out so it can
+   * be invoked from BOTH the flag-off path AND the v2 WS connect-failure
+   * fallback, with byte-for-byte identical behavior in the force-OFF case.
+   */
+  private subscribeAccountStreamSse(
+    handlers: AccountStreamHandlers,
+    opts?: { since?: number },
+  ): FeedSubscription {
     const base = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
     const origin = base.endsWith("/v1") ? base.slice(0, -3) : base;
     const since = opts?.since && opts.since > 0 ? `?since=${opts.since}` : "";
