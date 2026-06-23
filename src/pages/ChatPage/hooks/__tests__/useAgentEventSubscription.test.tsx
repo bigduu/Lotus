@@ -59,7 +59,16 @@ vi.mock("@shared/store/appStore", () => {
   const selectChildren = (sessionId: string | null) => (state: any) => {
     return state.executionBySession?.[sessionId!]?.children?.byId ?? {};
   };
-  return { useAppStore: mockStore, selectShouldObserve, selectGeneration, selectChildren };
+  const selectPendingChildApproval = (sessionId: string | null) => (state: any) => {
+    return state.executionBySession?.[sessionId!]?.interaction?.pendingChildApproval ?? null;
+  };
+  return {
+    useAppStore: mockStore,
+    selectShouldObserve,
+    selectGeneration,
+    selectChildren,
+    selectPendingChildApproval,
+  };
 });
 
 vi.mock("@shared/store/appStore/slices/executionStateSlice", () => ({
