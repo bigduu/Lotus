@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ChatItem } from "@shared/types/chat";
@@ -12,7 +12,9 @@ const {
   listSessionsMock,
   createSessionMock,
   patchSessionMock,
+  getPendingQuestionMock,
 } = vi.hoisted(() => ({
+  getPendingQuestionMock: vi.fn(async () => ({ has_pending_question: false })),
   deleteSessionMock: vi.fn(),
   deleteSessionMessageMock: vi.fn(async () => undefined),
   getHistoryMock: vi.fn(async () => ({
@@ -49,6 +51,7 @@ vi.mock("@services/chat/AgentService", () => ({
       patchSession: patchSessionMock,
       getHistory: getHistoryMock,
       deleteSessionMessage: deleteSessionMessageMock,
+      getPendingQuestion: getPendingQuestionMock,
     })),
   },
 }));
@@ -919,5 +922,94 @@ describe("chatSessionSlice session model propagation", () => {
         model: "gpt-3.5-turbo",
       }),
     );
+  });
+});
+
+describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
+  const setPendingQuestionMock = vi.fn();
+  const clearPendingQuestionMock = vi.fn();
+
+  const buildStore = (currentSessionId: string | null) => {
+    const store = createTestStore();
+    // Inject the cross-slice actions reconcileOpenSession depends on.
+    store.setState({
+      chats: [createChat("s1")],
+      currentSessionId,
+      setPendingQuestion: setPendingQuestionMock,
+      clearPendingQuestion: clearPendingQuestionMock,
+    } as never);
+    return store;
+  };
+
+  beforeEach(() => {
+    getHistoryMock.mockReset();
+    getHistoryMock.mockResolvedValue({
+      session_id: "s1",
+      compression_events: [],
+      // assistant tail (2 > local 0) so monotonic applies and waitForAssistant does not retry
+      messages: [
+        { id: "m1", role: "user", content: "hi", created_at: new Date().toISOString() },
+        { id: "m2", role: "assistant", content: "yo", created_at: new Date().toISOString() },
+      ],
+    } as never);
+    getPendingQuestionMock.mockReset();
+    getPendingQuestionMock.mockResolvedValue({ has_pending_question: false });
+    setPendingQuestionMock.mockReset();
+    clearPendingQuestionMock.mockReset();
+    resetProviderStore();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("is a no-op when the session is not the open one", async () => {
+    vi.useFakeTimers();
+    const store = buildStore("s1");
+    store.getState().reconcileOpenSession("s2", "message_appended");
+    await vi.advanceTimersByTimeAsync(400);
+    expect(getHistoryMock).not.toHaveBeenCalled();
+    expect(getPendingQuestionMock).not.toHaveBeenCalled();
+  });
+
+  it("debounces and reconciles history + pending for the open session", async () => {
+    vi.useFakeTimers();
+    const store = buildStore("s1");
+
+    // A burst of feed events for the open session coalesces into one reconcile.
+    store.getState().reconcileOpenSession("s1", "message_appended");
+    store.getState().reconcileOpenSession("s1", "complete");
+    expect(getHistoryMock).not.toHaveBeenCalled(); // still debounced
+
+    await vi.advanceTimersByTimeAsync(300);
+    expect(getHistoryMock).toHaveBeenCalledTimes(1);
+    expect(getHistoryMock).toHaveBeenCalledWith("s1");
+    expect(getPendingQuestionMock).toHaveBeenCalledWith("s1");
+    // No pending question on the server -> clear any stale local one.
+    expect(clearPendingQuestionMock).toHaveBeenCalledWith("s1");
+    expect(setPendingQuestionMock).not.toHaveBeenCalled();
+  });
+
+  it("sets the pending question when the server has one (raised on another device)", async () => {
+    vi.useFakeTimers();
+    getPendingQuestionMock.mockResolvedValue({
+      has_pending_question: true,
+      question: "Which file?",
+      options: ["a", "b"],
+      allow_custom: true,
+      tool_call_id: "tc-1",
+    });
+    const store = buildStore("s1");
+
+    store.getState().reconcileOpenSession("s1", "need_clarification");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(setPendingQuestionMock).toHaveBeenCalledWith("s1", {
+      question: "Which file?",
+      options: ["a", "b"],
+      allowCustom: true,
+      toolCallId: "tc-1",
+    });
+    expect(clearPendingQuestionMock).not.toHaveBeenCalled();
   });
 });

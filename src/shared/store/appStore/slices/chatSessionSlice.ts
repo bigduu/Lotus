@@ -37,6 +37,12 @@ import type { ChatSlice } from "./chatSessionSlice/types";
 
 const agentClient = AgentClient.getInstance();
 
+// Multi-device reconcile debounce: coalesce a burst of account-feed events for
+// the open session (e.g. a turn driven on another device emits several change
+// events) into a single history+pending reload.
+const reconcileTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const RECONCILE_DEBOUNCE_MS = 300;
+
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
   chats: [],
   currentSessionId: null,
@@ -745,5 +751,62 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
+  },
+
+  reconcileOpenSession: (sessionId, reason) => {
+    // Only the open session is reconciled from the feed — other sessions are
+    // handled by the (debounced) list-level refresh.
+    if (!sessionId || get().currentSessionId !== sessionId) {
+      return;
+    }
+    const existing = reconcileTimers.get(sessionId);
+    if (existing) {
+      clearTimeout(existing);
+    }
+    reconcileTimers.set(
+      sessionId,
+      setTimeout(() => {
+        reconcileTimers.delete(sessionId);
+        // Bail if the user switched away while the timer was pending.
+        if (get().currentSessionId !== sessionId) {
+          return;
+        }
+        void (async () => {
+          debugLog("[ChatSlice]", "reconcileOpenSession.start", {
+            sessionId,
+            reason: reason ?? null,
+          });
+          // monotonic: catches a behind (passive-viewer) device up; a no-op on
+          // the device driving the run (its local state is ahead). waitForAssistant
+          // so a freshly-completed turn picks up the assistant reply.
+          await get().loadChatHistory(sessionId, {
+            mode: "monotonic",
+            waitForAssistant: true,
+            retries: 3,
+            retryDelayMs: 250,
+          });
+          // Reconcile the pending clarification so one answered/raised on another
+          // device clears/appears here too.
+          try {
+            const pending = await agentClient.getPendingQuestion(sessionId);
+            if (get().currentSessionId !== sessionId) {
+              return;
+            }
+            if (pending.has_pending_question) {
+              get().setPendingQuestion(sessionId, {
+                question: pending.question ?? "",
+                options: pending.options ?? [],
+                allowCustom: pending.allow_custom ?? true,
+                toolCallId: pending.tool_call_id ?? null,
+              });
+            } else {
+              get().clearPendingQuestion(sessionId);
+            }
+          } catch (e) {
+            debugLog("[ChatSlice]", "reconcileOpenSession.pendingError", { sessionId, error: e });
+          }
+        })();
+      }, RECONCILE_DEBOUNCE_MS),
+    );
   },
 });

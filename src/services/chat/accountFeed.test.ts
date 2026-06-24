@@ -7,11 +7,18 @@ import type { AccountStreamHandlers, ChangeEvent } from "./AgentService";
 let captured: AccountStreamHandlers | null = null;
 const closeSpy = vi.fn();
 
+// Controls the mocked selectShouldObserve (true = this device already observes
+// the run, i.e. driver / already-subscribed; false = passive viewer).
+let shouldObserveValue = false;
+
 const storeActions = {
+  currentSessionId: null as string | null,
   refreshSessionsIndex: vi.fn().mockResolvedValue(undefined),
+  refreshChatsNow: vi.fn().mockResolvedValue(undefined),
   applyServerTitle: vi.fn(),
   applyServerPinned: vi.fn(),
   setAgentAvailability: vi.fn(),
+  reconcileOpenSession: vi.fn(),
 };
 
 vi.mock("./AgentService", () => ({
@@ -27,6 +34,7 @@ vi.mock("./AgentService", () => ({
 
 vi.mock("@shared/store/appStore", () => ({
   useAppStore: { getState: () => storeActions },
+  selectShouldObserve: () => () => shouldObserveValue,
 }));
 
 import { startAccountFeed, stopAccountFeed } from "./accountFeed";
@@ -44,8 +52,15 @@ describe("accountFeed runner", () => {
     (globalThis as Record<string, unknown>).EventSource = class {};
     captured = null;
     closeSpy.mockReset();
-    Object.values(storeActions).forEach((s) => s.mockReset());
+    Object.values(storeActions).forEach((s) => {
+      if (typeof (s as { mockReset?: () => void })?.mockReset === "function") {
+        (s as { mockReset: () => void }).mockReset();
+      }
+    });
+    storeActions.currentSessionId = null;
+    shouldObserveValue = false;
     storeActions.refreshSessionsIndex.mockResolvedValue(undefined);
+    storeActions.refreshChatsNow.mockResolvedValue(undefined);
     localStorage.clear();
   });
 
@@ -91,6 +106,74 @@ describe("accountFeed runner", () => {
     expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
     vi.advanceTimersByTime(400);
     expect(storeActions.refreshSessionsIndex).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles the OPEN session on a content change driven elsewhere (multi-device)", () => {
+    storeActions.currentSessionId = "s1";
+    startAccountFeed();
+
+    // A message appended to the open session on another device.
+    captured!.onChange(change(5, { type: "message_appended", session_id: "s1" }));
+
+    expect(storeActions.reconcileOpenSession).toHaveBeenCalledWith("s1", "message_appended");
+  });
+
+  it("does NOT reconcile when the changed session is not the open one", () => {
+    storeActions.currentSessionId = "open-session";
+    startAccountFeed();
+
+    captured!.onChange(change(6, { type: "message_appended", session_id: "other-session" }));
+    captured!.onChange(change(7, { type: "complete", session_id: "other-session" }));
+
+    expect(storeActions.reconcileOpenSession).not.toHaveBeenCalled();
+  });
+
+  it("engages live observation (refreshChatsNow) when a run starts on the open session and we are passive", () => {
+    storeActions.currentSessionId = "s1";
+    shouldObserveValue = false; // passive viewer, not yet observing
+
+    startAccountFeed();
+    captured!.onChange(change(10, { type: "execution_started", session_id: "s1", run_id: "r1" }));
+
+    // Immediate (un-debounced) so the summary flips phase->running and the agent
+    // subscription engages for live tokens.
+    expect(storeActions.refreshChatsNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT force-observe when already observing the run (driver / already subscribed)", () => {
+    storeActions.currentSessionId = "s1";
+    shouldObserveValue = true; // already observing
+
+    startAccountFeed();
+    captured!.onChange(change(11, { type: "execution_started", session_id: "s1", run_id: "r1" }));
+
+    expect(storeActions.refreshChatsNow).not.toHaveBeenCalled();
+  });
+
+  it("does NOT force-observe for a run starting on a non-open session", () => {
+    storeActions.currentSessionId = "open";
+    shouldObserveValue = false;
+
+    startAccountFeed();
+    captured!.onChange(
+      change(12, { type: "execution_started", session_id: "other", run_id: "r1" }),
+    );
+
+    expect(storeActions.refreshChatsNow).not.toHaveBeenCalled();
+  });
+
+  it("does NOT reconcile for list-only events even on the open session", () => {
+    storeActions.currentSessionId = "s1";
+    startAccountFeed();
+
+    captured!.onChange(
+      change(8, { type: "session_title_updated", session_id: "s1", title: "x", title_version: 1 }),
+    );
+    captured!.onChange(
+      change(9, { type: "session_pinned_updated", session_id: "s1", pinned: true }),
+    );
+
+    expect(storeActions.reconcileOpenSession).not.toHaveBeenCalled();
   });
 
   it("persists the resume cursor and marks availability on each change", () => {
