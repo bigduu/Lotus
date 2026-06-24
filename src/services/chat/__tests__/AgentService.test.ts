@@ -1115,6 +1115,30 @@ describe("AgentClient", () => {
       expect(wsInstances).toHaveLength(0);
     });
 
+    it("falls back to SSE (no throw, no stuck feed) when the WebSocket constructor throws synchronously", async () => {
+      // A malformed URL / CSP / mixed-content block makes `new WebSocket()` throw
+      // SYNCHRONOUSLY inside subscribeFeed. The connect-failed fire used to re-enter
+      // the caller's closure before its `wsHandle` binding existed (swallowed
+      // temporal-dead-zone ReferenceError → no fallback → a stuck no-events account
+      // feed). The feed MUST degrade to the legacy SSE instead.
+      vi.stubGlobal(
+        "WebSocket",
+        class {
+          constructor() {
+            throw new SyntaxError("malformed ws url");
+          }
+        } as unknown as typeof WebSocket,
+      );
+      const client = AgentClient.getInstance();
+      const onChange = vi.fn();
+      expect(() => client.subscribeToAccountStream({ onChange }, { since: 0 })).not.toThrow();
+      // The connect-failed signal is deferred to a microtask; let it run.
+      await Promise.resolve();
+      await Promise.resolve();
+      // Degraded to SSE rather than stranding the feed.
+      expect(eventSourceInstances.length).toBeGreaterThanOrEqual(1);
+    });
+
     it("routes the account feed over the WS when ON, and SSE is NOT used", () => {
       const client = AgentClient.getInstance();
       const onChange = vi.fn();

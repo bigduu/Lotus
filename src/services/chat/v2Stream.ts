@@ -384,7 +384,15 @@ const connect = (): void => {
     // initial-connect failure → fall back to SSE (do not retry-forever).
     if (!everOpened) {
       feedChannel?.handlers.onError?.();
-      signalConnectFailed();
+      // DEFER: a `new WebSocket()` throw runs SYNCHRONOUSLY inside
+      // `subscribeFeed`/`subscribeAgent`, so firing the connect-failed
+      // listeners now would re-enter the caller's closure before its
+      // `wsHandle`/`active` bindings are initialized (temporal-dead-zone
+      // ReferenceError, silently swallowed → no fallback, stuck no-events
+      // feed). A microtask lets the subscribe call return first, so the
+      // handle is assigned and `wsHandle.close()` (which nulls feedChannel +
+      // resets connectivity) runs as intended.
+      queueMicrotask(() => signalConnectFailed());
       return;
     }
     feedChannel?.handlers.onError?.();

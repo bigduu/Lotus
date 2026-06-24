@@ -1450,6 +1450,12 @@ export class AgentClient {
       // also defers that synchronous fire to a microtask for belt-and-braces.)
       let closed = false;
       let active: FeedSubscription | null = null;
+      // `wsClose` is a hoisted no-op so the callback NEVER references the
+      // not-yet-assigned `wsHandle` const (temporal-dead-zone safety, symmetric
+      // with the agent path). v2Stream also defers any synchronous connect-failed
+      // fire to a microtask, so in practice the callback runs after `wsClose` is
+      // pointed at the real handle below — but the no-op makes a sync fire safe too.
+      let wsClose: () => void = () => {};
       const wsHandle: FeedSubscription = v2Stream.subscribeFeed(handlers, opts?.since ?? 0, () => {
         if (closed) return;
         debugLog("[AgentClient]", "stream.subscribe.ws.connect_failed_fallback", {});
@@ -1459,10 +1465,11 @@ export class AgentClient {
         // registered: hasSubscriptions() stays true, the WS never resets, and
         // every later subscribe keeps hitting the already-failed path (and the
         // WS is never retried even if the backend is later upgraded).
-        wsHandle.close();
+        wsClose();
         // Swap to the legacy SSE feed with the same handlers + since.
         active = this.subscribeAccountStreamSse(handlers, opts);
       });
+      wsClose = () => wsHandle.close();
       if (active === null) active = wsHandle;
       return {
         close() {
