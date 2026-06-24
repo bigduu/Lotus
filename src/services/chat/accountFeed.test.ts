@@ -7,9 +7,14 @@ import type { AccountStreamHandlers, ChangeEvent } from "./AgentService";
 let captured: AccountStreamHandlers | null = null;
 const closeSpy = vi.fn();
 
+// Controls the mocked selectShouldObserve (true = this device already observes
+// the run, i.e. driver / already-subscribed; false = passive viewer).
+let shouldObserveValue = false;
+
 const storeActions = {
   currentSessionId: null as string | null,
   refreshSessionsIndex: vi.fn().mockResolvedValue(undefined),
+  refreshChatsNow: vi.fn().mockResolvedValue(undefined),
   applyServerTitle: vi.fn(),
   applyServerPinned: vi.fn(),
   setAgentAvailability: vi.fn(),
@@ -29,6 +34,7 @@ vi.mock("./AgentService", () => ({
 
 vi.mock("@shared/store/appStore", () => ({
   useAppStore: { getState: () => storeActions },
+  selectShouldObserve: () => () => shouldObserveValue,
 }));
 
 import { startAccountFeed, stopAccountFeed } from "./accountFeed";
@@ -52,7 +58,9 @@ describe("accountFeed runner", () => {
       }
     });
     storeActions.currentSessionId = null;
+    shouldObserveValue = false;
     storeActions.refreshSessionsIndex.mockResolvedValue(undefined);
+    storeActions.refreshChatsNow.mockResolvedValue(undefined);
     localStorage.clear();
   });
 
@@ -118,6 +126,40 @@ describe("accountFeed runner", () => {
     captured!.onChange(change(7, { type: "complete", session_id: "other-session" }));
 
     expect(storeActions.reconcileOpenSession).not.toHaveBeenCalled();
+  });
+
+  it("engages live observation (refreshChatsNow) when a run starts on the open session and we are passive", () => {
+    storeActions.currentSessionId = "s1";
+    shouldObserveValue = false; // passive viewer, not yet observing
+
+    startAccountFeed();
+    captured!.onChange(change(10, { type: "execution_started", session_id: "s1", run_id: "r1" }));
+
+    // Immediate (un-debounced) so the summary flips phase->running and the agent
+    // subscription engages for live tokens.
+    expect(storeActions.refreshChatsNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT force-observe when already observing the run (driver / already subscribed)", () => {
+    storeActions.currentSessionId = "s1";
+    shouldObserveValue = true; // already observing
+
+    startAccountFeed();
+    captured!.onChange(change(11, { type: "execution_started", session_id: "s1", run_id: "r1" }));
+
+    expect(storeActions.refreshChatsNow).not.toHaveBeenCalled();
+  });
+
+  it("does NOT force-observe for a run starting on a non-open session", () => {
+    storeActions.currentSessionId = "open";
+    shouldObserveValue = false;
+
+    startAccountFeed();
+    captured!.onChange(
+      change(12, { type: "execution_started", session_id: "other", run_id: "r1" }),
+    );
+
+    expect(storeActions.refreshChatsNow).not.toHaveBeenCalled();
   });
 
   it("does NOT reconcile for list-only events even on the open session", () => {

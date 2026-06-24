@@ -15,7 +15,7 @@
  * (`agentSubscriptionRunner`); this feed is the cross-session sync channel.
  */
 import { AgentClient, type ChangeEvent, type FeedSubscription } from "./AgentService";
-import { useAppStore } from "@shared/store/appStore";
+import { useAppStore, selectShouldObserve } from "@shared/store/appStore";
 import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
 
 const CURSOR_STORAGE_KEY = "lotus_account_feed_cursor_v1";
@@ -91,6 +91,23 @@ const applyChange = (change: ChangeEvent): void => {
     OPEN_SESSION_RECONCILE_TYPES.has(event.type)
   ) {
     store.reconcileOpenSession(sessionId, event.type);
+  }
+
+  // Passive per-token streaming: when a run STARTS on the OPEN session on another
+  // device and this device is not already observing it, refresh now (un-debounced)
+  // so the session's `is_running` summary flips its execution phase to `running`
+  // -> `selectShouldObserve` becomes true -> the agent-event subscription engages
+  // and live tokens stream in. (`execution_started` itself can't promote an `idle`
+  // entry to `running`; the summary path can — hence a refresh, not a synthetic
+  // event.) On the device DRIVING the run, `selectShouldObserve` is already true,
+  // so this is skipped.
+  if (
+    sessionId &&
+    sessionId === store.currentSessionId &&
+    event.type === "execution_started" &&
+    !selectShouldObserve(sessionId)(store)
+  ) {
+    void store.refreshChatsNow();
   }
 
   switch (event.type) {
