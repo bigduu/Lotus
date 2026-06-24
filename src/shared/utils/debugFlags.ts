@@ -63,3 +63,34 @@ export const isApiV2WsEnabled = (): boolean => {
     return true;
   }
 };
+
+/** localStorage key for the opt-in v2 WS MessagePack subprotocol feature flag. */
+const API_V2_MSGPACK_FLAG_KEY = "bodhi_api_v2_msgpack";
+
+/**
+ * Feature flag: negotiate the binary `bamboo.v2.msgpack` subprotocol on the v2
+ * WebSocket instead of the default JSON text frames. Same `/v2/stream` socket,
+ * same envelope schema — only the wire encoding differs (smaller frames, aimed
+ * at mobile/bandwidth-constrained clients). Desktop keeps JSON for
+ * debuggability.
+ *
+ * Default OFF → JSON. Only meaningful when the v2 WS is on (which it is by
+ * default, see {@link isApiV2WsEnabled}). The offer is safe against a JSON-only
+ * backend: if the server does not echo `bamboo.v2.msgpack` on the handshake
+ * (`ws.protocol` stays empty), the client transparently stays on JSON.
+ *
+ * Exact values (honored in any build, not just dev):
+ *  - key unset / any value EXCEPT "1" → msgpack OFF → JSON (default).
+ *  - "1" → msgpack ON: offer `bamboo.v2.msgpack` as the WS subprotocol.
+ *
+ * Enable: `localStorage.setItem("bodhi_api_v2_msgpack", "1")` then reload.
+ * Disable: `localStorage.removeItem("bodhi_api_v2_msgpack")` then reload.
+ */
+export const isApiV2MsgpackEnabled = (): boolean => {
+  try {
+    return localStorage.getItem(API_V2_MSGPACK_FLAG_KEY) === "1";
+  } catch {
+    // Storage unavailable (e.g. SSR/private-mode): default OFF (JSON).
+    return false;
+  }
+};

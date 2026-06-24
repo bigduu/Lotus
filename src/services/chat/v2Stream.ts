@@ -7,12 +7,22 @@
  * and is gated behind the `apiV2Ws` feature flag (default OFF — see
  * `isApiV2WsEnabled`). When the flag is off this module is never touched.
  *
- * Protocol (JSON text frames):
+ * Protocol (JSON text frames by default):
  *  - Client to server: {type:"hello"} (optional; no token on loopback/local),
  *    {type:"subscribe", ch:"feed", since}, {type:"subscribe", ch:"agent.<sid>"},
  *    {type:"unsubscribe", ch}, {type:"stop", session_id}.
  *  - Server to client: event envelope {ch, seq, event} and control envelope
  *    {ch, seq, control:{type:"terminal"|"feed_reset", ...}}.
+ *
+ * Wire encoding (opt-in MessagePack): by default the socket speaks JSON text
+ * frames. When `isApiV2MsgpackEnabled()` is on, the socket is opened offering
+ * the `bamboo.v2.msgpack` subprotocol via `Sec-WebSocket-Protocol`; the SAME
+ * envelope schema is then carried as MessagePack binary frames. The active
+ * encoding is decided from the NEGOTIATED `ws.protocol` after open: if the
+ * backend echoes `bamboo.v2.msgpack` we encode/decode msgpack, otherwise (an
+ * older JSON-only backend leaves `ws.protocol` empty) we stay on JSON even
+ * though we offered msgpack. JSON remains the default and is byte-for-byte
+ * unchanged when the flag is off.
  *
  * Reconnect: a single bounded-backoff reconnect loop owns the socket. On every
  * (re)connect a `hello` is sent and ALL live channels are re-subscribed (feed
@@ -30,7 +40,8 @@ import type {
   ChangeEvent,
 } from "./AgentService";
 import { getV2StreamUrl } from "@shared/utils/backendBaseUrl";
-import { debugLog } from "@shared/utils/debugFlags";
+import { debugLog, isApiV2MsgpackEnabled } from "@shared/utils/debugFlags";
+import { decode as msgpackDecode, encode as msgpackEncode } from "@msgpack/msgpack";
 
 /** Subscription handle returned by {@link subscribeFeed}. */
 export interface FeedSubscription {
@@ -57,6 +68,13 @@ export type AgentEventDispatch = (event: AgentEvent, handlers: AgentEventHandler
 
 const MAX_BACKOFF_MS = 15_000;
 const BASE_BACKOFF_MS = 500;
+
+/**
+ * The MessagePack subprotocol token offered via `Sec-WebSocket-Protocol` when
+ * `isApiV2MsgpackEnabled()` is on, and echoed by the backend on the handshake
+ * response when it supports binary frames. Must match the bamboo backend.
+ */
+const MSGPACK_SUBPROTOCOL = "bamboo.v2.msgpack";
 
 /**
  * How long the FIRST connection attempt may take before it is declared a
@@ -150,10 +168,22 @@ const agentCh = (sessionId: string): string => `agent.${sessionId}`;
 
 const hasSubscriptions = (): boolean => feedChannel !== null || agentChannels.size > 0;
 
+/**
+ * Whether the LIVE socket negotiated the MessagePack subprotocol. Decided from
+ * the post-handshake `ws.protocol`: only when the backend echoes
+ * `bamboo.v2.msgpack` do we encode/decode binary. If we offered msgpack but the
+ * backend did not echo it (older JSON-only backend → empty `ws.protocol`), this
+ * is false and we stay on JSON. Safe to call any time; defaults to JSON.
+ */
+const isMsgpackActive = (): boolean => socket !== null && socket.protocol === MSGPACK_SUBPROTOCOL;
+
 const send = (payload: Record<string, unknown>): void => {
   if (socket && socket.readyState === WebSocket.OPEN) {
     try {
-      socket.send(JSON.stringify(payload));
+      // Encoding is chosen from the post-open `ws.protocol`, so frames queued
+      // before open (flushed here on open via resubscribeAll) get the correct
+      // negotiated encoding — the handshake has completed by the time we send.
+      socket.send(isMsgpackActive() ? msgpackEncode(payload) : JSON.stringify(payload));
     } catch (error) {
       debugLog("[v2Stream]", "send.error", { payload, error });
     }
@@ -292,17 +322,37 @@ const closeIfIdle = (): void => {
   connectFailedListeners.clear();
 };
 
-const handleFrame = (raw: string): void => {
-  let frame: ServerFrame;
+/**
+ * Decode a raw inbound WS frame into a {@link ServerFrame}, picking the codec
+ * from the frame shape: an `ArrayBuffer`/binary payload is MessagePack (msgpack
+ * mode), a string is JSON (default). Returns `undefined` on an undecodable
+ * frame; the caller logs + ignores (never throws out of `onmessage`).
+ */
+const decodeFrame = (data: unknown): ServerFrame | undefined => {
   try {
-    frame = JSON.parse(raw) as ServerFrame;
+    if (typeof data === "string") {
+      return JSON.parse(data) as ServerFrame;
+    }
+    if (data instanceof ArrayBuffer) {
+      return msgpackDecode(new Uint8Array(data)) as ServerFrame;
+    }
+    if (ArrayBuffer.isView(data)) {
+      const view = data as ArrayBufferView;
+      return msgpackDecode(
+        new Uint8Array(view.buffer, view.byteOffset, view.byteLength),
+      ) as ServerFrame;
+    }
+    debugLog("[v2Stream]", "frame.unknown_data_type", {});
+    return undefined;
   } catch (error) {
-    console.warn("Failed to parse v2 stream frame:", raw, error);
-    return;
+    console.warn("Failed to parse v2 stream frame:", data, error);
+    return undefined;
   }
+};
 
+const handleFrame = (frame: ServerFrame | undefined): void => {
   if (!frame || typeof frame.ch !== "string") {
-    debugLog("[v2Stream]", "frame.unknown", { raw });
+    debugLog("[v2Stream]", "frame.unknown", {});
     return;
   }
 
@@ -319,7 +369,7 @@ const handleFrame = (raw: string): void => {
       return;
     }
     if (event === undefined) {
-      debugLog("[v2Stream]", "feed.frame.no_event", { raw });
+      debugLog("[v2Stream]", "feed.frame.no_event", {});
       return;
     }
     const change = event as ChangeEvent;
@@ -341,13 +391,13 @@ const handleFrame = (raw: string): void => {
       return;
     }
     if (event === undefined) {
-      debugLog("[v2Stream]", "agent.frame.no_event", { raw });
+      debugLog("[v2Stream]", "agent.frame.no_event", {});
       return;
     }
     try {
       channel.dispatch(event as AgentEvent, channel.handlers);
     } catch (error) {
-      console.warn("Failed to dispatch v2 agent event:", raw, error);
+      console.warn("Failed to dispatch v2 agent event:", event, error);
     }
     return;
   }
@@ -374,9 +424,20 @@ const connect = (): void => {
   const url = getV2StreamUrl();
   debugLog("[v2Stream]", "connect", { url });
 
+  // Opt-in: offer the msgpack subprotocol so the backend can negotiate binary
+  // frames. Safe against a JSON-only backend — if it does not echo the protocol
+  // on the handshake, `ws.protocol` stays empty and we decode JSON (see
+  // `isMsgpackActive`). Default (flag off) opens exactly as before: no
+  // protocols arg, JSON text.
+  const offerMsgpack = isApiV2MsgpackEnabled();
   let ws: WebSocket;
   try {
-    ws = new WebSocket(url);
+    ws = offerMsgpack ? new WebSocket(url, [MSGPACK_SUBPROTOCOL]) : new WebSocket(url);
+    if (offerMsgpack) {
+      // Receive binary frames as ArrayBuffer (the default `Blob` is async to
+      // read); decoding in `onmessage` needs synchronous access to the bytes.
+      ws.binaryType = "arraybuffer";
+    }
   } catch (error) {
     connecting = false;
     debugLog("[v2Stream]", "connect.error", { error });
@@ -426,9 +487,10 @@ const connect = (): void => {
   };
 
   ws.onmessage = (messageEvent: MessageEvent) => {
-    const data = messageEvent.data;
-    if (typeof data !== "string") return;
-    handleFrame(data);
+    // Decode by frame shape: string → JSON, ArrayBuffer/binary → msgpack. A
+    // malformed/undecodable frame is logged + ignored inside decodeFrame, so
+    // this never throws out of onmessage (same discipline as the JSON path).
+    handleFrame(decodeFrame(messageEvent.data));
   };
 
   ws.onerror = () => {

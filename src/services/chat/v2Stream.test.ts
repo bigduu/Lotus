@@ -1,3 +1,4 @@
+import { decode as msgpackDecode, encode as msgpackEncode } from "@msgpack/msgpack";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -10,6 +11,16 @@ import type {
 // Stable WS URL so the client does not depend on the real backend derivation.
 vi.mock("@shared/utils/backendBaseUrl", () => ({
   getV2StreamUrl: () => "ws://127.0.0.1:9562/v2/stream",
+}));
+
+// Controllable msgpack flag (default OFF → JSON, matching production default).
+let msgpackFlag = false;
+const setMsgpackFlag = (on: boolean): void => {
+  msgpackFlag = on;
+};
+vi.mock("@shared/utils/debugFlags", () => ({
+  debugLog: () => {},
+  isApiV2MsgpackEnabled: () => msgpackFlag,
 }));
 
 import {
@@ -30,20 +41,27 @@ class MockWebSocket {
   static readonly CLOSED = 3;
 
   readyState = MockWebSocket.CONNECTING;
-  sent: string[] = [];
+  sent: Array<string | ArrayBuffer | Uint8Array> = [];
   url: string;
+  /** Subprotocols the client offered via the constructor (msgpack negotiation). */
+  offeredProtocols: string[];
+  /** Subprotocol the "server" echoed on the handshake; drives ws.protocol. */
+  protocol = "";
+  binaryType = "blob";
 
   onopen: (() => void) | null = null;
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   onclose: (() => void) | null = null;
 
-  constructor(url: string) {
+  constructor(url: string, protocols?: string | string[]) {
     this.url = url;
+    this.offeredProtocols =
+      protocols === undefined ? [] : Array.isArray(protocols) ? protocols : [protocols];
     sockets.push(this);
   }
 
-  send(data: string): void {
+  send(data: string | ArrayBuffer | Uint8Array): void {
     this.sent.push(data);
   }
 
@@ -52,7 +70,9 @@ class MockWebSocket {
   }
 
   // Test driver helpers.
-  open(): void {
+  /** Open the socket; pass the negotiated subprotocol the "server" echoed. */
+  open(negotiatedProtocol = ""): void {
+    this.protocol = negotiatedProtocol;
     this.readyState = MockWebSocket.OPEN;
     this.onopen?.();
   }
@@ -61,7 +81,14 @@ class MockWebSocket {
     this.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent);
   }
 
-  emitRaw(data: string): void {
+  /** Deliver an inbound msgpack-encoded envelope as an ArrayBuffer frame. */
+  emitBinary(frame: unknown): void {
+    const bytes = msgpackEncode(frame);
+    const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+    this.onmessage?.({ data: buf } as MessageEvent);
+  }
+
+  emitRaw(data: unknown): void {
     this.onmessage?.({ data } as MessageEvent);
   }
 
@@ -71,7 +98,15 @@ class MockWebSocket {
   }
 
   parsedSent(): Array<Record<string, unknown>> {
-    return this.sent.map((s) => JSON.parse(s) as Record<string, unknown>);
+    return this.sent.map((s) => JSON.parse(s as string) as Record<string, unknown>);
+  }
+
+  /** Decode outbound frames as msgpack (asserts the binary encode path). */
+  msgpackSent(): Array<Record<string, unknown>> {
+    return this.sent.map((s) => {
+      const bytes = s instanceof ArrayBuffer ? new Uint8Array(s) : (s as Uint8Array);
+      return msgpackDecode(bytes) as Record<string, unknown>;
+    });
   }
 }
 
@@ -92,6 +127,7 @@ const tokenDispatch: AgentEventDispatch = (event: AgentEvent, handlers: AgentEve
 describe("v2Stream WebSocket client", () => {
   beforeEach(() => {
     sockets.length = 0;
+    setMsgpackFlag(false);
     vi.stubGlobal("WebSocket", MockWebSocket as unknown as typeof WebSocket);
   });
 
@@ -247,5 +283,106 @@ describe("v2Stream WebSocket client", () => {
   it("matches the AccountStreamHandlers contract", () => {
     const handlers: AccountStreamHandlers = { onChange: vi.fn() };
     expect(typeof handlers.onChange).toBe("function");
+  });
+
+  describe("MessagePack subprotocol (opt-in)", () => {
+    it("flag OFF (default): constructed WITHOUT a protocols arg, JSON both ways", () => {
+      const onChange = vi.fn();
+      subscribeFeed({ onChange }, 5);
+
+      const ws = lastSocket();
+      expect(ws.offeredProtocols).toEqual([]);
+      ws.open();
+
+      // Outbound is JSON text — no binary frames.
+      expect(ws.sent.every((s) => typeof s === "string")).toBe(true);
+      expect(ws.parsedSent()).toContainEqual({ type: "subscribe", ch: "feed", since: 5 });
+
+      // Inbound JSON routes as before.
+      const ev = change(7);
+      ws.emit({ ch: "feed", seq: 7, event: ev });
+      expect(onChange).toHaveBeenCalledWith(ev);
+    });
+
+    it("flag ON: offers bamboo.v2.msgpack and sets binaryType=arraybuffer", () => {
+      setMsgpackFlag(true);
+      subscribeFeed({ onChange: vi.fn() }, 0);
+
+      const ws = lastSocket();
+      expect(ws.offeredProtocols).toEqual(["bamboo.v2.msgpack"]);
+      expect(ws.binaryType).toBe("arraybuffer");
+    });
+
+    it("negotiated msgpack: outbound frames are msgpack binary; inbound binary routes", () => {
+      setMsgpackFlag(true);
+      const onChange = vi.fn();
+      subscribeFeed({ onChange }, 5);
+
+      const ws = lastSocket();
+      // Server echoes the subprotocol → encoding becomes msgpack post-open.
+      ws.open("bamboo.v2.msgpack");
+
+      // Outbound: all binary, decodable as msgpack, correct subscribe shape.
+      expect(ws.sent.length).toBeGreaterThan(0);
+      expect(ws.sent.every((s) => typeof s !== "string")).toBe(true);
+      const frames = ws.msgpackSent();
+      expect(frames[0]).toEqual({ type: "hello" });
+      expect(frames).toContainEqual({ type: "subscribe", ch: "feed", since: 5 });
+
+      // Inbound: a binary msgpack envelope is decoded + routed to onChange.
+      const ev = change(9);
+      ws.emitBinary({ ch: "feed", seq: 9, event: ev });
+      expect(onChange).toHaveBeenCalledWith(ev);
+    });
+
+    it("negotiated msgpack: an inbound binary agent envelope dispatches", () => {
+      setMsgpackFlag(true);
+      const onToken = vi.fn();
+      subscribeAgent("s1", { onToken }, tokenDispatch);
+
+      const ws = lastSocket();
+      ws.open("bamboo.v2.msgpack");
+      expect(ws.msgpackSent()).toContainEqual({ type: "subscribe", ch: "agent.s1" });
+
+      ws.emitBinary({ ch: "agent.s1", seq: 1, event: { type: "token", content: "hi" } });
+      expect(onToken).toHaveBeenCalledWith("hi");
+    });
+
+    it("offered msgpack but server does NOT echo it: stays on JSON (old-backend safe)", () => {
+      setMsgpackFlag(true);
+      const onChange = vi.fn();
+      subscribeFeed({ onChange }, 3);
+
+      const ws = lastSocket();
+      expect(ws.offeredProtocols).toEqual(["bamboo.v2.msgpack"]);
+      // Empty protocol echo → ws.protocol === "" → client decodes/encodes JSON.
+      ws.open("");
+
+      // Outbound stays JSON text despite the offer.
+      expect(ws.sent.every((s) => typeof s === "string")).toBe(true);
+      expect(ws.parsedSent()).toContainEqual({ type: "subscribe", ch: "feed", since: 3 });
+
+      // A JSON text envelope still routes correctly.
+      const ev = change(4);
+      ws.emit({ ch: "feed", seq: 4, event: ev });
+      expect(onChange).toHaveBeenCalledWith(ev);
+    });
+
+    it("ignores a malformed binary frame without throwing", () => {
+      setMsgpackFlag(true);
+      const onChange = vi.fn();
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      subscribeFeed({ onChange }, 0);
+
+      const ws = lastSocket();
+      ws.open("bamboo.v2.msgpack");
+
+      // Truncated / non-msgpack bytes → decode throws internally, swallowed.
+      const garbage = new Uint8Array([0xc1, 0xff, 0xff, 0xff]).buffer;
+      expect(() => ws.emitRaw(garbage)).not.toThrow();
+      expect(onChange).not.toHaveBeenCalled();
+
+      warn.mockRestore();
+    });
   });
 });
