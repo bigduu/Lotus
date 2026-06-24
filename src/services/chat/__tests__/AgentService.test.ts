@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { AgentClient, ChatRequest } from "../AgentService";
-import { __resetV2StreamForTests } from "../v2Stream";
+import { __resetV2StreamForTests, subscribeFeed } from "../v2Stream";
 import { mockFetchError, mockFetchResponse } from "@test/helpers";
 
 describe("AgentClient", () => {
@@ -19,6 +19,10 @@ describe("AgentClient", () => {
     fetchMock = vi.fn();
     global.fetch = fetchMock as unknown as typeof fetch;
     eventSourceInstances = [];
+    // The v2 WS transport now defaults ON. These suite-level tests exercise the
+    // legacy SSE path, so force the flag OFF ("0") here; the dedicated flag
+    // describe block below opts back IN per-test.
+    localStorage.setItem("bodhi_api_v2_ws", "0");
 
     class MockEventSource {
       url: string;
@@ -41,6 +45,7 @@ describe("AgentClient", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    localStorage.removeItem("bodhi_api_v2_ws");
   });
 
   it("gets a task list snapshot for a session", async () => {
@@ -1031,9 +1036,9 @@ describe("AgentClient", () => {
     expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
   });
 
-  // --- Opt-in v2 WebSocket transport (apiV2Ws flag) ------------------------
+  // --- v2 WebSocket transport (apiV2Ws flag, default ON + SSE fallback) -----
 
-  describe("apiV2Ws feature flag (default OFF)", () => {
+  describe("apiV2Ws feature flag (default ON, falls back to SSE)", () => {
     // A minimal global WebSocket so the v2 path can construct a socket.
     let wsInstances: MockWS[];
 
@@ -1060,6 +1065,11 @@ describe("AgentClient", () => {
         this.readyState = 1;
         this.onopen?.();
       }
+      // Simulate the socket closing BEFORE it ever opened (old/unreachable backend).
+      drop(): void {
+        this.readyState = 3;
+        this.onclose?.();
+      }
       emit(frame: unknown): void {
         this.onmessage?.({ data: JSON.stringify(frame) } as MessageEvent);
       }
@@ -1070,6 +1080,9 @@ describe("AgentClient", () => {
 
     beforeEach(() => {
       wsInstances = [];
+      // Re-arm: the suite-level beforeEach forced the flag OFF ("0"); this block
+      // tests the default-ON behavior, so clear it back to unset.
+      localStorage.removeItem("bodhi_api_v2_ws");
       vi.stubGlobal("WebSocket", MockWS as unknown as typeof WebSocket);
     });
 
@@ -1078,15 +1091,55 @@ describe("AgentClient", () => {
       localStorage.removeItem("bodhi_api_v2_ws");
     });
 
-    it("stays on EventSource when the flag is OFF (default)", () => {
+    it("attempts the WS account feed when the flag is unset (default ON)", () => {
+      const client = AgentClient.getInstance();
+      client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+      // Default ON: a WebSocket is constructed, no EventSource yet.
+      expect(wsInstances).toHaveLength(1);
+      expect(eventSourceInstances).toHaveLength(0);
+    });
+
+    it("forces SSE (never a WebSocket) when the flag is set to '0'", () => {
+      localStorage.setItem("bodhi_api_v2_ws", "0");
       const client = AgentClient.getInstance();
       client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
       expect(eventSourceInstances).toHaveLength(1);
       expect(wsInstances).toHaveLength(0);
     });
 
-    it("routes the account feed over the WS when the flag is ON", () => {
-      localStorage.setItem("bodhi_api_v2_ws", "1");
+    it("forces SSE (never a WebSocket) when the flag is set to 'false'", () => {
+      localStorage.setItem("bodhi_api_v2_ws", "false");
+      const client = AgentClient.getInstance();
+      client.subscribeToEvents("session-1", { onToken: vi.fn() });
+      expect(eventSourceInstances).toHaveLength(1);
+      expect(wsInstances).toHaveLength(0);
+    });
+
+    it("falls back to SSE (no throw, no stuck feed) when the WebSocket constructor throws synchronously", async () => {
+      // A malformed URL / CSP / mixed-content block makes `new WebSocket()` throw
+      // SYNCHRONOUSLY inside subscribeFeed. The connect-failed fire used to re-enter
+      // the caller's closure before its `wsHandle` binding existed (swallowed
+      // temporal-dead-zone ReferenceError → no fallback → a stuck no-events account
+      // feed). The feed MUST degrade to the legacy SSE instead.
+      vi.stubGlobal(
+        "WebSocket",
+        class {
+          constructor() {
+            throw new SyntaxError("malformed ws url");
+          }
+        } as unknown as typeof WebSocket,
+      );
+      const client = AgentClient.getInstance();
+      const onChange = vi.fn();
+      expect(() => client.subscribeToAccountStream({ onChange }, { since: 0 })).not.toThrow();
+      // The connect-failed signal is deferred to a microtask; let it run.
+      await Promise.resolve();
+      await Promise.resolve();
+      // Degraded to SSE rather than stranding the feed.
+      expect(eventSourceInstances.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("routes the account feed over the WS when ON, and SSE is NOT used", () => {
       const client = AgentClient.getInstance();
       const onChange = vi.fn();
 
@@ -1099,13 +1152,14 @@ describe("AgentClient", () => {
       const ev = { seq: 4, ts: "t", session_id: "s1", event: { type: "message_appended" } };
       wsInstances[0]?.emit({ ch: "feed", seq: 4, event: ev });
       expect(onChange).toHaveBeenCalledWith(ev);
+      // WS won: no SSE was ever created.
+      expect(eventSourceInstances).toHaveLength(0);
 
       expect(typeof handle.close).toBe("function");
       handle.close();
     });
 
-    it("routes agent events over the WS and resolves on terminal when the flag is ON", async () => {
-      localStorage.setItem("bodhi_api_v2_ws", "1");
+    it("routes agent events over the WS and resolves on terminal when ON", async () => {
       const client = AgentClient.getInstance();
       const onToken = vi.fn();
 
@@ -1130,7 +1184,6 @@ describe("AgentClient", () => {
     });
 
     it("closes the WS agent subscription when the abort signal fires", async () => {
-      localStorage.setItem("bodhi_api_v2_ws", "1");
       const client = AgentClient.getInstance();
       const controller = new AbortController();
 
@@ -1144,6 +1197,297 @@ describe("AgentClient", () => {
         type: "unsubscribe",
         ch: "agent.session-1",
       });
+    });
+
+    // --- Initial-connect-failure fallback to SSE ---------------------------
+
+    it("falls back to the SSE feed when the initial WS connect drops before open", () => {
+      const client = AgentClient.getInstance();
+      const onChange = vi.fn();
+
+      const handle = client.subscribeToAccountStream({ onChange }, { since: 7 });
+      expect(wsInstances).toHaveLength(1);
+      expect(eventSourceInstances).toHaveLength(0);
+
+      // Initial connect fails: socket closes before ever opening.
+      wsInstances[0]?.drop();
+
+      // The feed transparently degrades to SSE with the same handlers + since.
+      expect(eventSourceInstances).toHaveLength(1);
+      expect(eventSourceInstances[0]?.url).toContain("/api/v1/stream?since=7");
+
+      // Handlers still fire over the SSE transport.
+      eventSourceInstances[0]?.onmessage?.({
+        data: JSON.stringify({ seq: 8, ts: "t", session_id: "s1", event: { type: "complete" } }),
+      } as MessageEvent<string>);
+      expect(onChange).toHaveBeenCalled();
+
+      // The handle now closes the active (SSE) transport.
+      handle.close();
+      expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
+    });
+
+    it("falls back to SSE when the initial WS connect times out (open-timeout)", () => {
+      vi.useFakeTimers();
+      try {
+        const client = AgentClient.getInstance();
+        const handle = client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+        expect(wsInstances).toHaveLength(1);
+        expect(eventSourceInstances).toHaveLength(0);
+
+        // Never call open(); let the open-timeout fire.
+        vi.advanceTimersByTime(4000);
+
+        expect(eventSourceInstances).toHaveLength(1);
+        handle.close();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("does NOT fall back on a post-open drop (uses WS reconnect instead)", () => {
+      vi.useFakeTimers();
+      try {
+        const client = AgentClient.getInstance();
+        client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+        expect(wsInstances).toHaveLength(1);
+
+        // Open succeeds first...
+        wsInstances[0]?.open();
+        // ...then the socket drops. This must NOT create an EventSource; the WS
+        // client's own bounded-backoff reconnect handles it.
+        wsInstances[0]?.drop();
+        vi.advanceTimersByTime(10000);
+
+        expect(eventSourceInstances).toHaveLength(0);
+        // A fresh WS reconnect was attempted instead.
+        expect(wsInstances.length).toBeGreaterThanOrEqual(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("falls back to the SSE agent path when the initial WS connect drops, preserving abort", async () => {
+      const client = AgentClient.getInstance();
+      const controller = new AbortController();
+      const onToken = vi.fn();
+
+      const pending = client.subscribeToEvents("session-1", { onToken }, controller);
+      expect(wsInstances).toHaveLength(1);
+      expect(eventSourceInstances).toHaveLength(0);
+
+      // Initial connect fails.
+      wsInstances[0]?.drop();
+
+      // Degraded to the SSE agent path.
+      expect(eventSourceInstances).toHaveLength(1);
+      expect(eventSourceInstances[0]?.url).toContain("/api/v1/events/session-1");
+
+      eventSourceInstances[0]?.onmessage?.({
+        data: JSON.stringify({ type: "token", content: "via-sse" }),
+      } as MessageEvent<string>);
+      expect(onToken).toHaveBeenCalledWith("via-sse");
+
+      // Abort closes the active (fallback SSE) transport and resolves the Promise.
+      controller.abort();
+      await expect(pending).resolves.toBeUndefined();
+      expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
+    });
+
+    it("does not open a leaked SSE when the handle is closed before fallback fires", () => {
+      const client = AgentClient.getInstance();
+      const handle = client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+      expect(wsInstances).toHaveLength(1);
+
+      // Caller tears down BEFORE the connect-failure signal.
+      handle.close();
+      // Now the (late) initial-connect failure fires — it must NOT open an SSE.
+      wsInstances[0]?.drop();
+
+      expect(eventSourceInstances).toHaveLength(0);
+    });
+
+    // --- C1: synchronous already-failed fire must not TDZ-crash -------------
+
+    /**
+     * Latch the shared v2Stream into a known connect-FAILED state with a live
+     * subscription still present, so a SUBSEQUENT subscribe hits the synchronous
+     * already-failed branch of `registerConnectFailed` (the C1 path).
+     *
+     * We use a low-level `subscribeFeed` whose `onConnectFailed` deliberately
+     * does NOT close — keeping `feedChannel` alive (so `closeIfIdle` cannot reset
+     * connectivity) and `connectFailed` latched true. Returns the latch handle so
+     * the test can release it afterwards.
+     */
+    const latchConnectFailed = (): { close: () => void } => {
+      const latch = subscribeFeed({ onChange: vi.fn() }, 0, () => {
+        /* intentionally do NOT close: keep the subscription + connectFailed alive */
+      });
+      // Drop the (only) socket before it opens → declares connect failure.
+      expect(wsInstances).toHaveLength(1);
+      wsInstances[0]?.drop();
+      return latch;
+    };
+
+    it("(C1 feed) a feed subscribe while already connect-failed does not throw (sync fire) and uses SSE", async () => {
+      const client = AgentClient.getInstance();
+      const latch = latchConnectFailed();
+
+      // connectFailed is now latched true with a live subscription. A fresh
+      // service-level feed subscribe registers its callback against the
+      // already-failed verdict → synchronous fire (deferred to a microtask).
+      // This must NOT throw a TDZ ReferenceError on the hoisted `wsHandle`/
+      // `closed`/`active` closure state.
+      const onChange = vi.fn();
+      let handle: ReturnType<AgentClient["subscribeToAccountStream"]>;
+      expect(() => {
+        handle = client.subscribeToAccountStream({ onChange }, { since: 5 });
+      }).not.toThrow();
+
+      // Let the deferred fire run.
+      await Promise.resolve();
+      await Promise.resolve();
+
+      // The new feed transparently degraded to SSE.
+      expect(eventSourceInstances.some((es) => es.url.includes("/api/v1/stream?since=5"))).toBe(
+        true,
+      );
+
+      handle!.close();
+      latch.close();
+    });
+
+    it("(C1 agent) an agent subscribe while already connect-failed does not throw (sync fire) and uses SSE", async () => {
+      const client = AgentClient.getInstance();
+      const latch = latchConnectFailed();
+
+      // Fresh agent subscribe against the already-failed verdict → synchronous
+      // fire (deferred). Must NOT throw a TDZ ReferenceError on the hoisted
+      // `close` closure binding, and must degrade to the SSE agent path.
+      const onToken = vi.fn();
+      let pending: Promise<void>;
+      expect(() => {
+        pending = client.subscribeToEvents("session-B", { onToken });
+      }).not.toThrow();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(eventSourceInstances.some((es) => es.url.includes("/api/v1/events/session-B"))).toBe(
+        true,
+      );
+
+      // Drive the SSE leg to terminal so its promise resolves.
+      const agentEs = eventSourceInstances.find((es) => es.url.includes("/events/session-B"));
+      agentEs?.onmessage?.({ data: "[DONE]" } as MessageEvent<string>);
+      await expect(pending!).resolves.toBeUndefined();
+      latch.close();
+    });
+
+    // --- H3: feed fallback resets connectivity so the WS can be retried -----
+
+    it("(H3) after a feed fallback the next feed subscribe retries the WS (connectivity reset)", () => {
+      const client = AgentClient.getInstance();
+
+      const handle1 = client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+      expect(wsInstances).toHaveLength(1);
+
+      // Initial connect fails → feed fallback to SSE. The fallback MUST close the
+      // WS feed handle so v2Stream nulls feedChannel and closeIfIdle resets
+      // everOpened/connectFailed.
+      wsInstances[0]?.drop();
+      expect(eventSourceInstances).toHaveLength(1);
+
+      // Tear down the first (SSE) subscription so there are zero subscriptions
+      // and connectivity state is fully re-armed.
+      handle1.close();
+
+      // A brand-new subscribe must construct a FRESH WebSocket (not stay stuck on
+      // the previously-failed verdict).
+      const handle2 = client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+      expect(wsInstances).toHaveLength(2);
+      handle2.close();
+    });
+
+    // --- H2: onopen-then-immediate-close flap bounds to SSE fallback --------
+
+    it("(H2) open→close within the stability window x3 falls back to SSE and stops reconnecting", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      try {
+        const client = AgentClient.getInstance();
+        client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+        expect(wsInstances).toHaveLength(1);
+
+        // Flap: open then close within STABLE_OPEN_MS (15s), three times.
+        // Each short-lived cycle increments the counter; the 3rd triggers the
+        // forced fallback to SSE.
+        for (let cycle = 0; cycle < 3; cycle += 1) {
+          const ws = wsInstances[wsInstances.length - 1];
+          ws?.open();
+          // Stay open only ~1s (well under the 15s stability threshold).
+          vi.advanceTimersByTime(1000);
+          ws?.drop();
+          // Let any scheduled reconnect fire so the next WS is constructed.
+          vi.advanceTimersByTime(16000);
+        }
+
+        // After 3 short-lived closes we degrade to SSE.
+        expect(eventSourceInstances).toHaveLength(1);
+        expect(eventSourceInstances[0]?.url).toContain("/api/v1/stream");
+
+        // No further reconnect WebSockets are constructed (the flap is bounded).
+        const wsCountAfterFallback = wsInstances.length;
+        vi.advanceTimersByTime(60000);
+        expect(wsInstances.length).toBe(wsCountAfterFallback);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("(H2) a stable open (> threshold) that later drops reconnects without fallback and resets the counter", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(0);
+      try {
+        const client = AgentClient.getInstance();
+        client.subscribeToAccountStream({ onChange: vi.fn() }, { since: 0 });
+        expect(wsInstances).toHaveLength(1);
+
+        // Two short-lived closes first (counter = 2, still under MAX_SHORTLIVED).
+        for (let cycle = 0; cycle < 2; cycle += 1) {
+          const ws = wsInstances[wsInstances.length - 1];
+          ws?.open();
+          vi.advanceTimersByTime(1000);
+          ws?.drop();
+          vi.advanceTimersByTime(16000);
+        }
+        expect(eventSourceInstances).toHaveLength(0);
+
+        // Now a STABLE open: stays open longer than STABLE_OPEN_MS, then drops.
+        // This resets the short-lived counter and reconnects (no fallback).
+        const stableWs = wsInstances[wsInstances.length - 1];
+        stableWs?.open();
+        vi.advanceTimersByTime(20000); // > 15s stability threshold
+        stableWs?.drop();
+        vi.advanceTimersByTime(16000); // let reconnect fire
+
+        // Still on WS (a fresh reconnect), never fell back to SSE.
+        expect(eventSourceInstances).toHaveLength(0);
+        expect(wsInstances.length).toBeGreaterThanOrEqual(4);
+
+        // Counter was reset: it now takes a fresh run of 3 short-lived closes to
+        // fall back. Two more short-lived closes must NOT yet fall back.
+        for (let cycle = 0; cycle < 2; cycle += 1) {
+          const ws = wsInstances[wsInstances.length - 1];
+          ws?.open();
+          vi.advanceTimersByTime(1000);
+          ws?.drop();
+          vi.advanceTimersByTime(16000);
+        }
+        expect(eventSourceInstances).toHaveLength(0);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
