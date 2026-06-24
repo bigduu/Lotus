@@ -8,10 +8,12 @@ let captured: AccountStreamHandlers | null = null;
 const closeSpy = vi.fn();
 
 const storeActions = {
+  currentSessionId: null as string | null,
   refreshSessionsIndex: vi.fn().mockResolvedValue(undefined),
   applyServerTitle: vi.fn(),
   applyServerPinned: vi.fn(),
   setAgentAvailability: vi.fn(),
+  reconcileOpenSession: vi.fn(),
 };
 
 vi.mock("./AgentService", () => ({
@@ -44,7 +46,12 @@ describe("accountFeed runner", () => {
     (globalThis as Record<string, unknown>).EventSource = class {};
     captured = null;
     closeSpy.mockReset();
-    Object.values(storeActions).forEach((s) => s.mockReset());
+    Object.values(storeActions).forEach((s) => {
+      if (typeof (s as { mockReset?: () => void })?.mockReset === "function") {
+        (s as { mockReset: () => void }).mockReset();
+      }
+    });
+    storeActions.currentSessionId = null;
     storeActions.refreshSessionsIndex.mockResolvedValue(undefined);
     localStorage.clear();
   });
@@ -91,6 +98,40 @@ describe("accountFeed runner", () => {
     expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
     vi.advanceTimersByTime(400);
     expect(storeActions.refreshSessionsIndex).toHaveBeenCalledTimes(1);
+  });
+
+  it("reconciles the OPEN session on a content change driven elsewhere (multi-device)", () => {
+    storeActions.currentSessionId = "s1";
+    startAccountFeed();
+
+    // A message appended to the open session on another device.
+    captured!.onChange(change(5, { type: "message_appended", session_id: "s1" }));
+
+    expect(storeActions.reconcileOpenSession).toHaveBeenCalledWith("s1", "message_appended");
+  });
+
+  it("does NOT reconcile when the changed session is not the open one", () => {
+    storeActions.currentSessionId = "open-session";
+    startAccountFeed();
+
+    captured!.onChange(change(6, { type: "message_appended", session_id: "other-session" }));
+    captured!.onChange(change(7, { type: "complete", session_id: "other-session" }));
+
+    expect(storeActions.reconcileOpenSession).not.toHaveBeenCalled();
+  });
+
+  it("does NOT reconcile for list-only events even on the open session", () => {
+    storeActions.currentSessionId = "s1";
+    startAccountFeed();
+
+    captured!.onChange(
+      change(8, { type: "session_title_updated", session_id: "s1", title: "x", title_version: 1 }),
+    );
+    captured!.onChange(
+      change(9, { type: "session_pinned_updated", session_id: "s1", pinned: true }),
+    );
+
+    expect(storeActions.reconcileOpenSession).not.toHaveBeenCalled();
   });
 
   it("persists the resume cursor and marks availability on each change", () => {

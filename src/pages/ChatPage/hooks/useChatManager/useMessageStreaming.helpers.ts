@@ -26,13 +26,9 @@ export interface UseMessageStreamingDeps {
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
 }
 
-export type PendingQuestionResponse = {
-  has_pending_question: boolean;
-  question?: string;
-  options?: string[];
-  allow_custom?: boolean;
-  tool_call_id?: string;
-};
+// Defined in the service layer (the API owner) and re-exported here so existing
+// consumers keep importing it from this helper.
+export type { PendingQuestionResponse } from "@services/chat/AgentService";
 
 /**
  * Invoke the agent execute endpoint, passing the reasoning effort only when one

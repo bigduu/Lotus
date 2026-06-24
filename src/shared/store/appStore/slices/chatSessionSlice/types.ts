@@ -73,4 +73,17 @@ export interface ChatSlice {
       waitForAssistant?: boolean;
     },
   ) => Promise<void>;
+  /**
+   * Multi-device sync: reconcile the CURRENTLY-OPEN session against the server
+   * when an account-feed change event for it arrives (a message appended / run
+   * completed / clarification raised on ANOTHER device). Debounced per session.
+   *
+   * Safe to call during a live local stream: it loads history in `monotonic`
+   * mode, so it only catches a *behind* (passive-viewer) device up and is a
+   * no-op on the device that is driving the run (whose local state is ahead).
+   * Also re-pulls the pending question so a clarification answered on another
+   * device clears here (and a new one appears). No-op unless `sessionId` is the
+   * open session.
+   */
+  reconcileOpenSession: (sessionId: string, reason?: string) => void;
 }

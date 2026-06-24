@@ -61,10 +61,37 @@ const scheduleRefresh = (): void => {
   }, REFRESH_DEBOUNCE_MS);
 };
 
+// Change types that alter a session's CONTENT or interaction state — when one
+// arrives for the currently-open session (driven on ANOTHER device), reconcile
+// that session's messages + pending question so a passive viewer stays in sync,
+// not just the session list. (Driven locally, the reconcile is a monotonic
+// no-op — see `reconcileOpenSession`.)
+const OPEN_SESSION_RECONCILE_TYPES = new Set<string>([
+  "message_appended",
+  "task_list_updated",
+  "task_list_item_progress",
+  "task_list_completed",
+  "complete",
+  "cancelled",
+  "error",
+  "execution_started",
+  "need_clarification",
+]);
+
 const applyChange = (change: ChangeEvent): void => {
   const { event } = change;
   const store = useAppStore.getState();
   const sessionId = change.session_id ?? event.session_id;
+
+  // Multi-device: keep the OPEN conversation live (not just the list) when it
+  // changes elsewhere.
+  if (
+    sessionId &&
+    sessionId === store.currentSessionId &&
+    OPEN_SESSION_RECONCILE_TYPES.has(event.type)
+  ) {
+    store.reconcileOpenSession(sessionId, event.type);
+  }
 
   switch (event.type) {
     case "session_title_updated":

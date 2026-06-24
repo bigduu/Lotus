@@ -362,6 +362,15 @@ export interface ExecuteRequest {
   client_sync?: ExecuteClientSync;
 }
 
+/** Response of `GET respond/{sessionId}/pending`: the session's current pending clarification. */
+export type PendingQuestionResponse = {
+  has_pending_question: boolean;
+  question?: string;
+  options?: string[];
+  allow_custom?: boolean;
+  tool_call_id?: string;
+};
+
 export interface HistoryResponse {
   session_id: string;
   compression_events?: Array<{
@@ -1014,6 +1023,21 @@ export class AgentClient {
       created_at: now,
       updated_at: now,
     };
+  }
+
+  /**
+   * Fetch the session's current pending question (clarification awaiting a user
+   * answer), if any. Used by multi-device reconcile so a clarification answered
+   * on another device clears here (and a newly-raised one appears).
+   */
+  async getPendingQuestion(sessionId: string): Promise<PendingQuestionResponse> {
+    const encoded = encodeURIComponent(sessionId);
+    try {
+      return await agentApiClient.get<PendingQuestionResponse>(`respond/${encoded}/pending`);
+    } catch (error) {
+      console.warn(`[AgentClient] getPendingQuestion failed for ${sessionId}:`, error);
+      return { has_pending_question: false };
+    }
   }
 
   /**
