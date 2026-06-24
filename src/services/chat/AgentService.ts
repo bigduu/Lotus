@@ -1233,7 +1233,14 @@ export class AgentClient {
 
       let fellBack = false;
       const fallbackPromise = new Promise<void>((resolve, reject) => {
-        const { promise, close } = v2Stream.subscribeAgent(
+        // Declare `close` ABOVE the subscribeAgent call: `onConnectFailed` can
+        // fire SYNCHRONOUSLY when the WS is already in a known-failed state (a
+        // second subscribe after a prior WS failure), and the callback references
+        // `close` — using it before initialization would throw a temporal-dead-
+        // zone ReferenceError. (v2Stream also defers that synchronous fire to a
+        // microtask for belt-and-braces.)
+        let close: () => void = () => {};
+        const subscription = v2Stream.subscribeAgent(
           sessionId,
           handlers,
           (event, h) => this.handleEvent(event, h),
@@ -1247,6 +1254,8 @@ export class AgentClient {
             this.subscribeToEventsSse(sessionId, handlers, signal).then(resolve, reject);
           },
         );
+        const { promise } = subscription;
+        close = subscription.close;
         const abortListener = () => {
           debugLog("[AgentClient]", "events.subscribe.ws.abort", { sessionId });
           close();
@@ -1432,19 +1441,34 @@ export class AgentClient {
       // the WS feed subscription and swaps to the SSE handle if the initial WS
       // connect fails. If the caller closes BEFORE any fallback, the `closed`
       // guard prevents a late fallback from opening a leaked EventSource.
-      let active: FeedSubscription = v2Stream.subscribeFeed(handlers, opts?.since ?? 0, () => {
+      //
+      // IMPORTANT: declare `closed`/`active`/`wsHandle` ABOVE the subscribeFeed
+      // call. `onConnectFailed` can fire SYNCHRONOUSLY inside subscribeFeed when
+      // the WS is already in a known-failed state (a second subscribe after a
+      // prior WS failure); referencing these from the callback before they were
+      // initialized would throw a temporal-dead-zone ReferenceError. (v2Stream
+      // also defers that synchronous fire to a microtask for belt-and-braces.)
+      let closed = false;
+      let active: FeedSubscription | null = null;
+      const wsHandle: FeedSubscription = v2Stream.subscribeFeed(handlers, opts?.since ?? 0, () => {
         if (closed) return;
         debugLog("[AgentClient]", "stream.subscribe.ws.connect_failed_fallback", {});
-        // The WS subscription is already torn down internally by the client;
-        // swap to the legacy SSE feed with the same handlers + since.
+        // Close the WS feed handle so v2Stream nulls its feedChannel and
+        // closeIfIdle resets connectivity state (everOpened/connectFailed) —
+        // symmetric with the agent path. Without this the feed channel stays
+        // registered: hasSubscriptions() stays true, the WS never resets, and
+        // every later subscribe keeps hitting the already-failed path (and the
+        // WS is never retried even if the backend is later upgraded).
+        wsHandle.close();
+        // Swap to the legacy SSE feed with the same handlers + since.
         active = this.subscribeAccountStreamSse(handlers, opts);
       });
-      let closed = false;
+      if (active === null) active = wsHandle;
       return {
         close() {
           if (closed) return;
           closed = true;
-          active.close();
+          active?.close();
         },
       };
     }

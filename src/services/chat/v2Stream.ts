@@ -66,6 +66,23 @@ const BASE_BACKOFF_MS = 500;
  */
 const OPEN_TIMEOUT_MS = 3_500;
 
+/**
+ * Minimum time a connection must stay open to count as genuinely usable. The
+ * backend closes an unauthenticated socket after a ~10s auth deadline; a value
+ * comfortably above that means an auth-deadline drop registers as "short-lived"
+ * rather than a stable connection. A connection that survives longer than this
+ * resets the short-lived counter (see {@link shortLivedCloses}).
+ */
+const STABLE_OPEN_MS = 15_000;
+
+/**
+ * How many consecutive short-lived opens (open then close within
+ * {@link STABLE_OPEN_MS}) are tolerated before the socket is declared a connect
+ * failure and we fall back to SSE. Bounds the auth-deadline flap to ~3 cycles
+ * instead of reconnecting forever.
+ */
+const MAX_SHORTLIVED = 3;
+
 interface FeedChannel {
   handlers: AccountStreamHandlers;
   /** Latest cursor to (re)subscribe with; updated as ChangeEvents arrive. */
@@ -103,6 +120,19 @@ let intentionalClose = false;
 let everOpened = false;
 /** Whether an initial-connect failure has already been signaled (fire-once). */
 let connectFailed = false;
+/**
+ * Timestamp (ms) of the most recent `onopen` for the live socket, used to
+ * measure connection uptime on `onclose` and classify short-lived flaps.
+ * `null` while no socket is open.
+ */
+let lastOpenAt: number | null = null;
+/**
+ * Count of consecutive short-lived opens (open then close within
+ * {@link STABLE_OPEN_MS}). A close after a stable open resets this to 0; once it
+ * reaches {@link MAX_SHORTLIVED} the socket is declared a connect failure and we
+ * fall back to SSE. See {@link signalConnectFailed}.
+ */
+let shortLivedCloses = 0;
 /** Bounds the FIRST open attempt; cleared on open or on failure. */
 let openTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
 /**
@@ -168,7 +198,19 @@ const registerConnectFailed = (onConnectFailed?: ConnectFailedCallback): void =>
   if (!onConnectFailed) return;
   if (everOpened) return;
   if (connectFailed) {
-    onConnectFailed();
+    // Failure is already known, but DEFER the fire to a microtask: this function
+    // runs SYNCHRONOUSLY inside the caller's `subscribe*` body, before that
+    // body's later `let closed` / `const { close }` bindings are initialized.
+    // Firing inline would run the caller's fallback closure while those
+    // identifiers are still in their temporal dead zone → ReferenceError. The
+    // microtask lets the caller finish initializing first. Re-check liveness on
+    // fire so a subscription torn down meanwhile is not answered.
+    const listener = onConnectFailed;
+    queueMicrotask(() => {
+      if (everOpened) return;
+      if (!connectFailed) return;
+      listener();
+    });
     return;
   }
   connectFailedListeners.add(onConnectFailed);
@@ -181,8 +223,13 @@ const registerConnectFailed = (onConnectFailed?: ConnectFailedCallback): void =>
  * post-open drop must go through the reconnect loop, never fall back) or once a
  * failure was already signaled.
  */
-const signalConnectFailed = (): void => {
-  if (everOpened || connectFailed) return;
+const signalConnectFailed = (opts?: { force?: boolean }): void => {
+  // Normally a no-op once the socket has ever opened (post-open drops must use
+  // the reconnect loop). `force` overrides this for the short-lived-flap case
+  // (H2): a socket that keeps opening then closing within STABLE_OPEN_MS is not
+  // usable, so we degrade to SSE even though `everOpened` is true.
+  if (connectFailed) return;
+  if (everOpened && !opts?.force) return;
   connectFailed = true;
   clearOpenTimeout();
   clearReconnectTimer();
@@ -240,6 +287,8 @@ const closeIfIdle = (): void => {
   // "session" (next subscribe) gets a fresh open-timeout / fallback decision.
   everOpened = false;
   connectFailed = false;
+  lastOpenAt = null;
+  shortLivedCloses = 0;
   connectFailedListeners.clear();
 };
 
@@ -361,6 +410,7 @@ const connect = (): void => {
     connecting = false;
     reconnectAttempts = 0;
     everOpened = true;
+    lastOpenAt = Date.now();
     clearOpenTimeout();
     debugLog("[v2Stream]", "open", {});
     resubscribeAll();
@@ -389,6 +439,26 @@ const connect = (): void => {
       feedChannel?.handlers.onError?.();
       signalConnectFailed();
       return;
+    }
+    // Post-open drop. Classify it: a connection that stayed open longer than
+    // STABLE_OPEN_MS was genuinely usable (a normal transient drop) → reconnect
+    // and reset the short-lived counter. A connection that closed within the
+    // stability window is "short-lived" (e.g. the backend's ~10s unauthenticated
+    // auth-deadline); after MAX_SHORTLIVED such closes in a row we stop the
+    // unbounded flap and fall back to SSE.
+    const openedFor = lastOpenAt === null ? 0 : Date.now() - lastOpenAt;
+    lastOpenAt = null;
+    if (openedFor >= STABLE_OPEN_MS) {
+      shortLivedCloses = 0;
+    } else {
+      shortLivedCloses += 1;
+      debugLog("[v2Stream]", "close.short_lived", { openedFor, shortLivedCloses });
+      if (shortLivedCloses >= MAX_SHORTLIVED) {
+        debugLog("[v2Stream]", "close.short_lived.fallback", { shortLivedCloses });
+        feedChannel?.handlers.onError?.();
+        signalConnectFailed({ force: true });
+        return;
+      }
     }
     feedChannel?.handlers.onError?.();
     scheduleReconnect();
@@ -497,6 +567,8 @@ export const __resetV2StreamForTests = (): void => {
   reconnectAttempts = 0;
   everOpened = false;
   connectFailed = false;
+  lastOpenAt = null;
+  shortLivedCloses = 0;
   connectFailedListeners.clear();
   feedChannel = null;
   agentChannels.clear();
