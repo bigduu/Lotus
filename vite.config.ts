@@ -46,45 +46,28 @@ export default defineConfig(async ({ command }) => ({
         main: "index.html",
       },
       output: {
-        // Collapse the bundle into a handful of chunks. The app used to emit
-        // ~70 tiny lazy `index-*.js` fragments (some <1KB); opening a view fired
-        // that whole burst of parallel requests at once, which a proxy/CDN in
-        // front of the app rate-limits (429) — breaking the dynamic imports.
-        // Merging all app source into ONE `app` chunk (+ a few vendor chunks)
-        // cuts the parallel request count ~8x so the burst no longer trips any
-        // per-host concurrency / rate limit.
-        manualChunks(id) {
-          if (!id.includes("node_modules")) {
-            // All first-party source → a single chunk (kills the lazy fragments).
-            return "app";
-          }
-          if (id.includes("/mermaid/")) return "vendor-mermaid";
-          if (id.includes("/recharts/")) return "vendor-charts";
-          if (id.includes("/jspdf/") || id.includes("/html2canvas/")) return "vendor-pdf";
-          if (
-            id.includes("/react-markdown/") ||
-            id.includes("/react-syntax-highlighter/") ||
-            id.includes("/remark") ||
-            id.includes("/rehype") ||
-            id.includes("/micromark") ||
-            id.includes("/hast") ||
-            id.includes("/mdast") ||
-            id.includes("/unist") ||
-            id.includes("/refractor") ||
-            id.includes("/property-information") ||
-            id.includes("/character-entities")
-          ) {
-            return "vendor-markdown";
-          }
-          if (id.includes("/i18next") || id.includes("/react-i18next/")) return "vendor-i18n";
-          if (id.includes("/antd/") || id.includes("/@ant-design/") || id.includes("/rc-")) {
-            return "vendor-antd";
-          }
-          if (id.includes("/react/") || id.includes("/react-dom/") || id.includes("/scheduler/")) {
-            return "vendor-react";
-          }
-          // Everything else from node_modules → one shared vendor chunk.
-          return "vendor";
+        // Only consolidate node_modules into a handful of vendor chunks. App
+        // source keeps its natural code-splitting — forcing all first-party
+        // modules into one chunk broke module init order (app failed to mount).
+        // To cut the lazy-fragment burst safely, small chunks are merged via
+        // `experimentalMinChunkSize` below (semantics-preserving) rather than by
+        // collapsing the graph by hand.
+        experimentalMinChunkSize: 150_000,
+        manualChunks: {
+          // ── Vendor splits ──────────────────────────────
+          "vendor-react": ["react", "react-dom"],
+          "vendor-antd": ["antd", "@ant-design/icons"],
+          "vendor-markdown": [
+            "react-markdown",
+            "react-syntax-highlighter",
+            "remark-gfm",
+            "remark-breaks",
+            "rehype-sanitize",
+          ],
+          "vendor-charts": ["recharts"],
+          "vendor-mermaid": ["mermaid"],
+          "vendor-i18n": ["i18next", "react-i18next"],
+          "vendor-pdf": ["jspdf", "html2canvas"],
         },
       },
     },
