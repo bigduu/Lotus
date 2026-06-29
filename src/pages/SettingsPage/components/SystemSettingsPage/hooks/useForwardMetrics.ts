@@ -21,9 +21,11 @@ export interface ForwardMetricsFilters {
 interface UseForwardMetricsOptions {
   filters?: ForwardMetricsFilters;
   autoRefreshMs?: number;
+  /** When false, no initial load and no polling. Defaults to true. */
+  enabled?: boolean;
 }
 
-const DEFAULT_AUTO_REFRESH_MS = 15_000;
+const DEFAULT_AUTO_REFRESH_MS = 30_000;
 
 const toErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message.trim()) {
@@ -33,7 +35,7 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
-  const { filters, autoRefreshMs = DEFAULT_AUTO_REFRESH_MS } = options;
+  const { filters, autoRefreshMs = DEFAULT_AUTO_REFRESH_MS, enabled = true } = options;
 
   const normalizedFilters = useMemo(
     () => ({
@@ -80,18 +82,19 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
       }
 
       try {
-        const query: ForwardMetricsQuery = {
+        const baseQuery: ForwardMetricsQuery = {
           startDate: resolvedRange.startDate,
           endDate: resolvedRange.endDate,
           endpoint: normalizedFilters.endpoint,
           model: normalizedFilters.model,
-          limit: normalizedFilters.limit,
         };
 
         const [summaryResponse, endpointResponse, requestsResponse] = await Promise.all([
-          metricsService.getForwardSummary(query),
-          metricsService.getForwardByEndpoint(query),
-          metricsService.getForwardRequests(query),
+          // Summary and by-endpoint are aggregates; `limit` only bounds the raw
+          // request list, so it is sent to getForwardRequests alone.
+          metricsService.getForwardSummary(baseQuery),
+          metricsService.getForwardByEndpoint(baseQuery),
+          metricsService.getForwardRequests({ ...baseQuery, limit: normalizedFilters.limit }),
         ]);
 
         setSummary(summaryResponse);
@@ -122,11 +125,14 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
   }, [loadAllMetrics]);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     void loadAllMetrics(true);
-  }, [loadAllMetrics]);
+  }, [enabled, loadAllMetrics]);
 
   useEffect(() => {
-    if (autoRefreshMs <= 0) {
+    if (!enabled || autoRefreshMs <= 0) {
       return;
     }
 
@@ -137,7 +143,7 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
     return () => {
       window.clearInterval(timer);
     };
-  }, [autoRefreshMs, loadAllMetrics]);
+  }, [enabled, autoRefreshMs, loadAllMetrics]);
 
   return {
     summary,

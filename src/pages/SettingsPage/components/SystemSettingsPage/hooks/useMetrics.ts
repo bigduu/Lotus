@@ -38,7 +38,7 @@ interface MetricsHookService {
     granularity?: MetricsGranularity;
   }) => Promise<DailyMetrics[] | PeriodMetrics[]>;
   getSessionDetail: (sessionId: string) => Promise<SessionDetail | null>;
-  getMemorySummary?: () => Promise<MemoryMetricsSummary>;
+  getMemorySummary?: (query?: { days?: number; endDate?: string }) => Promise<MemoryMetricsSummary>;
   getMemoryTimeline?: (query?: {
     days?: number;
     endDate?: string;
@@ -50,9 +50,15 @@ export interface UseMetricsOptions {
   filters?: MetricsFilters;
   autoRefreshMs?: number;
   service?: MetricsHookService;
+  /**
+   * When false, the hook performs no network work (no initial load, no
+   * polling). Used to keep the dashboard idle while the Metrics tab is not
+   * visible. Defaults to true.
+   */
+  enabled?: boolean;
 }
 
-const DEFAULT_AUTO_REFRESH_MS = 15_000;
+const DEFAULT_AUTO_REFRESH_MS = 30_000;
 
 const toErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message.trim()) {
@@ -62,7 +68,12 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 export const useMetrics = (options: UseMetricsOptions = {}) => {
-  const { filters, autoRefreshMs = DEFAULT_AUTO_REFRESH_MS, service = metricsService } = options;
+  const {
+    filters,
+    autoRefreshMs = DEFAULT_AUTO_REFRESH_MS,
+    service = metricsService,
+    enabled = true,
+  } = options;
 
   const normalizedFilters = useMemo(
     () => ({
@@ -115,7 +126,12 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
 
       try {
         const memorySummaryPromise = service.getMemorySummary
-          ? service.getMemorySummary().catch(() => null)
+          ? service
+              .getMemorySummary({
+                days: resolvedRange.days,
+                endDate: resolvedRange.endDate,
+              })
+              .catch(() => null)
           : Promise.resolve(null);
         const memoryTimelinePromise = service.getMemoryTimeline
           ? service
@@ -210,11 +226,14 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
   }, []);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     void loadAllMetrics(true);
-  }, [loadAllMetrics]);
+  }, [enabled, loadAllMetrics]);
 
   useEffect(() => {
-    if (autoRefreshMs <= 0) {
+    if (!enabled || autoRefreshMs <= 0) {
       return;
     }
 
@@ -225,7 +244,7 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
     return () => {
       window.clearInterval(timer);
     };
-  }, [autoRefreshMs, loadAllMetrics]);
+  }, [enabled, autoRefreshMs, loadAllMetrics]);
 
   return {
     summary,
