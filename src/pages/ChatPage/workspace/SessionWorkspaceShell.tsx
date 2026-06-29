@@ -254,8 +254,13 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
           <ResizableSplit
             layout="horizontal"
             sizesPx={[0, inspectorWidthPx]}
-            minFirstPx={320}
+            minFirstPx={360}
             minSecondPx={inspectorMinWidthPx}
+            maxSecondPx={inspectorMaxWidthPx}
+            // The inspector is auxiliary: never let it exceed 40% of the row, so
+            // the conversation always stays the larger pane regardless of window
+            // size or a previously-dragged width.
+            maxSecondFraction={0.4}
             style={{ flex: 1, minHeight: 0 }}
             handleSizePx={4}
             onResizeEnd={([, secondPx]) => {

@@ -89,6 +89,57 @@ describe("ResizableSplit", () => {
     expect(separator).toHaveStyle({ left: "207px" });
   });
 
+  it("caps the second pane to maxSecondFraction of the container", () => {
+    render(
+      <ResizableSplit
+        layout="horizontal"
+        // Inspector-style absolute second-pane width (first persisted as 0).
+        sizesPx={[0, 520]}
+        minFirstPx={360}
+        minSecondPx={300}
+        maxSecondPx={560}
+        maxSecondFraction={0.4}
+        first={<div>chat</div>}
+        second={<div>inspector</div>}
+      />,
+    );
+
+    const separator = screen.getByRole("separator");
+
+    act(() => {
+      width = 1000;
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    // 40% cap => second pane 400px, first pane 600px (handle 6px centered).
+    expect(separator).toHaveStyle({ left: "597px" });
+  });
+
+  it("honors a second-pane width that is already within the cap", () => {
+    render(
+      <ResizableSplit
+        layout="horizontal"
+        sizesPx={[0, 360]}
+        minFirstPx={360}
+        minSecondPx={300}
+        maxSecondPx={560}
+        maxSecondFraction={0.4}
+        first={<div>chat</div>}
+        second={<div>inspector</div>}
+      />,
+    );
+
+    const separator = screen.getByRole("separator");
+
+    act(() => {
+      width = 1500;
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    // 360 < 40% of 1500 (600) => keep the stored width; first pane = 1140px.
+    expect(separator).toHaveStyle({ left: "1137px" });
+  });
+
   it("establishes a stable flex height context for pane content", () => {
     render(
       <ResizableSplit
