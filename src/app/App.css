@@ -8,12 +8,45 @@ html,
 body,
 #root {
   height: 100vh;
+  /* Dynamic viewport unit: fit the *visible* area on mobile so nothing hides
+     behind the iOS URL bar / home indicator. Falls back to 100vh where unsupported. */
+  height: 100dvh;
   overflow: hidden;
+}
+
+/* Sit edge to edge like a native app — never allow horizontal scroll/pan, and
+   don't let mobile browsers auto-inflate text. */
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
 }
 
 #root {
   display: flex;
   flex-direction: column;
+  /* Standalone ("Add to Home Screen") app: keep content clear of the
+     notch/dynamic-island (top) and the home indicator (bottom). Zero on
+     desktop and in-browser, where the insets are 0. box-sizing:border-box
+     keeps the padding inside the 100dvh height. */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* Portalled drawers (sidebar, inspector bottom-sheet) render outside #root and
+   are position:fixed, so they need their own safe-area handling. */
+.ant-drawer-left .ant-drawer-body,
+.ant-drawer-right .ant-drawer-body {
+  padding-top: max(12px, env(safe-area-inset-top));
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+}
+.ant-drawer-bottom .ant-drawer-body {
+  padding-bottom: max(16px, env(safe-area-inset-bottom));
 }
 
 .agent-running-indicator {

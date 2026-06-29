@@ -16,6 +16,7 @@ import { APP_LOCALE_STORAGE_KEY, type AppLocale, resolveInitialLocale } from "@s
 import { isVdiSafeModeEnabled } from "@shared/utils/vdiSafeMode";
 import { THEME_STORAGE_KEY } from "@shared/theme/storageKeys";
 import { resolveThemeTokens } from "@shared/theme/tokens";
+import { useIsMobile } from "@shared/hooks/useMediaQuery";
 import { StorageManager } from "../services/storage/StorageManager";
 import { migrateFromLocalStorage } from "../services/storage/migrateFromLocalStorage";
 
@@ -23,6 +24,7 @@ function App() {
   const { t } = useTranslation();
   const themeMode = useThemeStore((s) => s.themeMode);
   const setThemeMode = useThemeStore((s) => s.setThemeMode);
+  const isMobile = useIsMobile();
   const [appLocale, setAppLocale] = useState<AppLocale>(() => resolveInitialLocale());
   const [isVdiSafeMode, setIsVdiSafeMode] = useState<boolean>(() => isVdiSafeModeEnabled());
   const [isSetupComplete, setIsSetupComplete] = useState<boolean | null>(null);
@@ -184,7 +186,7 @@ function App() {
     token: themeToken,
     components: themeComponents,
     algorithm: themeAlgorithm,
-  } = resolveThemeTokens(themeMode, isVdiSafeMode);
+  } = resolveThemeTokens(themeMode, isVdiSafeMode, isMobile);
 
   if (accessStatus?.requires_password && !isAccessVerified) {
     return (

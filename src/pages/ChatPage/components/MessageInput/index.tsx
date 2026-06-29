@@ -2,6 +2,7 @@ import React, { useRef, useMemo, useCallback } from "react";
 import { Flex, message, theme } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { useTranslation } from "react-i18next";
+import { useIsMobile } from "@shared/hooks/useMediaQuery";
 import { ImageFile } from "../../utils/imageUtils";
 import ImagePreviewModal from "../ImagePreviewModal";
 import {
@@ -105,6 +106,7 @@ export const MessageInput = React.memo<MessageInputProps>(
     const textAreaRef = externalTextAreaRef || internalTextAreaRef; // Use external ref if provided
     const highlightOverlayRef = useRef<HTMLDivElement>(null);
     const { token } = theme.useToken();
+    const isMobile = useIsMobile();
     const isVdiSafeMode =
       typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
     const [messageApi, contextHolder] = message.useMessage();
@@ -206,7 +208,7 @@ export const MessageInput = React.memo<MessageInputProps>(
             boxShadow: "var(--lotus-input-shadow)",
             transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
             width: "100%",
-            padding: `${token.paddingSM}px`,
+            padding: isMobile ? `${token.paddingXS}px` : `${token.paddingSM}px`,
             overflow: "hidden",
           }}
           onDragOver={handleDragOver}
@@ -227,7 +229,7 @@ export const MessageInput = React.memo<MessageInputProps>(
             vertical
             style={{
               gap: token.marginXS,
-              minHeight: 132,
+              minHeight: isMobile ? 0 : 132,
               width: "100%",
             }}
           >

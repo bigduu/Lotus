@@ -196,13 +196,30 @@ const DARK_THEME_COMPATIBILITY_COMPONENT_TOKEN = {
 } as const;
 
 /**
+ * Phone-sized overrides merged into the base token. Shrinks the whole antd tree
+ * uniformly — font, control height, and the spacing scale (`sizeStep`/`sizeUnit`,
+ * which most paddings/margins derive from) — so the UI reads as a denser mobile
+ * layout instead of a blown-up desktop one. Colors/shape are untouched.
+ */
+const MOBILE_OVERRIDE_TOKEN = {
+  fontSize: 13,
+  controlHeight: 30,
+  sizeStep: 3.5,
+  sizeUnit: 3.5,
+  paddingContentHorizontal: 12,
+  paddingContentVertical: 8,
+} as const;
+
+/**
  * Resolve the ConfigProvider theme inputs for the current mode + VDI flag.
+ * When `isMobile`, denser sizing tokens are merged in.
  */
 export function resolveThemeTokens(
   themeMode: ThemeMode,
   isVdiSafeMode: boolean,
+  isMobile = false,
 ): Pick<ThemeConfig, "token" | "components" | "algorithm"> {
-  const token =
+  const baseToken =
     themeMode === "dark"
       ? isVdiSafeMode
         ? DARK_THEME_COMPATIBILITY_TOKEN
@@ -210,6 +227,7 @@ export function resolveThemeTokens(
       : isVdiSafeMode
         ? LIGHT_THEME_COMPATIBILITY_TOKEN
         : LIGHT_THEME_TOKEN;
+  const token = isMobile ? { ...baseToken, ...MOBILE_OVERRIDE_TOKEN } : baseToken;
 
   const components =
     themeMode === "dark"

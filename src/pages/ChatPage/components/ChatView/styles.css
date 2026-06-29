@@ -175,15 +175,26 @@
   }
 
   .message-input-send-button.message-input-send-button {
-    width: 44px !important;
-    height: 44px !important;
-    min-width: 44px !important;
-    border-radius: 22px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    border-radius: 20px !important;
   }
 
   .message-input-send-button.message-input-send-button:hover:not(:disabled),
   .message-input-send-button.message-input-send-button:active:not(:disabled) {
     transform: none;
+  }
+
+  /* Shrink the composer toolbar icon buttons so they match the now-compact
+     composer (the round icon buttons + their glyphs were oversized on phones). */
+  .message-input-container .ant-btn:not(.message-input-send-button) {
+    height: 30px;
+    min-width: 30px;
+    padding-inline: 8px;
+  }
+  .message-input-container .ant-btn .anticon {
+    font-size: 15px;
   }
 }
 

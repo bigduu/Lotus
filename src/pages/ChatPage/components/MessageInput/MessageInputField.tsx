@@ -2,6 +2,7 @@ import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
 import { Input } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
+import { useIsMobile } from "@shared/hooks/useMediaQuery";
 
 const { TextArea } = Input;
 
@@ -37,8 +38,13 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
   onPaste,
   onScrollSync,
 }) => {
+  const isMobile = useIsMobile();
   const showHighlightOverlay =
     value.length > 0 && highlightSegments.some((segment) => segment.type !== "text");
+  // iOS Safari auto-zooms when a focused input's font is < 16px; the mobile
+  // density theme uses 13px, so the composer input (and its highlight overlay,
+  // which must match exactly) is pinned to 16px on phones to suppress the zoom.
+  const inputFontSize = isMobile ? 16 : token.fontSize;
   const inputPadding = "6px 4px";
   const inputLineHeight = 1.65;
   const inputTextColor = disabled ? token.colorTextDisabled : token.colorText;
@@ -67,7 +73,7 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
             overflow: "hidden",
             pointerEvents: "none",
             color: "transparent",
-            fontSize: token.fontSize,
+            fontSize: inputFontSize,
             lineHeight: inputLineHeight,
             fontFamily: "inherit",
             fontWeight: 400,
@@ -113,14 +119,14 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
         onPaste={onPaste}
         placeholder={placeholder}
         disabled={disabled}
-        autoSize={{ minRows: 3, maxRows: 8 }}
+        autoSize={{ minRows: isMobile ? 1 : 3, maxRows: isMobile ? 6 : 8 }}
         variant="borderless"
         onScroll={onScrollSync}
         className="lotus-message-input-field"
         style={{
           resize: "none",
           flex: 1,
-          fontSize: token.fontSize,
+          fontSize: inputFontSize,
           padding: inputPadding,
           lineHeight: inputLineHeight,
           border: "none",
