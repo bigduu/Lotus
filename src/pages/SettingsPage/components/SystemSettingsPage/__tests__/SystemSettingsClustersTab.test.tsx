@@ -115,9 +115,19 @@ describe("SystemSettingsClustersTab", () => {
     }
   });
 
-  it("surfaces the 501 stub when Deploy is clicked", async () => {
+  it("invokes the deploy action when Deploy is clicked", async () => {
     mockListNodes.mockResolvedValue({ nodes: [sshNode], clusters: [] });
-    mockNodeAction.mockRejectedValue(new Error("not implemented yet"));
+    mockNodeAction.mockResolvedValue({});
+    render(<SystemSettingsClustersTab />);
+    await screen.findByText("gpu-1");
+
+    fireEvent.click(screen.getByText("Deploy"));
+    await waitFor(() => expect(mockNodeAction).toHaveBeenCalledWith("n1", "deploy"));
+  });
+
+  it("surfaces a deploy error", async () => {
+    mockListNodes.mockResolvedValue({ nodes: [sshNode], clusters: [] });
+    mockNodeAction.mockRejectedValue(new Error("preflight failed"));
     render(<SystemSettingsClustersTab />);
     await screen.findByText("gpu-1");
 

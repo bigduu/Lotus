@@ -64,8 +64,8 @@ interface NodeFormValues {
  *
  * Register/maintain nodes (local or SSH-reachable machines) grouped into
  * clusters. SSH credentials are encrypted at rest by the backend and never
- * leave it. Deploy/Test/Stop lifecycle actions are stubbed until the deploy
- * engine lands (P2): the buttons surface the backend's `501` response.
+ * leave it. Per-row Test (connect preflight), Deploy, Stop, and Logs drive the
+ * backend deploy engine; all SSH happens server-side.
  */
 const SystemSettingsClustersTab: React.FC = () => {
   const { t } = useTranslation();
