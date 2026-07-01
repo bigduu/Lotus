@@ -1,11 +1,13 @@
 /**
- * Opt-in unified v2 WebSocket client (`GET {origin}/v2/stream`).
+ * Unified v2 WebSocket client (`GET {origin}/v2/stream`), the DEFAULT transport.
  *
  * A module-level singleton managing ONE WebSocket shared by the account feed
  * and every per-session agent subscription. This is the dual-track replacement
  * for the two legacy SSE connections (`/api/v1/stream` + `/api/v1/events/{id}`)
- * and is gated behind the `apiV2Ws` feature flag (default OFF — see
- * `isApiV2WsEnabled`). When the flag is off this module is never touched.
+ * and is gated behind the `apiV2Ws` feature flag — **default ON (opt-out)**: see
+ * `isApiV2WsEnabled`, which returns true unless `localStorage.bodhi_api_v2_ws`
+ * is explicitly `"0"`/`"false"`. When opted out this module is never touched and
+ * the client falls back to the legacy SSE transport.
  *
  * Protocol (JSON text frames by default):
  *  - Client to server: {type:"hello"} (optional; no token on loopback/local),

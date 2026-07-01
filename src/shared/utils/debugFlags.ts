@@ -34,7 +34,7 @@ export const debugLog = (tag: string, message: string, ...args: unknown[]): void
   console.log(`${tag} ${message}`, ...args);
 };
 
-/** localStorage key for the opt-in v2 WebSocket transport feature flag. */
+/** localStorage key for the v2 WebSocket transport feature flag (default ON, opt-out). */
 const API_V2_WS_FLAG_KEY = "bodhi_api_v2_ws";
 
 /**

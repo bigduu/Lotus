@@ -205,6 +205,27 @@ describe("useAgentEventSubscription", () => {
     expect(mockSubscribeToEvents).not.toHaveBeenCalled();
   });
 
+  it("reconciles the open session on tab-visibility regain (unsticks a run that finished while hidden)", async () => {
+    const reconcileOpenSession = vi.fn();
+    mockState.reconcileOpenSession = reconcileOpenSession;
+    mockState.currentSessionId = "session-1";
+    mockStore.getState.mockReturnValue(mockState);
+
+    renderHook(() => useAgentEventSubscription());
+    // Ignore anything from mount; assert only on the visibility-regain reconcile.
+    (mockState.refreshChatsNow as ReturnType<typeof vi.fn>).mockClear();
+
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
+
+    // Refresh the authoritative summaries (settles a run finished while hidden)...
+    await waitFor(() => expect(mockState.refreshChatsNow).toHaveBeenCalled());
+    // ...then catch the open session's transcript + pending question up.
+    expect(reconcileOpenSession).toHaveBeenCalledWith("session-1", "visibility_regain");
+  });
+
   it("should subscribe when chat is processing and session exists", async () => {
     mockState.executionBySession = {
       "session-1": {
