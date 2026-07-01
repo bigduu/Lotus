@@ -192,6 +192,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         subagentType: child.subagentType ?? null,
         lifecycle: child.lifecycle ?? null,
         residentName: child.residentName ?? null,
+        placement: child.placement ?? null,
       };
       const previous = previousById.get(child.id);
       out.push(previous && areMergedItemsEqual(previous, nextItem) ? previous : nextItem);

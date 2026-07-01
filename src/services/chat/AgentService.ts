@@ -417,6 +417,18 @@ export interface SessionPlanModeState {
   status: "exploring" | "designing" | "reviewing" | "finalizing" | "awaiting_approval";
 }
 
+/**
+ * Which machine a session's agent physically runs on: the deployment kind plus
+ * the host. Mirrors the backend `SessionPlacement` DTO. The backend always sends
+ * one (un-stamped / local sessions default to the backend's own local host).
+ */
+export interface SessionPlacement {
+  /** Deployment kind: "local" (this backend's host), "docker", or "ssh". */
+  kind: string;
+  /** Host the agent runs on — backend hostname for local, target host for remote. */
+  host: string;
+}
+
 export interface SessionSummary {
   id: string;
   kind: SessionKind;
@@ -461,6 +473,12 @@ export interface SessionSummary {
   has_pending_question?: boolean;
   /** Number of child sessions currently running under this session. */
   running_child_count?: number;
+  /**
+   * Which machine this session's agent runs on (deployment kind + host).
+   * Always present from the backend; defaults to the backend's own local host
+   * for root/local/legacy sessions, or the target node for remote children.
+   */
+  placement?: SessionPlacement;
   /**
    * Per-session "bypass permissions" toggle, read from the session's runtime
    * state. Only populated by the detail endpoint (`GET /v1/sessions/{id}`);

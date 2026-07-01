@@ -425,6 +425,10 @@ export const enUsTranslation = {
         promptCacheTooltip:
           "{{count}} tool output(s) were compacted into prompt-side cache notes, saving {{tokens}} tokens.",
       },
+      machine: {
+        label: "Machine",
+        tooltip: "Runs on {{kind}} · {{host}}",
+      },
       subAgents: {
         title: "Sub-agents",
         expand: "Expand",

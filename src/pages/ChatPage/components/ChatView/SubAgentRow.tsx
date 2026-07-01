@@ -3,9 +3,11 @@ import { Button, Dropdown, Flex, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
 import type { SubagentProfile } from "@services/subagent/types";
+import type { SessionPlacement } from "@services/chat/AgentService";
 import { useChildPreviewState, getMergedChildPreview } from "../../streaming/useChildPreviewState";
 import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
 import InlineMetaText from "@shared/components/InlineMetaText";
+import { MachineTag } from "@shared/components/MachineTag";
 import { ChildPreviewPopover } from "./ChildPreviewPopover";
 
 const { Text } = Typography;
@@ -39,6 +41,8 @@ export interface SubAgentRowData {
   lifecycle?: string | null;
   /** For a resident agent, its stable reuse key (e.g. "essayist"). */
   residentName?: string | null;
+  /** Which machine this child ran on (deployment kind + host). */
+  placement?: SessionPlacement | null;
 }
 
 export interface SubAgentRowProps {
@@ -167,6 +171,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                   renderSubagentTypeTag(item.subagentType, subagentProfilesById, {
                     compact: true,
                   }),
+                  item.placement ? <MachineTag placement={item.placement} compact /> : null,
                 ]}
               />
             ) : (
@@ -198,6 +203,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                   </Tag>
                 ) : null}
                 {renderSubagentTypeTag(item.subagentType, subagentProfilesById)}
+                {item.placement ? <MachineTag placement={item.placement} compact /> : null}
               </>
             )}
           </Flex>

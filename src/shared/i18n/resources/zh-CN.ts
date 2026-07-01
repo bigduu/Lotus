@@ -411,6 +411,10 @@ export const zhCnTranslation = {
         promptCacheTooltip:
           "{{count}} 个工具输出已被压缩为 prompt 侧缓存摘要，共节省 {{tokens}} 个 tokens。",
       },
+      machine: {
+        label: "机器",
+        tooltip: "运行于 {{kind}} · {{host}}",
+      },
       subAgents: {
         title: "子代理",
         expand: "展开",
