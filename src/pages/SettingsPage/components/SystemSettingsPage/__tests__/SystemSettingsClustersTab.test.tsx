@@ -97,6 +97,24 @@ const pathKeyNode: FabricNode = {
   enabled: true,
 };
 
+// Key-auth node with NO stored secret (neither inline key nor path) — editing it
+// and saving blank must be blocked: nothing to preserve, nothing provided.
+const keylessKeyNode: FabricNode = {
+  id: "n4",
+  label: "keyless-1",
+  placement: {
+    type: "ssh",
+    host: "10.0.0.8",
+    port: 22,
+    username: "deploy",
+    auth: { method: "private_key" },
+  },
+  trust_level: "trusted",
+  deploy: { default_role: "worker" },
+  state: null,
+  enabled: true,
+};
+
 describe("SystemSettingsClustersTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -191,25 +209,18 @@ describe("SystemSettingsClustersTab", () => {
     }
   });
 
-  it("blocks saving a new key node when neither key nor path is provided", async () => {
-    mockListNodes.mockResolvedValue(emptyList);
+  it("blocks saving a key node when neither key nor path is provided", async () => {
+    mockListNodes.mockResolvedValue({ nodes: [keylessKeyNode], clusters: [] });
     render(<SystemSettingsClustersTab />);
-    await waitFor(() => expect(mockListNodes).toHaveBeenCalled());
+    await screen.findByText("keyless-1");
 
-    fireEvent.click(screen.getByText("Add Node"));
-    fireEvent.change(screen.getByPlaceholderText("gpu-1"), { target: { value: "key-x" } });
-    fireEvent.change(screen.getByPlaceholderText("10.0.0.5"), { target: { value: "10.0.0.8" } });
-    fireEvent.change(screen.getByPlaceholderText("deploy"), { target: { value: "deploy" } });
-
-    // Switch auth method password → private_key via the Select.
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Auth method" }));
-    fireEvent.click(await screen.findByText("Private key"));
-
+    // Edit opens with auth_method=private_key already selected (no Select to drive)
+    // and no stored secret, so a blank save must be rejected by validation.
+    fireEvent.click(screen.getByLabelText("Edit"));
     fireEvent.click(screen.getByText("Save"));
 
-    // Validation rejects the submit; createNode is never called.
     await screen.findByText("Provide a key file path or paste a private key");
-    expect(mockCreateNode).not.toHaveBeenCalled();
+    expect(mockUpdateNode).not.toHaveBeenCalled();
   });
 
   it("invokes the deploy action when Deploy is clicked", async () => {
