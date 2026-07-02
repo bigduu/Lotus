@@ -119,7 +119,11 @@ const areMergedItemsEqual = (a: MergedSubAgentItem, b: MergedSubAgentItem): bool
   a.subagentType === b.subagentType &&
   a.roundCount === b.roundCount &&
   a.lifecycle === b.lifecycle &&
-  a.residentName === b.residentName;
+  a.residentName === b.residentName &&
+  // Keep in sync with the list-level equality — else a changed placement (e.g. a
+  // child that finished and got its remote node stamped) renders a stale MachineTag.
+  a.placement?.kind === b.placement?.kind &&
+  a.placement?.host === b.placement?.host;
 
 export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   parentSessionId,

@@ -164,21 +164,37 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   const buildPlacement = (v: NodeFormValues): NodePlacement => {
     if (v.placement_type === "local") return { type: "local" };
+    // Secrets come back masked; only mask-preserve one the edited node ACTUALLY
+    // had, so switching auth methods (password→key) or clearing an inline key on
+    // a path-based node never stores the mask string as a bogus secret.
+    const original = editingId ? nodes.find((n) => n.id === editingId) : undefined;
+    const originalAuth =
+      original?.placement.type === "ssh"
+        ? (original.placement as Extract<NodePlacement, { type: "ssh" }>).auth
+        : undefined;
+    const preserve = (existing: string | undefined, entered: string | undefined) =>
+      Boolean(existing) && !entered;
     let auth: SshAuth;
     if (v.auth_method === "system_ssh_config") {
       auth = { method: "system_ssh_config" };
     } else if (v.auth_method === "private_key") {
+      const existingKey =
+        originalAuth?.method === "private_key" ? originalAuth.private_key : undefined;
+      const existingPass =
+        originalAuth?.method === "private_key" ? originalAuth.passphrase : undefined;
       auth = {
         method: "private_key",
-        // Empty → backend keeps the existing secret (mask-preserve).
-        private_key: editingId && !v.private_key ? SECRET_MASK : v.private_key || undefined,
+        private_key: preserve(existingKey, v.private_key)
+          ? SECRET_MASK
+          : v.private_key || undefined,
         private_key_path: v.private_key_path || undefined,
-        passphrase: editingId && !v.passphrase ? SECRET_MASK : v.passphrase || undefined,
+        passphrase: preserve(existingPass, v.passphrase) ? SECRET_MASK : v.passphrase || undefined,
       };
     } else {
+      const existingPw = originalAuth?.method === "password" ? originalAuth.password : undefined;
       auth = {
         method: "password",
-        password: editingId && !v.password ? SECRET_MASK : v.password,
+        password: preserve(existingPw, v.password) ? SECRET_MASK : v.password,
       };
     }
     return {
@@ -208,8 +224,23 @@ const SystemSettingsClustersTab: React.FC = () => {
 
       // The cluster Select uses tags-mode → value is an array; take the first.
       const clusterName = Array.isArray(v.cluster_name) ? v.cluster_name[0] : v.cluster_name;
-      // Reconcile cluster membership if a cluster was chosen.
-      await applyClusterMembership(saved.id, clusterName);
+      // The node is now persisted. Cluster membership is a SEPARATE set of writes;
+      // a failure there must not be reported as a node-save failure (the save
+      // succeeded), and we still refetch so the UI reflects what actually persisted.
+      try {
+        await applyClusterMembership(saved.id, clusterName);
+      } catch (memErr: unknown) {
+        message.warning(
+          (memErr instanceof Error ? memErr.message : undefined) ||
+            t(
+              "settings.clusters.membershipError",
+              "Node saved, but updating cluster membership failed",
+            ),
+        );
+        closeModal();
+        fetchAll();
+        return;
+      }
 
       message.success(
         editingId
@@ -570,6 +601,7 @@ const SystemSettingsClustersTab: React.FC = () => {
                   <Form.Item
                     name="private_key"
                     label={t("settings.clusters.privateKeyInline", "…or paste key (PEM)")}
+                    dependencies={["private_key_path"]}
                     extra={
                       editingNode
                         ? t(
@@ -578,6 +610,37 @@ const SystemSettingsClustersTab: React.FC = () => {
                           )
                         : undefined
                     }
+                    rules={[
+                      {
+                        validator: async () => {
+                          const path = (
+                            form.getFieldValue("private_key_path") as string | undefined
+                          )?.trim();
+                          const inline = (
+                            form.getFieldValue("private_key") as string | undefined
+                          )?.trim();
+                          if (path || inline) return;
+                          // Editing a key-auth node with a stored secret → preserved on save.
+                          const existing =
+                            editingNode?.placement.type === "ssh"
+                              ? (editingNode.placement as Extract<NodePlacement, { type: "ssh" }>)
+                                  .auth
+                              : undefined;
+                          if (
+                            existing?.method === "private_key" &&
+                            (existing.private_key || existing.private_key_path)
+                          ) {
+                            return;
+                          }
+                          throw new Error(
+                            t(
+                              "settings.clusters.privateKeyRequired",
+                              "Provide a key file path or paste a private key",
+                            ),
+                          );
+                        },
+                      },
+                    ]}
                   >
                     <Input.TextArea rows={3} placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" />
                   </Form.Item>

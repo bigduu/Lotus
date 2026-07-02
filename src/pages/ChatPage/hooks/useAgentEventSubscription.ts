@@ -559,6 +559,10 @@ export function useAgentEventSubscription() {
   //     live socket likely died on suspend, and the stale ref entry would
   //     otherwise pass ensureSubscription's reuse guard and never reconnect.
   useEffect(() => {
+    // Guards an in-flight reconcile (started on a visibility regain) from
+    // re-subscribing AFTER this component unmounts — which would leak an
+    // ownerless subscription that the unmount cleanup already tore down.
+    let cancelled = false;
     const onVisible = () => {
       if (typeof document === "undefined" || document.visibilityState !== "visible") {
         return;
@@ -569,6 +573,7 @@ export function useAgentEventSubscription() {
         } catch (error) {
           debugLog("[SSE]", "visibilityReconcile.refreshFailed", { error });
         }
+        if (cancelled) return;
         const state = useAppStore.getState();
         const openId = state.currentSessionId;
         if (openId) {
@@ -583,7 +588,10 @@ export function useAgentEventSubscription() {
       })();
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [refreshChatsNow, ensureSubscription, cleanupChat]);
 
   // Effect B: unmount cleanup only
