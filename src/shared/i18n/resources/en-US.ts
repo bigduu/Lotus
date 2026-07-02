@@ -425,6 +425,10 @@ export const enUsTranslation = {
         promptCacheTooltip:
           "{{count}} tool output(s) were compacted into prompt-side cache notes, saving {{tokens}} tokens.",
       },
+      machine: {
+        label: "Machine",
+        tooltip: "Runs on {{kind}} · {{host}}",
+      },
       subAgents: {
         title: "Sub-agents",
         expand: "Expand",
@@ -618,12 +622,14 @@ export const enUsTranslation = {
           permissions: "Permissions",
           masking: "Masking",
           envVars: "Env Vars",
+          clusters: "Clusters",
           notifications: "Notifications",
         },
         groups: {
           ai: "AI",
           toolsAndExtensions: "Tools & Extensions",
           securityAndPrivacy: "Security",
+          deployment: "Deployment",
           monitoring: "Monitoring",
           system: "System",
         },

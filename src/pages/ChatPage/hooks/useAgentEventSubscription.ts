@@ -547,6 +547,53 @@ export function useAgentEventSubscription() {
     );
   }, [ensureSubscription]);
 
+  // Effect: reconcile on tab-visibility regain. A backgrounded tab (Safari
+  // suspends these aggressively) freezes the WebSocket AND every reconnect/settle
+  // timer, so a run that finishes while hidden never delivers its terminal frame
+  // and the UI is stranded on "thinking". On resume we:
+  //  1. refresh the authoritative session summaries — `applySessionSummary`
+  //     settles any run the backend reports finished (is_running=false), clearing
+  //     the stale processing state (which also lets Effect A drop its dead sub);
+  //  2. catch the open session's transcript + pending question up;
+  //  3. force-resubscribe any session the backend STILL reports running — its
+  //     live socket likely died on suspend, and the stale ref entry would
+  //     otherwise pass ensureSubscription's reuse guard and never reconnect.
+  useEffect(() => {
+    // Guards an in-flight reconcile (started on a visibility regain) from
+    // re-subscribing AFTER this component unmounts — which would leak an
+    // ownerless subscription that the unmount cleanup already tore down.
+    let cancelled = false;
+    const onVisible = () => {
+      if (typeof document === "undefined" || document.visibilityState !== "visible") {
+        return;
+      }
+      void (async () => {
+        try {
+          await refreshChatsNow();
+        } catch (error) {
+          debugLog("[SSE]", "visibilityReconcile.refreshFailed", { error });
+        }
+        if (cancelled) return;
+        const state = useAppStore.getState();
+        const openId = state.currentSessionId;
+        if (openId) {
+          state.reconcileOpenSession(openId, "visibility_regain");
+        }
+        for (const sessionId of Array.from(subscriptionsBySessionRef.current.keys())) {
+          if (selectShouldObserve(sessionId)(useAppStore.getState())) {
+            cleanupChat(sessionId, { clearDraft: false });
+            ensureSubscription(sessionId);
+          }
+        }
+      })();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [refreshChatsNow, ensureSubscription, cleanupChat]);
+
   // Effect B: unmount cleanup only
   useEffect(() => {
     const subscriptionsBySession = subscriptionsBySessionRef.current;

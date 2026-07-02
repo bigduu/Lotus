@@ -26,6 +26,7 @@ export const ADVANCED_ONLY_SETTINGS_TABS = new Set([
   "hooks",
   "masking",
   "env-vars",
+  "clusters",
   "metrics",
   "sessions",
   "config",

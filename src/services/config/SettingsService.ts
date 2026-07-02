@@ -53,6 +53,97 @@ export interface ReplaceEnvVarsRequest {
   entries: UpsertEnvVarRequest[];
 }
 
+// ── Cluster Fabric types ────────────────────────────────────────
+//
+// Mirrors bamboo-config `cluster_fabric`. SSH secrets are redacted in
+// responses (returned as the mask "****...****"); re-sending the mask on an
+// update preserves the stored secret.
+
+export type SshAuth =
+  | { method: "system_ssh_config" }
+  | { method: "password"; password?: string }
+  | {
+      method: "private_key";
+      private_key?: string;
+      private_key_path?: string;
+      passphrase?: string;
+    };
+
+export type NodePlacement =
+  | { type: "local" }
+  | {
+      type: "ssh";
+      host: string;
+      port: number;
+      username: string;
+      auth: SshAuth;
+      host_key_fingerprint?: string;
+    };
+
+export type TrustLevel = "trusted" | "untrusted";
+
+export type NodeStatus =
+  | "not_deployed"
+  | "deploying"
+  | "running"
+  | "unreachable"
+  | "stopped"
+  | "failed";
+
+export interface DeployProfile {
+  artifact_path?: string;
+  artifact_sha256?: string;
+  remote_dir?: string;
+  default_role?: string;
+  model?: string;
+  workspace?: string;
+}
+
+export interface NodeState {
+  status: NodeStatus;
+  worker_id?: string;
+  remote_pid?: number;
+  log_path?: string;
+  deployed_at?: string;
+  last_health?: string;
+  last_error?: string;
+}
+
+export interface FabricNode {
+  id: string;
+  label: string;
+  placement: NodePlacement;
+  trust_level: TrustLevel;
+  deploy: DeployProfile;
+  state?: NodeState | null;
+  enabled: boolean;
+}
+
+export interface FabricCluster {
+  name: string;
+  description?: string;
+  node_ids: string[];
+}
+
+export interface FabricListResponse {
+  nodes: FabricNode[];
+  clusters: FabricCluster[];
+}
+
+export interface NodeUpsertRequest {
+  label: string;
+  placement: NodePlacement;
+  trust_level?: TrustLevel;
+  deploy?: DeployProfile;
+  enabled?: boolean;
+}
+
+export interface ClusterUpsertRequest {
+  name: string;
+  description?: string;
+  node_ids: string[];
+}
+
 /**
  * Copilot authentication status
  */
@@ -271,6 +362,66 @@ export class SettingsService {
     return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars/replace", {
       entries,
     });
+  }
+
+  // ── Cluster Fabric ────────────────────────────────────────────
+
+  /** List all nodes (secrets redacted) and clusters. */
+  async listNodes(): Promise<FabricListResponse> {
+    return apiClient.get<FabricListResponse>("/bamboo/settings/nodes");
+  }
+
+  /** Create a node. */
+  async createNode(req: NodeUpsertRequest): Promise<FabricNode> {
+    return apiClient.post<FabricNode>("/bamboo/settings/nodes", req);
+  }
+
+  /** Update a node (re-send the secret mask to preserve the stored secret). */
+  async updateNode(id: string, req: NodeUpsertRequest): Promise<FabricNode> {
+    return apiClient.put<FabricNode>(`/bamboo/settings/nodes/${encodeURIComponent(id)}`, req);
+  }
+
+  /** Delete a node. */
+  async deleteNode(id: string): Promise<void> {
+    await apiClient.delete(`/bamboo/settings/nodes/${encodeURIComponent(id)}`);
+  }
+
+  /** Create a cluster. */
+  async createCluster(req: ClusterUpsertRequest): Promise<{ clusters: FabricCluster[] }> {
+    return apiClient.post<{ clusters: FabricCluster[] }>("/bamboo/settings/clusters", req);
+  }
+
+  /** Update a cluster. */
+  async updateCluster(
+    name: string,
+    req: ClusterUpsertRequest,
+  ): Promise<{ clusters: FabricCluster[] }> {
+    return apiClient.put<{ clusters: FabricCluster[] }>(
+      `/bamboo/settings/clusters/${encodeURIComponent(name)}`,
+      req,
+    );
+  }
+
+  /** Delete a cluster (member nodes are kept). */
+  async deleteCluster(name: string): Promise<{ clusters: FabricCluster[] }> {
+    return apiClient.delete<{ clusters: FabricCluster[] }>(
+      `/bamboo/settings/clusters/${encodeURIComponent(name)}`,
+    );
+  }
+
+  /** Trigger a node lifecycle action (deploy/test/stop). Stubbed 501 until P2. */
+  async nodeAction(id: string, action: "test" | "deploy" | "stop"): Promise<unknown> {
+    return apiClient.post(`/bamboo/settings/nodes/${encodeURIComponent(id)}/${action}`, {});
+  }
+
+  /** Read a node's persisted lifecycle state. */
+  async nodeStatus(id: string): Promise<{ id: string; enabled: boolean; state: NodeState | null }> {
+    return apiClient.get(`/bamboo/settings/nodes/${encodeURIComponent(id)}/status`);
+  }
+
+  /** Tail a node worker's log (last `lines` lines). */
+  async nodeLogs(id: string, lines = 200): Promise<{ id: string; logs: string }> {
+    return apiClient.get(`/bamboo/settings/nodes/${encodeURIComponent(id)}/logs?lines=${lines}`);
   }
 }
 

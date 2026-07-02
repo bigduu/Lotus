@@ -28,6 +28,7 @@ import SystemSettingsAppTab from "./SystemSettingsAppTab";
 import SystemSettingsKeywordMaskingTab from "./SystemSettingsKeywordMaskingTab";
 import SystemSettingsPermissionsTab from "./SystemSettingsPermissionsTab";
 import SystemSettingsEnvVarsTab from "./SystemSettingsEnvVarsTab";
+import SystemSettingsClustersTab from "./SystemSettingsClustersTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
@@ -318,6 +319,13 @@ const SystemSettingsPage = ({
               label: tabLabel("env-vars", t("settings.page.tabs.envVars")),
               children: <SystemSettingsEnvVarsTab />,
             },
+            // ── Deployment ──
+            groupLabel("group-deployment", t("settings.page.groups.deployment", "Deployment")),
+            {
+              key: "clusters",
+              label: tabLabel("clusters", t("settings.page.tabs.clusters", "Clusters")),
+              children: <SystemSettingsClustersTab />,
+            },
             // ── Monitoring ──
             groupLabel("group-monitoring", t("settings.page.groups.monitoring")),
             {
@@ -380,6 +388,7 @@ const SystemSettingsPage = ({
             // Hide group headers that would be empty in simple mode
             if (!isAdvancedMode) {
               if (item.key === "group-security") return false; // masking + env-vars are advanced
+              if (item.key === "group-deployment") return false; // clusters is advanced
               if (item.key === "group-monitoring") return false; // metrics + sessions are advanced
             }
             return true;

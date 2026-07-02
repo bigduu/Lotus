@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 
 import { formatCompactTokenCount, formatTokenCount } from "@shared/types/tokenBudget";
 import { selectSessionById, useAppStore } from "@shared/store/appStore";
+import { MachineTag } from "@shared/components/MachineTag";
 
 import "./index.css";
 
@@ -37,6 +38,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
   const systemPromptId = currentChat?.config.systemPromptId;
   const tokenUsage = currentChat?.config.tokenUsage;
   const compressionEvents = currentChat?.config.compressionEvents ?? [];
+  const placement = currentChat?.placement ?? null;
 
   const systemPromptName = useMemo(() => {
     if (!systemPromptId) return null;
@@ -61,7 +63,12 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
   const hasPromptCache = promptCachedToolOutputs > 0 || promptCachedToolTokensSaved > 0;
 
   const hasContext =
-    workspacePath || systemPromptName || fileRefCount > 0 || hasSummaryContext || hasPromptCache;
+    placement ||
+    workspacePath ||
+    systemPromptName ||
+    fileRefCount > 0 ||
+    hasSummaryContext ||
+    hasPromptCache;
   if (!hasContext) return null;
 
   return (
@@ -73,6 +80,8 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
       }}
     >
       <Flex align="center" gap={6} wrap="wrap" className="lotus-context-bar__content">
+        <MachineTag placement={placement} />
+
         {workspacePath && (
           <Tooltip
             title={t("chat.contextBar.workspaceTooltip", {

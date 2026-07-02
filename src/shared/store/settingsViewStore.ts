@@ -13,6 +13,7 @@ export type SettingsTabKey =
   | "permissions"
   | "masking"
   | "env-vars"
+  | "clusters"
   | "metrics"
   | "sessions"
   | "config"

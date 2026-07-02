@@ -1,7 +1,7 @@
 import type { TaskListMsg } from "./todoList";
 import type { TokenUsage } from "./tokenBudget";
 import type { ProviderModelRef } from "./providerModelRef";
-import type { GoldConfig, GoalState } from "@services/chat/AgentService";
+import type { GoldConfig, GoalState, SessionPlacement } from "@services/chat/AgentService";
 
 export type AgentRole = "planner" | "actor";
 
@@ -213,6 +213,14 @@ export interface ChatItem {
   lifecycle?: string | null;
   /** For a resident agent, its stable reuse key (e.g. "essayist"). */
   residentName?: string | null;
+  /**
+   * Which machine this session's agent runs on (deployment kind + host),
+   * mirrored from the backend `SessionSummary.placement`. Present for every
+   * session; local/root sessions carry the backend's own host, remote children
+   * carry their deployed node. Lets the header + sub-agents panel show
+   * "which machine this runs on".
+   */
+  placement?: SessionPlacement | null;
   title: string;
   /**
    * Monotonic title version mirrored from the backend `SessionSummary.title_version`.
