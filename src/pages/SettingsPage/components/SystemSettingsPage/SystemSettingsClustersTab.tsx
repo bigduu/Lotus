@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   App as AntApp,
   Button,
@@ -13,6 +13,7 @@ import {
   Switch,
   Table,
   Tag,
+  Tooltip,
   Typography,
 } from "antd";
 import { CloudServerOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
@@ -41,6 +42,22 @@ const STATUS_COLOR: Record<NodeStatus, string> = {
   failed: "error",
 };
 
+/** Coarse "N ago" from an RFC3339 timestamp (recomputed each render / poll). */
+const sinceLabel = (iso?: string): string => {
+  if (!iso) return "";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "";
+  const secs = Math.max(0, Math.floor((Date.now() - then) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+};
+
+const STATUS_POLL_MS = 30_000;
+
 interface NodeFormValues {
   label: string;
   placement_type: "local" | "ssh";
@@ -54,6 +71,7 @@ interface NodeFormValues {
   passphrase?: string;
   artifact_path?: string;
   default_role?: string;
+  auto_recover?: boolean;
   // tags-mode Select yields string[]; setFieldsValue seeds it as a string.
   cluster_name?: string | string[];
   enabled: boolean;
@@ -87,22 +105,49 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   // ── Data ─────────────────────────────────────────────────────────
 
-  const fetchAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await settingsService.listNodes();
-      setNodes(res.nodes);
-      setClusters(res.clusters);
-    } catch {
-      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
-    } finally {
-      setLoading(false);
-    }
-  }, [message, t]);
+  // Monotonic id so an out-of-order fetch (a slow poll resolving after a newer
+  // load/poll) can't overwrite fresher data.
+  const fetchSeq = useRef(0);
+
+  const fetchAll = useCallback(
+    async (silent = false) => {
+      const seq = ++fetchSeq.current;
+      if (!silent) setLoading(true);
+      try {
+        const res = await settingsService.listNodes();
+        if (seq !== fetchSeq.current) return; // superseded by a newer fetch
+        setNodes(res.nodes);
+        setClusters(res.clusters);
+      } catch {
+        // A background poll shouldn't spam errors; only surface an explicit load.
+        if (!silent) message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [message, t],
+  );
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  // Live status: silently re-poll while the tab is visible and no modal is open
+  // (editing/logs), so health flips (running↔unreachable) + "last seen" refresh
+  // without a manual reload. Also refreshes immediately on regaining visibility.
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState === "visible" && !modalOpen && !logsOpen) {
+        fetchAll(true);
+      }
+    };
+    const timer = window.setInterval(tick, STATUS_POLL_MS);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [fetchAll, modalOpen, logsOpen]);
 
   // Map node id → its cluster name (first membership wins) for the table.
   const nodeClusterName = useMemo(() => {
@@ -147,6 +192,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       passphrase: "",
       artifact_path: node.deploy?.artifact_path,
       default_role: node.deploy?.default_role,
+      auto_recover: node.deploy?.auto_recover ?? false,
       cluster_name: (() => {
         const n = nodeClusterName.get(node.id);
         return n ? [n] : [];
@@ -214,6 +260,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       deploy: {
         artifact_path: v.artifact_path?.trim() || undefined,
         default_role: v.default_role?.trim() || undefined,
+        auto_recover: v.auto_recover ?? false,
       },
     };
 
@@ -382,7 +429,23 @@ const SystemSettingsClustersTab: React.FC = () => {
       key: "status",
       render: (_: unknown, node: FabricNode) => {
         const status = node.state?.status ?? "not_deployed";
-        return <Tag color={STATUS_COLOR[status]}>{status.replace(/_/g, " ")}</Tag>;
+        const lastError = node.state?.last_error;
+        const lastSeen = sinceLabel(node.state?.last_health);
+        const tag = <Tag color={STATUS_COLOR[status]}>{status.replace(/_/g, " ")}</Tag>;
+        return (
+          <Space direction="vertical" size={0}>
+            {lastError && (status === "unreachable" || status === "failed") ? (
+              <Tooltip title={lastError}>{tag}</Tooltip>
+            ) : (
+              tag
+            )}
+            {lastSeen && (
+              <Text type="secondary" style={{ fontSize: 11 }}>
+                {t("settings.clusters.lastSeen", "seen {{ago}}", { ago: lastSeen })}
+              </Text>
+            )}
+          </Space>
+        );
       },
     },
     {
@@ -668,6 +731,18 @@ const SystemSettingsClustersTab: React.FC = () => {
 
           <Form.Item name="default_role" label={t("settings.clusters.role", "Default role")}>
             <Input placeholder="worker" />
+          </Form.Item>
+
+          <Form.Item
+            name="auto_recover"
+            label={t("settings.clusters.autoRecover", "Auto-recover")}
+            valuePropName="checked"
+            extra={t(
+              "settings.clusters.autoRecoverHint",
+              "Redeploy this node automatically if the health monitor finds its worker gone.",
+            )}
+          >
+            <Switch />
           </Form.Item>
 
           <Form.Item name="cluster_name" label={t("settings.clusters.cluster", "Cluster")}>

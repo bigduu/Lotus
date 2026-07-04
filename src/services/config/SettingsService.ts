@@ -97,6 +97,8 @@ export interface DeployProfile {
   default_role?: string;
   model?: string;
   workspace?: string;
+  /** Auto-redeploy this node when the health monitor finds its worker gone. */
+  auto_recover?: boolean;
 }
 
 export interface NodeState {

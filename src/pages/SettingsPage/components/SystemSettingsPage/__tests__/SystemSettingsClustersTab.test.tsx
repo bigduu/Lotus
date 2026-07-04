@@ -219,7 +219,11 @@ describe("SystemSettingsClustersTab", () => {
     fireEvent.click(screen.getByLabelText("Edit"));
     fireEvent.click(screen.getByText("Save"));
 
-    await screen.findByText("Provide a key file path or paste a private key");
+    // The antd async validator + error render can exceed findByText's 1000ms
+    // default under a loaded CI run — give it headroom so the assert isn't flaky.
+    await screen.findByText("Provide a key file path or paste a private key", undefined, {
+      timeout: 5000,
+    });
     expect(mockUpdateNode).not.toHaveBeenCalled();
   });
 
@@ -241,5 +245,40 @@ describe("SystemSettingsClustersTab", () => {
 
     fireEvent.click(screen.getByText("Deploy"));
     await waitFor(() => expect(mockNodeAction).toHaveBeenCalledWith("n1", "deploy"));
+  });
+
+  it("shows live status + last-seen for an unreachable node", async () => {
+    const node: FabricNode = {
+      ...sshNode,
+      id: "n9",
+      label: "live-1",
+      state: {
+        status: "unreachable",
+        worker_id: "node-n9",
+        last_health: new Date().toISOString(),
+        last_error: "worker gone",
+      },
+    };
+    mockListNodes.mockResolvedValue({ nodes: [node], clusters: [] });
+    render(<SystemSettingsClustersTab />);
+    await screen.findByText("live-1");
+    expect(screen.getByText("unreachable")).toBeInTheDocument();
+    expect(screen.getByText(/seen .*ago/)).toBeInTheDocument();
+  });
+
+  it("persists auto-recover when toggled on", async () => {
+    mockListNodes.mockResolvedValue({ nodes: [inlineKeyNode], clusters: [] });
+    mockUpdateNode.mockResolvedValue(inlineKeyNode);
+    render(<SystemSettingsClustersTab />);
+    await screen.findByText("key-1");
+
+    fireEvent.click(screen.getByLabelText("Edit"));
+    // Two switches render in DOM order: [auto_recover, enabled]. Flip the first on.
+    fireEvent.click(screen.getAllByRole("switch")[0]);
+    fireEvent.click(screen.getByText("Save"));
+
+    await waitFor(() => expect(mockUpdateNode).toHaveBeenCalled());
+    const [, req] = mockUpdateNode.mock.calls[0];
+    expect(req.deploy?.auto_recover).toBe(true);
   });
 });
