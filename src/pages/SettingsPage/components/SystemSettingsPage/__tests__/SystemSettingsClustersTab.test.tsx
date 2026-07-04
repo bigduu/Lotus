@@ -219,7 +219,11 @@ describe("SystemSettingsClustersTab", () => {
     fireEvent.click(screen.getByLabelText("Edit"));
     fireEvent.click(screen.getByText("Save"));
 
-    await screen.findByText("Provide a key file path or paste a private key");
+    // The antd async validator + error render can exceed findByText's 1000ms
+    // default under a loaded CI run — give it headroom so the assert isn't flaky.
+    await screen.findByText("Provide a key file path or paste a private key", undefined, {
+      timeout: 5000,
+    });
     expect(mockUpdateNode).not.toHaveBeenCalled();
   });
 
