@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   App as AntApp,
   Button,
@@ -105,11 +105,17 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   // ── Data ─────────────────────────────────────────────────────────
 
+  // Monotonic id so an out-of-order fetch (a slow poll resolving after a newer
+  // load/poll) can't overwrite fresher data.
+  const fetchSeq = useRef(0);
+
   const fetchAll = useCallback(
     async (silent = false) => {
+      const seq = ++fetchSeq.current;
       if (!silent) setLoading(true);
       try {
         const res = await settingsService.listNodes();
+        if (seq !== fetchSeq.current) return; // superseded by a newer fetch
         setNodes(res.nodes);
         setClusters(res.clusters);
       } catch {
