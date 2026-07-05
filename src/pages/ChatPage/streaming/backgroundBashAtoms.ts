@@ -40,13 +40,23 @@ const normalizeBashStatus = (status: string): BackgroundBashStatus => {
 
 export const setBashCompletedAtom = atom(
   null,
-  (_get, set, payload: { bashId: string; status: string; exitCode: number | null }) => {
+  (get, set, payload: { bashId: string; status: string; exitCode: number | null }) => {
     const key = normalizeStreamingKeyPart(payload.bashId);
     if (!key) return;
 
+    const status = normalizeBashStatus(payload.status);
+    // Idempotent: `bash_completed` is a cached CRITICAL event replayed on every
+    // (re)subscribe with the SAME terminal status/exitCode. Skip the write when
+    // nothing changed so jotai doesn't churn a fresh reference and re-render every
+    // ToolStepsCard/ToolResultCard subscribed to this bash id.
+    const existing = get(backgroundBashAtomFamily(key));
+    if (existing && existing.status === status && existing.exitCode === payload.exitCode) {
+      return;
+    }
+
     backgroundBashModule.activeKeys.add(key);
     set(backgroundBashAtomFamily(key), {
-      status: normalizeBashStatus(payload.status),
+      status,
       exitCode: payload.exitCode,
       updatedAt: Date.now(),
     });
