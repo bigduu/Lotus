@@ -37,6 +37,7 @@ export const enUsTranslation = {
           completedTitle: "Background Task Completed",
           completedBody: '"{{title}}" has completed',
           completedFallback: "A background task has completed",
+          completedToast: "Background shell finished — {{command}} ({{status}}, exit {{code}})",
         },
         clarification: {
           title: "Bodhi AI needs your response",
@@ -1934,6 +1935,10 @@ export const enUsTranslation = {
       toolSteps: {
         title: "Tool Run",
         running: "running…",
+        runningInBackground: "Running in background…",
+        backgroundCompleted: "Completed",
+        backgroundKilled: "Killed",
+        backgroundFailed: "Failed",
         viewFullOutput: "View full output",
         details: "Details",
         preview: "Preview",

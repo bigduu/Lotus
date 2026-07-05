@@ -8,8 +8,11 @@ import {
   EyeOutlined,
   DownOutlined,
   RightOutlined,
+  SyncOutlined,
+  MinusCircleOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import type { AssistantToolCallMessage, AssistantToolResultMessage } from "@shared/types/chat";
 import { generateIntentDescription } from "../../utils/toolIntent";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
@@ -18,11 +21,18 @@ import {
   formatResultContent,
   getFileChangeDiffStats,
   parseFileChangeResultPayload,
+  parseBackgroundBashResultPayload,
+  type BackgroundBashResultPayload,
 } from "@shared/utils/resultFormatters";
 import {
   getMergedToolStreamingOutput,
   useToolStreamingStates,
 } from "../../streaming/useToolStreamingStates";
+import {
+  getBackgroundBashDone,
+  useBackgroundBashStatuses,
+  type BackgroundBashDone,
+} from "../../streaming/backgroundBashAtoms";
 import type { ToolCallCardProps } from "../ToolCallCard";
 import type { ToolSessionItem } from "../ToolSessionCard";
 import FileChangeViewer from "../FileChangeViewer";
@@ -61,13 +71,43 @@ interface StepEntry {
   info: StepInfo;
   result?: AssistantToolResultMessage;
   metadata?: ToolCallCardProps["metadata"];
+  /** Non-null when this tool is a background/async shell (detected from its result JSON). */
+  backgroundBash?: BackgroundBashResultPayload | null;
+  /** The reconciled completion for {@link backgroundBash} (null while still running). */
+  backgroundDone?: BackgroundBashDone | null;
 }
+
+interface BackgroundStepState {
+  payload: BackgroundBashResultPayload;
+  done: BackgroundBashDone | null;
+}
+
+const isBackgroundBashSuccess = (done: BackgroundBashDone): boolean =>
+  done.status === "completed" && (done.exitCode === 0 || done.exitCode == null);
 
 function getResolvedStepInfo(
   result: AssistantToolResultMessage | undefined,
   streamingOutput: string | undefined,
   liveStatus?: "idle" | "running" | "completed" | "error",
+  background?: BackgroundStepState,
 ): StepInfo {
+  // A background/async shell reports a normal ToolComplete immediately, but the
+  // shell keeps running: don't show the green check until the `bash_completed`
+  // event reconciles into the background-status store.
+  if (background) {
+    const { done } = background;
+    if (!done) {
+      return { status: "process", icon: <SyncOutlined spin /> };
+    }
+    if (isBackgroundBashSuccess(done)) {
+      return { status: "finish", icon: <CheckCircleOutlined /> };
+    }
+    if (done.status === "killed") {
+      return { status: "finish", icon: <MinusCircleOutlined /> };
+    }
+    return { status: "error", icon: <CloseCircleOutlined /> };
+  }
+
   if (result) {
     if (result.isError) {
       return { status: "error", icon: <CloseCircleOutlined /> };
@@ -89,6 +129,44 @@ function getResolvedStepInfo(
   }
 
   return { status: "process", icon: <LoadingOutlined spin /> };
+}
+
+/**
+ * The amber "Running in background…" / completed / killed / failed badge for a
+ * background shell step. Returns null for ordinary tools.
+ */
+function renderBackgroundBadge(entry: StepEntry, t: TFunction): React.ReactNode {
+  if (!entry.backgroundBash) {
+    return null;
+  }
+
+  const done = entry.backgroundDone ?? null;
+  if (!done) {
+    return (
+      <Tag color="warning" icon={<SyncOutlined spin />} style={{ margin: 0 }}>
+        {t("components.toolSteps.runningInBackground")}
+      </Tag>
+    );
+  }
+
+  if (isBackgroundBashSuccess(done)) {
+    return (
+      <Tag color="success" style={{ margin: 0 }}>
+        {`${t("components.toolSteps.backgroundCompleted")} · exit ${done.exitCode ?? 0}`}
+      </Tag>
+    );
+  }
+
+  if (done.status === "killed") {
+    return <Tag style={{ margin: 0 }}>{t("components.toolSteps.backgroundKilled")}</Tag>;
+  }
+
+  const suffix = done.exitCode != null ? ` · exit ${done.exitCode}` : "";
+  return (
+    <Tag color="error" style={{ margin: 0 }}>
+      {`${t("components.toolSteps.backgroundFailed")}${suffix}`}
+    </Tag>
+  );
 }
 
 const formatElapsed = (ms: number | undefined): string => {
@@ -139,6 +217,27 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
   const toolCallIds = useMemo(() => rawEntries.map((entry) => entry.key), [rawEntries]);
   const liveStateMap = useToolStreamingStates(sessionId, toolCallIds);
 
+  // Detect background/async shells from each result payload, then subscribe to
+  // their reconciled completions (keyed by bash_id) so cards flip reactively.
+  const backgroundPayloadByKey = useMemo(() => {
+    const map: Record<string, BackgroundBashResultPayload | null> = {};
+    rawEntries.forEach((entry) => {
+      const resultText = entry.result?.result?.result ?? "";
+      map[entry.key] = resultText ? parseBackgroundBashResultPayload(resultText) : null;
+    });
+    return map;
+  }, [rawEntries]);
+
+  const backgroundBashIds = useMemo(
+    () =>
+      Object.values(backgroundPayloadByKey)
+        .filter((payload): payload is BackgroundBashResultPayload => payload != null)
+        .map((payload) => payload.bashId),
+    [backgroundPayloadByKey],
+  );
+
+  const backgroundStatusMap = useBackgroundBashStatuses(backgroundBashIds);
+
   const entries: StepEntry[] = useMemo(
     () =>
       rawEntries.map((entry) => {
@@ -148,13 +247,24 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           liveStateMap,
           entry.streamingOutput,
         );
+        const backgroundBash = backgroundPayloadByKey[entry.key] ?? null;
+        const backgroundDone = backgroundBash
+          ? getBackgroundBashDone(backgroundBash.bashId, backgroundStatusMap)
+          : null;
         return {
           ...entry,
           streamingOutput,
-          info: getResolvedStepInfo(entry.result, streamingOutput, liveState?.status),
+          backgroundBash,
+          backgroundDone,
+          info: getResolvedStepInfo(
+            entry.result,
+            streamingOutput,
+            liveState?.status,
+            backgroundBash ? { payload: backgroundBash, done: backgroundDone } : undefined,
+          ),
         };
       }),
-    [rawEntries, liveStateMap],
+    [rawEntries, liveStateMap, backgroundPayloadByKey, backgroundStatusMap],
   );
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -226,6 +336,9 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           miniPreviewKind = "live";
         } else if (
           !fileChangePayload &&
+          // A background shell's result body is just `{bash_id, status:"running"}`
+          // — never surface it as a mini result preview; the badge conveys state.
+          !entry.backgroundBash &&
           (entry.info.status === "finish" || entry.info.status === "error") &&
           entry.result?.result?.result
         ) {
@@ -239,12 +352,29 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
           }
         }
 
-        const subTitle =
-          entry.info.status === "process"
+        const backgroundBadge = renderBackgroundBadge(entry, t);
+        // The badge already conveys the running/finished state for a background
+        // shell, so drop the redundant "running…"/elapsed text in that case.
+        const subTitleText = entry.backgroundBash
+          ? undefined
+          : entry.info.status === "process"
             ? t("components.toolSteps.running")
             : entry.metadata?.elapsed_ms != null
               ? formatElapsed(entry.metadata.elapsed_ms)
               : undefined;
+        const subTitleNode =
+          subTitleText || backgroundBadge ? (
+            <span
+              style={{ display: "inline-flex", alignItems: "center", gap: token.marginXS }}
+            >
+              {subTitleText ? (
+                <Text type="secondary" style={{ fontSize: token.fontSizeSM - 1 }}>
+                  {subTitleText}
+                </Text>
+              ) : null}
+              {backgroundBadge}
+            </span>
+          ) : undefined;
 
         return {
           key: entry.key,
@@ -276,11 +406,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
               )}
             </span>
           ),
-          subTitle: subTitle ? (
-            <Text type="secondary" style={{ fontSize: token.fontSizeSM - 1 }}>
-              {subTitle}
-            </Text>
-          ) : undefined,
+          subTitle: subTitleNode,
           description: (
             <div style={{ minWidth: 0 }}>
               <Text

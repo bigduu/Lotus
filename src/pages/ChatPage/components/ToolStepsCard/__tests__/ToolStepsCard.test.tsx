@@ -6,7 +6,7 @@
  */
 import React from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, act } from "@testing-library/react";
 import type { ToolSessionItem } from "../../ToolSessionCard";
 import {
   buildToolStreamingKey,
@@ -14,6 +14,10 @@ import {
   toolStreamingStore,
   type ToolStreamingState,
 } from "../../../streaming/toolStreamingAtoms";
+import {
+  setBashCompleted,
+  clearBackgroundBashState,
+} from "../../../streaming/backgroundBashAtoms";
 
 // Mock antd components
 vi.mock("antd", () => ({
@@ -131,6 +135,8 @@ vi.mock("@ant-design/icons", () => ({
   DownOutlined: () => <span data-testid="icon-down">Down</span>,
   RightOutlined: () => <span data-testid="icon-right">Right</span>,
   CopyOutlined: () => <span data-testid="icon-copy">Copy</span>,
+  SyncOutlined: () => <span data-testid="icon-sync">Sync</span>,
+  MinusCircleOutlined: () => <span data-testid="icon-minus">Minus</span>,
 }));
 
 // Mock i18n
@@ -250,6 +256,20 @@ vi.mock("@shared/utils/resultFormatters", () => ({
     { kind: "gap", text: "⋯" },
     { kind: "add", text: "+extra line" },
   ],
+  parseBackgroundBashResultPayload: (content: string) => {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed && typeof parsed.bash_id === "string" && parsed.status === "running") {
+        return {
+          bashId: parsed.bash_id,
+          command: typeof parsed.command === "string" ? parsed.command : "",
+        };
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  },
 }));
 
 vi.mock("../../FileChangeViewer", () => ({
@@ -662,6 +682,80 @@ describe("ToolStepsCard", () => {
 
       expect(screen.getByTestId("tabs").getAttribute("data-default-active-key")).toBe("diff");
       expect(screen.getByTestId("tab-diff")).toBeDefined();
+    });
+  });
+
+  // ── background/async shell ─────────────────────────────────────────
+
+  describe("background bash", () => {
+    const BACKGROUND_RESULT = JSON.stringify({
+      bash_id: "bg-1",
+      command: "npm run build",
+      status: "running",
+    });
+
+    beforeEach(() => {
+      clearBackgroundBashState("bg-1");
+    });
+
+    it("keeps a running spinner (not the green finish) while the shell runs in background", () => {
+      const tools = [
+        makeToolSessionItem({
+          toolCallId: "c1",
+          hasResult: true,
+          isError: false,
+          resultContent: BACKGROUND_RESULT,
+        }),
+      ];
+      render(<ToolStepsCard tools={tools} defaultExpanded={true} />);
+
+      // Result is present, but the background shell has NOT completed → process.
+      expect(screen.getByTestId("step-c1").getAttribute("data-status")).toBe("process");
+      expect(screen.getByTestId("step-subtitle-c1").textContent).toContain(
+        "components.toolSteps.runningInBackground",
+      );
+    });
+
+    it("flips to a completed badge when the bash_completed event reconciles", () => {
+      const tools = [
+        makeToolSessionItem({
+          toolCallId: "c1",
+          hasResult: true,
+          isError: false,
+          resultContent: BACKGROUND_RESULT,
+        }),
+      ];
+      render(<ToolStepsCard tools={tools} defaultExpanded={true} />);
+
+      act(() => {
+        setBashCompleted("bg-1", "completed", 0);
+      });
+
+      expect(screen.getByTestId("step-c1").getAttribute("data-status")).toBe("finish");
+      expect(screen.getByTestId("step-subtitle-c1").textContent).toContain(
+        "components.toolSteps.backgroundCompleted",
+      );
+    });
+
+    it("flips to an error status for a nonzero exit", () => {
+      const tools = [
+        makeToolSessionItem({
+          toolCallId: "c1",
+          hasResult: true,
+          isError: false,
+          resultContent: BACKGROUND_RESULT,
+        }),
+      ];
+      render(<ToolStepsCard tools={tools} defaultExpanded={true} />);
+
+      act(() => {
+        setBashCompleted("bg-1", "error", 1);
+      });
+
+      expect(screen.getByTestId("step-c1").getAttribute("data-status")).toBe("error");
+      expect(screen.getByTestId("step-subtitle-c1").textContent).toContain(
+        "components.toolSteps.backgroundFailed",
+      );
     });
   });
 

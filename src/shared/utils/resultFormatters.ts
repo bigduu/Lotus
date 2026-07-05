@@ -287,6 +287,44 @@ export const isPermissionApprovalResult = (content: string): boolean => {
   return normalizeOptionalText(parsed?.status) === "awaiting_permission_approval";
 };
 
+export interface BackgroundBashResultPayload {
+  bashId: string;
+  command: string;
+}
+
+/**
+ * Detect the ToolComplete result of a background/async shell tool. Such a call
+ * returns a NORMAL result whose body is a JSON string carrying a `bash_id` and
+ * `status === "running"` (the shell keeps running in the background). Returns
+ * `null` for every other tool result, so the ordinary render path is untouched.
+ * Completion is reconciled separately via the `bash_completed` stream event.
+ */
+export const parseBackgroundBashResultPayload = (
+  content: string,
+): BackgroundBashResultPayload | null => {
+  const parsed = parseJsonRecord(content);
+  if (!parsed) {
+    return null;
+  }
+
+  const bashId = toStringValue(parsed.bash_id);
+  // Discriminate the background-shell LAUNCH result from a BashOutput/BashInput
+  // read of the same shell: all three carry `{bash_id, status:"running"}` while
+  // the shell is alive, but only the launch result carries a (non-empty)
+  // `command` (plus cwd/environment). Without this, polling a running shell via
+  // BashOutput would render as a "running in background" launch and every such
+  // card would share the launcher's bash_id and flip together on completion.
+  const command = toStringValue(parsed.command);
+  if (!bashId || parsed.status !== "running" || !command) {
+    return null;
+  }
+
+  return {
+    bashId,
+    command,
+  };
+};
+
 export const formatConclusionWithOptionsConclusionAsMarkdown = (
   conclusion: ConclusionWithOptionsConclusionPayload | undefined,
 ): string | null => {
