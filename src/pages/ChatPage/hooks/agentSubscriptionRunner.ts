@@ -12,8 +12,7 @@ import {
 } from "@shared/utils/completionPolicyViolation";
 import { fireDesktopNotification } from "@services/notification/desktopNotification";
 import { notificationTitleForCategory } from "./subscriptionHandlers/notificationCopy";
-import { hasBackgroundBashDone, setBashCompleted } from "../streaming/backgroundBashAtoms";
-import i18n from "@shared/i18n";
+import { setBashCompleted } from "../streaming/backgroundBashAtoms";
 import { debugLog } from "@shared/utils/debugFlags";
 import { debugSse, isAbortError } from "./useAgentEventSubscription.helpers";
 import {
@@ -598,40 +597,19 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
           });
         },
 
-        onBashCompleted: (bashId, command, exitCode, status) => {
+        onBashCompleted: (bashId, _command, exitCode, status) => {
           if (!bashId) return;
-          // `bash_completed` is a cached CRITICAL event: it is replayed to every
-          // (re)subscriber, so this handler can fire repeatedly for one shell.
-          // The card flip is idempotent, but the toast/desktop ping must fire
-          // once — skip it if we have already recorded this shell's completion.
-          const alreadyNotified = hasBackgroundBashDone(bashId);
           // Flip any already-rendered "Running in background…" tool card to its
-          // completed/killed/failed state (keyed by bash_id).
+          // completed/killed/failed state (keyed by bash_id). Idempotent, so a
+          // replayed `bash_completed` (a cached CRITICAL event, re-sent on every
+          // resubscribe) just re-applies the same terminal state — no churn.
           setBashCompleted(bashId, status, exitCode);
-          if (alreadyNotified) return;
-
-          const commandLabel = command || bashId;
-          const codeLabel = exitCode == null ? "—" : String(exitCode);
-          const toastBody = i18n.t("app.notifications.backgroundTask.completedToast", {
-            command: commandLabel,
-            status,
-            code: codeLabel,
-          });
-          const succeeded = status === "completed" && (exitCode === 0 || exitCode == null);
-          if (succeeded) {
-            ctx.message.success(toastBody, 4);
-          } else if (status === "killed") {
-            ctx.message.info(toastBody, 4);
-          } else {
-            ctx.message.error(toastBody, 5);
-          }
-
-          // The backend also injects a plain user chat message; the desktop
-          // notification here is the only OS-level ping for this completion.
-          void fireDesktopNotification({
-            title: i18n.t("app.notifications.backgroundTask.completedTitle"),
-            body: toastBody,
-          });
+          // NOTE: no user-facing ping is fired here. `bash_completed` is replayed
+          // to every (re)subscriber, so pinging off it bursts on session-open and
+          // bypasses notification preferences. Instead the backend emits a
+          // deduped, preference-gated `notification` (category
+          // `background_task_completed`) for LIVE completions only — surfaced by
+          // `onNotification` above — so it fires exactly once and never on replay.
         },
 
         onExecutionStarted: (runId, _startedAt) => {
