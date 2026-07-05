@@ -18,6 +18,7 @@ const DEFAULT_PREFS: NotificationPreferences = {
   onToolApproval: true,
   onContextPressure: true,
   onSubAgentComplete: true,
+  onBackgroundTaskComplete: true,
 };
 
 const SystemSettingsNotificationsTab: React.FC = () => {
@@ -174,6 +175,21 @@ const SystemSettingsNotificationsTab: React.FC = () => {
               data-testid="notification-subagent-complete-toggle"
               checked={prefs.onSubAgentComplete}
               onChange={(checked) => updatePref("onSubAgentComplete", checked)}
+              disabled={controlsDisabled}
+            />
+          </Flex>
+
+          <Flex align="center" justify="space-between" gap={token.marginSM}>
+            <Text>
+              {t(
+                "settings.notificationsTab.onBackgroundTaskComplete",
+                "Background command finishes",
+              )}
+            </Text>
+            <Switch
+              data-testid="notification-background-task-complete-toggle"
+              checked={prefs.onBackgroundTaskComplete}
+              onChange={(checked) => updatePref("onBackgroundTaskComplete", checked)}
               disabled={controlsDisabled}
             />
           </Flex>
