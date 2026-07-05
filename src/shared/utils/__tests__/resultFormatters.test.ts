@@ -10,6 +10,7 @@ import {
   getStatusColor,
   parseInteractiveQuestionToolResultPayload,
   isPermissionApprovalResult,
+  parseBackgroundBashResultPayload,
   parseConclusionToolResultPayload,
   parseFileChangeResultPayload,
   parseMemoryInspectRebuildPayload,
@@ -1170,5 +1171,64 @@ describe("isPermissionApprovalResult", () => {
     expect(isPermissionApprovalResult(JSON.stringify({ status: "awaiting_user_input" }))).toBe(
       false,
     );
+  });
+});
+
+describe("parseBackgroundBashResultPayload", () => {
+  it("detects a background shell result (bash_id + status running)", () => {
+    const payload = JSON.stringify({
+      bash_id: "bash-123",
+      command: "npm run build",
+      status: "running",
+      cwd: "/repo",
+      environment: {},
+    });
+    expect(parseBackgroundBashResultPayload(payload)).toEqual({
+      bashId: "bash-123",
+      command: "npm run build",
+    });
+  });
+
+  it("rejects a command-less running result — a BashOutput/BashInput read, not a launch", () => {
+    // BashOutput of a still-running shell: {bash_id, status:"running", exit_code, output, ...} — no command.
+    expect(
+      parseBackgroundBashResultPayload(
+        JSON.stringify({ bash_id: "b1", status: "running", output: "…", next_cursor: 5 }),
+      ),
+    ).toBeNull();
+    // BashInput write to a running interactive shell: {bash_id, status:"running", bytes_written, ...} — no command.
+    expect(
+      parseBackgroundBashResultPayload(
+        JSON.stringify({ bash_id: "b1", status: "running", bytes_written: 3, stdin_closed: false }),
+      ),
+    ).toBeNull();
+    // Non-string command is treated as absent.
+    expect(
+      parseBackgroundBashResultPayload(
+        JSON.stringify({ bash_id: "b1", command: 42, status: "running" }),
+      ),
+    ).toBeNull();
+  });
+
+  it("returns null when it is not a running background shell", () => {
+    // Missing bash_id.
+    expect(
+      parseBackgroundBashResultPayload(JSON.stringify({ command: "x", status: "running" })),
+    ).toBeNull();
+    // Non-string bash_id.
+    expect(
+      parseBackgroundBashResultPayload(
+        JSON.stringify({ bash_id: 7, command: "x", status: "running" }),
+      ),
+    ).toBeNull();
+    // A completed/other status is not the initial "running" marker.
+    expect(
+      parseBackgroundBashResultPayload(
+        JSON.stringify({ bash_id: "b1", command: "x", status: "completed" }),
+      ),
+    ).toBeNull();
+    // Plain text and non-JSON.
+    expect(parseBackgroundBashResultPayload("done")).toBeNull();
+    expect(parseBackgroundBashResultPayload("")).toBeNull();
   });
 });

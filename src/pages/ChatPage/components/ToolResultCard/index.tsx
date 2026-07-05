@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from "react";
 import { Alert, Button, Collapse, Divider, Space, Tag, Tooltip, Typography, theme } from "antd";
-import { RobotOutlined, CopyOutlined } from "@ant-design/icons";
+import { RobotOutlined, CopyOutlined, SyncOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
@@ -10,8 +10,10 @@ import {
   getStatusColor,
   parseFileChangeResultPayload,
   parseMemoryInspectRebuildPayload,
+  parseBackgroundBashResultPayload,
   safeStringify,
 } from "@shared/utils/resultFormatters";
+import { useBackgroundBashStatus } from "../../streaming/backgroundBashAtoms";
 import FileChangeViewer from "../FileChangeViewer";
 import { ExecutionStatus } from "@shared/types/chat";
 import { copyText } from "@shared/utils/clipboard";
@@ -65,6 +67,45 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
   const fileChangePayload = useMemo(() => parseFileChangeResultPayload(content), [content]);
   const memoryInspectPayload = useMemo(() => parseMemoryInspectRebuildPayload(content), [content]);
 
+  // A background/async shell returns a normal result but keeps running; reconcile
+  // its status header from the bash_id-keyed completion store instead of the
+  // parent-provided (always "success") status.
+  const backgroundBash = useMemo(() => parseBackgroundBashResultPayload(content), [content]);
+  const backgroundDone = useBackgroundBashStatus(backgroundBash?.bashId);
+  const backgroundTag = useMemo<React.ReactNode>(() => {
+    if (!backgroundBash) {
+      return null;
+    }
+    if (!backgroundDone) {
+      return (
+        <Tag color="warning" icon={<SyncOutlined spin />} style={{ flexShrink: 0, margin: 0 }}>
+          {t("components.toolSteps.runningInBackground")}
+        </Tag>
+      );
+    }
+    const succeeded =
+      backgroundDone.status === "completed" &&
+      (backgroundDone.exitCode === 0 || backgroundDone.exitCode == null);
+    if (succeeded) {
+      return (
+        <Tag color="success" style={{ flexShrink: 0, margin: 0 }}>
+          {`${t("components.toolSteps.backgroundCompleted")} · exit ${backgroundDone.exitCode ?? 0}`}
+        </Tag>
+      );
+    }
+    if (backgroundDone.status === "killed") {
+      return (
+        <Tag style={{ flexShrink: 0, margin: 0 }}>{t("components.toolSteps.backgroundKilled")}</Tag>
+      );
+    }
+    const suffix = backgroundDone.exitCode != null ? ` · exit ${backgroundDone.exitCode}` : "";
+    return (
+      <Tag color="error" style={{ flexShrink: 0, margin: 0 }}>
+        {`${t("components.toolSteps.backgroundFailed")}${suffix}`}
+      </Tag>
+    );
+  }, [backgroundBash, backgroundDone, t]);
+
   const handleCopy = async () => {
     try {
       const textToCopy = formatted.isJson
@@ -116,9 +157,11 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
               >
                 {derivedIsLoading ? t("components.toolResult.waiting") : preview}
               </Text>
-              <Tag color={getStatusColor(status)} style={{ flexShrink: 0, margin: 0 }}>
-                {status}
-              </Tag>
+              {backgroundTag ?? (
+                <Tag color={getStatusColor(status)} style={{ flexShrink: 0, margin: 0 }}>
+                  {status}
+                </Tag>
+              )}
             </div>
           ),
           children: (

@@ -36,6 +36,7 @@ export const zhCnTranslation = {
           completedTitle: "后台任务完成",
           completedBody: "「{{title}}」已完成",
           completedFallback: "一个后台任务已完成",
+          completedToast: "后台命令已结束 — {{command}}（{{status}}，退出码 {{code}}）",
         },
         clarification: {
           title: "Bodhi AI 需要您的回复",
@@ -1875,6 +1876,10 @@ export const zhCnTranslation = {
       toolSteps: {
         title: "工具运行",
         running: "运行中…",
+        runningInBackground: "后台运行中…",
+        backgroundCompleted: "已完成",
+        backgroundKilled: "已终止",
+        backgroundFailed: "失败",
         viewFullOutput: "查看完整输出",
         details: "详情",
         preview: "预览",

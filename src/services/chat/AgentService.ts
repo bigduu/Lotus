@@ -20,6 +20,7 @@ export type AgentEventType =
   | "tool_start"
   | "tool_complete"
   | "tool_error"
+  | "bash_completed"
   | "task_list_updated"
   | "task_list_item_progress"
   | "task_list_completed"
@@ -262,6 +263,13 @@ export interface AgentEvent {
   priority?: string;
   body?: string;
   dedup_key?: string;
+  // BashCompleted event: a background/async shell tool (identified by `bash_id`,
+  // whose original ToolComplete result carried `status === "running"`) has
+  // finished. `exit_code` is absent for signal/killed termination; `status`
+  // (reused from the field above) is "completed" | "killed" | "error".
+  bash_id?: string;
+  command?: string;
+  exit_code?: number;
 }
 
 /**
@@ -794,6 +802,16 @@ export interface AgentEventHandlers {
   onToolStart?: (toolCallId: string, toolName: string, args: Record<string, unknown>) => void;
   onToolComplete?: (toolCallId: string, result: AgentEvent["result"]) => void;
   onToolError?: (toolCallId: string, error: string) => void;
+  /**
+   * A background/async shell tool finished. `exitCode` is null for
+   * signal/killed termination; `status` is "completed" | "killed" | "error".
+   */
+  onBashCompleted?: (
+    bashId: string,
+    command: string,
+    exitCode: number | null,
+    status: string,
+  ) => void;
   onTaskListUpdated?: (taskList: TaskList) => void;
   onTaskListItemProgress?: (delta: TaskListDelta) => void;
   onTaskListCompleted?: (
@@ -1605,6 +1623,14 @@ export class AgentClient {
         break;
       case "tool_error":
         handlers.onToolError?.(event.tool_call_id || "", event.error || "");
+        break;
+      case "bash_completed":
+        handlers.onBashCompleted?.(
+          event.bash_id ?? "",
+          event.command ?? "",
+          event.exit_code ?? null,
+          typeof event.status === "string" ? event.status : "completed",
+        );
         break;
       case "task_list_updated":
         if (event.task_list) {
