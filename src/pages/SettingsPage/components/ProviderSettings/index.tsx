@@ -49,6 +49,7 @@ import {
   type BambooConfigValidationIssue,
 } from "@services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
+import { isMaskedSecretValue } from "./providerInstanceUtils";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelPicker";
@@ -201,6 +202,9 @@ export const ProviderSettings: React.FC = () => {
   const [applyingConfig, setApplyingConfig] = useState(false);
   const [currentProvider, setCurrentProvider] = useState<ProviderType>("copilot");
   const [configLoaded, setConfigLoaded] = useState(false);
+  // Legacy-mode providers whose api_key is already configured (GET returned the
+  // redaction placeholder). Their key field stays empty; empty = keep stored key.
+  const [providersWithStoredKey, setProvidersWithStoredKey] = useState<Set<string>>(new Set());
   const [copilotAuthStatus, setCopilotAuthStatus] = useState<CopilotAuthStatus | null>(null);
   const [checkingCopilotAuth, setCheckingCopilotAuth] = useState(false);
   const [authenticatingCopilot, setAuthenticatingCopilot] = useState(false);
@@ -414,9 +418,17 @@ export const ProviderSettings: React.FC = () => {
       const providersWithEditorFields: EditableProviders = {
         ...(config.providers || {}),
       };
+      const storedKeyProviders = new Set<string>();
       MODEL_PROVIDERS.forEach((provider) => {
         const providerCfg = providersWithEditorFields[provider];
         if (!providerCfg) return;
+        // Never prefill the redaction placeholder into the editable field — an
+        // incomplete paste over it (`****...****sk-new…`) used to silently keep
+        // the old key (bamboo #430). Empty field = keep stored key.
+        if (isMaskedSecretValue((providerCfg as Record<string, unknown>).api_key)) {
+          storedKeyProviders.add(provider);
+          delete (providerCfg as Record<string, unknown>).api_key;
+        }
         if (providerCfg.request_overrides && typeof providerCfg.request_overrides === "object") {
           providerCfg.request_overrides_json = JSON.stringify(
             providerCfg.request_overrides,
@@ -425,6 +437,7 @@ export const ProviderSettings: React.FC = () => {
           );
         }
       });
+      setProvidersWithStoredKey(storedKeyProviders);
 
       setCurrentProvider(config.provider as ProviderType);
       setIsInstanceMode(false);
@@ -725,6 +738,18 @@ export const ProviderSettings: React.FC = () => {
           }
         }
         delete providerCfg.request_overrides_json;
+      }
+
+      // Never send an empty or placeholder api_key. Omission = keep the stored
+      // key (the backend deep-merges the patch); an empty string would be an
+      // explicit clear, and a placeholder would round-trip the redaction mask.
+      for (const p of MODEL_PROVIDERS) {
+        const providerCfg = editableProviders[p] as Record<string, unknown> | undefined;
+        if (!providerCfg || !("api_key" in providerCfg)) continue;
+        const apiKey = providerCfg.api_key;
+        if (typeof apiKey !== "string" || !apiKey.trim() || isMaskedSecretValue(apiKey)) {
+          delete providerCfg.api_key;
+        }
       }
 
       // Sync defaults.chat to providers.{provider}.model for backward compatibility
@@ -1205,6 +1230,14 @@ export const ProviderSettings: React.FC = () => {
   };
 
   const renderProviderPanel = (provider: ModelProvider) => {
+    const hasStoredKey = providersWithStoredKey.has(provider);
+    const apiKeyRules = (requiredMessage: string) =>
+      hasStoredKey ? [] : [{ required: true, message: requiredMessage }];
+    const apiKeyPlaceholder = (defaultPlaceholder: string) =>
+      hasStoredKey
+        ? t("settings.providerTab.apiKeyKeepPlaceholder", "Configured — leave empty to keep")
+        : defaultPlaceholder;
+
     switch (provider) {
       case "openai":
         return (
@@ -1212,11 +1245,13 @@ export const ProviderSettings: React.FC = () => {
             <Form.Item
               name={["providers", "openai", "api_key"]}
               label={t("settings.providerTab.openaiApiKey")}
-              rules={[{ required: true, message: t("settings.providerTab.openaiApiKeyRequired") }]}
+              rules={apiKeyRules(t("settings.providerTab.openaiApiKeyRequired"))}
             >
               <Input.Password
                 data-testid="api-key-input"
-                placeholder={t("settings.providerTab.openaiApiKeyPlaceholder", "sk-...")}
+                placeholder={apiKeyPlaceholder(
+                  t("settings.providerTab.openaiApiKeyPlaceholder", "sk-..."),
+                )}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1264,12 +1299,12 @@ export const ProviderSettings: React.FC = () => {
             <Form.Item
               name={["providers", "anthropic", "api_key"]}
               label={t("settings.providerTab.anthropicApiKey")}
-              rules={[
-                { required: true, message: t("settings.providerTab.anthropicApiKeyRequired") },
-              ]}
+              rules={apiKeyRules(t("settings.providerTab.anthropicApiKeyRequired"))}
             >
               <Password
-                placeholder={t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-...")}
+                placeholder={apiKeyPlaceholder(
+                  t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-..."),
+                )}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1315,10 +1350,12 @@ export const ProviderSettings: React.FC = () => {
             <Form.Item
               name={["providers", "gemini", "api_key"]}
               label={t("settings.providerTab.geminiApiKey")}
-              rules={[{ required: true, message: t("settings.providerTab.geminiApiKeyRequired") }]}
+              rules={apiKeyRules(t("settings.providerTab.geminiApiKeyRequired"))}
             >
               <Password
-                placeholder={t("settings.providerTab.geminiApiKeyPlaceholder", "AIza...")}
+                placeholder={apiKeyPlaceholder(
+                  t("settings.providerTab.geminiApiKeyPlaceholder", "AIza..."),
+                )}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1451,11 +1488,13 @@ export const ProviderSettings: React.FC = () => {
             <Form.Item
               name={["providers", "bodhi", "api_key"]}
               label={t("settings.providerTab.bodhiApiKey")}
-              rules={[{ required: true, message: t("settings.providerTab.apiKeyRequired") }]}
+              rules={apiKeyRules(t("settings.providerTab.apiKeyRequired"))}
             >
               <Input.Password
                 data-testid="bodhi-api-key-input"
-                placeholder={t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_...")}
+                placeholder={apiKeyPlaceholder(
+                  t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_..."),
+                )}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
