@@ -1492,6 +1492,7 @@ export const enUsTranslation = {
         bodhiBaseUrlExtra: "Your Bodhi Server endpoint address",
         targetProviderExtra: "Which upstream provider to route through Bodhi",
         apiKeyRequired: "API key is required",
+        apiKeyKeepPlaceholder: "Configured — leave empty to keep",
         bodhiApiKeyPlaceholder: "bhi_sk_...",
         bodhiBaseUrlPlaceholder: "http://localhost:8080",
         targetProviderPlaceholder: "openai",

@@ -40,7 +40,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { DeviceCodeModal } from "./DeviceCodeModal";
-import { sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
+import { isMaskedSecretValue, sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
 import { copyText } from "@shared/utils/clipboard";
 import type { DeviceCodeInfo } from "./DeviceCodeModal";
 import { theme } from "antd";
@@ -115,10 +115,19 @@ const normalizeResponsesOnlyModels = (value: unknown): string[] => {
 const InstanceConfigFields: React.FC<{
   form: ReturnType<typeof Form.useForm>[0];
   type?: ProviderType;
-}> = ({ type }) => {
+  /** Editing an instance that already has a stored key: field stays empty, empty = keep. */
+  hasStoredApiKey?: boolean;
+}> = ({ type, hasStoredApiKey }) => {
   const { t } = useTranslation();
 
   if (!type) return null;
+
+  const apiKeyRules = (requiredMessage: string) =>
+    hasStoredApiKey ? [] : [{ required: true, message: requiredMessage }];
+  const apiKeyPlaceholder = (defaultPlaceholder: string) =>
+    hasStoredApiKey
+      ? t("settings.providerTab.apiKeyKeepPlaceholder", "Configured — leave empty to keep")
+      : defaultPlaceholder;
 
   switch (type) {
     case "openai":
@@ -127,10 +136,12 @@ const InstanceConfigFields: React.FC<{
           <Form.Item
             name="api_key"
             label={t("settings.providerTab.openaiApiKey")}
-            rules={[{ required: true, message: t("settings.providerTab.openaiApiKeyRequired") }]}
+            rules={apiKeyRules(t("settings.providerTab.openaiApiKeyRequired"))}
           >
             <Input.Password
-              placeholder={t("settings.providerTab.openaiApiKeyPlaceholder", "sk-...")}
+              placeholder={apiKeyPlaceholder(
+                t("settings.providerTab.openaiApiKeyPlaceholder", "sk-..."),
+              )}
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -162,10 +173,12 @@ const InstanceConfigFields: React.FC<{
           <Form.Item
             name="api_key"
             label={t("settings.providerTab.anthropicApiKey")}
-            rules={[{ required: true, message: t("settings.providerTab.anthropicApiKeyRequired") }]}
+            rules={apiKeyRules(t("settings.providerTab.anthropicApiKeyRequired"))}
           >
             <Password
-              placeholder={t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-...")}
+              placeholder={apiKeyPlaceholder(
+                t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-..."),
+              )}
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -208,10 +221,12 @@ const InstanceConfigFields: React.FC<{
           <Form.Item
             name="api_key"
             label={t("settings.providerTab.geminiApiKey")}
-            rules={[{ required: true, message: t("settings.providerTab.geminiApiKeyRequired") }]}
+            rules={apiKeyRules(t("settings.providerTab.geminiApiKeyRequired"))}
           >
             <Password
-              placeholder={t("settings.providerTab.geminiApiKeyPlaceholder", "AIza...")}
+              placeholder={apiKeyPlaceholder(
+                t("settings.providerTab.geminiApiKeyPlaceholder", "AIza..."),
+              )}
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -263,10 +278,12 @@ const InstanceConfigFields: React.FC<{
           <Form.Item
             name="api_key"
             label={t("settings.providerTab.bodhiApiKey")}
-            rules={[{ required: true, message: t("settings.providerTab.apiKeyRequired") }]}
+            rules={apiKeyRules(t("settings.providerTab.apiKeyRequired"))}
           >
             <Input.Password
-              placeholder={t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_...")}
+              placeholder={apiKeyPlaceholder(
+                t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_..."),
+              )}
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -520,6 +537,12 @@ export const ProviderInstanceManager: React.FC<{
 
       if (typeof request_overrides_json === "string" && request_overrides_json.trim()) {
         config.request_overrides = JSON.parse(request_overrides_json);
+      }
+
+      // Empty api_key while editing means "keep the stored key" — omit the
+      // field entirely (an empty string would fail backend validation).
+      if (editingInstance && (typeof config.api_key !== "string" || !config.api_key.trim())) {
+        delete config.api_key;
       }
 
       if (editingInstance) {
@@ -786,7 +809,18 @@ export const ProviderInstanceManager: React.FC<{
           <Divider>{t("settings.providerTab.instanceConfig", "Configuration")}</Divider>
 
           <Form.Item noStyle shouldUpdate>
-            {() => <InstanceConfigFields form={instanceForm} type={selectedType} />}
+            {() => (
+              <InstanceConfigFields
+                form={instanceForm}
+                type={selectedType}
+                hasStoredApiKey={Boolean(
+                  editingInstance &&
+                    isMaskedSecretValue(
+                      (editingInstance.config as Record<string, unknown> | undefined)?.api_key,
+                    ),
+                )}
+              />
+            )}
           </Form.Item>
 
           {selectedType === "copilot" && renderCopilotAuthCard("middle")}

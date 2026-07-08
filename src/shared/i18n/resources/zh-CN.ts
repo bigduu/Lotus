@@ -1445,6 +1445,7 @@ export const zhCnTranslation = {
         bodhiBaseUrlExtra: "Bodhi 服务端端点地址",
         targetProviderExtra: "通过 Bodhi 路由到的上游提供商",
         apiKeyRequired: "请输入 API 密钥",
+        apiKeyKeepPlaceholder: "已配置，留空保持不变",
         bodhiApiKeyPlaceholder: "bhi_sk_...",
         bodhiBaseUrlPlaceholder: "http://localhost:8080",
         targetProviderPlaceholder: "openai",
