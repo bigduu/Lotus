@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import InlineMetaText from "@shared/components/InlineMetaText";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
+import { useIsMobile } from "@shared/hooks/useMediaQuery";
 
 import type { SessionDiffSummary } from "../components/ChatView/ActiveToolMessageCard";
 import { ActiveToolMessageCard } from "../components/ChatView/ActiveToolMessageCard";
@@ -407,6 +408,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
 }) => {
   const { token } = theme.useToken();
   const { t } = useTranslation();
+  const isMobile = useIsMobile();
   const inspectorWidthPx = useUILayoutStore((state) => state.inspector.widthPx);
   const inspectorMinWidthPx = useUILayoutStore((state) => state.inspector.minWidthPx);
   const inspectorMaxWidthPx = useUILayoutStore((state) => state.inspector.maxWidthPx);
@@ -427,13 +429,20 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
   );
 
   if (mode === "drawer") {
+    // On phones a right-side drawer at 520px just covers the whole screen, so
+    // present the inspector as a bottom sheet (swipe-down-friendly, rounded top)
+    // that leaves the conversation visible behind it.
     return (
       <Drawer
         title={t("inspector.title", "Inspector")}
-        placement="right"
+        placement={isMobile ? "bottom" : "right"}
         open={open}
         onClose={() => onOpenChange(false)}
-        width={inspectorWidthPx}
+        width={isMobile ? undefined : inspectorWidthPx}
+        height={isMobile ? "85vh" : undefined}
+        styles={
+          isMobile ? { content: { borderTopLeftRadius: 16, borderTopRightRadius: 16 } } : undefined
+        }
       >
         {content}
       </Drawer>

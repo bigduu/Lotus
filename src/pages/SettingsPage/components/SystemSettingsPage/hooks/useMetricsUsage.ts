@@ -14,9 +14,11 @@ export interface MetricsUsageFilters {
 interface UseMetricsUsageOptions {
   filters?: MetricsUsageFilters;
   autoRefreshMs?: number;
+  /** When false, no initial load and no polling. Defaults to true. */
+  enabled?: boolean;
 }
 
-const DEFAULT_AUTO_REFRESH_MS = 15_000;
+const DEFAULT_AUTO_REFRESH_MS = 30_000;
 
 const toErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message.trim()) {
@@ -26,7 +28,7 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
 };
 
 export const useMetricsUsage = (options: UseMetricsUsageOptions = {}) => {
-  const { filters, autoRefreshMs = DEFAULT_AUTO_REFRESH_MS } = options;
+  const { filters, autoRefreshMs = DEFAULT_AUTO_REFRESH_MS, enabled = true } = options;
 
   const normalizedFilters = useMemo(
     () => ({
@@ -87,11 +89,14 @@ export const useMetricsUsage = (options: UseMetricsUsageOptions = {}) => {
   }, [loadUsage]);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
     void loadUsage(true);
-  }, [loadUsage]);
+  }, [enabled, loadUsage]);
 
   useEffect(() => {
-    if (autoRefreshMs <= 0) {
+    if (!enabled || autoRefreshMs <= 0) {
       return;
     }
 
@@ -102,7 +107,7 @@ export const useMetricsUsage = (options: UseMetricsUsageOptions = {}) => {
     return () => {
       window.clearInterval(timer);
     };
-  }, [autoRefreshMs, loadUsage]);
+  }, [enabled, autoRefreshMs, loadUsage]);
 
   return {
     data,

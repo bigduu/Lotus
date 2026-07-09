@@ -138,6 +138,10 @@ export class MetricsService {
     const queryString = buildQueryString({
       scope: query.scope,
       project_key: query.projectKey,
+      // Bound the per-session observability scan server-side to the dashboard
+      // window (the backend falls back to all-time when these are omitted).
+      days: query.days,
+      end_date: query.endDate,
     });
     return agentApiClient.get<MemoryMetricsSummary>(`metrics/memory/summary${queryString}`);
   }

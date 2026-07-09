@@ -18,7 +18,7 @@ import {
   theme,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -132,6 +132,50 @@ const responsiveGridStyle = (gap: number, minWidth = 320): CSSProperties => ({
   gap,
 });
 
+/**
+ * Tracks whether the metrics dashboard is actually on screen: visible in the
+ * viewport (the Settings page keeps inactive tabs mounted but `display:none`)
+ * and the document/tab is foregrounded. Used to pause all metrics fetching +
+ * polling while the dashboard is hidden, instead of hammering the endpoints
+ * every refresh interval forever. Defaults to active so data still loads in
+ * environments without IntersectionObserver (e.g. jsdom tests).
+ */
+const useMetricsActive = () => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [active, setActive] = useState(true);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof IntersectionObserver === "undefined") {
+      return;
+    }
+
+    let inView = true;
+    let documentVisible = typeof document === "undefined" || document.visibilityState === "visible";
+    const sync = () => setActive(inView && documentVisible);
+
+    const observer = new IntersectionObserver((entries) => {
+      inView = entries.some((entry) => entry.isIntersecting);
+      sync();
+    });
+    observer.observe(element);
+
+    const onVisibilityChange = () => {
+      documentVisible = document.visibilityState === "visible";
+      sync();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    sync();
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
+  return { ref, active };
+};
+
 const SystemSettingsMetricsTab: React.FC = () => {
   const { t } = useTranslation();
   const { token } = useToken();
@@ -141,6 +185,9 @@ const SystemSettingsMetricsTab: React.FC = () => {
   const [selectedModel, setSelectedModel] = useState<string | undefined>(undefined);
   const [days, setDays] = useState<number>(30);
   const [granularity, setGranularity] = useState<MetricsGranularity>("daily");
+
+  // Only fetch/poll while the dashboard is actually visible on screen.
+  const { ref: rootRef, active } = useMetricsActive();
 
   const {
     summary,
@@ -158,6 +205,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
     loadSessionDetail,
     clearSessionDetail,
   } = useMetrics({
+    enabled: active,
     filters: {
       startDate,
       endDate,
@@ -176,6 +224,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
     error: forwardError,
     refresh: refreshForward,
   } = useForwardMetrics({
+    enabled: active,
     filters: {
       startDate,
       endDate,
@@ -191,6 +240,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
     error: usageError,
     refresh: refreshUsage,
   } = useMetricsUsage({
+    enabled: active,
     filters: {
       startDate,
       endDate,
@@ -521,527 +571,539 @@ const SystemSettingsMetricsTab: React.FC = () => {
   const isDashboardRefreshing = isRefreshing || isForwardRefreshing || isUsageRefreshing;
 
   return (
-    <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-      {error ? <Alert type="error" showIcon message={error} /> : null}
-      {forwardError ? <Alert type="error" showIcon message={forwardError} /> : null}
-      {usageError ? <Alert type="error" showIcon message={usageError} /> : null}
+    <div ref={rootRef} style={{ width: "100%" }}>
+      <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+        {error ? <Alert type="error" showIcon message={error} /> : null}
+        {forwardError ? <Alert type="error" showIcon message={forwardError} /> : null}
+        {usageError ? <Alert type="error" showIcon message={usageError} /> : null}
 
-      <Card
-        size="small"
-        title={t("settings.metricsDashboard.filtersTitle")}
-        extra={
-          <Button
-            icon={<ReloadOutlined />}
-            loading={isDashboardRefreshing}
-            onClick={() => {
-              void refresh();
-              void refreshForward();
-              void refreshUsage();
-            }}
-          >
-            {t("settings.metricsDashboard.refresh")}
-          </Button>
-        }
-      >
-        <Space wrap>
-          <DatePicker
-            placeholder={t("settings.metricsDashboard.startDate")}
-            onChange={(value) => {
-              setStartDate(value ? value.format("YYYY-MM-DD") : undefined);
-            }}
-          />
-          <DatePicker
-            placeholder={t("settings.metricsDashboard.endDate")}
-            onChange={(value) => {
-              setEndDate(value ? value.format("YYYY-MM-DD") : undefined);
-            }}
-          />
-          <Select
-            allowClear
-            style={{ minWidth: 180 }}
-            placeholder={t("settings.metricsDashboard.model")}
-            value={selectedModel}
-            options={modelOptions}
-            onChange={(value) => {
-              setSelectedModel(value);
-            }}
-          />
-          <Select
-            style={{ width: 120 }}
-            value={days}
-            options={[7, 14, 30, 90].map((value) => ({
-              label: t("settings.metricsDashboard.daysOption", { value }),
-              value,
-            }))}
-            onChange={(value) => {
-              setDays(value);
-            }}
-          />
-          <Select
-            style={{ width: 140 }}
-            value={granularity}
-            options={[
-              {
-                label: t("settings.metricsDashboard.granularity.daily"),
-                value: "daily",
-              },
-              {
-                label: t("settings.metricsDashboard.granularity.weekly"),
-                value: "weekly",
-              },
-              {
-                label: t("settings.metricsDashboard.granularity.monthly"),
-                value: "monthly",
-              },
-            ]}
-            onChange={(value: MetricsGranularity) => {
-              setGranularity(value);
-            }}
-          />
-        </Space>
-      </Card>
-
-      <Card size="small" title={t("settings.metricsDashboard.dashboardTitle")}>
-        <Tabs
+        <Card
           size="small"
-          destroyInactiveTabPane
-          items={[
-            {
-              key: "overview",
-              label: t("settings.metricsDashboard.tabs.overview"),
-              children: (
-                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                  <Card
-                    size="small"
-                    className="lotus-metric-card"
-                    title={t("settings.metricsDashboard.overviewSections.scaleTitle", {
-                      defaultValue: "Scale & Activity",
-                    })}
-                    extra={
-                      <Text type="secondary">
-                        {t("settings.metricsDashboard.overviewSections.scaleSubtitle", {
-                          defaultValue:
-                            "Current usage volume across chat, forward, skills, and memory.",
-                        })}
-                      </Text>
-                    }
-                  >
-                    <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                      <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
-                      <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
-                      <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
-                      <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
-                    </Space>
-                  </Card>
-                  <Card
-                    size="small"
-                    className="lotus-metric-card"
-                    title={t("settings.metricsDashboard.overviewSections.efficiencyTitle", {
-                      defaultValue: "Compression & Efficiency Advantage",
-                    })}
-                    extra={
-                      <Text type="secondary">
-                        {t("settings.metricsDashboard.overviewSections.efficiencySubtitle", {
-                          defaultValue:
-                            "Real savings from context compression, especially around tool-heavy workflows.",
-                        })}
-                      </Text>
-                    }
-                  >
-                    <Row gutter={[token.marginSM, token.marginSM]}>
-                      {compactStats.map((metric) => (
-                        <Col key={metric.title} xs={24} sm={12} md={8} xl={6}>
-                          <div
-                            style={{
-                              borderRadius: token.borderRadiusSM,
-                              padding: token.paddingXS,
-                              background: isDark
-                                ? "rgba(255, 255, 255, 0.05)"
-                                : "rgba(255, 255, 255, 0.82)",
-                              border: isDark
-                                ? "1px solid rgba(255,255,255,0.08)"
-                                : "1px solid rgba(148,163,184,0.18)",
-                            }}
-                          >
-                            <Statistic
-                              title={metric.title}
-                              value={metric.value}
-                              suffix={metric.suffix}
-                              formatter={
-                                typeof metric.value === "number"
-                                  ? statisticNumberFormatter
-                                  : undefined
-                              }
-                              valueStyle={{ fontSize: token.fontSizeHeading4 }}
-                            />
-                          </div>
-                        </Col>
-                      ))}
-                    </Row>
-                    <Text type="secondary" style={{ display: "block", marginTop: token.marginXS }}>
-                      {t("settings.metricsDashboard.efficiencyHint", {
-                        defaultValue:
-                          "这些指标优先使用真实运行统计：总节约 Tokens、工具上下文压缩节约、非工具压缩节约、压缩事件数，以及会话 / Forward 的平均负载与质量指标。",
-                      })}
-                    </Text>
-                  </Card>
-                </Space>
-              ),
-            },
-            {
-              key: "chat",
-              label: t("settings.metricsDashboard.tabs.chat", { defaultValue: "Chat" }),
-              children: (
-                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                  <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
-                  <div style={responsiveGridStyle(token.marginSM, 360)}>
-                    <TokenChart data={tokenChartData} loading={isLoading} />
-                    <ModelDistribution data={modelMetrics} loading={isLoading} />
-                  </div>
-                  <div style={responsiveGridStyle(token.marginSM, 360)}>
-                    <SyncMismatchBreakdownCard
-                      breakdown={summary?.sync_mismatch_breakdown}
-                      loading={isLoading}
-                    />
+          title={t("settings.metricsDashboard.filtersTitle")}
+          extra={
+            <Button
+              icon={<ReloadOutlined />}
+              loading={isDashboardRefreshing}
+              onClick={() => {
+                void refresh();
+                void refreshForward();
+                void refreshUsage();
+              }}
+            >
+              {t("settings.metricsDashboard.refresh")}
+            </Button>
+          }
+        >
+          <Space wrap>
+            <DatePicker
+              placeholder={t("settings.metricsDashboard.startDate")}
+              onChange={(value) => {
+                setStartDate(value ? value.format("YYYY-MM-DD") : undefined);
+              }}
+            />
+            <DatePicker
+              placeholder={t("settings.metricsDashboard.endDate")}
+              onChange={(value) => {
+                setEndDate(value ? value.format("YYYY-MM-DD") : undefined);
+              }}
+            />
+            <Select
+              allowClear
+              style={{ minWidth: 180 }}
+              placeholder={t("settings.metricsDashboard.model")}
+              value={selectedModel}
+              options={modelOptions}
+              onChange={(value) => {
+                setSelectedModel(value);
+              }}
+            />
+            <Select
+              style={{ width: 120 }}
+              value={days}
+              options={[7, 14, 30, 90].map((value) => ({
+                label: t("settings.metricsDashboard.daysOption", { value }),
+                value,
+              }))}
+              onChange={(value) => {
+                setDays(value);
+              }}
+            />
+            <Select
+              style={{ width: 140 }}
+              value={granularity}
+              options={[
+                {
+                  label: t("settings.metricsDashboard.granularity.daily"),
+                  value: "daily",
+                },
+                {
+                  label: t("settings.metricsDashboard.granularity.weekly"),
+                  value: "weekly",
+                },
+                {
+                  label: t("settings.metricsDashboard.granularity.monthly"),
+                  value: "monthly",
+                },
+              ]}
+              onChange={(value: MetricsGranularity) => {
+                setGranularity(value);
+              }}
+            />
+          </Space>
+        </Card>
+
+        <Card size="small" title={t("settings.metricsDashboard.dashboardTitle")}>
+          <Tabs
+            size="small"
+            destroyInactiveTabPane
+            items={[
+              {
+                key: "overview",
+                label: t("settings.metricsDashboard.tabs.overview"),
+                children: (
+                  <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
                     <Card
                       size="small"
                       className="lotus-metric-card"
-                      title={t("settings.metricsDashboard.activityHeatmapTitle")}
+                      title={t("settings.metricsDashboard.overviewSections.scaleTitle", {
+                        defaultValue: "Scale & Activity",
+                      })}
+                      extra={
+                        <Text type="secondary">
+                          {t("settings.metricsDashboard.overviewSections.scaleSubtitle", {
+                            defaultValue:
+                              "Current usage volume across chat, forward, skills, and memory.",
+                          })}
+                        </Text>
+                      }
                     >
-                      {activityData.points.length === 0 ? (
-                        <Text type="secondary">{t("settings.metricsDashboard.noActivity")}</Text>
-                      ) : (
-                        <div
-                          style={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))",
-                            gap: token.marginXS,
-                          }}
-                        >
-                          {activityData.points.map((point) => (
+                      <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                        <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
+                        <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
+                        <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
+                        <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
+                      </Space>
+                    </Card>
+                    <Card
+                      size="small"
+                      className="lotus-metric-card"
+                      title={t("settings.metricsDashboard.overviewSections.efficiencyTitle", {
+                        defaultValue: "Compression & Efficiency Advantage",
+                      })}
+                      extra={
+                        <Text type="secondary">
+                          {t("settings.metricsDashboard.overviewSections.efficiencySubtitle", {
+                            defaultValue:
+                              "Real savings from context compression, especially around tool-heavy workflows.",
+                          })}
+                        </Text>
+                      }
+                    >
+                      <Row gutter={[token.marginSM, token.marginSM]}>
+                        {compactStats.map((metric) => (
+                          <Col key={metric.title} xs={24} sm={12} md={8} xl={6}>
                             <div
-                              key={point.label}
                               style={{
                                 borderRadius: token.borderRadiusSM,
                                 padding: token.paddingXS,
-                                background: heatColorForValue(
-                                  point.sessions,
-                                  activityData.maxSessions,
-                                ),
-                                minHeight: 64,
-                                color:
-                                  point.sessions > 0
-                                    ? "var(--lotus-metric-text-strong)"
-                                    : token.colorTextSecondary,
+                                background: isDark
+                                  ? "rgba(255, 255, 255, 0.05)"
+                                  : "rgba(255, 255, 255, 0.82)",
+                                border: isDark
+                                  ? "1px solid rgba(255,255,255,0.08)"
+                                  : "1px solid rgba(148,163,184,0.18)",
                               }}
                             >
-                              <div style={{ fontSize: 12, lineHeight: 1.2 }}>{point.label}</div>
-                              <div style={{ fontWeight: 600, marginTop: 4 }}>
-                                {t("settings.metricsDashboard.sessionsCount", {
-                                  count: point.sessions,
-                                })}
-                              </div>
-                              <div style={{ fontSize: 12 }}>
-                                {t("settings.metricsDashboard.tokensAmount", {
-                                  value: formatMetricCompactNumber(point.tokens),
-                                })}
-                              </div>
+                              <Statistic
+                                title={metric.title}
+                                value={metric.value}
+                                suffix={metric.suffix}
+                                formatter={
+                                  typeof metric.value === "number"
+                                    ? statisticNumberFormatter
+                                    : undefined
+                                }
+                                valueStyle={{ fontSize: token.fontSizeHeading4 }}
+                              />
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          </Col>
+                        ))}
+                      </Row>
+                      <Text
+                        type="secondary"
+                        style={{ display: "block", marginTop: token.marginXS }}
+                      >
+                        {t("settings.metricsDashboard.efficiencyHint", {
+                          defaultValue:
+                            "这些指标优先使用真实运行统计：总节约 Tokens、工具上下文压缩节约、非工具压缩节约、压缩事件数，以及会话 / Forward 的平均负载与质量指标。",
+                        })}
+                      </Text>
                     </Card>
-                  </div>
-                </Space>
-              ),
-            },
-            {
-              key: "skills-and-mcp",
-              label: t("settings.metricsDashboard.tabs.skillsAndMcp", {
-                defaultValue: "Skills & MCP",
-              }),
-              children: (
-                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                  <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
-                  <div style={responsiveGridStyle(token.marginSM, 360)}>
-                    <TopUsageBarCard
-                      title={t("settings.metricsDashboard.skillsAndMcp.usageMixTitle", {
-                        defaultValue: "Usage Mix",
-                      })}
-                      subtitle={t("settings.metricsDashboard.skillsAndMcp.usageMixSubtitle", {
-                        defaultValue: "Compare core tools, skill loads, and MCP calls in one view.",
-                      })}
-                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noUsageMix", {
-                        defaultValue: "No usage data available for this range.",
-                      })}
-                      data={usageMixData}
-                      loading={isUsageLoading}
-                      color="var(--lotus-chart-primary)"
-                    />
-                    <TopUsageBarCard
-                      title={t("settings.metricsDashboard.skillsAndMcp.topSkillsTitle", {
-                        defaultValue: "Top Skills",
-                      })}
-                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topSkillsSubtitle", {
-                        defaultValue: "Counted from load_skill calls during matching sessions.",
-                      })}
-                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noSkills", {
-                        defaultValue: "No skills were loaded in this range.",
-                      })}
-                      data={topSkillData}
-                      loading={isUsageLoading}
-                      color="var(--lotus-chart-purple)"
-                    />
-                    <TopUsageBarCard
-                      title={t("settings.metricsDashboard.skillsAndMcp.topMcpServersTitle", {
-                        defaultValue: "Top MCP Servers",
-                      })}
-                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpServersSubtitle", {
-                        defaultValue: "Server-level MCP call distribution.",
-                      })}
-                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpServers", {
-                        defaultValue: "No MCP activity recorded for this range.",
-                      })}
-                      data={topMcpServerData}
-                      loading={isUsageLoading}
-                      color="var(--lotus-chart-cyan)"
-                    />
-                    <TopUsageBarCard
-                      title={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsTitle", {
-                        defaultValue: "Top MCP Tools",
-                      })}
-                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsSubtitle", {
-                        defaultValue: "Most frequently called MCP tool aliases.",
-                      })}
-                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpTools", {
-                        defaultValue: "No MCP tools were called in this range.",
-                      })}
-                      data={topMcpToolData}
-                      loading={isUsageLoading}
-                      color="var(--lotus-chart-accent)"
-                    />
-                    <TopUsageBarCard
-                      title={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsTitle", {
-                        defaultValue: "Top Core Tools",
-                      })}
-                      subtitle={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsSubtitle", {
-                        defaultValue: "Canonicalized built-in and server tool usage ranking.",
-                      })}
-                      emptyText={t("settings.metricsDashboard.skillsAndMcp.noCoreTools", {
-                        defaultValue: "No core tools were called in this range.",
-                      })}
-                      data={topCoreToolData}
-                      loading={isUsageLoading}
-                      color="var(--lotus-chart-secondary)"
-                    />
-                  </div>
-                </Space>
-              ),
-            },
-            {
-              key: "forward",
-              label: t("settings.metricsDashboard.tabs.forward", { defaultValue: "Forward" }),
-              children: (
-                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                  <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
-                  <Card
-                    size="small"
-                    className="lotus-metric-card"
-                    title={t("settings.metricsDashboard.forward.performanceTitle", {
-                      defaultValue: "Forward Performance",
-                    })}
-                  >
-                    <Row gutter={[token.marginSM, token.marginSM]}>
-                      {forwardPerformanceStats.map((metric) => (
-                        <Col key={metric.title} xs={24} sm={12} xl={6}>
+                  </Space>
+                ),
+              },
+              {
+                key: "chat",
+                label: t("settings.metricsDashboard.tabs.chat", { defaultValue: "Chat" }),
+                children: (
+                  <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                    <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
+                    <div style={responsiveGridStyle(token.marginSM, 360)}>
+                      <TokenChart data={tokenChartData} loading={isLoading} />
+                      <ModelDistribution data={modelMetrics} loading={isLoading} />
+                    </div>
+                    <div style={responsiveGridStyle(token.marginSM, 360)}>
+                      <SyncMismatchBreakdownCard
+                        breakdown={summary?.sync_mismatch_breakdown}
+                        loading={isLoading}
+                      />
+                      <Card
+                        size="small"
+                        className="lotus-metric-card"
+                        title={t("settings.metricsDashboard.activityHeatmapTitle")}
+                      >
+                        {activityData.points.length === 0 ? (
+                          <Text type="secondary">{t("settings.metricsDashboard.noActivity")}</Text>
+                        ) : (
                           <div
                             style={{
-                              borderRadius: token.borderRadiusSM,
-                              padding: token.paddingXS,
-                              background: isDark
-                                ? "rgba(255, 255, 255, 0.05)"
-                                : "rgba(255, 255, 255, 0.82)",
-                              border: isDark
-                                ? "1px solid rgba(255,255,255,0.08)"
-                                : "1px solid rgba(148,163,184,0.18)",
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))",
+                              gap: token.marginXS,
                             }}
                           >
-                            <Statistic
-                              title={metric.title}
-                              value={metric.value}
-                              suffix={metric.suffix}
-                              valueStyle={{ fontSize: token.fontSizeHeading4 }}
-                            />
+                            {activityData.points.map((point) => (
+                              <div
+                                key={point.label}
+                                style={{
+                                  borderRadius: token.borderRadiusSM,
+                                  padding: token.paddingXS,
+                                  background: heatColorForValue(
+                                    point.sessions,
+                                    activityData.maxSessions,
+                                  ),
+                                  minHeight: 64,
+                                  color:
+                                    point.sessions > 0
+                                      ? "var(--lotus-metric-text-strong)"
+                                      : token.colorTextSecondary,
+                                }}
+                              >
+                                <div style={{ fontSize: 12, lineHeight: 1.2 }}>{point.label}</div>
+                                <div style={{ fontWeight: 600, marginTop: 4 }}>
+                                  {t("settings.metricsDashboard.sessionsCount", {
+                                    count: point.sessions,
+                                  })}
+                                </div>
+                                <div style={{ fontSize: 12 }}>
+                                  {t("settings.metricsDashboard.tokensAmount", {
+                                    value: formatMetricCompactNumber(point.tokens),
+                                  })}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                        </Col>
-                      ))}
-                    </Row>
-                  </Card>
-                  <ForwardEndpointDistribution data={endpointMetrics} loading={isForwardLoading} />
-                </Space>
-              ),
-            },
-            {
-              key: "memory",
-              label: t("settings.metricsDashboard.tabs.memory", { defaultValue: "Memory" }),
-              children: (
-                <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                  <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
-                  <MemoryTrendChart data={memoryTimeline} loading={isLoading} />
-                  <Card
-                    size="small"
-                    className="lotus-metric-card"
-                    title={t("settings.metricsDashboard.memory.breakdownTitle", {
-                      defaultValue: "Memory Breakdown",
-                    })}
-                  >
-                    <Descriptions size="small" bordered column={1}>
-                      <Descriptions.Item
-                        label={t("settings.metricsDashboard.memory.byType", {
-                          defaultValue: "By Type",
+                        )}
+                      </Card>
+                    </div>
+                  </Space>
+                ),
+              },
+              {
+                key: "skills-and-mcp",
+                label: t("settings.metricsDashboard.tabs.skillsAndMcp", {
+                  defaultValue: "Skills & MCP",
+                }),
+                children: (
+                  <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                    <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
+                    <div style={responsiveGridStyle(token.marginSM, 360)}>
+                      <TopUsageBarCard
+                        title={t("settings.metricsDashboard.skillsAndMcp.usageMixTitle", {
+                          defaultValue: "Usage Mix",
                         })}
-                      >
-                        {formatBreakdownText(memorySummary?.by_type)}
-                      </Descriptions.Item>
-                      <Descriptions.Item
-                        label={t("settings.metricsDashboard.memory.byStatus", {
-                          defaultValue: "By Status",
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.usageMixSubtitle", {
+                          defaultValue:
+                            "Compare core tools, skill loads, and MCP calls in one view.",
                         })}
-                      >
-                        {formatBreakdownText(memorySummary?.by_status)}
-                      </Descriptions.Item>
-                      <Descriptions.Item
-                        label={t("settings.metricsDashboard.memory.byScope", {
-                          defaultValue: "By Scope",
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noUsageMix", {
+                          defaultValue: "No usage data available for this range.",
                         })}
-                      >
-                        {formatBreakdownText(memorySummary?.by_scope)}
-                      </Descriptions.Item>
-                      <Descriptions.Item
-                        label={t("settings.metricsDashboard.memory.lastDream", {
-                          defaultValue: "Last Dream",
+                        data={usageMixData}
+                        loading={isUsageLoading}
+                        color="var(--lotus-chart-primary)"
+                      />
+                      <TopUsageBarCard
+                        title={t("settings.metricsDashboard.skillsAndMcp.topSkillsTitle", {
+                          defaultValue: "Top Skills",
                         })}
-                      >
-                        {formatTimestamp(memorySummary?.last_dream_at)}
-                      </Descriptions.Item>
-                      <Descriptions.Item
-                        label={t("settings.metricsDashboard.memory.lastReindex", {
-                          defaultValue: "Last Reindex",
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topSkillsSubtitle", {
+                          defaultValue: "Counted from load_skill calls during matching sessions.",
                         })}
-                      >
-                        {formatTimestamp(memorySummary?.last_reindex_at)}
-                      </Descriptions.Item>
-                    </Descriptions>
-                  </Card>
-                </Space>
-              ),
-            },
-            {
-              key: "records",
-              label: t("settings.metricsDashboard.tabs.records"),
-              children: (
-                <Tabs
-                  size="small"
-                  destroyInactiveTabPane
-                  items={[
-                    {
-                      key: "sessions",
-                      label: t("settings.metricsDashboard.sessionsTabLabel", {
-                        count: sessions.length,
-                      }),
-                      children: (
-                        <Card
-                          size="small"
-                          extra={
-                            <Text type="secondary">
-                              {t("settings.metricsDashboard.sessionsHint")}
-                            </Text>
-                          }
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noSkills", {
+                          defaultValue: "No skills were loaded in this range.",
+                        })}
+                        data={topSkillData}
+                        loading={isUsageLoading}
+                        color="var(--lotus-chart-purple)"
+                      />
+                      <TopUsageBarCard
+                        title={t("settings.metricsDashboard.skillsAndMcp.topMcpServersTitle", {
+                          defaultValue: "Top MCP Servers",
+                        })}
+                        subtitle={t(
+                          "settings.metricsDashboard.skillsAndMcp.topMcpServersSubtitle",
+                          {
+                            defaultValue: "Server-level MCP call distribution.",
+                          },
+                        )}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpServers", {
+                          defaultValue: "No MCP activity recorded for this range.",
+                        })}
+                        data={topMcpServerData}
+                        loading={isUsageLoading}
+                        color="var(--lotus-chart-cyan)"
+                      />
+                      <TopUsageBarCard
+                        title={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsTitle", {
+                          defaultValue: "Top MCP Tools",
+                        })}
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsSubtitle", {
+                          defaultValue: "Most frequently called MCP tool aliases.",
+                        })}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpTools", {
+                          defaultValue: "No MCP tools were called in this range.",
+                        })}
+                        data={topMcpToolData}
+                        loading={isUsageLoading}
+                        color="var(--lotus-chart-accent)"
+                      />
+                      <TopUsageBarCard
+                        title={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsTitle", {
+                          defaultValue: "Top Core Tools",
+                        })}
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsSubtitle", {
+                          defaultValue: "Canonicalized built-in and server tool usage ranking.",
+                        })}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noCoreTools", {
+                          defaultValue: "No core tools were called in this range.",
+                        })}
+                        data={topCoreToolData}
+                        loading={isUsageLoading}
+                        color="var(--lotus-chart-secondary)"
+                      />
+                    </div>
+                  </Space>
+                ),
+              },
+              {
+                key: "forward",
+                label: t("settings.metricsDashboard.tabs.forward", { defaultValue: "Forward" }),
+                children: (
+                  <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                    <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
+                    <Card
+                      size="small"
+                      className="lotus-metric-card"
+                      title={t("settings.metricsDashboard.forward.performanceTitle", {
+                        defaultValue: "Forward Performance",
+                      })}
+                    >
+                      <Row gutter={[token.marginSM, token.marginSM]}>
+                        {forwardPerformanceStats.map((metric) => (
+                          <Col key={metric.title} xs={24} sm={12} xl={6}>
+                            <div
+                              style={{
+                                borderRadius: token.borderRadiusSM,
+                                padding: token.paddingXS,
+                                background: isDark
+                                  ? "rgba(255, 255, 255, 0.05)"
+                                  : "rgba(255, 255, 255, 0.82)",
+                                border: isDark
+                                  ? "1px solid rgba(255,255,255,0.08)"
+                                  : "1px solid rgba(148,163,184,0.18)",
+                              }}
+                            >
+                              <Statistic
+                                title={metric.title}
+                                value={metric.value}
+                                suffix={metric.suffix}
+                                valueStyle={{ fontSize: token.fontSizeHeading4 }}
+                              />
+                            </div>
+                          </Col>
+                        ))}
+                      </Row>
+                    </Card>
+                    <ForwardEndpointDistribution
+                      data={endpointMetrics}
+                      loading={isForwardLoading}
+                    />
+                  </Space>
+                ),
+              },
+              {
+                key: "memory",
+                label: t("settings.metricsDashboard.tabs.memory", { defaultValue: "Memory" }),
+                children: (
+                  <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                    <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
+                    <MemoryTrendChart data={memoryTimeline} loading={isLoading} />
+                    <Card
+                      size="small"
+                      className="lotus-metric-card"
+                      title={t("settings.metricsDashboard.memory.breakdownTitle", {
+                        defaultValue: "Memory Breakdown",
+                      })}
+                    >
+                      <Descriptions size="small" bordered column={1}>
+                        <Descriptions.Item
+                          label={t("settings.metricsDashboard.memory.byType", {
+                            defaultValue: "By Type",
+                          })}
                         >
-                          <SessionTable
-                            sessions={sessions}
-                            loading={isLoading}
-                            onSelectSession={(sessionId) => {
-                              void loadSessionDetail(sessionId);
-                            }}
-                          />
-                        </Card>
-                      ),
-                    },
-                    {
-                      key: "forward-requests",
-                      label: t("settings.metricsDashboard.forwardTabLabel", {
-                        count: forwardRequests.length,
-                      }),
-                      children: (
-                        <Card size="small">
-                          <ForwardRequestTable
-                            requests={forwardRequests}
-                            loading={isForwardLoading}
-                          />
-                        </Card>
-                      ),
-                    },
-                  ]}
-                />
-              ),
-            },
-          ]}
-        />
-      </Card>
+                          {formatBreakdownText(memorySummary?.by_type)}
+                        </Descriptions.Item>
+                        <Descriptions.Item
+                          label={t("settings.metricsDashboard.memory.byStatus", {
+                            defaultValue: "By Status",
+                          })}
+                        >
+                          {formatBreakdownText(memorySummary?.by_status)}
+                        </Descriptions.Item>
+                        <Descriptions.Item
+                          label={t("settings.metricsDashboard.memory.byScope", {
+                            defaultValue: "By Scope",
+                          })}
+                        >
+                          {formatBreakdownText(memorySummary?.by_scope)}
+                        </Descriptions.Item>
+                        <Descriptions.Item
+                          label={t("settings.metricsDashboard.memory.lastDream", {
+                            defaultValue: "Last Dream",
+                          })}
+                        >
+                          {formatTimestamp(memorySummary?.last_dream_at)}
+                        </Descriptions.Item>
+                        <Descriptions.Item
+                          label={t("settings.metricsDashboard.memory.lastReindex", {
+                            defaultValue: "Last Reindex",
+                          })}
+                        >
+                          {formatTimestamp(memorySummary?.last_reindex_at)}
+                        </Descriptions.Item>
+                      </Descriptions>
+                    </Card>
+                  </Space>
+                ),
+              },
+              {
+                key: "records",
+                label: t("settings.metricsDashboard.tabs.records"),
+                children: (
+                  <Tabs
+                    size="small"
+                    destroyInactiveTabPane
+                    items={[
+                      {
+                        key: "sessions",
+                        label: t("settings.metricsDashboard.sessionsTabLabel", {
+                          count: sessions.length,
+                        }),
+                        children: (
+                          <Card
+                            size="small"
+                            extra={
+                              <Text type="secondary">
+                                {t("settings.metricsDashboard.sessionsHint")}
+                              </Text>
+                            }
+                          >
+                            <SessionTable
+                              sessions={sessions}
+                              loading={isLoading}
+                              onSelectSession={(sessionId) => {
+                                void loadSessionDetail(sessionId);
+                              }}
+                            />
+                          </Card>
+                        ),
+                      },
+                      {
+                        key: "forward-requests",
+                        label: t("settings.metricsDashboard.forwardTabLabel", {
+                          count: forwardRequests.length,
+                        }),
+                        children: (
+                          <Card size="small">
+                            <ForwardRequestTable
+                              requests={forwardRequests}
+                              loading={isForwardLoading}
+                            />
+                          </Card>
+                        ),
+                      },
+                    ]}
+                  />
+                ),
+              },
+            ]}
+          />
+        </Card>
 
-      <Modal
-        title={t("settings.metricsDashboard.sessionMetricsTitle")}
-        open={Boolean(sessionDetail)}
-        onCancel={clearSessionDetail}
-        onOk={clearSessionDetail}
-        width={960}
-        destroyOnClose
-      >
-        {isSessionDetailLoading ? (
-          <Text>{t("settings.metricsDashboard.loadingSessionDetails")}</Text>
-        ) : selectedSession ? (
-          <Space direction="vertical" style={{ width: "100%" }} size={token.marginMD}>
-            <Descriptions size="small" bordered column={2}>
-              <Descriptions.Item
-                label={t("settings.metricsDashboard.sessionDetail.sessionId")}
-                span={2}
-              >
-                {selectedSession.session_id}
-              </Descriptions.Item>
-              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.model")}>
-                {selectedSession.model}
-              </Descriptions.Item>
-              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.status")}>
-                {selectedSession.status}
-              </Descriptions.Item>
-              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.duration")}>
-                {formatDuration(selectedSession.duration_ms)}
-              </Descriptions.Item>
-              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.messages")}>
-                {selectedSession.message_count}
-              </Descriptions.Item>
-              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.totalTokens")}>
-                {renderMetricNumber(selectedSession.total_token_usage.total_tokens)}
-              </Descriptions.Item>
-              <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.toolCalls")}>
-                {selectedSession.tool_call_count}
-              </Descriptions.Item>
-            </Descriptions>
+        <Modal
+          title={t("settings.metricsDashboard.sessionMetricsTitle")}
+          open={Boolean(sessionDetail)}
+          onCancel={clearSessionDetail}
+          onOk={clearSessionDetail}
+          width={960}
+          destroyOnClose
+        >
+          {isSessionDetailLoading ? (
+            <Text>{t("settings.metricsDashboard.loadingSessionDetails")}</Text>
+          ) : selectedSession ? (
+            <Space direction="vertical" style={{ width: "100%" }} size={token.marginMD}>
+              <Descriptions size="small" bordered column={2}>
+                <Descriptions.Item
+                  label={t("settings.metricsDashboard.sessionDetail.sessionId")}
+                  span={2}
+                >
+                  {selectedSession.session_id}
+                </Descriptions.Item>
+                <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.model")}>
+                  {selectedSession.model}
+                </Descriptions.Item>
+                <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.status")}>
+                  {selectedSession.status}
+                </Descriptions.Item>
+                <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.duration")}>
+                  {formatDuration(selectedSession.duration_ms)}
+                </Descriptions.Item>
+                <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.messages")}>
+                  {selectedSession.message_count}
+                </Descriptions.Item>
+                <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.totalTokens")}>
+                  {renderMetricNumber(selectedSession.total_token_usage.total_tokens)}
+                </Descriptions.Item>
+                <Descriptions.Item label={t("settings.metricsDashboard.sessionDetail.toolCalls")}>
+                  {selectedSession.tool_call_count}
+                </Descriptions.Item>
+              </Descriptions>
 
-            <Table
-              rowKey="round_id"
-              size="small"
-              columns={roundColumns}
-              dataSource={sessionDetail.rounds}
-              pagination={{ pageSize: 6, showSizeChanger: false }}
-            />
-          </Space>
-        ) : (
-          <Text type="secondary">{t("settings.metricsDashboard.noDetail")}</Text>
-        )}
-      </Modal>
-    </Space>
+              <Table
+                rowKey="round_id"
+                size="small"
+                columns={roundColumns}
+                dataSource={sessionDetail.rounds}
+                pagination={{ pageSize: 6, showSizeChanger: false }}
+              />
+            </Space>
+          ) : (
+            <Text type="secondary">{t("settings.metricsDashboard.noDetail")}</Text>
+          )}
+        </Modal>
+      </Space>
+    </div>
   );
 };
 

@@ -73,10 +73,15 @@ export const DEFAULT_SIDEBAR: SidebarLayout = {
   maxWidthPx: 520,
 };
 
+// The inspector is a secondary panel showing sparse, narrow cards (config,
+// goal, tasks). Keep its footprint modest by default; the conversation is the
+// primary surface. `minWidthPx`/`maxWidthPx` are design constants (the live
+// proportional cap lives in SessionWorkspaceShell); only `widthPx` is
+// user-adjustable and persisted.
 export const DEFAULT_INSPECTOR: InspectorLayout = {
-  widthPx: 520,
-  minWidthPx: 420,
-  maxWidthPx: 840,
+  widthPx: 360,
+  minWidthPx: 300,
+  maxWidthPx: 560,
 };
 
 export const DEFAULT_LAYOUT_V2: UILayoutSnapshotV2 = {

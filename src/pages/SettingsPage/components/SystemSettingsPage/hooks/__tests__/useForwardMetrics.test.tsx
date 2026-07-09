@@ -42,13 +42,27 @@ describe("useForwardMetrics", () => {
     );
 
     await waitFor(() => {
+      // Aggregate queries omit `limit` (it only bounds the raw request list).
       expect(metricsService.getForwardSummary).toHaveBeenCalledWith({
         startDate: "2026-02-04",
         endDate: "2026-02-10",
         endpoint: undefined,
         model: undefined,
-        limit: 100,
       });
+    });
+    expect(metricsService.getForwardByEndpoint).toHaveBeenCalledWith({
+      startDate: "2026-02-04",
+      endDate: "2026-02-10",
+      endpoint: undefined,
+      model: undefined,
+    });
+    // The raw request list is the only call that carries `limit`.
+    expect(metricsService.getForwardRequests).toHaveBeenCalledWith({
+      startDate: "2026-02-04",
+      endDate: "2026-02-10",
+      endpoint: undefined,
+      model: undefined,
+      limit: 100,
     });
   });
 });

@@ -117,7 +117,9 @@ export const MainLayout: React.FC<{
   const surfaceBorder = "none";
 
   const isMobile = useIsMobile();
-  const mobileDrawerWidthPx = "min(86vw, 360px)";
+  // Near-full width on phones: the old min(86vw, 360px) left an ugly strip of
+  // chat bleeding past the drawer's right edge on ~390px screens.
+  const mobileDrawerWidthPx = "min(94vw, 460px)";
 
   // ── Deferred mount gates ──────────────────────────────────────────────
   // CommandPalette and FeatureGuide are non-critical for the first paint.

@@ -199,32 +199,19 @@ export const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null =
         ...DEFAULT_SIDEBAR,
         ...(parsed.sidebar || {}),
       };
-      const parsedInspector = parsed.inspector || {};
-      const mergedInspector: InspectorLayout = {
-        ...DEFAULT_INSPECTOR,
-        ...parsedInspector,
-      };
-      const inspectorMinWidthPx = Math.max(
-        DEFAULT_INSPECTOR.minWidthPx,
-        Number.isFinite(mergedInspector.minWidthPx)
-          ? mergedInspector.minWidthPx
-          : DEFAULT_INSPECTOR.minWidthPx,
-      );
-      const inspectorMaxWidthPx = Math.max(
-        inspectorMinWidthPx,
-        Math.max(
-          DEFAULT_INSPECTOR.maxWidthPx,
-          Number.isFinite(mergedInspector.maxWidthPx)
-            ? mergedInspector.maxWidthPx
-            : DEFAULT_INSPECTOR.maxWidthPx,
-        ),
-      );
+      // min/max are design constants owned by DEFAULT_INSPECTOR — only the
+      // user-adjustable width is persisted. This lets us retune the bounds
+      // centrally and have stored layouts (e.g. an old 520px width) clamp into
+      // the new range on load instead of being frozen at legacy values.
+      const inspectorMinWidthPx = DEFAULT_INSPECTOR.minWidthPx;
+      const inspectorMaxWidthPx = DEFAULT_INSPECTOR.maxWidthPx;
+      const parsedInspectorWidthPx = Number((parsed.inspector || {}).widthPx);
       const inspectorWidthPx = Math.max(
         inspectorMinWidthPx,
         Math.min(
           inspectorMaxWidthPx,
-          Number.isFinite(mergedInspector.widthPx)
-            ? mergedInspector.widthPx
+          Number.isFinite(parsedInspectorWidthPx)
+            ? parsedInspectorWidthPx
             : DEFAULT_INSPECTOR.widthPx,
         ),
       );

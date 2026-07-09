@@ -46,6 +46,13 @@ export default defineConfig(async ({ command }) => ({
         main: "index.html",
       },
       output: {
+        // Only consolidate node_modules into a handful of vendor chunks. App
+        // source keeps its natural code-splitting — forcing all first-party
+        // modules into one chunk broke module init order (app failed to mount).
+        // To cut the lazy-fragment burst safely, small chunks are merged via
+        // `experimentalMinChunkSize` below (semantics-preserving) rather than by
+        // collapsing the graph by hand.
+        experimentalMinChunkSize: 150_000,
         manualChunks: {
           // ── Vendor splits ──────────────────────────────
           "vendor-react": ["react", "react-dom"],
