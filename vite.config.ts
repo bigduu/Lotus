@@ -53,6 +53,26 @@ export default defineConfig(async ({ command }) => ({
         // `experimentalMinChunkSize` below (semantics-preserving) rather than by
         // collapsing the graph by hand.
         experimentalMinChunkSize: 150_000,
+        // Lazy-loaded features are imported through their directory's
+        // `index.tsx` barrel, so Rollup names every one of them `index-*.js`
+        // — indistinguishable in the network tab and in chunk-404 errors.
+        // Fall back to the module's parent directory name (e.g.
+        // `CommandPalette-*.js`, `SystemSettingsPage-*.js`) so a failed chunk
+        // says which feature it is.
+        chunkFileNames: (chunkInfo) => {
+          if (chunkInfo.name === "index" && chunkInfo.facadeModuleId) {
+            const parts = chunkInfo.facadeModuleId
+              .split("?")[0]
+              .split(/[\\/]/)
+              .filter(Boolean);
+            const file = parts[parts.length - 1] ?? "";
+            const dir = parts[parts.length - 2];
+            if (dir && /^index\.[cm]?[jt]sx?$/.test(file)) {
+              return `assets/${dir}-[hash].js`;
+            }
+          }
+          return "assets/[name]-[hash].js";
+        },
         manualChunks: {
           // ── Vendor splits ──────────────────────────────
           "vendor-react": ["react", "react-dom"],
