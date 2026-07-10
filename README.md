@@ -106,6 +106,8 @@ Hit `Cmd/Ctrl + K` (bound in `app/MainLayout.tsx` and `shared/components/Command
 
 `pages/SettingsPage/components/SystemSettingsPage` is a tabbed console, lazy-loaded to keep startup light. Verified tabs: **Providers** (`ProviderSettings`), **Model limits** (`ModelLimitsSettings`), **Prompts** (`SystemPromptManager`), **MCP** (server forms + management), **Workflows**, **Hooks**, **Schedules**, **Sessions**, **Env vars**, **Keyword masking**, **Notifications**, **Mermaid settings**, **Access password**, **Network**, and a `recharts`-powered **Metrics dashboard** (`UnifiedMetricsDashboard` with token charts, memory trends, model distribution, forward-endpoint distribution, and more).
 
+Provider instances support **vendor presets**: the create/edit modal has a preset select (DeepSeek, 智谱 GLM, Z.ai, MiniMax, 通义千问 DashScope, Kimi — incl. the Anthropic-protocol variants of DeepSeek/GLM) that prefills the provider type and base URL from `src/shared/constants/providerPresets.ts`, so adding an OpenAI-compatible vendor is pick-and-paste-a-key. The preset itself is never persisted.
+
 ### Skills · questions · to-dos · Mermaid
 
 - **Skill** (`src/components/Skill`): `SkillCard` / `SkillSelector` / `SkillManager` browse agent skills, toggle enable/disable, show license tags.

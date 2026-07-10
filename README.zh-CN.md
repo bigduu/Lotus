@@ -106,6 +106,8 @@ src/
 
 `pages/SettingsPage/components/SystemSettingsPage` 是一个标签化的控制台，懒加载以保持启动轻量。已验证的标签包括：**Providers**（`ProviderSettings`）、**模型上限**（`ModelLimitsSettings`）、**提示词**（`SystemPromptManager`）、**MCP**（服务器表单与管理）、**工作流**、**Hooks**、**计划任务 / Schedules**、**会话 / Sessions**、**环境变量 / Env Vars**、**关键词脱敏 / Keyword Masking**、**通知 / Notifications**、**Mermaid 设置**、**访问密码 / Access Password**、**网络 / Network**，以及基于 `recharts` 的 **指标仪表盘 / Metrics**（`UnifiedMetricsDashboard`、token 图、内存趋势、模型分布、转发端点分布等）。
 
+Provider 实例支持**厂商预设**：创建/编辑弹窗内置预设下拉（DeepSeek、智谱 GLM、Z.ai、MiniMax、通义千问 DashScope、Kimi——含 DeepSeek/GLM 的 Anthropic 协议变体），选中即从 `src/shared/constants/providerPresets.ts` 自动填充提供商类型与 Base URL，接入 OpenAI 兼容厂商只需再粘贴一个 key。预设本身不会被保存。
+
 ### 技能、追问、待办、Mermaid
 
 - **技能 / Skill** (`src/components/Skill`): `SkillCard` / `SkillSelector` / `SkillManager` 浏览智能体技能，开关启用/停用，显示许可证标记。
