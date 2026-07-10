@@ -1502,6 +1502,11 @@ export const zhCnTranslation = {
         bodhiApiKeyPlaceholder: "bhi_sk_...",
         bodhiBaseUrlPlaceholder: "http://localhost:8080",
         targetProviderPlaceholder: "openai",
+        // Vendor presets (provider instance editor)
+        vendorPreset: "厂商预设",
+        vendorPresetPlaceholder: "选择厂商，自动填充类型与 Base URL",
+        vendorPresetTooltip: "选择后自动填充提供商类型和 Base URL；预设本身不会被保存。",
+        vendorPresetModelsHint: "常用模型：{{models}}",
       },
       mcpTab: {
         status: {

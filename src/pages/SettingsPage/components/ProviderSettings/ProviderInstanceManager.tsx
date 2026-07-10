@@ -35,6 +35,7 @@ import type {
   UpdateProviderInstanceRequest,
 } from "@shared/types/providerConfig";
 import { PROVIDER_LABELS } from "@shared/types/providerConfig";
+import { PROVIDER_VENDOR_PRESETS } from "@shared/constants/providerPresets";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -348,6 +349,7 @@ export const ProviderInstanceManager: React.FC<{
   const [savingInstance, setSavingInstance] = useState(false);
   const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ProviderType | undefined>(undefined);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | undefined>(undefined);
 
   // ── Copilot auth state ─────────────────────────────────
   const [deviceCodeInfo, setDeviceCodeInfo] = useState<DeviceCodeInfo | null>(null);
@@ -373,8 +375,38 @@ export const ProviderInstanceManager: React.FC<{
   const handleOpenCreate = useCallback(() => {
     setEditingInstance(null);
     setSelectedType(undefined);
+    setSelectedPresetId(undefined);
     setInstanceModalOpen(true);
   }, []);
+
+  /**
+   * Applies a vendor preset to the form: pre-fills provider type + base URL
+   * (and the label when it is still empty). The preset itself is UI-only
+   * state and is never persisted. Clearing the select changes nothing.
+   */
+  const handleVendorPresetChange = useCallback(
+    (presetId?: string) => {
+      setSelectedPresetId(presetId);
+      if (!presetId) return;
+      const preset = PROVIDER_VENDOR_PRESETS.find((item) => item.id === presetId);
+      if (!preset) return;
+
+      const patch: Record<string, unknown> = { base_url: preset.base_url };
+      // The provider type is immutable while editing an existing instance
+      // (the type select is disabled and updates never change `type`), so
+      // only overwrite it when creating a new instance.
+      if (!editingInstance) {
+        patch.type = preset.provider_type;
+        setSelectedType(preset.provider_type);
+      }
+      const currentLabel: unknown = instanceForm.getFieldValue("label");
+      if (typeof currentLabel !== "string" || !currentLabel.trim()) {
+        patch.label = preset.label;
+      }
+      instanceForm.setFieldsValue(patch);
+    },
+    [editingInstance, instanceForm],
+  );
 
   // ── Copilot auth handlers ─────────────────────────────
   const handleCopilotAuthenticate = async () => {
@@ -520,6 +552,7 @@ export const ProviderInstanceManager: React.FC<{
   const handleOpenEdit = useCallback((instance: ProviderInstance) => {
     setEditingInstance(instance);
     setSelectedType(instance.type);
+    setSelectedPresetId(undefined);
     setInstanceModalOpen(true);
   }, []);
 
@@ -612,6 +645,8 @@ export const ProviderInstanceManager: React.FC<{
     },
     [onInstancesChanged, message, t],
   );
+
+  const selectedPreset = PROVIDER_VENDOR_PRESETS.find((item) => item.id === selectedPresetId);
 
   const loadInstances = useCallback(async () => {
     await onInstancesChanged();
@@ -766,6 +801,46 @@ export const ProviderInstanceManager: React.FC<{
         destroyOnClose
       >
         <Form form={instanceForm} layout="vertical" preserve={false}>
+          <Form.Item
+            label={t("settings.providerTab.vendorPreset", "Vendor Preset")}
+            tooltip={t(
+              "settings.providerTab.vendorPresetTooltip",
+              "Prefills the provider type and base URL; the preset itself is not saved.",
+            )}
+            extra={
+              selectedPreset && (
+                <>
+                  {selectedPreset.notes && <div>{selectedPreset.notes}</div>}
+                  {selectedPreset.suggested_models.length > 0 && (
+                    <div>
+                      {t("settings.providerTab.vendorPresetModelsHint", {
+                        defaultValue: "Popular models: {{models}}",
+                        models: selectedPreset.suggested_models.join(", "),
+                      })}
+                    </div>
+                  )}
+                </>
+              )
+            }
+          >
+            <Select
+              allowClear
+              showSearch
+              optionFilterProp="label"
+              placeholder={t(
+                "settings.providerTab.vendorPresetPlaceholder",
+                "Select a vendor to prefill type and base URL",
+              )}
+              value={selectedPresetId}
+              onChange={handleVendorPresetChange}
+              options={PROVIDER_VENDOR_PRESETS.map((preset) => ({
+                value: preset.id,
+                label: preset.label,
+              }))}
+              data-testid="vendor-preset-select"
+            />
+          </Form.Item>
+
           <Form.Item
             name="type"
             label={t("settings.providerTab.providerType", "Provider Type")}

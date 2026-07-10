@@ -1552,6 +1552,12 @@ export const enUsTranslation = {
         bodhiApiKeyPlaceholder: "bhi_sk_...",
         bodhiBaseUrlPlaceholder: "http://localhost:8080",
         targetProviderPlaceholder: "openai",
+        // Vendor presets (provider instance editor)
+        vendorPreset: "Vendor Preset",
+        vendorPresetPlaceholder: "Select a vendor to prefill type and base URL",
+        vendorPresetTooltip:
+          "Prefills the provider type and base URL; the preset itself is not saved.",
+        vendorPresetModelsHint: "Popular models: {{models}}",
       },
       mcpTab: {
         status: {
