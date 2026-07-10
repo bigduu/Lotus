@@ -647,15 +647,12 @@ export const zhCnTranslation = {
         channels: {
           title: "通知渠道",
           description: "配置后端如何投递通知（桌面通知、ntfy、Bark），保存后对所有设备生效。",
-          loadError: "加载渠道设置失败",
           retry: "重试",
-          saveError: "保存渠道设置失败",
           save: "保存渠道设置",
           saving: "保存中…",
           saved: "已保存",
           test: "发送测试通知",
           testing: "发送中…",
-          testError: "发送测试通知失败",
           testNone: "当前没有启用任何渠道",
           testAttempted: "已尝试：{{channels}}",
           desktop: {

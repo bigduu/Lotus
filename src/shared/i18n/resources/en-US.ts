@@ -665,15 +665,12 @@ export const enUsTranslation = {
           title: "Notification Channels",
           description:
             "Configure how the backend delivers notifications (desktop, ntfy, Bark). Saved settings apply to every device.",
-          loadError: "Failed to load channel settings",
           retry: "Retry",
-          saveError: "Failed to save channel settings",
           save: "Save channel settings",
           saving: "Saving…",
           saved: "Saved",
           test: "Send test notification",
           testing: "Sending…",
-          testError: "Failed to send test notification",
           testNone: "No channels are currently enabled",
           testAttempted: "Attempted: {{channels}}",
           desktop: {
