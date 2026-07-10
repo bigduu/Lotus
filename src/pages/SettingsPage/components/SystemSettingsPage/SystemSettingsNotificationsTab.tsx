@@ -8,6 +8,7 @@ import {
   type NotificationPreferences,
 } from "@services/notification/notificationPreferencesApi";
 import { isTauriEnvironment } from "../../../../utils/environment";
+import NotificationChannelsSection from "./NotificationChannelsSection";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -19,6 +20,8 @@ const DEFAULT_PREFS: NotificationPreferences = {
   onContextPressure: true,
   onSubAgentComplete: true,
   onBackgroundTaskComplete: true,
+  onRunComplete: true,
+  onRunFailed: true,
 };
 
 const SystemSettingsNotificationsTab: React.FC = () => {
@@ -76,7 +79,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
 
   const controlsDisabled = !isTauri || loading;
 
-  return (
+  const notificationPrefsCard = (
     <Card size="small" className="lotus-settings-card">
       <Flex vertical gap={token.marginMD}>
         {!isTauri && (
@@ -193,6 +196,28 @@ const SystemSettingsNotificationsTab: React.FC = () => {
               disabled={controlsDisabled}
             />
           </Flex>
+
+          <Flex align="center" justify="space-between" gap={token.marginSM}>
+            <Text>
+              {t("settings.notificationsTab.onRunComplete", "A run finishes successfully")}
+            </Text>
+            <Switch
+              data-testid="notification-run-complete-toggle"
+              checked={prefs.onRunComplete}
+              onChange={(checked) => updatePref("onRunComplete", checked)}
+              disabled={controlsDisabled}
+            />
+          </Flex>
+
+          <Flex align="center" justify="space-between" gap={token.marginSM}>
+            <Text>{t("settings.notificationsTab.onRunFailed", "A run fails")}</Text>
+            <Switch
+              data-testid="notification-run-failed-toggle"
+              checked={prefs.onRunFailed}
+              onChange={(checked) => updatePref("onRunFailed", checked)}
+              disabled={controlsDisabled}
+            />
+          </Flex>
         </Flex>
 
         <Divider style={{ margin: `${token.marginXS}px 0` }} />
@@ -208,6 +233,13 @@ const SystemSettingsNotificationsTab: React.FC = () => {
         </Flex>
       </Flex>
     </Card>
+  );
+
+  return (
+    <Flex vertical gap={token.marginLG}>
+      {notificationPrefsCard}
+      <NotificationChannelsSection />
+    </Flex>
   );
 };
 
