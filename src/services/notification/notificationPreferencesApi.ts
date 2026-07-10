@@ -23,6 +23,10 @@ export interface NotificationPreferences {
   onSubAgentComplete: boolean;
   /** Notify when a background shell/command (Bash run_in_background) finishes */
   onBackgroundTaskComplete: boolean;
+  /** Notify when a run finishes successfully */
+  onRunComplete: boolean;
+  /** Notify when a run fails */
+  onRunFailed: boolean;
 }
 
 /** Wire shape returned/accepted by the backend (snake_case). */
@@ -33,6 +37,8 @@ interface NotificationPreferencesDto {
   on_context_pressure: boolean;
   on_subagent_complete: boolean;
   on_background_task_complete: boolean;
+  on_run_complete: boolean;
+  on_run_failed: boolean;
 }
 
 const PREFERENCES_PATH = "notifications/preferences";
@@ -45,6 +51,8 @@ function fromDto(dto: NotificationPreferencesDto): NotificationPreferences {
     onContextPressure: dto.on_context_pressure,
     onSubAgentComplete: dto.on_subagent_complete,
     onBackgroundTaskComplete: dto.on_background_task_complete,
+    onRunComplete: dto.on_run_complete,
+    onRunFailed: dto.on_run_failed,
   };
 }
 
@@ -56,6 +64,8 @@ function toDto(prefs: NotificationPreferences): NotificationPreferencesDto {
     on_context_pressure: prefs.onContextPressure,
     on_subagent_complete: prefs.onSubAgentComplete,
     on_background_task_complete: prefs.onBackgroundTaskComplete,
+    on_run_complete: prefs.onRunComplete,
+    on_run_failed: prefs.onRunFailed,
   };
 }
 

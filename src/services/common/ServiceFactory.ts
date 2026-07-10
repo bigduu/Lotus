@@ -24,6 +24,33 @@ export interface BambooSubagentsConfig {
   max_concurrent?: number;
 }
 
+/**
+ * Notification delivery channels: native desktop plus ntfy/Bark push relays
+ * (mirrors the backend's `notifications` config sub-tree).
+ *
+ * Secrets (`ntfy.token`, `bark.device_key`) are never returned in plaintext by
+ * `GET bamboo/config` — either absent (nothing configured) or redacted to the
+ * `****...****` placeholder (configured). See `@shared/utils/secrets`'
+ * `isMaskedSecret` for the client-side handling contract.
+ */
+export interface NotificationsChannelConfig {
+  desktop?: {
+    /** `null`/absent = auto (backend picks standalone-vs-sidecar default). */
+    enabled?: boolean | null;
+  };
+  ntfy?: {
+    enabled: boolean;
+    base_url: string;
+    topic: string;
+    token?: string;
+  };
+  bark?: {
+    enabled: boolean;
+    base_url: string;
+    device_key?: string;
+  };
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -35,6 +62,7 @@ export interface BambooConfig {
   skills?: BambooSkillsConfig;
   memory?: BambooMemoryConfig;
   subagents?: BambooSubagentsConfig;
+  notifications?: NotificationsChannelConfig;
   [key: string]: unknown;
 }
 

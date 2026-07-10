@@ -32,6 +32,9 @@ describe("notificationPreferencesApi", () => {
       on_tool_approval: true,
       on_context_pressure: false,
       on_subagent_complete: true,
+      on_background_task_complete: false,
+      on_run_complete: true,
+      on_run_failed: false,
     });
 
     const prefs = await getNotificationPreferences();
@@ -43,6 +46,9 @@ describe("notificationPreferencesApi", () => {
       onToolApproval: true,
       onContextPressure: false,
       onSubAgentComplete: true,
+      onBackgroundTaskComplete: false,
+      onRunComplete: true,
+      onRunFailed: false,
     });
   });
 
@@ -53,6 +59,9 @@ describe("notificationPreferencesApi", () => {
       onToolApproval: false,
       onContextPressure: true,
       onSubAgentComplete: false,
+      onBackgroundTaskComplete: true,
+      onRunComplete: false,
+      onRunFailed: true,
     };
 
     mockClient.put.mockResolvedValueOnce({
@@ -61,6 +70,9 @@ describe("notificationPreferencesApi", () => {
       on_tool_approval: false,
       on_context_pressure: true,
       on_subagent_complete: false,
+      on_background_task_complete: true,
+      on_run_complete: false,
+      on_run_failed: true,
     });
 
     const saved = await setNotificationPreferences(next);
@@ -71,6 +83,9 @@ describe("notificationPreferencesApi", () => {
       on_tool_approval: false,
       on_context_pressure: true,
       on_subagent_complete: false,
+      on_background_task_complete: true,
+      on_run_complete: false,
+      on_run_failed: true,
     });
     expect(saved).toEqual(next);
   });
