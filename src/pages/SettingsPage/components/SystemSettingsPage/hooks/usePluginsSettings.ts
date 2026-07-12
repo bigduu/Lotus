@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { pluginsService, type InstalledPluginView } from "@services/plugins";
 
 interface PluginsSettingsService {
@@ -31,22 +31,34 @@ export const usePluginsSettings = (
   const [plugins, setPlugins] = useState<InstalledPluginView[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   const refresh = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
-      if (!silent) {
+      if (!silent && mountedRef.current) {
         setIsLoading(true);
       }
 
       try {
         const incoming = await service.getPlugins();
-        setPlugins(incoming);
-        setLoadError(null);
+        if (mountedRef.current) {
+          setPlugins(incoming);
+          setLoadError(null);
+        }
       } catch (error) {
-        setLoadError(toErrorMessage(error, "Failed to load plugins"));
+        if (mountedRef.current) {
+          setLoadError(toErrorMessage(error, "Failed to load plugins"));
+        }
         throw error;
       } finally {
-        if (!silent) {
+        if (!silent && mountedRef.current) {
           setIsLoading(false);
         }
       }

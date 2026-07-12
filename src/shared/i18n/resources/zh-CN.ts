@@ -756,7 +756,6 @@ export const zhCnTranslation = {
           conflictHint: "请改用“更新”为已安装的插件安装新版本。",
           notFound: "未找到该插件，可能已被移除。",
           unsupportedPlatform: "该插件不支持当前平台。",
-          generic: "出现问题，请重试。",
         },
       },
       appTab: {

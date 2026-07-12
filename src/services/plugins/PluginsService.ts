@@ -91,25 +91,22 @@ export class PluginsService {
       .filter((plugin): plugin is InstalledPluginView => Boolean(plugin));
   }
 
-  async installPlugin(source: PluginSource): Promise<InstalledPluginView> {
+  // Bamboo's install/update handler returns the full InstalledPluginView as the
+  // 201/200 body, so a non-normalizable body is a defensive edge that should not
+  // happen in practice. When it does, return null (rather than throwing a raw,
+  // un-localizable English string at the UI) and let the caller reconcile by
+  // refetching the list — the freshly installed/updated plugin shows up there.
+  async installPlugin(source: PluginSource): Promise<InstalledPluginView | null> {
     const response = await agentApiClient.post<unknown>("plugins/install", { source });
-    const normalized = normalizePlugin(response);
-    if (!normalized) {
-      throw new Error("Received an invalid plugin install response from the server");
-    }
-    return normalized;
+    return normalizePlugin(response);
   }
 
-  async updatePlugin(id: string, source: PluginSource): Promise<InstalledPluginView> {
+  async updatePlugin(id: string, source: PluginSource): Promise<InstalledPluginView | null> {
     const response = await agentApiClient.post<unknown>(
       `plugins/${encodeURIComponent(id)}/update`,
       { source },
     );
-    const normalized = normalizePlugin(response);
-    if (!normalized) {
-      throw new Error("Received an invalid plugin update response from the server");
-    }
-    return normalized;
+    return normalizePlugin(response);
   }
 
   async deletePlugin(id: string): Promise<void> {

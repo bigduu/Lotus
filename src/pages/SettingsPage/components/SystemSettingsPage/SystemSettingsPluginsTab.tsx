@@ -33,9 +33,14 @@ const SystemSettingsPluginsTab: React.FC = () => {
   const handleInstallSubmit = async (source: PluginSource) => {
     const installed = await pluginsService.installPlugin(source);
     setIsInstallOpen(false);
-    msgApi.success(
-      t("settings.pluginsTab.install.success", { name: installed.name || installed.id }),
-    );
+    // `installed` is null only if the response body could not be normalized;
+    // in that (defensive) case skip the named toast and let the refetch below
+    // surface the new plugin from the GET.
+    if (installed) {
+      msgApi.success(
+        t("settings.pluginsTab.install.success", { name: installed.name || installed.id }),
+      );
+    }
     await refresh();
   };
 
@@ -45,7 +50,9 @@ const SystemSettingsPluginsTab: React.FC = () => {
     }
     const updated = await pluginsService.updatePlugin(updateTarget.id, source);
     setUpdateTarget(null);
-    msgApi.success(t("settings.pluginsTab.update.success", { name: updated.name || updated.id }));
+    if (updated) {
+      msgApi.success(t("settings.pluginsTab.update.success", { name: updated.name || updated.id }));
+    }
     await refresh();
   };
 
@@ -56,7 +63,11 @@ const SystemSettingsPluginsTab: React.FC = () => {
       msgApi.success(t("settings.pluginsTab.remove.success", { name: plugin.name || plugin.id }));
       await refresh();
     } catch (error) {
-      msgApi.error(getErrorMessage(error, t("settings.pluginsTab.remove.genericError")));
+      if (isApiError(error) && error.status === 404) {
+        msgApi.error(t("settings.pluginsTab.errors.notFound"));
+      } else {
+        msgApi.error(getErrorMessage(error, t("settings.pluginsTab.remove.genericError")));
+      }
     } finally {
       setRemovingIds((prev) => ({ ...prev, [plugin.id]: false }));
     }
@@ -112,6 +123,7 @@ const SystemSettingsPluginsTab: React.FC = () => {
         open={Boolean(updateTarget)}
         mode="update"
         pluginLabel={updateTarget ? updateTarget.name || updateTarget.id : undefined}
+        initialSource={updateTarget?.source ?? null}
         onCancel={() => setUpdateTarget(null)}
         onSubmit={handleUpdateSubmit}
       />

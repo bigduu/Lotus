@@ -775,7 +775,6 @@ export const enUsTranslation = {
           conflictHint: "Use Update instead to install a new version over an existing plugin.",
           notFound: "Plugin not found. It may have already been removed.",
           unsupportedPlatform: "This plugin is not supported on your current platform.",
-          generic: "Something went wrong. Please try again.",
         },
       },
       appTab: {

@@ -18,6 +18,12 @@ export interface PluginInstallModalProps {
   mode: "install" | "update";
   /** Plugin id/name being updated. Only used when mode === "update". */
   pluginLabel?: string;
+  /**
+   * The plugin's current source, used to prefill the form in update mode so
+   * the user does not have to retype the URL/path/sha256. Ignored in install
+   * mode (the form always starts blank there).
+   */
+  initialSource?: PluginSource | null;
   onCancel: () => void;
   onSubmit: (source: PluginSource) => Promise<void>;
 }
@@ -43,6 +49,13 @@ const toSource = (values: PluginSourceFormValues): PluginSource => {
   };
 };
 
+const toFormValues = (source: PluginSource): PluginSourceFormValues => {
+  if (source.type === "url") {
+    return { sourceType: "url", url: source.url, sha256: source.sha256 ?? "", path: "" };
+  }
+  return { sourceType: source.type, path: source.path, url: "", sha256: "" };
+};
+
 const getErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -54,6 +67,7 @@ export const PluginInstallModal: React.FC<PluginInstallModalProps> = ({
   open,
   mode,
   pluginLabel,
+  initialSource,
   onCancel,
   onSubmit,
 }) => {
@@ -68,10 +82,16 @@ export const PluginInstallModal: React.FC<PluginInstallModalProps> = ({
     if (!open) {
       return;
     }
-    form.setFieldsValue(DEFAULT_FORM_VALUES);
+    // In update mode, seed the form from the plugin's current source so the
+    // user doesn't have to retype it. Install mode (or a missing source) always
+    // starts blank, which also prevents a stale update-source from leaking into
+    // a later install.
+    form.setFieldsValue(
+      mode === "update" && initialSource ? toFormValues(initialSource) : DEFAULT_FORM_VALUES,
+    );
     setError(null);
     setSubmitting(false);
-  }, [open, form]);
+  }, [open, mode, initialSource, form]);
 
   const handleCancel = () => {
     if (submitting) {
@@ -102,8 +122,14 @@ export const PluginInstallModal: React.FC<PluginInstallModalProps> = ({
           ? t("settings.pluginsTab.install.genericError")
           : t("settings.pluginsTab.update.genericError");
       let message = getErrorMessage(submitError, fallback);
-      if (mode === "install" && isApiError(submitError) && submitError.status === 409) {
-        message = `${message} ${t("settings.pluginsTab.errors.conflictHint")}`;
+      if (isApiError(submitError)) {
+        if (submitError.status === 404) {
+          message = t("settings.pluginsTab.errors.notFound");
+        } else if (submitError.status === 422) {
+          message = t("settings.pluginsTab.errors.unsupportedPlatform");
+        } else if (mode === "install" && submitError.status === 409) {
+          message = `${message} ${t("settings.pluginsTab.errors.conflictHint")}`;
+        }
       }
       setError(message);
     } finally {
