@@ -31,6 +31,7 @@ import SystemSettingsEnvVarsTab from "./SystemSettingsEnvVarsTab";
 import SystemSettingsClustersTab from "./SystemSettingsClustersTab";
 import SystemSettingsWorkflowsTab from "./SystemSettingsWorkflowsTab";
 import SystemSettingsMcpTab from "./SystemSettingsMcpTab";
+import SystemSettingsPluginsTab from "./SystemSettingsPluginsTab";
 import SystemSettingsMetricsTab from "./SystemSettingsMetricsTab";
 import SystemSettingsHooksTab from "./SystemSettingsHooksTab";
 import SystemSettingsSchedulesTab from "./SystemSettingsSchedulesTab";
@@ -291,6 +292,11 @@ const SystemSettingsPage = ({
               key: "mcp",
               label: tabLabel("mcp", t("settings.page.tabs.mcp")),
               children: <SystemSettingsMcpTab />,
+            },
+            {
+              key: "plugins",
+              label: tabLabel("plugins", t("settings.page.tabs.plugins")),
+              children: <SystemSettingsPluginsTab />,
             },
             {
               key: "workflows",
