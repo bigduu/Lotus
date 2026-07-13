@@ -1,9 +1,16 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React from "react";
-import { Button, Flex, Tooltip, Typography } from "antd";
-import { PlusOutlined, SettingOutlined, SunOutlined, MoonOutlined } from "@ant-design/icons";
+import { Badge, Button, Flex, Tooltip, Typography } from "antd";
+import {
+  CalendarOutlined,
+  PlusOutlined,
+  SettingOutlined,
+  SunOutlined,
+  MoonOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "@shared/store/themeStore";
+import { useLedgerViewStore } from "@shared/store/ledgerViewStore";
 import { APP_VERSION } from "@shared/constants/appVersion";
 
 const { Text } = Typography;
@@ -24,8 +31,11 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   const { t } = useTranslation();
   const themeMode = useThemeStore((s) => s.themeMode);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const openLedger = useLedgerViewStore((s) => s.open);
+  const ledgerBadgeCount = useLedgerViewStore((s) => s.badgeCount);
   const newChatLabel = t("chat.sidebar.newSession");
   const settingsLabel = t("settings.page.title");
+  const agendaLabel = t("ledger.title");
   const themeLabel =
     themeMode === "dark"
       ? t("settings.app.lightMode", "Light mode")
@@ -84,6 +94,27 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
         >
           {!collapsed && settingsLabel}
         </Button>
+
+        {!collapsed && (
+          <Tooltip title={agendaLabel} placement="top">
+            <Badge count={ledgerBadgeCount} size="small" offset={[-4, 4]}>
+              <Button
+                data-testid="open-agenda"
+                type="text"
+                icon={<CalendarOutlined />}
+                onClick={() => openLedger()}
+                aria-label={agendaLabel}
+                className="lotus-toolbar-icon"
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: token.borderRadiusLG,
+                  flexShrink: 0,
+                }}
+              />
+            </Badge>
+          </Tooltip>
+        )}
 
         {!collapsed && (
           <Tooltip title={themeLabel} placement="top">
