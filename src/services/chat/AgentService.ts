@@ -5,7 +5,7 @@ import { debugLog, isApiV2WsEnabled } from "@shared/utils/debugFlags";
  * HTTP client for communicating with local copilot-agent endpoints
  * Handles SSE streaming and AgentEvent processing
  */
-import { agentApiClient } from "../api";
+import { agentApiClient, isApiError } from "../api";
 import { getBackendBaseUrlSync } from "../../shared/utils/backendBaseUrl";
 import * as v2Stream from "./v2Stream";
 import type { FeedSubscription } from "./v2Stream";
@@ -1213,9 +1213,22 @@ export class AgentClient {
 
   /**
    * Development-only: reset V2 session storage (deletes sessions/ and resets sessions.json index).
+   *
+   * The backend only registers this route when built/run with dev endpoints enabled
+   * (see `BAMBOO_ENABLE_DEV_ENDPOINTS`); release builds 404. Rethrow a clearer error
+   * in that case so a stray call (e.g. from a stale UI) doesn't fail silently.
    */
   async devResetSessions(): Promise<void> {
-    await agentApiClient.post("dev/reset");
+    try {
+      await agentApiClient.post("dev/reset");
+    } catch (error) {
+      if (isApiError(error) && error.status === 404) {
+        throw new Error(
+          "Dev reset is unavailable: this build does not have dev endpoints enabled.",
+        );
+      }
+      throw error;
+    }
   }
 
   /**

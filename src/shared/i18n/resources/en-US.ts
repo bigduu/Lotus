@@ -1431,6 +1431,7 @@ export const enUsTranslation = {
           "This deletes ALL sessions (including pinned/child) and resets the sessions index. A new empty session will be created after refresh.",
         reset: "Reset",
         devResetDone: "Session storage reset",
+        devResetError: "Failed to reset session storage",
       },
       workflowsTab: {
         title: "Workflows",
