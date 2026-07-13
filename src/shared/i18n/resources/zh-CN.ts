@@ -1389,6 +1389,7 @@ export const zhCnTranslation = {
           "将删除所有会话（包含置顶/子会话）并重置会话索引。刷新后会创建一个新的空会话。",
         reset: "重置",
         devResetDone: "会话存储已重置",
+        devResetError: "重置会话存储失败",
       },
       workflowsTab: {
         title: "工作流",

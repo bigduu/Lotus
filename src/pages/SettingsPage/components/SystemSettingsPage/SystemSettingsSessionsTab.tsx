@@ -166,34 +166,44 @@ export default function SystemSettingsSessionsTab() {
         </Flex>
       </Card>
 
-      <Card size="small" title={t("settings.sessionsTab.devResetTitle")}>
-        <Text type="secondary">{t("settings.sessionsTab.devResetDescription")}</Text>
-        <Flex style={{ marginTop: 12 }}>
-          <Button
-            danger
-            type="primary"
-            loading={busy}
-            onClick={() => {
-              modal.confirm({
-                title: t("settings.sessionsTab.devResetConfirmTitle"),
-                content: t("settings.sessionsTab.devResetConfirmContent"),
-                okText: t("settings.sessionsTab.reset"),
-                okButtonProps: { danger: true },
-                cancelText: t("settings.sessionsTab.cancel"),
-                onOk: async () => {
-                  await run(async () => {
-                    await agentClient.devResetSessions();
-                    await loadChats();
-                    message.success(t("settings.sessionsTab.devResetDone"));
-                  });
-                },
-              });
-            }}
-          >
-            {t("settings.sessionsTab.devResetAction")}
-          </Button>
-        </Flex>
-      </Card>
+      {import.meta.env.DEV && (
+        <Card size="small" title={t("settings.sessionsTab.devResetTitle")}>
+          <Text type="secondary">{t("settings.sessionsTab.devResetDescription")}</Text>
+          <Flex style={{ marginTop: 12 }}>
+            <Button
+              danger
+              type="primary"
+              loading={busy}
+              onClick={() => {
+                modal.confirm({
+                  title: t("settings.sessionsTab.devResetConfirmTitle"),
+                  content: t("settings.sessionsTab.devResetConfirmContent"),
+                  okText: t("settings.sessionsTab.reset"),
+                  okButtonProps: { danger: true },
+                  cancelText: t("settings.sessionsTab.cancel"),
+                  onOk: async () => {
+                    await run(async () => {
+                      try {
+                        await agentClient.devResetSessions();
+                        await loadChats();
+                        message.success(t("settings.sessionsTab.devResetDone"));
+                      } catch (error) {
+                        message.error(
+                          error instanceof Error
+                            ? error.message
+                            : t("settings.sessionsTab.devResetError"),
+                        );
+                      }
+                    });
+                  },
+                });
+              }}
+            >
+              {t("settings.sessionsTab.devResetAction")}
+            </Button>
+          </Flex>
+        </Card>
+      )}
     </Flex>
   );
 }
