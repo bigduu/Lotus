@@ -5,6 +5,7 @@ import type { InputRef } from "antd";
 import {
   AppstoreOutlined,
   BgColorsOutlined,
+  CalendarOutlined,
   ClockCircleOutlined,
   ExperimentOutlined,
   LayoutOutlined,
@@ -21,6 +22,7 @@ import { useAppStore } from "@shared/store/appStore";
 import { isBusyPhase } from "@shared/store/appStore/slices/executionStateSlice";
 import { openSession } from "@shared/utils/openSession";
 import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/settingsViewStore";
+import { useLedgerViewStore } from "@shared/store/ledgerViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";
 import { useThemeStore } from "@shared/store/themeStore";
 import {
@@ -445,6 +447,18 @@ export const CommandPalette: React.FC = () => {
         badge: "Layout",
         onSelect: () => {
           setSidebarCollapsed(!sidebarCollapsed);
+        },
+      },
+      {
+        id: "open-agenda",
+        kind: "action",
+        title: t("commandPalette.actions.openAgenda", "Open Agenda"),
+        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+        keywords: ["agenda", "ledger", "todo", "task", "reminder", "event", "habit", "due"],
+        icon: <CalendarOutlined />,
+        badge: t("commandPalette.badges.quickAction", "Action"),
+        onSelect: () => {
+          useLedgerViewStore.getState().open();
         },
       },
       {

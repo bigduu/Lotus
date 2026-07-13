@@ -45,6 +45,15 @@ const LazyFeatureGuide = React.lazy(() =>
   })),
 );
 
+// LedgerDrawer hosts the personal-assistant agenda (ledger records). It is
+// closed by default and only needs to exist to keep the trigger badge fresh,
+// so it mounts on the same idle gate as the other auxiliary surfaces.
+const LazyLedgerDrawer = React.lazy(() =>
+  import("@shared/components/LedgerDrawer").then((m) => ({
+    default: m.LedgerDrawer,
+  })),
+);
+
 const OPEN_PROVIDER_FLAG = "bodhi_open_provider_on_entry";
 const COMMAND_PALETTE_FORCE_OPEN_KEY = "__LOTUS_COMMAND_PALETTE_FORCE_OPEN__";
 
@@ -197,6 +206,11 @@ export const MainLayout: React.FC<{
       {auxReady && (
         <React.Suspense fallback={null}>
           <LazyFeatureGuide disabled={settingsOpen} />
+        </React.Suspense>
+      )}
+      {auxReady && (
+        <React.Suspense fallback={null}>
+          <LazyLedgerDrawer />
         </React.Suspense>
       )}
       {auxReady && <DeferredAgentSubscription />}
