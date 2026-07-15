@@ -252,6 +252,9 @@ export const useChatSidebarState = () => {
   const [projectDreamState, setProjectDreamState] = useState<
     Record<string, { status: "loading" | "idle" }>
   >({});
+  const [titleGenerationState, setTitleGenerationState] = useState<
+    Record<string, { status: "loading" | "error" | "idle"; error?: string }>
+  >({});
 
   const selectedSessionMeta = useAppStore(
     useShallow((state) => {
@@ -544,13 +547,50 @@ export const useChatSidebarState = () => {
     updateSession(sessionId, { title: newTitle });
   };
 
-  const handleGenerateTitle = useCallback(async (sessionId: string) => {
-    try {
-      await AgentClient.getInstance().regenerateSessionTitle(sessionId);
-    } catch (error) {
-      console.error("Failed to regenerate session title:", error);
-    }
-  }, []);
+  const handleGenerateTitle = useCallback(
+    async (sessionId: string) => {
+      if (titleGenerationState[sessionId]?.status === "loading") {
+        return;
+      }
+
+      setTitleGenerationState((prev) => ({
+        ...prev,
+        [sessionId]: { status: "loading" },
+      }));
+
+      const hide = message.loading(t("chat.actions.generateTitleRunning"), 0);
+      try {
+        await AgentClient.getInstance().regenerateSessionTitle(sessionId);
+        hide();
+        message.success(t("chat.actions.generateTitleSuccess"));
+
+        try {
+          await refreshChats();
+        } catch (refreshError) {
+          console.warn("Failed to refresh chats after title regeneration:", refreshError);
+        }
+
+        setTitleGenerationState((prev) => ({
+          ...prev,
+          [sessionId]: { status: "idle" },
+        }));
+      } catch (error) {
+        hide();
+        const errorMessage =
+          error instanceof Error && error.message
+            ? error.message
+            : t("chat.actions.generateTitleFailed");
+        message.error(errorMessage);
+        console.error("Failed to regenerate session title:", error);
+
+        setTitleGenerationState((prev) => ({
+          ...prev,
+          [sessionId]: { status: "error", error: errorMessage },
+        }));
+      }
+    },
+    [message, refreshChats, t, titleGenerationState],
+  );
 
   const handleRunProjectDream = useCallback(
     async (sessionId: string) => {
@@ -743,10 +783,7 @@ export const useChatSidebarState = () => {
     sortedDateKeys,
     statusFilter,
     systemPrompts,
-    titleGenerationState: {} as Record<
-      string,
-      { status: "loading" | "error" | "idle"; error?: string }
-    >,
+    titleGenerationState,
     unpinSession: handleUnpinChat,
   };
 };
