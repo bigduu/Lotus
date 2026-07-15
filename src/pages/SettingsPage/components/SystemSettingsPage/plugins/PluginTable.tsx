@@ -40,6 +40,84 @@ const renderSource = (source: PluginSource): string => {
   }
 };
 
+/**
+ * Trust-outcome badge(s) for one installed plugin's source (issue #51),
+ * reflecting exactly what the backend's `PluginSource::Url` provenance
+ * record (bamboo PRs #449/#450/#465/#483) carries — nothing here is
+ * inferred/guessed:
+ *
+ * - Only `url` sources carry a trust outcome at all — `local_dir`/
+ *   `local_archive` installs are the user's own filesystem, outside this
+ *   policy (see `bamboo-server`'s `plugin_source.rs`), so those render "—".
+ * - `insecure: true` (the aggregate `--insecure` / `plugin_trust.enforcement:
+ *   off` opt-out) is surfaced first/alone — it means every other layer was
+ *   waived for this install, so a separate "unsigned"/"untrusted host" tag
+ *   alongside it would be redundant.
+ * - Otherwise: `signed_by` (a verified publisher key label) renders a
+ *   positive "Signed" tag; its absence always means `allow_unsigned: true`
+ *   (the backend refuses an unsigned URL install otherwise) so that renders
+ *   a warning "Unsigned" tag.
+ * - `allow_untrusted_host` / (`allow_unverified` with no `sha256`) are
+ *   additional, independent audit flags surfaced as their own tags when set.
+ * - A `url` source with none of the above sitting alongside a verified
+ *   signature reads as fully verified ("Verified").
+ */
+const renderTrustBadges = (
+  source: PluginSource,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): ReactNode => {
+  if (source.type !== "url") {
+    return <Text type="secondary">—</Text>;
+  }
+
+  if (source.insecure) {
+    return (
+      <Tag color="error" key="insecure">
+        {t("settings.pluginsTab.trust.insecure")}
+      </Tag>
+    );
+  }
+
+  const tags: ReactNode[] = [];
+  if (source.signed_by) {
+    tags.push(
+      <Tag color="success" key="signed">
+        {t("settings.pluginsTab.trust.signedBy", { label: source.signed_by })}
+      </Tag>,
+    );
+  } else if (source.allow_unsigned) {
+    tags.push(
+      <Tag color="warning" key="unsigned">
+        {t("settings.pluginsTab.trust.unsigned")}
+      </Tag>,
+    );
+  }
+  if (source.allow_untrusted_host) {
+    tags.push(
+      <Tag color="warning" key="untrusted-host">
+        {t("settings.pluginsTab.trust.untrustedHost")}
+      </Tag>,
+    );
+  }
+  if (source.allow_unverified && !source.sha256) {
+    tags.push(<Tag key="unverified">{t("settings.pluginsTab.trust.unverifiedChecksum")}</Tag>);
+  }
+
+  if (tags.length === 0) {
+    tags.push(
+      <Tag color="success" key="verified">
+        {t("settings.pluginsTab.trust.verified")}
+      </Tag>,
+    );
+  }
+
+  return (
+    <Space size={4} wrap>
+      {tags}
+    </Space>
+  );
+};
+
 export const PluginTable: React.FC<PluginTableProps> = ({
   plugins,
   loading = false,
@@ -158,6 +236,11 @@ export const PluginTable: React.FC<PluginTableProps> = ({
         key: "source",
         title: t("settings.pluginsTab.columns.source"),
         render: (_, record) => <Text code>{renderSource(record.source)}</Text>,
+      },
+      {
+        key: "trust",
+        title: t("settings.pluginsTab.columns.trust"),
+        render: (_, record) => renderTrustBadges(record.source, t),
       },
       {
         key: "actions",

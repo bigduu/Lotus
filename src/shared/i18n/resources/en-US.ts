@@ -972,7 +972,16 @@ export const enUsTranslation = {
           status: "Status",
           registered: "Registered",
           source: "Source",
+          trust: "Trust",
           actions: "Actions",
+        },
+        trust: {
+          verified: "Verified",
+          signedBy: "Signed: {{label}}",
+          unsigned: "Unsigned",
+          untrustedHost: "Untrusted host",
+          unverifiedChecksum: "Unverified checksum",
+          insecure: "Insecure install",
         },
         status: {
           installing: "Installing",
@@ -1017,6 +1026,22 @@ export const enUsTranslation = {
             "Installing a plugin may register new MCP servers and run a bundled binary as part of setup. Only install plugins from sources you trust.",
           success: "Installed {{name}}",
           genericError: "Failed to install plugin",
+          advanced: {
+            title: "Advanced trust overrides",
+            warningTitle: "These overrides bypass supply-chain verification",
+            warningDescription:
+              "By default a URL install must come from a trusted host, carry a valid publisher signature, and be checksum-pinned. Only enable an override below if you fully trust this source — each one removes a check bamboo would otherwise enforce.",
+            allowUntrustedHost: "Allow untrusted host",
+            allowUntrustedHostHelp:
+              "Fetch from a host outside the configured trusted-hosts allowlist.",
+            allowUnsigned: "Allow unsigned bundle",
+            allowUnsignedHelp: "Skip requiring a valid signature from a trusted publisher key.",
+            allowUnverified: "Allow unverified checksum",
+            allowUnverifiedHelp: "Skip the requirement for a sha256 checksum on this install.",
+            insecure: "Insecure install (skip all checks)",
+            insecureHelp: "Shorthand for enabling all three overrides above for this install only.",
+            activeWarning: "This install will skip one or more supply-chain checks.",
+          },
         },
         update: {
           title: "Update {{name}}",
@@ -1034,6 +1059,38 @@ export const enUsTranslation = {
           conflictHint: "Use Update instead to install a new version over an existing plugin.",
           notFound: "Plugin not found. It may have already been removed.",
           unsupportedPlatform: "This plugin is not supported on your current platform.",
+        },
+        trustConfig: {
+          title: "Plugin Trust Policy",
+          description:
+            "Controls which hosts, publisher signing keys, and checksum enforcement level are trusted by default for URL plugin installs.",
+          retry: "Retry",
+          save: "Save trust policy",
+          saving: "Saving…",
+          saved: "Saved",
+          trustedHosts: {
+            title: "Trusted hosts",
+            help: "Host+path prefixes a URL install may fetch from without an explicit override, e.g. github.com/bigduu/ (a bare host matches any path on it).",
+            placeholder: "github.com/your-org/",
+          },
+          trustedKeys: {
+            title: "Trusted publisher keys",
+            help: "Ed25519 public keys a bundle's signature may verify against without an explicit override.",
+            addButton: "Add key",
+            removeButton: "Remove",
+            labelPlaceholder: "Label",
+            publicKeyPlaceholder: "Hex-encoded ed25519 public key",
+            empty: "No trusted keys configured.",
+          },
+          enforcement: {
+            title: "Enforcement",
+            help: "Strict (the default) enforces the host allowlist, signature, and checksum layers for every URL install. Off disables all three server-wide, with no per-install override needed.",
+            strict: "Strict (recommended)",
+            off: "Off (insecure)",
+            offWarningTitle: "All trust checks are disabled for URL installs",
+            offWarningDescription:
+              "Every URL plugin install/update will skip the host allowlist, signature, and checksum requirements — equivalent to passing an insecure override on every install, server-wide. Only use this on a private or development instance.",
+          },
         },
       },
       appTab: {

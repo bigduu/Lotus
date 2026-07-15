@@ -49,12 +49,19 @@ const normalizeSource = (value: unknown): PluginSource => {
   switch (record.type) {
     case "local_archive":
       return { type: "local_archive", path };
-    case "url":
+    case "url": {
+      const asBool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
       return {
         type: "url",
         url: typeof record.url === "string" ? record.url : "",
         sha256: typeof record.sha256 === "string" ? record.sha256 : undefined,
+        allow_unverified: asBool(record.allow_unverified),
+        allow_untrusted_host: asBool(record.allow_untrusted_host),
+        allow_unsigned: asBool(record.allow_unsigned),
+        insecure: asBool(record.insecure),
+        signed_by: typeof record.signed_by === "string" ? record.signed_by : undefined,
       };
+    }
     case "local_dir":
     default:
       return { type: "local_dir", path };

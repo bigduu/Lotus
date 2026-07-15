@@ -6,6 +6,7 @@ import { pluginsService, type InstalledPluginView, type PluginSource } from "@se
 import { usePluginsSettings } from "./hooks/usePluginsSettings";
 import { PluginTable } from "./plugins/PluginTable";
 import { PluginInstallModal } from "./plugins/PluginInstallModal";
+import PluginTrustSection from "./plugins/PluginTrustSection";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -111,6 +112,8 @@ const SystemSettingsPluginsTab: React.FC = () => {
           />
         </Space>
       </Card>
+
+      <PluginTrustSection />
 
       <PluginInstallModal
         open={isInstallOpen}
