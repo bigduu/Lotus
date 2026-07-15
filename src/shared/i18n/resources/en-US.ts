@@ -201,6 +201,21 @@ export const enUsTranslation = {
         reopened: "Record reopened",
       },
     },
+    configRecovery: {
+      title: "Configuration was recovered after a corruption",
+      description:
+        "config.json could not be read and was automatically recovered. Settings cannot be saved until you resolve this.",
+      source: {
+        salvaged: "Salvaged {{count}} field(s) directly from the corrupt file.",
+        backup: "Restored from the last-known-good backup (generation {{generation}}).",
+        defaults: "No usable salvage or backup was found — reset to built-in defaults.",
+      },
+      quarantinePath: "Corrupt original preserved at: {{path}}",
+      rejectNotice:
+        "Rejected — nothing was discarded. config.json is untouched on disk and settings stay locked until you Accept, or hand-fix config.json and restart the backend.",
+      accept: "Accept — save recovered configuration",
+      reject: "Reject — keep the corrupt file for manual repair",
+    },
     common: {
       cancel: "Cancel",
       ok: "OK",

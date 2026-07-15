@@ -199,6 +199,20 @@ export const zhCnTranslation = {
         reopened: "记录已重新打开",
       },
     },
+    configRecovery: {
+      title: "配置在损坏后已被恢复",
+      description: "config.json 无法读取，已自动恢复。在你处理此问题之前，设置将无法保存。",
+      source: {
+        salvaged: "已直接从损坏文件中抢救出 {{count}} 个字段。",
+        backup: "已从最近一次可用的备份中恢复（第 {{generation}} 代）。",
+        defaults: "未找到可用的抢救数据或备份，已重置为内置默认值。",
+      },
+      quarantinePath: "损坏的原始文件已保留在：{{path}}",
+      rejectNotice:
+        "已拒绝——没有任何内容被丢弃。config.json 在磁盘上保持不变，设置仍将保持锁定，直到你点击接受，或手动修复 config.json 并重启后端服务。",
+      accept: "接受 —— 保存恢复后的配置",
+      reject: "拒绝 —— 保留损坏的文件以便手动修复",
+    },
     common: {
       cancel: "取消",
       ok: "确定",

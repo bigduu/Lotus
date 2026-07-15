@@ -2,6 +2,38 @@ import { apiClient } from "../api";
 import { copyText } from "@shared/utils/clipboard";
 
 /**
+ * Config-corruption recovery status (Lotus #59, consuming bamboo-agent #153 /
+ * bamboo PR #493). Mirrors `bamboo_config::ConfigRecoverySource` /
+ * `ConfigRecoveryStatus` and the `GET/POST /bamboo/config/recovery-*`
+ * endpoints' JSON shape exactly:
+ *
+ * - `GET /bamboo/config/recovery-status` and
+ *   `POST /bamboo/config/recovery/confirm` `{"accept": boolean}` both return
+ *   `{"pending": false}` or `{"pending": true, "status": {...}}`.
+ * - `source.kind` is `"salvaged"` (partial field-by-field recovery — `fields`
+ *   lists the recovered top-level keys), `"backup"` (restored from a
+ *   `config.json.bak[.N]` generation — `generation` 0 == `.bak`), or
+ *   `"defaults"` (no usable salvage/backup; fell back to built-in defaults).
+ */
+export type ConfigRecoverySource =
+  | { kind: "salvaged"; fields: string[] }
+  | { kind: "backup"; generation: number }
+  | { kind: "defaults" };
+
+export interface ConfigRecoveryStatusInfo {
+  source: ConfigRecoverySource;
+  /** Absolute path of the preserved copy of the corrupt original, or `null`
+   *  if even the quarantine copy failed. */
+  quarantine_path: string | null;
+  confirmed: boolean;
+}
+
+export interface ConfigRecoveryStatusResponse {
+  pending: boolean;
+  status?: ConfigRecoveryStatusInfo;
+}
+
+/**
  * Bamboo configuration structure
  */
 export interface BambooToolsConfig {
@@ -214,6 +246,21 @@ export interface UtilityService {
   resetBambooConfig(): Promise<ApiSuccessResponse>;
 
   /**
+   * Check whether `config.json` was recovered from corruption at load and is
+   * awaiting confirmation (Lotus #59 / bamboo #153).
+   */
+  getConfigRecoveryStatus(): Promise<ConfigRecoveryStatusResponse>;
+
+  /**
+   * Accept (`true`) or reject (`false`) a pending config-corruption recovery.
+   * Accepting persists the recovered config over the quarantined-corrupt
+   * original and unblocks settings saves; rejecting is a no-op that leaves
+   * disk, in-memory config, and the pending flag untouched — settings saves
+   * stay refused until a later accept or a manual fix + backend restart.
+   */
+  confirmConfigRecovery(accept: boolean): Promise<ConfigRecoveryStatusResponse>;
+
+  /**
    * Reset setup status (mark as incomplete)
    */
   resetSetupStatus(): Promise<void>;
@@ -331,6 +378,16 @@ class HttpUtilityService implements UtilityService {
 
   async resetBambooConfig(): Promise<ApiSuccessResponse> {
     return apiClient.post<ApiSuccessResponse>("bamboo/config/reset", {});
+  }
+
+  async getConfigRecoveryStatus(): Promise<ConfigRecoveryStatusResponse> {
+    return apiClient.get<ConfigRecoveryStatusResponse>("bamboo/config/recovery-status");
+  }
+
+  async confirmConfigRecovery(accept: boolean): Promise<ConfigRecoveryStatusResponse> {
+    return apiClient.post<ConfigRecoveryStatusResponse>("bamboo/config/recovery/confirm", {
+      accept,
+    });
   }
 
   async saveWorkflow(name: string, content: string): Promise<{ success: boolean; path: string }> {
