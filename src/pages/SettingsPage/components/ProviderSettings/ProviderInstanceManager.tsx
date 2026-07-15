@@ -569,7 +569,17 @@ export const ProviderInstanceManager: React.FC<{
       }
 
       if (typeof request_overrides_json === "string" && request_overrides_json.trim()) {
-        config.request_overrides = JSON.parse(request_overrides_json);
+        try {
+          config.request_overrides = JSON.parse(request_overrides_json);
+        } catch (parseError) {
+          const messageText = t("settings.providerTab.invalidRequestOverridesJson", {
+            provider: PROVIDER_LABELS[type as ProviderType] || type,
+            error: (parseError as Error).message,
+          });
+          instanceForm.setFields([{ name: "request_overrides_json", errors: [messageText] }]);
+          message.error(messageText);
+          return;
+        }
       }
 
       // Empty api_key while editing means "keep the stored key" — omit the
