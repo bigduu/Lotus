@@ -284,27 +284,6 @@ export const useChatSidebarState = () => {
     });
   }, [selectedSessionMeta]);
 
-  // Always keep the currently selected chat's group expanded, without causing
-  // an effect-driven setState loop.
-  const expandedKeys = useMemo(() => {
-    const next = new Set(expandedDates);
-    if (currentDateGroupKey) {
-      next.add(currentDateGroupKey);
-    }
-    return Array.from(next);
-  }, [currentDateGroupKey, expandedDates]);
-
-  const handleCollapseChange = (keys: string | string[]) => {
-    const next = new Set(Array.isArray(keys) ? keys : [keys]);
-    setExpandedDates((prev) => {
-      if (prev.size !== next.size) return next;
-      for (const k of next) {
-        if (!prev.has(k)) return next;
-      }
-      return prev;
-    });
-  };
-
   // Debounce the expensive filter recomputation, not the input value: the
   // <Input> stays bound to `searchQuery` directly so typed characters echo
   // immediately, while the useMemo chain below only re-filters after the
@@ -316,6 +295,32 @@ export const useChatSidebarState = () => {
   const effectiveSearchQuery = searchQuery === "" ? "" : debouncedSearchQuery;
   const normalizedSearchQuery = effectiveSearchQuery.trim().toLowerCase();
   const hasActiveFilters = normalizedSearchQuery.length > 0 || statusFilter !== "all";
+  const isSearchActive = normalizedSearchQuery.length > 0;
+
+  // ─── Filter-aware date-group expansion (#61) ────────────────────────
+  // A search match inside a collapsed, non-selected date group used to stay
+  // invisible: `expandedDates` only ever grew via explicit user clicks (plus
+  // the always-expanded selected-session group). While a search is active we
+  // instead auto-expand every date group that currently contains a match —
+  // that's exactly `sortedDateKeys` below, since `groupedChatsByDate` is
+  // built from `filteredRootSessions`, which already excludes non-matching
+  // roots/children.
+  //
+  // The user can still manually collapse a group mid-search; to avoid
+  // fighting them on every keystroke, this override is re-derived (reset)
+  // only when the *effective* (debounced) search query changes — keyed off
+  // the same `effectiveSearchQuery` that gates the filtering above, per
+  // PR #60 — not on unrelated re-renders. `expandedDates` itself is left
+  // untouched by search, so once the query clears, expansion reverts to
+  // whatever the user had before searching.
+  const [searchCollapseOverrides, setSearchCollapseOverrides] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [lastEffectiveSearchQuery, setLastEffectiveSearchQuery] = useState(effectiveSearchQuery);
+  if (effectiveSearchQuery !== lastEffectiveSearchQuery) {
+    setLastEffectiveSearchQuery(effectiveSearchQuery);
+    setSearchCollapseOverrides(new Set());
+  }
 
   // ─── Heavy derived data (gated by collapsed state) ─────────────────
   // When the sidebar is collapsed, we return empty / cheap placeholders
@@ -413,6 +418,60 @@ export const useChatSidebarState = () => {
     () => (sidebarCollapsed ? emptyStrArr : getSortedDateKeys(groupedChatsByDate)),
     [groupedChatsByDate, sidebarCollapsed, emptyStrArr],
   );
+
+  // While a search is active, expand every date group that currently
+  // contains a match (all of `sortedDateKeys`, minus any the user explicitly
+  // collapsed this search — see `searchCollapseOverrides` above). Otherwise
+  // fall back to the user's baseline expansion, always keeping the currently
+  // selected chat's group open, without causing an effect-driven setState
+  // loop.
+  const expandedKeys = useMemo(() => {
+    if (isSearchActive) {
+      return sortedDateKeys.filter((key) => !searchCollapseOverrides.has(key));
+    }
+
+    const next = new Set(expandedDates);
+    if (currentDateGroupKey) {
+      next.add(currentDateGroupKey);
+    }
+    return Array.from(next);
+  }, [currentDateGroupKey, expandedDates, isSearchActive, searchCollapseOverrides, sortedDateKeys]);
+
+  const handleCollapseChange = (keys: string | string[]) => {
+    const next = new Set(Array.isArray(keys) ? keys : [keys]);
+
+    if (isSearchActive) {
+      // Every group rendered during a search is already auto-expanded (it's
+      // a member of `sortedDateKeys`); track which of those the user
+      // explicitly collapsed rather than touching the baseline
+      // `expandedDates`, so a manual collapse during search never leaks into
+      // the state restored once the search clears.
+      setSearchCollapseOverrides((prev) => {
+        let changed = false;
+        const nextOverrides = new Set(prev);
+        for (const key of sortedDateKeys) {
+          const shouldBeCollapsed = !next.has(key);
+          if (shouldBeCollapsed && !nextOverrides.has(key)) {
+            nextOverrides.add(key);
+            changed = true;
+          } else if (!shouldBeCollapsed && nextOverrides.has(key)) {
+            nextOverrides.delete(key);
+            changed = true;
+          }
+        }
+        return changed ? nextOverrides : prev;
+      });
+      return;
+    }
+
+    setExpandedDates((prev) => {
+      if (prev.size !== next.size) return next;
+      for (const k of next) {
+        if (!prev.has(k)) return next;
+      }
+      return prev;
+    });
+  };
 
   const handlePinChat = useCallback(
     (sessionId: string) => {
