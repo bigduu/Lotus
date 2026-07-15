@@ -275,6 +275,10 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
             onDelete={
               convertedEntry.message.id === workflowDraftId ? undefined : handleDeleteMessage
             }
+            // Same value ConversationPane already computed via
+            // `selectIsBusy(sessionId)` for `isThinking` — reused here instead
+            // of letting every card open its own store subscription (#18).
+            isProcessing={isThinking}
           />
         </div>
         {convertedEntry.align === "flex-end" &&
