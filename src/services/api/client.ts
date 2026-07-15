@@ -29,7 +29,10 @@ function shouldLogApiRequest(): boolean {
 
 function isAgentEndpoint(url: string): boolean {
   try {
-    const pathname = new URL(url, typeof window !== "undefined" ? window.location.origin : "http://localhost").pathname;
+    const pathname = new URL(
+      url,
+      typeof window !== "undefined" ? window.location.origin : "http://localhost",
+    ).pathname;
     return AGENT_ENDPOINT_PATTERNS.some((pattern) => pattern.test(pathname));
   } catch {
     return false;
@@ -45,14 +48,14 @@ function logApiRequest(method: string, url: string): void {
   const key = `${method} ${new URL(url, typeof window !== "undefined" ? window.location.origin : "http://localhost").pathname}`;
   requestCounters[key] = (requestCounters[key] || 0) + 1;
 
-  console.debug(
-    `[ApiClient] ${method} ${key} (total: ${requestCounters[key]})`
-  );
+  // eslint-disable-next-line no-console -- dev-only debug trace
+  console.debug(`[ApiClient] ${method} ${key} (total: ${requestCounters[key]})`);
 }
 
 // Expose for manual testing
 if (import.meta.env.DEV && typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__lotusApiCounters = () => {
+    // eslint-disable-next-line no-console -- dev-only debug trace
     console.table(requestCounters);
     return { ...requestCounters };
   };
@@ -173,6 +176,40 @@ export class ApiClient {
   }
 
   /**
+   * Combine the internal per-request timeout signal with an optional
+   * caller-supplied AbortSignal so that either one can abort the request.
+   * Without this, a caller's own AbortController (e.g. cancel-on-unmount)
+   * was silently overwritten by the internal timeout controller and had
+   * no effect (#10).
+   */
+  private combineAbortSignals(timeoutSignal: AbortSignal, callerSignal?: AbortSignal): AbortSignal {
+    if (!callerSignal) {
+      return timeoutSignal;
+    }
+
+    if (typeof AbortSignal.any === "function") {
+      return AbortSignal.any([timeoutSignal, callerSignal]);
+    }
+
+    // Fallback for environments without AbortSignal.any.
+    const combined = new AbortController();
+    const abortFrom = (signal: AbortSignal) => {
+      if (!combined.signal.aborted) {
+        combined.abort(signal.reason);
+      }
+    };
+    if (timeoutSignal.aborted) {
+      abortFrom(timeoutSignal);
+    } else if (callerSignal.aborted) {
+      abortFrom(callerSignal);
+    } else {
+      timeoutSignal.addEventListener("abort", () => abortFrom(timeoutSignal), { once: true });
+      callerSignal.addEventListener("abort", () => abortFrom(callerSignal), { once: true });
+    }
+    return combined.signal;
+  }
+
+  /**
    * Fetch with retry logic for transient failures
    */
   private async fetchWithRetry(
@@ -198,7 +235,17 @@ export class ApiClient {
 
         return response;
       } catch (error) {
-        lastError = error as Error;
+        const err = error as Error;
+
+        // Abort errors (caller cancellation OR the internal timeout) are
+        // never retryable: the request's signal is already aborted, so any
+        // further attempt would fail immediately and only waste the
+        // exponential backoff delay. Propagate immediately instead (#10).
+        if (err.name === "AbortError") {
+          throw err;
+        }
+
+        lastError = err;
 
         // Only retry on network errors, not on client errors
         if (attempt < maxRetries - 1) {
@@ -223,6 +270,7 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
 
     try {
       const response = await this.fetchWithRetry(
@@ -235,7 +283,7 @@ export class ApiClient {
             ...options?.headers,
           },
           credentials: "include",
-          signal: controller.signal,
+          signal,
         },
         3, // 3 retries
       );
@@ -254,6 +302,7 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
 
     try {
       const response = await this.fetchWithRetry(
@@ -267,7 +316,7 @@ export class ApiClient {
           },
           credentials: "include",
           body: data ? JSON.stringify(data) : undefined,
-          signal: controller.signal,
+          signal,
         },
         3, // 3 retries
       );
@@ -285,6 +334,7 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
 
     try {
       const response = await this.fetchWithRetry(
@@ -298,7 +348,7 @@ export class ApiClient {
           },
           credentials: "include",
           body: data ? JSON.stringify(data) : undefined,
-          signal: controller.signal,
+          signal,
         },
         3, // 3 retries
       );
@@ -317,6 +367,7 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
 
     try {
       const response = await this.fetchWithRetry(
@@ -330,7 +381,7 @@ export class ApiClient {
           },
           credentials: "include",
           body: data ? JSON.stringify(data) : undefined,
-          signal: controller.signal,
+          signal,
         },
         3,
       );
@@ -349,6 +400,7 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
 
     try {
       const response = await this.fetchWithRetry(
@@ -361,7 +413,7 @@ export class ApiClient {
             ...options?.headers,
           },
           credentials: "include",
-          signal: controller.signal,
+          signal,
         },
         3, // 3 retries
       );
@@ -379,6 +431,7 @@ export class ApiClient {
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
 
     try {
       const response = await this.fetchWithRetry(
@@ -391,7 +444,7 @@ export class ApiClient {
             ...options?.headers,
           },
           credentials: "include",
-          signal: controller.signal,
+          signal,
         },
         3, // 3 retries
       );
