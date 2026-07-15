@@ -7,6 +7,8 @@ import type {
   PluginRegistered,
   PluginSource,
   PluginStatus,
+  ServiceState,
+  ServiceStatusView,
 } from "@services/plugins";
 
 const { Text } = Typography;
@@ -26,6 +28,20 @@ interface PluginTableProps {
 const statusColorMap: Record<PluginStatus, string> = {
   installing: "warning",
   installed: "success",
+};
+
+// Supervised service-plugin lifecycle state (bamboo PR #482, issue #479).
+// This is status VISIBILITY only — the backend exposes no manual
+// start/stop/restart endpoint (only list/install/update/remove under
+// `/api/v1/plugins`), so there is deliberately no action button here.
+const serviceStateColorMap: Record<ServiceState, string> = {
+  starting: "processing",
+  running: "success",
+  degraded: "warning",
+  crashed: "error",
+  restarting: "processing",
+  stopping: "warning",
+  stopped: "default",
 };
 
 const renderSource = (source: PluginSource): string => {
@@ -177,6 +193,15 @@ export const PluginTable: React.FC<PluginTableProps> = ({
             </Tag>,
           );
         }
+        if (registered?.service_ids?.length) {
+          chips.push(
+            <Tag key="services">
+              {t("settings.pluginsTab.registered.services", {
+                count: registered.service_ids.length,
+              })}
+            </Tag>,
+          );
+        }
 
         if (chips.length === 0) {
           return <Text type="secondary">—</Text>;
@@ -188,6 +213,77 @@ export const PluginTable: React.FC<PluginTableProps> = ({
         );
       },
     [t],
+  );
+
+  const serviceStateLabelMap: Record<ServiceState, string> = useMemo(
+    () => ({
+      starting: t("settings.pluginsTab.serviceStatus.state.starting"),
+      running: t("settings.pluginsTab.serviceStatus.state.running"),
+      degraded: t("settings.pluginsTab.serviceStatus.state.degraded"),
+      crashed: t("settings.pluginsTab.serviceStatus.state.crashed"),
+      restarting: t("settings.pluginsTab.serviceStatus.state.restarting"),
+      stopping: t("settings.pluginsTab.serviceStatus.state.stopping"),
+      stopped: t("settings.pluginsTab.serviceStatus.state.stopped"),
+    }),
+    [t],
+  );
+
+  // One tag per supervised service, colored by its live `ServiceState`; a
+  // tooltip surfaces pid/restart_count/last_error (issue #52) without
+  // needing an expandable row, following this table's existing "installing"
+  // status Tooltip idiom above.
+  const renderServiceStatus = useMemo(
+    () =>
+      (serviceStatus: ServiceStatusView[] | undefined): ReactNode => {
+        if (!serviceStatus?.length) {
+          return <Text type="secondary">—</Text>;
+        }
+
+        const tags = serviceStatus.map((service) => {
+          const detailLines: string[] = [
+            t("settings.pluginsTab.serviceStatus.tooltip.id", { id: service.id }),
+            t("settings.pluginsTab.serviceStatus.tooltip.restartCount", {
+              count: service.restart_count,
+            }),
+          ];
+          if (service.pid !== undefined) {
+            detailLines.push(
+              t("settings.pluginsTab.serviceStatus.tooltip.pid", { pid: service.pid }),
+            );
+          }
+          if (service.last_error) {
+            detailLines.push(
+              t("settings.pluginsTab.serviceStatus.tooltip.lastError", {
+                error: service.last_error,
+              }),
+            );
+          }
+
+          return (
+            <Tooltip
+              key={service.id}
+              title={
+                <Space direction="vertical" size={0}>
+                  {detailLines.map((line) => (
+                    <span key={line}>{line}</span>
+                  ))}
+                </Space>
+              }
+            >
+              <Tag color={serviceStateColorMap[service.state]}>
+                {serviceStateLabelMap[service.state]}
+              </Tag>
+            </Tooltip>
+          );
+        });
+
+        return (
+          <Space size={4} wrap>
+            {tags}
+          </Space>
+        );
+      },
+    [serviceStateLabelMap, t],
   );
 
   const columns = useMemo<TableProps<InstalledPluginView>["columns"]>(
@@ -233,6 +329,11 @@ export const PluginTable: React.FC<PluginTableProps> = ({
         render: (_, record) => renderRegistered(record.registered),
       },
       {
+        key: "serviceStatus",
+        title: t("settings.pluginsTab.columns.serviceStatus"),
+        render: (_, record) => renderServiceStatus(record.service_status),
+      },
+      {
         key: "source",
         title: t("settings.pluginsTab.columns.source"),
         render: (_, record) => <Text code>{renderSource(record.source)}</Text>,
@@ -271,7 +372,16 @@ export const PluginTable: React.FC<PluginTableProps> = ({
         ),
       },
     ],
-    [isRemoving, onRemove, onUpdate, renderRegistered, statusLabelMap, t, token.marginXS],
+    [
+      isRemoving,
+      onRemove,
+      onUpdate,
+      renderRegistered,
+      renderServiceStatus,
+      statusLabelMap,
+      t,
+      token.marginXS,
+    ],
   );
 
   return (

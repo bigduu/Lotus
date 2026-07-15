@@ -58,6 +58,35 @@ export interface PluginRegistered {
   preset_ids?: string[];
   skill_dirs?: string[];
   workflow_filenames?: string[];
+  service_ids?: string[];
+}
+
+/**
+ * Live `ServiceManager` state for one supervised service-kind plugin
+ * (bamboo PR #482, issue #479 — service artifact kind). Mirrors the
+ * backend's `ServiceState` enum (`bamboo-server`'s `service_manager/mod.rs`)
+ * exactly, wire-serialized `#[serde(rename_all = "snake_case")]`.
+ */
+export type ServiceState =
+  | "starting"
+  | "running"
+  | "degraded"
+  | "crashed"
+  | "restarting"
+  | "stopping"
+  | "stopped";
+
+/**
+ * Mirrors the backend's `ServiceStatusView` (`InstalledPluginView.
+ * service_status`, bamboo's `plugin/api_types.rs`). `pid`/`last_error` are
+ * omitted (not `null`) by the backend when absent — see `normalizePlugin`.
+ */
+export interface ServiceStatusView {
+  id: string;
+  state: ServiceState;
+  pid?: number;
+  restart_count: number;
+  last_error?: string;
 }
 
 export interface InstalledPluginView {
@@ -67,6 +96,14 @@ export interface InstalledPluginView {
   source: PluginSource;
   status: PluginStatus;
   registered?: PluginRegistered;
+  /**
+   * Status visibility only (Lotus #52) — the backend exposes no manual
+   * start/stop/restart endpoint (only list/install/update/remove under
+   * `/api/v1/plugins`), so this is purely read-only supervised-service state.
+   * Omitted (not an empty array) by the backend for a plugin with no
+   * services, same convention as `registered`'s sub-arrays.
+   */
+  service_status?: ServiceStatusView[];
 }
 
 export interface PluginListResponse {

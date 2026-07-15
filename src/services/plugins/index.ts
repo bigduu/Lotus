@@ -8,5 +8,7 @@ export type {
   PluginRegistered,
   PluginSource,
   PluginStatus,
+  ServiceState,
+  ServiceStatusView,
   UrlSource,
 } from "./types";
