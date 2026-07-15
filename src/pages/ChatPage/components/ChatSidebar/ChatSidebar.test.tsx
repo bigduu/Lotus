@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { App as AntdApp } from "antd";
 
 import { ChatSidebar } from "../ChatSidebar";
@@ -132,6 +132,133 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("Billing investigation")).toBeInTheDocument();
       expect(screen.getByText("Billing child fix")).toBeInTheDocument();
       expect(screen.queryByText("Platform roadmap")).toBeNull();
+    });
+  });
+
+  describe("search input debouncing", () => {
+    beforeEach(() => {
+      // The sidebar only auto-expands the *selected* session's date group by
+      // default (other date groups start collapsed until clicked open), so
+      // put "Platform roadmap" in the same calendar-day bucket as the
+      // selected "root-billing" session. Otherwise it would never render
+      // regardless of the search query, which would make these debounce
+      // assertions meaningless.
+      useAppStore.setState((state) => ({
+        ...state,
+        chats: state.chats.map((chat) =>
+          chat.id === "root-platform" ? { ...chat, createdAt: 1710003600000 } : chat,
+        ),
+      }));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("echoes the typed value immediately but defers re-filtering until the debounce elapses", async () => {
+      vi.useFakeTimers();
+
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Search sessions");
+
+      act(() => {
+        fireEvent.change(searchInput, { target: { value: "billing" } });
+      });
+
+      // The input itself is a controlled field — the keystroke echoes right away.
+      expect(searchInput.value).toBe("billing");
+      // But the list has not re-filtered yet: both sessions are still present.
+      expect(screen.getByText("Billing investigation")).toBeInTheDocument();
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+
+      // Just under the debounce window: still unfiltered.
+      act(() => {
+        vi.advanceTimersByTime(199);
+      });
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+
+      // Crossing the debounce window applies the filter.
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(screen.getByText("Billing investigation")).toBeInTheDocument();
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+    });
+
+    it("does not re-filter on every keystroke while typing quickly", async () => {
+      vi.useFakeTimers();
+
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Search sessions");
+
+      for (const partial of ["b", "bi", "bil", "billi", "billing"]) {
+        act(() => {
+          fireEvent.change(searchInput, { target: { value: partial } });
+          // Each keystroke arrives faster than the debounce window, so the
+          // pending timer keeps getting reset instead of firing.
+          vi.advanceTimersByTime(50);
+        });
+      }
+
+      expect(searchInput.value).toBe("billing");
+      // Still unfiltered — the debounce never got a quiet 200ms window.
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+
+      expect(screen.getByText("Billing investigation")).toBeInTheDocument();
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+    });
+
+    it("resets the filtered list promptly when the search is cleared, with no stale-query flash", async () => {
+      vi.useFakeTimers();
+
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Search sessions");
+
+      act(() => {
+        fireEvent.change(searchInput, { target: { value: "billing" } });
+        vi.advanceTimersByTime(200);
+      });
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+      // Rapid type-then-clear: change to a new query and clear it again before
+      // the debounce for the intermediate query has a chance to fire.
+      act(() => {
+        fireEvent.change(searchInput, { target: { value: "platform" } });
+        vi.advanceTimersByTime(50);
+        fireEvent.change(searchInput, { target: { value: "" } });
+      });
+
+      // Clearing bypasses the debounce entirely — the full list is back
+      // without waiting out the debounce window, and no stale "platform"
+      // filter is ever applied once the pending timer would have fired.
+      expect(searchInput.value).toBe("");
+      expect(screen.getByText("Billing investigation")).toBeInTheDocument();
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(screen.getByText("Billing investigation")).toBeInTheDocument();
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
     });
   });
 

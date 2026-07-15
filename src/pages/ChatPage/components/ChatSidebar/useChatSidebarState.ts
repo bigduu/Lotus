@@ -12,6 +12,7 @@ import {
   getSortedDateKeys,
   groupChatsByDate,
 } from "../../utils/chatUtils";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
@@ -21,6 +22,12 @@ import { openSession } from "@shared/utils/openSession";
 import { selectIsBusy } from "@shared/store/appStore";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
+
+// Search filtering (matchesSearchQuery) can fall back to scanning message
+// content from the live store, which is expensive when it runs on every
+// keystroke. Debounce the *filtering*, not the input value itself, so the
+// text field stays instantly responsive.
+const SEARCH_FILTER_DEBOUNCE_MS = 200;
 
 const getSidebarChatKind = (kind: ChatItem["kind"]): SidebarChatItem["kind"] =>
   kind === "child" ? "child" : "root";
@@ -298,7 +305,16 @@ export const useChatSidebarState = () => {
     });
   };
 
-  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  // Debounce the expensive filter recomputation, not the input value: the
+  // <Input> stays bound to `searchQuery` directly so typed characters echo
+  // immediately, while the useMemo chain below only re-filters after the
+  // user pauses. Clearing the box (value === "") bypasses the debounce so
+  // the list resets promptly instead of showing stale filtered results for
+  // one more debounce interval — this also avoids a rapid type-then-clear
+  // briefly re-applying a stale query once the pending timer fires.
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, SEARCH_FILTER_DEBOUNCE_MS);
+  const effectiveSearchQuery = searchQuery === "" ? "" : debouncedSearchQuery;
+  const normalizedSearchQuery = effectiveSearchQuery.trim().toLowerCase();
   const hasActiveFilters = normalizedSearchQuery.length > 0 || statusFilter !== "all";
 
   // ─── Heavy derived data (gated by collapsed state) ─────────────────
