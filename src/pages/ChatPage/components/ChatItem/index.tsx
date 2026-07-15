@@ -67,7 +67,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   );
 
   const handleCancel = useCallback(
-    (e: React.MouseEvent) => {
+    (e: React.SyntheticEvent) => {
       e.stopPropagation();
       setEditValue(chat.title);
       setIsEditing(false);
@@ -275,6 +275,17 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
             onPressEnter={(e) => {
               e.preventDefault();
               handleSave(e);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                // Stop propagation so Escape doesn't also trigger some other
+                // ancestor's Escape/blur-driven behavior (e.g. a save-on-blur
+                // handler firing off the resulting blur) — Escape here means
+                // "cancel", full stop.
+                e.preventDefault();
+                e.stopPropagation();
+                handleCancel(e);
+              }
             }}
             autoFocus
             style={editInputStyle}
