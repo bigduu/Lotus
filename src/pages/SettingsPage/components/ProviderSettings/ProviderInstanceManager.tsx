@@ -109,6 +109,58 @@ const normalizeResponsesOnlyModels = (value: unknown): string[] => {
     .filter((item): item is string => Boolean(item));
 };
 
+const REQUEST_OVERRIDES_PLACEHOLDER = `{
+  "common": {
+    "headers": {
+      "x-request-id": { "type": "generated", "generator": "uuid" },
+      "x-tenant": { "type": "env_ref", "name": "TENANT_ID" }
+    }
+  },
+  "rules": [
+    {
+      "model_pattern": "gpt-5*",
+      "scope": {
+        "body_patch": [
+          { "path": "metadata.trace_id", "op": "set", "value": { "type": "generated", "generator": "uuid" } }
+        ]
+      }
+    }
+  ]
+}`;
+
+/**
+ * Advanced request-overrides JSON textarea, shared across every provider
+ * type in the instance modal. Mirrors the legacy single-provider tab's
+ * field (`ProviderSettings/index.tsx` `renderRequestOverridesEditor`) —
+ * same i18n keys, same monospace textarea, same "advanced" placement
+ * behind a dashed divider at the end of the type-specific fields.
+ */
+const renderInstanceRequestOverridesField = (t: TFunction) => (
+  <>
+    <Divider dashed />
+    <Form.Item
+      name="request_overrides_json"
+      label={t("settings.providerTab.advancedRequestOverrides")}
+      extra={
+        <Space direction="vertical" size={4}>
+          <Text type="secondary">{t("settings.providerTab.advancedRequestOverridesHelp")}</Text>
+          <Text type="secondary">
+            {t("settings.providerTab.envVarInjection")}{" "}
+            <Text code>{`{ "type": "env_ref", "name": "YOUR_ENV_NAME" }`}</Text>
+          </Text>
+        </Space>
+      }
+    >
+      <Input.TextArea
+        autoSize={{ minRows: 6, maxRows: 16 }}
+        placeholder={REQUEST_OVERRIDES_PLACEHOLDER}
+        style={{ fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
+        data-testid="request-overrides-textarea"
+      />
+    </Form.Item>
+  </>
+);
+
 /**
  * Renders config form fields for a provider type.
  * Used by the instance create/edit modal.
@@ -144,6 +196,7 @@ const InstanceConfigFields: React.FC<{
                 t("settings.providerTab.openaiApiKeyPlaceholder", "sk-..."),
               )}
               prefix={<KeyOutlined />}
+              data-testid="instance-api-key-input"
             />
           </Form.Item>
           <Form.Item
@@ -166,6 +219,7 @@ const InstanceConfigFields: React.FC<{
             {renderReasoningEffortSelect(t)}
           </Form.Item>
           {renderResponsesOnlyModelsField(t)}
+          {renderInstanceRequestOverridesField(t)}
         </>
       );
     case "anthropic":
@@ -214,6 +268,7 @@ const InstanceConfigFields: React.FC<{
           >
             {renderReasoningEffortSelect(t)}
           </Form.Item>
+          {renderInstanceRequestOverridesField(t)}
         </>
       );
     case "gemini":
@@ -250,6 +305,7 @@ const InstanceConfigFields: React.FC<{
           >
             {renderReasoningEffortSelect(t)}
           </Form.Item>
+          {renderInstanceRequestOverridesField(t)}
         </>
       );
     case "copilot":
@@ -271,6 +327,7 @@ const InstanceConfigFields: React.FC<{
             {renderReasoningEffortSelect(t)}
           </Form.Item>
           {renderResponsesOnlyModelsField(t)}
+          {renderInstanceRequestOverridesField(t)}
         </>
       );
     case "bodhi":
@@ -321,6 +378,7 @@ const InstanceConfigFields: React.FC<{
           >
             {renderReasoningEffortSelect(t)}
           </Form.Item>
+          {renderInstanceRequestOverridesField(t)}
         </>
       );
     default:
@@ -364,12 +422,24 @@ export const ProviderInstanceManager: React.FC<{
   const [checkingCopilotAuth, setCheckingCopilotAuth] = useState(false);
 
   const buildInstanceFormValues = useCallback((instance: ProviderInstance) => {
-    return {
+    // `request_overrides` is represented in the form as a separate
+    // stringified `request_overrides_json` textarea field (see
+    // `renderInstanceRequestOverridesField`), never as the raw object —
+    // leaving the raw key in the form values would let a stale copy of it
+    // survive into the save payload even after the textarea is cleared.
+    const { request_overrides, ...config } = sanitizeInstanceConfigForForm(
+      instance.config as Record<string, unknown> | undefined,
+    );
+    const values: Record<string, unknown> = {
       type: instance.type,
       label: instance.label,
       enabled: instance.enabled,
-      ...sanitizeInstanceConfigForForm(instance.config as Record<string, unknown> | undefined),
+      ...config,
     };
+    if (request_overrides && typeof request_overrides === "object") {
+      values.request_overrides_json = JSON.stringify(request_overrides, null, 2);
+    }
+    return values;
   }, []);
 
   const handleOpenCreate = useCallback(() => {
@@ -740,6 +810,7 @@ export const ProviderInstanceManager: React.FC<{
                   size="small"
                   icon={<EditOutlined />}
                   onClick={() => handleOpenEdit(instance)}
+                  data-testid={`edit-provider-instance-${instance.id}`}
                 />
                 <Popconfirm
                   title={t(
@@ -865,6 +936,7 @@ export const ProviderInstanceManager: React.FC<{
               disabled={!!editingInstance}
               placeholder={t("settings.providerTab.selectType", "Select provider type")}
               onChange={(value: ProviderType) => setSelectedType(value)}
+              data-testid="instance-type-select"
             >
               {(Object.entries(PROVIDER_LABELS) as [ProviderType, string][]).map(([key, label]) => (
                 <Select.Option key={key} value={key}>
