@@ -121,6 +121,12 @@ const FallbackCodeBlock: React.FC<{
 }> = ({ codeString, token }) => {
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
+  const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  // The copy button must always exist in the DOM (not toggled via
+  // display:none) so keyboard users can Tab to it; opacity/pointer-events
+  // keep it visually hidden until hover or focus reveals it.
+  const showCopyButton = isHovered || isFocused;
 
   // Stable layout values — fall back to constants when token absent
   const marginXS = token?.marginXS ?? 8;
@@ -137,14 +143,8 @@ const FallbackCodeBlock: React.FC<{
         position: "relative",
         margin: `${marginXS}px 0`,
       }}
-      onMouseEnter={(e) => {
-        const copyBtn = e.currentTarget.querySelector(".fallback-copy-btn") as HTMLElement;
-        if (copyBtn) copyBtn.style.display = "block";
-      }}
-      onMouseLeave={(e) => {
-        const copyBtn = e.currentTarget.querySelector(".fallback-copy-btn") as HTMLElement;
-        if (copyBtn) copyBtn.style.display = "none";
-      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
     >
       <pre
         style={{
@@ -166,6 +166,8 @@ const FallbackCodeBlock: React.FC<{
         icon={<CopyOutlined />}
         aria-label={t("components.markdown.copyCodeAriaLabel")}
         className="fallback-copy-btn"
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         onClick={async () => {
           try {
             await copyText(codeString);
@@ -183,7 +185,9 @@ const FallbackCodeBlock: React.FC<{
           color: "var(--lotus-code-copy-btn-color, white)",
           border: "none",
           borderRadius: borderRadiusSM,
-          display: "none",
+          opacity: showCopyButton ? 1 : 0,
+          pointerEvents: showCopyButton ? "auto" : "none",
+          transition: "opacity 0.2s",
           zIndex: 10,
         }}
       />

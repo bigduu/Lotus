@@ -483,6 +483,7 @@ export const enUsTranslation = {
       },
       commandSelector: {
         loading: "Loading commands...",
+        listLabel: "Commands",
         emptyWithSearch: 'No commands found matching "{{search}}"',
         empty: "No commands available.",
         navigationHint:
@@ -2629,6 +2630,8 @@ export const enUsTranslation = {
         evaluating: "Evaluating",
         pin: "Pin",
         unpin: "Unpin",
+        expand: "Expand task list",
+        collapse: "Collapse task list",
         llmEvaluation: "LLM Evaluation",
         tools: "tools",
         dependsOn: "Depends on: {{deps}}",

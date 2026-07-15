@@ -364,9 +364,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
               : undefined;
         const subTitleNode =
           subTitleText || backgroundBadge ? (
-            <span
-              style={{ display: "inline-flex", alignItems: "center", gap: token.marginXS }}
-            >
+            <span style={{ display: "inline-flex", alignItems: "center", gap: token.marginXS }}>
               {subTitleText ? (
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM - 1 }}>
                   {subTitleText}
@@ -552,6 +550,15 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
             userSelect: "none",
           }}
           onClick={() => setExpanded((prev) => !prev)}
+          role="button"
+          tabIndex={0}
+          aria-expanded={expanded}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              setExpanded((prev) => !prev);
+            }
+          }}
           data-testid="tool-steps-header"
         >
           <span style={{ flexShrink: 0 }}>

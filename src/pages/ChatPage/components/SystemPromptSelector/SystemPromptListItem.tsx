@@ -57,6 +57,10 @@ export const SystemPromptListItem: React.FC<SystemPromptListItemProps> = ({
         backgroundColor: isSelected ? token.colorPrimaryBg : token.colorBgContainer,
         transition: "all 0.2s ease",
       }}
+      // a11y: the row's click is a convenience hit-area only — the same
+      // select action is fully keyboard-accessible through the nested
+      // <Radio> (Space/arrow keys), and Preview/Copy are real <Button>s.
+      // Adding tabIndex here would create a redundant tab stop per prompt.
       onClick={() => onSelect(prompt.id)}
     >
       <Space direction="vertical" style={{ width: "100%" }} size={token.marginSM}>

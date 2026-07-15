@@ -154,12 +154,18 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
             }
           />
         ) : (
-          <div ref={listContainerRef}>
+          // Keyboard interaction is implemented at the container level (window
+          // keydown above: arrows / Ctrl+P/N / Enter / Tab / Esc). Rows
+          // intentionally do NOT get tabIndex — a tab stop per row would
+          // fight the container navigation.
+          <div ref={listContainerRef} role="listbox" aria-label={t("chat.fileReference.title")}>
             <List
               dataSource={filteredFiles}
               renderItem={(file, index) => (
                 <List.Item
                   key={file.path}
+                  role="option"
+                  aria-selected={index === activeIndex}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => onSelect(file)}
                   ref={index === activeIndex ? activeItemRef : undefined}

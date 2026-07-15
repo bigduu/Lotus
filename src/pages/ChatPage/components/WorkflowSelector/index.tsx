@@ -93,6 +93,12 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   return (
     <div
       ref={containerRef}
+      // Keyboard interaction is implemented at the container level (document
+      // keydown in useWorkflowSelectorState: arrows / Ctrl+P/N / Enter /
+      // Space / Tab / Esc). Rows intentionally do NOT get tabIndex — that
+      // would add a tab stop per row and fight the container navigation.
+      role="listbox"
+      aria-label="Workflows"
       style={{
         position: "absolute",
         bottom: "100%",
@@ -123,6 +129,8 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
         <div
           key={workflow.name}
           ref={index === selectedIndex ? selectedItemRef : null}
+          role="option"
+          aria-selected={index === selectedIndex}
           style={{
             padding: `${token.paddingSM}px ${token.paddingMD}px`,
             cursor: "pointer",

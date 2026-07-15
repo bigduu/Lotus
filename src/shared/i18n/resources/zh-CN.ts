@@ -471,6 +471,7 @@ export const zhCnTranslation = {
       },
       commandSelector: {
         loading: "正在加载命令...",
+        listLabel: "命令列表",
         emptyWithSearch: "没有匹配“{{search}}”的命令",
         empty: "暂无可用命令。",
         navigationHint: "导航：上下键 或 Ctrl+P/N | 选择：Enter | 补全：Space/Tab | 取消：Esc",
@@ -2560,6 +2561,8 @@ export const zhCnTranslation = {
         evaluating: "评估中",
         pin: "固定",
         unpin: "取消固定",
+        expand: "展开任务列表",
+        collapse: "折叠任务列表",
         llmEvaluation: "LLM 评估",
         tools: "个工具",
         dependsOn: "依赖：{{deps}}",

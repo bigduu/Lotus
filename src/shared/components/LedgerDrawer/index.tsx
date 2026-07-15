@@ -117,8 +117,17 @@ const LedgerItemRow: React.FC<{ item: LedgerListItem; actions: RowActions }> = (
       <Flex
         vertical
         gap={4}
+        role="button"
+        tabIndex={0}
+        aria-label={`${t("ledger.actions.edit")}: ${item.title}`}
         style={{ minWidth: 0, flex: 1, cursor: "pointer" }}
         onClick={() => actions.onEdit(item)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            actions.onEdit(item);
+          }
+        }}
       >
         <Text strong ellipsis delete={terminal} style={{ fontSize: 13 }}>
           {item.title}
