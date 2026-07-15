@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { serviceFactory, type BambooConfig } from "@services/common/ServiceFactory";
+import { getErrorMessage, isConfigRecoveryPendingError } from "@services/api";
 
 export interface ProxyAuthStatus {
   configured: boolean;
@@ -29,6 +30,11 @@ let configInFlight: Promise<BambooConfig> | null = null;
 let proxyStatusInFlight: Promise<ProxyAuthStatus> | null = null;
 
 const toErrorMessage = (error: unknown, fallback: string): string => {
+  // Surface the config-corruption-recovery block distinctly rather than a
+  // generic save error — see the `ConfigRecoveryBanner`/#59.
+  if (isConfigRecoveryPendingError(error)) {
+    return getErrorMessage(error);
+  }
   if (error instanceof Error && error.message.trim()) {
     return error.message;
   }

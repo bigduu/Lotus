@@ -14,6 +14,8 @@ import { useAgentEventSubscription } from "@pages/ChatPage/hooks/useAgentEventSu
 import { MultiPaneChatView } from "../pages/ChatPage/components/MultiPaneChatView";
 import { useUILayoutStore } from "../shared/store/uiLayoutStore";
 import { ResizableSplit } from "../shared/components/ResizableSplit";
+import { ConfigRecoveryBanner } from "@shared/components/ConfigRecoveryBanner";
+import { useConfigRecoveryStore } from "@shared/store/configRecoveryStore";
 import type { AppLocale } from "../shared/i18n/types";
 import { detectOS } from "../shared/utils/osInfoUtils";
 
@@ -88,6 +90,15 @@ export const MainLayout: React.FC<{
       useSettingsViewStore.getState().open("chat", "provider");
     }
   }, []);
+
+  // Config-corruption recovery (#59): force a fresh check whenever Settings
+  // opens, on top of the ConfigRecoveryBanner's own boot-time check — catches
+  // a recovery that became pending after the app already booted.
+  useEffect(() => {
+    if (settingsOpen) {
+      void useConfigRecoveryStore.getState().checkStatus({ force: true });
+    }
+  }, [settingsOpen]);
 
   // Maintain a single persistent subscription to agent events.
   // Deferred until the browser is idle via the DeferredAgentSubscription
@@ -171,6 +182,9 @@ export const MainLayout: React.FC<{
 
   return (
     <>
+      {/* Blocking banner for a pending config-corruption recovery (#59). Mounted
+          globally so it's visible on both the chat and Settings views. */}
+      <ConfigRecoveryBanner />
       {/* Skip to main content link for keyboard/screen-reader users */}
       <a
         href="#lotus-main-content"

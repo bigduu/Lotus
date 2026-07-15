@@ -1,11 +1,34 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, getErrorMessage, withFallback } from "./errors";
+import { ApiError, getErrorMessage, isConfigRecoveryPendingError, withFallback } from "./errors";
+
+/** Mirrors the bamboo `ResponseError` envelope for `AppError::ConfigRecoveryPending`
+ *  (bamboo #153 / PR #493): 409 + `error.code === "config_recovery_pending"`. */
+function configRecoveryPendingError(message = "config recovery pending"): ApiError {
+  const body = JSON.stringify({
+    error: { type: "api_error", message, code: "config_recovery_pending" },
+  });
+  return new ApiError(message, 409, "Conflict", body);
+}
 
 describe("getErrorMessage", () => {
   it("surfaces server-provided message for 500 errors", () => {
     const err = new ApiError("Failed to reload provider: boom", 500, "Internal Server Error");
     expect(getErrorMessage(err)).toBe("Failed to reload provider: boom");
+  });
+
+  it("surfaces a config-recovery-pending-specific message instead of the raw 409", () => {
+    const err = configRecoveryPendingError("config.json is awaiting confirmation");
+    expect(getErrorMessage(err)).toContain("config recovery");
+    expect(getErrorMessage(err)).not.toBe("config.json is awaiting confirmation");
+  });
+
+  it("does not misclassify an unrelated 409 as config-recovery-pending", () => {
+    const body = JSON.stringify({
+      error: { type: "api_error", message: "conflict", code: "other" },
+    });
+    const err = new ApiError("conflict", 409, "Conflict", body);
+    expect(getErrorMessage(err)).toBe("conflict");
   });
 
   it("keeps friendly messages for common client errors", () => {
@@ -36,6 +59,37 @@ describe("getErrorMessage", () => {
   it("handles 400 Bad Request errors", () => {
     const err = new ApiError("Bad Request", 400, "Bad Request");
     expect(getErrorMessage(err)).toBe("Bad Request");
+  });
+});
+
+describe("isConfigRecoveryPendingError", () => {
+  it("recognizes the 409 config_recovery_pending envelope", () => {
+    expect(isConfigRecoveryPendingError(configRecoveryPendingError())).toBe(true);
+  });
+
+  it("rejects a 409 with a different error code", () => {
+    const body = JSON.stringify({ error: { type: "api_error", message: "x", code: "other" } });
+    expect(isConfigRecoveryPendingError(new ApiError("x", 409, "Conflict", body))).toBe(false);
+  });
+
+  it("rejects a non-409 status even with a matching code", () => {
+    const body = JSON.stringify({
+      error: { type: "api_error", message: "x", code: "config_recovery_pending" },
+    });
+    expect(
+      isConfigRecoveryPendingError(new ApiError("x", 500, "Internal Server Error", body)),
+    ).toBe(false);
+  });
+
+  it("rejects a non-JSON body without throwing", () => {
+    expect(isConfigRecoveryPendingError(new ApiError("x", 409, "Conflict", "not json"))).toBe(
+      false,
+    );
+  });
+
+  it("rejects non-ApiError values", () => {
+    expect(isConfigRecoveryPendingError(new Error("boom"))).toBe(false);
+    expect(isConfigRecoveryPendingError(undefined)).toBe(false);
   });
 });
 
