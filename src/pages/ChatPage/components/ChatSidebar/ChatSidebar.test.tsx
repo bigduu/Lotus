@@ -100,18 +100,128 @@ describe("ChatSidebar", () => {
   });
 
   it("filters root sessions by search query", async () => {
+    // Put "Platform roadmap" in the same date group as the selected
+    // "root-billing" session so it is genuinely visible *before* filtering.
+    // Otherwise this assertion could pass purely because its (non-selected)
+    // date group starts out collapsed, without the filter logic doing
+    // anything at all (see #61).
+    useAppStore.setState((state) => ({
+      ...state,
+      chats: state.chats.map((chat) =>
+        chat.id === "root-platform" ? { ...chat, createdAt: 1710000500000 } : chat,
+      ),
+    }));
+
     render(
       <AntdApp>
         <ChatSidebar />
       </AntdApp>,
     );
 
-    const searchInput = await screen.findByPlaceholderText("Search sessions");
+    // Sanity check: both sessions are visible pre-filter, proving they share
+    // an expanded date group.
+    expect(await screen.findByText("Billing investigation")).toBeInTheDocument();
+    expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText("Search sessions");
     fireEvent.change(searchInput, { target: { value: "billing" } });
 
     await waitFor(() => {
       expect(screen.getByText("Billing investigation")).toBeInTheDocument();
       expect(screen.queryByText("Platform roadmap")).toBeNull();
+    });
+  });
+
+  it("auto-expands a collapsed, non-selected date group to reveal a search match (#61)", async () => {
+    // "Platform roadmap" is left in its own date group (createdAt is ~a day
+    // after the selected "root-billing" session), which starts collapsed
+    // since it isn't the selected session's group.
+    render(
+      <AntdApp>
+        <ChatSidebar />
+      </AntdApp>,
+    );
+
+    await screen.findByText("Billing investigation");
+    // Pre-condition: the non-selected group is collapsed, so the match is
+    // not yet visible.
+    expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+    const searchInput = screen.getByPlaceholderText("Search sessions");
+    fireEvent.change(searchInput, { target: { value: "platform" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+    });
+  });
+
+  it("restores the prior (collapsed) expansion state once the search is cleared", async () => {
+    render(
+      <AntdApp>
+        <ChatSidebar />
+      </AntdApp>,
+    );
+
+    await screen.findByText("Billing investigation");
+    expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+    const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Search sessions");
+    fireEvent.change(searchInput, { target: { value: "platform" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+    });
+
+    fireEvent.change(searchInput, { target: { value: "" } });
+
+    await waitFor(() => {
+      expect(searchInput.value).toBe("");
+      // The group was collapsed before the search started and was never
+      // manually opened by the user, so it goes back to collapsed instead
+      // of permanently staying expanded because of the search.
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+    });
+  });
+
+  it("respects a manual collapse made mid-search until the query changes", async () => {
+    render(
+      <AntdApp>
+        <ChatSidebar />
+      </AntdApp>,
+    );
+
+    await screen.findByText("Billing investigation");
+
+    const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Search sessions");
+    fireEvent.change(searchInput, { target: { value: "roadmap" } });
+
+    await waitFor(() => {
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+    });
+
+    // Manually collapse the auto-expanded group that contains the match.
+    // Exactly one date group renders while this filter is active (it holds
+    // the single "Platform roadmap" match), so its header is the sole
+    // group-toggle button whose accessible name ends in the "(1)" count.
+    const groupHeader = screen.getByRole("button", { name: /\(1\)$/ });
+    fireEvent.click(groupHeader);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+    });
+
+    // Unrelated re-renders (e.g. a store update) should not re-force the
+    // group back open while the same query is still active.
+    act(() => {
+      useAppStore.setState((state) => ({ ...state }));
+    });
+    expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+    // Changing the query re-derives the auto-expand set, overriding the
+    // manual collapse.
+    fireEvent.change(searchInput, { target: { value: "roadmap " } });
+    await waitFor(() => {
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
     });
   });
 
