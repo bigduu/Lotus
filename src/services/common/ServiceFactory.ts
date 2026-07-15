@@ -133,6 +133,50 @@ export interface ConnectConfig {
   platforms?: ConnectPlatformConfig[];
 }
 
+/**
+ * One publisher key trusted to verify a plugin bundle's `.sig` signature
+ * (mirrors the backend's `bamboo_config::TrustedKey`, bamboo PR #450).
+ * `algorithm` is a plain string on the wire (only `"ed25519"` is currently
+ * understood by the backend verifier) so an unrecognized future value just
+ * never matches rather than failing to parse.
+ */
+export interface TrustedKeyConfig {
+  /** Human-readable label (also what a signed install's `signed_by` names). */
+  label: string;
+  algorithm: string;
+  /** Hex-encoded public key. */
+  public_key: string;
+}
+
+/**
+ * `plugin_trust.enforcement` — the persistent, config-level escape hatch over
+ * the whole three-layer URL-install trust policy (bamboo PR #465). `"strict"`
+ * (the backend default) enforces the host allowlist / signature / checksum
+ * layers; `"off"` makes every URL install behave as if `--insecure` were
+ * passed, with no per-install flag needed. The backend also accepts a bare
+ * `true`/`false` on read for a hand-edited config.json, but always
+ * serializes back out as the string form — this UI only ever writes the
+ * string form.
+ */
+export type PluginTrustEnforcement = "strict" | "off";
+
+/**
+ * Plugin URL-install source-trust policy (mirrors the backend's
+ * `bamboo_config::PluginTrustConfig`, bamboo PRs #450/#465): a host
+ * allowlist (is the source authorized?), ed25519 publisher keys (is the
+ * publisher authentic?), plus a persistent enforcement escape hatch. Both
+ * `trusted_hosts`/`trusted_keys` ship with built-in defaults (nova/magpie's
+ * official keys + `github.com/bigduu/`) — an absent `plugin_trust` key in
+ * `GET bamboo/config` means "using the built-in defaults", not "empty
+ * policy".
+ */
+export interface PluginTrustConfig {
+  /** Host+path prefixes, e.g. `"github.com/bigduu/"` (bare host = any path). */
+  trusted_hosts?: string[];
+  trusted_keys?: TrustedKeyConfig[];
+  enforcement?: PluginTrustEnforcement;
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -146,6 +190,7 @@ export interface BambooConfig {
   subagents?: BambooSubagentsConfig;
   notifications?: NotificationsChannelConfig;
   connect?: ConnectConfig;
+  plugin_trust?: PluginTrustConfig;
   [key: string]: unknown;
 }
 

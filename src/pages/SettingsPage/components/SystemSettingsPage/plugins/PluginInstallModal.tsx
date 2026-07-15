@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Form, Input, Modal, Segmented, Space } from "antd";
+import { Alert, Collapse, Form, Input, Modal, Segmented, Space, Switch } from "antd";
 import { useTranslation } from "react-i18next";
 import { isApiError } from "@services/api";
 import type { PluginSource } from "@services/plugins";
@@ -11,6 +11,10 @@ interface PluginSourceFormValues {
   path?: string;
   url?: string;
   sha256?: string;
+  allowUnverified?: boolean;
+  allowUntrustedHost?: boolean;
+  allowUnsigned?: boolean;
+  insecure?: boolean;
 }
 
 export interface PluginInstallModalProps {
@@ -33,6 +37,10 @@ const DEFAULT_FORM_VALUES: PluginSourceFormValues = {
   path: "",
   url: "",
   sha256: "",
+  allowUnverified: false,
+  allowUntrustedHost: false,
+  allowUnsigned: false,
+  insecure: false,
 };
 
 const toSource = (values: PluginSourceFormValues): PluginSource => {
@@ -41,6 +49,14 @@ const toSource = (values: PluginSourceFormValues): PluginSource => {
       type: "url",
       url: values.url?.trim() || "",
       sha256: values.sha256?.trim() || undefined,
+      // Trust-override flags are omitted (not sent as `false`) when unset —
+      // the backend's own default for each is `false`/enforced, so an
+      // omitted flag and an explicit `false` are equivalent on the wire;
+      // omitting keeps the common (no-override) request body minimal.
+      ...(values.allowUnverified ? { allow_unverified: true } : {}),
+      ...(values.allowUntrustedHost ? { allow_untrusted_host: true } : {}),
+      ...(values.allowUnsigned ? { allow_unsigned: true } : {}),
+      ...(values.insecure ? { insecure: true } : {}),
     };
   }
   return {
@@ -51,7 +67,16 @@ const toSource = (values: PluginSourceFormValues): PluginSource => {
 
 const toFormValues = (source: PluginSource): PluginSourceFormValues => {
   if (source.type === "url") {
-    return { sourceType: "url", url: source.url, sha256: source.sha256 ?? "", path: "" };
+    return {
+      sourceType: "url",
+      url: source.url,
+      sha256: source.sha256 ?? "",
+      path: "",
+      allowUnverified: source.allow_unverified ?? false,
+      allowUntrustedHost: source.allow_untrusted_host ?? false,
+      allowUnsigned: source.allow_unsigned ?? false,
+      insecure: source.insecure ?? false,
+    };
   }
   return { sourceType: source.type, path: source.path, url: "", sha256: "" };
 };
@@ -77,6 +102,11 @@ export const PluginInstallModal: React.FC<PluginInstallModalProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   const sourceType = Form.useWatch("sourceType", form) ?? "url";
+  const allowUnverified = Form.useWatch("allowUnverified", form) ?? false;
+  const allowUntrustedHost = Form.useWatch("allowUntrustedHost", form) ?? false;
+  const allowUnsigned = Form.useWatch("allowUnsigned", form) ?? false;
+  const insecure = Form.useWatch("insecure", form) ?? false;
+  const hasTrustOverride = allowUnverified || allowUntrustedHost || allowUnsigned || insecure;
 
   useEffect(() => {
     if (!open) {
@@ -225,6 +255,74 @@ export const PluginInstallModal: React.FC<PluginInstallModalProps> = ({
               >
                 <Input placeholder="e3b0c44298fc1c149afbf4c8996fb92427ae41e4" autoComplete="off" />
               </Form.Item>
+
+              <Collapse
+                data-testid="install-advanced-trust"
+                items={[
+                  {
+                    key: "advanced",
+                    label: t("settings.pluginsTab.install.advanced.title"),
+                    children: (
+                      <Space direction="vertical" style={{ width: "100%" }} size="middle">
+                        <Alert
+                          type="error"
+                          showIcon
+                          message={t("settings.pluginsTab.install.advanced.warningTitle")}
+                          description={t("settings.pluginsTab.install.advanced.warningDescription")}
+                        />
+
+                        <Form.Item
+                          name="allowUntrustedHost"
+                          valuePropName="checked"
+                          label={t("settings.pluginsTab.install.advanced.allowUntrustedHost")}
+                          extra={t("settings.pluginsTab.install.advanced.allowUntrustedHostHelp")}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Switch data-testid="install-allow-untrusted-host" />
+                        </Form.Item>
+
+                        <Form.Item
+                          name="allowUnsigned"
+                          valuePropName="checked"
+                          label={t("settings.pluginsTab.install.advanced.allowUnsigned")}
+                          extra={t("settings.pluginsTab.install.advanced.allowUnsignedHelp")}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Switch data-testid="install-allow-unsigned" />
+                        </Form.Item>
+
+                        <Form.Item
+                          name="allowUnverified"
+                          valuePropName="checked"
+                          label={t("settings.pluginsTab.install.advanced.allowUnverified")}
+                          extra={t("settings.pluginsTab.install.advanced.allowUnverifiedHelp")}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Switch data-testid="install-allow-unverified" />
+                        </Form.Item>
+
+                        <Form.Item
+                          name="insecure"
+                          valuePropName="checked"
+                          label={t("settings.pluginsTab.install.advanced.insecure")}
+                          extra={t("settings.pluginsTab.install.advanced.insecureHelp")}
+                          style={{ marginBottom: 0 }}
+                        >
+                          <Switch data-testid="install-insecure" />
+                        </Form.Item>
+
+                        {hasTrustOverride ? (
+                          <Alert
+                            type="warning"
+                            showIcon
+                            message={t("settings.pluginsTab.install.advanced.activeWarning")}
+                          />
+                        ) : null}
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
             </>
           ) : (
             <Form.Item
