@@ -49,6 +49,7 @@ import {
   type BambooConfigValidationIssue,
 } from "@services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
+import { redactSensitive } from "@shared/utils/secrets";
 import { isMaskedSecretValue } from "./providerInstanceUtils";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
@@ -414,7 +415,7 @@ export const ProviderSettings: React.FC = () => {
         features: response.features,
       };
 
-      debugLog("[Provider]", "Loaded provider config:", config);
+      debugLog("[Provider]", "Loaded provider config:", redactSensitive(config));
       const providersWithEditorFields: EditableProviders = {
         ...(config.providers || {}),
       };
@@ -770,7 +771,7 @@ export const ProviderSettings: React.FC = () => {
             provider_model_ref: true,
           },
         };
-        debugLog("[Provider]", "Saving instance-mode config:", instancePayload);
+        debugLog("[Provider]", "Saving instance-mode config:", redactSensitive(instancePayload));
         await serviceFactory.setBambooConfig(instancePayload);
       } else {
         // ── Legacy save path ───────────────────────────────────────
@@ -792,7 +793,7 @@ export const ProviderSettings: React.FC = () => {
           return;
         }
 
-        debugLog("[Provider]", "Saving provider config:", payload);
+        debugLog("[Provider]", "Saving provider config:", redactSensitive(payload));
         await settingsService.saveProviderConfig(payload);
       }
 

@@ -26,3 +26,41 @@ export const isMaskedSecret = (value: unknown): value is string =>
   typeof value === "string" &&
   value.trim().length > 0 &&
   [...value.trim()].every((c) => c === "*" || c === ".");
+
+/** Object-key fragments that mark a field as sensitive, matched case-insensitively. */
+const SENSITIVE_KEY_PATTERNS = ["api_key", "apikey", "token", "secret", "password"];
+
+const isSensitiveKey = (key: string): boolean => {
+  const lower = key.toLowerCase();
+  return SENSITIVE_KEY_PATTERNS.some((pattern) => lower.includes(pattern));
+};
+
+const REDACTED_PLACEHOLDER = "***redacted***";
+
+/**
+ * Deep-clones a config-shaped value, replacing any value whose key looks
+ * sensitive (`api_key`, `api_key_encrypted`, `token`, `secret`, `password`,
+ * ...) with a fixed placeholder. Intended for `debugLog`/`console.log`
+ * call sites that pass a raw settings/provider payload — those payloads
+ * carry plaintext credentials (`providers.{provider}.api_key`, etc.) that
+ * must never land in the console, even behind the dev-only verbose flag.
+ *
+ * Non-sensitive values are passed through unchanged (same array/object
+ * shape, just filtered), so the redacted object is still useful for
+ * debugging structure/counts/ids.
+ */
+export const redactSensitive = <T>(value: T): T => {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactSensitive(item)) as unknown as T;
+  }
+  if (value !== null && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>).map(([key, val]) => {
+      if (isSensitiveKey(key)) {
+        return [key, val == null || val === "" ? val : REDACTED_PLACEHOLDER] as const;
+      }
+      return [key, redactSensitive(val)] as const;
+    });
+    return Object.fromEntries(entries) as T;
+  }
+  return value;
+};
