@@ -431,6 +431,9 @@ export const enUsTranslation = {
       },
       imagePreview: {
         counter: "{{current}} of {{total}}",
+        previous: "Previous image",
+        next: "Next image",
+        thumbnail: "View image {{name}}",
       },
       filePreview: {
         fileCount_one: "{{count}} file",

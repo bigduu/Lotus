@@ -306,6 +306,19 @@ const ToolSessionCardComponent: React.FC<ToolSessionCardProps> = ({
           transition: "border-color 240ms ease, background-color 240ms ease",
         }}
         onClick={() => setIsExpanded(!isExpanded)}
+        role="button"
+        tabIndex={0}
+        aria-expanded={isExpanded}
+        onKeyDown={(event) => {
+          // Ignore keydowns that bubbled up from a nested interactive
+          // control (e.g. the delete button) — only react to the header
+          // itself being focused.
+          if (event.target !== event.currentTarget) return;
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setIsExpanded(!isExpanded);
+          }
+        }}
         data-testid="tool-session-card-header"
       >
         <ToolOutlined style={{ color: token.colorPrimary }} />

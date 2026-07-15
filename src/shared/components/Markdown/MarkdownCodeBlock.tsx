@@ -22,6 +22,13 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
   const [isHovered, setIsHovered] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+  const [isButtonHovered, setIsButtonHovered] = useState(false);
+  // The copy button must always exist in the DOM (not conditionally
+  // rendered) so keyboard users can Tab to it; opacity/pointer-events are
+  // used to keep it visually hidden until hover or focus reveals it.
+  const showCopyButton = isHovered || isFocused;
+  const copyButtonOpacity = !showCopyButton ? 0 : isButtonHovered ? 1 : 0.8;
 
   // Stable layout values — fall back to constants when token absent (theme-change resilience)
   const marginXS = token?.marginXS ?? 8;
@@ -78,35 +85,30 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
         </SyntaxHighlighter>
       </div>
 
-      {isHovered && (
-        <Button
-          type="text"
-          size="small"
-          icon={<CopyOutlined />}
-          onClick={handleCopy}
-          aria-label={t("components.markdown.copyCodeAriaLabel")}
-          style={{
-            position: "absolute",
-            top: paddingSM,
-            right: paddingSM,
-            backgroundColor: "var(--lotus-code-copy-btn-bg, rgba(0, 0, 0, 0.6))",
-            color: "var(--lotus-code-copy-btn-color, white)",
-            border: "none",
-            borderRadius: borderRadiusSM,
-            opacity: 0.8,
-            transition: "opacity 0.2s",
-            zIndex: 10,
-          }}
-          onMouseEnter={(e) => {
-            const target = e.currentTarget as HTMLElement;
-            target.style.opacity = "1";
-          }}
-          onMouseLeave={(e) => {
-            const target = e.currentTarget as HTMLElement;
-            target.style.opacity = "0.8";
-          }}
-        />
-      )}
+      <Button
+        type="text"
+        size="small"
+        icon={<CopyOutlined />}
+        onClick={handleCopy}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
+        aria-label={t("components.markdown.copyCodeAriaLabel")}
+        style={{
+          position: "absolute",
+          top: paddingSM,
+          right: paddingSM,
+          backgroundColor: "var(--lotus-code-copy-btn-bg, rgba(0, 0, 0, 0.6))",
+          color: "var(--lotus-code-copy-btn-color, white)",
+          border: "none",
+          borderRadius: borderRadiusSM,
+          opacity: copyButtonOpacity,
+          pointerEvents: showCopyButton ? "auto" : "none",
+          transition: "opacity 0.2s",
+          zIndex: 10,
+        }}
+        onMouseEnter={() => setIsButtonHovered(true)}
+        onMouseLeave={() => setIsButtonHovered(false)}
+      />
     </Card>
   );
 };

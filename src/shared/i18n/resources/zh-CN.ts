@@ -420,6 +420,9 @@ export const zhCnTranslation = {
       },
       imagePreview: {
         counter: "第 {{current}} / {{total}} 张",
+        previous: "上一张图片",
+        next: "下一张图片",
+        thumbnail: "查看图片 {{name}}",
       },
       filePreview: {
         fileCount_one: "{{count}} 个文件",

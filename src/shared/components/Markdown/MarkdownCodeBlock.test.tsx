@@ -235,16 +235,39 @@ describe("MarkdownCodeBlock", () => {
       });
     });
 
-    it("hides copy button on mouse leave", async () => {
+    it("visually hides copy button on mouse leave without removing it from the DOM", async () => {
+      // The button must stay mounted (just visually hidden) so keyboard users
+      // can still Tab to it — see issue #13.
       const code = "const x = 1;";
-      const { container, queryByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
+      const { container, getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
 
       const card = container.querySelector(".ant-card");
       fireEvent.mouseEnter(card!);
       fireEvent.mouseLeave(card!);
 
       await waitFor(() => {
-        expect(queryByRole("button")).not.toBeInTheDocument();
+        const button = getByRole("button");
+        expect(button).toBeInTheDocument();
+        expect(button).toHaveStyle({ opacity: "0" });
+      });
+    });
+
+    it("is always present in the DOM for keyboard focus, even without hovering", () => {
+      const code = "const x = 1;";
+      const { getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
+
+      expect(getByRole("button")).toBeInTheDocument();
+    });
+
+    it("reveals the copy button on keyboard focus", async () => {
+      const code = "const x = 1;";
+      const { getByRole } = render(renderCodeBlock("javascript", code, mockToken)!);
+
+      const button = getByRole("button");
+      fireEvent.focus(button);
+
+      await waitFor(() => {
+        expect(button).toHaveStyle({ opacity: "0.8" });
       });
     });
 
@@ -443,8 +466,11 @@ describe("MarkdownCodeBlock", () => {
       fireEvent.mouseEnter(card!);
 
       const button = await waitFor(() => getByRole("button"));
-      fireEvent.mouseEnter(button);
-      fireEvent.mouseLeave(button);
+      fireEvent.mouseEnter(button, { relatedTarget: card });
+      // relatedTarget: the pointer moved back onto the card, not fully away
+      // from it — without this jsdom/RTL can't infer containment (no real
+      // layout) and will also fire the ancestor Card's mouseleave handler.
+      fireEvent.mouseLeave(button, { relatedTarget: card });
 
       expect(button).toHaveStyle({ opacity: "0.8" });
     });
