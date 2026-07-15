@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, fireEvent, waitFor } from "@testing-library/react";
 import { message } from "antd";
-import { renderCodeBlock, MermaidRenderMode } from "./MarkdownCodeBlock";
+import { renderCodeBlock } from "./MarkdownCodeBlock";
 import * as clipboard from "@shared/utils/clipboard";
 
 // Mock dependencies
@@ -300,6 +300,20 @@ describe("MarkdownCodeBlock", () => {
       const code = "some code";
       const { container } = render(renderCodeBlock("unknown-language", code, mockToken)!);
       expect(container.textContent).toContain(code);
+    });
+
+    it("caps large code blocks with an internally scrollable max-height wrapper", () => {
+      const code = Array(500).fill("console.log('line');").join("\n");
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
+
+      const card = container.querySelector(".ant-card");
+      expect(card).not.toBeNull();
+      // The card itself must not carry the scroll/height cap so the copy
+      // button (its absolutely-positioned sibling) stays pinned in view.
+      expect(card).not.toHaveStyle({ maxHeight: "60vh" });
+
+      const scrollWrapper = card!.querySelector(".ant-card-body > div");
+      expect(scrollWrapper).toHaveStyle({ maxHeight: "60vh", overflow: "auto" });
     });
   });
 

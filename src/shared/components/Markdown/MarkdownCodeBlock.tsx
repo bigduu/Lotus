@@ -49,28 +49,34 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
       style={{
         position: "relative",
         maxWidth: "100%",
-        overflow: "auto",
       }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <SyntaxHighlighter
-        style={getSyntaxTheme()}
-        language={isSupported ? normalizedLanguage : "text"}
-        PreTag="div"
-        customStyle={{
-          margin: `${marginXS}px 0`,
-          borderRadius: borderRadiusSM,
-          fontSize: fontSizeSM,
-          maxWidth: "100%",
-          paddingRight: "50px",
+      <div
+        style={{
+          maxHeight: "60vh",
+          overflow: "auto",
         }}
-        showLineNumbers={codeString.split("\n").length > 10}
-        wrapLines={true}
-        wrapLongLines={true}
       >
-        {codeString}
-      </SyntaxHighlighter>
+        <SyntaxHighlighter
+          style={getSyntaxTheme()}
+          language={isSupported ? normalizedLanguage : "text"}
+          PreTag="div"
+          customStyle={{
+            margin: `${marginXS}px 0`,
+            borderRadius: borderRadiusSM,
+            fontSize: fontSizeSM,
+            maxWidth: "100%",
+            paddingRight: "50px",
+          }}
+          showLineNumbers={codeString.split("\n").length > 10}
+          wrapLines={true}
+          wrapLongLines={true}
+        >
+          {codeString}
+        </SyntaxHighlighter>
+      </div>
 
       {isHovered && (
         <Button
