@@ -971,6 +971,7 @@ export const enUsTranslation = {
           version: "Version",
           status: "Status",
           registered: "Registered",
+          serviceStatus: "Service Status",
           source: "Source",
           trust: "Trust",
           actions: "Actions",
@@ -998,6 +999,25 @@ export const enUsTranslation = {
           skills_other: "{{count}} skills",
           workflows_one: "{{count}} workflow",
           workflows_other: "{{count}} workflows",
+          services_one: "{{count}} service",
+          services_other: "{{count}} services",
+        },
+        serviceStatus: {
+          state: {
+            starting: "Starting",
+            running: "Running",
+            degraded: "Degraded",
+            crashed: "Crashed",
+            restarting: "Restarting",
+            stopping: "Stopping",
+            stopped: "Stopped",
+          },
+          tooltip: {
+            id: "Service: {{id}}",
+            pid: "PID: {{pid}}",
+            restartCount: "Restarts: {{count}}",
+            lastError: "Last error: {{error}}",
+          },
         },
         actions: {
           update: "Update",

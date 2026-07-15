@@ -5,7 +5,19 @@ import type {
   PluginRegistered,
   PluginSource,
   PluginStatus,
+  ServiceState,
+  ServiceStatusView,
 } from "./types";
+
+const SERVICE_STATES: readonly ServiceState[] = [
+  "starting",
+  "running",
+  "degraded",
+  "crashed",
+  "restarting",
+  "stopping",
+  "stopped",
+];
 
 const normalizeStringArray = (value: unknown): string[] | undefined => {
   if (!Array.isArray(value)) {
@@ -35,7 +47,45 @@ const normalizeRegistered = (value: unknown): PluginRegistered | undefined => {
   const workflowFilenames = normalizeStringArray(record.workflow_filenames);
   if (workflowFilenames) registered.workflow_filenames = workflowFilenames;
 
+  const serviceIds = normalizeStringArray(record.service_ids);
+  if (serviceIds) registered.service_ids = serviceIds;
+
   return Object.keys(registered).length > 0 ? registered : undefined;
+};
+
+const normalizeServiceState = (value: unknown): ServiceState =>
+  typeof value === "string" && (SERVICE_STATES as readonly string[]).includes(value)
+    ? (value as ServiceState)
+    : "stopped";
+
+const normalizeServiceStatusEntry = (value: unknown): ServiceStatusView | null => {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const id = typeof record.id === "string" && record.id.trim() ? record.id : "";
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    state: normalizeServiceState(record.state),
+    pid: typeof record.pid === "number" ? record.pid : undefined,
+    restart_count: typeof record.restart_count === "number" ? record.restart_count : 0,
+    last_error: typeof record.last_error === "string" ? record.last_error : undefined,
+  };
+};
+
+const normalizeServiceStatus = (value: unknown): ServiceStatusView[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const filtered = value
+    .map((item) => normalizeServiceStatusEntry(item))
+    .filter((item): item is ServiceStatusView => Boolean(item));
+  return filtered.length > 0 ? filtered : undefined;
 };
 
 const normalizeSource = (value: unknown): PluginSource => {
@@ -86,6 +136,7 @@ const normalizePlugin = (raw: unknown, index = 0): InstalledPluginView | null =>
     source: normalizeSource(record.source),
     status: normalizeStatus(record.status),
     registered: normalizeRegistered(record.registered),
+    service_status: normalizeServiceStatus(record.service_status),
   };
 };
 

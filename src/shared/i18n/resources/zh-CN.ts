@@ -943,6 +943,7 @@ export const zhCnTranslation = {
           version: "版本",
           status: "状态",
           registered: "已注册资源",
+          serviceStatus: "服务状态",
           source: "来源",
           trust: "信任状态",
           actions: "操作",
@@ -970,6 +971,25 @@ export const zhCnTranslation = {
           skills_other: "{{count}} 个技能",
           workflows_one: "{{count}} 个工作流",
           workflows_other: "{{count}} 个工作流",
+          services_one: "{{count}} 个服务",
+          services_other: "{{count}} 个服务",
+        },
+        serviceStatus: {
+          state: {
+            starting: "启动中",
+            running: "运行中",
+            degraded: "异常降级",
+            crashed: "已崩溃",
+            restarting: "重启中",
+            stopping: "停止中",
+            stopped: "已停止",
+          },
+          tooltip: {
+            id: "服务：{{id}}",
+            pid: "PID：{{pid}}",
+            restartCount: "重启次数：{{count}}",
+            lastError: "最近一次错误：{{error}}",
+          },
         },
         actions: {
           update: "更新",
