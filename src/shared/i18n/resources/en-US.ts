@@ -60,6 +60,17 @@ export const enUsTranslation = {
     },
     sessionSummary: {
       title: "Session Summary",
+      totalTokens: "Total tokens",
+      promptTokens: "Prompt",
+      completionTokens: "Completion",
+      messages: "messages",
+      userTurns: "user",
+      assistantTurns: "assistant",
+      toolCalls: "tool calls",
+      errors: "errors",
+      compressions: "compressions",
+      filesChanged: "Files Changed",
+      lastResponse: "Latest Response",
     },
     inspector: {
       title: "Inspector",
@@ -92,6 +103,13 @@ export const enUsTranslation = {
         openWorkflowSettings: "Open Workflow Settings",
         openSessionsSettings: "Open Session Monitor",
         openSchedulesSettings: "Open Schedules",
+        switchToLight: "Switch to Light Mode",
+        switchToDark: "Switch to Dark Mode",
+        showSidebar: "Show Sidebar",
+        hideSidebar: "Hide Sidebar",
+        splitPane: "Split Pane",
+        switchToAdvanced: "Switch to Advanced Mode",
+        switchToSimple: "Switch to Simple Mode",
       },
       errors: {
         actionFailed: "Command failed",
@@ -206,6 +224,7 @@ export const enUsTranslation = {
       file: "File",
       close: "Close",
       clear: "Clear",
+      moreActions: "More actions",
     },
     setup: {
       welcome: {
@@ -298,6 +317,10 @@ export const enUsTranslation = {
           confirm: "Are you sure you want to delete {{count}} sessions from {{date}}?",
         },
         newSessionWithPrompt: "New session with {{prompt}}",
+        title: "Chat sidebar",
+        collapse: "Collapse sidebar",
+        chatList: "Chat list",
+        untitledChat: "Untitled Chat",
       },
       workspace: {
         modalTitle: "Set Workspace Path",
@@ -324,6 +347,9 @@ export const enUsTranslation = {
         validWorkspace: "Valid workspace",
         fileCount: "{{count}} files",
         folderSelected: "Folder selected successfully",
+        openInspector: "Open inspector",
+        multiPane: "{{count}} panes",
+        toggleInspector: "Open inspector",
       },
       folderBrowser: {
         title: "Select Workspace Folder",
@@ -373,6 +399,7 @@ export const enUsTranslation = {
         allowedTools: "Allowed tools:",
         autoPrefixLabel: "Auto prefix: {{prefix}}",
         mustStartWithPrefix: 'Message must start with "{{prefix}}"',
+        messageComposer: "Message composer",
       },
       actions: {
         regenerate: "Regenerate response",
@@ -576,6 +603,7 @@ export const enUsTranslation = {
       },
       respond: {
         customAnswerPlaceholder: "Type your custom answer...",
+        submitToolResult: "Submit tool result",
       },
       emptyLauncher: {
         title: "Start with a task",
@@ -603,10 +631,94 @@ export const enUsTranslation = {
             prefill:
               "Help me investigate token usage, context growth, and truncation risk for this session or workflow. Summarize the likely drivers and recommend concrete next fixes.",
           },
+          implementFeature: {
+            title: "Implement feature",
+            description:
+              "Plan and build a feature step by step following existing code conventions.",
+            sessionTitle: "Implement Feature",
+            prefill:
+              "Help me implement a new feature in this workspace. Start by understanding the codebase structure, then propose an implementation plan before writing code.",
+          },
+          refactor: {
+            title: "Refactor code",
+            description: "Get targeted suggestions for improving code quality and maintainability.",
+            sessionTitle: "Refactor Suggestion",
+            prefill:
+              "Suggest refactoring improvements for the code in this workspace. Focus on readability, maintainability, and performance. Propose incremental changes with clear rationale.",
+          },
+          bugInvestigation: {
+            title: "Bug investigation",
+            description: "Diagnose issues by analyzing code, logs, and runtime behavior.",
+            sessionTitle: "Bug Investigation",
+            prefill:
+              "Help me investigate a bug. I'll describe the symptoms and share relevant code or logs. Trace the root cause and suggest targeted fixes.",
+          },
+          explainError: {
+            title: "Explain error",
+            description: "Understand what went wrong from an error message or stack trace.",
+            sessionTitle: "Explain Error",
+            prefill:
+              "Help me understand the following error. Explain the root cause, suggest fixes, and share prevention tips.",
+          },
+          architectureReview: {
+            title: "Read repo architecture",
+            description: "Analyze repository structure, modules, and architectural patterns.",
+            sessionTitle: "Architecture Review",
+            prefill:
+              "Analyze the architecture of this repository. Map the key modules, data flow, abstractions, and dependency patterns. Identify strengths and potential improvements.",
+          },
+          compareFiles: {
+            title: "Compare files",
+            description: "Diff and understand differences between files or code sections.",
+            sessionTitle: "Compare Files",
+            prefill:
+              "Compare the following files or code sections. Highlight key differences, their implications, and any potential risks.",
+          },
+          releaseNotes: {
+            title: "Generate release notes",
+            description: "Create structured release notes from git history and code changes.",
+            sessionTitle: "Release Notes",
+            prefill:
+              "Generate release notes for the latest changes in this workspace. Categorize into features, fixes, improvements, and breaking changes.",
+          },
+          summarizeWork: {
+            title: "Summarize work",
+            description: "Create a work summary for standups or weekly status reports.",
+            sessionTitle: "Work Summary",
+            prefill:
+              "Help me summarize my recent work for a status update. Pull key accomplishments, blockers, and next steps.",
+          },
+          writeDocs: {
+            title: "Write documentation",
+            description: "Create or improve technical documentation from code and context.",
+            sessionTitle: "Write Documentation",
+            prefill:
+              "Help me write technical documentation for this project. Analyze the code and produce clear, well-structured Markdown documentation.",
+          },
+          createSchedule: {
+            title: "Create scheduled task",
+            description: "Set up a recurring task that runs automatically on a schedule.",
+            sessionTitle: "Create Schedule",
+            prefill:
+              "Help me set up a recurring scheduled task. I'll describe what I want it to do, and you guide me through the configuration.",
+          },
+          sessionReview: {
+            title: "Review session history",
+            description: "Inspect and analyze past sessions for patterns and insights.",
+            sessionTitle: "Session Review",
+            prefill:
+              "Help me review my recent session history. Summarize key decisions, outcomes, and areas that need follow-up.",
+          },
         },
         errors: {
           createFailed: "Failed to create session",
         },
+        searchPlaceholder: "Search templates...",
+        badges: {
+          workspace: "workspace",
+        },
+        noResults:
+          "No templates match your search. Try a different keyword or start a blank session.",
       },
       multiPane: {
         splitHorizontal: "Split horizontally",
@@ -615,6 +727,7 @@ export const enUsTranslation = {
         selectSessionHint: "Select a session to view messages",
         hoverToSplitHint: "Hover a pane to split and compare chats",
         selectMessagesToExport: "Select messages to export",
+        paneLabel: "Pane {{index}}",
       },
       messageCard: {
         authRequired: "Authentication required",
@@ -670,6 +783,8 @@ export const enUsTranslation = {
         noExportableMessages: "No exportable messages",
         noActiveChat: "No active chat",
         selectAtLeastOneMessage: "Please select at least one message",
+        chatRegion: "Chat conversation",
+        exportFailed: "Failed to export conversation",
       },
       statusRail: {
         idle: "Ready",
@@ -690,6 +805,11 @@ export const enUsTranslation = {
         minutesAgo: "{{count}}m ago",
         hoursAgo: "{{count}}h ago",
         daysAgo: "{{count}}d ago",
+      },
+      planMode: {
+        badge: "Plan",
+        tooltip: "Plan mode active · phase: {{status}} · previous mode: {{mode}}",
+        active: "Plan mode",
       },
     },
     settings: {
@@ -948,6 +1068,7 @@ export const enUsTranslation = {
         resetButton: "Reset Application (All Data)",
         runningVersion: "Running version",
         runningVersionDesc: "This is the currently running Lotus frontend version.",
+        lightMode: "Light Mode",
       },
       configTab: {
         tabs: {
@@ -1285,6 +1406,8 @@ export const enUsTranslation = {
         no: "No",
         notSet: "(not set)",
         empty: "(empty)",
+        edit: "Edit",
+        delete: "Delete",
       },
       promptsTab: {
         title: "System Prompt Enhancement",
@@ -1362,6 +1485,9 @@ export const enUsTranslation = {
           awsKeys: "Mask AWS keys",
           emails: "Mask email addresses",
         },
+        save: "Save",
+        edit: "Edit",
+        delete: "Delete",
       },
       schedulesTab: {
         loadFailed: "Failed to load schedules",
@@ -1575,6 +1701,7 @@ export const enUsTranslation = {
         empty: "No workflows found",
         namePlaceholder: "Workflow name",
         contentPlaceholder: "# Workflow Title\n\nDescribe the workflow steps here.",
+        delete: "Delete",
       },
       providerTab: {
         title: "LLM Provider Configuration",
@@ -1761,6 +1888,31 @@ export const enUsTranslation = {
         vendorPresetTooltip:
           "Prefills the provider type and base URL; the preset itself is not saved.",
         vendorPresetModelsHint: "Popular models: {{models}}",
+        copyCodeFailed: "Failed to copy code",
+        instanceUpdated: "Provider instance updated",
+        instanceCreated: "Provider instance created",
+        instanceDeleted: "Provider instance deleted",
+        instanceDeleteFailed: "Failed to delete instance",
+        defaultInstanceSet: "Default provider updated",
+        defaultInstanceFailed: "Failed to set default",
+        providerInstances: "Provider Instances",
+        addInstance: "Add Provider",
+        default: "Default",
+        disabled: "Disabled",
+        setDefault: "Set as default",
+        confirmDeleteInstance: "Delete this provider instance?",
+        delete: "Delete",
+        editInstance: "Edit Provider Instance",
+        createInstance: "Create Provider Instance",
+        providerType: "Provider Type",
+        typeRequired: "Please select a provider type",
+        selectType: "Select provider type",
+        instanceLabel: "Label",
+        labelHelp: "A display name for this provider instance",
+        labelPlaceholder: "My OpenAI Instance",
+        enabled: "Enabled",
+        instanceConfig: "Configuration",
+        noInstances: 'No provider instances configured. Click "Add Provider" to create one.',
       },
       mcpTab: {
         status: {
@@ -1893,6 +2045,8 @@ export const enUsTranslation = {
         headers: "Headers",
         addHeader: "Add Header",
         headerNameRequired: "Header name required",
+        removeEnv: "Remove environment variable",
+        removeHeader: "Remove header",
       },
       metricsCards: {
         totalSessions: "Total Sessions",
@@ -1902,6 +2056,7 @@ export const enUsTranslation = {
         toolContextSavedTokens: "Tool Context Saved Tokens",
         compressionEvents: "Compression Events",
         avgSessionDuration: "Avg Session Duration",
+        syncMismatches: "Sync Mismatches",
       },
       forwardMetricsCards: {
         totalForwardRequests: "Total Forward Requests",
@@ -1929,6 +2084,7 @@ export const enUsTranslation = {
         forwardTokens: "Forward Tokens",
         successful: "Successful",
         failed: "Failed",
+        syncMismatches: "Sync Mismatches",
       },
       metricsTable: {
         session: {
@@ -2111,6 +2267,11 @@ export const enUsTranslation = {
           lastDream: "Last Dream",
           lastReindex: "Last Reindex",
         },
+        syncMismatchBreakdownTitle: "Sync Mismatch Breakdown",
+        syncMismatchBreakdownSubtitle: "Grouped by execute sync mismatch reason",
+        noSyncMismatchBreakdown: "No sync mismatches recorded for the selected range",
+        syncMismatchCountLabel: "Mismatches",
+        syncMismatchReasonLabel: "Reason: {{label}}",
       },
       charts: {
         tokenUsageOverTime: "Token Usage Over Time",
@@ -2135,6 +2296,79 @@ export const enUsTranslation = {
         modelDistributionDescription: "Share of total tokens consumed by model.",
         endpointDistribution: "Endpoint Distribution",
         noForwardMetrics: "No forward metrics available for this range.",
+      },
+      clusters: {
+        fetchError: "Failed to load clusters",
+        membershipError: "Node saved, but updating cluster membership failed",
+        updated: "Node updated",
+        created: "Node created",
+        saveError: "Failed to save node",
+        deleted: "Node deleted",
+        deleteError: "Failed to delete node",
+        testOk: "Reachable: {{info}}",
+        actionOk: "Action triggered",
+        actionFailed: "Action failed",
+        logsEmpty: "(no log output yet)",
+        logsError: "Failed to read logs",
+        label: "Label",
+        disabled: "disabled",
+        target: "Target",
+        local: "local",
+        cluster: "Cluster",
+        status: "Status",
+        lastSeen: "seen {{ago}}",
+        actions: "Actions",
+        test: "Test",
+        deploy: "Deploy",
+        stop: "Stop",
+        logs: "Logs",
+        edit: "Edit",
+        deleteConfirm: "Delete this node?",
+        yes: "Yes",
+        no: "No",
+        delete: "Delete",
+        title: "Remote Clusters",
+        addButton: "Add Node",
+        description:
+          "Register machines (local or over SSH) to deploy worker agents onto. SSH credentials are encrypted at rest and never sent to the agent. Deploy/Test/Stop are wired but the deploy engine ships in a later phase.",
+        noNodes: "No nodes registered",
+        editTitle: "Edit Node",
+        addTitle: "Add Node",
+        save: "Save",
+        cancel: "Cancel",
+        labelRequired: "Label is required",
+        placement: "Placement",
+        ssh: "SSH (remote)",
+        localhost: "Local (this host)",
+        host: "Host",
+        hostRequired: "Host is required",
+        port: "Port",
+        username: "Username",
+        usernameRequired: "Username is required",
+        authMethod: "Auth method",
+        password: "Password",
+        privateKey: "Private key",
+        systemSsh: "Use host's SSH config",
+        secretEditHint: "Leave empty to keep the existing secret",
+        passwordRequired: "Password is required",
+        keepSecret: "Enter new password or leave empty",
+        privateKeyPath: "Private key file path (on this host)",
+        privateKeyInline: "…or paste key (PEM)",
+        privateKeyRequired: "Provide a key file path or paste a private key",
+        passphrase: "Passphrase",
+        artifactPath: "Artifact path (binary to upload)",
+        artifactHint:
+          "Path on this host to the correct-arch bamboo binary; used at deploy time (P2).",
+        role: "Default role",
+        autoRecover: "Auto-recover",
+        autoRecoverHint:
+          "Redeploy this node automatically if the health monitor finds its worker gone.",
+        clusterPlaceholder: "Pick or type a cluster name",
+        enabled: "Enabled",
+        logsTitle: "Logs — {{label}}",
+        refresh: "Refresh",
+        close: "Close",
+        loading: "Loading…",
       },
     },
     components: {
@@ -2162,6 +2396,7 @@ export const enUsTranslation = {
         copyResult: "Copy result",
         expandResult: "Expand result",
         collapseResult: "Collapse result",
+        copyContent: "Copy content",
       },
       toolResult: {
         waiting: "Waiting",
@@ -2191,6 +2426,9 @@ export const enUsTranslation = {
           topicPaths: "Topic paths",
           recentMemories: "Recent memories",
         },
+        sideBySide: "Side by side",
+        unified: "Unified",
+        noDiffPreview: "No diff preview available.",
       },
       toolCall: {
         liveOutput: "Live output",
@@ -2217,6 +2455,12 @@ export const enUsTranslation = {
         statusFinish: "finish",
         statusProcess: "process",
         statusWait: "wait",
+        summary: "Summary",
+        fileChanges: "File changes",
+        diff: "Diff",
+        viewFullDiff: "View full diff",
+        viewFullResult: "View full result",
+        fileChangeStats: "Added {{added}} lines, removed {{removed}} lines",
       },
       plan: {
         executionPlan: "Execution Plan",
@@ -2252,6 +2496,9 @@ export const enUsTranslation = {
         customAnswerTip: "Custom answer",
         otherTypeBelow: "Other (type below)",
         confirm: "Confirm",
+        questionLabel: "Question",
+        responseInInputHint: "Use the options or input box below to respond.",
+        responseByOptionHint: "Please respond using the options below the input box.",
       },
       skillManager: {
         title: "Skills",
@@ -2379,6 +2626,16 @@ export const enUsTranslation = {
     },
     success: {
       promptCopied: 'Copied "{{name}}" prompt',
+    },
+    home: {
+      title: "Welcome to Bodhi",
+      subtitle: "Here's an overview of your workspace.",
+      sections: {
+        running: "Running Now",
+        pinned: "Pinned",
+        recent: "Recent Sessions",
+      },
+      empty: "No sessions yet. Create one to get started!",
     },
   },
 } as const;

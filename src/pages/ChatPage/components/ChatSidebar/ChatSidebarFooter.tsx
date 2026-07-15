@@ -38,8 +38,8 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   const agendaLabel = t("ledger.title");
   const themeLabel =
     themeMode === "dark"
-      ? t("settings.app.lightMode", "Light mode")
-      : t("settings.app.darkMode", "Dark mode");
+      ? t("settings.appTab.lightMode", "Light Mode")
+      : t("settings.appTab.darkMode", "Dark Mode");
 
   return (
     <Flex
