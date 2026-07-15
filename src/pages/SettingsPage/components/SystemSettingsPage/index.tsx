@@ -37,6 +37,7 @@ import SystemSettingsHooksTab from "./SystemSettingsHooksTab";
 import SystemSettingsSchedulesTab from "./SystemSettingsSchedulesTab";
 import SystemSettingsSessionsTab from "./SystemSettingsSessionsTab";
 import SystemSettingsNotificationsTab from "./SystemSettingsNotificationsTab";
+import SystemSettingsConnectTab from "./SystemSettingsConnectTab";
 import { ProviderSettings } from "../ProviderSettings";
 import { SkillManager } from "@components/Skill";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
@@ -369,6 +370,11 @@ const SystemSettingsPage = ({
                 t("settings.page.tabs.notifications", "Notifications"),
               ),
               children: <SystemSettingsNotificationsTab />,
+            },
+            {
+              key: "connect",
+              label: tabLabel("connect", t("settings.page.tabs.connect", "Connect")),
+              children: <SystemSettingsConnectTab />,
             },
             {
               key: "app",

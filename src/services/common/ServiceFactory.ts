@@ -51,6 +51,56 @@ export interface NotificationsChannelConfig {
   };
 }
 
+/**
+ * One IM-platform bridge entry under `connect.platforms[]` (mirrors the
+ * backend's `ConnectPlatformConfig` in
+ * crates/infra/bamboo-config/src/config.rs, bamboo bigduu/Bamboo-agent
+ * #453/#456/#476/#462). bamboo-connect drives a Bamboo session from an
+ * external chat platform — Telegram and Feishu/Lark today.
+ *
+ * At most one entry per `type` is honored by the backend
+ * (`multi_bot_guard`, #462): a second entry of the same type is warn-skipped
+ * on the server, so the settings UI presents a single fixed slot per
+ * platform rather than an arbitrary list.
+ *
+ * `token` (Telegram bot token) and `app_secret` (Feishu app secret) are
+ * secrets: `GET bamboo/config` redacts a configured value to `****...****`
+ * (see `@shared/utils/secrets`' `isMaskedSecret`) and never emits plaintext.
+ * Unlike the single-object `notifications.ntfy`/`notifications.bark`
+ * sub-trees, `connect.platforms` is an ARRAY — the backend's
+ * `preserve_masked_connect_secrets` resolves a masked placeholder
+ * POSITIONALLY (patch index against `current.connect.platforms[index]`,
+ * cross-checked against `type`), so an untouched secret must be echoed back
+ * as the literal `****...****` placeholder (not simply omitted) for the
+ * server to keep the stored value.
+ */
+export interface ConnectPlatformConfig {
+  /** Platform adapter selector: `"telegram"` | `"feishu"`. */
+  type: string;
+  /** Telegram bot token. Secret — see the masked-secret contract above. */
+  token?: string;
+  /** Feishu/Lark app id. Not a secret. */
+  app_id?: string;
+  /** Feishu/Lark app secret. Secret — see the masked-secret contract above. */
+  app_secret?: string;
+  /**
+   * Feishu/Lark domain selector: `"feishu"` (default, open.feishu.cn),
+   * `"lark"` (open.larksuite.com), or a private-deployment `https://` base
+   * URL used verbatim.
+   */
+  domain?: string;
+  /**
+   * Platform-scoped user/open ids allowed to drive a session. An EMPTY list
+   * means deny-all (every inbound message is rejected) — deliberately
+   * stricter than other allow-list precedents in this app.
+   */
+  allow_from?: string[];
+}
+
+export interface ConnectConfig {
+  platforms?: ConnectPlatformConfig[];
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -63,6 +113,7 @@ export interface BambooConfig {
   memory?: BambooMemoryConfig;
   subagents?: BambooSubagentsConfig;
   notifications?: NotificationsChannelConfig;
+  connect?: ConnectConfig;
   [key: string]: unknown;
 }
 

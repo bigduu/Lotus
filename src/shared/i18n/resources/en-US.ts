@@ -716,6 +716,7 @@ export const enUsTranslation = {
           envVars: "Env Vars",
           clusters: "Clusters",
           notifications: "Notifications",
+          connect: "Connect",
         },
         groups: {
           ai: "AI",
@@ -788,6 +789,39 @@ export const enUsTranslation = {
             deviceKeyPlaceholderConfigured: "Configured — leave blank to keep",
             deviceKeyPlaceholderEmpty: "The device key from the Bark iOS app",
           },
+        },
+      },
+      connectTab: {
+        title: "Connect (IM Bridge)",
+        description:
+          "Drive Bamboo sessions from an external chat platform. Enabling a platform starts a persistent bridge; disabling removes it.",
+        retry: "Retry",
+        save: "Save connect settings",
+        saving: "Saving…",
+        saved: "Saved",
+        denyAllWarning:
+          "No allowed users configured — every inbound message will be rejected until you add at least one ID.",
+        telegram: {
+          title: "Telegram",
+          enable: "Enable Telegram bridge",
+          token: "Bot Token",
+          tokenPlaceholderConfigured: "Configured — leave blank to keep",
+          tokenPlaceholderEmpty: "Token from @BotFather",
+          allowFrom: "Allowed user IDs",
+          allowFromPlaceholder: "Telegram numeric user ID",
+        },
+        feishu: {
+          title: "Feishu / Lark",
+          enable: "Enable Feishu bridge",
+          appId: "App ID",
+          appIdPlaceholder: "cli_xxxxxxxx",
+          appSecret: "App Secret",
+          appSecretPlaceholderConfigured: "Configured — leave blank to keep",
+          appSecretPlaceholderEmpty: "App secret from the Feishu/Lark developer console",
+          domain: "Domain",
+          domainPlaceholder: "feishu (default), lark, or a private-deployment https:// base URL",
+          allowFrom: "Allowed open IDs",
+          allowFromPlaceholder: "Feishu open_id",
         },
       },
       pluginsTab: {

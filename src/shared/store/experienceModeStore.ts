@@ -30,6 +30,7 @@ export const ADVANCED_ONLY_SETTINGS_TABS = new Set([
   "metrics",
   "sessions",
   "config",
+  "connect",
 ]);
 
 interface ExperienceModeState {
