@@ -44,6 +44,9 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
         {images.slice(0, 3).map((image) => (
           <div
             key={image.id}
+            role="button"
+            tabIndex={0}
+            aria-label={t("chat.imagePreview.thumbnail", { name: image.name })}
             style={{
               position: "relative",
               width: 32,
@@ -54,6 +57,12 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
               cursor: "pointer",
             }}
             onClick={() => onPreview(image)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onPreview(image);
+              }
+            }}
           >
             <img
               src={image.preview}

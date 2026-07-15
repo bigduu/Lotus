@@ -14,10 +14,7 @@ import {
   toolStreamingStore,
   type ToolStreamingState,
 } from "../../../streaming/toolStreamingAtoms";
-import {
-  setBashCompleted,
-  clearBackgroundBashState,
-} from "../../../streaming/backgroundBashAtoms";
+import { setBashCompleted, clearBackgroundBashState } from "../../../streaming/backgroundBashAtoms";
 
 // Mock antd components
 vi.mock("antd", () => ({
@@ -782,6 +779,46 @@ describe("ToolStepsCard", () => {
       render(<ToolStepsCard toolCalls={calls} defaultExpanded={false} hideHeader={true} />);
 
       expect(screen.getByTestId("steps")).toBeDefined();
+    });
+  });
+
+  // ── Header keyboard accessibility (issue #58) ─────────────────────
+
+  describe("header keyboard accessibility", () => {
+    it("exposes the header as a focusable button with aria-expanded", () => {
+      const calls = [makeCall({ toolCallId: "c1" })];
+      render(<ToolStepsCard toolCalls={calls} defaultExpanded={false} />);
+
+      const header = screen.getByTestId("tool-steps-header");
+      expect(header.getAttribute("role")).toBe("button");
+      expect(header.getAttribute("tabindex")).toBe("0");
+      expect(header.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("expands on Enter and collapses on Space", () => {
+      const calls = [makeCall({ toolCallId: "c1" })];
+      render(<ToolStepsCard toolCalls={calls} defaultExpanded={false} />);
+
+      const header = screen.getByTestId("tool-steps-header");
+      expect(screen.queryByTestId("steps")).toBeNull();
+
+      fireEvent.keyDown(header, { key: "Enter" });
+      expect(screen.getByTestId("steps")).toBeDefined();
+      expect(header.getAttribute("aria-expanded")).toBe("true");
+
+      fireEvent.keyDown(header, { key: " " });
+      expect(screen.queryByTestId("steps")).toBeNull();
+      expect(header.getAttribute("aria-expanded")).toBe("false");
+    });
+
+    it("ignores unrelated keys", () => {
+      const calls = [makeCall({ toolCallId: "c1" })];
+      render(<ToolStepsCard toolCalls={calls} defaultExpanded={false} />);
+
+      const header = screen.getByTestId("tool-steps-header");
+      fireEvent.keyDown(header, { key: "a" });
+      fireEvent.keyDown(header, { key: "Escape" });
+      expect(screen.queryByTestId("steps")).toBeNull();
     });
   });
 });

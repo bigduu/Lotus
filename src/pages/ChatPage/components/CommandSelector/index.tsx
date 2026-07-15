@@ -140,6 +140,8 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
         key={command.id}
         ref={isSelected ? selectedItemRef : null}
         className={`command-selector-item ${isSelected ? "selected" : ""}`}
+        role="option"
+        aria-selected={isSelected}
         onClick={() => handleCommandSelect(command)}
         onMouseEnter={() => setSelectedIndex(index)}
       >
@@ -208,6 +210,12 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
     <div
       ref={containerRef}
       className="command-selector-container"
+      // Keyboard interaction is implemented at the container level (document
+      // keydown in useCommandSelectorState: arrows / Ctrl+P/N / Enter /
+      // Space / Tab / Esc). Rows intentionally do NOT get tabIndex — that
+      // would add a tab stop per row and fight the container navigation.
+      role="listbox"
+      aria-label={t("chat.commandSelector.listLabel")}
       style={{
         background: token.colorBgContainer,
         border: `1px solid ${token.colorBorderSecondary}`,

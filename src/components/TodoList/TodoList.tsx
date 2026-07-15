@@ -161,8 +161,7 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
   };
 
   // Toggle pin state
-  const togglePin = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const togglePin = () => {
     setIsPinned(!isPinned);
     if (!isPinned) {
       setIsCollapsed(false);
@@ -221,7 +220,21 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
       )}
       <Tooltip title={isPinned ? t("components.todoList.unpin") : t("components.todoList.pin")}>
         <span
-          onClick={togglePin}
+          role="button"
+          tabIndex={0}
+          aria-pressed={isPinned}
+          aria-label={isPinned ? t("components.todoList.unpin") : t("components.todoList.pin")}
+          onClick={(e) => {
+            e.stopPropagation();
+            togglePin();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              togglePin();
+            }
+          }}
           style={{
             cursor: "pointer",
             color: isPinned ? token.colorPrimary : token.colorTextSecondary,
@@ -233,7 +246,19 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
       </Tooltip>
       {!isPinned && (
         <span
+          role="button"
+          tabIndex={0}
+          aria-expanded={!isCollapsed}
+          aria-label={
+            isCollapsed ? t("components.todoList.expand") : t("components.todoList.collapse")
+          }
           onClick={toggleCollapse}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleCollapse();
+            }
+          }}
           style={{
             cursor: "pointer",
             color: token.colorTextSecondary,

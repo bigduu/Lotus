@@ -1,11 +1,6 @@
 import React, { useCallback, useState } from "react";
 import { Tag, Tooltip } from "antd";
-import {
-  DislikeOutlined,
-  DislikeFilled,
-  LikeOutlined,
-  LikeFilled,
-} from "@ant-design/icons";
+import { DislikeOutlined, DislikeFilled, LikeOutlined, LikeFilled } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import "./index.css";
@@ -129,7 +124,15 @@ export const MessageFeedback: React.FC<{
                 color={v.color}
                 bordered={false}
                 className="lotus-msg-feedback-retry-tag"
+                role="button"
+                tabIndex={0}
                 onClick={() => handleRetry(v)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleRetry(v);
+                  }
+                }}
               >
                 {t(v.labelKey, v.fallbackLabel)}
               </Tag>
