@@ -103,8 +103,14 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                   icon={<LeftOutlined />}
                   onClick={goToPrevious}
                   disabled={images.length <= 1}
+                  aria-label={t("chat.imagePreview.previous")}
                 />
-                <Button icon={<RightOutlined />} onClick={goToNext} disabled={images.length <= 1} />
+                <Button
+                  icon={<RightOutlined />}
+                  onClick={goToNext}
+                  disabled={images.length <= 1}
+                  aria-label={t("chat.imagePreview.next")}
+                />
               </>
             )}
             <Button icon={<DownloadOutlined />} onClick={handleDownload}>
@@ -177,6 +183,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               shape="circle"
               icon={<LeftOutlined />}
               onClick={goToPrevious}
+              aria-label={t("chat.imagePreview.previous")}
               style={{
                 position: "absolute",
                 left: 20,
@@ -190,6 +197,7 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
               shape="circle"
               icon={<RightOutlined />}
               onClick={goToNext}
+              aria-label={t("chat.imagePreview.next")}
               style={{
                 position: "absolute",
                 right: 20,
@@ -231,6 +239,16 @@ export const ImagePreviewModal: React.FC<ImagePreviewModalProps> = ({
                 opacity: index === activeIndex ? 1 : 0.7,
               }}
               onClick={() => setActiveIndex(index)}
+              role="button"
+              tabIndex={0}
+              aria-label={t("chat.imagePreview.thumbnail", { name: image.name })}
+              aria-current={index === activeIndex}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setActiveIndex(index);
+                }
+              }}
             >
               <img
                 src={image.preview}

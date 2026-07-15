@@ -80,8 +80,8 @@ describe("ImagePreviewModal", () => {
       render(<ImagePreviewModal visible={true} images={[mockImages[0]]} onClose={mockOnClose} />);
 
       // No left/right navigation buttons in header
-      const leftButtons = screen.queryAllByRole("button", { name: /left/i });
-      const rightButtons = screen.queryAllByRole("button", { name: /right/i });
+      const leftButtons = screen.queryAllByRole("button", { name: /previous/i });
+      const rightButtons = screen.queryAllByRole("button", { name: /next/i });
 
       // Should be no navigation buttons in header for single image
       expect(leftButtons.length).toBe(0);
@@ -92,8 +92,8 @@ describe("ImagePreviewModal", () => {
       render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
       // Should have left/right navigation buttons
-      const leftButtons = screen.getAllByRole("button", { name: /left/i });
-      const rightButtons = screen.getAllByRole("button", { name: /right/i });
+      const leftButtons = screen.getAllByRole("button", { name: /previous/i });
+      const rightButtons = screen.getAllByRole("button", { name: /next/i });
 
       expect(leftButtons.length).toBeGreaterThan(0);
       expect(rightButtons.length).toBeGreaterThan(0);
@@ -143,7 +143,7 @@ describe("ImagePreviewModal", () => {
     it("should navigate to next image when next button clicked", () => {
       render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
-      const nextButtons = screen.getAllByRole("button", { name: /right/i });
+      const nextButtons = screen.getAllByRole("button", { name: /next/i });
       fireEvent.click(nextButtons[0]);
 
       expect(screen.getByText("test2.jpg")).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe("ImagePreviewModal", () => {
         />,
       );
 
-      const prevButtons = screen.getAllByRole("button", { name: /left/i });
+      const prevButtons = screen.getAllByRole("button", { name: /previous/i });
       fireEvent.click(prevButtons[0]);
 
       expect(screen.getByText("test1.png")).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe("ImagePreviewModal", () => {
     it("should wrap to last image when previous on first image", () => {
       render(<ImagePreviewModal visible={true} images={mockImages} onClose={mockOnClose} />);
 
-      const prevButtons = screen.getAllByRole("button", { name: /left/i });
+      const prevButtons = screen.getAllByRole("button", { name: /previous/i });
       fireEvent.click(prevButtons[0]);
 
       expect(screen.getByText("test3.gif")).toBeInTheDocument();
@@ -187,7 +187,7 @@ describe("ImagePreviewModal", () => {
         />,
       );
 
-      const nextButtons = screen.getAllByRole("button", { name: /right/i });
+      const nextButtons = screen.getAllByRole("button", { name: /next/i });
       fireEvent.click(nextButtons[0]);
 
       expect(screen.getByText("test1.png")).toBeInTheDocument();
@@ -242,7 +242,7 @@ describe("ImagePreviewModal", () => {
       );
 
       // Navigate to second image
-      const nextButtons = screen.getAllByRole("button", { name: /right/i });
+      const nextButtons = screen.getAllByRole("button", { name: /next/i });
       fireEvent.click(nextButtons[0]);
 
       // Download
