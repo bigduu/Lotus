@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { useTranslation } from "react-i18next";
 import { ImageGrid } from "../ImageGrid";
 import { ActionButtonGroup, createCopyButton, createReferenceButton } from "../ActionButtonGroup";
-import { selectIsBusy, useAppStore } from "@shared/store/appStore";
+import { useAppStore } from "@shared/store/appStore";
 import { agentClient } from "@services/chat/AgentService";
 import { isTaskListMessage, isUserFileReferenceMessage, type Message } from "@shared/types/chat";
 import PlanMessageCard from "../PlanMessageCard";
@@ -48,6 +48,15 @@ interface MessageCardProps {
   message: Message;
   onDelete?: (messageId: string) => void;
   messageType?: "text" | "plan" | "question" | "tool_call" | "tool_result";
+  /**
+   * Whether the owning session currently has an active execution
+   * (`selectIsBusy(sessionId)`). Resolved ONCE by the list/pane and passed
+   * down as a prop instead of each card subscribing to the store itself —
+   * see issue #18 (O(n) `useAppStore` subscriptions, one per visible card).
+   * Only the "question" card branch actually consumes this value; the
+   * memo comparator below skips re-renders for every other card type.
+   */
+  isProcessing?: boolean;
 }
 
 const MessageCardComponent: React.FC<MessageCardProps> = ({
@@ -55,6 +64,7 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   message,
   onDelete,
   messageType,
+  isProcessing = false,
 }) => {
   const { role, id: messageId } = message;
   const { token } = useToken();
@@ -68,8 +78,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
   const refreshChats = useAppStore((state) => state.refreshChats);
   const cardRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState<boolean>(false);
-  // selectIsBusy = any active execution; disables card actions while running
-  const isProcessing = useAppStore(selectIsBusy(sessionId));
 
   const sendMessage = useCallback(
     (content: string) => {
@@ -357,14 +365,29 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 };
 
 const MessageCard = memo(MessageCardComponent, (prevProps, nextProps) => {
-  return (
-    prevProps.message === nextProps.message &&
-    prevProps.messageType === nextProps.messageType &&
-    prevProps.onDelete === nextProps.onDelete &&
-    // sessionId drives the busy selector, state-restore, mermaid fix and child
-    // contextId — skipping a render when it changes would leave a stale binding.
-    prevProps.sessionId === nextProps.sessionId
-  );
+  if (
+    prevProps.message !== nextProps.message ||
+    prevProps.messageType !== nextProps.messageType ||
+    prevProps.onDelete !== nextProps.onDelete ||
+    // sessionId drives state-restore, mermaid fix and child contextId —
+    // skipping a render when it changes would leave a stale binding.
+    prevProps.sessionId !== nextProps.sessionId
+  ) {
+    return false;
+  }
+
+  if (prevProps.isProcessing === nextProps.isProcessing) {
+    return true;
+  }
+
+  // `isProcessing` only affects the "question" branch (it disables the
+  // answer buttons while the session is busy) — every other card type
+  // ignores it, so most visible cards skip the re-render entirely when
+  // execution state flips (see issue #18).
+  const usesIsProcessing =
+    nextProps.message.role === "assistant" &&
+    detectMessageType(nextProps.message, nextProps.messageType) === "question";
+  return !usesIsProcessing;
 });
 
 MessageCard.displayName = "MessageCard";
