@@ -9,6 +9,7 @@ import {
   SyncOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
+import { useShallow } from "zustand/react/shallow";
 
 import { selectRailModel, useAppStore } from "@shared/store/appStore";
 
@@ -94,7 +95,16 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
   const { t } = useTranslation();
   const { token } = useToken();
 
-  const model = useAppStore(selectRailModel(sessionId));
+  // `selectRailModel` builds a fresh `RailModel` object literal on every
+  // invocation (issue #6), so a plain `useAppStore(selectRailModel(id))`
+  // subscription re-renders on *any* store mutation — not just this
+  // session's execution state — because the default equality check
+  // (`Object.is`) always sees a "new" object. `useShallow` compares the
+  // returned object's own fields instead, and the underlying execution
+  // reducer preserves referential identity for fields it doesn't touch
+  // (see `executionStateSlice/reducer.ts`), so this bails out unless a
+  // field relevant to this session's rail actually changed.
+  const model = useAppStore(useShallow(selectRailModel(sessionId)));
 
   // Map the rich RailModel to the display-oriented ExecutionState.
   const executionState = useMemo<ExecutionState>(() => {
