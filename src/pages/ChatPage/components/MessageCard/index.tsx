@@ -68,8 +68,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 }) => {
   const { role, id: messageId } = message;
   const { token } = useToken();
-  const isVdiSafeMode =
-    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { t } = useTranslation();
   const { message: appMessage } = AntApp.useApp();
   const screens = useBreakpoint();
@@ -298,8 +296,10 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                 : role === "assistant"
                   ? "var(--lotus-message-assistant-bg)"
                   : token.colorBgContainer,
-            backdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
-            WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
+            // No backdrop-filter here (issue #17): blurring every visible
+            // message card was an expensive per-frame compositor op during
+            // scroll. The tokens above are solid/near-solid now, so the
+            // "frosted" look comes from color alone.
             border:
               role === "user"
                 ? `1px solid var(--lotus-message-user-border)`

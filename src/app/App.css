@@ -310,10 +310,15 @@ body {
   --lotus-purple-shadow: 0 4px 12px rgba(139, 92, 246, 0.14);
   --lotus-item-hover-bg: rgba(204, 251, 241, 0.72);
   --lotus-item-active-bg: rgba(204, 251, 241, 0.55);
+  /* Solid-ish tint (issue #17): previously a near-transparent gradient that
+     relied on `backdrop-filter: blur()` on the card itself to read as a
+     frosted surface. Blur is gone (per-card GPU compositing cost), so the
+     alpha is raised here to keep the same visual "tinted glass" weight
+     without it. */
   --lotus-message-user-bg: linear-gradient(
     135deg,
-    rgba(13, 148, 136, 0.1) 0%,
-    rgba(5, 150, 105, 0.08) 100%
+    rgba(13, 148, 136, 0.16) 0%,
+    rgba(5, 150, 105, 0.13) 100%
   );
   --lotus-message-user-border: rgba(13, 148, 136, 0.18);
   --lotus-divider-color: rgba(13, 148, 136, 0.12);
@@ -339,12 +344,16 @@ body {
   --lotus-code-copy-btn-color: white;
 
   /* ── Message card tokens (light) ────────────────────────────── */
-  --lotus-message-assistant-bg: transparent;
+  /* Was fully `transparent` and relied entirely on the card's
+     `backdrop-filter: blur(14px)` to read as a frosted panel. Now solid
+     (issue #17: dropped per-card blur for GPU cost) — an off-white surface
+     close in weight to --lotus-surface-bg. */
+  --lotus-message-assistant-bg: rgba(255, 255, 255, 0.86);
   --lotus-message-assistant-border: transparent;
   --lotus-message-streaming-bg: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.88) 0%,
-    rgba(248, 250, 255, 0.82) 100%
+    rgba(255, 255, 255, 0.94) 0%,
+    rgba(248, 250, 255, 0.9) 100%
   );
 
   /* ── Input shell tokens (light) ─────────────────────────────── */
@@ -464,10 +473,12 @@ body[data-theme="dark"] {
   --lotus-purple-shadow: 0 4px 12px rgba(139, 92, 246, 0.22);
   --lotus-item-hover-bg: rgba(30, 41, 59, 0.68);
   --lotus-item-active-bg: rgba(30, 41, 59, 0.48);
+  /* Solid-ish tint (issue #17) — see light-theme comment above; alpha raised
+     to compensate for the removed per-card backdrop-filter blur. */
   --lotus-message-user-bg: linear-gradient(
     135deg,
-    rgba(13, 148, 136, 0.12) 0%,
-    rgba(5, 150, 105, 0.1) 100%
+    rgba(13, 148, 136, 0.2) 0%,
+    rgba(5, 150, 105, 0.17) 100%
   );
   --lotus-message-user-border: rgba(21, 127, 107, 0.22);
   --lotus-divider-color: rgba(70, 194, 160, 0.12);
@@ -518,12 +529,15 @@ body[data-theme="dark"] {
   --lotus-code-copy-btn-bg: rgba(0, 0, 0, 0.6);
   --lotus-code-copy-btn-color: rgba(255, 255, 255, 0.9);
 
-  --lotus-message-assistant-bg: transparent;
+  /* Was fully `transparent` and relied entirely on the card's
+     `backdrop-filter: blur(14px)` to read as a frosted panel. Now solid
+     (issue #17: dropped per-card blur for GPU cost). */
+  --lotus-message-assistant-bg: rgba(15, 23, 42, 0.82);
   --lotus-message-assistant-border: transparent;
   --lotus-message-streaming-bg: linear-gradient(
     180deg,
-    rgba(15, 23, 42, 0.8) 0%,
-    rgba(11, 16, 28, 0.72) 100%
+    rgba(15, 23, 42, 0.9) 0%,
+    rgba(11, 16, 28, 0.85) 100%
   );
 
   /* ── Input shell tokens (dark) ──────────────────────────────── */

@@ -144,4 +144,24 @@ describe("StreamingMessageCard", () => {
       expect(screen.getByText(/memory/i)).toBeInTheDocument();
     });
   });
+
+  // Regression test for Lotus issue #17: the streaming card re-renders on
+  // every streamed token, so its `backdrop-filter: blur(14px)` sat on the
+  // hottest possible repaint path. Removed in favor of the near-opaque
+  // --lotus-message-streaming-bg gradient. This only checks the style prop —
+  // see the PR body for the human-eyeball checklist.
+  it("does not set backdropFilter on the streaming card", async () => {
+    const { default: StreamingMessageCard } = await import("./index");
+
+    await setAssistantLiveState("session-1", { content: "Hello" });
+
+    render(
+      <AntApp>
+        <StreamingMessageCard sessionId="session-1" />
+      </AntApp>,
+    );
+
+    const card = await screen.findByTestId("streaming-indicator");
+    expect(card.getAttribute("style") ?? "").not.toMatch(/backdrop-filter/i);
+  });
 });

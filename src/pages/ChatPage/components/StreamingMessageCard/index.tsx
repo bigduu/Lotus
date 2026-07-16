@@ -287,8 +287,6 @@ interface StreamingMessageCardProps {
 
 const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessionId }) => {
   const { token } = useToken();
-  const isVdiSafeMode =
-    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { t } = useTranslation();
   const statusMessageId = `streaming-status-${sessionId}`;
   const liveAssistantState = useAssistantStreamingState(sessionId);
@@ -366,8 +364,10 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
         maxWidth: "800px",
         margin: "0 auto",
         background: "var(--lotus-message-streaming-bg)",
-        backdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
-        WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
+        // No backdrop-filter here (issue #17): this card re-renders on
+        // every streamed token, so a per-card GPU blur was on the hottest
+        // possible repaint path. --lotus-message-streaming-bg is a
+        // near-opaque gradient, so the frosted look survives without it.
         borderRadius: token.borderRadiusLG,
         boxShadow: "none",
         position: "relative",
