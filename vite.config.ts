@@ -77,12 +77,29 @@ export default defineConfig(async ({ command }) => ({
           // ── Vendor splits ──────────────────────────────
           "vendor-react": ["react", "react-dom"],
           "vendor-antd": ["antd", "@ant-design/icons"],
-          "vendor-markdown": [
-            "react-markdown",
-            "react-syntax-highlighter",
-            "remark-gfm",
-            "remark-breaks",
-            "rehype-sanitize",
+          // `react-syntax-highlighter`'s barrel is deliberately NOT listed
+          // here — it's now only reached via
+          // `React.lazy(() => import(...))` from
+          // `markdownSyntaxHighlighter.tsx` (issue #7). Forcing it into this
+          // eagerly-loaded vendor chunk would defeat the lazy boundary and
+          // ship the highlighter on the critical chat-render path again.
+          "vendor-markdown": ["react-markdown", "remark-gfm", "remark-breaks", "rehype-sanitize"],
+          // Pin the lazy-loaded highlighter to its own named chunk, rooted
+          // at our wrapper module — everything it exclusively reaches
+          // (PrismLight, the oneDark theme, the 10 registered language
+          // grammars) is co-located here by Rollup rather than left for
+          // `experimentalMinChunkSize` below to fuse into whatever unrelated
+          // async chunk happens to be small at build time. Verified lean:
+          // this chunk contains none of react-syntax-highlighter's other
+          // ~300 bundled Prism languages — those are pulled in separately
+          // (pre-existing, unrelated to this file) by a handful of chat
+          // components that still import the full `Prism` build; see issue
+          // #7 follow-up notes.
+          "vendor-syntax-highlighter": [
+            path.resolve(
+              __dirname,
+              "./src/shared/components/Markdown/markdownSyntaxHighlighter.tsx",
+            ),
           ],
           "vendor-charts": ["recharts"],
           "vendor-mermaid": ["mermaid"],

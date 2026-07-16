@@ -306,11 +306,14 @@ describe("MarkdownCodeBlock", () => {
       });
     });
 
-    it("shows line numbers for code with >10 lines", () => {
+    it("shows line numbers for code with >10 lines", async () => {
       const code = Array(15).fill("line of code").join("\n");
       const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
-      // Line numbers are rendered by SyntaxHighlighter
-      expect(container.querySelector(".linenumber")).not.toBeNull();
+      // The highlighter is lazy-loaded (issue #7) — the plain Suspense
+      // fallback renders first, then swaps in once the async chunk resolves.
+      await waitFor(() => {
+        expect(container.querySelector(".linenumber")).not.toBeNull();
+      });
     });
 
     it("hides line numbers for code with <=10 lines", () => {
@@ -322,6 +325,25 @@ describe("MarkdownCodeBlock", () => {
     it("uses text language for unsupported languages", () => {
       const code = "some code";
       const { container } = render(renderCodeBlock("unknown-language", code, mockToken)!);
+      expect(container.textContent).toContain(code);
+    });
+
+    it("keeps the code text visible while the lazy-loaded highlighter chunk resolves", async () => {
+      // Issue #7: react-syntax-highlighter is loaded via React.lazy, off the
+      // critical chat-render path — either the plain Suspense fallback or
+      // the real highlighter (once its chunk resolves and stays cached for
+      // the rest of the module's lifetime) must always show the code text,
+      // never a blank gap.
+      const code = "const x = 1;";
+      const { container } = render(renderCodeBlock("javascript", code, mockToken)!);
+
+      expect(container.textContent).toContain(code);
+
+      await waitFor(() => {
+        // Once the highlighter chunk resolves, Prism wraps the code in
+        // token spans.
+        expect(container.querySelector(".token")).not.toBeNull();
+      });
       expect(container.textContent).toContain(code);
     });
 
