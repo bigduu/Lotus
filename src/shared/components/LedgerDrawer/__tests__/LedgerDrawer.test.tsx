@@ -22,7 +22,7 @@ vi.mock("@services/ledger/LedgerService", () => ({
   },
 }));
 
-const LEDGER_UI_TEST_TIMEOUT_MS = 15000;
+const LEDGER_UI_TEST_TIMEOUT_MS = 20000;
 
 function agendaItem(overrides: Record<string, unknown>) {
   return {

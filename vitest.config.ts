@@ -9,6 +9,11 @@ export default defineConfig({
     environment: "jsdom",
     setupFiles: ['./src/test/setup.ts'],
     exclude: ['e2e/**', 'node_modules/**', '.opencode/**'],
+    // Default (5s test / 10s hook) is too tight for AntD-heavy renders once
+    // many test files run concurrently under CPU contention (full-suite
+    // load); individually-fast tests were false-timing-out. See Lotus #78.
+    testTimeout: 20000,
+    hookTimeout: 20000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

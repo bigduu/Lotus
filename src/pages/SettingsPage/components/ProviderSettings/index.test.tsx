@@ -381,7 +381,7 @@ describe("ProviderSettings", () => {
       model: "gpt-4.1",
     });
     expect(postedBodies[0]?.features?.provider_model_ref).toBe(true);
-  }, 15000);
+  }, 20000);
 
   it("backfills legacy memory.background_model into defaults.memory_background on save", async () => {
     const { postedBodies } = setupProviderSettingsFetch(
@@ -426,7 +426,7 @@ describe("ProviderSettings", () => {
       model: "legacy-memory-fast",
     });
     expect(postedBodies[0]?.features?.provider_model_ref).toBe(true);
-  }, 15000);
+  }, 20000);
 
   it("clears selectedModelRef and syncs current session when defaults change", async () => {
     let providerGetCount = 0;
@@ -540,7 +540,7 @@ describe("ProviderSettings", () => {
       },
       { timeout: 10000 },
     );
-  }, 15000);
+  }, 20000);
 
   it("runs server-side validate before saving and blocks save when invalid", async () => {
     (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
@@ -640,7 +640,7 @@ describe("ProviderSettings", () => {
     expect(
       await screen.findByText("OpenAI API key is required", {}, { timeout: 10000 }),
     ).toBeInTheDocument();
-  }, 15000);
+  }, 20000);
 
   it("saves when validation passes (and refreshes provider config during apply)", async () => {
     let providerGetCount = 0;
@@ -736,7 +736,7 @@ describe("ProviderSettings", () => {
       },
       { timeout: 10000 },
     );
-  }, 15000);
+  }, 20000);
 
   it("blocks save when defaults.chat is missing (client-side required)", async () => {
     (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
@@ -780,7 +780,7 @@ describe("ProviderSettings", () => {
 
     render(<ProviderSettings />);
 
-    const saveButton = await screen.findByTestId("save-api-settings");
+    await screen.findByTestId("save-api-settings");
     await waitFor(() => {
       expect(
         (fetch as any).mock.calls.some(
@@ -803,7 +803,7 @@ describe("ProviderSettings", () => {
         ),
       ).toBe(false);
     });
-  }, 15000);
+  }, 20000);
 
   afterEach(async () => {
     cleanup();
@@ -842,7 +842,7 @@ describe("ProviderSettings", () => {
       expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("max");
       expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
     });
-  }, 15000);
+  }, 20000);
 
   it("switches the model preference reasoning effort target when default chat model provider changes", async () => {
     const { postedBodies } = setupProviderSettingsFetch(
@@ -944,7 +944,7 @@ describe("ProviderSettings", () => {
       expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("high");
       expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
     });
-  }, 15000);
+  }, 20000);
 
   it.each([
     {
@@ -1077,6 +1077,6 @@ describe("ProviderSettings", () => {
         expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
       });
     },
-    15000,
+    20000,
   );
 });

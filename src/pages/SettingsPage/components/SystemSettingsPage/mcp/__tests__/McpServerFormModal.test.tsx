@@ -63,7 +63,7 @@ describe("McpServerFormModal", () => {
         }),
       }),
     );
-  }, 15000);
+  }, 20000);
 
   it("preserves form data when submission fails", async () => {
     const onSubmit = vi.fn().mockRejectedValue(new Error("Connection failed"));
@@ -118,7 +118,7 @@ describe("McpServerFormModal", () => {
 
     // Verify modal is still open (user can retry)
     expect(onCancel).not.toHaveBeenCalled();
-  }, 15000);
+  }, 20000);
 
   it("submits via JSON editor", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);

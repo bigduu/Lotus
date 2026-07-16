@@ -7,6 +7,15 @@
 import { vi, beforeEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import "fake-indexeddb/auto";
+import { configure } from "@testing-library/react";
+
+// testing-library's own `waitFor`/`findBy*` timeout (default 1000ms) is
+// independent of vitest's `testTimeout` and was the dominant cause of
+// spurious failures ("Unable to find an element", "expected mock to have
+// been called") under CPU contention from full-suite parallel runs, even
+// when the surrounding vitest test still had timeout budget left. See
+// Lotus #78.
+configure({ asyncUtilTimeout: 10000 });
 
 const createMemoryStorage = (): Storage => {
   const store = new Map<string, string>();

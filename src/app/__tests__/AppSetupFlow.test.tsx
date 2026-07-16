@@ -124,5 +124,5 @@ describe("App setup flow", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("MainLayout")).toBeNull();
     expect(screen.queryByText("SetupPage")).toBeNull();
-  }, 15000);
+  }, 20000);
 });
