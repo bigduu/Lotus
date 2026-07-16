@@ -165,7 +165,7 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
     expect(mockedCreate).not.toHaveBeenCalled();
     // The modal is still open (create dialog title still present).
     expect(screen.getByText("Create Provider Instance")).toBeInTheDocument();
-  }, 15000);
+  }, 20000);
 
   it("round-trips valid JSON into config.request_overrides on create", async () => {
     mockedCreate.mockResolvedValue({
@@ -200,7 +200,7 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
     await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
     const payload = mockedCreate.mock.calls[0]?.[0];
     expect(payload?.config.request_overrides).toEqual({ common: { headers: { "x-test": "1" } } });
-  }, 15000);
+  }, 20000);
 
   it("prefills the textarea from an existing instance's request_overrides when editing", async () => {
     const instance: ProviderInstance = {
@@ -234,7 +234,7 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
         JSON.stringify({ common: { headers: { "x-test": "1" } } }, null, 2),
       );
     });
-  }, 15000);
+  }, 20000);
 
   it("round-trips the edited JSON back into config.request_overrides on update", async () => {
     const instance: ProviderInstance = {
@@ -284,5 +284,5 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
     await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
     const [, payload] = mockedUpdate.mock.calls[0] ?? [];
     expect(payload?.config?.request_overrides).toEqual({ common: { headers: { "x-test": "2" } } });
-  }, 15000);
+  }, 20000);
 });

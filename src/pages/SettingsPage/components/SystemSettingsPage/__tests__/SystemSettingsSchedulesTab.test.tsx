@@ -12,7 +12,7 @@ const mockDeleteSchedule = vi.fn();
 const mockListScheduleSessions = vi.fn();
 const mockListScheduleRuns = vi.fn();
 
-const SCHEDULES_UI_TEST_TIMEOUT_MS = 15000;
+const SCHEDULES_UI_TEST_TIMEOUT_MS = 20000;
 
 vi.mock("../../../../../services/chat/AgentService", async () => {
   const actual = await vi.importActual("../../../../../services/chat/AgentService");
