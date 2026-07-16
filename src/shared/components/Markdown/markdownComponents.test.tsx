@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -95,7 +95,7 @@ describe("createMarkdownComponents", () => {
       expect(screen.getByText("inline code")).toBeInTheDocument();
     });
 
-    it("renders code block with language", () => {
+    it("renders code block with language", async () => {
       const { container } = render(
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
@@ -106,8 +106,11 @@ describe("createMarkdownComponents", () => {
         </ReactMarkdown>,
       );
 
-      // Code block should render with syntax highlighting
-      expect(container.querySelector(".language-javascript")).toBeInTheDocument();
+      // The highlighter is lazy-loaded (issue #7) — wait for the async chunk
+      // to resolve and apply the language-specific class.
+      await waitFor(() => {
+        expect(container.querySelector(".language-javascript")).toBeInTheDocument();
+      });
     });
 
     it("renders code block without language", () => {
@@ -292,7 +295,7 @@ describe("createMarkdownComponents", () => {
       );
 
       const link = screen.getByRole("link", { name: "Test" });
-      const event = fireEvent.click(link);
+      fireEvent.click(link);
 
       // openExternalLink should have been called
       expect(openExternalLinkModule.openExternalLink).toHaveBeenCalled();
