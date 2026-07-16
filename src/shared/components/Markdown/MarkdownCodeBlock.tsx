@@ -7,48 +7,10 @@ import LazyMermaidChart from "../MermaidChart/LazyMermaidChart";
 import MermaidChart from "../MermaidChart";
 import StaticMermaidChart from "../MermaidChart/StaticMermaidChart";
 import { copyText } from "@shared/utils/clipboard";
-import {
-  registeredLanguages,
-  SYNTAX_THEME_BACKGROUND,
-  SYNTAX_THEME_COLOR,
-  SYNTAX_THEME_FONT_FAMILY,
-} from "./markdownSyntax";
+import { registeredLanguages } from "./markdownSyntax";
+import { LazySyntaxHighlighter } from "./LazySyntaxHighlighter";
 
 export type MermaidRenderMode = "lazy" | "eager" | "static";
-
-// The real highlighter (PrismLight + registered languages + the oneDark
-// theme) is the bulk of react-syntax-highlighter's weight. It is loaded on
-// demand — as its own async chunk, off the critical chat-render path — the
-// first time a code block actually needs to paint (see issue #7). The
-// `import()` call is memoized by the module cache, so this only costs a
-// network/parse hit once per session, not once per code block.
-// eslint-disable-next-line react-refresh/only-export-components -- utility component intentionally colocated with render helper
-const LazySyntaxHighlighter = React.lazy(() => import("./markdownSyntaxHighlighter"));
-
-// Suspense fallback shown while the highlighter chunk loads. Code blocks can
-// appear mid-stream, so this must be styled close enough to the real
-// oneDark-highlighted output (same background/text color, font stack, and
-// box metrics) that the swap-in isn't a jarring flash — see issue #7.
-// eslint-disable-next-line react-refresh/only-export-components -- utility component intentionally colocated with render helper
-const PlainCodeBlock: React.FC<{
-  codeString: string;
-  customStyle: React.CSSProperties;
-}> = ({ codeString, customStyle }) => (
-  <pre
-    style={{
-      ...customStyle,
-      background: SYNTAX_THEME_BACKGROUND,
-      color: SYNTAX_THEME_COLOR,
-      fontFamily: SYNTAX_THEME_FONT_FAMILY,
-      lineHeight: 1.5,
-      whiteSpace: "pre",
-      overflow: "auto",
-      padding: "1em",
-    }}
-  >
-    <code>{codeString}</code>
-  </pre>
-);
 
 interface CodeBlockWithCopyProps {
   language: string;
@@ -113,16 +75,12 @@ const CodeBlockWithCopy: React.FC<CodeBlockWithCopyProps> = ({ language, codeStr
           overflow: "auto",
         }}
       >
-        <React.Suspense
-          fallback={<PlainCodeBlock codeString={codeString} customStyle={customStyle} />}
-        >
-          <LazySyntaxHighlighter
-            language={isSupported ? normalizedLanguage : "text"}
-            codeString={codeString}
-            customStyle={customStyle}
-            showLineNumbers={codeString.split("\n").length > 10}
-          />
-        </React.Suspense>
+        <LazySyntaxHighlighter
+          language={isSupported ? normalizedLanguage : "text"}
+          codeString={codeString}
+          customStyle={customStyle}
+          showLineNumbers={codeString.split("\n").length > 10}
+        />
       </div>
 
       <Button

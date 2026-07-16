@@ -3,8 +3,8 @@ import React from "react";
 import { Card, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { LazySyntaxHighlighter } from "@shared/components/Markdown/LazySyntaxHighlighter";
+import { registeredLanguages } from "@shared/components/Markdown/markdownSyntax";
 
 const { Text, Paragraph } = Typography;
 
@@ -96,15 +96,19 @@ export const SystemPromptPreview: React.FC<SystemPromptPreviewProps> = ({
             code: ({ inline, className, children, ...props }: any) => {
               const match = /language-(\w+)/.exec(className || "");
               if (!inline) {
+                const requestedLanguage = (match?.[1] || "text").toLowerCase();
+                // Only the 10 languages registered in markdownSyntaxHighlighter
+                // (issue #7/#82) get real highlighting off the lazy chunk;
+                // anything else falls back to plain text rather than pulling
+                // in the full ~300-language Prism build for a rare tag.
+                const language = registeredLanguages.includes(requestedLanguage)
+                  ? requestedLanguage
+                  : "text";
                 return (
-                  <SyntaxHighlighter
-                    style={oneDark}
-                    language={match?.[1] || "text"}
-                    PreTag="div"
-                    wrapLongLines
-                  >
-                    {String(children).replace(/\n$/, "")}
-                  </SyntaxHighlighter>
+                  <LazySyntaxHighlighter
+                    language={language}
+                    codeString={String(children).replace(/\n$/, "")}
+                  />
                 );
               }
 
