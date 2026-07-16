@@ -29,6 +29,12 @@ interface ConfigFormState extends BambooConfig {
   };
   subagents: {
     max_concurrent?: number;
+    executor?: string;
+    claude_code_binary?: string;
+    claude_code_model?: string;
+    claude_code_permission_mode?: string;
+    claude_code_inherit_user_config?: boolean;
+    claude_code_forward_env?: string[];
   };
 }
 
@@ -37,6 +43,14 @@ type ConfigSaveSection = "network" | "memory" | "subagents";
 const { Text } = Typography;
 const { useToken } = theme;
 const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:9562/v1";
+const SUBAGENT_EXECUTOR_BUILT_IN = "bamboo_runtime";
+const SUBAGENT_EXECUTOR_CLAUDE_CODE = "claude_code";
+const CLAUDE_CODE_PERMISSION_MODES = [
+  "default",
+  "acceptEdits",
+  "plan",
+  "bypassPermissions",
+] as const;
 
 const normalizeToolNames = (names: string[]): string[] =>
   [...new Set(names.map((name) => name.trim()).filter((name) => name.length > 0))].sort();
@@ -99,6 +113,15 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         },
         subagents: {
           max_concurrent: bambooConfig.subagents?.max_concurrent,
+          executor: bambooConfig.subagents?.executor,
+          claude_code_binary: bambooConfig.subagents?.claude_code_binary,
+          claude_code_model: bambooConfig.subagents?.claude_code_model,
+          claude_code_permission_mode: bambooConfig.subagents?.claude_code_permission_mode,
+          claude_code_inherit_user_config:
+            bambooConfig.subagents?.claude_code_inherit_user_config ?? false,
+          claude_code_forward_env: normalizeToolNames(
+            bambooConfig.subagents?.claude_code_forward_env ?? [],
+          ),
         },
       });
       const nextDisabled = readDisabledTools(bambooConfig);
@@ -146,6 +169,73 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     }));
   };
 
+  const handleSubagentExecutorChange = (value: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      // Always store a concrete string (never `undefined`): the save patch
+      // is deep-merged server-side (crates/infra/bamboo-config/src/patch.rs
+      // `deep_merge_json`), so an OMITTED key means "leave unchanged," not
+      // "clear." Sending the literal "bamboo_runtime" (which the backend
+      // treats identically to an absent/`None` executor — see
+      // bamboo-engine external_agents/runtime.rs) is what actually reverts
+      // a previously-saved `claude_code` executor back to built-in.
+      subagents: {
+        ...prev.subagents,
+        executor: value,
+      },
+    }));
+  };
+
+  const handleClaudeCodeBinaryChange = (value: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        claude_code_binary: value.trim() || undefined,
+      },
+    }));
+  };
+
+  const handleClaudeCodeModelChange = (value: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        claude_code_model: value.trim() || undefined,
+      },
+    }));
+  };
+
+  const handleClaudeCodePermissionModeChange = (value: string) => {
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        claude_code_permission_mode: value,
+      },
+    }));
+  };
+
+  const handleClaudeCodeInheritUserConfigToggle = (checked: boolean) => {
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        claude_code_inherit_user_config: checked,
+      },
+    }));
+  };
+
+  const handleClaudeCodeForwardEnvChange = (values: string[]) => {
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        claude_code_forward_env: normalizeToolNames(values),
+      },
+    }));
+  };
+
   const handleSaveConfig = async (section: ConfigSaveSection) => {
     setIsLoading(true);
     try {
@@ -160,9 +250,22 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           memory: { auto_dream_enabled: config.memory.auto_dream_enabled },
         };
       } else {
+        const isClaudeCode = config.subagents.executor === SUBAGENT_EXECUTOR_CLAUDE_CODE;
         patch = {
           subagents: {
             max_concurrent: config.subagents.max_concurrent,
+            executor: config.subagents.executor,
+            claude_code_binary: isClaudeCode ? config.subagents.claude_code_binary : undefined,
+            claude_code_model: isClaudeCode ? config.subagents.claude_code_model : undefined,
+            claude_code_permission_mode: isClaudeCode
+              ? config.subagents.claude_code_permission_mode
+              : undefined,
+            claude_code_inherit_user_config: isClaudeCode
+              ? config.subagents.claude_code_inherit_user_config
+              : undefined,
+            claude_code_forward_env: isClaudeCode
+              ? config.subagents.claude_code_forward_env
+              : undefined,
           },
         };
       }
@@ -393,6 +496,168 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                         }
                       />
                     </div>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: token.marginMD,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <div>
+                        <Text strong>{t("settings.configTab.subagentExecutor")}</Text>
+                        <div>
+                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                            {t("settings.configTab.subagentExecutorHint")}
+                          </Text>
+                        </div>
+                      </div>
+                      <Select
+                        data-testid="subagent-executor"
+                        style={{ width: 260 }}
+                        value={config.subagents.executor ?? SUBAGENT_EXECUTOR_BUILT_IN}
+                        onChange={(value) => handleSubagentExecutorChange(value as string)}
+                        options={[
+                          {
+                            label: t("settings.configTab.subagentExecutorBuiltIn"),
+                            value: SUBAGENT_EXECUTOR_BUILT_IN,
+                          },
+                          {
+                            label: t("settings.configTab.subagentExecutorClaudeCode"),
+                            value: SUBAGENT_EXECUTOR_CLAUDE_CODE,
+                          },
+                        ]}
+                      />
+                    </div>
+
+                    {config.subagents.executor === SUBAGENT_EXECUTOR_CLAUDE_CODE && (
+                      <Space
+                        direction="vertical"
+                        size={token.marginMD}
+                        style={{
+                          width: "100%",
+                          padding: token.paddingSM,
+                          borderRadius: token.borderRadiusLG,
+                          background: token.colorFillTertiary,
+                        }}
+                      >
+                        <Alert
+                          type="info"
+                          showIcon
+                          message={t("settings.configTab.claudeCodeExecutorNotice")}
+                        />
+
+                        <div>
+                          <Text strong>{t("settings.configTab.claudeCodeBinary")}</Text>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                              {t("settings.configTab.claudeCodeBinaryHint")}
+                            </Text>
+                          </div>
+                          <Input
+                            data-testid="claude-code-binary"
+                            style={{ marginTop: token.marginXXS }}
+                            placeholder={t("settings.configTab.claudeCodeBinaryPlaceholder")}
+                            value={config.subagents.claude_code_binary ?? ""}
+                            onChange={(e) => handleClaudeCodeBinaryChange(e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <Text strong>{t("settings.configTab.claudeCodeModel")}</Text>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                              {t("settings.configTab.claudeCodeModelHint")}
+                            </Text>
+                          </div>
+                          <Input
+                            data-testid="claude-code-model"
+                            style={{ marginTop: token.marginXXS }}
+                            placeholder={t("settings.configTab.claudeCodeModelPlaceholder")}
+                            value={config.subagents.claude_code_model ?? ""}
+                            onChange={(e) => handleClaudeCodeModelChange(e.target.value)}
+                          />
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: token.marginMD,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <div>
+                            <Text strong>{t("settings.configTab.claudeCodePermissionMode")}</Text>
+                            <div>
+                              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                                {t("settings.configTab.claudeCodePermissionModeHint")}
+                              </Text>
+                            </div>
+                          </div>
+                          <Select
+                            data-testid="claude-code-permission-mode"
+                            style={{ width: 220 }}
+                            value={config.subagents.claude_code_permission_mode ?? "default"}
+                            onChange={(value) =>
+                              handleClaudeCodePermissionModeChange(value as string)
+                            }
+                            options={CLAUDE_CODE_PERMISSION_MODES.map((mode) => ({
+                              label: t(`settings.configTab.claudeCodePermissionModes.${mode}`),
+                              value: mode,
+                            }))}
+                          />
+                        </div>
+
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: token.marginMD,
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <div>
+                            <Text strong>
+                              {t("settings.configTab.claudeCodeInheritUserConfig")}
+                            </Text>
+                            <div>
+                              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                                {t("settings.configTab.claudeCodeInheritUserConfigHint")}
+                              </Text>
+                            </div>
+                          </div>
+                          <Switch
+                            data-testid="claude-code-inherit-user-config"
+                            checked={config.subagents.claude_code_inherit_user_config ?? false}
+                            onChange={handleClaudeCodeInheritUserConfigToggle}
+                          />
+                        </div>
+
+                        <div>
+                          <Text strong>{t("settings.configTab.claudeCodeForwardEnv")}</Text>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                              {t("settings.configTab.claudeCodeForwardEnvHint")}
+                            </Text>
+                          </div>
+                          <Select<string[]>
+                            data-testid="claude-code-forward-env"
+                            mode="tags"
+                            open={false}
+                            tokenSeparators={[",", " "]}
+                            style={{ width: "100%", marginTop: token.marginXXS }}
+                            value={config.subagents.claude_code_forward_env ?? []}
+                            onChange={(value) => handleClaudeCodeForwardEnvChange(value)}
+                            placeholder={t("settings.configTab.claudeCodeForwardEnvPlaceholder")}
+                          />
+                        </div>
+                      </Space>
+                    )}
 
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>
                       <Button

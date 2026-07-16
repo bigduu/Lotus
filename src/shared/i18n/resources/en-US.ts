@@ -1249,6 +1249,37 @@ export const enUsTranslation = {
         subagentMaxConcurrent: "Max concurrent actors",
         subagentMaxConcurrentHint:
           "Upper bound on actor processes running at once; further spawns wait their turn. Empty = default (8).",
+        subagentExecutor: "Executor",
+        subagentExecutorHint:
+          "Which engine drives sub-agent actors: the built-in Bamboo agent loop, or the official Claude Code CLI.",
+        subagentExecutorBuiltIn: "Built-in (Bamboo agent loop)",
+        subagentExecutorClaudeCode: "Claude Code CLI",
+        claudeCodeExecutorNotice:
+          "These settings only take effect when Executor is set to Claude Code CLI. By default the child process is isolated from your personal ~/.claude MCP servers, skills, and settings.",
+        claudeCodeBinary: "Claude binary path",
+        claudeCodeBinaryHint:
+          "Override the `claude` executable used to spawn actors. Leave empty to resolve `claude` from PATH.",
+        claudeCodeBinaryPlaceholder: "claude (resolved from PATH)",
+        claudeCodeModel: "Model",
+        claudeCodeModelHint:
+          "Maps to the CLI's --model flag. Leave empty to use the CLI's own default model.",
+        claudeCodeModelPlaceholder: "CLI default",
+        claudeCodePermissionMode: "Permission mode",
+        claudeCodePermissionModeHint:
+          "Maps to the CLI's --permission-mode flag. Always sent explicitly — the CLI's own headless default (auto) would self-approve every tool without asking.",
+        claudeCodePermissionModes: {
+          default: "Default (ask / relay for approval)",
+          acceptEdits: "Accept edits (auto-allow file edits)",
+          plan: "Plan (read-only planning)",
+          bypassPermissions: "Bypass permissions (auto-allow everything)",
+        },
+        claudeCodeInheritUserConfig: "Inherit user ~/.claude config",
+        claudeCodeInheritUserConfigHint:
+          "When off (default), the child is isolated from your personal MCP servers, skills, and settings (--strict-mcp-config --setting-sources project). Turn on only if sub-agents should see your personal Claude Code configuration.",
+        claudeCodeForwardEnv: "Forwarded environment variables",
+        claudeCodeForwardEnvHint:
+          "Extra environment variable NAMES forwarded verbatim to the child process, on top of the fixed HOME/PATH/SHELL/... allowlist. Enter NAMES only — never values or secrets. Forwarding ANTHROPIC_API_KEY here switches billing from CLI subscription auth to API-key auth.",
+        claudeCodeForwardEnvPlaceholder: "e.g. ANTHROPIC_API_KEY, press Enter to add",
         memoryTitle: "Memory & Auto Dream",
         memoryDescription:
           "Manage Bamboo's memory layers: session memory for current-work continuity, long-term memory for durable knowledge, and Auto Dream for background Dream Notebook updates and durable memory extraction.",
