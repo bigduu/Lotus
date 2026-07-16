@@ -1,6 +1,7 @@
 import React from "react";
 import { Spin, theme } from "antd";
 import { FolderOutlined, GlobalOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { useWorkflowSelectorState } from "./useWorkflowSelectorState";
 
 const { useToken } = theme;
@@ -21,6 +22,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
   onAutoComplete,
 }) => {
   const { token } = useToken();
+  const { t } = useTranslation();
   const {
     containerRef,
     selectedItemRef,
@@ -59,7 +61,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
           textAlign: "center",
         }}
       >
-        <Spin size="small" /> Loading workflows...
+        <Spin size="small" /> {t("chat.workflowSelector.loading")}
       </div>
     );
   }
@@ -84,8 +86,8 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
         }}
       >
         {searchText
-          ? `No workflows found matching \"${searchText}\"`
-          : "No workflows available. Create one to get started!"}
+          ? t("chat.workflowSelector.emptyWithSearch", { search: searchText })
+          : t("chat.workflowSelector.empty")}
       </div>
     );
   }
@@ -98,7 +100,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
       // Space / Tab / Esc). Rows intentionally do NOT get tabIndex — that
       // would add a tab stop per row and fight the container navigation.
       role="listbox"
-      aria-label="Workflows"
+      aria-label={t("chat.workflowSelector.listLabel")}
       style={{
         position: "absolute",
         bottom: "100%",
@@ -123,7 +125,7 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
           color: token.colorTextTertiary,
         }}
       >
-        ↑↓ Navigate • Ctrl+P/N Navigate • Enter Select • Space/Tab Complete • Esc Cancel
+        {t("chat.workflowSelector.navigationHint")}
       </div>
       {filteredWorkflows.map((workflow, index) => (
         <div
@@ -172,11 +174,11 @@ const WorkflowSelector: React.FC<WorkflowSelectorProps> = ({
             >
               {workflow.source === "workspace" ? (
                 <>
-                  <FolderOutlined /> Workspace
+                  <FolderOutlined /> {t("chat.workflowSelector.source.workspace")}
                 </>
               ) : (
                 <>
-                  <GlobalOutlined /> Global
+                  <GlobalOutlined /> {t("chat.workflowSelector.source.global")}
                 </>
               )}
             </div>

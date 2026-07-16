@@ -485,6 +485,17 @@ export const zhCnTranslation = {
           goal: "目标",
         },
       },
+      workflowSelector: {
+        loading: "正在加载工作流...",
+        listLabel: "工作流列表",
+        emptyWithSearch: "没有匹配“{{search}}”的工作流",
+        empty: "暂无可用工作流，创建一个即可开始使用！",
+        navigationHint: "↑↓ 导航 • Ctrl+P/N 导航 • Enter 选择 • Space/Tab 补全 • Esc 取消",
+        source: {
+          workspace: "工作区",
+          global: "全局",
+        },
+      },
       model: {
         selectModel: "选择模型",
         noModelSelected: "未选择模型",

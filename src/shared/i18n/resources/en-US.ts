@@ -498,6 +498,18 @@ export const enUsTranslation = {
           goal: "Goal",
         },
       },
+      workflowSelector: {
+        loading: "Loading workflows...",
+        listLabel: "Workflows",
+        emptyWithSearch: 'No workflows found matching "{{search}}"',
+        empty: "No workflows available. Create one to get started!",
+        navigationHint:
+          "↑↓ Navigate • Ctrl+P/N Navigate • Enter Select • Space/Tab Complete • Esc Cancel",
+        source: {
+          workspace: "Workspace",
+          global: "Global",
+        },
+      },
       model: {
         selectModel: "Select model",
         noModelSelected: "No model selected",
