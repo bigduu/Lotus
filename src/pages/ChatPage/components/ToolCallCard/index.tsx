@@ -2,8 +2,7 @@ import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { Collapse, Space, Button, Typography, theme, Tooltip, Tag } from "antd";
 import { ToolOutlined, CopyOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { LazySyntaxHighlighter } from "@shared/components/Markdown/LazySyntaxHighlighter";
 import { safeStringify } from "@shared/utils/resultFormatters";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
 import { generateIntentDescription } from "../../utils/toolIntent";
@@ -217,10 +216,9 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                       overflow: "auto",
                     }}
                   >
-                    <SyntaxHighlighter
+                    <LazySyntaxHighlighter
                       language="text"
-                      style={oneDark}
-                      wrapLongLines={true}
+                      codeString={streamingOutput}
                       customStyle={{
                         margin: 0,
                         backgroundColor: "transparent",
@@ -232,9 +230,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                           wordBreak: "break-word",
                         },
                       }}
-                    >
-                      {streamingOutput}
-                    </SyntaxHighlighter>
+                    />
                   </div>
                 </div>
               )}
@@ -299,10 +295,9 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                     />
                   </Tooltip>
                 </div>
-                <SyntaxHighlighter
+                <LazySyntaxHighlighter
                   language="json"
-                  style={oneDark}
-                  wrapLongLines={true}
+                  codeString={formattedJson}
                   customStyle={{
                     margin: 0,
                     borderRadius: token.borderRadiusSM,
@@ -318,9 +313,7 @@ const ToolCallCardComponent: React.FC<ToolCallCardProps> = ({
                       wordBreak: "break-word",
                     },
                   }}
-                >
-                  {formattedJson}
-                </SyntaxHighlighter>
+                />
               </div>
             </Space>
           ),

@@ -2,8 +2,7 @@ import React, { memo, useMemo } from "react";
 import { Alert, Button, Collapse, Divider, Space, Tag, Tooltip, Typography, theme } from "antd";
 import { RobotOutlined, CopyOutlined, SyncOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { LazySyntaxHighlighter } from "@shared/components/Markdown/LazySyntaxHighlighter";
 import {
   formatResultContent,
   createCompactPreview,
@@ -392,10 +391,9 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                 ) : fileChangePayload ? (
                   <FileChangeViewer payload={fileChangePayload} defaultViewMode="sideBySide" />
                 ) : formatted.isJson ? (
-                  <SyntaxHighlighter
+                  <LazySyntaxHighlighter
                     language="json"
-                    style={oneDark}
-                    wrapLongLines={true}
+                    codeString={formatted.formattedText}
                     customStyle={{
                       margin: 0,
                       borderRadius: token.borderRadiusSM,
@@ -410,9 +408,7 @@ const ToolResultCardComponent: React.FC<ToolResultCardProps> = ({
                         wordBreak: "break-word",
                       },
                     }}
-                  >
-                    {formatted.formattedText}
-                  </SyntaxHighlighter>
+                  />
                 ) : (
                   <pre
                     style={{

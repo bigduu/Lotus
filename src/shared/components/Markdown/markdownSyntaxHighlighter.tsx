@@ -41,8 +41,16 @@ SyntaxHighlighter.registerLanguage("md", markdown);
 export interface MarkdownSyntaxHighlighterProps {
   language: string;
   codeString: string;
-  customStyle: CSSProperties;
-  showLineNumbers: boolean;
+  customStyle?: CSSProperties;
+  showLineNumbers?: boolean;
+  // Forwarded verbatim to the underlying `<SyntaxHighlighter>` — needed by
+  // callers outside MarkdownCodeBlock (issue #82) that render their own
+  // wrap/whitespace rules (e.g. ToolCallCard's live-output panel) or embed
+  // the highlighter inside markup that already supplies a `<pre>` ancestor
+  // (e.g. SystemPromptPreview's react-markdown `code` override).
+  codeTagProps?: React.HTMLProps<HTMLElement>;
+  PreTag?: React.ElementType;
+  className?: string;
 }
 
 // Default export — required for `React.lazy`, which expects the resolved
@@ -51,16 +59,21 @@ const MarkdownSyntaxHighlighter: React.FC<MarkdownSyntaxHighlighterProps> = ({
   language,
   codeString,
   customStyle,
-  showLineNumbers,
+  showLineNumbers = false,
+  codeTagProps,
+  PreTag = "div",
+  className,
 }) => (
   <SyntaxHighlighter
     style={oneDark}
     language={language}
-    PreTag="div"
+    PreTag={PreTag}
     customStyle={customStyle}
     showLineNumbers={showLineNumbers}
     wrapLines={true}
     wrapLongLines={true}
+    codeTagProps={codeTagProps}
+    className={className}
   >
     {codeString}
   </SyntaxHighlighter>

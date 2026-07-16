@@ -1,8 +1,7 @@
 import React, { useMemo } from "react";
 import type { ReactNode } from "react";
 import { Empty, theme } from "antd";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { LazySyntaxHighlighter } from "@shared/components/Markdown/LazySyntaxHighlighter";
 
 import { formatResultContent, safeStringify } from "@shared/utils/resultFormatters";
 
@@ -90,10 +89,9 @@ const FormattedContentPreview: React.FC<FormattedContentPreviewProps> = ({
   if (normalized.isJson) {
     return (
       <div className={surfaceClassName} style={surfaceStyle}>
-        <SyntaxHighlighter
+        <LazySyntaxHighlighter
           language="json"
-          style={oneDark}
-          wrapLongLines={true}
+          codeString={text}
           customStyle={{
             margin: 0,
             backgroundColor: "transparent",
@@ -108,9 +106,7 @@ const FormattedContentPreview: React.FC<FormattedContentPreviewProps> = ({
               wordBreak: "break-word",
             },
           }}
-        >
-          {text}
-        </SyntaxHighlighter>
+        />
       </div>
     );
   }

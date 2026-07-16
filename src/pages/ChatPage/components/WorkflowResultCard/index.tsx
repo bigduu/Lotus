@@ -20,8 +20,7 @@ import {
   ReloadOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { LazySyntaxHighlighter } from "@shared/components/Markdown/LazySyntaxHighlighter";
 import {
   formatResultContent,
   shouldCollapseContent,
@@ -207,10 +206,9 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
           {derivedIsLoading ? (
             <Spin tip={t("components.workflowResult.waitingForResult")} />
           ) : formattedResult.isJson ? (
-            <SyntaxHighlighter
+            <LazySyntaxHighlighter
               language="json"
-              style={oneDark}
-              wrapLongLines
+              codeString={formattedResult.formattedText}
               customStyle={{
                 margin: 0,
                 borderRadius: token.borderRadiusSM,
@@ -219,9 +217,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                 maxHeight: isExpanded ? "none" : 280,
                 overflow: isExpanded ? "auto" : "hidden",
               }}
-            >
-              {formattedResult.formattedText}
-            </SyntaxHighlighter>
+            />
           ) : (
             <pre
               style={{
@@ -257,10 +253,9 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
             </Divider>
 
             {formattedParameters.isJson ? (
-              <SyntaxHighlighter
+              <LazySyntaxHighlighter
                 language="json"
-                style={oneDark}
-                wrapLongLines
+                codeString={formattedParameters.formattedText}
                 customStyle={{
                   margin: 0,
                   borderRadius: token.borderRadiusSM,
@@ -269,9 +264,7 @@ const WorkflowResultCardComponent: React.FC<WorkflowResultCardProps> = ({
                   maxHeight: 220,
                   overflow: "auto",
                 }}
-              >
-                {formattedParameters.formattedText}
-              </SyntaxHighlighter>
+              />
             ) : (
               <pre
                 style={{

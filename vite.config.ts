@@ -91,10 +91,13 @@ export default defineConfig(async ({ command }) => ({
           // `experimentalMinChunkSize` below to fuse into whatever unrelated
           // async chunk happens to be small at build time. Verified lean:
           // this chunk contains none of react-syntax-highlighter's other
-          // ~300 bundled Prism languages — those are pulled in separately
-          // (pre-existing, unrelated to this file) by a handful of chat
-          // components that still import the full `Prism` build; see issue
-          // #7 follow-up notes.
+          // ~300 bundled Prism languages. Every chat component that renders
+          // highlighted code (ToolCallCard, WorkflowResultCard,
+          // ToolResultCard, FormattedContentPreview, SystemPromptPreview,
+          // and MarkdownCodeBlock) now reaches PrismLight exclusively
+          // through `LazySyntaxHighlighter`/`markdownSyntaxHighlighter.tsx`
+          // — issue #7's follow-up (#82) closed the last full-`Prism`
+          // eager importers.
           "vendor-syntax-highlighter": [
             path.resolve(
               __dirname,
