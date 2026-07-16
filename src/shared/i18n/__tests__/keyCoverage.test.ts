@@ -37,6 +37,7 @@ const DYNAMIC_KEY_PREFIXES = [
   "ledger.statuses.",
   "chat.input.reasoning.",
   "settings.syncMismatchReasons.",
+  "settings.configTab.claudeCodePermissionModes.",
   "components.toolResult.memory.action.",
 ];
 

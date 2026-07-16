@@ -1214,6 +1214,36 @@ export const zhCnTranslation = {
         subagentMaxConcurrent: "最大并发 Actor 数",
         subagentMaxConcurrentHint:
           "同时运行的 actor 进程上限，超出的派生请求排队等待。留空使用默认值（8）。",
+        subagentExecutor: "执行引擎 (Executor)",
+        subagentExecutorHint:
+          "驱动子代理 Actor 的引擎：内置的 Bamboo agent loop，或官方 Claude Code CLI。",
+        subagentExecutorBuiltIn: "内置（Bamboo agent loop）",
+        subagentExecutorClaudeCode: "Claude Code CLI",
+        claudeCodeExecutorNotice:
+          "以下设置仅在执行引擎选择 Claude Code CLI 时生效。默认情况下，子进程与你个人的 ~/.claude MCP 服务器、技能和设置是隔离的。",
+        claudeCodeBinary: "Claude 可执行文件路径",
+        claudeCodeBinaryHint:
+          "覆盖用于派生 Actor 的 claude 可执行文件。留空则从 PATH 中解析 claude。",
+        claudeCodeBinaryPlaceholder: "claude（从 PATH 解析）",
+        claudeCodeModel: "模型",
+        claudeCodeModelHint: "对应 CLI 的 --model 参数。留空则使用 CLI 自身的默认模型。",
+        claudeCodeModelPlaceholder: "CLI 默认值",
+        claudeCodePermissionMode: "权限模式",
+        claudeCodePermissionModeHint:
+          "对应 CLI 的 --permission-mode 参数，始终显式传递——CLI 自身无头模式下的默认值（auto）会自动批准所有工具调用而不询问。",
+        claudeCodePermissionModes: {
+          default: "默认（询问 / 转交审批）",
+          acceptEdits: "自动接受编辑（自动批准文件编辑）",
+          plan: "计划模式（仅只读规划）",
+          bypassPermissions: "绕过权限（自动批准所有操作）",
+        },
+        claudeCodeInheritUserConfig: "继承用户 ~/.claude 配置",
+        claudeCodeInheritUserConfigHint:
+          "关闭时（默认），子进程与你个人的 MCP 服务器、技能和设置隔离（--strict-mcp-config --setting-sources project）。仅当子代理需要看到你个人的 Claude Code 配置时才开启。",
+        claudeCodeForwardEnv: "转发的环境变量",
+        claudeCodeForwardEnvHint:
+          "在固定的 HOME/PATH/SHELL/... 白名单之外，额外原样转发给子进程的环境变量名称。仅输入变量名——切勿输入值或密钥。在此转发 ANTHROPIC_API_KEY 会将计费方式从 CLI 订阅认证切换为 API Key 认证。",
+        claudeCodeForwardEnvPlaceholder: "例如 ANTHROPIC_API_KEY，按 Enter 添加",
         memoryTitle: "Memory 与 Auto Dream",
         memoryDescription:
           "管理 Bamboo 的记忆层：会话记忆用于当前工作连续性，长期记忆用于沉淀 durable knowledge，而 Auto Dream 负责在后台更新 Dream Notebook 并提取长期记忆候选项。",

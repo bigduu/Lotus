@@ -54,6 +54,39 @@ export interface BambooMemoryConfig {
 export interface BambooSubagentsConfig {
   /** Max actor processes running at once (backend default: 8). */
   max_concurrent?: number;
+  /**
+   * Which engine drives sub-agent actors: unset/`"bamboo_runtime"` for the
+   * built-in agent loop, `"claude_code"` to drive the official Claude Code
+   * CLI instead (see `claude_code_*` fields below; mirrors bamboo
+   * `SubagentsConfig`/`ExecutorSpec::ClaudeCode`).
+   */
+  executor?: string;
+  /** `executor === "claude_code"` only: override the `claude` executable. Unset resolves `claude` from `PATH`. */
+  claude_code_binary?: string;
+  /** `executor === "claude_code"` only: `--model` override. Unset omits the flag (CLI default). */
+  claude_code_model?: string;
+  /**
+   * `executor === "claude_code"` only: `--permission-mode` override — one of
+   * `"default" | "acceptEdits" | "plan" | "bypassPermissions"`. The backend
+   * always passes an EXPLICIT `--permission-mode` (unset still means
+   * `"default"`, never "omit the flag" — the CLI's own headless default is
+   * `auto`, which self-approves every tool).
+   */
+  claude_code_permission_mode?: string;
+  /**
+   * `executor === "claude_code"` only: `true` lets the child inherit the
+   * invoking user's `~/.claude` MCP servers/skills/settings. `false`/unset
+   * (the default) isolates it.
+   */
+  claude_code_inherit_user_config?: boolean;
+  /**
+   * `executor === "claude_code"` only: extra env var NAMES forwarded
+   * verbatim from the bamboo process's env to the child, on top of the
+   * fixed allowlist. These are variable NAMES only (e.g.
+   * `"ANTHROPIC_API_KEY"`) — never values — so nothing secret round-trips
+   * through this config.
+   */
+  claude_code_forward_env?: string[];
 }
 
 /**
