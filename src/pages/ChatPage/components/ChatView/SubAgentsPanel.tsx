@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { DownOutlined, UpOutlined } from "@ant-design/icons";
 import { App as AntApp, Button, Card, Flex, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
+import { useShallow } from "zustand/react/shallow";
 
 import { selectChildren, useAppStore } from "@shared/store/appStore";
 import { openSession } from "@shared/utils/openSession";
@@ -143,7 +144,19 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
 
   const childrenById = useAppStore((s) => selectChildren(parentSessionId)(s));
-  const chats = useAppStore((s) => s.chats);
+  // Narrow subscription (#3): filter inside the selector, with `useShallow`
+  // comparing the resulting array element-by-reference, instead of
+  // subscribing to the entire `chats` array. Unrelated chat mutations
+  // (new message in another session, title change elsewhere, etc.) produce
+  // a new top-level `chats` array but leave THIS parent's child items
+  // referentially unchanged, so `useShallow` bails out and this panel does
+  // not re-render. Only an actual add/remove/update of one of this parent's
+  // children changes an element reference and lets the update through.
+  const childChats = useAppStore(
+    useShallow((s) =>
+      s.chats.filter((c) => c.kind === "child" && c.parentSessionId === parentSessionId),
+    ),
+  );
   const loadChatHistory = useAppStore((s) => s.loadChatHistory);
   const refreshChats = useAppStore((s) => s.refreshChats);
   const markOptimisticStart = useAppStore((s) => s.markOptimisticStart);
@@ -165,10 +178,8 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   }, [childrenById]);
 
   const persistedChildren = useMemo(() => {
-    return chats
-      .filter((c) => c.kind === "child" && c.parentSessionId === parentSessionId)
-      .sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-  }, [chats, parentSessionId]);
+    return [...childChats].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+  }, [childChats]);
 
   const mergedItems = useMemo(() => {
     const progressById = new Map(progressItems.map((x) => [x.childSessionId, x]));
