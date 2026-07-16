@@ -245,6 +245,163 @@ describe("ChatSidebar", () => {
     });
   });
 
+  describe("status filter date-group expansion (#67)", () => {
+    const clickStatusFilter = (title: "All" | "Pinned" | "Running" | "Child") => {
+      const option = document.querySelector<HTMLElement>(
+        `.ant-segmented-item-label[title="${title}"]`,
+      );
+      expect(option).not.toBeNull();
+      fireEvent.click(option as HTMLElement);
+    };
+
+    beforeEach(() => {
+      // "Platform roadmap" is pinned but left in its own (non-selected)
+      // date bucket by createdAt; pinning routes it into the "Pinned" date
+      // group, which starts collapsed since it isn't the selected session's
+      // group. This mirrors the #61 search fixture, but for the status
+      // filter (pinned/running/child) instead of a search query.
+      useAppStore.setState((state) => ({
+        ...state,
+        chats: state.chats.map((chat) =>
+          chat.id === "root-platform" ? { ...chat, pinned: true } : chat,
+        ),
+      }));
+    });
+
+    it("auto-expands a collapsed, non-selected date group to reveal a status-filter match", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      // Pre-condition: the "Pinned" group is collapsed, so the match is not
+      // yet visible.
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+      clickStatusFilter("Pinned");
+
+      await waitFor(() => {
+        expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+      });
+    });
+
+    it("restores the prior (collapsed) expansion state once the status filter is cleared", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+      clickStatusFilter("Pinned");
+      await waitFor(() => {
+        expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+      });
+
+      clickStatusFilter("All");
+
+      await waitFor(() => {
+        // The group was collapsed before filtering started and was never
+        // manually opened by the user, so it goes back to collapsed instead
+        // of permanently staying expanded because of the filter.
+        expect(screen.queryByText("Platform roadmap")).toBeNull();
+      });
+    });
+
+    it("respects a manual collapse made mid status-filter until the filter changes", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+
+      clickStatusFilter("Pinned");
+      await waitFor(() => {
+        expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+      });
+
+      // Manually collapse the auto-expanded group that contains the match.
+      // Exactly one date group renders while this filter is active (it
+      // holds the single pinned "Platform roadmap" match), so its header is
+      // the sole group-toggle button whose accessible name ends in "(1)".
+      const groupHeader = screen.getByRole("button", { name: /\(1\)$/ });
+      fireEvent.click(groupHeader);
+
+      await waitFor(() => {
+        expect(screen.queryByText("Platform roadmap")).toBeNull();
+      });
+
+      // Unrelated re-renders (e.g. a store update) should not re-force the
+      // group back open while the same status filter is still active.
+      act(() => {
+        useAppStore.setState((state) => ({ ...state }));
+      });
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+      // Changing the filter (away and back) re-derives the auto-expand set,
+      // overriding the manual collapse.
+      clickStatusFilter("All");
+      clickStatusFilter("Pinned");
+
+      await waitFor(() => {
+        expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+      });
+    });
+
+    it("auto-expands for a combined search + status filter match in a collapsed group", async () => {
+      // Give "root-platform" a child that only matches once BOTH the search
+      // query and the "Child" status filter are applied together, so this
+      // covers the combined-filter path rather than just one predicate.
+      useAppStore.setState((state) => ({
+        ...state,
+        chats: [
+          ...state.chats,
+          {
+            id: "child-platform-review",
+            title: "Platform review notes",
+            kind: "child",
+            parentSessionId: "root-platform",
+            rootSessionId: "root-platform",
+            createdAt: 1710100500000,
+            messages: [],
+            config: {
+              systemPromptId: "general_assistant",
+              baseSystemPrompt: "You are helpful.",
+              lastUsedEnhancedPrompt: null,
+            },
+            currentInteraction: null,
+            updatedAt: new Date("2025-03-02T13:00:00Z").toISOString(),
+          },
+        ],
+      }));
+
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      expect(screen.queryByText("Platform review notes")).toBeNull();
+
+      const searchInput = screen.getByPlaceholderText("Search sessions");
+      fireEvent.change(searchInput, { target: { value: "review" } });
+      clickStatusFilter("Child");
+
+      await waitFor(() => {
+        expect(screen.getByText("Platform review notes")).toBeInTheDocument();
+        // "Billing investigation" doesn't match the "review" search term.
+        expect(screen.queryByText("Billing investigation")).toBeNull();
+      });
+    });
+  });
+
   describe("search input debouncing", () => {
     beforeEach(() => {
       // The sidebar only auto-expands the *selected* session's date group by
