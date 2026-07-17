@@ -1,3 +1,5 @@
+import { sanitizeSvgMarkup } from "./sanitizeSvg";
+
 export interface RasterResult {
   /** PNG data URL, rendered at `scale`x the diagram's intrinsic size. */
   url: string;
@@ -69,13 +71,22 @@ const loadImage = (src: string): Promise<HTMLImageElement | null> =>
  * which blurs diagrams and is unreliable for <foreignObject>. Pre-rendering each
  * diagram to a crisp PNG (at `scale`x) and embedding that instead sidesteps both
  * problems. Returns null on any failure so callers can fall back to the SVG.
+ *
+ * `svgMarkup` may be mermaid's raw, pre-sanitization output — sanitize before
+ * building the data URL. Loading an SVG via <img src="data:..."> already
+ * isolates any inline <style> from the host document's CSSOM (it's rendered
+ * as an external resource), but an unscoped rule with a `url()` background
+ * would still be a same-origin-policy-free tracking beacon fired on every
+ * render, so this stays behind the same sanitizer as the live-DOM paths. See
+ * issue #38.
  */
 export const rasterizeSvgToPng = async (
-  svgMarkup: string,
+  rawSvgMarkup: string,
   scale = 3,
 ): Promise<RasterResult | null> => {
-  if (typeof document === "undefined" || !svgMarkup) return null;
+  if (typeof document === "undefined" || !rawSvgMarkup) return null;
 
+  const svgMarkup = sanitizeSvgMarkup(rawSvgMarkup);
   const { width, height, markup } = prepareSvg(svgMarkup);
   if (!width || !height) return null;
 
