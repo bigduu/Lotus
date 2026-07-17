@@ -123,17 +123,20 @@ const MAX_SHORTLIVED = 3;
  * The threshold ADAPTS to the backend's observed cadence (#90): 3× the
  * smallest inter-keepalive gap seen on this connection, clamped to
  * [{@link KEEPALIVE_STALE_FLOOR_MS}, {@link KEEPALIVE_STALE_CEIL_MS}]. A new
- * backend (5s cadence, bamboo#543) is detected in ~15s — a user actively
- * watching a running session must not stare at a dead screen for 45s — while
- * an old 15s-cadence backend keeps the conservative 45s threshold with no
- * false positives. Until a second keepalive establishes the cadence, the
- * ceiling applies.
+ * backend (2s cadence, bamboo#547) is detected dead in ~6s — a user actively
+ * watching a running session must not stare at a dead screen — while an old
+ * 15s-cadence backend keeps the conservative 45s threshold with no false
+ * positives. Until a second keepalive establishes the cadence, the ceiling
+ * applies. The 6s floor (three missed 2s keepalives) is the safety margin
+ * against ordinary jank: a main-thread pause delays the watchdog timer right
+ * along with message processing, and one traffic-delayed keepalive can only
+ * LOOSEN the min-gap-based threshold, never tighten it.
  */
-const KEEPALIVE_STALE_FLOOR_MS = 15_000;
+const KEEPALIVE_STALE_FLOOR_MS = 6_000;
 const KEEPALIVE_STALE_CEIL_MS = 45_000;
 
 /** How often the watchdog checks for staleness. */
-const WATCHDOG_TICK_MS = 2_000;
+const WATCHDOG_TICK_MS = 1_000;
 
 interface FeedChannel {
   handlers: AccountStreamHandlers;
