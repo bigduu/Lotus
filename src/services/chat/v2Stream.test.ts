@@ -470,6 +470,54 @@ describe("v2Stream WebSocket client", () => {
       vi.useRealTimers();
     });
 
+    it("adapts to the 2s production cadence: dead socket detected in ~6-7s", () => {
+      vi.useFakeTimers();
+      const onError = vi.fn();
+      subscribeFeed({ onChange: vi.fn(), onError }, 0);
+
+      const ws = lastSocket();
+      ws.open();
+      // Two keepalives 2s apart → observed cadence 2s → threshold clamps to
+      // the 6s floor (3×2s).
+      ws.emit(keepalive);
+      vi.advanceTimersByTime(2_000);
+      ws.emit(keepalive);
+
+      // 5s of silence: below the floor → still connected.
+      vi.advanceTimersByTime(5_000);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
+
+      // Past 6s (+ a tick): the stale socket is torn down.
+      vi.advanceTimersByTime(3_000);
+      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+      expect(onError).toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it("back-to-back keepalives cannot tighten the threshold below the 6s floor", () => {
+      vi.useFakeTimers();
+      const onError = vi.fn();
+      subscribeFeed({ onChange: vi.fn(), onError }, 0);
+
+      const ws = lastSocket();
+      ws.open();
+      // A burst right after unblock: gaps of ~100ms. 3×0.1s = 0.3s must NOT
+      // become the threshold — the floor holds at 6s.
+      ws.emit(keepalive);
+      vi.advanceTimersByTime(100);
+      ws.emit(keepalive);
+      vi.advanceTimersByTime(100);
+      ws.emit(keepalive);
+
+      // 5s of silence: within the floor → still connected, no false positive.
+      vi.advanceTimersByTime(5_000);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
+      expect(onError).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
     it("adapts the stale threshold to a fast keepalive cadence (~15s detection at 5s cadence)", () => {
       vi.useFakeTimers();
       const onError = vi.fn();
