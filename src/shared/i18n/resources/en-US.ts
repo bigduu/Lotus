@@ -435,6 +435,7 @@ export const enUsTranslation = {
         runProjectDreamSuccess: "Project Dream updated",
         runProjectDreamNoChange: "No Project Dream update was needed",
         runProjectDreamFailed: "Failed to run Project Dream",
+        scheduleThis: "Schedule this…",
       },
       prompt: {
         selectorTitle: "Select System Prompt",
@@ -1654,6 +1655,12 @@ export const enUsTranslation = {
         loadRunsFailed: "Failed to load schedule runs",
         editTitle: "Edit Schedule",
         nonIntervalReadOnly: "Quick interval editing is only available for interval triggers.",
+        scheduleThis: {
+          title: "Schedule this session",
+          description:
+            "Prefilled from this session's prompt, workspace, and model — pick a trigger and save.",
+          defaultNameTemplate: "Schedule: {{title}}",
+        },
         columns: {
           name: "Name",
           status: "Status",

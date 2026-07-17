@@ -47,6 +47,7 @@ type ChatSidebarDateGroupsProps = {
   onEditTitle: (sessionId: string, title: string) => void;
   onGenerateTitle: (sessionId: string) => void;
   onRunProjectDream: (sessionId: string) => void;
+  onScheduleThis: (sessionId: string) => void;
   titleGenerationState: Record<string, { status: "loading" | "error" | "idle"; error?: string }>;
   projectDreamState: Record<string, { status: "loading" | "idle" }>;
   token: GlobalToken;
@@ -71,6 +72,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   onEditTitle,
   onGenerateTitle,
   onRunProjectDream,
+  onScheduleThis,
   titleGenerationState,
   projectDreamState,
   token,
@@ -194,6 +196,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             onEdit={onEditTitle}
             onGenerateTitle={onGenerateTitle}
             onRunProjectDream={onRunProjectDream}
+            onScheduleThis={onScheduleThis}
             isGeneratingTitle={titleGenerationState[chat.id]?.status === "loading"}
             isRunningProjectDream={projectDreamState[chat.id]?.status === "loading"}
             titleGenerationError={
@@ -231,6 +234,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                   onEdit={onEditTitle}
                   onGenerateTitle={onGenerateTitle}
                   onRunProjectDream={onRunProjectDream}
+                  onScheduleThis={onScheduleThis}
                   isGeneratingTitle={titleGenerationState[child.id]?.status === "loading"}
                   isRunningProjectDream={projectDreamState[child.id]?.status === "loading"}
                   titleGenerationError={
