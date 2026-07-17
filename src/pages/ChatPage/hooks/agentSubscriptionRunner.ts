@@ -612,6 +612,22 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
           // `onNotification` above — so it fires exactly once and never on replay.
         },
 
+        onStreamGap: (skipped) => {
+          // The server's broadcast ring overran and events were lost beyond
+          // recovery (bamboo#543): a missed tool_complete leaves a tool card
+          // spinning, a missed terminal was self-healed server-side, but the
+          // locally-rendered transcript may still have a hole. Reconcile the
+          // session's authoritative state via REST — summaries settle any
+          // finished run, and the open-session reconcile catches the
+          // transcript + pending question up.
+          debugLog("[SSE]", "event.streamGap", { sessionId, skipped });
+          void refreshChatsNow();
+          const state = useAppStore.getState();
+          if (state.currentSessionId === sessionId) {
+            state.reconcileOpenSession(sessionId, "stream_gap");
+          }
+        },
+
         onExecutionStarted: (runId, _startedAt) => {
           debugLog("[SSE]", "event.executionStarted", {
             sessionId,

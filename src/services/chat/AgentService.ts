@@ -871,6 +871,13 @@ export interface AgentEventHandlers {
   onExecutionStarted?: (runId: string, startedAt?: string) => void;
   onRunnerProgress?: (sessionId: string, roundCount: number) => void;
   onGoalStatusChanged?: (event: AgentEvent) => void;
+  /**
+   * The server's per-session broadcast ring overran and `skipped` events were
+   * lost beyond recovery (v2 WS `{type:"gap"}` control, bamboo#543). The
+   * locally-rendered transcript/tool state may be missing tool results or
+   * whole turns — reconcile the session's authoritative state via REST.
+   */
+  onStreamGap?: (skipped: number) => void;
 }
 
 const summarizeClientSync = (clientSync?: ExecuteClientSync): Record<string, unknown> | null => {

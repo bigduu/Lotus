@@ -470,6 +470,70 @@ describe("v2Stream WebSocket client", () => {
       vi.useRealTimers();
     });
 
+    it("adapts the stale threshold to a fast keepalive cadence (~15s detection at 5s cadence)", () => {
+      vi.useFakeTimers();
+      const onError = vi.fn();
+      subscribeFeed({ onChange: vi.fn(), onError }, 0);
+
+      const ws = lastSocket();
+      ws.open();
+      // Two keepalives 5s apart → observed cadence 5s → threshold 15s.
+      ws.emit(keepalive);
+      vi.advanceTimersByTime(5_000);
+      ws.emit(keepalive);
+
+      // 10s of silence: below the adaptive threshold → still connected.
+      vi.advanceTimersByTime(10_000);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
+
+      // Past 15s of silence (+ a tick): the stale socket is torn down.
+      vi.advanceTimersByTime(7_000);
+      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+      expect(onError).toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it("keeps the conservative 45s threshold against an old 15s-cadence backend (no false positives)", () => {
+      vi.useFakeTimers();
+      const onError = vi.fn();
+      subscribeFeed({ onChange: vi.fn(), onError }, 0);
+
+      const ws = lastSocket();
+      ws.open();
+      // Old-server cadence: keepalives every 15s → threshold stays at the 45s
+      // ceiling. Silence WITHIN 45s must never force-reconnect.
+      ws.emit(keepalive);
+      vi.advanceTimersByTime(15_000);
+      ws.emit(keepalive);
+      vi.advanceTimersByTime(15_000);
+      ws.emit(keepalive);
+
+      // 40s of silence: under the ceiling → still connected.
+      vi.advanceTimersByTime(40_000);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
+      expect(onError).not.toHaveBeenCalled();
+
+      // Past 45s: genuinely dead → reconnect.
+      vi.advanceTimersByTime(7_000);
+      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+
+      vi.useRealTimers();
+    });
+
+    it("routes an agent gap control to onStreamGap with the skipped count", async () => {
+      const onStreamGap = vi.fn();
+      subscribeFeed({ onChange: vi.fn() }, 0);
+      void subscribeAgent("s1", { onStreamGap }, tokenDispatch);
+      lastSocket().open();
+
+      lastSocket().emit({ ch: "agent.s1", seq: 5, control: { type: "gap", skipped: 123 } });
+      expect(onStreamGap).toHaveBeenCalledWith(123);
+
+      // A gap control must NOT resolve the subscription (the channel is live).
+      lastSocket().emit({ ch: "agent.s1", seq: 6, event: { type: "token", content: "hi" } });
+    });
+
     it("the watchdog re-arms per connection: the NEW socket needs its own keepalive", () => {
       vi.useFakeTimers();
       subscribeFeed({ onChange: vi.fn() }, 0);
