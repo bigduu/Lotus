@@ -150,6 +150,15 @@ interface AgentChannel {
   dispatch: AgentEventDispatch;
   /** Resolves the subscribe Promise on a `terminal` control (or unsubscribe). */
   resolve: () => void;
+  /**
+   * Last envelope `seq` seen on this channel. The server mints a
+   * per-subscription monotonic seq (1-based, restarts on every (re)subscribe —
+   * it is NOT a durable resume cursor), so within one subscription a hole in
+   * the sequence means frames were skipped server-side after seq minting
+   * (e.g. an envelope-encode failure) — treated as a gap (#98). `0` until the
+   * first frame; reset on reconnect (new forwarder → seq restarts at 1).
+   */
+  lastSeq: number;
 }
 
 type ServerFrame = {
@@ -255,6 +264,9 @@ const resubscribeAll = (): void => {
     send({ type: "subscribe", ch: "feed", since: feedChannel.since });
   }
   for (const channel of agentChannels.values()) {
+    // A (re)connect spawns fresh server forwarders whose seq restarts at 1 —
+    // reset continuity tracking so the restart is never misread as a gap (#98).
+    channel.lastSeq = 0;
     send({ type: "subscribe", ch: agentCh(channel.sessionId) });
   }
 };
@@ -510,6 +522,27 @@ const handleFrame = (frame: ServerFrame | undefined): void => {
   if (ch.startsWith("agent.")) {
     const channel = agentChannels.get(ch);
     if (!channel) return;
+    // Seq-continuity check (#98): every agent envelope — event AND control —
+    // carries the forwarder's per-subscription monotonic seq. A HOLE within one
+    // subscription means frames were skipped server-side after seq minting
+    // (e.g. an envelope-encode failure) — a loss the server's broadcast-lag
+    // `gap` control cannot see (ring loss happens BEFORE minting). Treat it
+    // exactly like a declared gap. `seq <= lastSeq` is a forwarder restart
+    // (server-side re-subscribe restarts at 1): reset tracking, never a gap.
+    const seq = typeof frame.seq === "number" ? frame.seq : 0;
+    if (seq > 0) {
+      if (channel.lastSeq > 0 && seq > channel.lastSeq + 1) {
+        const missed = seq - channel.lastSeq - 1;
+        debugLog("[v2Stream]", "agent.seq_gap", {
+          ch,
+          expected: channel.lastSeq + 1,
+          got: seq,
+          missed,
+        });
+        channel.handlers.onStreamGap?.(missed);
+      }
+      channel.lastSeq = seq;
+    }
     if (control) {
       if (control.type === "terminal") {
         debugLog("[v2Stream]", "agent.terminal", { ch });
@@ -759,7 +792,7 @@ export const subscribeAgent = (
     };
   });
 
-  agentChannels.set(ch, { sessionId, handlers, dispatch, resolve: resolveFn });
+  agentChannels.set(ch, { sessionId, handlers, dispatch, resolve: resolveFn, lastSeq: 0 });
   registerConnectFailed(onConnectFailed);
 
   if (socket && socket.readyState === WebSocket.OPEN) {
