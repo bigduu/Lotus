@@ -424,6 +424,7 @@ export const zhCnTranslation = {
         runProjectDreamSuccess: "Project Dream 已更新",
         runProjectDreamNoChange: "无需更新 Project Dream",
         runProjectDreamFailed: "运行 Project Dream 失败",
+        scheduleThis: "定时执行此会话…",
       },
       prompt: {
         selectorTitle: "选择系统提示词",
@@ -1603,6 +1604,11 @@ export const zhCnTranslation = {
         loadRunsFailed: "加载调度运行记录失败",
         editTitle: "编辑调度",
         nonIntervalReadOnly: "仅间隔触发器支持快速间隔编辑。",
+        scheduleThis: {
+          title: "定时执行此会话",
+          description: "已根据此会话的提示词、工作区和模型预填，选择触发方式并保存即可。",
+          defaultNameTemplate: "定时任务：{{title}}",
+        },
         columns: {
           name: "名称",
           status: "状态",

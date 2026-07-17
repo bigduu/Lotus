@@ -54,6 +54,7 @@ const DateGroupsHarness: React.FC<HarnessOverrides> = (overrides) => {
     onEditTitle: noop,
     onGenerateTitle: noop,
     onRunProjectDream: noop,
+    onScheduleThis: noop,
     titleGenerationState: {},
     projectDreamState: {},
     token,

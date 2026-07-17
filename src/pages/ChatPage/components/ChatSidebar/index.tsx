@@ -12,6 +12,11 @@ import { useChatSidebarState } from "./useChatSidebarState";
 // user actually opens the "new chat" selector dialog.
 const SystemPromptSelector = lazy(() => import("../SystemPromptSelector"));
 
+// Lazy-load the "Schedule this…" modal — it pulls in the full schedule form
+// (trigger builder, policy selects, etc.) plus the schedules API client, none
+// of which is needed until the user actually opens it from a session menu.
+const ScheduleThisModal = lazy(() => import("../ScheduleThisModal"));
+
 const { useBreakpoint } = Grid;
 const { useToken } = theme;
 
@@ -36,7 +41,10 @@ export const ChatSidebar: React.FC = () => {
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
+    handleOpenSchedules,
     handleRunProjectDream,
+    handleScheduleThis,
+    handleCloseScheduleThis,
     handleSearchQueryChange,
     handleStatusFilterChange,
     handleClearFilters,
@@ -45,6 +53,7 @@ export const ChatSidebar: React.FC = () => {
     isNewChatSelectorOpen,
     pinSession,
     projectDreamState,
+    scheduleThisSessionId,
     searchQuery,
     selectSession,
     setCollapsed,
@@ -167,6 +176,7 @@ export const ChatSidebar: React.FC = () => {
           onEditTitle={handleEditTitle}
           onGenerateTitle={handleGenerateTitle}
           onRunProjectDream={handleRunProjectDream}
+          onScheduleThis={handleScheduleThis}
           titleGenerationState={titleGenerationState}
           projectDreamState={projectDreamState}
           token={token}
@@ -179,6 +189,7 @@ export const ChatSidebar: React.FC = () => {
         collapsed={false}
         onNewChat={handleNewChat}
         onOpenSettings={handleOpenSettings}
+        onOpenSchedules={handleOpenSchedules}
         token={token}
       />
 
@@ -192,6 +203,16 @@ export const ChatSidebar: React.FC = () => {
           showCancelButton={true}
         />
       </Suspense>
+
+      {scheduleThisSessionId ? (
+        <Suspense fallback={null}>
+          <ScheduleThisModal
+            open={Boolean(scheduleThisSessionId)}
+            sessionId={scheduleThisSessionId}
+            onClose={handleCloseScheduleThis}
+          />
+        </Suspense>
+      ) : null}
     </nav>
   );
 };
