@@ -785,6 +785,30 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             retries: 3,
             retryDelayMs: 250,
           });
+          // Reconcile the child-approval FIFO queue (#25) so a
+          // `child_approval_requested`/`sub_agent_completed` lost to a
+          // broadcast-ring overrun (bamboo#543, the #91 gap-control trigger
+          // for this whole function) is recovered from the same `runs/active`
+          // authoritative snapshot boot already uses (`loadChats`). Uses the
+          // narrow `reconcilePendingChildApprovals` action rather than
+          // `applyRunningSnapshot` — the latter bumps `generation` and forces
+          // `phase: "running"`, which would desync this ALREADY-live SSE
+          // subscription's stale-event guard if applied mid-stream.
+          try {
+            const running = await agentClient.getRunningSessions();
+            if (get().currentSessionId !== sessionId) {
+              return;
+            }
+            const match = running.sessions.find((s) => s.session_id === sessionId);
+            if (match) {
+              get().reconcilePendingChildApprovals(sessionId, match.last_critical_events);
+            }
+          } catch (e) {
+            debugLog("[ChatSlice]", "reconcileOpenSession.runningSnapshotError", {
+              sessionId,
+              error: e,
+            });
+          }
           // Reconcile the pending clarification so one answered/raised on another
           // device clears/appears here too.
           try {

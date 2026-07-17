@@ -146,7 +146,7 @@ export const deriveSidebarRunState = (
   if (
     entry.phase === "waiting_user_answer" ||
     entry.interaction.pendingQuestion !== null ||
-    entry.interaction.pendingChildApproval !== null ||
+    entry.interaction.pendingChildApprovals.length > 0 ||
     entry.backend.hasPendingQuestion === true
   ) {
     return "awaiting";
@@ -197,11 +197,33 @@ export const selectPendingQuestion =
     return entry?.interaction.pendingQuestion ?? null;
   };
 
+const NO_PENDING_CHILD_APPROVALS: SessionExecutionState["interaction"]["pendingChildApprovals"] =
+  [];
+
+/**
+ * The FULL FIFO queue of pending child approvals for a session (oldest
+ * first). Most call sites want just the head — see `selectPendingChildApproval`
+ * below — this is exposed for diagnostics/tests that need to assert queue
+ * order or length directly.
+ */
+export const selectPendingChildApprovals =
+  (sessionId: string | null) =>
+  (state: ExecutionStateView): SessionExecutionState["interaction"]["pendingChildApprovals"] => {
+    const entry = getEntry(state, sessionId);
+    return entry?.interaction.pendingChildApprovals ?? NO_PENDING_CHILD_APPROVALS;
+  };
+
+/**
+ * The HEAD of the pending-child-approval queue — the one entry the dialog
+ * should currently show. `null` when the queue is empty (no dialog).
+ */
 export const selectPendingChildApproval =
   (sessionId: string | null) =>
-  (state: ExecutionStateView): SessionExecutionState["interaction"]["pendingChildApproval"] => {
+  (
+    state: ExecutionStateView,
+  ): SessionExecutionState["interaction"]["pendingChildApprovals"][number] | null => {
     const entry = getEntry(state, sessionId);
-    return entry?.interaction.pendingChildApproval ?? null;
+    return entry?.interaction.pendingChildApprovals[0] ?? null;
   };
 
 export const selectRespondMode =

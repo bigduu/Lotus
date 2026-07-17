@@ -1,5 +1,5 @@
 import type { AgentEvent, AgentEventHandlers } from "@services/chat/AgentService";
-import { useAppStore, selectChildren, selectPendingChildApproval } from "@shared/store/appStore";
+import { useAppStore, selectChildren } from "@shared/store/appStore";
 import {
   clearChildPreviewState,
   getChildPreviewState,
@@ -26,8 +26,8 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
     refreshChatsNow,
     scheduleChildPreviewFlush,
     setEvaluationState,
-    setPendingChildApproval,
-    clearPendingChildApproval,
+    enqueuePendingChildApproval,
+    clearPendingChildApprovalsForChild,
     setTaskList,
     updateTaskListDelta,
     backgroundChildrenByParentRef,
@@ -78,22 +78,12 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
       // awaiting a human approve/deny decision. Surface the prompt on the
       // parent session (the one whose SSE stream we are subscribed to).
       //
-      // TODO #23: the store holds a SINGLE pendingChildApproval slot per
-      // session, so a second request from a *different* child (or a different
-      // requestId on the same child) overwrites a still-pending one — the
-      // earlier child then waits forever. A FIFO queue would be the proper fix
-      // but touches the reducer/types/selector/resume-snapshot layers; warn
-      // here for now so the drop is at least observable.
-      const existing = selectPendingChildApproval(parentSessionId)(useAppStore.getState());
-      if (existing && existing.requestId !== requestId) {
-        console.warn(
-          "[childHandlers] Overwriting a still-pending child approval " +
-            `(child=${existing.childSessionId}, request=${existing.requestId}) with a new ` +
-            `one (child=${childSessionId}, request=${requestId}); the earlier child will ` +
-            "no longer be prompted. See TODO #23 (single-slot vs FIFO queue).",
-        );
-      }
-      setPendingChildApproval(parentSessionId, {
+      // Sub-agent fan-out can produce concurrent gated actions across
+      // different children (or, less commonly, a second gate on the SAME
+      // child) — enqueue rather than overwrite (#25, was TODO #23). The
+      // dialog shows the head of the queue; the store dedupes by requestId
+      // so a reconnect/replay of the same event doesn't double-enqueue.
+      enqueuePendingChildApproval(parentSessionId, {
         childSessionId,
         requestId,
         toolName: request.toolName ?? null,
@@ -223,14 +213,13 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
         parentDone: bg.parentDone,
       });
 
-      // If this child had a pending human approve/deny prompt and it resolved
-      // on its own (completed/errored/timed-out) without a click, the prompt is
-      // now stale — clear it so the parent UI doesn't strand a dead request.
-      // Guard on childSessionId so we don't drop a DIFFERENT child's prompt.
-      const pendingApproval = selectPendingChildApproval(parentSessionId)(useAppStore.getState());
-      if (pendingApproval && pendingApproval.childSessionId === childSessionId) {
-        clearPendingChildApproval(parentSessionId);
-      }
+      // If this child had any pending human approve/deny prompt(s) and it
+      // resolved on its own (completed/errored/timed-out) without a click,
+      // those prompts are now stale — remove them so the parent UI doesn't
+      // strand a dead request. Removes ALL queued entries for this specific
+      // child (normally at most one); other children's queued entries are
+      // untouched. Idempotent — a no-op when nothing is queued for this child.
+      clearPendingChildApprovalsForChild(parentSessionId, childSessionId);
 
       flushChildPreview(parentSessionId, childSessionId);
       clearChildPreviewState(parentSessionId, childSessionId);

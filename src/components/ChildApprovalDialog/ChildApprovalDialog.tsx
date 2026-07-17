@@ -33,8 +33,11 @@ const ChildApprovalDialogComponent: React.FC<ChildApprovalDialogProps> = ({ sess
   const { message } = AntApp.useApp();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Only the HEAD of the per-session FIFO queue is shown; answering it pops
+  // that entry and the next queued approval (if any) surfaces automatically
+  // on the next render (#25, was a single-slot pendingChildApproval).
   const pending = useAppStore(selectPendingChildApproval(sessionId));
-  const clearPendingChildApproval = useAppStore((state) => state.clearPendingChildApproval);
+  const dequeuePendingChildApproval = useAppStore((state) => state.dequeuePendingChildApproval);
 
   if (!pending) {
     return null;
@@ -47,24 +50,24 @@ const ChildApprovalDialogComponent: React.FC<ChildApprovalDialogProps> = ({ sess
     try {
       const result = await agentClient.respondToChildApproval(childSessionId, requestId, approved);
       if (result.delivered) {
-        // Decision delivered to the live child — terminal, dismiss the prompt.
-        clearPendingChildApproval(sessionId);
+        // Decision delivered to the live child — terminal, pop this entry.
+        dequeuePendingChildApproval(sessionId, requestId);
       } else {
         // Backend contract A: 200 + { delivered: false } means the child is no
-        // longer waiting. Retrying won't help, so warn and clear.
+        // longer waiting. Retrying won't help, so warn and pop.
         message.warning(t("components.approval.childGone"));
-        clearPendingChildApproval(sessionId);
+        dequeuePendingChildApproval(sessionId, requestId);
       }
     } catch (err) {
       console.error("Failed to respond to child approval:", err);
       if (isApiError(err) && err.status === 404) {
         // Backend contract B: a thrown 404 also means the child is gone.
-        // Terminal — warn and clear (retry won't help).
+        // Terminal — warn and pop (retry won't help).
         message.warning(t("components.approval.childGone"));
-        clearPendingChildApproval(sessionId);
+        dequeuePendingChildApproval(sessionId, requestId);
       } else {
         // Transient failure (network/5xx/etc): KEEP the prompt so the user can
-        // retry. Do NOT clear, or the child stays blocked with no recourse.
+        // retry. Do NOT pop, or the child stays blocked with no recourse.
         message.error(t("components.approval.deliverFailed"));
       }
     } finally {

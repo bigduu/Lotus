@@ -13,8 +13,10 @@ const {
   createSessionMock,
   patchSessionMock,
   getPendingQuestionMock,
+  getRunningSessionsMock,
 } = vi.hoisted(() => ({
   getPendingQuestionMock: vi.fn(async () => ({ has_pending_question: false })),
+  getRunningSessionsMock: vi.fn(async () => ({ sessions: [] })),
   deleteSessionMock: vi.fn(),
   deleteSessionMessageMock: vi.fn(async () => undefined),
   getHistoryMock: vi.fn(async () => ({
@@ -52,6 +54,7 @@ vi.mock("@services/chat/AgentService", () => ({
       getHistory: getHistoryMock,
       deleteSessionMessage: deleteSessionMessageMock,
       getPendingQuestion: getPendingQuestionMock,
+      getRunningSessions: getRunningSessionsMock,
     })),
   },
 }));
@@ -928,6 +931,7 @@ describe("chatSessionSlice session model propagation", () => {
 describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
   const setPendingQuestionMock = vi.fn();
   const clearPendingQuestionMock = vi.fn();
+  const reconcilePendingChildApprovalsMock = vi.fn();
 
   const buildStore = (currentSessionId: string | null) => {
     const store = createTestStore();
@@ -937,6 +941,7 @@ describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
       currentSessionId,
       setPendingQuestion: setPendingQuestionMock,
       clearPendingQuestion: clearPendingQuestionMock,
+      reconcilePendingChildApprovals: reconcilePendingChildApprovalsMock,
     } as never);
     return store;
   };
@@ -956,6 +961,9 @@ describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
     getPendingQuestionMock.mockResolvedValue({ has_pending_question: false });
     setPendingQuestionMock.mockReset();
     clearPendingQuestionMock.mockReset();
+    getRunningSessionsMock.mockReset();
+    getRunningSessionsMock.mockResolvedValue({ sessions: [] });
+    reconcilePendingChildApprovalsMock.mockReset();
     resetProviderStore();
   });
 
@@ -1075,5 +1083,112 @@ describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
       toolCallId: "tc-2",
     });
     expect(clearPendingQuestionMock).not.toHaveBeenCalled();
+  });
+
+  // #25: the child-approval FIFO queue must also be recovered by the #91
+  // gap-control reconcile (a broadcast-ring overrun can drop a
+  // `child_approval_requested`/`sub_agent_completed` just like it can drop a
+  // `tool_complete`), not just the pending-question slot.
+  describe("child-approval queue resync (#25)", () => {
+    it("reconciles the queue from the matching running-session snapshot", async () => {
+      vi.useFakeTimers();
+      const criticalEvents = [
+        { type: "child_approval_requested", child_session_id: "child-1", request_id: "req-1" },
+      ];
+      getRunningSessionsMock.mockResolvedValue({
+        sessions: [
+          {
+            session_id: "s1",
+            run_id: "run-1",
+            started_at: new Date().toISOString(),
+            round_count: 1,
+            last_critical_events: criticalEvents,
+            running_child_session_ids: ["child-1"],
+          },
+        ],
+      });
+      const store = buildStore("s1");
+
+      store.getState().reconcileOpenSession("s1", "stream_gap");
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(getRunningSessionsMock).toHaveBeenCalledTimes(1);
+      expect(reconcilePendingChildApprovalsMock).toHaveBeenCalledWith("s1", criticalEvents);
+    });
+
+    it("does nothing when the open session is not in the running-session snapshot (already finished)", async () => {
+      vi.useFakeTimers();
+      getRunningSessionsMock.mockResolvedValue({
+        sessions: [
+          {
+            session_id: "some-other-session",
+            run_id: "run-2",
+            started_at: new Date().toISOString(),
+            round_count: 1,
+            last_critical_events: [],
+            running_child_session_ids: [],
+          },
+        ],
+      });
+      const store = buildStore("s1");
+
+      store.getState().reconcileOpenSession("s1", "stream_gap");
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(getRunningSessionsMock).toHaveBeenCalledTimes(1);
+      expect(reconcilePendingChildApprovalsMock).not.toHaveBeenCalled();
+    });
+
+    it("does not crash the reconcile (pending-question sync still runs) when getRunningSessions rejects", async () => {
+      vi.useFakeTimers();
+      getRunningSessionsMock.mockRejectedValue(new Error("network blip"));
+      const store = buildStore("s1");
+
+      store.getState().reconcileOpenSession("s1", "stream_gap");
+      await vi.advanceTimersByTimeAsync(300);
+
+      expect(reconcilePendingChildApprovalsMock).not.toHaveBeenCalled();
+      // The independent pending-question reconcile still completed normally.
+      expect(getPendingQuestionMock).toHaveBeenCalledWith("s1");
+      expect(clearPendingQuestionMock).toHaveBeenCalledWith("s1");
+    });
+
+    it("bails without reconciling when the user switched sessions while the fetch was in flight", async () => {
+      vi.useFakeTimers();
+      let resolveRunning: (value: unknown) => void = () => {};
+      getRunningSessionsMock.mockReturnValue(
+        new Promise((resolve) => {
+          resolveRunning = resolve;
+        }),
+      );
+      const store = buildStore("s1");
+
+      store.getState().reconcileOpenSession("s1", "stream_gap");
+      await vi.advanceTimersByTimeAsync(300);
+
+      // User navigates away before the in-flight fetch resolves.
+      store.setState({ currentSessionId: "s2" } as never);
+      resolveRunning({
+        sessions: [
+          {
+            session_id: "s1",
+            run_id: "run-1",
+            started_at: new Date().toISOString(),
+            round_count: 1,
+            last_critical_events: [
+              {
+                type: "child_approval_requested",
+                child_session_id: "child-1",
+                request_id: "req-1",
+              },
+            ],
+            running_child_session_ids: ["child-1"],
+          },
+        ],
+      });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(reconcilePendingChildApprovalsMock).not.toHaveBeenCalled();
+    });
   });
 });
