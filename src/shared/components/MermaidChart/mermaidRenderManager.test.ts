@@ -10,6 +10,11 @@ vi.mock("mermaid", () => ({
   },
 }));
 
+const sanitizeSvgMarkupSpy = vi.fn((svg: string) => svg);
+vi.mock("./sanitizeSvg", () => ({
+  sanitizeSvgMarkup: (svg: string) => sanitizeSvgMarkupSpy(svg),
+}));
+
 const loadRenderManager = async () => {
   vi.resetModules();
   return import("./mermaidRenderManager");
@@ -21,6 +26,8 @@ const svgWithViewBox = (width: number, height: number): string =>
 describe("mermaidRenderManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sanitizeSvgMarkupSpy.mockClear();
+    sanitizeSvgMarkupSpy.mockImplementation((svg: string) => svg);
   });
 
   it("reuses cached result on repeated render calls", async () => {
@@ -110,6 +117,38 @@ describe("mermaidRenderManager", () => {
 
     expect(result.width).toBe(432);
     expect(result.height).toBe(210);
+    getBoundingClientRectSpy.mockRestore();
+  });
+
+  it("sanitizes the raw svg before it is attached to document.body for measurement (issue #38)", async () => {
+    // When viewBox is missing, the manager falls back to attaching a
+    // measurement <div> straight to document.body and reading its
+    // getBoundingClientRect(). Mermaid's raw render output is
+    // pre-sanitization, so an inline <style> with an unscoped selector would
+    // apply to the live document for as long as that div is attached unless
+    // it's sanitized first.
+    const maliciousSvg = `<svg xmlns="http://www.w3.org/2000/svg"><style>body{display:none}</style><rect width="10" height="10" /></svg>`;
+    mockParse.mockResolvedValue(undefined);
+    mockRender.mockResolvedValue({ svg: maliciousSvg });
+
+    const getBoundingClientRectSpy = vi
+      .spyOn(SVGElement.prototype, "getBoundingClientRect")
+      .mockReturnValue({
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 50,
+        top: 0,
+        left: 0,
+        right: 100,
+        bottom: 50,
+        toJSON: () => ({}),
+      } as DOMRect);
+
+    const manager = await loadRenderManager();
+    await manager.renderMermaidCached("unsanitized-fallback-key", "graph TD\nA-->B");
+
+    expect(sanitizeSvgMarkupSpy).toHaveBeenCalledWith(maliciousSvg);
     getBoundingClientRectSpy.mockRestore();
   });
 

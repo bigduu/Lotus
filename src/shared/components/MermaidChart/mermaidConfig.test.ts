@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import {
+import mermaid, {
   normalizeMermaidChart,
   cleanupErrorCache,
   errorCache,
@@ -312,6 +312,47 @@ describe("mermaidConfig", () => {
 
       expect(mermaidCache.get("chart1")).toEqual(data1);
       expect(mermaidCache.get("chart2")).toEqual(data2);
+    });
+  });
+
+  describe("security: themeCSS lock (issue #38)", () => {
+    // mermaid 11.15's `%%{init:{"themeCSS":"..."}}%%` directive splices raw,
+    // unscoped CSS into the rendered <style> block (bypassing the
+    // #<svgId>-namespacing every other diagram style rule goes through) and
+    // isn't covered by mermaid's default `secure` list. mermaidConfig.ts's
+    // module-level `mermaid.initialize()` call adds it (+ themeVariables,
+    // fontFamily) to `secure`, so mermaid itself deletes those keys from any
+    // per-diagram directive before it's merged into the render config —
+    // regardless of what sanitizeSvg.ts does downstream.
+    it("locks themeCSS, themeVariables and fontFamily via mermaid's secure config", () => {
+      const secure = mermaid.mermaidAPI.getConfig().secure ?? [];
+      expect(secure).toContain("themeCSS");
+      expect(secure).toContain("themeVariables");
+      expect(secure).toContain("fontFamily");
+    });
+
+    it("strips a malicious %%{init}%% themeCSS directive before it reaches the render config", async () => {
+      const chart = [
+        '%%{init: {"themeCSS": "body{display:none} [data-exfil]{background:url(https://evil.example/beacon)}"}}%%',
+        "flowchart TD",
+        "A-->B",
+      ].join("\n");
+
+      const { config } = await mermaid.parse(chart, { suppressErrors: false });
+
+      expect(config).not.toHaveProperty("themeCSS");
+    });
+
+    it("still allows non-CSS-bearing %%{init}%% directive keys through", async () => {
+      const chart = [
+        '%%{init: {"flowchart": {"curve": "linear"}}}%%',
+        "flowchart TD",
+        "A-->B",
+      ].join("\n");
+
+      const { config } = await mermaid.parse(chart, { suppressErrors: false });
+
+      expect(config).toMatchObject({ flowchart: { curve: "linear" } });
     });
   });
 

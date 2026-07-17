@@ -45,6 +45,12 @@ export const useMermaidTheme = () => {
       securityLevel: "strict",
       htmlLabels: false,
       suppressErrorRendering: true,
+      // SECURITY (issue #38): keep in sync with mermaidConfig.ts — every
+      // mermaid.initialize() call resets `secure` to mermaid's defaults plus
+      // whatever this call passes, so the themeCSS/themeVariables/fontFamily
+      // lock has to be repeated here too (this hook re-initializes on every
+      // theme change, i.e. on every app theme/mermaid-settings change).
+      secure: ["themeCSS", "themeVariables", "fontFamily"],
       fontSize: userSettings.fontSize,
 
       // Apply custom theme variables if provided

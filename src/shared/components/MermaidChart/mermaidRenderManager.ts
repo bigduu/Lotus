@@ -1,3 +1,5 @@
+import { sanitizeSvgMarkup } from "./sanitizeSvg";
+
 export type MermaidRenderResult = {
   svg: string;
   width: number;
@@ -126,7 +128,12 @@ export function renderMermaidCached(chartKey: string, normalizedChart: string) {
       if (width === 800 && height === 300) {
         const tempDiv = document.createElement("div");
         tempDiv.style.cssText = "position:absolute;visibility:hidden;width:800px;";
-        tempDiv.innerHTML = svg;
+        // `svg` here is mermaid's raw, pre-sanitization output — sanitize
+        // before it's attached to document.body, otherwise an inline <style>
+        // with an unscoped selector (e.g. via a malicious themeCSS directive
+        // in attacker-influenced chart text) applies to the live document for
+        // as long as this element is attached. See issue #38.
+        tempDiv.innerHTML = sanitizeSvgMarkup(svg);
         document.body.appendChild(tempDiv);
 
         const rect = tempDiv.querySelector("svg")?.getBoundingClientRect();
