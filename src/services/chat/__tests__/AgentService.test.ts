@@ -82,6 +82,27 @@ describe("AgentClient", () => {
       title: "Task List",
       items: [expect.objectContaining({ id: "task-1", status: "in_progress" })],
     });
+    // No `version` in the raw response → must stay undefined (NOT default to
+    // 0), so the store's monotonic guard treats it as unknown rather than as
+    // a version-0 snapshot that can regress a tracked list (#39).
+    expect(result?.version).toBeUndefined();
+  });
+
+  it("carries a real version through a task list snapshot when the backend provides one (#39)", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        session_id: "session-1",
+        title: "Task List",
+        items: [],
+        progress: { completed: 0, total: 0, percentage: 0 },
+        version: 12,
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    const result = await client.getTaskList("session-1");
+
+    expect(result?.version).toBe(12);
   });
 
   it("deletes a backend session by ID", async () => {
