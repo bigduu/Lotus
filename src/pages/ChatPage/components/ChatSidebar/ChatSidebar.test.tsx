@@ -5,6 +5,7 @@ import { App as AntdApp } from "antd";
 import { ChatSidebar } from "../ChatSidebar";
 import { useAppStore } from "@shared/store/appStore";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
+import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { APP_VERSION } from "@shared/constants/appVersion";
 
 vi.mock("antd", async () => {
@@ -725,5 +726,26 @@ describe("ChatSidebar", () => {
         expect(screen.queryByTestId("chat-item-status")).toBeNull();
       });
     });
+  });
+
+  it("exposes a footer entry that deep-links into the Schedules settings tab (#99)", async () => {
+    // Baseline: settings closed.
+    useSettingsViewStore.setState({ isOpen: false, activeTabKey: "provider" });
+
+    render(
+      <AntdApp>
+        <ChatSidebar />
+      </AntdApp>,
+    );
+
+    const schedulesButton = await screen.findByTestId("open-schedules");
+    fireEvent.click(schedulesButton);
+
+    // Clicking the footer entry opens Settings straight on the Schedules tab,
+    // rather than the default provider tab — making the otherwise-buried
+    // feature reachable in one click.
+    const state = useSettingsViewStore.getState();
+    expect(state.isOpen).toBe(true);
+    expect(state.activeTabKey).toBe("schedules");
   });
 });

@@ -246,6 +246,7 @@ export const useChatSidebarState = () => {
   );
 
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
+  const [scheduleThisSessionId, setScheduleThisSessionId] = useState<string | null>(null);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set(["Today"]));
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SidebarStatusFilter>("all");
@@ -637,6 +638,24 @@ export const useChatSidebarState = () => {
     openSettings("chat");
   };
 
+  // Lotus #99: a one-click entry into the (otherwise Settings-buried)
+  // schedules feature, mirroring the footer's existing Settings/Agenda
+  // buttons — deep-links straight into the Schedules tab rather than
+  // requiring the user to first open Settings and then find the tab.
+  const handleOpenSchedules = () => {
+    openSettings("chat", "schedules");
+  };
+
+  // Lotus #100: "Schedule this" opens a session-prefilled create-schedule
+  // modal from the sidebar item menu.
+  const handleScheduleThis = useCallback((sessionId: string) => {
+    setScheduleThisSessionId(sessionId);
+  }, []);
+
+  const handleCloseScheduleThis = useCallback(() => {
+    setScheduleThisSessionId(null);
+  }, []);
+
   const handleSearchQueryChange = useCallback((value: string) => {
     setSearchQuery(value);
   }, []);
@@ -876,7 +895,10 @@ export const useChatSidebarState = () => {
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
+    handleOpenSchedules,
     handleRunProjectDream,
+    handleScheduleThis,
+    handleCloseScheduleThis,
     handleSearchQueryChange,
     handleStatusFilterChange,
     handleClearFilters,
@@ -886,6 +908,7 @@ export const useChatSidebarState = () => {
     projectDreamState,
     rootHasRunningChildBySessionId,
     runStateBySessionId,
+    scheduleThisSessionId,
     scrollTarget,
     searchQuery,
     selectSession,

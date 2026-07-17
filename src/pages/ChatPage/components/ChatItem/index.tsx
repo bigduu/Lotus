@@ -13,6 +13,7 @@ import {
   MoreOutlined,
   CloudSyncOutlined,
   CompassOutlined,
+  ScheduleOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { SidebarChatListItem } from "@shared/types/sidebarChat";
@@ -33,6 +34,7 @@ interface ChatItemProps {
   onEdit?: (sessionId: string, newTitle: string) => void;
   onGenerateTitle?: (sessionId: string) => void;
   onRunProjectDream?: (sessionId: string) => void;
+  onScheduleThis?: (sessionId: string) => void;
   isGeneratingTitle?: boolean;
   isRunningProjectDream?: boolean;
   titleGenerationError?: string;
@@ -53,6 +55,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   onEdit,
   onGenerateTitle,
   onRunProjectDream,
+  onScheduleThis,
   isGeneratingTitle,
   isRunningProjectDream,
   titleGenerationError,
@@ -155,6 +158,19 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
             onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
               domEvent.stopPropagation();
               onRunProjectDream(chat.id);
+            },
+          },
+        ]
+      : []),
+    ...(onScheduleThis
+      ? [
+          {
+            key: "schedule-this",
+            icon: <ScheduleOutlined />,
+            label: t("chat.actions.scheduleThis"),
+            onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
+              domEvent.stopPropagation();
+              onScheduleThis(chat.id);
             },
           },
         ]

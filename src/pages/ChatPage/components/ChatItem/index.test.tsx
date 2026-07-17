@@ -97,3 +97,34 @@ describe("ChatItem inline title edit", () => {
     expect(screen.getByText("Original title")).toBeInTheDocument();
   });
 });
+
+describe("ChatItem 'Schedule this' menu item (#100)", () => {
+  async function openMenu() {
+    const item = screen.getByTestId("chat-item");
+    fireEvent.mouseEnter(item);
+    const moreButton = await screen.findByLabelText("More actions");
+    fireEvent.click(moreButton);
+  }
+
+  it("shows the 'Schedule this…' action and invokes onScheduleThis with the session id", async () => {
+    const onScheduleThis = vi.fn();
+    renderChatItem({ onScheduleThis });
+
+    await openMenu();
+
+    const scheduleItem = await screen.findByText("Schedule this…");
+    fireEvent.click(scheduleItem);
+
+    expect(onScheduleThis).toHaveBeenCalledWith("chat-1");
+  });
+
+  it("omits the 'Schedule this…' action when no onScheduleThis handler is provided", async () => {
+    renderChatItem({ onScheduleThis: undefined });
+
+    await openMenu();
+
+    // The menu is open (Edit is visible) but the schedule action is absent.
+    expect(await screen.findByText("Edit")).toBeInTheDocument();
+    expect(screen.queryByText("Schedule this…")).toBeNull();
+  });
+});

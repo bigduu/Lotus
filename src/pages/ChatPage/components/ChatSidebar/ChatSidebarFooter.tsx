@@ -4,6 +4,7 @@ import { Badge, Button, Flex, Tooltip, Typography } from "antd";
 import {
   CalendarOutlined,
   PlusOutlined,
+  ScheduleOutlined,
   SettingOutlined,
   SunOutlined,
   MoonOutlined,
@@ -19,6 +20,7 @@ type ChatSidebarFooterProps = {
   collapsed: boolean;
   onNewChat: () => void;
   onOpenSettings: () => void;
+  onOpenSchedules: () => void;
   token: GlobalToken;
 };
 
@@ -26,6 +28,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   collapsed,
   onNewChat,
   onOpenSettings,
+  onOpenSchedules,
   token,
 }) => {
   const { t } = useTranslation();
@@ -36,6 +39,11 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   const newChatLabel = t("chat.sidebar.newSession");
   const settingsLabel = t("settings.page.title");
   const agendaLabel = t("ledger.title");
+  // Reuses the Schedules tab's own list title as this button's label/tooltip
+  // rather than minting a new key — this button is a one-click deep link
+  // into that exact tab (Lotus #99), so the copy should read as the same
+  // destination, not a separate feature name.
+  const schedulesLabel = t("settings.schedulesTab.listTitle");
   const themeLabel =
     themeMode === "dark"
       ? t("settings.appTab.lightMode", "Light Mode")
@@ -94,6 +102,25 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
         >
           {!collapsed && settingsLabel}
         </Button>
+
+        {!collapsed && (
+          <Tooltip title={schedulesLabel} placement="top">
+            <Button
+              data-testid="open-schedules"
+              type="text"
+              icon={<ScheduleOutlined />}
+              onClick={onOpenSchedules}
+              aria-label={schedulesLabel}
+              className="lotus-toolbar-icon"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: token.borderRadiusLG,
+                flexShrink: 0,
+              }}
+            />
+          </Tooltip>
+        )}
 
         {!collapsed && (
           <Tooltip title={agendaLabel} placement="top">
