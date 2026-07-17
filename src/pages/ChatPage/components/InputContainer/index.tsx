@@ -879,7 +879,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <Button
         type="text"
         size="small"
-        disabled={isInputLocked}
+        // Toggleable at ANY time, including while the agent is running: the
+        // backend adopts a mid-run flip on the next round's tool calls and never
+        // reverts it (bamboo #540). The handler still guards on !sessionId.
+        disabled={!sessionId}
         onClick={() => setBypassPermissionsPersisted(!bypassPermissions)}
         aria-pressed={bypassPermissions}
         style={{
@@ -903,7 +906,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     ),
     [
       bypassPermissions,
-      isInputLocked,
+      sessionId,
       isMobile,
       setBypassPermissionsPersisted,
       t,
