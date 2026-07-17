@@ -114,16 +114,26 @@ const MAX_SHORTLIVED = 3;
  * the run finished), with the account feed's recovery signal dead on the same
  * multiplexed socket.
  *
- * When no frame of ANY kind has arrived for {@link KEEPALIVE_STALE_MS} (three
- * missed keepalives), the watchdog force-reconnects. It only ARMS after the
- * first `sys` keepalive of the current connection ({@link serverKeepalive}), so
- * an older backend that never sends them — where long quiet stretches are
+ * When no frame of ANY kind has arrived for the stale threshold (~three missed
+ * keepalives), the watchdog force-reconnects. It only ARMS after the first
+ * `sys` keepalive of the current connection ({@link serverKeepalive}), so an
+ * older backend that never sends them — where long quiet stretches are
  * legitimate — keeps today's behavior exactly.
+ *
+ * The threshold ADAPTS to the backend's observed cadence (#90): 3× the
+ * smallest inter-keepalive gap seen on this connection, clamped to
+ * [{@link KEEPALIVE_STALE_FLOOR_MS}, {@link KEEPALIVE_STALE_CEIL_MS}]. A new
+ * backend (5s cadence, bamboo#543) is detected in ~15s — a user actively
+ * watching a running session must not stare at a dead screen for 45s — while
+ * an old 15s-cadence backend keeps the conservative 45s threshold with no
+ * false positives. Until a second keepalive establishes the cadence, the
+ * ceiling applies.
  */
-const KEEPALIVE_STALE_MS = 45_000;
+const KEEPALIVE_STALE_FLOOR_MS = 15_000;
+const KEEPALIVE_STALE_CEIL_MS = 45_000;
 
 /** How often the watchdog checks for staleness. */
-const WATCHDOG_TICK_MS = 10_000;
+const WATCHDOG_TICK_MS = 2_000;
 
 interface FeedChannel {
   handlers: AccountStreamHandlers;
@@ -197,6 +207,12 @@ let lastFrameAt = 0;
  * watchdog armed against a backend that stopped sending them.
  */
 let serverKeepalive = false;
+/** Timestamp (ms) of the previous `sys` keepalive; 0 until the first one. */
+let lastKeepaliveAt = 0;
+/** Smallest observed inter-keepalive gap (ms) on this connection. */
+let minKeepaliveGapMs = Number.POSITIVE_INFINITY;
+/** The adaptive stale threshold — ceiling until the cadence is observed. */
+let keepaliveStaleMs = KEEPALIVE_STALE_CEIL_MS;
 /** The watchdog interval; armed while a socket is open. */
 let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -359,7 +375,7 @@ const forceReconnectStaleSocket = (): void => {
 const watchdogTick = (): void => {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   if (!serverKeepalive) return;
-  if (Date.now() - lastFrameAt > KEEPALIVE_STALE_MS) {
+  if (Date.now() - lastFrameAt > keepaliveStaleMs) {
     forceReconnectStaleSocket();
   }
 };
@@ -443,9 +459,25 @@ const handleFrame = (frame: ServerFrame | undefined): void => {
   // backend as keepalive-capable, which ARMS the staleness watchdog for this
   // connection (lotus#87).
   if (ch === "sys") {
-    if (control?.type === "keepalive" && !serverKeepalive) {
-      serverKeepalive = true;
-      debugLog("[v2Stream]", "sys.keepalive.armed", {});
+    if (control?.type === "keepalive") {
+      const now = Date.now();
+      // Learn the backend's cadence from consecutive keepalives and tighten
+      // the stale threshold to 3× the smallest observed gap (#90). Using the
+      // MINIMUM keeps one traffic-delayed keepalive from loosening the
+      // threshold; the floor keeps a burst of back-to-back keepalives (e.g.
+      // right after the socket unblocks) from tightening it below sanity.
+      if (lastKeepaliveAt > 0) {
+        minKeepaliveGapMs = Math.min(minKeepaliveGapMs, now - lastKeepaliveAt);
+        keepaliveStaleMs = Math.min(
+          KEEPALIVE_STALE_CEIL_MS,
+          Math.max(KEEPALIVE_STALE_FLOOR_MS, minKeepaliveGapMs * 3),
+        );
+      }
+      lastKeepaliveAt = now;
+      if (!serverKeepalive) {
+        serverKeepalive = true;
+        debugLog("[v2Stream]", "sys.keepalive.armed", {});
+      }
     }
     return;
   }
@@ -479,6 +511,12 @@ const handleFrame = (frame: ServerFrame | undefined): void => {
       if (control.type === "terminal") {
         debugLog("[v2Stream]", "agent.terminal", { ch });
         channel.resolve();
+      } else if (control.type === "gap") {
+        // The server's broadcast ring overran: events were lost beyond recovery
+        // (bamboo#543). Surface it so the subscriber reconciles via REST.
+        const skipped = typeof control.skipped === "number" ? control.skipped : 0;
+        debugLog("[v2Stream]", "agent.gap", { ch, skipped });
+        channel.handlers.onStreamGap?.(skipped);
       }
       return;
     }
@@ -574,9 +612,13 @@ const connect = (): void => {
     lastOpenAt = Date.now();
     clearOpenTimeout();
     // Fresh liveness state per connection: the watchdog stays DISARMED until
-    // this backend proves keepalive support with its first `sys` frame.
+    // this backend proves keepalive support with its first `sys` frame, and
+    // the stale threshold re-learns the cadence from scratch.
     lastFrameAt = Date.now();
     serverKeepalive = false;
+    lastKeepaliveAt = 0;
+    minKeepaliveGapMs = Number.POSITIVE_INFINITY;
+    keepaliveStaleMs = KEEPALIVE_STALE_CEIL_MS;
     armWatchdog();
     debugLog("[v2Stream]", "open", {});
     resubscribeAll();
@@ -743,4 +785,7 @@ export const __resetV2StreamForTests = (): void => {
   agentChannels.clear();
   lastFrameAt = 0;
   serverKeepalive = false;
+  lastKeepaliveAt = 0;
+  minKeepaliveGapMs = Number.POSITIVE_INFINITY;
+  keepaliveStaleMs = KEEPALIVE_STALE_CEIL_MS;
 };
