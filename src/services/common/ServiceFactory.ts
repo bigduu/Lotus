@@ -1,5 +1,59 @@
 import { apiClient } from "../api";
 import { copyText } from "@shared/utils/clipboard";
+import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
+
+/**
+ * Resolve the backend ORIGIN (no `/v1` suffix) for the v2 pairing/device
+ * endpoints, which are mounted at the API root as siblings of `/v1`
+ * (`crates/app/bamboo-server/src/routes/agent.rs`'s `v2_scope`), not nested
+ * under it. Mirrors exactly how `getV2StreamUrl()` in `backendBaseUrl.ts`
+ * derives the `/v2/stream` origin: strip a trailing `/v1` off the stored
+ * backend base. Recomputed on every call (not cached) so a runtime
+ * backend-base override is honored.
+ */
+const resolveV2Origin = (): string => {
+  const normalized = getBackendBaseUrlSync().trim().replace(/\/+$/, "");
+  return normalized.endsWith("/v1") ? normalized.slice(0, -3) : normalized;
+};
+
+const buildV2Url = (path: string): string => {
+  const cleanPath = path.replace(/^\/+/, "");
+  return `${resolveV2Origin()}/${cleanPath}`;
+};
+
+/**
+ * Minimal fetch wrapper for the 5 v2 pairing/device endpoints below. They are
+ * ORIGIN-rooted (see `resolveV2Origin`), so they deliberately do NOT go
+ * through the `/v1`-rooted `apiClient` singleton — a raw `fetch` mirrors how
+ * `checkBackendHealth` in `backendBaseUrl.ts` hits an origin-rooted path.
+ * `credentials: "include"` carries the verified-password cookie for the
+ * GATED endpoints (everything but `pairDevice`, which self-gates on the body).
+ */
+const v2Fetch = async <T>(
+  method: "GET" | "POST" | "DELETE",
+  path: string,
+  body?: unknown,
+): Promise<T> => {
+  const response = await fetch(buildV2Url(path), {
+    method,
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(
+      `v2 device API request failed: ${method} ${path} -> ${response.status} ${text}`.trim(),
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+};
 
 /**
  * Config-corruption recovery status (Lotus #59, consuming bamboo-agent #153 /
@@ -269,6 +323,51 @@ export interface UpdateAccessPasswordResponse {
   password_enabled: boolean;
 }
 
+/**
+ * Device pairing / management (API v2 per-device tokens — bamboo #181,
+ * handlers in `crates/app/bamboo-server/src/handlers/settings/access_control.rs`;
+ * epic #26 phase 1 — wire plumbing only, no UI yet consumes these).
+ *
+ * ⚠️ These 5 endpoints live at the backend ORIGIN root (`/v2/...`), NOT under
+ * the `/v1`-rooted base `apiClient` uses — see `resolveV2Origin`/`v2Fetch`
+ * near the top of this file.
+ */
+export interface PairDeviceRequest {
+  /** Owner root password — authorizes first-device pairing. */
+  root_password?: string;
+  /** One-time 6-digit pairing code from `createPairingCode()` — authorizes
+   *  subsequent-device pairing. */
+  code?: string;
+  /** Human-readable device label, e.g. "iPhone 15". */
+  label: string;
+}
+
+export interface PairDeviceResponse {
+  device_id: string;
+  /** Plaintext token — returned ONCE; store it via `setDeviceCredential`. */
+  device_token: string;
+  expires_hint: string;
+}
+
+export interface CreatePairingCodeResponse {
+  code: string;
+  /** TTL in whole seconds. */
+  ttl: number;
+}
+
+export interface DeviceSummary {
+  device_id: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  revoked: boolean;
+}
+
+export interface RevokeDeviceResponse {
+  device_id: string;
+  revoked: true;
+}
+
 export interface UtilityService {
   /**
    * Copy text to clipboard
@@ -384,6 +483,17 @@ export interface UtilityService {
   getAccessStatus(): Promise<AccessStatusResponse>;
   verifyAccessPassword(password: string): Promise<ApiSuccessResponse>;
   updateAccessPassword(payload: UpdateAccessPasswordRequest): Promise<UpdateAccessPasswordResponse>;
+
+  /**
+   * Device pairing / management (API v2, epic #26 phase 1 — wire plumbing
+   * only; nothing calls these yet). See `PairDeviceRequest` etc. above for
+   * why these hit the backend origin root, not the `/v1` base.
+   */
+  pairDevice(payload: PairDeviceRequest): Promise<PairDeviceResponse>;
+  createPairingCode(): Promise<CreatePairingCodeResponse>;
+  listDevices(): Promise<DeviceSummary[]>;
+  revokeDevice(deviceId: string): Promise<RevokeDeviceResponse>;
+  rotateDevice(deviceId: string): Promise<PairDeviceResponse>;
 }
 
 class HttpUtilityService implements UtilityService {
@@ -554,6 +664,30 @@ class HttpUtilityService implements UtilityService {
     payload: UpdateAccessPasswordRequest,
   ): Promise<UpdateAccessPasswordResponse> {
     return apiClient.post<UpdateAccessPasswordResponse>("bamboo/access/password", payload);
+  }
+
+  // ── v2-P2 device pairing / management (epic #26 phase 1) ─────────────────
+  // ⚠️ All 5 below hit the backend ORIGIN root via `v2Fetch`/`buildV2Url`, NOT
+  // the `/v1`-rooted `apiClient` — see `resolveV2Origin`'s doc comment.
+
+  async pairDevice(payload: PairDeviceRequest): Promise<PairDeviceResponse> {
+    return v2Fetch<PairDeviceResponse>("POST", "v2/pair", payload);
+  }
+
+  async createPairingCode(): Promise<CreatePairingCodeResponse> {
+    return v2Fetch<CreatePairingCodeResponse>("POST", "v2/pair/code");
+  }
+
+  async listDevices(): Promise<DeviceSummary[]> {
+    return v2Fetch<DeviceSummary[]>("GET", "v2/devices");
+  }
+
+  async revokeDevice(deviceId: string): Promise<RevokeDeviceResponse> {
+    return v2Fetch<RevokeDeviceResponse>("DELETE", `v2/devices/${encodeURIComponent(deviceId)}`);
+  }
+
+  async rotateDevice(deviceId: string): Promise<PairDeviceResponse> {
+    return v2Fetch<PairDeviceResponse>("POST", `v2/devices/${encodeURIComponent(deviceId)}/rotate`);
   }
 }
 

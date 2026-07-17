@@ -7,6 +7,11 @@ import type {
   AgentEventHandlers,
   ChangeEvent,
 } from "./AgentService";
+import {
+  clearDeviceCredential,
+  getDeviceCredential,
+  setDeviceCredential,
+} from "@shared/utils/deviceAuth";
 
 // Stable WS URL so the client does not depend on the real backend derivation.
 vi.mock("@shared/utils/backendBaseUrl", () => ({
@@ -671,6 +676,78 @@ describe("v2Stream WebSocket client", () => {
       expect(second.readyState).toBe(MockWebSocket.OPEN);
 
       vi.useRealTimers();
+    });
+  });
+});
+
+// v2-P2 (#181/#189; epic #26 phase 1): the hello frame carries a paired
+// device credential ONLY when one is stored — additive, no-op-by-default.
+// These tests don't touch reconnect/watchdog/gap logic itself, just what
+// `resubscribeAll` puts in the hello frame on (re)connect.
+describe("v2Stream WebSocket client — device-credential hello frame (epic #26 phase 1)", () => {
+  beforeEach(() => {
+    sockets.length = 0;
+    setMsgpackFlag(false);
+    vi.stubGlobal("WebSocket", MockWebSocket as unknown as typeof WebSocket);
+  });
+
+  afterEach(() => {
+    __resetV2StreamForTests();
+    clearDeviceCredential();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends the identical no-op hello frame when no device credential is stored", () => {
+    expect(getDeviceCredential()).toBeNull(); // sanity: nothing stored
+
+    subscribeFeed({ onChange: vi.fn() }, 0);
+    lastSocket().open();
+
+    const frames = lastSocket().parsedSent();
+    expect(frames[0]).toEqual({ type: "hello" });
+    // No extra keys beyond "type" — byte-for-byte identical to today's frame.
+    expect(Object.keys(frames[0] as object)).toEqual(["type"]);
+  });
+
+  it("includes device_id/token in the hello frame when a credential is stored", () => {
+    setDeviceCredential({ device_id: "bamboo_abc123", token: "bd1_deadbeef" });
+
+    subscribeFeed({ onChange: vi.fn() }, 0);
+    lastSocket().open();
+
+    const frames = lastSocket().parsedSent();
+    expect(frames[0]).toEqual({
+      type: "hello",
+      device_id: "bamboo_abc123",
+      token: "bd1_deadbeef",
+    });
+  });
+
+  it("re-sends the stored credential's hello frame on every reconnect", () => {
+    setDeviceCredential({ device_id: "bamboo_abc123", token: "bd1_deadbeef" });
+    vi.useFakeTimers();
+
+    subscribeFeed({ onChange: vi.fn() }, 0);
+    const first = lastSocket();
+    first.open();
+    expect(first.parsedSent()[0]).toEqual({
+      type: "hello",
+      device_id: "bamboo_abc123",
+      token: "bd1_deadbeef",
+    });
+
+    first.drop();
+    vi.runOnlyPendingTimers(); // fire the backoff timer -> new connect
+    vi.useRealTimers();
+
+    const second = lastSocket();
+    expect(second).not.toBe(first);
+    second.open();
+    expect(second.parsedSent()[0]).toEqual({
+      type: "hello",
+      device_id: "bamboo_abc123",
+      token: "bd1_deadbeef",
     });
   });
 });
