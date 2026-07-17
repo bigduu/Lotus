@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { SidebarChatItem } from "@shared/types/sidebarChat";
@@ -14,6 +14,17 @@ type ChatSidebarVirtualRootListProps = {
   estimateRowHeight: (chat: SidebarChatItem) => number;
   renderRow: (chat: SidebarChatItem) => React.ReactNode;
   maxHeight: number;
+  /**
+   * When set to an id present in `items`, scrolls that row into view via
+   * the virtualizer's own `scrollToIndex` (#93) — the only way to reveal a
+   * row that isn't currently mounted, since virtualization means most rows
+   * simply don't exist in the DOM until scrolled near. `null`/`undefined`
+   * is a no-op. Callers are expected to only change this value when the
+   * *active session itself* changes (see useChatSidebarState's
+   * `scrollTarget`), not on every render — this effect fires whenever the
+   * value changes, with no additional gating on this end.
+   */
+  scrollToItemId?: string | null;
 };
 
 /**
@@ -43,6 +54,7 @@ export const ChatSidebarVirtualRootList: React.FC<ChatSidebarVirtualRootListProp
   estimateRowHeight,
   renderRow,
   maxHeight,
+  scrollToItemId,
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +83,20 @@ export const ChatSidebarVirtualRootList: React.FC<ChatSidebarVirtualRootListProp
     overscan: 8,
     getItemKey,
   });
+
+  // Scroll-to-active-session (#93): only re-runs when `scrollToItemId`
+  // itself changes value (or on mount), which the caller guarantees only
+  // happens on an actual active-session change — never merely because
+  // `items` was narrowed by a search/status filter. `virtualizer` is a
+  // stable instance for the component's lifetime (useVirtualizer creates it
+  // once via useState and only ever mutates it via setOptions), so listing
+  // it as a dependency is a no-op in practice, not an extra trigger.
+  useEffect(() => {
+    if (!scrollToItemId) return;
+    const idx = itemsRef.current.findIndex((chat) => chat.id === scrollToItemId);
+    if (idx < 0) return;
+    virtualizer.scrollToIndex(idx, { align: "auto" });
+  }, [scrollToItemId, virtualizer]);
 
   const virtualItems = virtualizer.getVirtualItems();
   const viewportHeight = Math.min(maxHeight, virtualizer.getTotalSize()) || maxHeight;

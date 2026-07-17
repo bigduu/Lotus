@@ -1,12 +1,13 @@
 import type { GlobalToken } from "antd/es/theme/interface";
-import React, { useMemo } from "react";
-import { Button, Empty, Flex, List, Space } from "antd";
+import React, { useEffect, useMemo, useRef } from "react";
+import { Button, Empty, Flex, List, Space, Tooltip } from "antd";
 import { ApartmentOutlined, DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
-import { ChatItem as ChatItemComponent } from "../ChatItem";
+import { ChatItem as ChatItemComponent, type ChatItemStatus } from "../ChatItem";
 import { ChatSidebarVirtualRootList } from "./ChatSidebarVirtualRootList";
-import type { SidebarChatItem } from "@shared/types/sidebarChat";
+import type { SidebarChatItem, SidebarScrollTarget } from "@shared/types/sidebarChat";
+import type { SidebarRunState } from "@shared/store/appStore";
 import { getChatCountByDate } from "../../utils/chatUtils";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
 
@@ -29,6 +30,23 @@ const CHILD_ROW_ESTIMATE_PX = 28;
 // rendered DOM node — never virtualized away) stays reliably visible instead
 // of requiring real CSS `position: sticky`.
 const VIRTUAL_LIST_MAX_HEIGHT_PX = 480;
+
+/**
+ * Combines the live run state (#94) with the session's persisted last-run
+ * outcome into the single status ChatItem renders. Priority: an active
+ * run (awaiting > running) always wins over a stale "error" from a
+ * *previous* run — otherwise retrying a failed session would keep showing
+ * the old error dot while it's actively running again.
+ */
+const getChatItemStatus = (
+  chat: SidebarChatItem,
+  runState: SidebarRunState | undefined,
+): { status: ChatItemStatus; errorMessage: string | null } => {
+  if (runState === "awaiting") return { status: "awaiting", errorMessage: null };
+  if (runState === "running") return { status: "running", errorMessage: null };
+  if (chat.lastRunStatus === "error") return { status: "error", errorMessage: chat.lastRunError };
+  return { status: "idle", errorMessage: null };
+};
 
 type ChatSidebarDateGroupsProps = {
   groupedChatsByDate: Record<string, SidebarChatItem[]>;
@@ -53,6 +71,12 @@ type ChatSidebarDateGroupsProps = {
   token: GlobalToken;
   hasActiveFilters: boolean;
   onClearFilters: () => void;
+  /** Live busy/awaiting status per session id (#94) — sparse, idle omitted. */
+  runStateBySessionId: Record<string, SidebarRunState>;
+  /** Root session ids with at least one running/awaiting child (#94). */
+  rootHasRunningChildBySessionId: Record<string, boolean>;
+  /** Which row to scroll into view for the active session, if any (#93). */
+  scrollTarget: SidebarScrollTarget;
 };
 
 export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
@@ -78,8 +102,62 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   token,
   hasActiveFilters,
   onClearFilters,
+  runStateBySessionId,
+  rootHasRunningChildBySessionId,
+  scrollTarget,
 }) => {
   const { t } = useTranslation();
+
+  // ─── Scroll-to-active-session (#93) ────────────────────────────────
+  // Row refs cover BOTH root and (always-plain, never virtualized) nested
+  // child rows, keyed by session id. Populated by `registerRowRef` below,
+  // attached in `renderRootRow` — the same render function shared by the
+  // plain `<List>` and virtualized paths, so both keep refs current.
+  const rowRefsRef = useRef(new Map<string, HTMLDivElement>());
+  const registerRowRef = (sessionId: string) => (el: HTMLDivElement | null) => {
+    if (el) {
+      rowRefsRef.current.set(sessionId, el);
+    } else {
+      rowRefsRef.current.delete(sessionId);
+    }
+  };
+  const groupedChatsByDateRef = useRef(groupedChatsByDate);
+  groupedChatsByDateRef.current = groupedChatsByDate;
+
+  // jsdom does not implement `scrollIntoView` (real browsers always do) —
+  // guard with optional chaining on the call itself so tests that don't
+  // stub it keep working instead of throwing.
+  const scrollRowIntoView = (sessionId: string) => {
+    rowRefsRef.current.get(sessionId)?.scrollIntoView?.({ block: "nearest" });
+  };
+
+  useEffect(() => {
+    if (!scrollTarget) return;
+
+    const group = groupedChatsByDateRef.current[scrollTarget.dateKey] || [];
+    const isVirtualized = group.length > VIRTUALIZE_THRESHOLD;
+    const targetId = scrollTarget.childId ?? scrollTarget.rootId;
+
+    if (!isVirtualized) {
+      // Plain (unvirtualized) rows are always fully in the DOM once their
+      // date group is expanded — a direct scrollIntoView positions both the
+      // outer sidebar scroll container and this row in one call.
+      scrollRowIntoView(targetId);
+      return;
+    }
+
+    if (scrollTarget.childId) {
+      // The root row's own visibility is handled by
+      // ChatSidebarVirtualRootList's `scrollToItemId` effect (see the
+      // `scrollToItemId` prop passed below). Give it a frame to mount the
+      // root row — and, with it, the child's always-plain nested list —
+      // before attempting to bring the child row itself into view.
+      const rafId = requestAnimationFrame(() => {
+        scrollRowIntoView(targetId);
+      });
+      return () => cancelAnimationFrame(rafId);
+    }
+  }, [scrollTarget]);
 
   const groups = useMemo(() => {
     if (!sortedDateKeys.length) {
@@ -131,125 +209,155 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   // children (if any) directly beneath it — shared verbatim between the
   // plain `<List>` path (small/typical date groups) and the virtualized
   // path (large date groups), so both produce identical markup per row.
-  const renderRootRow = (chat: SidebarChatItem) => (
-    <div key={chat.id}>
-      <Flex align="center" gap={6} style={{ padding: "4px 8px" }}>
-        {childrenByRoot[chat.id]?.length ? (
-          // A conversation that spawned sub-agents. Use a hierarchy
-          // icon + child count in the accent color rather than a bare
-          // chevron, so it reads as "a chat with N sub-agents" instead
-          // of being mistaken for a collapsible date/category group
-          // (which owns the plain ▶/▼ chevron affordance).
-          <Button
-            size="small"
-            type="text"
-            style={{
-              padding: 0,
-              minWidth: 18,
-              height: 18,
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 2,
-            }}
-            aria-label={
-              expandedRootIds.has(chat.id)
-                ? t("chat.sidebar.actions.collapseChildren")
-                : t("chat.sidebar.actions.expandChildren")
-            }
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onToggleRootExpanded(chat.id);
-            }}
-          >
-            <ApartmentOutlined
-              style={{
-                fontSize: 12,
-                color: "var(--lotus-primary)",
-                opacity: expandedRootIds.has(chat.id) ? 1 : 0.85,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 9,
-                fontWeight: 600,
-                lineHeight: 1,
-                color: "var(--lotus-primary)",
-              }}
+  const renderRootRow = (chat: SidebarChatItem) => {
+    const { status: rootStatus, errorMessage: rootErrorMessage } = getChatItemStatus(
+      chat,
+      runStateBySessionId[chat.id],
+    );
+    const hasRunningChild = Boolean(rootHasRunningChildBySessionId[chat.id]);
+
+    return (
+      <div key={chat.id} ref={registerRowRef(chat.id)}>
+        <Flex align="center" gap={6} style={{ padding: "4px 8px" }}>
+          {childrenByRoot[chat.id]?.length ? (
+            // A conversation that spawned sub-agents. Use a hierarchy
+            // icon + child count in the accent color rather than a bare
+            // chevron, so it reads as "a chat with N sub-agents" instead
+            // of being mistaken for a collapsible date/category group
+            // (which owns the plain ▶/▼ chevron affordance). Turns green
+            // and pulses when a child is currently running/awaiting (#94),
+            // so a collapsed root still surfaces that activity.
+            <Tooltip
+              title={
+                hasRunningChild
+                  ? t("chat.chatItem.status.childRunning", "A sub-agent is running")
+                  : undefined
+              }
             >
-              {childrenByRoot[chat.id].length}
-            </span>
-          </Button>
-        ) : (
-          <div style={{ width: 18 }} />
-        )}
-
-        <div style={{ flex: 1, minWidth: 0, marginLeft: -8 }}>
-          <ChatItemComponent
-            chat={chat}
-            compact
-            isSelected={chat.id === currentSessionId}
-            onSelect={onSelectChat}
-            onDelete={onDeleteChat}
-            onPin={onPinChat}
-            onUnpin={onUnpinChat}
-            onEdit={onEditTitle}
-            onGenerateTitle={onGenerateTitle}
-            onRunProjectDream={onRunProjectDream}
-            onScheduleThis={onScheduleThis}
-            isGeneratingTitle={titleGenerationState[chat.id]?.status === "loading"}
-            isRunningProjectDream={projectDreamState[chat.id]?.status === "loading"}
-            titleGenerationError={
-              titleGenerationState[chat.id]?.status === "error"
-                ? titleGenerationState[chat.id]?.error
-                : undefined
-            }
-          />
-        </div>
-      </Flex>
-
-      {expandedRootIds.has(chat.id) && (childrenByRoot[chat.id]?.length ?? 0) > 0 ? (
-        <div style={{ marginLeft: 18, marginTop: 1 }}>
-          <List
-            itemLayout="horizontal"
-            dataSource={childrenByRoot[chat.id]}
-            split={false}
-            renderItem={(child: SidebarChatItem) => (
-              <div
-                key={child.id}
+              <Button
+                size="small"
+                type="text"
                 style={{
-                  paddingLeft: 8,
-                  borderLeft: `1px solid ${token.colorBorderSecondary}`,
-                  marginLeft: 2,
+                  padding: 0,
+                  minWidth: 18,
+                  height: 18,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 2,
+                }}
+                aria-label={
+                  expandedRootIds.has(chat.id)
+                    ? t("chat.sidebar.actions.collapseChildren")
+                    : t("chat.sidebar.actions.expandChildren")
+                }
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onToggleRootExpanded(chat.id);
                 }}
               >
-                <ChatItemComponent
-                  chat={child}
-                  compact
-                  isSelected={child.id === currentSessionId}
-                  onSelect={onSelectChat}
-                  onDelete={onDeleteChat}
-                  onPin={onPinChat}
-                  onUnpin={onUnpinChat}
-                  onEdit={onEditTitle}
-                  onGenerateTitle={onGenerateTitle}
-                  onRunProjectDream={onRunProjectDream}
-                  onScheduleThis={onScheduleThis}
-                  isGeneratingTitle={titleGenerationState[child.id]?.status === "loading"}
-                  isRunningProjectDream={projectDreamState[child.id]?.status === "loading"}
-                  titleGenerationError={
-                    titleGenerationState[child.id]?.status === "error"
-                      ? titleGenerationState[child.id]?.error
-                      : undefined
-                  }
+                <ApartmentOutlined
+                  className={hasRunningChild ? "lotus-chat-item-child-badge-icon" : undefined}
+                  style={{
+                    fontSize: 12,
+                    color: hasRunningChild ? token.colorSuccess : "var(--lotus-primary)",
+                    opacity: expandedRootIds.has(chat.id) || hasRunningChild ? 1 : 0.85,
+                  }}
                 />
-              </div>
-            )}
-          />
-        </div>
-      ) : null}
-    </div>
-  );
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    color: hasRunningChild ? token.colorSuccess : "var(--lotus-primary)",
+                  }}
+                >
+                  {childrenByRoot[chat.id].length}
+                </span>
+              </Button>
+            </Tooltip>
+          ) : (
+            <div style={{ width: 18 }} />
+          )}
+
+          <div style={{ flex: 1, minWidth: 0, marginLeft: -8 }}>
+            <ChatItemComponent
+              chat={chat}
+              compact
+              isSelected={chat.id === currentSessionId}
+              onSelect={onSelectChat}
+              onDelete={onDeleteChat}
+              onPin={onPinChat}
+              onUnpin={onUnpinChat}
+              onEdit={onEditTitle}
+              onGenerateTitle={onGenerateTitle}
+              onRunProjectDream={onRunProjectDream}
+              onScheduleThis={onScheduleThis}
+              isGeneratingTitle={titleGenerationState[chat.id]?.status === "loading"}
+              isRunningProjectDream={projectDreamState[chat.id]?.status === "loading"}
+              titleGenerationError={
+                titleGenerationState[chat.id]?.status === "error"
+                  ? titleGenerationState[chat.id]?.error
+                  : undefined
+              }
+              status={rootStatus}
+              statusErrorMessage={rootErrorMessage}
+            />
+          </div>
+        </Flex>
+
+        {expandedRootIds.has(chat.id) && (childrenByRoot[chat.id]?.length ?? 0) > 0 ? (
+          <div style={{ marginLeft: 18, marginTop: 1 }}>
+            <List
+              itemLayout="horizontal"
+              dataSource={childrenByRoot[chat.id]}
+              split={false}
+              renderItem={(child: SidebarChatItem) => {
+                const { status: childStatus, errorMessage: childErrorMessage } = getChatItemStatus(
+                  child,
+                  runStateBySessionId[child.id],
+                );
+                return (
+                  <div
+                    key={child.id}
+                    ref={registerRowRef(child.id)}
+                    style={{
+                      paddingLeft: 8,
+                      borderLeft: `1px solid ${token.colorBorderSecondary}`,
+                      marginLeft: 2,
+                    }}
+                  >
+                    <ChatItemComponent
+                      chat={child}
+                      compact
+                      isSelected={child.id === currentSessionId}
+                      onSelect={onSelectChat}
+                      onDelete={onDeleteChat}
+                      onPin={onPinChat}
+                      onUnpin={onUnpinChat}
+                      onEdit={onEditTitle}
+                      onGenerateTitle={onGenerateTitle}
+                      onRunProjectDream={onRunProjectDream}
+                      onScheduleThis={onScheduleThis}
+                      isGeneratingTitle={titleGenerationState[child.id]?.status === "loading"}
+                      isRunningProjectDream={projectDreamState[child.id]?.status === "loading"}
+                      titleGenerationError={
+                        titleGenerationState[child.id]?.status === "error"
+                          ? titleGenerationState[child.id]?.error
+                          : undefined
+                      }
+                      status={childStatus}
+                      statusErrorMessage={childErrorMessage}
+                    />
+                  </div>
+                );
+              }}
+            />
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   // Initial size guess for a root row when it enters the virtualized path —
   // the base row height, plus its inline-expanded children's height if any
@@ -375,6 +483,9 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                     estimateRowHeight={estimateRootRowHeight}
                     renderRow={renderRootRow}
                     maxHeight={VIRTUAL_LIST_MAX_HEIGHT_PX}
+                    scrollToItemId={
+                      scrollTarget && scrollTarget.dateKey === dateKey ? scrollTarget.rootId : null
+                    }
                   />
                 ) : (
                   <List

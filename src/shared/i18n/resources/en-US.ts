@@ -618,6 +618,13 @@ export const enUsTranslation = {
       chatItem: {
         edit: "Edit",
         childTag: "Child",
+        status: {
+          running: "Running",
+          awaiting: "Awaiting your response",
+          error: "Last run failed",
+          errorWithDetail: "Last run failed: {{error}}",
+          childRunning: "A sub-agent is running",
+        },
       },
       systemPromptSelector: {
         defaultTag: "Default",

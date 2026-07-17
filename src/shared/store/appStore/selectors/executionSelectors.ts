@@ -122,6 +122,67 @@ export const selectShouldObserve =
     return entry?.phase !== "waiting_user_answer";
   };
 
+// =============================================================================
+// Sidebar per-item status indicator (#94)
+// =============================================================================
+
+export type SidebarRunState = "idle" | "running" | "awaiting";
+
+/**
+ * Pure per-entry status derivation for the sidebar's live status indicator.
+ * Priority: a pending question/approval (or the backend summary's flag)
+ * always wins over a plain "busy" phase, since it's the state most in need
+ * of the user's attention. Slightly broader than `selectIsAwaitingUser`
+ * above — it also treats a pending *child* approval as "awaiting", since
+ * that's just as much a blocked-on-the-user state for the row that surfaces
+ * it, and the sidebar has no separate affordance for it otherwise.
+ */
+export const deriveSidebarRunState = (
+  entry: SessionExecutionState | null | undefined,
+): SidebarRunState => {
+  if (!entry) {
+    return "idle";
+  }
+  if (
+    entry.phase === "waiting_user_answer" ||
+    entry.interaction.pendingQuestion !== null ||
+    entry.interaction.pendingChildApproval !== null ||
+    entry.backend.hasPendingQuestion === true
+  ) {
+    return "awaiting";
+  }
+  if (isBusyPhase(entry.phase)) {
+    return "running";
+  }
+  return "idle";
+};
+
+/**
+ * Builds a sparse `sessionId -> SidebarRunState` map covering only sessions
+ * whose state is NOT idle. This is deliberately ONE selector call over the
+ * whole `executionBySession` map (O(#sessionIds) recompute, cheap even for
+ * hundreds of sessions) rather than a per-item store subscription — see the
+ * render-scoping precedent set by issues #18/#3/#68/#74. Pair with
+ * `useShallow` at the call site: because the returned map only ever holds
+ * primitive values, zustand's shallow comparison lets an unrelated
+ * execution-state mutation (e.g. a streaming token for an already-"running"
+ * session) produce a referentially stable result and skip notifying
+ * subscribers entirely — and because the map is sparse (idle sessions are
+ * omitted), the comparison stays cheap regardless of total session count.
+ */
+export const selectSidebarRunStateMap =
+  (sessionIds: ReadonlyArray<string>) =>
+  (state: ExecutionStateView): Record<string, SidebarRunState> => {
+    const result: Record<string, SidebarRunState> = {};
+    for (const id of sessionIds) {
+      const runState = deriveSidebarRunState(state.executionBySession[id]);
+      if (runState !== "idle") {
+        result[id] = runState;
+      }
+    }
+    return result;
+  };
+
 export const selectActiveToolCalls =
   (sessionId: string | null) =>
   (state: ExecutionStateView): ReadonlyArray<ActiveToolCall> => {

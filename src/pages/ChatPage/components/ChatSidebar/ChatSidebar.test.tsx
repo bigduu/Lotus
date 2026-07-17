@@ -543,6 +543,191 @@ describe("ChatSidebar", () => {
     expect(await screen.findByTestId("app-version-badge")).toHaveTextContent(`v${APP_VERSION}`);
   });
 
+  describe("scroll to active session (#93)", () => {
+    let originalScrollIntoView: unknown;
+
+    beforeEach(() => {
+      originalScrollIntoView = (HTMLElement.prototype as unknown as Record<string, unknown>)
+        .scrollIntoView;
+      HTMLElement.prototype.scrollIntoView = vi.fn();
+    });
+
+    afterEach(() => {
+      (HTMLElement.prototype as unknown as Record<string, unknown>).scrollIntoView =
+        originalScrollIntoView;
+    });
+
+    it("scrolls the active session's row into view on mount", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      await waitFor(() => {
+        expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+      });
+    });
+
+    it("scrolls again when the active session changes, but not on an unrelated store update", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      await waitFor(() => {
+        expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+      });
+      const callsAfterMount = (HTMLElement.prototype.scrollIntoView as ReturnType<typeof vi.fn>)
+        .mock.calls.length;
+
+      // Put "Platform roadmap" in the same (already-expanded) date group so
+      // switching to it doesn't also exercise the "expand a new group" path.
+      act(() => {
+        useAppStore.setState((state) => ({
+          ...state,
+          chats: state.chats.map((chat) =>
+            chat.id === "root-platform" ? { ...chat, createdAt: 1710000500000 } : chat,
+          ),
+        }));
+      });
+      await screen.findByText("Platform roadmap");
+
+      // Unrelated store tick — must not itself trigger another scroll.
+      act(() => {
+        useAppStore.setState((state) => ({ ...state }));
+      });
+      expect(
+        (HTMLElement.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls.length,
+      ).toBe(callsAfterMount);
+
+      // An actual active-session change scrolls again.
+      act(() => {
+        useAppStore.setState((state) => ({ ...state, currentSessionId: "root-platform" }));
+      });
+      await waitFor(() => {
+        expect(
+          (HTMLElement.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mock.calls.length,
+        ).toBeGreaterThan(callsAfterMount);
+      });
+    });
+
+    it("does not scroll when the active session is filtered out of view", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      await waitFor(() => {
+        expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
+      });
+      (HTMLElement.prototype.scrollIntoView as ReturnType<typeof vi.fn>).mockClear();
+
+      // Search for something that excludes the currently active session —
+      // "root-billing" ("Billing investigation") itself does not match.
+      const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Search sessions");
+      fireEvent.change(searchInput, { target: { value: "roadmap" } });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Billing investigation")).toBeNull();
+      });
+      expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("live per-item status indicator (#94)", () => {
+    it("shows no status dot for sessions with no execution activity", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      expect(screen.queryByTestId("chat-item-status")).toBeNull();
+    });
+
+    it("reflects a running session with a status dot, and clears it once execution finishes", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+
+      act(() => {
+        useAppStore.setState((state) => ({
+          ...state,
+          executionBySession: {
+            ...state.executionBySession,
+            "root-billing": {
+              sessionId: "root-billing",
+              phase: "streaming",
+              confidence: "live",
+              activeReasons: [],
+              generation: 1,
+              backendRunId: null,
+              stream: { hasTokens: true, tokenCount: 3, activeToolCalls: [], lastStatusHint: null },
+              backend: {
+                isRunning: true,
+                lastRunStatus: null,
+                lastRunError: null,
+                syncedAt: null,
+                hasPendingQuestion: null,
+                runningChildCount: null,
+              },
+              interaction: { pendingQuestion: null, respondMode: null, pendingChildApproval: null },
+              children: { byId: {}, runningCount: 0 },
+              timestamps: {
+                optimisticAt: null,
+                confirmedAt: null,
+                firstTokenAt: null,
+                terminalAt: null,
+                settlingStartedAt: null,
+                settledAt: null,
+              },
+              error: null,
+            },
+          },
+        }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-item-status")).toHaveClass("is-running");
+      });
+
+      act(() => {
+        useAppStore.setState((state) => ({
+          ...state,
+          executionBySession: {
+            ...state.executionBySession,
+            "root-billing": {
+              ...state.executionBySession["root-billing"],
+              phase: "idle",
+              stream: {
+                hasTokens: false,
+                tokenCount: 0,
+                activeToolCalls: [],
+                lastStatusHint: null,
+              },
+              backend: { ...state.executionBySession["root-billing"].backend, isRunning: false },
+            },
+          },
+        }));
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByTestId("chat-item-status")).toBeNull();
+      });
+    });
+  });
+
   it("exposes a footer entry that deep-links into the Schedules settings tab (#99)", async () => {
     // Baseline: settings closed.
     useSettingsViewStore.setState({ isOpen: false, activeTabKey: "provider" });

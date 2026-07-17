@@ -53,7 +53,10 @@ export const ChatSidebar: React.FC = () => {
     isNewChatSelectorOpen,
     pinSession,
     projectDreamState,
+    rootHasRunningChildBySessionId,
+    runStateBySessionId,
     scheduleThisSessionId,
+    scrollTarget,
     searchQuery,
     selectSession,
     setCollapsed,
@@ -182,6 +185,9 @@ export const ChatSidebar: React.FC = () => {
           token={token}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={handleClearFilters}
+          runStateBySessionId={runStateBySessionId}
+          rootHasRunningChildBySessionId={rootHasRunningChildBySessionId}
+          scrollTarget={scrollTarget}
         />
       </Flex>
 
