@@ -19,9 +19,13 @@ test.describe("Settings Management", () => {
 
     // The provider tab renders in one of two modes: instance mode when the
     // backend's provider-instances endpoint returns a list (the default on a
-    // fresh data dir), legacy single-provider mode when it doesn't.
+    // fresh data dir — ProviderSettings/index.tsx's mount effect flips
+    // isInstanceMode unconditionally whenever that call succeeds, even with
+    // an empty list), legacy single-provider mode when it doesn't. Detect
+    // by data-testid (mode-specific, i18n-independent) rather than assuming
+    // one mode, so the test stays correct against either backend shape.
     const providerSelect = page.locator('[data-testid="provider-select"]');
-    const addProviderInstance = page.getByRole("button", { name: /add provider/i });
+    const addProviderInstance = page.locator('[data-testid="add-provider-instance"]');
     await expect(providerSelect.or(addProviderInstance).first()).toBeVisible({
       timeout: 15000,
     });
@@ -37,13 +41,14 @@ test.describe("Settings Management", () => {
       }
 
       await expect(apiKeyInput).toBeVisible({ timeout: 15000 });
-      await expect(page.locator('[data-testid="save-api-settings"]')).toBeVisible();
-    } else {
-      // Instance mode: model preferences and the apply button render instead.
-      await expect(
-        page.getByRole("button", { name: /save and apply configuration/i }),
-      ).toBeVisible();
     }
+    // else: instance mode — the provider-instances panel is already confirmed
+    // reachable above via the "Add Provider" control.
+
+    // Both modes share the same form submit button (ProviderSettings/index.tsx
+    // renders it once, outside the isInstanceMode branch): legacy mode's
+    // per-provider save, instance mode's "Save and Apply Configuration".
+    await expect(page.locator('[data-testid="save-api-settings"]')).toBeVisible();
   });
 
   test("allows editing proxy settings in config tab", async ({ page }) => {
