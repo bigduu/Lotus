@@ -569,6 +569,76 @@ describe("v2Stream WebSocket client", () => {
       vi.useRealTimers();
     });
 
+    it("detects a seq hole on an agent channel and reports it as a gap (#98)", () => {
+      const onStreamGap = vi.fn();
+      const onToken = vi.fn();
+      subscribeFeed({ onChange: vi.fn() }, 0);
+      void subscribeAgent("s1", { onStreamGap, onToken }, tokenDispatch);
+      lastSocket().open();
+
+      const ws = lastSocket();
+      ws.emit({ ch: "agent.s1", seq: 1, event: { type: "token", content: "a" } });
+      ws.emit({ ch: "agent.s1", seq: 2, event: { type: "token", content: "b" } });
+      expect(onStreamGap).not.toHaveBeenCalled();
+
+      // seq 3 and 4 never arrive → hole of 2. The frame itself still dispatches.
+      ws.emit({ ch: "agent.s1", seq: 5, event: { type: "token", content: "e" } });
+      expect(onStreamGap).toHaveBeenCalledWith(2);
+      expect(onToken).toHaveBeenLastCalledWith("e");
+    });
+
+    it("a forwarder restart (seq back to 1) is never misread as a gap", () => {
+      const onStreamGap = vi.fn();
+      subscribeFeed({ onChange: vi.fn() }, 0);
+      void subscribeAgent("s1", { onStreamGap }, tokenDispatch);
+      lastSocket().open();
+
+      const ws = lastSocket();
+      ws.emit({ ch: "agent.s1", seq: 1, event: { type: "token", content: "a" } });
+      ws.emit({ ch: "agent.s1", seq: 2, event: { type: "token", content: "b" } });
+      // Server-side re-subscribe: a NEW forwarder restarts at 1, then counts up.
+      ws.emit({ ch: "agent.s1", seq: 1, event: { type: "token", content: "a2" } });
+      ws.emit({ ch: "agent.s1", seq: 2, event: { type: "token", content: "b2" } });
+      ws.emit({ ch: "agent.s1", seq: 3, event: { type: "token", content: "c2" } });
+      expect(onStreamGap).not.toHaveBeenCalled();
+    });
+
+    it("reconnect resets seq tracking: the new connection's seq 1 is not a gap", () => {
+      vi.useFakeTimers();
+      const onStreamGap = vi.fn();
+      subscribeFeed({ onChange: vi.fn() }, 0);
+      void subscribeAgent("s1", { onStreamGap }, tokenDispatch);
+
+      const first = lastSocket();
+      first.open();
+      first.emit({ ch: "agent.s1", seq: 1, event: { type: "token", content: "a" } });
+      first.emit({ ch: "agent.s1", seq: 2, event: { type: "token", content: "b" } });
+
+      first.drop();
+      vi.advanceTimersByTime(1_000);
+      const second = lastSocket();
+      second.open();
+      second.emit({ ch: "agent.s1", seq: 1, event: { type: "token", content: "a2" } });
+      expect(onStreamGap).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it("control frames participate in seq continuity (a declared gap control never double-fires)", () => {
+      const onStreamGap = vi.fn();
+      subscribeFeed({ onChange: vi.fn() }, 0);
+      void subscribeAgent("s1", { onStreamGap }, tokenDispatch);
+      lastSocket().open();
+
+      const ws = lastSocket();
+      ws.emit({ ch: "agent.s1", seq: 1, event: { type: "token", content: "a" } });
+      // The server-declared gap control mints the NEXT seq (2): contiguous, so
+      // only the DECLARED gap fires — the continuity check stays quiet.
+      ws.emit({ ch: "agent.s1", seq: 2, control: { type: "gap", skipped: 7 } });
+      expect(onStreamGap).toHaveBeenCalledTimes(1);
+      expect(onStreamGap).toHaveBeenCalledWith(7);
+    });
+
     it("routes an agent gap control to onStreamGap with the skipped count", async () => {
       const onStreamGap = vi.fn();
       subscribeFeed({ onChange: vi.fn() }, 0);
