@@ -603,6 +603,13 @@ export const zhCnTranslation = {
       chatItem: {
         edit: "编辑",
         childTag: "子会话",
+        status: {
+          running: "运行中",
+          awaiting: "等待您的回复",
+          error: "上次运行失败",
+          errorWithDetail: "上次运行失败：{{error}}",
+          childRunning: "有子代理正在运行",
+        },
       },
       systemPromptSelector: {
         defaultTag: "默认",

@@ -21,3 +21,16 @@ export type SidebarChatItem = SidebarChatListItem & {
     workspacePath: string | null;
   };
 };
+
+/**
+ * Identifies the sidebar row that should be scrolled into view for the
+ * current active session (#93) — which date group it lives in, its root
+ * session id (used for `scrollToIndex` in a virtualized group), and — when
+ * the active session is itself a child — the child's own id for a
+ * follow-up `scrollIntoView` once its root row is mounted.
+ */
+export type SidebarScrollTarget = {
+  dateKey: string;
+  rootId: string;
+  childId: string | null;
+} | null;

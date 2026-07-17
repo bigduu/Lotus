@@ -1,5 +1,5 @@
 import React, { memo, useState, useCallback } from "react";
-import { List, Button, Input, Dropdown, theme } from "antd";
+import { List, Button, Input, Dropdown, Tooltip, theme } from "antd";
 import type { MenuProps } from "antd";
 import {
   DeleteOutlined,
@@ -17,6 +17,11 @@ import {
 import { useTranslation } from "react-i18next";
 import type { SidebarChatListItem } from "@shared/types/sidebarChat";
 
+import "./index.css";
+
+/** Live per-item status a sidebar row can show (#94). "idle" renders nothing. */
+export type ChatItemStatus = "idle" | "running" | "awaiting" | "error";
+
 interface ChatItemProps {
   chat: SidebarChatListItem;
   isSelected: boolean;
@@ -31,6 +36,10 @@ interface ChatItemProps {
   isGeneratingTitle?: boolean;
   isRunningProjectDream?: boolean;
   titleGenerationError?: string;
+  /** Live busy/awaiting/error status (#94). Defaults to "idle" (no dot). */
+  status?: ChatItemStatus;
+  /** Tooltip/aria detail shown for `status === "error"`. */
+  statusErrorMessage?: string | null;
 }
 
 const ChatItemComponent: React.FC<ChatItemProps> = ({
@@ -47,6 +56,8 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   isGeneratingTitle,
   isRunningProjectDream,
   titleGenerationError,
+  status = "idle",
+  statusErrorMessage,
 }) => {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -74,6 +85,21 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
     },
     [chat.title],
   );
+
+  // Live status label (#94) — a11y text doubles as the visual tooltip.
+  const statusLabel =
+    status === "running"
+      ? t("chat.chatItem.status.running", "Running")
+      : status === "awaiting"
+        ? t("chat.chatItem.status.awaiting", "Awaiting your response")
+        : status === "error"
+          ? statusErrorMessage
+            ? t("chat.chatItem.status.errorWithDetail", {
+                defaultValue: "Last run failed: {{error}}",
+                error: statusErrorMessage,
+              })
+            : t("chat.chatItem.status.error", "Last run failed")
+          : null;
 
   // Build dropdown menu items
   const menuItems: MenuProps["items"] = [
@@ -302,6 +328,17 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               minWidth: 0,
             }}
           >
+            {status !== "idle" && statusLabel ? (
+              <Tooltip title={statusLabel}>
+                <span
+                  className={`lotus-chat-item-status is-${status}`}
+                  role="img"
+                  aria-label={statusLabel}
+                  data-testid="chat-item-status"
+                  data-status={status}
+                />
+              </Tooltip>
+            ) : null}
             {chat.pinned && (
               <PushpinFilled
                 style={{
@@ -369,7 +406,9 @@ const arePropsEqual = (prevProps: ChatItemProps, nextProps: ChatItemProps): bool
     prevProps.compact === nextProps.compact &&
     prevProps.isGeneratingTitle === nextProps.isGeneratingTitle &&
     prevProps.isRunningProjectDream === nextProps.isRunningProjectDream &&
-    prevProps.titleGenerationError === nextProps.titleGenerationError
+    prevProps.titleGenerationError === nextProps.titleGenerationError &&
+    (prevProps.status ?? "idle") === (nextProps.status ?? "idle") &&
+    prevProps.statusErrorMessage === nextProps.statusErrorMessage
   );
 };
 

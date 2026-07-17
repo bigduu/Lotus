@@ -59,6 +59,9 @@ const DateGroupsHarness: React.FC<HarnessOverrides> = (overrides) => {
     token,
     hasActiveFilters: false,
     onClearFilters: noop,
+    runStateBySessionId: {},
+    rootHasRunningChildBySessionId: {},
+    scrollTarget: null,
   };
 
   return <ChatSidebarDateGroups {...defaults} {...overrides} />;

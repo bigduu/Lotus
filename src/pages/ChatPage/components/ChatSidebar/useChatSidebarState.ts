@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { App as AntdApp, Modal } from "antd";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
@@ -16,10 +16,10 @@ import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
-import type { SidebarChatItem } from "@shared/types/sidebarChat";
+import type { SidebarChatItem, SidebarScrollTarget } from "@shared/types/sidebarChat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { openSession } from "@shared/utils/openSession";
-import { selectIsBusy } from "@shared/store/appStore";
+import { selectIsBusy, selectSidebarRunStateMap } from "@shared/store/appStore";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
 
@@ -340,6 +340,7 @@ export const useChatSidebarState = () => {
   const emptyGrouped = useMemo<Record<string, SidebarChatItem[]>>(() => ({}), []);
   const emptyStrArr = useMemo<string[]>(() => [], []);
   const emptySet = useMemo<Set<string>>(() => new Set(), []);
+  const emptyBoolMap = useMemo<Record<string, boolean>>(() => ({}), []);
 
   // Folder model: sidebar groups only root sessions by date.
   // Child sessions are rendered nested under their root.
@@ -368,6 +369,42 @@ export const useChatSidebarState = () => {
     });
     return map;
   }, [chats, sidebarCollapsed, emptyChildrenMap]);
+
+  // ─── Live per-item status indicator (#94) ──────────────────────────
+  // A single `useShallow`-wrapped selector over the whole
+  // `executionBySession` map, covering every session id currently in the
+  // sidebar (root + child) — NOT a per-`ChatItem` store subscription. The
+  // returned map only ever holds primitive values, so an execution-state
+  // mutation that doesn't actually change any covered session's derived
+  // status (e.g. a streaming token for an already-"running" session)
+  // produces a referentially stable result and this hook's callers don't
+  // re-render at all. See #18/#3/#68/#74 for the render-scoping precedent
+  // this deliberately follows.
+  const allSessionIds = useMemo(
+    () => (sidebarCollapsed ? emptyStrArr : chats.map((c) => c.id)),
+    [chats, sidebarCollapsed, emptyStrArr],
+  );
+  const runStateBySessionId = useAppStore(useShallow(selectSidebarRunStateMap(allSessionIds)));
+
+  // Roots with a running/awaiting child should reflect it even while
+  // collapsed (children are hidden by default) — derived from the same
+  // narrow `runStateBySessionId` map plus the already-computed child list,
+  // so it costs one extra O(#children) pass only when either input actually
+  // changes, never a new subscription.
+  const rootHasRunningChildBySessionId = useMemo(() => {
+    if (sidebarCollapsed) return emptyBoolMap;
+    const result: Record<string, boolean> = {};
+    for (const [rootId, children] of Object.entries(allChildrenByRoot)) {
+      const hasActiveChild = children.some((child) => {
+        const state = runStateBySessionId[child.id];
+        return state === "running" || state === "awaiting";
+      });
+      if (hasActiveChild) {
+        result[rootId] = true;
+      }
+    }
+    return result;
+  }, [allChildrenByRoot, runStateBySessionId, sidebarCollapsed, emptyBoolMap]);
 
   const filteredRootSessions = useMemo(() => {
     if (!hasActiveFilters) return rootSessions;
@@ -427,6 +464,64 @@ export const useChatSidebarState = () => {
     () => (sidebarCollapsed ? emptyStrArr : getSortedDateKeys(groupedChatsByDate)),
     [groupedChatsByDate, sidebarCollapsed, emptyStrArr],
   );
+
+  // ─── Scroll-to-active-session target (#93) ─────────────────────────
+  // Resolves which date group + row the currently active session lives in,
+  // so ChatSidebarDateGroups can bring it into view (scrollToIndex for a
+  // virtualized group, scrollIntoView otherwise). This is intentionally an
+  // effect keyed ONLY on `currentSessionId`, not a `useMemo` derived from
+  // the (frequently-changing-while-filtering) grouped/children data: a
+  // plain memo would recompute — and therefore instruct a re-scroll — on
+  // every filter keystroke even though the active session never moved.
+  // Reading the grouped/children data through refs (updated every render,
+  // but NOT part of the effect's dependency array) gives the effect the
+  // freshest data available at the moment it actually needs to run, without
+  // making filter-driven churn a trigger in its own right. Mount is covered
+  // for free: an effect always runs once on mount regardless of whether its
+  // dependency "changed" from anything.
+  const groupedChatsByDateRef = useRef(groupedChatsByDate);
+  groupedChatsByDateRef.current = groupedChatsByDate;
+  const sortedDateKeysRef = useRef(sortedDateKeys);
+  sortedDateKeysRef.current = sortedDateKeys;
+  const childrenByRootRef = useRef(childrenByRoot);
+  childrenByRootRef.current = childrenByRoot;
+
+  const [scrollTarget, setScrollTarget] = useState<SidebarScrollTarget>(null);
+
+  useEffect(() => {
+    if (!currentSessionId) {
+      setScrollTarget(null);
+      return;
+    }
+
+    const grouped = groupedChatsByDateRef.current;
+    const childrenMap = childrenByRootRef.current;
+
+    for (const dateKey of sortedDateKeysRef.current) {
+      const group = grouped[dateKey] || [];
+      const rootMatch = group.find((chat) => chat.id === currentSessionId);
+      if (rootMatch) {
+        setScrollTarget({ dateKey, rootId: rootMatch.id, childId: null });
+        return;
+      }
+
+      for (const rootChat of group) {
+        const childMatch = (childrenMap[rootChat.id] || []).find(
+          (chat) => chat.id === currentSessionId,
+        );
+        if (childMatch) {
+          setScrollTarget({ dateKey, rootId: rootChat.id, childId: childMatch.id });
+          return;
+        }
+      }
+    }
+
+    // Not found — either filtered out or not yet loaded. Do nothing: no
+    // stale target lingers to fire a scroll once the row later reappears
+    // (that would happen for a reason unrelated to the session actually
+    // changing, e.g. clearing a search query).
+    setScrollTarget(null);
+  }, [currentSessionId]);
 
   // While any filter (search query and/or status) is active, expand every
   // date group that currently contains a match (all of `sortedDateKeys`,
@@ -789,6 +884,9 @@ export const useChatSidebarState = () => {
     isNewChatSelectorOpen,
     pinSession: handlePinChat,
     projectDreamState,
+    rootHasRunningChildBySessionId,
+    runStateBySessionId,
+    scrollTarget,
     searchQuery,
     selectSession,
     setCollapsed: setSidebarCollapsed,

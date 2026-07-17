@@ -349,4 +349,7 @@ export {
   selectGeneration,
   selectRailModel,
   selectExecutionByPane,
+  selectSidebarRunStateMap,
+  deriveSidebarRunState,
 } from "./selectors/executionSelectors";
+export type { SidebarRunState } from "./selectors/executionSelectors";
