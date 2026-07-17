@@ -1,6 +1,7 @@
 import { AgentEvent, SessionSummary } from "@services/chat/AgentService";
 import {
   MAX_REASONS_KEPT,
+  MAX_RESOLVED_CHILD_APPROVALS_KEPT,
   OPTIMISTIC_RACE_WINDOW_MS,
   TOOL_PREVIEW_MAX_CHARS,
   type ActiveToolCall,
@@ -73,7 +74,8 @@ export const createInitialExecutionState = (sessionId: string): SessionExecution
   interaction: {
     pendingQuestion: null,
     respondMode: null,
-    pendingChildApproval: null,
+    pendingChildApprovals: [],
+    resolvedChildApprovalRequestIds: [],
   },
   children: {
     byId: {},
@@ -155,40 +157,136 @@ const applyPendingQuestionSnapshot = (
 };
 
 const pendingChildApprovalEquals = (
-  current: (PendingChildApprovalPayload & { receivedAt: string }) | null,
+  current: PendingChildApprovalPayload,
   payload: PendingChildApprovalPayload,
-): boolean => {
-  if (!current) {
-    return false;
+): boolean =>
+  current.childSessionId === payload.childSessionId &&
+  current.requestId === payload.requestId &&
+  current.toolName === payload.toolName &&
+  current.permission === payload.permission &&
+  current.resource === payload.resource;
+
+/**
+ * Remember a resolved `requestId` (answered, or lifecycle-cleared). Bounded
+ * FIFO, idempotent (referentially stable if already present) so callers can
+ * cheaply detect a true no-op.
+ */
+const rememberResolvedChildApproval = (ids: string[], requestId: string): string[] => {
+  if (ids.includes(requestId)) {
+    return ids;
   }
-  return (
-    current.childSessionId === payload.childSessionId &&
-    current.requestId === payload.requestId &&
-    current.toolName === payload.toolName &&
-    current.permission === payload.permission &&
-    current.resource === payload.resource
-  );
+  const trimmed =
+    ids.length >= MAX_RESOLVED_CHILD_APPROVALS_KEPT
+      ? ids.slice(-(MAX_RESOLVED_CHILD_APPROVALS_KEPT - 1))
+      : ids;
+  return [...trimmed, requestId];
 };
 
 /**
- * Surface a blocked child sub-agent's approval request. Unlike a pending
+ * Enqueue a blocked child sub-agent's approval request. Unlike a pending
  * question, this does NOT change the parent session's execution phase — the
  * parent keeps running while the child waits; the prompt is purely an
- * out-of-band approve/deny affordance.
+ * out-of-band approve/deny affordance. Concurrent sub-agent fan-out can
+ * produce more than one outstanding request at a time, so this APPENDS to a
+ * FIFO queue (dedup'd by `requestId`) instead of overwriting a single slot
+ * (#25, was TODO #23).
+ *
+ * Idempotent + replay-safe: a `requestId` that has already been resolved
+ * (answered, or lifecycle-cleared because its child finished) is never
+ * re-enqueued — this is what stops a resync/reconcile replay
+ * (`applyRunningSnapshot`) of a stale `child_approval_requested` from
+ * resurrecting a dismissed prompt.
  */
-const applyPendingChildApprovalSnapshot = (
+const enqueuePendingChildApprovalSnapshot = (
   entry: SessionExecutionState,
   payload: PendingChildApprovalPayload,
   receivedAt: string,
 ): SessionExecutionState => {
-  if (pendingChildApprovalEquals(entry.interaction.pendingChildApproval, payload)) {
+  if (entry.interaction.resolvedChildApprovalRequestIds.includes(payload.requestId)) {
+    return entry;
+  }
+  const queue = entry.interaction.pendingChildApprovals;
+  const existingIndex = queue.findIndex((a) => a.requestId === payload.requestId);
+  if (existingIndex === -1) {
+    return {
+      ...entry,
+      interaction: {
+        ...entry.interaction,
+        pendingChildApprovals: [...queue, { ...payload, receivedAt }],
+      },
+    };
+  }
+  const existing = queue[existingIndex];
+  if (pendingChildApprovalEquals(existing, payload)) {
+    // Duplicate delivery (reconnect/replay) of the exact same still-pending
+    // request — no-op, preserves referential stability.
+    return entry;
+  }
+  // Same requestId re-delivered with different fields (e.g. a replay racing a
+  // live update) — merge in place, keep the ORIGINAL arrival slot/receivedAt
+  // so FIFO order stays stable.
+  const nextQueue = queue.slice();
+  nextQueue[existingIndex] = { ...existing, ...payload };
+  return {
+    ...entry,
+    interaction: { ...entry.interaction, pendingChildApprovals: nextQueue },
+  };
+};
+
+/**
+ * Remove exactly one queued approval by `requestId` — the user answered it —
+ * and remember it as resolved so a later replay of the same `requestId`
+ * doesn't resurrect it.
+ */
+const dequeuePendingChildApprovalSnapshot = (
+  entry: SessionExecutionState,
+  requestId: string,
+): SessionExecutionState => {
+  const alreadyResolved = entry.interaction.resolvedChildApprovalRequestIds.includes(requestId);
+  const queue = entry.interaction.pendingChildApprovals;
+  const nextQueue = queue.filter((a) => a.requestId !== requestId);
+  if (nextQueue.length === queue.length && alreadyResolved) {
     return entry;
   }
   return {
     ...entry,
     interaction: {
       ...entry.interaction,
-      pendingChildApproval: { ...payload, receivedAt },
+      pendingChildApprovals: nextQueue,
+      resolvedChildApprovalRequestIds: rememberResolvedChildApproval(
+        entry.interaction.resolvedChildApprovalRequestIds,
+        requestId,
+      ),
+    },
+  };
+};
+
+/**
+ * Lifecycle-clear: a child finished (completed/errored/timed out) on its own
+ * without its approval being answered. Removes ALL queued entries for that
+ * child — normally at most one, but the FIFO queue can hold other children's
+ * requests interleaved with it, so this must not assume "head".
+ */
+const clearPendingChildApprovalsForChildSnapshot = (
+  entry: SessionExecutionState,
+  childSessionId: string,
+): SessionExecutionState => {
+  const queue = entry.interaction.pendingChildApprovals;
+  const matching = queue.filter((a) => a.childSessionId === childSessionId);
+  if (matching.length === 0) {
+    return entry;
+  }
+  const nextQueue = queue.filter((a) => a.childSessionId !== childSessionId);
+  let resolved = entry.interaction.resolvedChildApprovalRequestIds;
+  for (const m of matching) {
+    resolved = rememberResolvedChildApproval(resolved, m.requestId);
+  }
+  return {
+    ...entry,
+    interaction: {
+      ...entry.interaction,
+      pendingChildApprovals: nextQueue,
+      resolvedChildApprovalRequestIds: resolved,
     },
   };
 };
@@ -553,10 +651,39 @@ const applyAgentEventInner = (
         return entry;
       }
       const status = typeof event.status === "string" ? event.status : "completed";
-      return applySubAgentUpdate(entry, childId, {
+      const updated = applySubAgentUpdate(entry, childId, {
         status,
         error: event.error,
       });
+      // Mirror the live path's lifecycle-clear (childHandlers.onSubAgentCompleted):
+      // a child that finished on its own leaves any of its still-queued approval
+      // requests stale, so a resync replay must drop them too, not just apply
+      // the child-progress patch.
+      return clearPendingChildApprovalsForChildSnapshot(updated, childId);
+    }
+    case "child_approval_requested": {
+      const childId = event.child_session_id ?? "";
+      const requestId = event.request_id ?? "";
+      if (!childId || !requestId) {
+        return entry;
+      }
+      // Only reachable via `applyRunningSnapshot` replay (boot/reconnect
+      // resync) — the live SSE path enqueues directly via the dedicated
+      // `enqueuePendingChildApproval` action (see childHandlers.ts). Without
+      // this case, a still-outstanding approval present in the backend's
+      // `last_critical_events` snapshot would silently fall through `default`
+      // and never be rebuilt after a reconnect/gap-reconcile (#25).
+      return enqueuePendingChildApprovalSnapshot(
+        entry,
+        {
+          childSessionId: childId,
+          requestId,
+          toolName: event.tool_name ?? null,
+          permission: event.permission ?? null,
+          resource: event.resource ?? null,
+        },
+        now(),
+      );
     }
     case "need_clarification": {
       const payload: PendingQuestionPayload = {
@@ -1169,26 +1296,68 @@ export const applyExecutionEvent = (
       };
       return writeEntry(map, action.sessionId, next);
     }
-    case "setPendingChildApproval": {
+    case "enqueuePendingChildApproval": {
       const entry = ensureEntry(map, action.sessionId);
-      const next = applyPendingChildApprovalSnapshot(entry, action.payload, now());
+      const next = enqueuePendingChildApprovalSnapshot(entry, action.payload, now());
       if (next === entry) {
         return map;
       }
       return writeEntry(map, action.sessionId, next);
     }
-    case "clearPendingChildApproval": {
+    case "dequeuePendingChildApproval": {
       const entry = ensureEntry(map, action.sessionId);
-      if (entry.interaction.pendingChildApproval === null) {
+      const next = dequeuePendingChildApprovalSnapshot(entry, action.requestId);
+      if (next === entry) {
         return map;
       }
-      const next: SessionExecutionState = {
-        ...entry,
-        interaction: {
-          ...entry.interaction,
-          pendingChildApproval: null,
-        },
-      };
+      return writeEntry(map, action.sessionId, next);
+    }
+    case "clearPendingChildApprovalsForChild": {
+      const entry = ensureEntry(map, action.sessionId);
+      const next = clearPendingChildApprovalsForChildSnapshot(entry, action.childSessionId);
+      if (next === entry) {
+        return map;
+      }
+      return writeEntry(map, action.sessionId, next);
+    }
+    case "reconcilePendingChildApprovals": {
+      // Narrow, generation-safe resync: walks an authoritative event log
+      // (the backend's `last_critical_events`) and applies ONLY the two
+      // event types that affect the approval queue, in order. Deliberately
+      // does NOT go through `applyRunningSnapshot` — that bumps `generation`
+      // and forces `phase: "running"`, which is safe at boot (before any
+      // subscription exists) but would desync an ALREADY-live SSE
+      // subscription's stale-event guard if called mid-stream from a
+      // stream-gap reconcile (#91/#25).
+      const entry = ensureEntry(map, action.sessionId);
+      let next = entry;
+      for (const event of action.events) {
+        if (event.type === "child_approval_requested") {
+          const childId = event.child_session_id ?? "";
+          const requestId = event.request_id ?? "";
+          if (childId && requestId) {
+            next = enqueuePendingChildApprovalSnapshot(
+              next,
+              {
+                childSessionId: childId,
+                requestId,
+                toolName: event.tool_name ?? null,
+                permission: event.permission ?? null,
+                resource: event.resource ?? null,
+              },
+              now(),
+            );
+          }
+        } else if (event.type === "sub_agent_completed") {
+          const childId = event.child_session_id ?? "";
+          if (childId) {
+            next = clearPendingChildApprovalsForChildSnapshot(next, childId);
+          }
+        }
+      }
+      if (next === entry) {
+        return map;
+      }
       return writeEntry(map, action.sessionId, next);
     }
     case "resetSession": {

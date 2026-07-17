@@ -6,6 +6,8 @@ import {
   selectIsInputLocked,
   selectCanCancel,
   selectPendingQuestion,
+  selectPendingChildApproval,
+  selectPendingChildApprovals,
   selectRespondMode,
   selectShouldObserve,
   deriveSidebarRunState,
@@ -156,14 +158,16 @@ describe("sidebar per-item status indicator (#94)", () => {
     it("is awaiting when a pending child approval is set (broader than selectIsAwaitingUser)", () => {
       const entry = createInitialExecutionState(SESSION);
       entry.phase = "running_children";
-      entry.interaction.pendingChildApproval = {
-        childSessionId: "child-1",
-        requestId: "req-1",
-        toolName: "bash",
-        permission: "execute",
-        resource: null,
-        receivedAt: "2026-07-16T00:00:00.000Z",
-      };
+      entry.interaction.pendingChildApprovals = [
+        {
+          childSessionId: "child-1",
+          requestId: "req-1",
+          toolName: "bash",
+          permission: "execute",
+          resource: null,
+          receivedAt: "2026-07-16T00:00:00.000Z",
+        },
+      ];
       expect(deriveSidebarRunState(entry)).toBe("awaiting");
     });
 
@@ -234,5 +238,50 @@ describe("sidebar per-item status indicator (#94)", () => {
       expect(after).not.toEqual(before);
       expect(after).toEqual({ [SESSION]: "awaiting" });
     });
+  });
+});
+
+// =============================================================================
+// Child-approval FIFO queue selectors (#25)
+// =============================================================================
+
+describe("selectPendingChildApproval / selectPendingChildApprovals", () => {
+  const approval = (requestId: string, childSessionId = "child-1") => ({
+    childSessionId,
+    requestId,
+    toolName: null,
+    permission: null,
+    resource: null,
+    receivedAt: "2026-07-16T00:00:00.000Z",
+  });
+
+  it("returns null (no dialog) for an empty queue", () => {
+    const state = {
+      executionBySession: { [SESSION]: createInitialExecutionState(SESSION) },
+      chats: [],
+    };
+    expect(selectPendingChildApproval(SESSION)(state)).toBeNull();
+    expect(selectPendingChildApprovals(SESSION)(state)).toEqual([]);
+  });
+
+  it("returns null for an unknown session id", () => {
+    const state = { executionBySession: {}, chats: [] };
+    expect(selectPendingChildApproval(SESSION)(state)).toBeNull();
+    expect(selectPendingChildApproval(null)(state)).toBeNull();
+  });
+
+  it("surfaces the HEAD of the queue, not the most recently enqueued entry", () => {
+    const entry = createInitialExecutionState(SESSION);
+    entry.interaction.pendingChildApprovals = [
+      approval("req-1", "child-A"),
+      approval("req-2", "child-B"),
+    ];
+    const state = { executionBySession: { [SESSION]: entry }, chats: [] };
+
+    expect(selectPendingChildApproval(SESSION)(state)?.requestId).toBe("req-1");
+    expect(selectPendingChildApprovals(SESSION)(state).map((a) => a.requestId)).toEqual([
+      "req-1",
+      "req-2",
+    ]);
   });
 });

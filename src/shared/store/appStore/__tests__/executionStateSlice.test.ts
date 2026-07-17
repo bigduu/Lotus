@@ -427,7 +427,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(next[SESSION].interaction.pendingQuestion?.receivedAt).toBe(T1);
   });
 
-  it("setPendingChildApproval stores the request without changing phase; clear removes it", () => {
+  it("enqueuePendingChildApproval stores the request without changing phase; dequeue removes it", () => {
     let map = seedIdle();
     const payload = {
       childSessionId: "child-9",
@@ -439,32 +439,349 @@ describe("executionStateSlice — applyExecutionEvent", () => {
 
     map = applyExecutionEvent(
       map,
-      { type: "setPendingChildApproval", sessionId: SESSION, payload },
+      { type: "enqueuePendingChildApproval", sessionId: SESSION, payload },
       fixedNow(T1),
     );
 
     const afterSet = map[SESSION];
     // Out-of-band approval does not move the parent off its current phase.
     expect(afterSet.phase).toBe<ExecutionPhase>("idle");
-    expect(afterSet.interaction.pendingChildApproval).not.toBeNull();
-    expect(afterSet.interaction.pendingChildApproval?.childSessionId).toBe("child-9");
-    expect(afterSet.interaction.pendingChildApproval?.requestId).toBe("req-42");
-    expect(afterSet.interaction.pendingChildApproval?.receivedAt).toBe(T1);
+    expect(afterSet.interaction.pendingChildApprovals).toHaveLength(1);
+    expect(afterSet.interaction.pendingChildApprovals[0].childSessionId).toBe("child-9");
+    expect(afterSet.interaction.pendingChildApprovals[0].requestId).toBe("req-42");
+    expect(afterSet.interaction.pendingChildApprovals[0].receivedAt).toBe(T1);
 
     // Duplicate payload is a no-op (returns the same map reference).
     const dup = applyExecutionEvent(
       map,
-      { type: "setPendingChildApproval", sessionId: SESSION, payload: { ...payload } },
+      { type: "enqueuePendingChildApproval", sessionId: SESSION, payload: { ...payload } },
       fixedNow(T2),
     );
     expect(dup).toBe(map);
 
     map = applyExecutionEvent(
       map,
-      { type: "clearPendingChildApproval", sessionId: SESSION },
+      { type: "dequeuePendingChildApproval", sessionId: SESSION, requestId: "req-42" },
       fixedNow(T3),
     );
-    expect(map[SESSION].interaction.pendingChildApproval).toBeNull();
+    expect(map[SESSION].interaction.pendingChildApprovals).toEqual([]);
+  });
+
+  // ===========================================================================
+  // Child-approval FIFO queue (#25) — was a single-slot pendingChildApproval
+  // that a second concurrent request from sub-agent fan-out would silently
+  // overwrite (TODO #23). See also childHandlers.test.ts for the SSE-glue
+  // layer (enqueue-on-request / clear-on-lifecycle) built on top of this.
+  // ===========================================================================
+  describe("child-approval FIFO queue (#25)", () => {
+    const payloadFor = (requestId: string, childSessionId: string) => ({
+      childSessionId,
+      requestId,
+      toolName: "Bash",
+      permission: "execute",
+      resource: null,
+    });
+
+    it("retains BOTH concurrent approvals from different requestIds (FIFO, not overwritten)", () => {
+      let map = seedIdle();
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T1),
+      );
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-2", "child-B"),
+        },
+        fixedNow(T2),
+      );
+
+      const queue = map[SESSION].interaction.pendingChildApprovals;
+      expect(queue).toHaveLength(2);
+      expect(queue.map((a) => a.requestId)).toEqual(["req-1", "req-2"]);
+      expect(queue[0].childSessionId).toBe("child-A");
+      expect(queue[1].childSessionId).toBe("child-B");
+    });
+
+    it("answering the head pops it and surfaces the next queued entry", () => {
+      let map = seedIdle();
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T1),
+      );
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-2", "child-B"),
+        },
+        fixedNow(T2),
+      );
+
+      map = applyExecutionEvent(
+        map,
+        { type: "dequeuePendingChildApproval", sessionId: SESSION, requestId: "req-1" },
+        fixedNow(T3),
+      );
+
+      const queue = map[SESSION].interaction.pendingChildApprovals;
+      expect(queue).toHaveLength(1);
+      expect(queue[0].requestId).toBe("req-2");
+    });
+
+    it("a duplicate requestId delivery (reconnect/replay) is not double-enqueued", () => {
+      let map = seedIdle();
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T1),
+      );
+      const afterFirst = map;
+
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T2),
+      );
+
+      // Identical re-delivery of the same still-pending request is a true no-op.
+      expect(map).toBe(afterFirst);
+      expect(map[SESSION].interaction.pendingChildApprovals).toHaveLength(1);
+      // The original arrival time is preserved, not bumped to T2.
+      expect(map[SESSION].interaction.pendingChildApprovals[0].receivedAt).toBe(T1);
+    });
+
+    it("an answered (dequeued) request is NOT resurrected by a later replay of the same requestId", () => {
+      let map = seedIdle();
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T1),
+      );
+      map = applyExecutionEvent(
+        map,
+        { type: "dequeuePendingChildApproval", sessionId: SESSION, requestId: "req-1" },
+        fixedNow(T2),
+      );
+      expect(map[SESSION].interaction.pendingChildApprovals).toEqual([]);
+
+      // A resync/reconcile replay (bamboo#544 gap-control, #91) can still carry
+      // the same requestId in the backend's critical-events window after it was
+      // answered. Re-enqueuing it must be a no-op.
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T3),
+      );
+
+      expect(map[SESSION].interaction.pendingChildApprovals).toEqual([]);
+    });
+
+    it("lifecycle-clear (child finished on its own) removes only that child's entries, preserving order for others", () => {
+      let map = seedIdle();
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T1),
+      );
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-2", "child-B"),
+        },
+        fixedNow(T2),
+      );
+
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "clearPendingChildApprovalsForChild",
+          sessionId: SESSION,
+          childSessionId: "child-A",
+        },
+        fixedNow(T3),
+      );
+
+      const queue = map[SESSION].interaction.pendingChildApprovals;
+      expect(queue).toHaveLength(1);
+      expect(queue[0].requestId).toBe("req-2");
+
+      // The cleared child's requestId is also tombstoned — a replay of its
+      // stale request must not resurrect it either.
+      const replayed = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T3),
+      );
+      expect(replayed[SESSION].interaction.pendingChildApprovals.map((a) => a.requestId)).toEqual([
+        "req-2",
+      ]);
+    });
+
+    it("clearPendingChildApprovalsForChild is a no-op when nothing is queued for that child", () => {
+      const map = seedIdle();
+      const next = applyExecutionEvent(
+        map,
+        {
+          type: "clearPendingChildApprovalsForChild",
+          sessionId: SESSION,
+          childSessionId: "child-Z",
+        },
+        fixedNow(T1),
+      );
+      expect(next).toBe(map);
+    });
+
+    it("resync/reconcile replay (applyRunningSnapshot) rebuilds an outstanding approval from criticalEvents", () => {
+      const map = seedIdle();
+      const next = applyExecutionEvent(
+        map,
+        {
+          type: "applyRunningSnapshot",
+          sessions: [
+            {
+              sessionId: SESSION,
+              runId: "run-resync-1",
+              criticalEvents: [
+                {
+                  type: "child_approval_requested",
+                  child_session_id: "child-A",
+                  request_id: "req-1",
+                  tool_name: "Bash",
+                  permission: "execute",
+                } as AgentEvent,
+              ],
+            },
+          ],
+        },
+        fixedNow(T1),
+      );
+
+      const queue = next[SESSION].interaction.pendingChildApprovals;
+      expect(queue).toHaveLength(1);
+      expect(queue[0]).toMatchObject({
+        childSessionId: "child-A",
+        requestId: "req-1",
+        toolName: "Bash",
+        permission: "execute",
+      });
+    });
+
+    it("resync/reconcile replay does not resurrect a requestId already answered locally", () => {
+      let map = seedIdle();
+      map = applyExecutionEvent(
+        map,
+        {
+          type: "enqueuePendingChildApproval",
+          sessionId: SESSION,
+          payload: payloadFor("req-1", "child-A"),
+        },
+        fixedNow(T1),
+      );
+      map = applyExecutionEvent(
+        map,
+        { type: "dequeuePendingChildApproval", sessionId: SESSION, requestId: "req-1" },
+        fixedNow(T2),
+      );
+
+      // The backend's critical-events snapshot still carries the (now stale)
+      // request — a gap-reconcile replay of it must stay dropped.
+      const next = applyExecutionEvent(
+        map,
+        {
+          type: "applyRunningSnapshot",
+          sessions: [
+            {
+              sessionId: SESSION,
+              runId: "run-resync-2",
+              criticalEvents: [
+                {
+                  type: "child_approval_requested",
+                  child_session_id: "child-A",
+                  request_id: "req-1",
+                } as AgentEvent,
+              ],
+            },
+          ],
+        },
+        fixedNow(T3),
+      );
+
+      expect(next[SESSION].interaction.pendingChildApprovals).toEqual([]);
+    });
+
+    it("resync/reconcile replay clears a queued approval when the same snapshot also carries sub_agent_completed for that child", () => {
+      const map = seedIdle();
+      const next = applyExecutionEvent(
+        map,
+        {
+          type: "applyRunningSnapshot",
+          sessions: [
+            {
+              sessionId: SESSION,
+              runId: "run-resync-3",
+              criticalEvents: [
+                {
+                  type: "child_approval_requested",
+                  child_session_id: "child-A",
+                  request_id: "req-1",
+                } as AgentEvent,
+                {
+                  type: "sub_agent_completed",
+                  child_session_id: "child-A",
+                  status: "completed",
+                } as AgentEvent,
+              ],
+            },
+          ],
+        },
+        fixedNow(T1),
+      );
+
+      // The child finished (fail-closed denied after its server-side timeout,
+      // or otherwise) within the same replay window — the stale prompt must
+      // not survive the reconcile.
+      expect(next[SESSION].interaction.pendingChildApprovals).toEqual([]);
+    });
   });
 
   it("streaming + complete → settling with terminalAt populated", () => {

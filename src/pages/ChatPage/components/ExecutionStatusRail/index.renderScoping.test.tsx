@@ -56,7 +56,12 @@ const { SESSION_ID, OTHER_SESSION_ID, baseExecutionEntry } = vi.hoisted(() => {
       hasPendingQuestion: null,
       runningChildCount: null,
     },
-    interaction: { pendingQuestion: null, respondMode: null, pendingChildApproval: null },
+    interaction: {
+      pendingQuestion: null,
+      respondMode: null,
+      pendingChildApprovals: [],
+      resolvedChildApprovalRequestIds: [],
+    },
     children: { byId: {}, runningCount: 0 },
     timestamps: {
       optimisticAt: null,

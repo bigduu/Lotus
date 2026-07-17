@@ -5,39 +5,38 @@ import type { RunContext } from "../../subscriptionContext";
 
 /**
  * Mutable fake of the bits of the global store the child handlers read via
- * `useAppStore.getState()`: the per-session pending child-approval slot and the
- * children map. Tests mutate `mockStoreState` before invoking a handler.
+ * `useAppStore.getState()`: the children map. (The FIFO approval queue itself
+ * lives entirely behind the `enqueuePendingChildApproval` /
+ * `clearPendingChildApprovalsForChild` action mocks below — childHandlers no
+ * longer reads it directly, since the reducer owns dedupe/idempotency; see
+ * executionStateSlice.test.ts for queue-semantics coverage.)
  */
 const mockStoreState: {
-  pendingChildApproval: Record<string, unknown>;
   children: Record<string, Record<string, unknown>>;
 } = {
-  pendingChildApproval: {},
   children: {},
 };
 
 vi.mock("@shared/store/appStore", () => ({
   useAppStore: { getState: () => mockStoreState },
-  selectPendingChildApproval: (sessionId: string) => (state: typeof mockStoreState) =>
-    state.pendingChildApproval[sessionId] ?? null,
   selectChildren: (sessionId: string) => (state: typeof mockStoreState) =>
     state.children[sessionId] ?? {},
 }));
 
 interface RunOverrides {
-  setPendingChildApproval?: ReturnType<typeof vi.fn>;
-  clearPendingChildApproval?: ReturnType<typeof vi.fn>;
+  enqueuePendingChildApproval?: ReturnType<typeof vi.fn>;
+  clearPendingChildApprovalsForChild?: ReturnType<typeof vi.fn>;
 }
 
 /**
  * Build a minimal RunContext exposing only what the child handlers under test
- * touch: the parent `sessionId` and the approval set/clear actions. Everything
- * else is left as a typed stub so the factory can construct.
+ * touch: the parent `sessionId` and the approval enqueue/clear actions.
+ * Everything else is left as a typed stub so the factory can construct.
  */
 function makeRun(overrides: RunOverrides = {}): RunContext {
   const ctx = {
-    setPendingChildApproval: overrides.setPendingChildApproval ?? vi.fn(),
-    clearPendingChildApproval: overrides.clearPendingChildApproval ?? vi.fn(),
+    enqueuePendingChildApproval: overrides.enqueuePendingChildApproval ?? vi.fn(),
+    clearPendingChildApprovalsForChild: overrides.clearPendingChildApprovalsForChild ?? vi.fn(),
     // Refs used only by other handlers; safe empty maps.
     backgroundChildrenByParentRef: { current: new Map() },
     lastChildHeartbeatAtRef: { current: new Map() },
@@ -68,14 +67,13 @@ function makeRun(overrides: RunOverrides = {}): RunContext {
 }
 
 beforeEach(() => {
-  mockStoreState.pendingChildApproval = {};
   mockStoreState.children = {};
 });
 
-describe("createChildHandlers — onChildApprovalRequested", () => {
-  it("sets the pending child-approval state on the parent session", () => {
-    const setPendingChildApproval = vi.fn();
-    const handlers = createChildHandlers(makeRun({ setPendingChildApproval }));
+describe("createChildHandlers — onChildApprovalRequested (FIFO queue, #25)", () => {
+  it("enqueues the pending child-approval request for the parent session", () => {
+    const enqueuePendingChildApproval = vi.fn();
+    const handlers = createChildHandlers(makeRun({ enqueuePendingChildApproval }));
 
     handlers.onChildApprovalRequested?.("child-9", "req-42", {
       toolName: "Bash",
@@ -83,8 +81,8 @@ describe("createChildHandlers — onChildApprovalRequested", () => {
       resource: "rm -rf /tmp/x",
     });
 
-    expect(setPendingChildApproval).toHaveBeenCalledTimes(1);
-    expect(setPendingChildApproval).toHaveBeenCalledWith("parent-1", {
+    expect(enqueuePendingChildApproval).toHaveBeenCalledTimes(1);
+    expect(enqueuePendingChildApproval).toHaveBeenCalledWith("parent-1", {
       childSessionId: "child-9",
       requestId: "req-42",
       toolName: "Bash",
@@ -94,12 +92,12 @@ describe("createChildHandlers — onChildApprovalRequested", () => {
   });
 
   it("normalizes missing optional fields to null", () => {
-    const setPendingChildApproval = vi.fn();
-    const handlers = createChildHandlers(makeRun({ setPendingChildApproval }));
+    const enqueuePendingChildApproval = vi.fn();
+    const handlers = createChildHandlers(makeRun({ enqueuePendingChildApproval }));
 
     handlers.onChildApprovalRequested?.("child-9", "req-42", {});
 
-    expect(setPendingChildApproval).toHaveBeenCalledWith("parent-1", {
+    expect(enqueuePendingChildApproval).toHaveBeenCalledWith("parent-1", {
       childSessionId: "child-9",
       requestId: "req-42",
       toolName: null,
@@ -108,117 +106,88 @@ describe("createChildHandlers — onChildApprovalRequested", () => {
     });
   });
 
-  it("warns (TODO #23) when overwriting a still-pending different request", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    mockStoreState.pendingChildApproval = {
-      "parent-1": {
-        childSessionId: "child-A",
-        requestId: "req-old",
-        toolName: null,
-        permission: null,
-        resource: null,
-        receivedAt: "2026-01-01T00:00:00.000Z",
-      },
-    };
-    const setPendingChildApproval = vi.fn();
-    const handlers = createChildHandlers(makeRun({ setPendingChildApproval }));
+  it("enqueues a SECOND concurrent request from a different child without dropping the first — the reducer's FIFO queue retains both (no more single-slot overwrite / TODO #23)", () => {
+    const enqueuePendingChildApproval = vi.fn();
+    const handlers = createChildHandlers(makeRun({ enqueuePendingChildApproval }));
 
+    handlers.onChildApprovalRequested?.("child-A", "req-old", {});
     handlers.onChildApprovalRequested?.("child-B", "req-new", {});
 
-    expect(warn).toHaveBeenCalledTimes(1);
-    expect(String(warn.mock.calls[0]?.[0])).toContain("Overwriting");
-    // Still overwrites the single slot (single-slot semantics, per TODO #23).
-    expect(setPendingChildApproval).toHaveBeenCalledTimes(1);
-    warn.mockRestore();
+    // Both requests reach the store as independent enqueue calls; the queue
+    // (not this handler) is responsible for retaining both — see
+    // executionStateSlice.test.ts "retains BOTH concurrent approvals".
+    expect(enqueuePendingChildApproval).toHaveBeenCalledTimes(2);
+    expect(enqueuePendingChildApproval).toHaveBeenNthCalledWith(1, "parent-1", {
+      childSessionId: "child-A",
+      requestId: "req-old",
+      toolName: null,
+      permission: null,
+      resource: null,
+    });
+    expect(enqueuePendingChildApproval).toHaveBeenNthCalledWith(2, "parent-1", {
+      childSessionId: "child-B",
+      requestId: "req-new",
+      toolName: null,
+      permission: null,
+      resource: null,
+    });
   });
 
-  it("does not warn when the same request is re-delivered", () => {
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    mockStoreState.pendingChildApproval = {
-      "parent-1": {
-        childSessionId: "child-A",
-        requestId: "req-1",
-        toolName: null,
-        permission: null,
-        resource: null,
-        receivedAt: "2026-01-01T00:00:00.000Z",
-      },
-    };
-    const handlers = createChildHandlers(makeRun());
+  it("re-delivering the same request (reconnect/replay) still calls enqueue — dedup is the reducer's job, not this handler's", () => {
+    const enqueuePendingChildApproval = vi.fn();
+    const handlers = createChildHandlers(makeRun({ enqueuePendingChildApproval }));
 
     handlers.onChildApprovalRequested?.("child-A", "req-1", {});
+    handlers.onChildApprovalRequested?.("child-A", "req-1", {});
 
-    expect(warn).not.toHaveBeenCalled();
-    warn.mockRestore();
+    // No warning, no special-casing here: the store's enqueue action is
+    // idempotent for a duplicate requestId (see executionStateSlice.test.ts).
+    expect(enqueuePendingChildApproval).toHaveBeenCalledTimes(2);
   });
 });
 
-describe("createChildHandlers — onSubAgentCompleted (stale-prompt clear)", () => {
-  it("clears a pending approval that belongs to the completing child", () => {
-    mockStoreState.pendingChildApproval = {
-      "parent-1": {
-        childSessionId: "child-9",
-        requestId: "req-42",
-        toolName: null,
-        permission: null,
-        resource: null,
-        receivedAt: "2026-01-01T00:00:00.000Z",
-      },
-    };
-    const clearPendingChildApproval = vi.fn();
-    const handlers = createChildHandlers(makeRun({ clearPendingChildApproval }));
+describe("createChildHandlers — onSubAgentCompleted (lifecycle-clear, #25)", () => {
+  it("clears any queued approvals belonging to the completing child", () => {
+    const clearPendingChildApprovalsForChild = vi.fn();
+    const handlers = createChildHandlers(makeRun({ clearPendingChildApprovalsForChild }));
 
     handlers.onSubAgentCompleted?.("parent-1", "child-9", "completed", undefined);
 
-    expect(clearPendingChildApproval).toHaveBeenCalledTimes(1);
-    expect(clearPendingChildApproval).toHaveBeenCalledWith("parent-1");
+    expect(clearPendingChildApprovalsForChild).toHaveBeenCalledTimes(1);
+    expect(clearPendingChildApprovalsForChild).toHaveBeenCalledWith("parent-1", "child-9");
   });
 
   it("clears on an errored terminal status too", () => {
-    mockStoreState.pendingChildApproval = {
-      "parent-1": {
-        childSessionId: "child-9",
-        requestId: "req-42",
-        toolName: null,
-        permission: null,
-        resource: null,
-        receivedAt: "2026-01-01T00:00:00.000Z",
-      },
-    };
-    const clearPendingChildApproval = vi.fn();
-    const handlers = createChildHandlers(makeRun({ clearPendingChildApproval }));
+    const clearPendingChildApprovalsForChild = vi.fn();
+    const handlers = createChildHandlers(makeRun({ clearPendingChildApprovalsForChild }));
 
     handlers.onSubAgentCompleted?.("parent-1", "child-9", "error", "boom");
 
-    expect(clearPendingChildApproval).toHaveBeenCalledTimes(1);
-    expect(clearPendingChildApproval).toHaveBeenCalledWith("parent-1");
+    expect(clearPendingChildApprovalsForChild).toHaveBeenCalledTimes(1);
+    expect(clearPendingChildApprovalsForChild).toHaveBeenCalledWith("parent-1", "child-9");
   });
 
-  it("does NOT clear a pending approval belonging to a different child", () => {
-    mockStoreState.pendingChildApproval = {
-      "parent-1": {
-        childSessionId: "child-OTHER",
-        requestId: "req-42",
-        toolName: null,
-        permission: null,
-        resource: null,
-        receivedAt: "2026-01-01T00:00:00.000Z",
-      },
-    };
-    const clearPendingChildApproval = vi.fn();
-    const handlers = createChildHandlers(makeRun({ clearPendingChildApproval }));
+  it("always scopes the clear to the completing child's own id — a different child's queued entry is the reducer's concern to preserve, not this handler's", () => {
+    const clearPendingChildApprovalsForChild = vi.fn();
+    const handlers = createChildHandlers(makeRun({ clearPendingChildApprovalsForChild }));
 
     handlers.onSubAgentCompleted?.("parent-1", "child-9", "completed", undefined);
 
-    expect(clearPendingChildApproval).not.toHaveBeenCalled();
+    expect(clearPendingChildApprovalsForChild).toHaveBeenCalledWith("parent-1", "child-9");
+    // Never called with any OTHER child's id from this single completion.
+    expect(clearPendingChildApprovalsForChild).not.toHaveBeenCalledWith("parent-1", "child-OTHER");
   });
 
-  it("is a no-op when there is no pending approval", () => {
-    const clearPendingChildApproval = vi.fn();
-    const handlers = createChildHandlers(makeRun({ clearPendingChildApproval }));
+  it("calls clear unconditionally even when nothing is queued — idempotent no-op at the reducer layer", () => {
+    const clearPendingChildApprovalsForChild = vi.fn();
+    const handlers = createChildHandlers(makeRun({ clearPendingChildApprovalsForChild }));
 
     handlers.onSubAgentCompleted?.("parent-1", "child-9", "completed", undefined);
 
-    expect(clearPendingChildApproval).not.toHaveBeenCalled();
+    // The handler doesn't pre-check store state before clearing (that would
+    // require reading through the queue itself); it always calls through and
+    // relies on `clearPendingChildApprovalsForChildSnapshot` being a true
+    // no-op when nothing matches (see executionStateSlice.test.ts).
+    expect(clearPendingChildApprovalsForChild).toHaveBeenCalledTimes(1);
   });
 });

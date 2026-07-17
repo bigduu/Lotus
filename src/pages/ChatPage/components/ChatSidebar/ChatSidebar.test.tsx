@@ -682,7 +682,12 @@ describe("ChatSidebar", () => {
                 hasPendingQuestion: null,
                 runningChildCount: null,
               },
-              interaction: { pendingQuestion: null, respondMode: null, pendingChildApproval: null },
+              interaction: {
+                pendingQuestion: null,
+                respondMode: null,
+                pendingChildApprovals: [],
+                resolvedChildApprovalRequestIds: [],
+              },
               children: { byId: {}, runningCount: 0 },
               timestamps: {
                 optimisticAt: null,

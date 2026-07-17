@@ -9,6 +9,13 @@ export const OPTIMISTIC_RACE_WINDOW_MS = 5_000;
 export const STALE_OPTIMISTIC_TIMEOUT_MS = 30_000;
 export const TOOL_PREVIEW_MAX_CHARS = 80;
 export const MAX_REASONS_KEPT = 16;
+/**
+ * Bound on `resolvedChildApprovalRequestIds` (see below). The backend's
+ * `runs/active` critical-events window is itself bounded, so we only need to
+ * remember "recently resolved" requestIds long enough to outlast a replay of
+ * that window — this cap just stops unbounded growth over a long session.
+ */
+export const MAX_RESOLVED_CHILD_APPROVALS_KEPT = 32;
 
 export type ExecutionPhase =
   | "idle"
@@ -106,11 +113,30 @@ export interface SessionInteractionSnapshot {
         sessionId: string;
       })
     | null;
-  pendingChildApproval:
-    | (PendingChildApprovalPayload & {
-        receivedAt: string;
-      })
-    | null;
+  /**
+   * FIFO queue of blocked child sub-agent approval requests for this parent
+   * session, oldest (head) first. Concurrent sub-agent fan-out can produce
+   * more than one outstanding gated action at once — each gets its own entry
+   * here instead of overwriting a single slot (#25, was TODO #23).
+   * `selectPendingChildApproval` surfaces only the head; answering/clearing
+   * it pops that entry and the next (if any) surfaces automatically.
+   */
+  pendingChildApprovals: Array<
+    PendingChildApprovalPayload & {
+      receivedAt: string;
+    }
+  >;
+  /**
+   * Bounded FIFO of `requestId`s that have already been resolved — answered
+   * by the user (`dequeuePendingChildApproval`) or lifecycle-cleared because
+   * their child finished on its own (`clearPendingChildApprovalsForChild`).
+   * The backend's `runs/active` snapshot can still include an already
+   * resolved request in `last_critical_events` for a while; this tombstone
+   * set stops a resync/reconcile replay (`applyRunningSnapshot`) from
+   * resurrecting a dismissed prompt. Bounded via
+   * `MAX_RESOLVED_CHILD_APPROVALS_KEPT`.
+   */
+  resolvedChildApprovalRequestIds: string[];
 }
 
 export interface ChildProgress {
@@ -210,11 +236,13 @@ export type ExecutionAction =
   | { type: "setPendingQuestion"; sessionId: string; payload: PendingQuestionPayload }
   | { type: "clearPendingQuestion"; sessionId: string }
   | {
-      type: "setPendingChildApproval";
+      type: "enqueuePendingChildApproval";
       sessionId: string;
       payload: PendingChildApprovalPayload;
     }
-  | { type: "clearPendingChildApproval"; sessionId: string }
+  | { type: "dequeuePendingChildApproval"; sessionId: string; requestId: string }
+  | { type: "clearPendingChildApprovalsForChild"; sessionId: string; childSessionId: string }
+  | { type: "reconcilePendingChildApprovals"; sessionId: string; events: AgentEvent[] }
   | { type: "resetSession"; sessionId: string }
   | {
       type: "applyRunningSnapshot";
@@ -248,8 +276,18 @@ export interface ExecutionStateSlice {
   clearChildProgress: (sessionId: string, childId: string) => void;
   setPendingQuestion: (sessionId: string, payload: PendingQuestionPayload) => void;
   clearPendingQuestion: (sessionId: string) => void;
-  setPendingChildApproval: (sessionId: string, payload: PendingChildApprovalPayload) => void;
-  clearPendingChildApproval: (sessionId: string) => void;
+  enqueuePendingChildApproval: (sessionId: string, payload: PendingChildApprovalPayload) => void;
+  dequeuePendingChildApproval: (sessionId: string, requestId: string) => void;
+  clearPendingChildApprovalsForChild: (sessionId: string, childSessionId: string) => void;
+  /**
+   * Rebuild the pending-child-approval queue from an authoritative event log
+   * (the backend's `last_critical_events`), WITHOUT touching phase/generation/
+   * confidence/backendRunId. Unlike `applyRunningSnapshot`, this is safe to
+   * call on an already-open, actively-streaming session (e.g. from the #91
+   * gap-control reconcile) — it does not bump `generation`, so it can't
+   * desync a live SSE subscription's stale-event guard.
+   */
+  reconcilePendingChildApprovals: (sessionId: string, events: AgentEvent[]) => void;
   resetSession: (sessionId: string) => void;
   applyRunningSnapshot: (
     sessions: Array<{

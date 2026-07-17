@@ -128,11 +128,21 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
   clearPendingQuestion: (sessionId) =>
     runExecutionAction(set, { type: "clearPendingQuestion", sessionId }),
 
-  setPendingChildApproval: (sessionId, payload) =>
-    runExecutionAction(set, { type: "setPendingChildApproval", sessionId, payload }),
+  enqueuePendingChildApproval: (sessionId, payload) =>
+    runExecutionAction(set, { type: "enqueuePendingChildApproval", sessionId, payload }),
 
-  clearPendingChildApproval: (sessionId) =>
-    runExecutionAction(set, { type: "clearPendingChildApproval", sessionId }),
+  dequeuePendingChildApproval: (sessionId, requestId) =>
+    runExecutionAction(set, { type: "dequeuePendingChildApproval", sessionId, requestId }),
+
+  clearPendingChildApprovalsForChild: (sessionId, childSessionId) =>
+    runExecutionAction(set, {
+      type: "clearPendingChildApprovalsForChild",
+      sessionId,
+      childSessionId,
+    }),
+
+  reconcilePendingChildApprovals: (sessionId, events) =>
+    runExecutionAction(set, { type: "reconcilePendingChildApprovals", sessionId, events }),
 
   resetSession: (sessionId) => runExecutionAction(set, { type: "resetSession", sessionId }),
 

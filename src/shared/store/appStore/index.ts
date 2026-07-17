@@ -343,6 +343,7 @@ export {
   selectActiveToolCalls,
   selectPendingQuestion,
   selectPendingChildApproval,
+  selectPendingChildApprovals,
   selectRespondMode,
   selectChildren,
   selectChildrenSnapshot,

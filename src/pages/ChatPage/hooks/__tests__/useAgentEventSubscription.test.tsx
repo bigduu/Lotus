@@ -60,7 +60,7 @@ vi.mock("@shared/store/appStore", () => {
     return state.executionBySession?.[sessionId!]?.children?.byId ?? {};
   };
   const selectPendingChildApproval = (sessionId: string | null) => (state: any) => {
-    return state.executionBySession?.[sessionId!]?.interaction?.pendingChildApproval ?? null;
+    return state.executionBySession?.[sessionId!]?.interaction?.pendingChildApprovals?.[0] ?? null;
   };
   return {
     useAppStore: mockStore,
@@ -150,6 +150,8 @@ const createMockState = (overrides: Partial<any> = {}) => ({
   loadChatHistory: vi.fn(),
   setPendingQuestion: vi.fn(),
   clearPendingQuestion: vi.fn(),
+  enqueuePendingChildApproval: vi.fn(),
+  clearPendingChildApprovalsForChild: vi.fn(),
   applyServerTitle: vi.fn(),
   applyServerPinned: vi.fn(),
   ...overrides,
