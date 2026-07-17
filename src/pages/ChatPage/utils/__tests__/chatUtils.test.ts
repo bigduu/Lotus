@@ -1,8 +1,13 @@
 import { describe, it, expect } from "vitest";
 import {
+  buildWorkspaceGroupLabels,
   getDateGroupKeyForChat,
   getSortedDateKeys,
+  getSortedWorkspaceKeys,
+  getWorkspaceBaseName,
+  getWorkspaceGroupKey,
   groupChatsByDate,
+  groupChatsByWorkspace,
   isToday,
   isYesterday,
   isThisWeek,
@@ -13,6 +18,7 @@ import {
   groupChatsByToolCategory,
   getSessionIdsByDate,
   getChatCountByDate,
+  NO_WORKSPACE_GROUP_KEY,
 } from "../chatUtils";
 import { ChatItem } from "@shared/types/chat";
 
@@ -700,6 +706,112 @@ describe("chatUtils", () => {
       lastMonth.setDate(1);
       lastMonth.setMonth(lastMonth.getMonth() - 1);
       expect(isThisMonth(lastMonth)).toBe(false);
+    });
+  });
+
+  // ─── Secondary grouping: by workspace (Lotus #95) ────────────────────
+  describe("getWorkspaceGroupKey", () => {
+    it("returns the trimmed workspace path when present", () => {
+      expect(getWorkspaceGroupKey("/Users/alice/zenith")).toBe("/Users/alice/zenith");
+      expect(getWorkspaceGroupKey("  /Users/alice/zenith  ")).toBe("/Users/alice/zenith");
+    });
+
+    it("returns the sentinel for missing/blank paths", () => {
+      expect(getWorkspaceGroupKey(null)).toBe(NO_WORKSPACE_GROUP_KEY);
+      expect(getWorkspaceGroupKey(undefined)).toBe(NO_WORKSPACE_GROUP_KEY);
+      expect(getWorkspaceGroupKey("")).toBe(NO_WORKSPACE_GROUP_KEY);
+      expect(getWorkspaceGroupKey("   ")).toBe(NO_WORKSPACE_GROUP_KEY);
+    });
+  });
+
+  describe("groupChatsByWorkspace", () => {
+    it("buckets same-workspace sessions together, scattered createdAt notwithstanding", () => {
+      const chats = [
+        { id: "1", createdAt: 1000, config: { workspacePath: "/Users/alice/zenith" } },
+        { id: "2", createdAt: 5000, config: { workspacePath: "/Users/alice/bamboo" } },
+        { id: "3", createdAt: 3000, config: { workspacePath: "/Users/alice/zenith" } },
+      ];
+
+      const grouped = groupChatsByWorkspace(chats);
+
+      expect(Object.keys(grouped).sort()).toEqual(
+        ["/Users/alice/bamboo", "/Users/alice/zenith"].sort(),
+      );
+      expect(grouped["/Users/alice/zenith"].map((c) => c.id)).toEqual(["3", "1"]);
+      expect(grouped["/Users/alice/bamboo"].map((c) => c.id)).toEqual(["2"]);
+    });
+
+    it("routes sessions with no workspacePath into the sentinel bucket", () => {
+      const chats = [
+        { id: "1", createdAt: 1000, config: { workspacePath: null } },
+        { id: "2", createdAt: 2000, config: { workspacePath: undefined } },
+        { id: "3", createdAt: 3000, config: { workspacePath: "" } },
+      ];
+
+      const grouped = groupChatsByWorkspace(chats);
+
+      expect(Object.keys(grouped)).toEqual([NO_WORKSPACE_GROUP_KEY]);
+      expect(grouped[NO_WORKSPACE_GROUP_KEY]).toHaveLength(3);
+    });
+
+    it("does NOT split pinned sessions into a separate cross-workspace bucket — they sort first within their own group instead", () => {
+      const chats = [
+        { id: "1", createdAt: 1000, pinned: false, config: { workspacePath: "/w/zenith" } },
+        { id: "2", createdAt: 2000, pinned: true, config: { workspacePath: "/w/zenith" } },
+      ];
+
+      const grouped = groupChatsByWorkspace(chats);
+
+      expect(Object.keys(grouped)).toEqual(["/w/zenith"]);
+      // Pinned sorts first even though it's not the most recent.
+      expect(grouped["/w/zenith"].map((c) => c.id)).toEqual(["2", "1"]);
+    });
+  });
+
+  describe("getSortedWorkspaceKeys", () => {
+    it("orders workspace groups by latest activity, most recent first", () => {
+      const grouped = {
+        "/w/old": [{ createdAt: 1000 }],
+        "/w/new": [{ createdAt: 9000 }],
+      };
+
+      expect(getSortedWorkspaceKeys(grouped)).toEqual(["/w/new", "/w/old"]);
+    });
+
+    it("always places the no-workspace bucket last, regardless of recency", () => {
+      const grouped = {
+        [NO_WORKSPACE_GROUP_KEY]: [{ createdAt: 99999 }],
+        "/w/zenith": [{ createdAt: 1 }],
+      };
+
+      expect(getSortedWorkspaceKeys(grouped)).toEqual(["/w/zenith", NO_WORKSPACE_GROUP_KEY]);
+    });
+  });
+
+  describe("getWorkspaceBaseName / buildWorkspaceGroupLabels", () => {
+    it("uses the last path segment as the base name", () => {
+      expect(getWorkspaceBaseName("/Users/alice/Workspace/zenith")).toBe("zenith");
+      expect(getWorkspaceBaseName("/Users/alice/Workspace/zenith/")).toBe("zenith");
+      expect(getWorkspaceBaseName("C:\\Users\\alice\\zenith")).toBe("zenith");
+    });
+
+    it("labels non-colliding paths with their plain base name", () => {
+      const labels = buildWorkspaceGroupLabels(["/Users/alice/zenith", "/Users/alice/bamboo"]);
+      expect(labels).toEqual({
+        "/Users/alice/zenith": "zenith",
+        "/Users/alice/bamboo": "bamboo",
+      });
+    });
+
+    it("disambiguates a base-name collision with the parent directory", () => {
+      const labels = buildWorkspaceGroupLabels([
+        "/Users/alice/zenith/bamboo",
+        "/Users/alice/other/bamboo",
+      ]);
+      expect(labels).toEqual({
+        "/Users/alice/zenith/bamboo": "zenith · bamboo",
+        "/Users/alice/other/bamboo": "other · bamboo",
+      });
     });
   });
 });

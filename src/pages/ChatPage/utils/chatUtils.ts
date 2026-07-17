@@ -236,3 +236,132 @@ export const getDateGroupKeyForChat = (chat: {
     day: "numeric",
   });
 };
+
+// ─── Secondary grouping: by workspace (Lotus #95) ──────────────────────
+// Sessions with the same `workspacePath` (e.g. all zenith / all bamboo
+// sessions) are scattered across date buckets under the default grouping.
+// This is an alternate top-level grouping the sidebar can switch to,
+// re-using the exact same `Record<string, T[]>` + sorted-key-array shape
+// as `groupChatsByDate` so every consumer (ChatSidebarDateGroups,
+// ChatSidebarVirtualRootList, getSessionIdsByDate, getChatCountByDate — all
+// of which are already generic over that shape) works unmodified.
+
+/** Sentinel group key for sessions with no (or blank) `workspacePath`. */
+export const NO_WORKSPACE_GROUP_KEY = "__no_workspace__";
+
+type WorkspaceGroupChat = {
+  pinned?: boolean;
+  createdAt: number;
+  config: {
+    workspacePath?: string | null;
+  };
+};
+
+/**
+ * Resolves the group key for a session's workspace: the raw (trimmed)
+ * `workspacePath` itself — which doubles as both the grouping key and the
+ * full-path tooltip text — or the `NO_WORKSPACE_GROUP_KEY` sentinel when
+ * absent/blank.
+ */
+export const getWorkspaceGroupKey = (workspacePath?: string | null): string => {
+  const trimmed = workspacePath?.trim();
+  return trimmed ? trimmed : NO_WORKSPACE_GROUP_KEY;
+};
+
+/**
+ * Groups chats by `config.workspacePath`. Unlike `groupChatsByDate`, pinned
+ * sessions are NOT split into a separate cross-workspace "Pinned" bucket —
+ * doing so would scatter a single workspace's sessions right back across
+ * groups, defeating the point of this mode. Instead, within each workspace
+ * group, pinned sessions sort to the top (mirroring the pinned-first sort
+ * already used for a root's child sessions), then by `createdAt` descending
+ * (not `updatedAt` — same rationale as `groupChatsByDate`/`allChildrenByRoot`:
+ * stable ordering that doesn't reshuffle on every streamed token).
+ */
+export const groupChatsByWorkspace = <T extends WorkspaceGroupChat>(
+  chats: T[],
+): Record<string, T[]> => {
+  const grouped: Record<string, T[]> = {};
+
+  chats.forEach((chat) => {
+    const key = getWorkspaceGroupKey(chat.config.workspacePath);
+    if (!grouped[key]) {
+      grouped[key] = [];
+    }
+    grouped[key].push(chat);
+  });
+
+  Object.keys(grouped).forEach((key) => {
+    grouped[key].sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      return b.createdAt - a.createdAt;
+    });
+  });
+
+  return grouped;
+};
+
+/**
+ * Sorted workspace group keys: most-recently-active workspace first (by the
+ * latest `createdAt` among its sessions), with the "no workspace" bucket
+ * always trailing last regardless of recency (mirrors the issue's proposed
+ * shape — a predictable dumping-ground bucket, not one that jumps around).
+ */
+export const getSortedWorkspaceKeys = <T extends { createdAt: number }>(
+  grouped: Record<string, T[]>,
+): string[] => {
+  return Object.keys(grouped).sort((a, b) => {
+    if (a === NO_WORKSPACE_GROUP_KEY) return 1;
+    if (b === NO_WORKSPACE_GROUP_KEY) return -1;
+
+    const aTime = (grouped[a] || []).reduce((max, chat) => Math.max(max, chat.createdAt), 0);
+    const bTime = (grouped[b] || []).reduce((max, chat) => Math.max(max, chat.createdAt), 0);
+    return bTime - aTime;
+  });
+};
+
+const splitWorkspacePathSegments = (path: string): string[] =>
+  path
+    .replace(/[/\\]+$/, "")
+    .split(/[/\\]+/)
+    .filter(Boolean);
+
+/** Last path segment of a workspace path — the friendly display name. */
+export const getWorkspaceBaseName = (path: string): string => {
+  const segments = splitWorkspacePathSegments(path);
+  return segments.length ? segments[segments.length - 1] : path;
+};
+
+/**
+ * Builds a display label per workspace path: the base name (last path
+ * segment), disambiguated on collision by prefixing the parent directory's
+ * name (e.g. two different `bamboo` checkouts become `zenith · bamboo` vs
+ * `other · bamboo`). Callers show the raw path itself as a tooltip for the
+ * full, unambiguous location — see `getWorkspaceGroupKey`, whose returned
+ * key IS the raw path.
+ */
+export const buildWorkspaceGroupLabels = (paths: string[]): Record<string, string> => {
+  const baseNameByPath = new Map<string, string>();
+  const baseNameCounts = new Map<string, number>();
+
+  for (const path of paths) {
+    const base = getWorkspaceBaseName(path);
+    baseNameByPath.set(path, base);
+    baseNameCounts.set(base, (baseNameCounts.get(base) || 0) + 1);
+  }
+
+  const labels: Record<string, string> = {};
+  for (const path of paths) {
+    const base = baseNameByPath.get(path) as string;
+    if ((baseNameCounts.get(base) || 0) <= 1) {
+      labels[path] = base;
+      continue;
+    }
+
+    const segments = splitWorkspacePathSegments(path);
+    const parent = segments.length > 1 ? segments[segments.length - 2] : "";
+    labels[path] = parent ? `${parent} · ${base}` : base;
+  }
+
+  return labels;
+};

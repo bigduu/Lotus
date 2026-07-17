@@ -311,6 +311,12 @@ export const zhCnTranslation = {
           pinned: "置顶",
           scheduled: "计划任务",
         },
+        groupBy: {
+          ariaLabel: "会话分组方式",
+          date: "按日期",
+          workspace: "按工作区",
+        },
+        noWorkspace: "无工作区",
         actions: {
           collapseChildren: "折叠子会话",
           expandChildren: "展开子会话",
@@ -322,6 +328,10 @@ export const zhCnTranslation = {
         deleteByDate: {
           title: "删除 {{date}} 的会话",
           confirm: "确定要删除 {{date}} 的 {{count}} 个会话吗？",
+        },
+        deleteByWorkspace: {
+          title: "删除「{{workspace}}」中的会话",
+          confirm: "确定要删除「{{workspace}}」中的 {{count}} 个会话吗？",
         },
         newSessionWithPrompt: "基于 {{prompt}} 的新会话",
         title: "会话侧边栏",

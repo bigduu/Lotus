@@ -27,6 +27,17 @@ export type LayoutSplitNode = {
 
 export type LayoutNode = LayoutLeafNode | LayoutSplitNode;
 
+/**
+ * Root-session sidebar grouping mode (Lotus #95): the existing "by date"
+ * grouping (Today/Yesterday/…), or a secondary "by workspace" grouping that
+ * clusters sessions sharing the same `workspacePath` instead. Persisted
+ * alongside the rest of the sidebar layout so the user's choice survives a
+ * reload, same as `collapsed`/`widthPx`.
+ */
+export type SidebarGroupingMode = "date" | "workspace";
+
+export const DEFAULT_SIDEBAR_GROUPING_MODE: SidebarGroupingMode = "date";
+
 export type SidebarLayout = {
   collapsed: boolean;
   /**
@@ -36,6 +47,8 @@ export type SidebarLayout = {
   collapsedWidthPx: number;
   minWidthPx: number;
   maxWidthPx: number;
+  /** Root-session grouping mode — see `SidebarGroupingMode`. Defaults to "date". */
+  groupingMode: SidebarGroupingMode;
 };
 
 export type InspectorLayout = {
@@ -71,6 +84,7 @@ export const DEFAULT_SIDEBAR: SidebarLayout = {
   collapsedWidthPx: 72,
   minWidthPx: 180,
   maxWidthPx: 520,
+  groupingMode: DEFAULT_SIDEBAR_GROUPING_MODE,
 };
 
 // The inspector is a secondary panel showing sparse, narrow cards (config,

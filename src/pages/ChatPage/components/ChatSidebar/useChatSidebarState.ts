@@ -6,11 +6,16 @@ import { useShallow } from "zustand/react/shallow";
 import { AgentClient } from "@services/chat/AgentService";
 
 import {
+  buildWorkspaceGroupLabels,
   getChatCountByDate,
   getSessionIdsByDate,
   getDateGroupKeyForChat,
   getSortedDateKeys,
+  getSortedWorkspaceKeys,
+  getWorkspaceGroupKey,
   groupChatsByDate,
+  groupChatsByWorkspace,
+  NO_WORKSPACE_GROUP_KEY,
 } from "../../utils/chatUtils";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
@@ -198,11 +203,21 @@ export const useChatSidebarState = () => {
     [],
   );
 
-  const { sidebarCollapsed, setSidebarCollapsed, clearSessionFromAllLeaves } = useUILayoutStore(
+  const {
+    sidebarCollapsed,
+    setSidebarCollapsed,
+    clearSessionFromAllLeaves,
+    groupingMode,
+    setGroupingMode,
+  } = useUILayoutStore(
     useShallow((s) => ({
       sidebarCollapsed: s.sidebar.collapsed,
       setSidebarCollapsed: s.setSidebarCollapsed,
       clearSessionFromAllLeaves: s.clearSessionFromAllLeaves,
+      // Lotus #95 — secondary "group by workspace" sidebar mode, persisted
+      // the same way `sidebar.collapsed` already is.
+      groupingMode: s.sidebar.groupingMode,
+      setGroupingMode: s.setSidebarGroupingMode,
     })),
   );
 
@@ -248,6 +263,14 @@ export const useChatSidebarState = () => {
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [scheduleThisSessionId, setScheduleThisSessionId] = useState<string | null>(null);
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set(["Today"]));
+  // Baseline expanded-group state for workspace mode (#95) — kept separate
+  // from `expandedDates` so switching grouping modes doesn't carry one
+  // mode's manually-toggled groups into the other's (unrelated) key-space.
+  // Starts empty, mirroring `expandedDates`'s own "nothing forced open
+  // besides the selected session's group" default.
+  const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SidebarStatusFilter>("all");
   const [projectDreamState, setProjectDreamState] = useState<
@@ -273,6 +296,7 @@ export const useChatSidebarState = () => {
         pinned: Boolean(chat.pinned),
         createdAt: chat.createdAt,
         createdByScheduleId: chat.createdByScheduleId || null,
+        workspacePath: chat.config.workspacePath || null,
       };
     }),
   );
@@ -288,6 +312,14 @@ export const useChatSidebarState = () => {
     });
   }, [selectedSessionMeta]);
 
+  // Mirrors `currentDateGroupKey` above, but for the workspace grouping mode
+  // (#95) — resolves which workspace group the selected session lives in so
+  // its group auto-expands the same way the date group does today.
+  const currentWorkspaceGroupKey = useMemo(() => {
+    if (!selectedSessionMeta) return null;
+    return getWorkspaceGroupKey(selectedSessionMeta.workspacePath);
+  }, [selectedSessionMeta]);
+
   // Debounce the expensive filter recomputation, not the input value: the
   // <Input> stays bound to `searchQuery` directly so typed characters echo
   // immediately, while the useMemo chain below only re-filters after the
@@ -300,24 +332,27 @@ export const useChatSidebarState = () => {
   const normalizedSearchQuery = effectiveSearchQuery.trim().toLowerCase();
   const hasActiveFilters = normalizedSearchQuery.length > 0 || statusFilter !== "all";
 
-  // ─── Filter-aware date-group expansion (#61, extended to status filters
-  // in #67) ─────────────────────────────────────────────────────────────
-  // A filter match inside a collapsed, non-selected date group used to stay
-  // invisible: `expandedDates` only ever grew via explicit user clicks (plus
-  // the always-expanded selected-session group). While ANY filter is active
-  // — a search query, a status filter (pinned/running/child), or both — we
-  // instead auto-expand every date group that currently contains a match —
-  // that's exactly `sortedDateKeys` below, since `groupedChatsByDate` is
-  // built from `filteredRootSessions`, which already excludes non-matching
-  // roots/children under both the search and status predicates.
+  // ─── Filter-aware group expansion (#61, extended to status filters in
+  // #67, generalized to the workspace grouping mode in #95) ──────────────
+  // A filter match inside a collapsed, non-selected group used to stay
+  // invisible: the baseline expand set (`expandedDates` or, in workspace
+  // mode, `expandedWorkspaceGroups`) only ever grew via explicit user
+  // clicks (plus the always-expanded selected-session group). While ANY
+  // filter is active — a search query, a status filter (pinned/running/
+  // child), or both — we instead auto-expand every group that currently
+  // contains a match — that's exactly `activeSortedGroupKeys` below, since
+  // `activeGroupedChats` is built from `filteredRootSessions`, which
+  // already excludes non-matching roots/children under both the search and
+  // status predicates.
   //
   // The user can still manually collapse a group while a filter is active;
   // to avoid fighting them on every keystroke or filter toggle, this
   // override is re-derived (reset) only when the *filter episode* changes —
-  // i.e. when the effective (debounced) search query or the status filter
-  // changes — not on unrelated re-renders. `expandedDates` itself is left
-  // untouched by filtering, so once every filter clears, expansion reverts
-  // to whatever the user had before filtering.
+  // i.e. when the effective (debounced) search query, the status filter, or
+  // the grouping mode itself changes — not on unrelated re-renders. The
+  // baseline expand set is left untouched by filtering, so once every
+  // filter clears, expansion reverts to whatever the user had before
+  // filtering.
   const [searchCollapseOverrides, setSearchCollapseOverrides] = useState<Set<string>>(
     () => new Set(),
   );
@@ -325,7 +360,11 @@ export const useChatSidebarState = () => {
   // `statusFilter` is a closed enum, and search text can never contain a
   // raw NUL, so this cannot collide between two distinct (query, filter)
   // pairs the way a plain string join could.
-  const filterEpisodeKey = `${effectiveSearchQuery}\u0000${statusFilter}`;
+  // `groupingMode` is folded in too (#95) — switching grouping mode swaps
+  // the entire key-space (date keys like "Today" vs workspace paths), so a
+  // mid-filter manual collapse override recorded under one mode must not
+  // leak into the other.
+  const filterEpisodeKey = `${effectiveSearchQuery}\u0000${statusFilter}\u0000${groupingMode}`;
   const [lastFilterEpisodeKey, setLastFilterEpisodeKey] = useState(filterEpisodeKey);
   if (filterEpisodeKey !== lastFilterEpisodeKey) {
     setLastFilterEpisodeKey(filterEpisodeKey);
@@ -342,8 +381,10 @@ export const useChatSidebarState = () => {
   const emptyStrArr = useMemo<string[]>(() => [], []);
   const emptySet = useMemo<Set<string>>(() => new Set(), []);
   const emptyBoolMap = useMemo<Record<string, boolean>>(() => ({}), []);
+  const emptyLabelMap = useMemo<Record<string, string>>(() => ({}), []);
 
-  // Folder model: sidebar groups only root sessions by date.
+  // Folder model: sidebar groups only root sessions by date (or, in
+  // workspace mode, by `config.workspacePath` — #95).
   // Child sessions are rendered nested under their root.
   const rootSessions = useMemo(
     () => (sidebarCollapsed ? emptyChatArr : chats.filter((c) => c.kind !== "child")),
@@ -466,6 +507,40 @@ export const useChatSidebarState = () => {
     [groupedChatsByDate, sidebarCollapsed, emptyStrArr],
   );
 
+  // ─── Secondary grouping: by workspace (#95) ────────────────────────
+  // Same `filteredRootSessions` input, same generic Record<string, T[]>
+  // shape as the date grouping above — so every downstream consumer
+  // (ChatSidebarDateGroups, ChatSidebarVirtualRootList, getSessionIdsByDate,
+  // getChatCountByDate) works unmodified regardless of which grouping is
+  // active.
+  const groupedChatsByWorkspace = useMemo(
+    () => (sidebarCollapsed ? emptyGrouped : groupChatsByWorkspace(filteredRootSessions)),
+    [filteredRootSessions, sidebarCollapsed, emptyGrouped],
+  );
+  const sortedWorkspaceKeys = useMemo(
+    () => (sidebarCollapsed ? emptyStrArr : getSortedWorkspaceKeys(groupedChatsByWorkspace)),
+    [groupedChatsByWorkspace, sidebarCollapsed, emptyStrArr],
+  );
+  // Friendly display label per workspace-path group key (basename, with
+  // parent-dir disambiguation on collision — see buildWorkspaceGroupLabels).
+  // The "no workspace" sentinel key is excluded; its label is a translated
+  // string resolved in the presentation layer instead.
+  const workspaceGroupLabels = useMemo(() => {
+    if (sidebarCollapsed) return emptyLabelMap;
+    const paths = Object.keys(groupedChatsByWorkspace).filter((k) => k !== NO_WORKSPACE_GROUP_KEY);
+    if (paths.length === 0) return emptyLabelMap;
+    return buildWorkspaceGroupLabels(paths);
+  }, [groupedChatsByWorkspace, sidebarCollapsed, emptyLabelMap]);
+
+  // The grouping actually rendered — swaps wholesale between the date and
+  // workspace pipelines above based on the persisted `groupingMode` (#95).
+  // Plain (unmemoized) picks: cheap reference selection, not derived work.
+  const activeGroupedChats =
+    groupingMode === "workspace" ? groupedChatsByWorkspace : groupedChatsByDate;
+  const activeSortedGroupKeys = groupingMode === "workspace" ? sortedWorkspaceKeys : sortedDateKeys;
+  const currentGroupKey =
+    groupingMode === "workspace" ? currentWorkspaceGroupKey : currentDateGroupKey;
+
   // ─── Scroll-to-active-session target (#93) ─────────────────────────
   // Resolves which date group + row the currently active session lives in,
   // so ChatSidebarDateGroups can bring it into view (scrollToIndex for a
@@ -480,10 +555,10 @@ export const useChatSidebarState = () => {
   // making filter-driven churn a trigger in its own right. Mount is covered
   // for free: an effect always runs once on mount regardless of whether its
   // dependency "changed" from anything.
-  const groupedChatsByDateRef = useRef(groupedChatsByDate);
-  groupedChatsByDateRef.current = groupedChatsByDate;
-  const sortedDateKeysRef = useRef(sortedDateKeys);
-  sortedDateKeysRef.current = sortedDateKeys;
+  const activeGroupedChatsRef = useRef(activeGroupedChats);
+  activeGroupedChatsRef.current = activeGroupedChats;
+  const activeSortedGroupKeysRef = useRef(activeSortedGroupKeys);
+  activeSortedGroupKeysRef.current = activeSortedGroupKeys;
   const childrenByRootRef = useRef(childrenByRoot);
   childrenByRootRef.current = childrenByRoot;
 
@@ -495,10 +570,10 @@ export const useChatSidebarState = () => {
       return;
     }
 
-    const grouped = groupedChatsByDateRef.current;
+    const grouped = activeGroupedChatsRef.current;
     const childrenMap = childrenByRootRef.current;
 
-    for (const dateKey of sortedDateKeysRef.current) {
+    for (const dateKey of activeSortedGroupKeysRef.current) {
       const group = grouped[dateKey] || [];
       const rootMatch = group.find((chat) => chat.id === currentSessionId);
       if (rootMatch) {
@@ -522,30 +597,37 @@ export const useChatSidebarState = () => {
     // (that would happen for a reason unrelated to the session actually
     // changing, e.g. clearing a search query).
     setScrollTarget(null);
-  }, [currentSessionId]);
+    // `groupingMode` is included so switching modes re-resolves the target
+    // against the newly-active grouping's key-space (#95) — otherwise a
+    // stale `dateKey` from the other mode's key-space would linger.
+  }, [currentSessionId, groupingMode]);
 
   // While any filter (search query and/or status) is active, expand every
-  // date group that currently contains a match (all of `sortedDateKeys`,
+  // group that currently contains a match (all of `activeSortedGroupKeys`,
   // minus any the user explicitly collapsed during this filter episode —
   // see `searchCollapseOverrides` above). Otherwise fall back to the user's
-  // baseline expansion, always keeping the currently selected chat's group
-  // open, without causing an effect-driven setState loop.
+  // baseline expansion for whichever grouping mode is active (#95), always
+  // keeping the currently selected chat's group open, without causing an
+  // effect-driven setState loop.
   const expandedKeys = useMemo(() => {
     if (hasActiveFilters) {
-      return sortedDateKeys.filter((key) => !searchCollapseOverrides.has(key));
+      return activeSortedGroupKeys.filter((key) => !searchCollapseOverrides.has(key));
     }
 
-    const next = new Set(expandedDates);
-    if (currentDateGroupKey) {
-      next.add(currentDateGroupKey);
+    const baseline = groupingMode === "workspace" ? expandedWorkspaceGroups : expandedDates;
+    const next = new Set(baseline);
+    if (currentGroupKey) {
+      next.add(currentGroupKey);
     }
     return Array.from(next);
   }, [
-    currentDateGroupKey,
+    activeSortedGroupKeys,
+    currentGroupKey,
     expandedDates,
+    expandedWorkspaceGroups,
+    groupingMode,
     hasActiveFilters,
     searchCollapseOverrides,
-    sortedDateKeys,
   ]);
 
   const handleCollapseChange = (keys: string | string[]) => {
@@ -553,14 +635,14 @@ export const useChatSidebarState = () => {
 
     if (hasActiveFilters) {
       // Every group rendered while a filter is active is already
-      // auto-expanded (it's a member of `sortedDateKeys`); track which of
-      // those the user explicitly collapsed rather than touching the
-      // baseline `expandedDates`, so a manual collapse mid-filter never
-      // leaks into the state restored once every filter clears.
+      // auto-expanded (it's a member of `activeSortedGroupKeys`); track
+      // which of those the user explicitly collapsed rather than touching
+      // the baseline set, so a manual collapse mid-filter never leaks into
+      // the state restored once every filter clears.
       setSearchCollapseOverrides((prev) => {
         let changed = false;
         const nextOverrides = new Set(prev);
-        for (const key of sortedDateKeys) {
+        for (const key of activeSortedGroupKeys) {
           const shouldBeCollapsed = !next.has(key);
           if (shouldBeCollapsed && !nextOverrides.has(key)) {
             nextOverrides.add(key);
@@ -575,7 +657,9 @@ export const useChatSidebarState = () => {
       return;
     }
 
-    setExpandedDates((prev) => {
+    const setBaseline =
+      groupingMode === "workspace" ? setExpandedWorkspaceGroups : setExpandedDates;
+    setBaseline((prev) => {
       if (prev.size !== next.size) return next;
       for (const k of next) {
         if (!prev.has(k)) return next;
@@ -587,8 +671,13 @@ export const useChatSidebarState = () => {
   const handlePinChat = useCallback(
     (sessionId: string) => {
       pinSession(sessionId);
-      // Pinned chats move into the "Pinned" group; expand it so the chat doesn't
-      // appear to "disappear" immediately after pinning.
+      // In date mode, pinned chats move into the cross-workspace "Pinned"
+      // group — expand it so the chat doesn't appear to "disappear"
+      // immediately after pinning. In workspace mode (#95) pinning does NOT
+      // relocate the session (it stays in its workspace group, just sorted
+      // to the top — see groupChatsByWorkspace), so there is no group to
+      // force open.
+      if (groupingMode !== "date") return;
       setExpandedDates((prev) => {
         if (prev.has("Pinned")) return prev;
         const next = new Set(prev);
@@ -596,14 +685,15 @@ export const useChatSidebarState = () => {
         return next;
       });
     },
-    [pinSession],
+    [groupingMode, pinSession],
   );
 
   const handleUnpinChat = useCallback(
     (sessionId: string) => {
       // Compute the destination group key (best-effort) so the chat remains visible.
       const chat = chats.find((c) => c.id === sessionId);
-      const nextGroupKey = chat ? getDateGroupKeyForChat({ ...chat, pinned: false }) : null;
+      const nextGroupKey =
+        groupingMode === "date" && chat ? getDateGroupKeyForChat({ ...chat, pinned: false }) : null;
 
       unpinSession(sessionId);
 
@@ -615,7 +705,7 @@ export const useChatSidebarState = () => {
         return next;
       });
     },
-    [chats, unpinSession],
+    [chats, groupingMode, unpinSession],
   );
 
   const handleDelete = (sessionId: string) => {
@@ -763,16 +853,33 @@ export const useChatSidebarState = () => {
     [message, projectDreamState, refreshChats, t],
   );
 
-  const handleDeleteByDate = (dateKey: string) => {
-    const sessionIds = getSessionIdsByDate(groupedChatsByDate, dateKey);
-    const chatCount = getChatCountByDate(groupedChatsByDate, dateKey);
+  // Handles "delete all sessions in this group" for both grouping modes
+  // (#95) — the confirm copy differs (a date label vs. a workspace label),
+  // but the mechanics (resolve session ids from the currently-rendered
+  // group, clear them from panes, bulk-delete) are identical, driven by
+  // whichever grouping is active.
+  const handleDeleteByGroup = (groupKey: string) => {
+    const sessionIds = getSessionIdsByDate(activeGroupedChats, groupKey);
+    const chatCount = getChatCountByDate(activeGroupedChats, groupKey);
+
+    const isWorkspaceMode = groupingMode === "workspace";
+    const workspaceLabel = isWorkspaceMode
+      ? (workspaceGroupLabels[groupKey] ?? t("chat.sidebar.noWorkspace", "No workspace"))
+      : "";
 
     Modal.confirm({
-      title: t("chat.sidebar.deleteByDate.title", { date: dateKey }),
-      content: t("chat.sidebar.deleteByDate.confirm", {
-        count: chatCount,
-        date: dateKey,
-      }),
+      title: isWorkspaceMode
+        ? t("chat.sidebar.deleteByWorkspace.title", { workspace: workspaceLabel })
+        : t("chat.sidebar.deleteByDate.title", { date: groupKey }),
+      content: isWorkspaceMode
+        ? t("chat.sidebar.deleteByWorkspace.confirm", {
+            count: chatCount,
+            workspace: workspaceLabel,
+          })
+        : t("chat.sidebar.deleteByDate.confirm", {
+            count: chatCount,
+            date: groupKey,
+          }),
       okText: t("common.delete"),
       okType: "danger",
       cancelText: t("common.cancel"),
@@ -885,11 +992,21 @@ export const useChatSidebarState = () => {
     collapsed: sidebarCollapsed,
     currentSessionId,
     expandedKeys,
+    // `groupedChatsByDate`/`sortedDateKeys` remain the literal date grouping
+    // (used internally above, e.g. by handleDeleteByGroup's date branch);
+    // `activeGroupedChats`/`activeSortedGroupKeys` are what the presentation
+    // layer should actually render — they already reflect `groupingMode`
+    // (#95).
     groupedChatsByDate,
+    activeGroupedChats,
+    activeSortedGroupKeys,
+    groupingMode,
+    setGroupingMode,
+    workspaceGroupLabels,
     hasActiveFilters,
     handleCollapseChange,
     handleDelete,
-    handleDeleteByDate,
+    handleDeleteByDate: handleDeleteByGroup,
     handleEditTitle,
     handleGenerateTitle,
     handleNewChat,

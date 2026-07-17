@@ -1,0 +1,146 @@
+/**
+ * Coverage for ChatSidebarDateGroups' workspace-grouping presentation
+ * (Lotus #95): when `groupingMode="workspace"`, group headers render the
+ * friendly workspace label (falling back to the raw path, or the "No
+ * workspace" translation for the sentinel key) instead of the date-bucket
+ * translation, and skip the date-mode-only "Today" highlight color.
+ *
+ * The row-rendering internals (virtualization, status dots, scroll-to-
+ * active, Schedule-this, keyboard a11y) are NOT re-tested here — they are
+ * the exact same code path already covered by
+ * ChatSidebarDateGroups.virtualization.test.tsx and
+ * ChatSidebarDateGroups.scrollAndStatus.test.tsx, unaffected by this prop.
+ */
+import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { App as AntdApp, theme } from "antd";
+
+import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
+import { NO_WORKSPACE_GROUP_KEY } from "../../utils/chatUtils";
+import type { SidebarChatItem } from "@shared/types/sidebarChat";
+
+const { useToken } = theme;
+const noop = () => {};
+
+const makeChat = (index: number, overrides: Partial<SidebarChatItem> = {}): SidebarChatItem => ({
+  id: `session-${index}`,
+  title: `Session ${index}`,
+  kind: "root",
+  pinned: false,
+  parentSessionId: null,
+  rootSessionId: null,
+  createdByScheduleId: null,
+  updatedAt: null,
+  lastRunStatus: null,
+  lastRunError: null,
+  createdAt: index,
+  config: { systemPromptId: "general_assistant", workspacePath: null },
+  ...overrides,
+});
+
+type HarnessOverrides = Partial<React.ComponentProps<typeof ChatSidebarDateGroups>>;
+
+const Harness: React.FC<HarnessOverrides> = (overrides) => {
+  const { token } = useToken();
+
+  const defaults: React.ComponentProps<typeof ChatSidebarDateGroups> = {
+    groupedChatsByDate: {},
+    childrenByRoot: {},
+    expandedRootIds: new Set(),
+    onToggleRootExpanded: noop,
+    sortedDateKeys: [],
+    expandedKeys: [],
+    onCollapseChange: noop,
+    currentSessionId: null,
+    onSelectChat: noop,
+    onDeleteChat: noop,
+    onDeleteByDate: noop,
+    onPinChat: noop,
+    onUnpinChat: noop,
+    onEditTitle: noop,
+    onGenerateTitle: noop,
+    onRunProjectDream: noop,
+    onScheduleThis: noop,
+    titleGenerationState: {},
+    projectDreamState: {},
+    token,
+    hasActiveFilters: false,
+    onClearFilters: noop,
+    runStateBySessionId: {},
+    rootHasRunningChildBySessionId: {},
+    scrollTarget: null,
+  };
+
+  return <ChatSidebarDateGroups {...defaults} {...overrides} />;
+};
+
+function renderHarness(overrides: HarnessOverrides) {
+  return render(
+    <AntdApp>
+      <Harness {...overrides} />
+    </AntdApp>,
+  );
+}
+
+describe("ChatSidebarDateGroups workspace mode (#95)", () => {
+  it("defaults to date-mode label rendering when groupingMode is omitted", () => {
+    renderHarness({
+      groupedChatsByDate: { Today: [makeChat(0)] },
+      sortedDateKeys: ["Today"],
+      expandedKeys: ["Today"],
+    });
+
+    expect(screen.getByText("Today (1)")).toBeInTheDocument();
+  });
+
+  it("renders the friendly workspace label (with count) instead of a date translation", () => {
+    renderHarness({
+      groupedChatsByDate: { "/Users/alice/zenith": [makeChat(0), makeChat(1)] },
+      sortedDateKeys: ["/Users/alice/zenith"],
+      expandedKeys: ["/Users/alice/zenith"],
+      groupingMode: "workspace",
+      groupLabels: { "/Users/alice/zenith": "zenith" },
+    });
+
+    expect(screen.getByText("zenith (2)")).toBeInTheDocument();
+    // The raw path was NOT rendered as the visible label.
+    expect(screen.queryByText("/Users/alice/zenith (2)")).toBeNull();
+  });
+
+  it("falls back to the raw path when no label was resolved for it", () => {
+    renderHarness({
+      groupedChatsByDate: { "/Users/alice/zenith": [makeChat(0)] },
+      sortedDateKeys: ["/Users/alice/zenith"],
+      expandedKeys: ["/Users/alice/zenith"],
+      groupingMode: "workspace",
+      groupLabels: {},
+    });
+
+    expect(screen.getByText("/Users/alice/zenith (1)")).toBeInTheDocument();
+  });
+
+  it("renders the translated 'No workspace' label for the sentinel bucket", () => {
+    renderHarness({
+      groupedChatsByDate: { [NO_WORKSPACE_GROUP_KEY]: [makeChat(0)] },
+      sortedDateKeys: [NO_WORKSPACE_GROUP_KEY],
+      expandedKeys: [NO_WORKSPACE_GROUP_KEY],
+      groupingMode: "workspace",
+      groupLabels: {},
+    });
+
+    expect(screen.getByText("No workspace (1)")).toBeInTheDocument();
+  });
+
+  it("does not apply the date-mode 'Today' highlight color in workspace mode", () => {
+    renderHarness({
+      groupedChatsByDate: { Today: [makeChat(0)] },
+      sortedDateKeys: ["Today"],
+      expandedKeys: ["Today"],
+      groupingMode: "workspace",
+      groupLabels: { Today: "Today" },
+    });
+
+    const label = screen.getByText("Today (1)");
+    expect(label).not.toHaveStyle({ color: "var(--lotus-primary)" });
+  });
+});

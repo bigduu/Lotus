@@ -7,6 +7,7 @@ import {
   getSplitIdsFromTree,
   removeLeafFromTree,
   splitLeafInTree,
+  type SidebarGroupingMode,
   type SplitLayout,
   type UILayoutSnapshotV2,
 } from "./uiLayoutStore.types";
@@ -20,6 +21,7 @@ export type {
   LayoutLeafNode,
   LayoutNode,
   LayoutSplitNode,
+  SidebarGroupingMode,
   SidebarLayout,
   SplitLayout,
   UILayoutSnapshotV2,
@@ -29,6 +31,7 @@ export type UILayoutState = UILayoutSnapshotV2 & {
   setSidebarCollapsed: (collapsed: boolean) => void;
   setSidebarWidthPx: (widthPx: number) => void;
   setInspectorWidthPx: (widthPx: number) => void;
+  setSidebarGroupingMode: (mode: SidebarGroupingMode) => void;
 
   setActiveLeafId: (leafId: string) => void;
   setLeafSessionId: (leafId: string, sessionId: string | null) => void;
@@ -51,6 +54,22 @@ export const useUILayoutStore = create<UILayoutState>((set) => ({
       }
       return commitLayoutState({
         sidebar: { ...state.sidebar, collapsed },
+        inspector: state.inspector,
+        tree: state.tree,
+        activeLeafId: state.activeLeafId,
+        leafSessionIds: state.leafSessionIds,
+        splitSizesPx: state.splitSizesPx,
+      });
+    });
+  },
+
+  setSidebarGroupingMode: (mode: SidebarGroupingMode) => {
+    set((state) => {
+      if (state.sidebar.groupingMode === mode) {
+        return state;
+      }
+      return commitLayoutState({
+        sidebar: { ...state.sidebar, groupingMode: mode },
         inspector: state.inspector,
         tree: state.tree,
         activeLeafId: state.activeLeafId,

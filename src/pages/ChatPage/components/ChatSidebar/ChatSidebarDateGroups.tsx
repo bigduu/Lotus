@@ -8,7 +8,7 @@ import { ChatItem as ChatItemComponent, type ChatItemStatus } from "../ChatItem"
 import { ChatSidebarVirtualRootList } from "./ChatSidebarVirtualRootList";
 import type { SidebarChatItem, SidebarScrollTarget } from "@shared/types/sidebarChat";
 import type { SidebarRunState } from "@shared/store/appStore";
-import { getChatCountByDate } from "../../utils/chatUtils";
+import { getChatCountByDate, NO_WORKSPACE_GROUP_KEY } from "../../utils/chatUtils";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
 
 // A date group's root-session list switches from plain (unvirtualized)
@@ -77,6 +77,21 @@ type ChatSidebarDateGroupsProps = {
   rootHasRunningChildBySessionId: Record<string, boolean>;
   /** Which row to scroll into view for the active session, if any (#93). */
   scrollTarget: SidebarScrollTarget;
+  /**
+   * Which top-level grouping is being rendered (#95) — defaults to "date",
+   * the historical/only behavior, so every existing caller (and every
+   * existing test) that never passes this prop is completely unaffected.
+   * In "workspace" mode, group keys are workspace paths (or the
+   * `NO_WORKSPACE_GROUP_KEY` sentinel) instead of date-bucket names, so the
+   * label/tooltip/highlight logic below switches accordingly.
+   */
+  groupingMode?: "date" | "workspace";
+  /**
+   * Workspace-path -> friendly display label (basename, collision-
+   * disambiguated — see `buildWorkspaceGroupLabels`). Only consulted when
+   * `groupingMode === "workspace"`.
+   */
+  groupLabels?: Record<string, string>;
 };
 
 export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
@@ -105,8 +120,31 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   runStateBySessionId,
   rootHasRunningChildBySessionId,
   scrollTarget,
+  groupingMode = "date",
+  groupLabels,
 }) => {
   const { t } = useTranslation();
+  const isWorkspaceMode = groupingMode === "workspace";
+
+  // Resolves the display text for a group header (#95): the translated
+  // date-bucket name in the default mode (unchanged), or the friendly
+  // workspace label (falling back to the raw key/"No workspace" sentinel)
+  // in workspace mode.
+  const resolveGroupLabel = (groupKey: string): string => {
+    if (!isWorkspaceMode) {
+      return translateDateKey(groupKey, t);
+    }
+    if (groupKey === NO_WORKSPACE_GROUP_KEY) {
+      return t("chat.sidebar.noWorkspace", "No workspace");
+    }
+    return groupLabels?.[groupKey] ?? groupKey;
+  };
+
+  // In workspace mode the group key IS the full workspace path (see
+  // `getWorkspaceGroupKey`), so it doubles as the tooltip content that
+  // disambiguates a collision-shortened label — no separate lookup needed.
+  const resolveGroupTooltip = (groupKey: string): string | undefined =>
+    isWorkspaceMode && groupKey !== NO_WORKSPACE_GROUP_KEY ? groupKey : undefined;
 
   // ─── Scroll-to-active-session (#93) ────────────────────────────────
   // Row refs cover BOTH root and (always-plain, never virtualized) nested
@@ -394,7 +432,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               role="button"
               tabIndex={0}
               aria-expanded={isExpanded}
-              aria-label={`${translateDateKey(dateKey, t)} (${totalChatsInDate})`}
+              aria-label={`${resolveGroupLabel(dateKey)} (${totalChatsInDate})`}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
@@ -441,21 +479,29 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 ) : (
                   <RightOutlined style={{ fontSize: 12, opacity: 0.6 }} />
                 )}
-                <span
-                  style={{
-                    fontSize: 10.5,
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.3px",
-                    color: dateKey === "Today" ? "var(--lotus-primary)" : token.colorTextSecondary,
-                    minWidth: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {translateDateKey(dateKey, t)} ({totalChatsInDate})
-                </span>
+                <Tooltip title={resolveGroupTooltip(dateKey)} placement="top">
+                  <span
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      // Workspace paths (unlike "TODAY"/"THIS WEEK") read
+                      // poorly forced to uppercase — leave their casing
+                      // alone in workspace mode.
+                      textTransform: isWorkspaceMode ? "none" : "uppercase",
+                      letterSpacing: "0.3px",
+                      color:
+                        !isWorkspaceMode && dateKey === "Today"
+                          ? "var(--lotus-primary)"
+                          : token.colorTextSecondary,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {resolveGroupLabel(dateKey)} ({totalChatsInDate})
+                  </span>
+                </Tooltip>
               </Flex>
 
               <Button

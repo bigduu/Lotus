@@ -2,6 +2,7 @@ import {
   DEFAULT_INSPECTOR,
   DEFAULT_LAYOUT_V2,
   DEFAULT_SIDEBAR,
+  DEFAULT_SIDEBAR_GROUPING_MODE,
   LAYOUT_STORAGE_KEY,
   getLeafIdsFromTree,
   getSplitIdsFromTree,
@@ -9,10 +10,14 @@ import {
   type InspectorLayout,
   type LayoutNode,
   type PersistableLayoutState,
+  type SidebarGroupingMode,
   type SidebarLayout,
   type SplitLayout,
   type UILayoutSnapshotV2,
 } from "./uiLayoutStore.types";
+
+const isSidebarGroupingMode = (value: unknown): value is SidebarGroupingMode =>
+  value === "date" || value === "workspace";
 
 export const readStoredLayout = (): string | null => {
   try {
@@ -198,6 +203,12 @@ export const safeParseLayout = (raw: string | null): UILayoutSnapshotV2 | null =
       const sidebar: SidebarLayout = {
         ...DEFAULT_SIDEBAR,
         ...(parsed.sidebar || {}),
+        // Explicitly validated (unlike the other spread-through fields above)
+        // since an invalid/garbage persisted value here would otherwise flow
+        // straight into a `groupingMode === "workspace"` check downstream.
+        groupingMode: isSidebarGroupingMode(parsed.sidebar?.groupingMode)
+          ? parsed.sidebar.groupingMode
+          : DEFAULT_SIDEBAR_GROUPING_MODE,
       };
       // min/max are design constants owned by DEFAULT_INSPECTOR — only the
       // user-adjustable width is persisted. This lets us retune the bounds

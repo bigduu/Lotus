@@ -30,6 +30,11 @@ describe("ChatSidebar", () => {
       sidebar: {
         ...state.sidebar,
         collapsed: false,
+        // Reset explicitly (not just spread from whatever the shared store
+        // currently holds) — the grouping-mode toggle (#95) really mutates
+        // this persisted store, so without an explicit reset here a prior
+        // test's toggle click would leak into later tests' initial state.
+        groupingMode: "date",
       },
       tree: { type: "leaf", id: "lt" },
       activeLeafId: "lt",
@@ -752,5 +757,273 @@ describe("ChatSidebar", () => {
     const state = useSettingsViewStore.getState();
     expect(state.isOpen).toBe(true);
     expect(state.activeTabKey).toBe("schedules");
+  });
+
+  describe("workspace grouping mode (#95)", () => {
+    // "root-billing" -> zenith, "root-platform" -> bamboo, and a third,
+    // workspace-less session so the "No workspace" trailing bucket has
+    // something in it.
+    beforeEach(() => {
+      useAppStore.setState((state) => ({
+        ...state,
+        chats: [
+          ...state.chats.map((chat) => {
+            if (chat.id === "root-billing") {
+              return { ...chat, config: { ...chat.config, workspacePath: "/Users/alice/zenith" } };
+            }
+            if (chat.id === "root-platform") {
+              return { ...chat, config: { ...chat.config, workspacePath: "/Users/alice/bamboo" } };
+            }
+            return chat;
+          }),
+          {
+            id: "root-loose",
+            title: "Loose session",
+            kind: "root",
+            createdAt: 1710050000000,
+            messages: [],
+            config: {
+              systemPromptId: "general_assistant",
+              baseSystemPrompt: "You are helpful.",
+              lastUsedEnhancedPrompt: null,
+            },
+            currentInteraction: null,
+            updatedAt: new Date("2025-03-01T15:00:00Z").toISOString(),
+          },
+        ],
+      }));
+    });
+
+    const switchToWorkspaceMode = () => {
+      fireEvent.click(screen.getByText("Workspace"));
+    };
+
+    it("stays in date grouping by default, until the toggle is used", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("date");
+      // No workspace-label group headers ("zenith"/"bamboo") in the default view.
+      expect(screen.queryByText(/^zenith/)).toBeNull();
+      expect(screen.queryByText(/^bamboo/)).toBeNull();
+    });
+
+    it("buckets same-workspace sessions together once workspace mode is active, and persists the choice", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      switchToWorkspaceMode();
+
+      await waitFor(() => {
+        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace");
+      });
+
+      // The selected session's ("root-billing", zenith) group auto-expands.
+      expect(screen.getByText("Billing investigation")).toBeInTheDocument();
+      // A different workspace's group is not the selected session's group,
+      // so it starts collapsed.
+      expect(screen.queryByText("Platform roadmap")).toBeNull();
+
+      // Expanding the "bamboo" group header reveals its own session,
+      // proving it was bucketed separately from "zenith".
+      fireEvent.click(screen.getByText(/bamboo/));
+      await waitFor(() => {
+        expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+      });
+    });
+
+    it("routes sessions with no workspacePath into a trailing 'No workspace' bucket", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      switchToWorkspaceMode();
+      await waitFor(() => {
+        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace");
+      });
+
+      expect(screen.queryByText("Loose session")).toBeNull();
+
+      fireEvent.click(screen.getByText(/No workspace/));
+      await waitFor(() => {
+        expect(screen.getByText("Loose session")).toBeInTheDocument();
+      });
+    });
+
+    it("keeps search filtering working in workspace mode, auto-expanding the matching group", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      switchToWorkspaceMode();
+      await waitFor(() => {
+        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace");
+      });
+
+      const searchInput = screen.getByPlaceholderText("Search sessions");
+      fireEvent.change(searchInput, { target: { value: "roadmap" } });
+
+      await waitFor(() => {
+        expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
+        expect(screen.queryByText("Billing investigation")).toBeNull();
+      });
+    });
+
+    it("still reflects a live per-item run status in workspace mode (#104)", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      switchToWorkspaceMode();
+      await waitFor(() => {
+        expect(screen.getByText("Billing investigation")).toBeInTheDocument();
+      });
+
+      act(() => {
+        useAppStore.setState((state) => ({
+          ...state,
+          executionBySession: {
+            ...state.executionBySession,
+            "root-billing": {
+              sessionId: "root-billing",
+              phase: "streaming",
+              confidence: "live",
+              activeReasons: [],
+              generation: 1,
+              backendRunId: null,
+              stream: { hasTokens: true, tokenCount: 3, activeToolCalls: [], lastStatusHint: null },
+              backend: {
+                isRunning: true,
+                lastRunStatus: null,
+                lastRunError: null,
+                syncedAt: null,
+                hasPendingQuestion: null,
+                runningChildCount: null,
+              },
+              interaction: {
+                pendingQuestion: null,
+                respondMode: null,
+                pendingChildApprovals: [],
+                resolvedChildApprovalRequestIds: [],
+              },
+              children: { byId: {}, runningCount: 0 },
+              timestamps: {
+                optimisticAt: null,
+                confirmedAt: null,
+                firstTokenAt: null,
+                terminalAt: null,
+                settlingStartedAt: null,
+                settledAt: null,
+              },
+              error: null,
+            },
+          },
+        }));
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-item-status")).toHaveClass("is-running");
+      });
+    });
+
+    describe("virtualization (#85)", () => {
+      // jsdom performs no real layout, so every element's `offsetHeight` is
+      // 0 by default; `@tanstack/react-virtual` reads it to size its
+      // viewport and would otherwise render nothing at all. Mirrors the
+      // stub in ChatSidebarDateGroups.virtualization.test.tsx, scoped to
+      // just this test so it doesn't affect the (unvirtualized) fixtures
+      // used by the rest of this file.
+      const VIRTUAL_LIST_TESTID = "chat-sidebar-virtual-root-list";
+      const ROOT_ROW_HEIGHT_PX = 36;
+      const VIRTUAL_LIST_MAX_HEIGHT_PX = 480;
+      let originalOffsetHeight: PropertyDescriptor | undefined;
+
+      beforeEach(() => {
+        originalOffsetHeight = Object.getOwnPropertyDescriptor(
+          HTMLElement.prototype,
+          "offsetHeight",
+        );
+        Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+          configurable: true,
+          get(this: HTMLElement) {
+            if (this.getAttribute("data-testid") === VIRTUAL_LIST_TESTID) {
+              return VIRTUAL_LIST_MAX_HEIGHT_PX;
+            }
+            if (this.hasAttribute("data-index")) {
+              return ROOT_ROW_HEIGHT_PX;
+            }
+            return 0;
+          },
+        });
+      });
+
+      afterEach(() => {
+        if (originalOffsetHeight) {
+          Object.defineProperty(HTMLElement.prototype, "offsetHeight", originalOffsetHeight);
+        }
+      });
+
+      it("virtualizes a single workspace's group once it exceeds the threshold", async () => {
+        const bigWorkspaceChats = Array.from({ length: 60 }, (_, i) => ({
+          id: `root-zenith-${i}`,
+          title: `Zenith session ${i}`,
+          kind: "root" as const,
+          createdAt: 1710000000000 + i,
+          messages: [],
+          config: {
+            systemPromptId: "general_assistant",
+            baseSystemPrompt: "You are helpful.",
+            lastUsedEnhancedPrompt: null,
+            workspacePath: "/Users/alice/zenith",
+          },
+          currentInteraction: null,
+          updatedAt: new Date("2025-03-01T12:00:00Z").toISOString(),
+        }));
+
+        useAppStore.setState((state) => ({
+          ...state,
+          chats: [...state.chats, ...bigWorkspaceChats],
+          // Sessions within a workspace group sort newest-`createdAt` first
+          // (see groupChatsByWorkspace) — "root-zenith-59" has the highest
+          // createdAt of the batch, so it lands at index 0 and is visible
+          // in the virtualizer's initial (unscrolled) viewport.
+          currentSessionId: "root-zenith-59",
+        }));
+
+        render(
+          <AntdApp>
+            <ChatSidebar />
+          </AntdApp>,
+        );
+
+        await screen.findByPlaceholderText("Search sessions");
+        switchToWorkspaceMode();
+
+        await waitFor(() => {
+          expect(screen.getByTestId(VIRTUAL_LIST_TESTID)).toBeInTheDocument();
+        });
+        // The virtualized viewport mounted instead of a plain <List> that
+        // would otherwise put all 60+ rows in the DOM at once.
+        expect(screen.getByText("Zenith session 59")).toBeInTheDocument();
+        expect(screen.getAllByTestId("chat-item").length).toBeLessThan(61);
+      });
+    });
   });
 });

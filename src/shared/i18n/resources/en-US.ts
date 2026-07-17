@@ -319,6 +319,12 @@ export const enUsTranslation = {
           pinned: "Pinned",
           scheduled: "Scheduled",
         },
+        groupBy: {
+          ariaLabel: "Group sessions by",
+          date: "Date",
+          workspace: "Workspace",
+        },
+        noWorkspace: "No workspace",
         actions: {
           collapseChildren: "Collapse child sessions",
           expandChildren: "Expand child sessions",
@@ -330,6 +336,10 @@ export const enUsTranslation = {
         deleteByDate: {
           title: "Delete sessions from {{date}}",
           confirm: "Are you sure you want to delete {{count}} sessions from {{date}}?",
+        },
+        deleteByWorkspace: {
+          title: "Delete sessions in {{workspace}}",
+          confirm: "Are you sure you want to delete {{count}} sessions in {{workspace}}?",
         },
         newSessionWithPrompt: "New session with {{prompt}}",
         title: "Chat sidebar",
