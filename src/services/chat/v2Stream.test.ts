@@ -385,4 +385,110 @@ describe("v2Stream WebSocket client", () => {
       warn.mockRestore();
     });
   });
+
+  describe("liveness watchdog (lotus#87 / bamboo#533)", () => {
+    const keepalive = { ch: "sys", seq: 0, control: { type: "keepalive" } };
+
+    it("consumes sys keepalive frames silently (no handler calls)", () => {
+      const onChange = vi.fn();
+      const onError = vi.fn();
+      subscribeFeed({ onChange, onError }, 0);
+      lastSocket().open();
+
+      expect(() => lastSocket().emit(keepalive)).not.toThrow();
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it("force-reconnects a socket that goes silent after the backend advertised keepalives", () => {
+      vi.useFakeTimers();
+      const onChange = vi.fn();
+      const onError = vi.fn();
+      subscribeFeed({ onChange, onError }, 3);
+
+      const first = lastSocket();
+      first.open();
+      // The backend proves keepalive support → the watchdog ARMS.
+      first.emit(keepalive);
+
+      // Silence past the stale threshold (45s) + one watchdog tick.
+      vi.advanceTimersByTime(56_000);
+
+      // The stale socket was torn down and a reconnect scheduled...
+      expect(onError).toHaveBeenCalled();
+      expect(first.readyState).toBe(MockWebSocket.CLOSED);
+      // ...which, after the backoff, opens a NEW socket and re-subscribes
+      // with the latest cursor — the replayed frames settle any stale UI.
+      vi.advanceTimersByTime(1_000);
+      expect(sockets).toHaveLength(2);
+      const second = lastSocket();
+      second.open();
+      expect(second.parsedSent()).toContainEqual({ type: "subscribe", ch: "feed", since: 3 });
+
+      vi.useRealTimers();
+    });
+
+    it("never fires against a backend that sends no keepalives (old backend, quiet is legitimate)", () => {
+      vi.useFakeTimers();
+      const onError = vi.fn();
+      subscribeFeed({ onChange: vi.fn(), onError }, 0);
+
+      const ws = lastSocket();
+      ws.open();
+      // NO sys keepalive ever arrives; a long quiet stretch must not reconnect.
+      vi.advanceTimersByTime(10 * 60_000);
+
+      expect(sockets).toHaveLength(1);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
+      expect(onError).not.toHaveBeenCalled();
+
+      vi.useRealTimers();
+    });
+
+    it("any inbound frame resets the staleness clock, not just keepalives", () => {
+      vi.useFakeTimers();
+      const onChange = vi.fn();
+      const onError = vi.fn();
+      subscribeFeed({ onChange, onError }, 0);
+
+      const ws = lastSocket();
+      ws.open();
+      ws.emit(keepalive); // arm
+
+      // Business frames keep arriving every 30s with no further keepalives —
+      // the socket is demonstrably alive, so the watchdog must stay quiet.
+      for (let i = 1; i <= 6; i += 1) {
+        vi.advanceTimersByTime(30_000);
+        ws.emit({ ch: "feed", seq: i, event: change(i) });
+      }
+
+      expect(sockets).toHaveLength(1);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
+      expect(onError).not.toHaveBeenCalled();
+      expect(onChange).toHaveBeenCalledTimes(6);
+
+      vi.useRealTimers();
+    });
+
+    it("the watchdog re-arms per connection: the NEW socket needs its own keepalive", () => {
+      vi.useFakeTimers();
+      subscribeFeed({ onChange: vi.fn() }, 0);
+
+      const first = lastSocket();
+      first.open();
+      first.emit(keepalive);
+      vi.advanceTimersByTime(56_000); // stale → force reconnect
+      vi.advanceTimersByTime(1_000); // backoff elapses
+      expect(sockets).toHaveLength(2);
+
+      const second = lastSocket();
+      second.open();
+      // The new connection has NOT advertised keepalives; silence is fine.
+      vi.advanceTimersByTime(10 * 60_000);
+      expect(sockets).toHaveLength(2);
+      expect(second.readyState).toBe(MockWebSocket.OPEN);
+
+      vi.useRealTimers();
+    });
+  });
 });

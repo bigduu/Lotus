@@ -103,6 +103,28 @@ const STABLE_OPEN_MS = 15_000;
  */
 const MAX_SHORTLIVED = 3;
 
+/**
+ * Liveness watchdog (lotus#87 / bamboo#533). The backend sends an app-level
+ * `{ch:"sys", control:{type:"keepalive"}}` DATA frame every ~15s — the ONLY
+ * liveness signal a browser can observe (protocol-level pings are never exposed
+ * to JS). A half-open socket (laptop sleep/wake, Wi-Fi/VPN switch, NAT idle
+ * eviction during a long quiet Bash run) never fires `onclose` on its own: the
+ * server tore its side down minutes ago while we sit "open" receiving nothing —
+ * stranding the UI on stale state (e.g. a Bash tool call shown as running after
+ * the run finished), with the account feed's recovery signal dead on the same
+ * multiplexed socket.
+ *
+ * When no frame of ANY kind has arrived for {@link KEEPALIVE_STALE_MS} (three
+ * missed keepalives), the watchdog force-reconnects. It only ARMS after the
+ * first `sys` keepalive of the current connection ({@link serverKeepalive}), so
+ * an older backend that never sends them — where long quiet stretches are
+ * legitimate — keeps today's behavior exactly.
+ */
+const KEEPALIVE_STALE_MS = 45_000;
+
+/** How often the watchdog checks for staleness. */
+const WATCHDOG_TICK_MS = 10_000;
+
 interface FeedChannel {
   handlers: AccountStreamHandlers;
   /** Latest cursor to (re)subscribe with; updated as ChangeEvents arrive. */
@@ -162,6 +184,21 @@ let openTimeoutTimer: ReturnType<typeof setTimeout> | null = null;
  * {@link registerConnectFailed} (since the verdict is already known).
  */
 const connectFailedListeners = new Set<ConnectFailedCallback>();
+
+/**
+ * Timestamp (ms) of the most recent inbound frame on the LIVE socket (any
+ * channel, keepalives included). The watchdog's staleness clock.
+ */
+let lastFrameAt = 0;
+/**
+ * Whether the CURRENT connection's backend has sent at least one `sys`
+ * keepalive — i.e. it supports the app-level liveness contract (bamboo#533).
+ * Reset on every (re)open so a downgrade/mixed fleet can never leave the
+ * watchdog armed against a backend that stopped sending them.
+ */
+let serverKeepalive = false;
+/** The watchdog interval; armed while a socket is open. */
+let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 
 let feedChannel: FeedChannel | null = null;
 const agentChannels = new Map<string, AgentChannel>();
@@ -292,7 +329,48 @@ const scheduleReconnect = (): void => {
   }, delay);
 };
 
+const clearWatchdog = (): void => {
+  if (watchdogTimer) {
+    clearInterval(watchdogTimer);
+    watchdogTimer = null;
+  }
+};
+
+/**
+ * Declare the live socket stale and force a reconnect (lotus#87). Runs the
+ * SAME teardown+reconnect sequence as a post-open `onclose` — deliberately NOT
+ * routed through `socket.close()` + the `onclose` handler, because on a
+ * half-open socket the browser's close timing is exactly what we can't rely
+ * on. 45s+ of silence implies the connection was stable before the stall, so
+ * the short-lived-flap counter resets (mirrors the stable-drop branch).
+ */
+const forceReconnectStaleSocket = (): void => {
+  debugLog("[v2Stream]", "watchdog.stale_socket", {
+    silentForMs: Date.now() - lastFrameAt,
+  });
+  feedChannel?.handlers.onError?.();
+  teardownSocket();
+  lastOpenAt = null;
+  shortLivedCloses = 0;
+  scheduleReconnect();
+};
+
+/** One watchdog check: armed only after the backend's first `sys` keepalive. */
+const watchdogTick = (): void => {
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  if (!serverKeepalive) return;
+  if (Date.now() - lastFrameAt > KEEPALIVE_STALE_MS) {
+    forceReconnectStaleSocket();
+  }
+};
+
+const armWatchdog = (): void => {
+  clearWatchdog();
+  watchdogTimer = setInterval(watchdogTick, WATCHDOG_TICK_MS);
+};
+
 const teardownSocket = (): void => {
+  clearWatchdog();
   if (socket) {
     socket.onopen = null;
     socket.onmessage = null;
@@ -359,6 +437,18 @@ const handleFrame = (frame: ServerFrame | undefined): void => {
   }
 
   const { ch, control, event } = frame;
+
+  // App-level liveness keepalive (bamboo#533): its arrival is the payload —
+  // `lastFrameAt` was already stamped in `onmessage`. The first one marks the
+  // backend as keepalive-capable, which ARMS the staleness watchdog for this
+  // connection (lotus#87).
+  if (ch === "sys") {
+    if (control?.type === "keepalive" && !serverKeepalive) {
+      serverKeepalive = true;
+      debugLog("[v2Stream]", "sys.keepalive.armed", {});
+    }
+    return;
+  }
 
   if (ch === "feed") {
     if (!feedChannel) return;
@@ -483,12 +573,19 @@ const connect = (): void => {
     everOpened = true;
     lastOpenAt = Date.now();
     clearOpenTimeout();
+    // Fresh liveness state per connection: the watchdog stays DISARMED until
+    // this backend proves keepalive support with its first `sys` frame.
+    lastFrameAt = Date.now();
+    serverKeepalive = false;
+    armWatchdog();
     debugLog("[v2Stream]", "open", {});
     resubscribeAll();
     feedChannel?.handlers.onOpen?.();
   };
 
   ws.onmessage = (messageEvent: MessageEvent) => {
+    // Every inbound frame — keepalive or business — proves the socket alive.
+    lastFrameAt = Date.now();
     // Decode by frame shape: string → JSON, ArrayBuffer/binary → msgpack. A
     // malformed/undecodable frame is logged + ignored inside decodeFrame, so
     // this never throws out of onmessage (same discipline as the JSON path).
@@ -644,4 +741,6 @@ export const __resetV2StreamForTests = (): void => {
   connectFailedListeners.clear();
   feedChannel = null;
   agentChannels.clear();
+  lastFrameAt = 0;
+  serverKeepalive = false;
 };
