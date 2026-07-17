@@ -6,6 +6,10 @@ import { restoreScrollAnchorUntilStable } from "./scrollAnchorRestore";
 
 const SAVE_DEBOUNCE_MS = 300;
 const OFFSET_EPS = 0.5; // localStorage write-threshold
+// Mirrors useChatViewScroll's SCROLL_POSITION_THRESHOLD_PX ("close enough to
+// the bottom to count as following the conversation"). Duplicated (rather than
+// imported) to avoid a runtime circular import between the two hook modules.
+const AT_BOTTOM_THRESHOLD_PX = 150;
 
 function entryId(entry: RenderableEntry): string | null {
   if ("type" in entry && (entry.type === "tool_session" || entry.type === "compression_divider")) {
@@ -96,10 +100,22 @@ export function useScrollAnchorPersistence(args: {
   currentSessionId: string | null;
   messagesListRef: RefObject<HTMLDivElement>;
   renderableMessages: RenderableEntry[];
+  /**
+   * Lands the view at the live bottom (owned by useChatViewScroll, which also
+   * arms stick-to-bottom so in-flight streaming keeps following). Invoked
+   * whenever a session switch resolves to "no saved anchor" or "the saved
+   * anchor was effectively at-bottom when saved".
+   */
+  scrollToBottom: (options?: { behavior?: ScrollBehavior }) => void;
 }) {
-  const { currentSessionId, messagesListRef, renderableMessages } = args;
+  const { currentSessionId, messagesListRef, renderableMessages, scrollToBottom } = args;
 
-  const restoredChatsRef = useRef<Set<string>>(new Set());
+  // Session id this hook has already picked a scroll position for on the
+  // *current* visit. Unlike a monotonically-growing set, this is a single
+  // slot that gets superseded on every switch — so re-visiting a session
+  // (switch away, then back) re-runs positioning instead of being skipped
+  // forever after the first visit in the app's lifetime.
+  const positionedForSessionIdRef = useRef<string | null>(null);
   const isRestoringRef = useRef(false);
   const restoreTokenRef = useRef(0);
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -150,6 +166,7 @@ export function useScrollAnchorPersistence(args: {
     const anchorRect = anchorEl.getBoundingClientRect();
     const indexHint = idToIndex.get(anchorId);
     const entry = typeof indexHint === "number" ? renderableMessages[indexHint] : undefined;
+    const distanceFromBottomPx = Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
 
     return {
       v: 1,
@@ -158,6 +175,7 @@ export function useScrollAnchorPersistence(args: {
       ts: Date.now(),
       indexHint,
       createdAt: entry ? entryCreatedAt(entry) : undefined,
+      distanceFromBottomPx,
     };
   }, [idToIndex, messagesListRef, renderableMessages]);
 
@@ -210,20 +228,51 @@ export function useScrollAnchorPersistence(args: {
     };
   }, [currentSessionId, flushSave]);
 
-  // Restore (layout effect to reduce "jump from top")
+  // Position (layout effect to reduce "jump from top"/inherited offset)
   useLayoutEffect(() => {
     if (!currentSessionId) return;
     const el = messagesListRef.current;
     if (!el) return;
     if (renderableMessages.length === 0) return;
 
-    if (restoredChatsRef.current.has(currentSessionId)) return;
+    if (positionedForSessionIdRef.current === currentSessionId) return;
 
-    let cancelled = false;
+    // Every qualifying run (new session, or a re-run for the same
+    // not-yet-positioned session as messages load in) gets its own token.
+    // Any older in-flight lookup/restore — even one started for a *different*
+    // session — is superseded: the scroll container (messagesListRef) is
+    // reused across session switches (ChatView is not remounted per
+    // session), so a stale async restore must not keep fighting for control
+    // of scrollTop after we've moved on.
+    const token = ++restoreTokenRef.current;
+    const isStale = () => restoreTokenRef.current !== token;
+    isRestoringRef.current = false;
+
+    // Never inherit the outgoing session's pixel offset: snap to a safe
+    // default (bottom) synchronously, before paint, so a switch never shows
+    // a stale arbitrary scrollTop left over from whatever was previously
+    // rendered in this container.
+    el.style.overflowAnchor = "none";
+    el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight);
+
+    const settleAtBottom = () => {
+      if (isStale()) return;
+      positionedForSessionIdRef.current = currentSessionId;
+      el.style.overflowAnchor = "";
+      scrollToBottom({ behavior: "auto" });
+    };
 
     loadScrollAnchor(currentSessionId).then((saved) => {
-      if (cancelled || !saved) {
-        if (!cancelled) restoredChatsRef.current.add(currentSessionId);
+      if (isStale()) return;
+
+      // Anchors saved before `distanceFromBottomPx` existed fall back to a
+      // literal-offset restore (conservative: preserves prior behavior).
+      const wasFollowingConversation =
+        typeof saved?.distanceFromBottomPx === "number" &&
+        saved.distanceFromBottomPx <= AT_BOTTOM_THRESHOLD_PX;
+
+      if (!saved || wasFollowingConversation) {
+        settleAtBottom();
         return;
       }
 
@@ -232,7 +281,7 @@ export function useScrollAnchorPersistence(args: {
         typeof byId === "number" ? byId : resolveIndexFromDeletedAnchor(saved, renderableMessages);
 
       if (index == null) {
-        restoredChatsRef.current.add(currentSessionId);
+        settleAtBottom();
         return;
       }
 
@@ -242,13 +291,10 @@ export function useScrollAnchorPersistence(args: {
         saveTimeoutRef.current = null;
       }
 
-      const token = ++restoreTokenRef.current;
       isRestoringRef.current = true;
       userInteractedRef.current = false;
 
-      el.style.overflowAnchor = "none";
-
-      const isCancelled = () => restoreTokenRef.current !== token || userInteractedRef.current;
+      const isCancelled = () => isStale() || userInteractedRef.current;
 
       restoreScrollAnchorUntilStable({
         scrollEl: el,
@@ -257,10 +303,10 @@ export function useScrollAnchorPersistence(args: {
         offsetPx: saved.offsetPx,
         isCancelled,
       }).finally(() => {
-        if (restoreTokenRef.current !== token) return;
+        if (isStale()) return;
 
         isRestoringRef.current = false;
-        restoredChatsRef.current.add(currentSessionId);
+        positionedForSessionIdRef.current = currentSessionId;
 
         el.style.overflowAnchor = "";
 
@@ -269,8 +315,11 @@ export function useScrollAnchorPersistence(args: {
       });
     });
 
+    // On unmount (or before the next qualifying run bumps it anyway) mark
+    // this run's in-flight work stale so a resolved-after-teardown promise
+    // is a no-op instead of touching a torn-down/reused container.
     return () => {
-      cancelled = true;
+      restoreTokenRef.current += 1;
     };
   }, [
     currentSessionId,
@@ -279,6 +328,7 @@ export function useScrollAnchorPersistence(args: {
     renderableMessages.length,
     messagesListRef,
     flushSave,
+    scrollToBottom,
   ]);
 
   return { handleScroll };

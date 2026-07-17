@@ -10,6 +10,15 @@ export type ScrollAnchorV1 = {
   ts: number;
   indexHint?: number;
   createdAt?: string;
+  /**
+   * Distance (px) from the bottom of the scroll container at the moment this
+   * anchor was saved. Used on restore to detect "the user was following the
+   * conversation" (near-bottom) so a session switch lands at the live bottom
+   * instead of re-pinning to a now-stale historical offset. Optional so
+   * anchors persisted before this field existed still load and fall back to
+   * a literal-offset restore.
+   */
+  distanceFromBottomPx?: number;
 };
 
 function isAnchorV1(x: unknown): x is ScrollAnchorV1 {
@@ -19,7 +28,8 @@ function isAnchorV1(x: unknown): x is ScrollAnchorV1 {
     a.v === 1 &&
     typeof a.anchorId === "string" &&
     typeof a.offsetPx === "number" &&
-    typeof a.ts === "number"
+    typeof a.ts === "number" &&
+    (a.distanceFromBottomPx === undefined || typeof a.distanceFromBottomPx === "number")
   );
 }
 

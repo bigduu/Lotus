@@ -54,13 +54,6 @@ export const useChatViewScroll = ({
   const countedStreamingUnreadIdsRef = useRef<Set<string>>(new Set());
   const scrollAnimationIdRef = useRef(0);
 
-  // Use scroll anchor persistence
-  const { handleScroll: handleScrollPersistence } = useScrollAnchorPersistence({
-    currentSessionId,
-    messagesListRef,
-    renderableMessages,
-  });
-
   const clearUnreadState = useCallback(() => {
     countedStreamingUnreadIdsRef.current.clear();
     setHasUnreadActivity(false);
@@ -109,26 +102,6 @@ export const useChatViewScroll = ({
       distanceFromBottom,
     };
   }, [clearUnreadState, messagesListRef, renderableMessages.length]);
-
-  const handleMessagesScroll = useCallback(
-    (e: React.UIEvent<HTMLElement>) => {
-      const indicatorState = refreshScrollIndicators();
-      if (!indicatorState) return;
-
-      if (indicatorState.distanceFromBottom > SCROLL_POSITION_THRESHOLD_PX) {
-        userHasScrolledUpRef.current = true;
-        stickToBottomRef.current = false;
-      } else if (indicatorState.atBottom) {
-        userHasScrolledUpRef.current = false;
-        stickToBottomRef.current = true;
-        clearUnreadState();
-      }
-
-      // Save scroll position (pass event to handler)
-      handleScrollPersistence(e);
-    },
-    [clearUnreadState, refreshScrollIndicators, handleScrollPersistence],
-  );
 
   const scrollToBottom = useCallback(
     (options?: ScrollToBottomOptions) => {
@@ -195,6 +168,39 @@ export const useChatViewScroll = ({
       refreshScrollIndicators,
       renderableMessages.length,
     ],
+  );
+
+  // Scroll anchor persistence — positions the view on every session switch
+  // (default: bottom; restores a genuinely mid-history anchor otherwise) and
+  // debounce-saves the reading position while the user scrolls. Depends on
+  // `scrollToBottom` above so it can land a freshly-switched-to session at
+  // the live bottom instead of inheriting whatever scrollTop this reused
+  // container was left at by the previous session.
+  const { handleScroll: handleScrollPersistence } = useScrollAnchorPersistence({
+    currentSessionId,
+    messagesListRef,
+    renderableMessages,
+    scrollToBottom,
+  });
+
+  const handleMessagesScroll = useCallback(
+    (e: React.UIEvent<HTMLElement>) => {
+      const indicatorState = refreshScrollIndicators();
+      if (!indicatorState) return;
+
+      if (indicatorState.distanceFromBottom > SCROLL_POSITION_THRESHOLD_PX) {
+        userHasScrolledUpRef.current = true;
+        stickToBottomRef.current = false;
+      } else if (indicatorState.atBottom) {
+        userHasScrolledUpRef.current = false;
+        stickToBottomRef.current = true;
+        clearUnreadState();
+      }
+
+      // Save scroll position (pass event to handler)
+      handleScrollPersistence(e);
+    },
+    [clearUnreadState, refreshScrollIndicators, handleScrollPersistence],
   );
 
   const scrollToTop = useCallback(() => {
