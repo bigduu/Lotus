@@ -792,6 +792,16 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             if (get().currentSessionId !== sessionId) {
               return;
             }
+            if (pending === null) {
+              // Transport failure (already retried internally by the API
+              // client) — this is NOT the same as the backend authoritatively
+              // saying "no pending question". Leave any existing
+              // pending-question UI state untouched; the next reconcile
+              // trigger (stream gap / visibility regain / feed event) will
+              // retry and refresh it (#37).
+              debugLog("[ChatSlice]", "reconcileOpenSession.pendingUnavailable", { sessionId });
+              return;
+            }
             if (pending.has_pending_question) {
               get().setPendingQuestion(sessionId, {
                 question: pending.question ?? "",
