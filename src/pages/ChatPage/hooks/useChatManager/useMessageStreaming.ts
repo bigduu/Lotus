@@ -2,7 +2,6 @@ import { debugLog } from "@shared/utils/debugFlags";
 import { useCallback, useEffect, useRef } from "react";
 import { App as AntApp } from "antd";
 import { useTranslation } from "react-i18next";
-import { agentApiClient } from "@services/api";
 import {
   AgentClient,
   type ExecuteClientSync,
@@ -159,18 +158,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
     [updateSession],
   );
 
+  // Delegates to AgentClient.getPendingQuestion, which returns `null` (rather
+  // than throwing, or masquerading as `{ has_pending_question: false }`) on a
+  // transport failure. Callers below MUST treat `null` as "unknown" and never
+  // clear an existing pending question or re-execute on it (#37).
   const getPendingQuestion = useCallback(
-    async (sessionId: string): Promise<PendingQuestionResponse> => {
-      try {
-        return await agentApiClient.get<PendingQuestionResponse>(`respond/${sessionId}/pending`);
-      } catch (error) {
-        console.warn(
-          `[useMessageStreaming] Failed to fetch pending question for ${sessionId}:`,
-          error,
-        );
-        return { has_pending_question: false };
-      }
-    },
+    (sessionId: string): Promise<PendingQuestionResponse | null> =>
+      agentClientRef.current.getPendingQuestion(sessionId),
     [],
   );
 
@@ -192,6 +186,22 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       const pending = await getPendingQuestion(sessionId);
       const setPendingQuestion = useAppStore.getState().setPendingQuestion;
       const clearPendingQuestion = useAppStore.getState().clearPendingQuestion;
+
+      if (pending === null) {
+        // Transport failure — we genuinely don't know whether a
+        // clarification is pending. Do NOT clear any existing
+        // pending-question UI and do NOT proceed to re-execute the agent
+        // (that would race a real clarification the user hasn't answered
+        // yet). Surface a connectivity hint and stop this recovery attempt;
+        // the caller settles the timeout the same way as a "not recovered"
+        // result.
+        debugLog("[Streaming]", "recoverAfterNeedSync.pendingUnavailable", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+        });
+        appMessage.error(t("chat.streaming.agentUnavailable"));
+        return null;
+      }
 
       if (pending.has_pending_question) {
         debugLog("[Streaming]", "recoverAfterNeedSync.pendingQuestion", {
@@ -261,11 +271,13 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
     },
     [
       activeModelRef,
+      appMessage,
       applyExecuteSyncSnapshot,
       buildClientSync,
       getPendingQuestion,
       markOptimisticStart,
       markSettleTimeout,
+      t,
       updateSession,
     ],
   );

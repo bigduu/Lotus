@@ -60,6 +60,10 @@ vi.mock("@services/chat/AgentService", () => ({
     subscribeToEvents = mockAgentSubscribeToEvents;
     healthCheck = mockAgentHealthCheck;
     truncateSessionMessages = mockAgentTruncateSessionMessages;
+    // Aliased to the same mock used to assert "pending question fetch"
+    // call counts below (#37): getPendingQuestion is the sole consumer of
+    // agentApiClient.get left in useMessageStreaming after dedup.
+    getPendingQuestion = mockAgentApiGet;
   },
 }));
 
@@ -611,6 +615,83 @@ describe("useMessageStreaming", () => {
     expect(mockAgentApiGet).toHaveBeenCalledTimes(2);
     expect(mockStoreState.loadChatHistory).toHaveBeenCalledTimes(2);
     // After the configured max sync recoveries, markSettleTimeout clears the state.
+    expect(mockStoreState.markSettleTimeout).toHaveBeenCalledWith("chat-1");
+  });
+
+  // #37: getPendingQuestion returns `null` (never {has_pending_question:false})
+  // on a transport failure. During need_sync recovery this must NOT be read
+  // as "no pending question" — it must not clear an existing pending
+  // question, and it must not proceed to re-execute the agent (which would
+  // race a clarification the user hasn't actually answered yet).
+  it("does not clear the pending question or re-execute when getPendingQuestion fails during need_sync recovery", async () => {
+    mockStoreState.agentAvailability = true;
+    mockStoreState.loadChatHistory.mockResolvedValue(undefined);
+    // Transport failure surfaces as null (see AgentService.getPendingQuestion).
+    mockAgentApiGet.mockResolvedValueOnce(null);
+    mockAgentSendMessage.mockResolvedValue({
+      session_id: "chat-1",
+      status: "started",
+    });
+    mockAgentExecute.mockResolvedValueOnce({
+      session_id: "chat-1",
+      status: "completed",
+      events_url: "/api/v1/events/chat-1",
+      sync: {
+        need_sync: true,
+        reason: "message_count_mismatch",
+        server_message_count: 4,
+        server_last_message_id: "msg-4",
+        has_pending_question: false,
+        pending_question_tool_call_id: null,
+        has_pending_user_message: true,
+      },
+    });
+
+    mockStoreState.chats = [
+      {
+        id: "chat-1",
+        title: "Test Chat",
+        createdAt: Date.now(),
+        messageCount: 3,
+        messages: [],
+        config: {
+          systemPromptId: "general_assistant",
+          baseSystemPrompt: "",
+          lastUsedEnhancedPrompt: null,
+          syncCursor: {
+            messageCount: 3,
+            lastMessageId: "msg-3",
+            hasPendingQuestion: false,
+            pendingQuestionToolCallId: null,
+          },
+        },
+        currentInteraction: {
+          machineState: "idle",
+          streamingMessageId: null,
+          streamingContent: null,
+        },
+      },
+    ];
+
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      updateSession: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("hello");
+    });
+
+    // Only ONE execute call: the transport failure stops recovery instead of
+    // proceeding to re-execute the agent on an unknown pending-question state.
+    expect(mockAgentExecute).toHaveBeenCalledTimes(1);
+    expect(mockAgentApiGet).toHaveBeenCalledTimes(1);
+    expect(mockStoreState.clearPendingQuestion).not.toHaveBeenCalled();
+    expect(mockStoreState.setPendingQuestion).not.toHaveBeenCalled();
+    expect(mockMessageApi.error).toHaveBeenCalledWith(i18n.t("chat.streaming.agentUnavailable"));
     expect(mockStoreState.markSettleTimeout).toHaveBeenCalledWith("chat-1");
   });
 

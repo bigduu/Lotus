@@ -1072,14 +1072,22 @@ export class AgentClient {
    * Fetch the session's current pending question (clarification awaiting a user
    * answer), if any. Used by multi-device reconcile so a clarification answered
    * on another device clears here (and a newly-raised one appears).
+   *
+   * Returns `null` on transport failure (after the API client's own retries
+   * are exhausted) — this is distinct from an authoritative
+   * `{ has_pending_question: false }` from the backend. Callers MUST treat
+   * `null` as "unknown" and leave any existing pending-question UI state
+   * untouched rather than reading a network blip as "no question anymore"
+   * (#37 — a transient error must never silently dismiss a real
+   * clarification and strand a paused run).
    */
-  async getPendingQuestion(sessionId: string): Promise<PendingQuestionResponse> {
+  async getPendingQuestion(sessionId: string): Promise<PendingQuestionResponse | null> {
     const encoded = encodeURIComponent(sessionId);
     try {
       return await agentApiClient.get<PendingQuestionResponse>(`respond/${encoded}/pending`);
     } catch (error) {
       console.warn(`[AgentClient] getPendingQuestion failed for ${sessionId}:`, error);
-      return { has_pending_question: false };
+      return null;
     }
   }
 

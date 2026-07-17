@@ -105,6 +105,62 @@ describe("AgentClient", () => {
     await expect(client.deleteSession("session-1")).rejects.toThrow();
   });
 
+  describe("getPendingQuestion (#37)", () => {
+    it("returns the authoritative response when the backend answers", async () => {
+      fetchMock.mockResolvedValue(mockFetchResponse({ has_pending_question: false }));
+
+      const client = AgentClient.getInstance();
+      await expect(client.getPendingQuestion("session-1")).resolves.toEqual({
+        has_pending_question: false,
+      });
+    });
+
+    it("returns a pending question payload verbatim", async () => {
+      fetchMock.mockResolvedValue(
+        mockFetchResponse({
+          has_pending_question: true,
+          question: "Which file?",
+          options: ["a", "b"],
+          allow_custom: true,
+          tool_call_id: "tc-1",
+        }),
+      );
+
+      const client = AgentClient.getInstance();
+      await expect(client.getPendingQuestion("session-1")).resolves.toEqual({
+        has_pending_question: true,
+        question: "Which file?",
+        options: ["a", "b"],
+        allow_custom: true,
+        tool_call_id: "tc-1",
+      });
+    });
+
+    it("returns null — NOT {has_pending_question:false} — when every transport attempt fails", async () => {
+      // A network error is retried internally (1s/2s backoff) before the
+      // caller ever sees it. All 3 attempts fail here.
+      vi.useFakeTimers();
+      try {
+        fetchMock
+          .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+          .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+          .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+        const client = AgentClient.getInstance();
+        const promise = client.getPendingQuestion("session-1");
+        const assertion = expect(promise).resolves.toBeNull();
+
+        await vi.advanceTimersByTimeAsync(1000);
+        await vi.advanceTimersByTimeAsync(2000);
+
+        await assertion;
+        expect(fetchMock).toHaveBeenCalledTimes(3);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it("restores session state for a target message", async () => {
     fetchMock.mockResolvedValue(
       mockFetchResponse({

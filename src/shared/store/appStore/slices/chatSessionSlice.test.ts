@@ -1012,4 +1012,68 @@ describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
     });
     expect(clearPendingQuestionMock).not.toHaveBeenCalled();
   });
+
+  // #37: getPendingQuestion returns `null` on a transport failure (after the
+  // API client's own retries are exhausted) instead of masquerading as
+  // `{has_pending_question:false}`. reconcileOpenSession must treat `null`
+  // as "unknown" and leave any existing pending-question UI state alone —
+  // a transient blip must never silently dismiss a real clarification.
+  it("does NOT dismiss an existing pending question when getPendingQuestion returns null (transport failure)", async () => {
+    vi.useFakeTimers();
+    getPendingQuestionMock.mockResolvedValue(null);
+    const store = buildStore("s1");
+
+    store.getState().reconcileOpenSession("s1", "stream_gap");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(getPendingQuestionMock).toHaveBeenCalledWith("s1");
+    expect(clearPendingQuestionMock).not.toHaveBeenCalled();
+    expect(setPendingQuestionMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT dismiss an existing pending question when getPendingQuestion rejects", async () => {
+    vi.useFakeTimers();
+    getPendingQuestionMock.mockRejectedValue(new Error("network blip"));
+    const store = buildStore("s1");
+
+    store.getState().reconcileOpenSession("s1", "visibility_regain");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(getPendingQuestionMock).toHaveBeenCalledWith("s1");
+    expect(clearPendingQuestionMock).not.toHaveBeenCalled();
+    expect(setPendingQuestionMock).not.toHaveBeenCalled();
+  });
+
+  it("refreshes pending-question state on the next reconcile once the transport recovers", async () => {
+    vi.useFakeTimers();
+    // First reconcile hits a transient failure — nothing should be touched.
+    getPendingQuestionMock.mockResolvedValueOnce(null);
+    const store = buildStore("s1");
+
+    store.getState().reconcileOpenSession("s1", "stream_gap");
+    await vi.advanceTimersByTimeAsync(300);
+    expect(clearPendingQuestionMock).not.toHaveBeenCalled();
+    expect(setPendingQuestionMock).not.toHaveBeenCalled();
+
+    // A subsequent trigger (e.g. the next stream gap / feed event) succeeds
+    // and reports a genuine, authoritative pending question — it must be
+    // applied normally.
+    getPendingQuestionMock.mockResolvedValueOnce({
+      has_pending_question: true,
+      question: "Which file?",
+      options: ["a", "b"],
+      allow_custom: true,
+      tool_call_id: "tc-2",
+    });
+    store.getState().reconcileOpenSession("s1", "stream_gap");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(setPendingQuestionMock).toHaveBeenCalledWith("s1", {
+      question: "Which file?",
+      options: ["a", "b"],
+      allowCustom: true,
+      toolCallId: "tc-2",
+    });
+    expect(clearPendingQuestionMock).not.toHaveBeenCalled();
+  });
 });
