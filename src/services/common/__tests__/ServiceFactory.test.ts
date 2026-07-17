@@ -2,6 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { ServiceFactory } from "../ServiceFactory";
 import { apiClient } from "../../api";
 import { copyText } from "@shared/utils/clipboard";
+import { clearBackendBaseUrlOverride, setBackendBaseUrl } from "@shared/utils/backendBaseUrl";
 
 // Mock dependencies
 vi.mock("../../api", () => ({
@@ -472,5 +473,134 @@ describe("ServiceFactory", () => {
       await serviceFactory.deleteWorkflow("name");
       expect(apiClient.delete).toHaveBeenCalled();
     });
+  });
+});
+
+// Device pairing / management (API v2 per-device tokens, epic #26 phase 1 —
+// wire plumbing only, nothing calls these yet). These 5 endpoints live at
+// the backend ORIGIN root (siblings of `/v1`), NOT under the `/v1`-rooted
+// base `apiClient` uses — see `ServiceFactory.ts`'s `resolveV2Origin`/
+// `v2Fetch`. They go through a raw `fetch` (not `apiClient`), so this suite
+// mocks `global.fetch` directly rather than the `../../api` module mock used
+// above.
+describe("ServiceFactory — device pairing / management (API v2, epic #26 phase 1)", () => {
+  let serviceFactory: ServiceFactory;
+  let fetchMock: ReturnType<typeof vi.fn>;
+
+  const jsonResponse = (data: unknown, ok = true, status = 200) => ({
+    ok,
+    status,
+    json: () => Promise.resolve(data),
+    text: () => Promise.resolve(JSON.stringify(data)),
+  });
+
+  beforeEach(() => {
+    // Pin a known backend base so the expected ORIGIN is deterministic
+    // regardless of the jsdom test document's own location.
+    setBackendBaseUrl("http://127.0.0.1:9562/v1");
+    fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    serviceFactory = ServiceFactory.getInstance();
+  });
+
+  afterEach(() => {
+    clearBackendBaseUrlOverride();
+    vi.unstubAllGlobals();
+  });
+
+  it("pairDevice POSTs to the ORIGIN-rooted /v2/pair, NOT /v1/v2/pair", async () => {
+    const mockResp = {
+      device_id: "bamboo_abc123",
+      device_token: "bd1_deadbeef",
+      expires_hint: "rotate-on-demand",
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(mockResp));
+
+    const result = await serviceFactory.pairDevice({ root_password: "secret", label: "iPhone" });
+
+    expect(result).toEqual(mockResp);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:9562/v2/pair");
+    expect(url).not.toContain("/v1/");
+    expect(init.method).toBe("POST");
+    expect(init.credentials).toBe("include");
+    expect(JSON.parse(init.body as string)).toEqual({ root_password: "secret", label: "iPhone" });
+  });
+
+  it("createPairingCode POSTs to the ORIGIN-rooted /v2/pair/code with no body", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ code: "084213", ttl: 120 }));
+
+    const result = await serviceFactory.createPairingCode();
+
+    expect(result).toEqual({ code: "084213", ttl: 120 });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:9562/v2/pair/code");
+    expect(init.method).toBe("POST");
+    expect(init.body).toBeUndefined();
+  });
+
+  it("listDevices GETs the ORIGIN-rooted /v2/devices", async () => {
+    const devices = [
+      {
+        device_id: "bamboo_abc123",
+        label: "iPhone",
+        created_at: "2026-07-01T00:00:00Z",
+        last_used_at: null,
+        revoked: false,
+      },
+    ];
+    fetchMock.mockResolvedValueOnce(jsonResponse(devices));
+
+    const result = await serviceFactory.listDevices();
+
+    expect(result).toEqual(devices);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:9562/v2/devices");
+    expect(init.method).toBe("GET");
+  });
+
+  it("revokeDevice DELETEs the ORIGIN-rooted /v2/devices/{device_id}", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ device_id: "bamboo_abc123", revoked: true }));
+
+    const result = await serviceFactory.revokeDevice("bamboo_abc123");
+
+    expect(result).toEqual({ device_id: "bamboo_abc123", revoked: true });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:9562/v2/devices/bamboo_abc123");
+    expect(init.method).toBe("DELETE");
+  });
+
+  it("rotateDevice POSTs to the ORIGIN-rooted /v2/devices/{device_id}/rotate", async () => {
+    const mockResp = {
+      device_id: "bamboo_abc123",
+      device_token: "bd1_freshtoken",
+      expires_hint: "rotate-on-demand",
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(mockResp));
+
+    const result = await serviceFactory.rotateDevice("bamboo_abc123");
+
+    expect(result).toEqual(mockResp);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:9562/v2/devices/bamboo_abc123/rotate");
+    expect(init.method).toBe("POST");
+  });
+
+  it("URL-encodes the device id path segment", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ device_id: "a/b c", revoked: true }));
+
+    await serviceFactory.revokeDevice("a/b c");
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://127.0.0.1:9562/v2/devices/a%2Fb%20c");
+  });
+
+  it("rejects with request context on a non-ok response", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: "access credential verification required" }, false, 401),
+    );
+
+    await expect(serviceFactory.listDevices()).rejects.toThrow(/401/);
   });
 });

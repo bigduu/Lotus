@@ -43,6 +43,7 @@ import type {
 } from "./AgentService";
 import { getV2StreamUrl } from "@shared/utils/backendBaseUrl";
 import { debugLog, isApiV2MsgpackEnabled } from "@shared/utils/debugFlags";
+import { getDeviceCredential } from "@shared/utils/deviceAuth";
 import { decode as msgpackDecode, encode as msgpackEncode } from "@msgpack/msgpack";
 
 /** Subscription handle returned by {@link subscribeFeed}. */
@@ -259,7 +260,16 @@ const send = (payload: Record<string, unknown>): void => {
 
 /** (Re)send the subscribe frames for every live channel after a (re)connect. */
 const resubscribeAll = (): void => {
-  send({ type: "hello" });
+  // v2-P2 (#181/#189; epic #26 phase 1): include the paired device credential
+  // ONLY when one is stored — a desktop/loopback client with no credential
+  // sends the exact same `{type:"hello"}` frame as before (byte-for-byte
+  // no-op), since local_bypass never calls `setDeviceCredential`.
+  const credential = getDeviceCredential();
+  send(
+    credential
+      ? { type: "hello", device_id: credential.device_id, token: credential.token }
+      : { type: "hello" },
+  );
   if (feedChannel) {
     send({ type: "subscribe", ch: "feed", since: feedChannel.since });
   }
