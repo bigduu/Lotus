@@ -117,4 +117,114 @@ describe("taskListSlice", () => {
 
     isoSpy.mockRestore();
   });
+
+  describe("setTaskList monotonic guard (#39)", () => {
+    it("drops a stale full snapshot arriving after a newer delta and leaves list + version unchanged", () => {
+      const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+      harness.getState().setTaskList("session-1", makeTaskList(8));
+
+      harness.getState().updateTaskListDelta("session-1", {
+        session_id: "session-1",
+        item_id: "item-1",
+        status: "in_progress",
+        tool_calls_count: 1,
+        version: 10,
+      });
+      const afterDelta = harness.getState().taskLists["session-1"];
+      expect(harness.getState().taskListVersions["session-1"]).toBe(10);
+
+      // A child sub-agent forwards a snapshot it captured earlier, at v8 —
+      // stale relative to the delta-updated v10 list.
+      harness.getState().setTaskList("session-1", makeTaskList(8));
+
+      expect(harness.getState().taskLists["session-1"]).toEqual(afterDelta);
+      expect(harness.getState().taskListVersions["session-1"]).toBe(10);
+
+      // The version counter must not have regressed: an old v9 delta must
+      // still be rejected, not let back in by a corrupted version.
+      harness.getState().updateTaskListDelta("session-1", {
+        session_id: "session-1",
+        item_id: "item-1",
+        status: "completed",
+        tool_calls_count: 2,
+        version: 9,
+      });
+      expect(harness.getState().taskLists["session-1"]).toEqual(afterDelta);
+      expect(harness.getState().taskListVersions["session-1"]).toBe(10);
+    });
+
+    it("applies a fresh full snapshot with a strictly newer version", () => {
+      const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+      harness.getState().setTaskList("session-1", makeTaskList(5));
+
+      const fresher = { ...makeTaskList(6), title: "Updated title" };
+      harness.getState().setTaskList("session-1", fresher);
+
+      expect(harness.getState().taskLists["session-1"]?.title).toBe("Updated title");
+      expect(harness.getState().taskListVersions["session-1"]).toBe(6);
+    });
+
+    it("ignores an equal-version snapshot (same semantics as the delta path)", () => {
+      const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+      harness.getState().setTaskList("session-1", makeTaskList(5));
+      const before = harness.getState().taskLists["session-1"];
+
+      const sameVersionDifferentTitle = { ...makeTaskList(5), title: "Different title" };
+      harness.getState().setTaskList("session-1", sameVersionDifferentTitle);
+
+      expect(harness.getState().taskLists["session-1"]).toEqual(before);
+      expect(harness.getState().taskListVersions["session-1"]).toBe(5);
+    });
+
+    it("applies a versionless snapshot as a first load (no existing tracked list)", () => {
+      const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+      const versionless: TaskList = { ...makeTaskList(5), version: undefined };
+
+      harness.getState().setTaskList("session-1", versionless);
+
+      expect(harness.getState().taskLists["session-1"]?.title).toBe("Test task");
+      // Never resets to 0 semantics matter for a *pre-existing* tracked
+      // version; with nothing tracked yet, 0 is simply the starting point.
+      expect(harness.getState().taskListVersions["session-1"]).toBe(0);
+    });
+
+    it("ignores a versionless (e.g. REST baseline) snapshot over an already-tracked list, preserving the version", () => {
+      const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+      harness.getState().setTaskList("session-1", makeTaskList(1));
+      harness.getState().updateTaskListDelta("session-1", {
+        session_id: "session-1",
+        item_id: "item-1",
+        status: "in_progress",
+        tool_calls_count: 1,
+        version: 10,
+      });
+      const afterDelta = harness.getState().taskLists["session-1"];
+
+      const versionlessBaseline: TaskList = { ...makeTaskList(1), version: undefined };
+      harness.getState().setTaskList("session-1", versionlessBaseline);
+
+      expect(harness.getState().taskLists["session-1"]).toEqual(afterDelta);
+      // Version counter must be preserved, not reset to 0.
+      expect(harness.getState().taskListVersions["session-1"]).toBe(10);
+    });
+
+    it("applies a normal delta after a snapshot as usual", () => {
+      const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+      harness.getState().setTaskList("session-1", makeTaskList(3));
+
+      harness.getState().updateTaskListDelta("session-1", {
+        session_id: "session-1",
+        item_id: "item-1",
+        status: "completed",
+        tool_calls_count: 5,
+        version: 4,
+      });
+
+      expect(harness.getState().taskListVersions["session-1"]).toBe(4);
+      expect(harness.getState().taskLists["session-1"]?.items[0]).toMatchObject({
+        status: "completed",
+        tool_calls_count: 5,
+      });
+    });
+  });
 });

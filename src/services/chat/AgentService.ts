@@ -150,6 +150,11 @@ interface TaskListSnapshotResponse {
     total: number;
     percentage: number;
   };
+  // Present on newer backends; older ones omit it. When absent, callers must
+  // NOT assume version 0 — that resets the monotonic version guard in
+  // todoListSlice and lets a stale REST snapshot regress a newer, delta-
+  // updated list. See `setTaskList`'s "unknown version" handling.
+  version?: number | null;
 }
 
 export interface TaskListDelta {
@@ -1065,6 +1070,11 @@ export class AgentClient {
       items: snapshot.items,
       created_at: now,
       updated_at: now,
+      // Carry the real version through so the store's monotonic guard can
+      // compare it; when the backend omits it, leave it undefined (NOT 0) so
+      // `setTaskList` treats this as an unknown-version snapshot rather than
+      // one that resets the tracked version.
+      version: typeof snapshot.version === "number" ? snapshot.version : undefined,
     };
   }
 

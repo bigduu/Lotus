@@ -1,6 +1,7 @@
 import { StateCreator } from "zustand";
 
 import { AgentClient } from "@services/chat/AgentService";
+import { debugLog } from "@shared/utils/debugFlags";
 
 // Task item status
 export type TaskItemStatus = "pending" | "in_progress" | "completed" | "blocked";
@@ -91,18 +92,67 @@ export const createTaskListSlice: StateCreator<TaskListSlice, [], [], TaskListSl
   activeItems: {},
   evaluationStates: {},
 
-  // Set full task list (from TaskListUpdated event)
+  // Set full task list (from TaskListUpdated event, a child sub-agent's
+  // forwarded snapshot, or a REST/baseline load). This is a genuine
+  // multi-source, out-of-order write path — the SAME monotonic guard as
+  // `updateTaskListDelta` applies here so a late-arriving/stale snapshot
+  // can't regress a newer, delta-updated list or corrupt the version
+  // counter (see issue #39).
   setTaskList: (sessionId, taskList) =>
-    set((state) => ({
-      taskLists: {
-        ...state.taskLists,
-        [sessionId]: taskList,
-      },
-      taskListVersions: {
-        ...state.taskListVersions,
-        [sessionId]: taskList.version || 0,
-      },
-    })),
+    set((state) => {
+      const currentVersion = state.taskListVersions[sessionId] || 0;
+      const currentList = state.taskLists[sessionId];
+      const incomingVersion = typeof taskList.version === "number" ? taskList.version : undefined;
+
+      if (incomingVersion !== undefined) {
+        // Known version: same "strictly greater" rule as the delta path —
+        // ignore an equal-or-older snapshot and never lower the tracked
+        // version.
+        if (currentList && incomingVersion <= currentVersion) {
+          debugLog("[TaskListSlice]", "setTaskList.staleSnapshotIgnored", {
+            sessionId,
+            incomingVersion,
+            currentVersion,
+          });
+          return state;
+        }
+
+        return {
+          taskLists: {
+            ...state.taskLists,
+            [sessionId]: taskList,
+          },
+          taskListVersions: {
+            ...state.taskListVersions,
+            [sessionId]: incomingVersion,
+          },
+        };
+      }
+
+      // Unknown version (e.g. an older backend's REST snapshot that omits
+      // the field): we can't tell whether this is fresher than what we
+      // already track, so never let it clobber an existing list — and
+      // never reset the version counter to 0. Only apply it when there is
+      // nothing tracked yet (first load / baseline).
+      if (currentList) {
+        debugLog("[TaskListSlice]", "setTaskList.versionlessSnapshotIgnored", {
+          sessionId,
+          currentVersion,
+        });
+        return state;
+      }
+
+      return {
+        taskLists: {
+          ...state.taskLists,
+          [sessionId]: taskList,
+        },
+        taskListVersions: {
+          ...state.taskListVersions,
+          [sessionId]: currentVersion,
+        },
+      };
+    }),
 
   loadTaskList: async (sessionId) => {
     const taskList = await agentClient.getTaskList(sessionId);
