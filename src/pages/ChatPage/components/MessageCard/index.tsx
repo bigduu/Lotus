@@ -68,8 +68,6 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
 }) => {
   const { role, id: messageId } = message;
   const { token } = useToken();
-  const isVdiSafeMode =
-    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { t } = useTranslation();
   const { message: appMessage } = AntApp.useApp();
   const screens = useBreakpoint();
@@ -298,12 +296,10 @@ const MessageCardComponent: React.FC<MessageCardProps> = ({
                 : role === "assistant"
                   ? "var(--lotus-message-assistant-bg)"
                   : token.colorBgContainer,
-            backdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
-            WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
             border:
               role === "user"
                 ? `1px solid var(--lotus-message-user-border)`
-                : `1px solid var(--lotus-glass-border-subtle)`,
+                : `1px solid var(--lotus-message-assistant-border)`,
             borderRadius: token.borderRadiusLG,
             boxShadow: isHovering
               ? "var(--lotus-card-hover-shadow)"

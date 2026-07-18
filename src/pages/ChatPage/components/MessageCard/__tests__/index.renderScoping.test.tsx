@@ -13,7 +13,7 @@
  * calls unconditionally on every render before any early return.
  */
 import React from "react";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssistantTextMessage } from "@shared/types/chat";
 
@@ -82,6 +82,22 @@ describe("MessageCard isProcessing render scoping (#18)", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("uses an opaque themed background without a per-message backdrop blur (#17)", () => {
+    render(
+      <MessageCard
+        sessionId="session-1"
+        message={textMessage}
+        messageType="text"
+        isProcessing={false}
+      />,
+    );
+
+    const card = screen.getByTestId("assistant-message");
+    expect(card.style.background).toBe("var(--lotus-message-assistant-bg)");
+    expect(card.style.backdropFilter).toBeUndefined();
+    expect(card.style.webkitBackdropFilter).toBeUndefined();
   });
 
   it("does not re-render a non-question card when isProcessing toggles", () => {

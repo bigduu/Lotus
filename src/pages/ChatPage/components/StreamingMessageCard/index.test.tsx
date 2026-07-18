@@ -52,6 +52,20 @@ describe("StreamingMessageCard", () => {
     streamingMessageBus.clear("session-1", "streaming-status-session-1");
   });
 
+  it("uses the opaque streaming surface without backdrop blur (#17)", async () => {
+    const { default: StreamingMessageCard } = await import("./index");
+    render(
+      <AntApp>
+        <StreamingMessageCard sessionId="session-1" />
+      </AntApp>,
+    );
+
+    const card = screen.getByTestId("streaming-indicator");
+    expect(card.style.background).toBe("var(--lotus-message-streaming-bg)");
+    expect(card.style.backdropFilter).toBeUndefined();
+    expect(card.style.webkitBackdropFilter).toBeUndefined();
+  });
+
   it("renders mermaid blocks as readable code during streaming instead of mounting a chart", async () => {
     const { default: StreamingMessageCard } = await import("./index");
 

@@ -310,11 +310,7 @@ body {
   --lotus-purple-shadow: 0 4px 12px rgba(139, 92, 246, 0.14);
   --lotus-item-hover-bg: rgba(204, 251, 241, 0.72);
   --lotus-item-active-bg: rgba(204, 251, 241, 0.55);
-  --lotus-message-user-bg: linear-gradient(
-    135deg,
-    rgba(13, 148, 136, 0.1) 0%,
-    rgba(5, 150, 105, 0.08) 100%
-  );
+  --lotus-message-user-bg: linear-gradient(135deg, #eaf8f5 0%, #eff9f6 100%);
   --lotus-message-user-border: rgba(13, 148, 136, 0.18);
   --lotus-divider-color: rgba(13, 148, 136, 0.12);
 
@@ -339,13 +335,9 @@ body {
   --lotus-code-copy-btn-color: white;
 
   /* ── Message card tokens (light) ────────────────────────────── */
-  --lotus-message-assistant-bg: transparent;
-  --lotus-message-assistant-border: transparent;
-  --lotus-message-streaming-bg: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.88) 0%,
-    rgba(248, 250, 255, 0.82) 100%
-  );
+  --lotus-message-assistant-bg: var(--ant-color-bg-container);
+  --lotus-message-assistant-border: var(--ant-color-border-secondary);
+  --lotus-message-streaming-bg: linear-gradient(180deg, #ffffff 0%, #f8faff 100%);
 
   /* ── Input shell tokens (light) ─────────────────────────────── */
   --lotus-input-border: rgba(255, 255, 255, 0.88);
@@ -464,11 +456,7 @@ body[data-theme="dark"] {
   --lotus-purple-shadow: 0 4px 12px rgba(139, 92, 246, 0.22);
   --lotus-item-hover-bg: rgba(30, 41, 59, 0.68);
   --lotus-item-active-bg: rgba(30, 41, 59, 0.48);
-  --lotus-message-user-bg: linear-gradient(
-    135deg,
-    rgba(13, 148, 136, 0.12) 0%,
-    rgba(5, 150, 105, 0.1) 100%
-  );
+  --lotus-message-user-bg: linear-gradient(135deg, #102a25 0%, #102620 100%);
   --lotus-message-user-border: rgba(21, 127, 107, 0.22);
   --lotus-divider-color: rgba(70, 194, 160, 0.12);
 
@@ -518,13 +506,9 @@ body[data-theme="dark"] {
   --lotus-code-copy-btn-bg: rgba(0, 0, 0, 0.6);
   --lotus-code-copy-btn-color: rgba(255, 255, 255, 0.9);
 
-  --lotus-message-assistant-bg: transparent;
-  --lotus-message-assistant-border: transparent;
-  --lotus-message-streaming-bg: linear-gradient(
-    180deg,
-    rgba(15, 23, 42, 0.8) 0%,
-    rgba(11, 16, 28, 0.72) 100%
-  );
+  --lotus-message-assistant-bg: var(--ant-color-bg-container);
+  --lotus-message-assistant-border: var(--ant-color-border-secondary);
+  --lotus-message-streaming-bg: linear-gradient(180deg, #0f172a 0%, #0b101c 100%);
 
   /* ── Input shell tokens (dark) ──────────────────────────────── */
   --lotus-input-border: rgba(255, 255, 255, 0.14);
