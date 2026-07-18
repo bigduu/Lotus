@@ -37,6 +37,7 @@ export type AgentEventType =
   | "sub_agent_heartbeat"
   | "sub_agent_completed"
   | "child_approval_requested"
+  | "child_approval_changed"
   | "session_title_updated"
   | "session_pinned_updated"
   | "session_created"
@@ -233,6 +234,8 @@ export interface AgentEvent {
   // tool and is blocked awaiting a human approve/deny decision. `tool_name` is
   // reused from the tool-event fields above.
   request_id?: string;
+  reason?: string;
+  resolved_at?: string;
   permission?: string;
   resource?: string;
   // ContextPressureNotification events
@@ -875,6 +878,7 @@ export interface AgentEventHandlers {
       resource?: string;
     },
   ) => void;
+  onChildApprovalChanged?: (event: AgentEvent) => void;
   onNeedClarification?: (event: AgentEvent) => void;
   onNotification?: (event: AgentEvent) => void;
   onSessionTitleUpdated?: (event: SessionTitleUpdatedEvent) => void;
@@ -1817,6 +1821,9 @@ export class AgentClient {
             resource: event.resource,
           });
         }
+        break;
+      case "child_approval_changed":
+        handlers.onChildApprovalChanged?.(event);
         break;
       case "execution_started":
         handlers.onExecutionStarted?.(event.run_id || "", event.started_at);

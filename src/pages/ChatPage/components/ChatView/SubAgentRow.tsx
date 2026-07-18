@@ -43,6 +43,12 @@ export interface SubAgentRowData {
   residentName?: string | null;
   /** Which machine this child ran on (deployment kind + host). */
   placement?: SessionPlacement | null;
+  approval?: {
+    requestId: string;
+    toolName: string | null;
+    permission: string | null;
+    resource: string | null;
+  } | null;
 }
 
 export interface SubAgentRowProps {
@@ -67,6 +73,8 @@ const normalizeSubAgentStatus = (status?: string): string => {
   if (value === "started" || value === "already_running") return "running";
   if (value === "success" || value === "done") return "completed";
   if (value === "canceled") return "cancelled";
+  if (value === "timeout") return "timed_out";
+  if (value === "awaiting_permission") return "awaiting_approval";
   if (value === "queued" || value === "created") return "pending";
   return value;
 };
@@ -109,26 +117,36 @@ export const SubAgentRow = memo<SubAgentRowProps>(
     const getStatusLabel = (value: string) =>
       value === "running"
         ? t("chat.subAgents.statusRunning")
-        : value === "completed"
-          ? t("chat.subAgents.statusCompleted")
-          : value === "pending"
-            ? t("chat.subAgents.statusPending")
-            : value === "cancelled"
-              ? t("chat.subAgents.statusCancelled")
-              : value === "error" || value === "failed"
-                ? t("chat.subAgents.statusFailed")
-                : value;
+        : value === "awaiting_approval"
+          ? t("chat.subAgents.statusAwaitingPermission")
+          : value === "waiting_children"
+            ? t("chat.subAgents.statusWaitingChildren")
+            : value === "timed_out"
+              ? t("chat.subAgents.statusTimedOut")
+              : value === "lost"
+                ? t("chat.subAgents.statusLost")
+                : value === "completed"
+                  ? t("chat.subAgents.statusCompleted")
+                  : value === "pending"
+                    ? t("chat.subAgents.statusPending")
+                    : value === "cancelled"
+                      ? t("chat.subAgents.statusCancelled")
+                      : value === "error" || value === "failed"
+                        ? t("chat.subAgents.statusFailed")
+                        : value;
 
     const getStatusColor = (value: string) =>
       value === "running"
         ? token.colorPrimary
-        : value === "completed"
-          ? token.colorSuccess
-          : value === "error" || value === "failed"
-            ? token.colorError
-            : value === "cancelled"
-              ? token.colorWarning
-              : token.colorTextSecondary;
+        : value === "awaiting_approval" || value === "waiting_children"
+          ? token.colorWarning
+          : value === "completed"
+            ? token.colorSuccess
+            : value === "error" || value === "failed"
+              ? token.colorError
+              : value === "cancelled"
+                ? token.colorWarning
+                : token.colorTextSecondary;
 
     return (
       <Flex
@@ -180,13 +198,17 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                   color={
                     status === "running"
                       ? "processing"
-                      : status === "completed"
-                        ? "success"
-                        : status === "error" || status === "failed"
+                      : status === "awaiting_approval" || status === "waiting_children"
+                        ? "warning"
+                        : status === "timed_out" || status === "lost"
                           ? "error"
-                          : status === "cancelled"
-                            ? "warning"
-                            : "default"
+                          : status === "completed"
+                            ? "success"
+                            : status === "error" || status === "failed"
+                              ? "error"
+                              : status === "cancelled"
+                                ? "warning"
+                                : "default"
                   }
                   style={compactItemTagStyle}
                 >
@@ -307,6 +329,19 @@ export const SubAgentRow = memo<SubAgentRowProps>(
               }}
             >
               {item.error}
+            </Text>
+          ) : null}
+
+          {item.approval ? (
+            <Text
+              type="warning"
+              data-testid={`sub-agent-approval-${item.childSessionId}`}
+              style={{ display: "block", marginTop: token.marginXS, fontSize: compact ? 11 : 12 }}
+            >
+              {t("chat.subAgents.approvalDetail", {
+                tool: item.approval.toolName || item.approval.permission || "tool",
+                resource: item.approval.resource || "",
+              })}
             </Text>
           ) : null}
         </Flex>

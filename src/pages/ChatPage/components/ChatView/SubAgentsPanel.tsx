@@ -4,7 +4,7 @@ import { App as AntApp, Button, Card, Flex, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
-import { selectChildren, useAppStore } from "@shared/store/appStore";
+import { selectChildren, selectPendingChildApprovals, useAppStore } from "@shared/store/appStore";
 import { openSession } from "@shared/utils/openSession";
 import { toolService } from "@services/tool/ToolService";
 import { useSubagentProfiles } from "../../hooks/useSubagentProfiles";
@@ -26,6 +26,8 @@ const normalizeSubAgentStatus = (status?: string): string => {
   if (value === "started" || value === "already_running") return "running";
   if (value === "success" || value === "done") return "completed";
   if (value === "canceled") return "cancelled";
+  if (value === "timeout") return "timed_out";
+  if (value === "awaiting_permission") return "awaiting_approval";
   if (value === "queued" || value === "created") return "pending";
   return value;
 };
@@ -53,7 +55,12 @@ const deriveFallbackStatus = (
   return "pending";
 };
 
-const ACTIVE_SUB_AGENT_STATUSES = new Set(["running", "pending"]);
+const ACTIVE_SUB_AGENT_STATUSES = new Set([
+  "running",
+  "pending",
+  "awaiting_approval",
+  "waiting_children",
+]);
 
 const isActiveSubAgentStatus = (status?: string): boolean =>
   ACTIVE_SUB_AGENT_STATUSES.has(normalizeSubAgentStatus(status));
@@ -124,7 +131,11 @@ const areMergedItemsEqual = (a: MergedSubAgentItem, b: MergedSubAgentItem): bool
   // Keep in sync with the list-level equality — else a changed placement (e.g. a
   // child that finished and got its remote node stamped) renders a stale MachineTag.
   a.placement?.kind === b.placement?.kind &&
-  a.placement?.host === b.placement?.host;
+  a.placement?.host === b.placement?.host &&
+  a.approval?.requestId === b.approval?.requestId &&
+  a.approval?.toolName === b.approval?.toolName &&
+  a.approval?.permission === b.approval?.permission &&
+  a.approval?.resource === b.approval?.resource;
 
 export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   parentSessionId,
@@ -144,6 +155,9 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   const [showCompleted, setShowCompleted] = useState<boolean>(false);
 
   const childrenById = useAppStore((s) => selectChildren(parentSessionId)(s));
+  const pendingApprovals = useAppStore(
+    useShallow((s) => selectPendingChildApprovals(parentSessionId)(s)),
+  );
   // Narrow subscription (#3): filter inside the selector, with `useShallow`
   // comparing the resulting array element-by-reference, instead of
   // subscribing to the entire `chats` array. Unrelated chat mutations
@@ -183,15 +197,21 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
 
   const mergedItems = useMemo(() => {
     const progressById = new Map(progressItems.map((x) => [x.childSessionId, x]));
+    const approvalByChildId = new Map(
+      pendingApprovals.map((approval) => [approval.childSessionId, approval]),
+    );
     const previousById = previousMergedItemsByIdRef.current;
     const out: MergedSubAgentItem[] = [];
 
     for (const child of persistedChildren) {
       const p = progressById.get(child.id);
+      const approval = approvalByChildId.get(child.id);
       const nextItem: MergedSubAgentItem = {
         childSessionId: child.id,
         title: child.title || p?.title,
-        status: normalizeSubAgentStatus(deriveFallbackStatus(child, p?.status)),
+        status: approval
+          ? "awaiting_approval"
+          : normalizeSubAgentStatus(deriveFallbackStatus(child, p?.status)),
         error: p?.error || child.lastRunError,
         lastHeartbeatAt: p?.lastHeartbeatAt,
         lastEventAt: p?.lastEventAt,
@@ -208,6 +228,14 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         lifecycle: child.lifecycle ?? null,
         residentName: child.residentName ?? null,
         placement: child.placement ?? null,
+        approval: approval
+          ? {
+              requestId: approval.requestId,
+              toolName: approval.toolName,
+              permission: approval.permission,
+              resource: approval.resource,
+            }
+          : null,
       };
       const previous = previousById.get(child.id);
       out.push(previous && areMergedItemsEqual(previous, nextItem) ? previous : nextItem);
@@ -215,10 +243,11 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
     }
 
     for (const p of progressById.values()) {
+      const approval = approvalByChildId.get(p.childSessionId);
       const nextItem: MergedSubAgentItem = {
         childSessionId: p.childSessionId,
         title: p.title,
-        status: normalizeSubAgentStatus(p.status),
+        status: approval ? "awaiting_approval" : normalizeSubAgentStatus(p.status),
         error: p.error,
         lastHeartbeatAt: p.lastHeartbeatAt,
         lastEventAt: p.lastEventAt,
@@ -227,6 +256,14 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
         // Progress-only children haven't been persisted yet — treat them as
         // just-created so they appear at the top (newest first).
         createdAt: Date.now(),
+        approval: approval
+          ? {
+              requestId: approval.requestId,
+              toolName: approval.toolName,
+              permission: approval.permission,
+              resource: approval.resource,
+            }
+          : null,
       };
       const previous = previousById.get(p.childSessionId);
       out.push(previous && areMergedItemsEqual(previous, nextItem) ? previous : nextItem);
@@ -234,7 +271,7 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
 
     previousMergedItemsByIdRef.current = new Map(out.map((item) => [item.childSessionId, item]));
     return out;
-  }, [persistedChildren, progressItems]);
+  }, [pendingApprovals, persistedChildren, progressItems]);
 
   // Concentrate the panel: resident agents are stable, always-visible entries
   // (one per reusable agent); the remaining one-shot children split into active
@@ -607,9 +644,12 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
       ) : null}
     </Flex>
   ) : (
-    <Text type="secondary" data-testid="sub-agents-collapsed-hint">
-      {t("chat.subAgents.hiddenHint", { count: mergedItems.length })}
-    </Text>
+    <Flex vertical gap={token.marginXXS}>
+      <Text type="secondary" data-testid="sub-agents-collapsed-hint">
+        {t("chat.subAgents.hiddenHint", { count: mergedItems.length })}
+      </Text>
+      <SubAgentsSummaryFooter items={mergedItems} />
+    </Flex>
   );
 
   const footer =
@@ -670,17 +710,34 @@ const SubAgentsSummaryFooter: React.FC<{ items: Array<{ status?: string }> }> = 
       const s = normalizeSubAgentStatus(it.status);
       if (s === "completed") acc.completed++;
       else if (s === "running") acc.running++;
+      else if (s === "awaiting_approval") acc.awaiting++;
+      else if (s === "timed_out") acc.timedOut++;
+      else if (s === "lost") acc.lost++;
       else if (s === "error" || s === "failed") acc.error++;
       else if (s === "cancelled") acc.cancelled++;
       else acc.pending++;
       return acc;
     },
-    { completed: 0, running: 0, error: 0, pending: 0, cancelled: 0 },
+    {
+      completed: 0,
+      running: 0,
+      awaiting: 0,
+      timedOut: 0,
+      lost: 0,
+      error: 0,
+      pending: 0,
+      cancelled: 0,
+    },
   );
   const parts: string[] = [];
   if (counts.completed > 0)
     parts.push(t("chat.subAgents.summaryCompleted", { count: counts.completed }));
   if (counts.running > 0) parts.push(t("chat.subAgents.summaryRunning", { count: counts.running }));
+  if (counts.awaiting > 0)
+    parts.push(t("chat.subAgents.summaryAwaiting", { count: counts.awaiting }));
+  if (counts.timedOut > 0)
+    parts.push(t("chat.subAgents.summaryTimedOut", { count: counts.timedOut }));
+  if (counts.lost > 0) parts.push(t("chat.subAgents.summaryLost", { count: counts.lost }));
   if (counts.pending > 0) parts.push(t("chat.subAgents.summaryPending", { count: counts.pending }));
   if (counts.cancelled > 0)
     parts.push(`${counts.cancelled} ${t("chat.subAgents.statusCancelled")}`);

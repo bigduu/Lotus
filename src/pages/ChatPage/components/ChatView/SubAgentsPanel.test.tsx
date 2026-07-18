@@ -42,6 +42,8 @@ vi.mock("@shared/store/appStore", () => ({
     const entry = state.executionBySession?.[sessionId ?? ""];
     return entry?.children?.byId ?? {};
   },
+  selectPendingChildApprovals: (sessionId: string | null) => (state: typeof mockStoreState) =>
+    state.executionBySession?.[sessionId ?? ""]?.interaction?.pendingChildApprovals ?? [],
 }));
 
 vi.mock("@shared/utils/openSession", () => ({
@@ -123,7 +125,12 @@ describe("SubAgentsPanel", () => {
           hasPendingQuestion: null,
           runningChildCount: null,
         },
-        interaction: { pendingQuestion: null, respondMode: null, pendingApproval: null },
+        interaction: {
+          pendingQuestion: null,
+          respondMode: null,
+          pendingChildApprovals: [],
+          resolvedChildApprovalRequestIds: [],
+        },
         children: {
           byId: {
             "child-session-1": {
@@ -219,6 +226,64 @@ describe("SubAgentsPanel", () => {
     expect(screen.getByTestId("sub-agents-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sub-agents-list")).toBeInTheDocument();
     expect(screen.getByTestId("sub-agents-toggle")).toHaveTextContent("Collapse");
+  });
+
+  it("joins a pending approval into the child row and active aggregate", () => {
+    mockStoreState.executionBySession[PARENT_SESSION_ID].interaction.pendingChildApprovals = [
+      {
+        childSessionId: "child-session-1",
+        requestId: "approval-1",
+        toolName: "Bash",
+        permission: "execute",
+        resource: "npm test",
+        receivedAt: "2026-03-12T00:00:00Z",
+      },
+    ];
+
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    expect(screen.getByText("awaiting permission")).toBeInTheDocument();
+    expect(screen.getByTestId("sub-agent-approval-child-session-1")).toHaveTextContent(
+      "Approval required: Bash npm test",
+    );
+    fireEvent.click(screen.getByTestId("sub-agents-toggle"));
+    expect(screen.getByText("1 awaiting permission")).toBeInTheDocument();
+  });
+
+  it("removes approval details when the existing FIFO resolves the request", () => {
+    mockStoreState.executionBySession[PARENT_SESSION_ID].interaction.pendingChildApprovals = [
+      {
+        childSessionId: "child-session-1",
+        requestId: "approval-1",
+        toolName: "Bash",
+        permission: "execute",
+        resource: "npm test",
+        receivedAt: "2026-03-12T00:00:00Z",
+      },
+    ];
+    const { rerender } = render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+    expect(screen.getByText("awaiting permission")).toBeInTheDocument();
+
+    mockStoreState.executionBySession[PARENT_SESSION_ID].interaction.pendingChildApprovals = [];
+    rerender(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    expect(screen.queryByTestId("sub-agent-approval-child-session-1")).not.toBeInTheDocument();
+    expect(screen.getByText("running")).toBeInTheDocument();
+  });
+
+  it("preserves terminal timeout details and aggregates them while collapsed", () => {
+    mockStoreState.executionBySession[PARENT_SESSION_ID].children.byId["child-session-1"] = {
+      title: "Child Session 1",
+      status: "timed_out",
+      error: "worker stopped responding",
+    };
+
+    render(<SubAgentsPanel parentSessionId={PARENT_SESSION_ID} />);
+
+    expect(screen.getByText("timed out")).toBeInTheDocument();
+    expect(screen.getByText("worker stopped responding")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("sub-agents-toggle"));
+    expect(screen.getByText("1 timed out")).toBeInTheDocument();
   });
 
   it("applies max height and vertical scroll to expanded list", () => {
