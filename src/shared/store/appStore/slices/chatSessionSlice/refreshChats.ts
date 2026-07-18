@@ -1,5 +1,9 @@
 import { StateCreator } from "zustand";
 import { AgentClient, SessionSummary } from "@services/chat/AgentService";
+import {
+  beginBypassPermissionSummaryRequest,
+  reconcileBypassPermissionSummary,
+} from "../../bypassPermissionMutations";
 import { debugLog } from "@shared/utils/debugFlags";
 import { ChatItem } from "@shared/types/chat";
 import type { AppState } from "../../";
@@ -79,7 +83,11 @@ export function clearRefreshChatsThrottleWindow(): {
  * Apply a fetched session list to the store.
  * Preserves in-memory messages and merges local state.
  */
-export function applySessionsList(sessions: SessionSummary[], set: ChatSliceSet): void {
+export function applySessionsList(
+  sessions: SessionSummary[],
+  set: ChatSliceSet,
+  summaryRequestRevision?: number,
+): void {
   const next = sessions.map(sessionSummaryToChatItem);
 
   set((state) => {
@@ -154,12 +162,13 @@ export function applySessionsList(sessions: SessionSummary[], set: ChatSliceSet)
             ? prevConfig.goldConfig
             : nextConfig.goldConfig
           : nextConfig.goldConfig,
-        // `bypass_permissions` is only carried by the detail endpoint, never the
-        // lightweight list. Keep the locally-known value (set via the toggle or a
-        // prior detail load) so a list refresh can't reset it to `false`.
-        bypassPermissions: Object.prototype.hasOwnProperty.call(prevConfig, "bypassPermissions")
-          ? prevConfig.bypassPermissions
-          : nextConfig.bypassPermissions,
+        // Bamboo's summary is authoritative. The sole exception is the exact
+        // window in which this session has an optimistic PATCH in flight.
+        bypassPermissions: reconcileBypassPermissionSummary(
+          c.id,
+          nextConfig.bypassPermissions ?? false,
+          summaryRequestRevision,
+        ),
         compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
         syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
       };
@@ -212,12 +221,13 @@ export async function executeRefreshChats(set: ChatSliceSet): Promise<void> {
   debugLog("[ChatSlice]", "refreshChats.start", {});
   refreshChatsState.inFlight = (async () => {
     try {
+      const summaryRequestRevision = beginBypassPermissionSummaryRequest();
       const list = await agentClient.listSessions();
       debugLog("[ChatSlice]", "refreshChats.response", {
         count: list.sessions.length,
         runningCount: list.sessions.filter((session) => session.is_running).length,
       });
-      applySessionsList(list.sessions, set);
+      applySessionsList(list.sessions, set, summaryRequestRevision);
     } catch (error) {
       console.error("[ChatSlice] Failed to refresh sessions:", error);
       debugLog("[ChatSlice]", "refreshChats.error", { error });

@@ -414,9 +414,13 @@ export const enUsTranslation = {
         bypassPermissions: {
           label: "Bypass",
           onTitle:
-            "Bypass permissions is ON — this session runs tools without asking for approval. Click to turn off.",
+            "Bypass is ON — ordinary permission prompts are skipped, but hard-dangerous operations and your always-ask rules still require approval. Click to turn off.",
           offTitle:
-            "Bypass permissions is OFF — risky tools ask for approval. Click to skip approvals for this session.",
+            "Bypass is OFF — high-risk operations may ask for approval. Click to bypass ordinary prompts for this session.",
+          onLabel: "Bypass ON",
+          offLabel: "Bypass OFF",
+          pending: "Saving…",
+          success: "Saved",
           error: "Failed to update bypass permissions",
         },
         strictToolOnlyMode: "Strict tool-only mode",
