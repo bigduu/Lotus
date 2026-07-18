@@ -4,9 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProviderSettings } from "./index";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { useAppStore } from "@shared/store/appStore";
+import { copyText } from "@shared/utils/clipboard";
 
 // Mock fetch globally for HTTP API calls.
 global.fetch = vi.fn();
+
+vi.mock("@shared/utils/clipboard", () => ({ copyText: vi.fn() }));
 
 vi.mock("antd", async () => {
   const actual = await vi.importActual<typeof import("antd")>("antd");
@@ -272,6 +275,33 @@ describe("ProviderSettings", () => {
       currentSessionId: null,
       chats: [],
     } as any);
+  });
+
+  it("shows Bamboo-compatible provider URLs and copies an individual URL", async () => {
+    window.localStorage.setItem("copilot_backend_base_url", "https://bamboo.example.com/proxy/v1/");
+    vi.mocked(copyText).mockResolvedValue(undefined);
+    setupProviderSettingsFetch({
+      provider: "openai",
+      providers: { openai: { api_key: "sk-masked" } },
+    });
+
+    render(<ProviderSettings />);
+
+    expect(await screen.findByTestId("bamboo-provider-api-guide")).toBeInTheDocument();
+    expect(screen.getByTestId("bamboo-provider-api-openai")).toHaveTextContent(
+      "https://bamboo.example.com/proxy/openai/v1",
+    );
+    expect(screen.getByTestId("bamboo-provider-api-anthropic")).toHaveTextContent(
+      "https://bamboo.example.com/proxy/anthropic/v1",
+    );
+    expect(screen.getByTestId("bamboo-provider-api-gemini")).toHaveTextContent(
+      "https://bamboo.example.com/proxy/gemini/v1beta",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy OpenAI base URL" }));
+    await waitFor(() =>
+      expect(copyText).toHaveBeenCalledWith("https://bamboo.example.com/proxy/openai/v1"),
+    );
   });
 
   it("includes defaults in save payload so model preferences persist", async () => {

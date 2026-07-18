@@ -15,6 +15,7 @@ import {
   Spin,
   Switch,
   Tooltip,
+  Alert,
   theme,
 } from "antd";
 import {
@@ -25,6 +26,7 @@ import {
   LoginOutlined,
   LogoutOutlined,
   ReloadOutlined,
+  CopyOutlined,
 } from "@ant-design/icons";
 import { DeviceCodeModal } from "./DeviceCodeModal";
 import { isApiError } from "@services/api/client";
@@ -57,6 +59,7 @@ import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelP
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
+import { getBambooCompatibleProviderBaseUrls } from "@shared/utils/backendBaseUrl";
 
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
@@ -1572,6 +1575,61 @@ export const ProviderSettings: React.FC = () => {
       className="lotus-settings-card"
     >
       <Paragraph type="secondary">{t("settings.providerTab.description")}</Paragraph>
+
+      <Alert
+        type="info"
+        showIcon
+        data-testid="bamboo-provider-api-guide"
+        message={t("settings.providerTab.bambooApiGuideTitle")}
+        description={
+          <Space direction="vertical" size={8} style={{ width: "100%" }}>
+            <Text>{t("settings.providerTab.bambooApiGuideDescription")}</Text>
+            {getBambooCompatibleProviderBaseUrls().map(({ provider, url }) => (
+              <div
+                key={provider}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  columnGap: 8,
+                  rowGap: 4,
+                  flexWrap: "wrap",
+                  minWidth: 0,
+                }}
+              >
+                <Text strong style={{ minWidth: 76 }}>
+                  {t(`settings.providerTab.bambooApiProviders.${provider}`)}
+                </Text>
+                <Text
+                  code
+                  data-testid={`bamboo-provider-api-${provider}`}
+                  style={{ overflowWrap: "anywhere", minWidth: 0 }}
+                >
+                  {url}
+                </Text>
+                <Tooltip title={t("settings.providerTab.copyBambooApiUrl")}>
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<CopyOutlined />}
+                    aria-label={t("settings.providerTab.copyBambooApiUrlFor", {
+                      provider: t(`settings.providerTab.bambooApiProviders.${provider}`),
+                    })}
+                    onClick={async () => {
+                      try {
+                        await copyText(url);
+                        message.success(t("settings.providerTab.bambooApiUrlCopied"));
+                      } catch {
+                        message.error(t("settings.providerTab.bambooApiUrlCopyFailed"));
+                      }
+                    }}
+                  />
+                </Tooltip>
+              </div>
+            ))}
+            <Text type="secondary">{t("settings.providerTab.bambooApiGuideNote")}</Text>
+          </Space>
+        }
+      />
 
       <Divider />
 

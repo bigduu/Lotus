@@ -287,6 +287,50 @@ export const buildBackendUrl = (path: string): string => {
   return `${baseUrl}/${cleanPath}`;
 };
 
+export type BambooCompatibleProvider = "openai" | "anthropic" | "gemini";
+
+export type BambooCompatibleProviderBaseUrl = {
+  provider: BambooCompatibleProvider;
+  url: string;
+};
+
+/**
+ * Build the public Bamboo compatibility endpoints from the backend API base.
+ *
+ * The configured backend base normally ends in `/v1`, including deployments
+ * behind a path prefix (for example `https://host/bamboo/v1`). Only that final
+ * API suffix is removed so reverse-proxy prefixes remain intact.
+ */
+export const buildBambooCompatibleProviderBaseUrls = (
+  backendBaseUrl: string,
+): BambooCompatibleProviderBaseUrl[] => {
+  const parsed = new URL(normalizeBackendBaseUrl(backendBaseUrl));
+  const pathname = parsed.pathname.replace(/\/+$/, "");
+  const proxyPath = pathname.endsWith("/v1") ? pathname.slice(0, -3) : pathname;
+
+  const buildUrl = (path: string): string => {
+    const url = new URL(parsed.toString());
+    // Backend URLs may contain HTTP basic-auth userinfo. Never surface or copy
+    // those credentials in the provider guide; clients should configure their
+    // own authentication separately.
+    url.username = "";
+    url.password = "";
+    url.pathname = `${proxyPath}/${path}`.replace(/\/{2,}/g, "/");
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  };
+
+  return [
+    { provider: "openai", url: buildUrl("openai/v1") },
+    { provider: "anthropic", url: buildUrl("anthropic/v1") },
+    { provider: "gemini", url: buildUrl("gemini/v1beta") },
+  ];
+};
+
+export const getBambooCompatibleProviderBaseUrls = (): BambooCompatibleProviderBaseUrl[] =>
+  buildBambooCompatibleProviderBaseUrls(getBackendBaseUrlSync());
+
 /**
  * Derive the unified v2 WebSocket stream URL (`ws(s)://host[:port]/v2/stream`)
  * from the current backend base.
