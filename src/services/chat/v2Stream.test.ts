@@ -456,6 +456,32 @@ describe("v2Stream WebSocket client", () => {
       vi.useRealTimers();
     });
 
+    it("visibility regain sends a half-open socket through the watchdog recovery path", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));
+      const onError = vi.fn();
+      subscribeFeed({ onChange: vi.fn(), onError }, 9);
+      const first = lastSocket();
+      first.open();
+      first.emit({ type: "pong" });
+
+      // Simulate a suspended tab: wall-clock time advances without running the
+      // heartbeat/watchdog intervals. Visibility regain must perform the same
+      // stale check rather than merely writing subscribe frames to a dead pipe.
+      vi.setSystemTime(new Date("2026-07-18T12:00:40Z"));
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(first.readyState).toBe(MockWebSocket.CLOSED);
+      vi.advanceTimersByTime(500);
+      expect(sockets).toHaveLength(2);
+      const second = lastSocket();
+      second.open();
+      expect(second.parsedSent()).toContainEqual({ type: "subscribe", ch: "feed", since: 9 });
+
+      vi.useRealTimers();
+    });
+
     it("never falls back to SSE when replacement sockets flap during watchdog recovery", () => {
       vi.useFakeTimers();
       const onConnectFailed = vi.fn();

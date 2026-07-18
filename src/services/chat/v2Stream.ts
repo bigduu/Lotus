@@ -203,6 +203,8 @@ let heartbeatAckSeen = false;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 /** The watchdog interval; armed while a socket is open. */
 let watchdogTimer: ReturnType<typeof setInterval> | null = null;
+/** Visibility listener that runs the same stale check immediately after resume. */
+let visibilityWatchdogAttached = false;
 
 let feedChannel: FeedChannel | null = null;
 const agentChannels = new Map<string, AgentChannel>();
@@ -388,9 +390,31 @@ const watchdogTick = (): void => {
   }
 };
 
+const onVisibilityChange = (): void => {
+  if (document.visibilityState === "visible") {
+    // Browser timers may remain throttled briefly after a suspended tab wakes.
+    // Reuse the exact periodic-watchdog check so an acknowledged half-open
+    // socket enters the normal teardown/reconnect/resubscribe path immediately.
+    watchdogTick();
+  }
+};
+
+const attachVisibilityWatchdog = (): void => {
+  if (visibilityWatchdogAttached || typeof document === "undefined") return;
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  visibilityWatchdogAttached = true;
+};
+
+const detachVisibilityWatchdog = (): void => {
+  if (!visibilityWatchdogAttached || typeof document === "undefined") return;
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  visibilityWatchdogAttached = false;
+};
+
 const armWatchdog = (): void => {
   clearWatchdog();
   watchdogTimer = setInterval(watchdogTick, WATCHDOG_TICK_MS);
+  attachVisibilityWatchdog();
 };
 
 const startHeartbeat = (): void => {
@@ -401,6 +425,7 @@ const startHeartbeat = (): void => {
 const teardownSocket = (): void => {
   clearHeartbeat();
   clearWatchdog();
+  detachVisibilityWatchdog();
   if (socket) {
     socket.onopen = null;
     socket.onmessage = null;
