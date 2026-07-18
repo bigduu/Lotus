@@ -12,9 +12,9 @@
  * Protocol (JSON text frames by default):
  *  - Client to server: {type:"hello"} (optional; no token on loopback/local),
  *    {type:"subscribe", ch:"feed", since}, {type:"subscribe", ch:"agent.<sid>"},
- *    {type:"unsubscribe", ch}, {type:"stop", session_id}.
+ *    {type:"unsubscribe", ch}, {type:"stop", session_id}, {type:"ping"}.
  *  - Server to client: event envelope {ch, seq, event} and control envelope
- *    {ch, seq, control:{type:"terminal"|"feed_reset", ...}}.
+ *    {ch, seq, control:{type:"terminal"|"feed_reset", ...}}, or {type:"pong"}.
  *
  * Wire encoding (opt-in MessagePack): by default the socket speaks JSON text
  * frames. When `isApiV2MsgpackEnabled()` is on, the socket is opened offering
@@ -104,37 +104,10 @@ const STABLE_OPEN_MS = 15_000;
  */
 const MAX_SHORTLIVED = 3;
 
-/**
- * Liveness watchdog (lotus#87 / bamboo#533). The backend sends an app-level
- * `{ch:"sys", control:{type:"keepalive"}}` DATA frame every ~15s — the ONLY
- * liveness signal a browser can observe (protocol-level pings are never exposed
- * to JS). A half-open socket (laptop sleep/wake, Wi-Fi/VPN switch, NAT idle
- * eviction during a long quiet Bash run) never fires `onclose` on its own: the
- * server tore its side down minutes ago while we sit "open" receiving nothing —
- * stranding the UI on stale state (e.g. a Bash tool call shown as running after
- * the run finished), with the account feed's recovery signal dead on the same
- * multiplexed socket.
- *
- * When no frame of ANY kind has arrived for the stale threshold (~three missed
- * keepalives), the watchdog force-reconnects. It only ARMS after the first
- * `sys` keepalive of the current connection ({@link serverKeepalive}), so an
- * older backend that never sends them — where long quiet stretches are
- * legitimate — keeps today's behavior exactly.
- *
- * The threshold ADAPTS to the backend's observed cadence (#90): 3× the
- * smallest inter-keepalive gap seen on this connection, clamped to
- * [{@link KEEPALIVE_STALE_FLOOR_MS}, {@link KEEPALIVE_STALE_CEIL_MS}]. A new
- * backend (2s cadence, bamboo#547) is detected dead in ~6s — a user actively
- * watching a running session must not stare at a dead screen — while an old
- * 15s-cadence backend keeps the conservative 45s threshold with no false
- * positives. Until a second keepalive establishes the cadence, the ceiling
- * applies. The 6s floor (three missed 2s keepalives) is the safety margin
- * against ordinary jank: a main-thread pause delays the watchdog timer right
- * along with message processing, and one traffic-delayed keepalive can only
- * LOOSEN the min-gap-based threshold, never tighten it.
- */
-const KEEPALIVE_STALE_FLOOR_MS = 6_000;
-const KEEPALIVE_STALE_CEIL_MS = 45_000;
+/** Browser-visible application heartbeat; protocol Ping/Pong is hidden from JS. */
+const HEARTBEAT_INTERVAL_MS = 15_000;
+/** Acknowledged connections are considered half-open after this much silence. */
+const HEARTBEAT_STALE_MS = 40_000;
 
 /** How often the watchdog checks for staleness. */
 const WATCHDOG_TICK_MS = 1_000;
@@ -163,6 +136,7 @@ interface AgentChannel {
 }
 
 type ServerFrame = {
+  type?: string;
   ch?: string;
   seq?: number;
   event?: unknown;
@@ -174,6 +148,12 @@ let connecting = false;
 let reconnectAttempts = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let intentionalClose = false;
+/**
+ * A stale socket has proven that v2 WS works but the transport went half-open.
+ * Keep all subsequent recovery attempts on WS even if replacement sockets flap:
+ * falling back to SSE here would violate post-open recovery semantics.
+ */
+let watchdogRecoveryActive = false;
 
 /**
  * Whether the shared socket has EVER successfully opened (across its whole
@@ -214,18 +194,13 @@ const connectFailedListeners = new Set<ConnectFailedCallback>();
  */
 let lastFrameAt = 0;
 /**
- * Whether the CURRENT connection's backend has sent at least one `sys`
- * keepalive — i.e. it supports the app-level liveness contract (bamboo#533).
- * Reset on every (re)open so a downgrade/mixed fleet can never leave the
- * watchdog armed against a backend that stopped sending them.
+ * Whether the CURRENT connection has acknowledged at least one client ping.
+ * This gates the watchdog for compatibility with older backends that ignore
+ * the new frame and may legitimately remain quiet for a long time.
  */
-let serverKeepalive = false;
-/** Timestamp (ms) of the previous `sys` keepalive; 0 until the first one. */
-let lastKeepaliveAt = 0;
-/** Smallest observed inter-keepalive gap (ms) on this connection. */
-let minKeepaliveGapMs = Number.POSITIVE_INFINITY;
-/** The adaptive stale threshold — ceiling until the cadence is observed. */
-let keepaliveStaleMs = KEEPALIVE_STALE_CEIL_MS;
+let heartbeatAckSeen = false;
+/** Sends application pings while the socket is open. */
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 /** The watchdog interval; armed while a socket is open. */
 let watchdogTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -377,12 +352,19 @@ const clearWatchdog = (): void => {
   }
 };
 
+const clearHeartbeat = (): void => {
+  if (heartbeatTimer) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+};
+
 /**
  * Declare the live socket stale and force a reconnect (lotus#87). Runs the
  * SAME teardown+reconnect sequence as a post-open `onclose` — deliberately NOT
  * routed through `socket.close()` + the `onclose` handler, because on a
  * half-open socket the browser's close timing is exactly what we can't rely
- * on. 45s+ of silence implies the connection was stable before the stall, so
+ * on. 40s of silence implies the connection was stable before the stall, so
  * the short-lived-flap counter resets (mirrors the stable-drop branch).
  */
 const forceReconnectStaleSocket = (): void => {
@@ -393,14 +375,15 @@ const forceReconnectStaleSocket = (): void => {
   teardownSocket();
   lastOpenAt = null;
   shortLivedCloses = 0;
+  watchdogRecoveryActive = true;
   scheduleReconnect();
 };
 
-/** One watchdog check: armed only after the backend's first `sys` keepalive. */
+/** One watchdog check: armed only after this connection's first pong ACK. */
 const watchdogTick = (): void => {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
-  if (!serverKeepalive) return;
-  if (Date.now() - lastFrameAt > keepaliveStaleMs) {
+  if (!heartbeatAckSeen) return;
+  if (Date.now() - lastFrameAt >= HEARTBEAT_STALE_MS) {
     forceReconnectStaleSocket();
   }
 };
@@ -410,7 +393,13 @@ const armWatchdog = (): void => {
   watchdogTimer = setInterval(watchdogTick, WATCHDOG_TICK_MS);
 };
 
+const startHeartbeat = (): void => {
+  clearHeartbeat();
+  heartbeatTimer = setInterval(() => send({ type: "ping" }), HEARTBEAT_INTERVAL_MS);
+};
+
 const teardownSocket = (): void => {
+  clearHeartbeat();
   clearWatchdog();
   if (socket) {
     socket.onopen = null;
@@ -440,6 +429,7 @@ const closeIfIdle = (): void => {
   connectFailed = false;
   lastOpenAt = null;
   shortLivedCloses = 0;
+  watchdogRecoveryActive = false;
   connectFailedListeners.clear();
 };
 
@@ -472,6 +462,13 @@ const decodeFrame = (data: unknown): ServerFrame | undefined => {
 };
 
 const handleFrame = (frame: ServerFrame | undefined): void => {
+  if (frame?.type === "pong") {
+    if (!heartbeatAckSeen) {
+      heartbeatAckSeen = true;
+      debugLog("[v2Stream]", "heartbeat.acknowledged", {});
+    }
+    return;
+  }
   if (!frame || typeof frame.ch !== "string") {
     debugLog("[v2Stream]", "frame.unknown", {});
     return;
@@ -479,31 +476,7 @@ const handleFrame = (frame: ServerFrame | undefined): void => {
 
   const { ch, control, event } = frame;
 
-  // App-level liveness keepalive (bamboo#533): its arrival is the payload —
-  // `lastFrameAt` was already stamped in `onmessage`. The first one marks the
-  // backend as keepalive-capable, which ARMS the staleness watchdog for this
-  // connection (lotus#87).
   if (ch === "sys") {
-    if (control?.type === "keepalive") {
-      const now = Date.now();
-      // Learn the backend's cadence from consecutive keepalives and tighten
-      // the stale threshold to 3× the smallest observed gap (#90). Using the
-      // MINIMUM keeps one traffic-delayed keepalive from loosening the
-      // threshold; the floor keeps a burst of back-to-back keepalives (e.g.
-      // right after the socket unblocks) from tightening it below sanity.
-      if (lastKeepaliveAt > 0) {
-        minKeepaliveGapMs = Math.min(minKeepaliveGapMs, now - lastKeepaliveAt);
-        keepaliveStaleMs = Math.min(
-          KEEPALIVE_STALE_CEIL_MS,
-          Math.max(KEEPALIVE_STALE_FLOOR_MS, minKeepaliveGapMs * 3),
-        );
-      }
-      lastKeepaliveAt = now;
-      if (!serverKeepalive) {
-        serverKeepalive = true;
-        debugLog("[v2Stream]", "sys.keepalive.armed", {});
-      }
-    }
     return;
   }
 
@@ -657,14 +630,11 @@ const connect = (): void => {
     everOpened = true;
     lastOpenAt = Date.now();
     clearOpenTimeout();
-    // Fresh liveness state per connection: the watchdog stays DISARMED until
-    // this backend proves keepalive support with its first `sys` frame, and
-    // the stale threshold re-learns the cadence from scratch.
+    // Fresh liveness state per connection. Pings begin immediately, but the
+    // watchdog remains disarmed until this backend proves support with a pong.
     lastFrameAt = Date.now();
-    serverKeepalive = false;
-    lastKeepaliveAt = 0;
-    minKeepaliveGapMs = Number.POSITIVE_INFINITY;
-    keepaliveStaleMs = KEEPALIVE_STALE_CEIL_MS;
+    heartbeatAckSeen = false;
+    startHeartbeat();
     armWatchdog();
     debugLog("[v2Stream]", "open", {});
     resubscribeAll();
@@ -687,6 +657,10 @@ const connect = (): void => {
 
   ws.onclose = () => {
     connecting = false;
+    // A closed socket must never leave its ping/watchdog intervals running
+    // during reconnect backoff. `onclose` can arrive without teardownSocket.
+    clearHeartbeat();
+    clearWatchdog();
     debugLog("[v2Stream]", "close", { intentional: intentionalClose, everOpened });
     if (socket === ws) socket = null;
     if (intentionalClose) return;
@@ -710,7 +684,7 @@ const connect = (): void => {
     } else {
       shortLivedCloses += 1;
       debugLog("[v2Stream]", "close.short_lived", { openedFor, shortLivedCloses });
-      if (shortLivedCloses >= MAX_SHORTLIVED) {
+      if (shortLivedCloses >= MAX_SHORTLIVED && !watchdogRecoveryActive) {
         debugLog("[v2Stream]", "close.short_lived.fallback", { shortLivedCloses });
         feedChannel?.handlers.onError?.();
         signalConnectFailed({ force: true });
@@ -826,12 +800,10 @@ export const __resetV2StreamForTests = (): void => {
   connectFailed = false;
   lastOpenAt = null;
   shortLivedCloses = 0;
+  watchdogRecoveryActive = false;
   connectFailedListeners.clear();
   feedChannel = null;
   agentChannels.clear();
   lastFrameAt = 0;
-  serverKeepalive = false;
-  lastKeepaliveAt = 0;
-  minKeepaliveGapMs = Number.POSITIVE_INFINITY;
-  keepaliveStaleMs = KEEPALIVE_STALE_CEIL_MS;
+  heartbeatAckSeen = false;
 };
