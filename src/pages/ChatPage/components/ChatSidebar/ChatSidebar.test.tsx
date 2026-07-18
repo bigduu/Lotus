@@ -7,6 +7,7 @@ import { useAppStore } from "@shared/store/appStore";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { APP_VERSION } from "@shared/constants/appVersion";
+import { getDateGroupKey, NO_WORKSPACE_GROUP_KEY } from "../../utils/chatUtils";
 
 vi.mock("antd", async () => {
   const actual = await vi.importActual<typeof import("antd")>("antd");
@@ -25,6 +26,7 @@ vi.mock("../SystemPromptSelector", () => ({
 
 describe("ChatSidebar", () => {
   beforeEach(() => {
+    localStorage.removeItem("lotus.sidebar.workspace.expanded.v1");
     useUILayoutStore.setState((state) => ({
       ...state,
       sidebar: {
@@ -77,7 +79,9 @@ describe("ChatSidebar", () => {
           id: "child-billing-fix",
           title: "Billing child fix",
           kind: "child",
-          parentSessionId: "root-billing",
+          // A descendant spawned by another child still belongs under the
+          // canonical root, rather than disappearing beneath its direct parent.
+          parentSessionId: "intermediate-child",
           rootSessionId: "root-billing",
           createdAt: 1710001000000,
           messages: [],
@@ -103,6 +107,11 @@ describe("ChatSidebar", () => {
       ],
       lastSelectedPromptId: "general_assistant",
     }));
+    const platformDate = getDateGroupKey(new Date(1710100000000));
+    localStorage.setItem(
+      "lotus.sidebar.workspace-date.collapsed.v1",
+      JSON.stringify([`${encodeURIComponent(NO_WORKSPACE_GROUP_KEY)}::${platformDate}`]),
+    );
   });
 
   it("filters root sessions by search query", async () => {
@@ -149,9 +158,9 @@ describe("ChatSidebar", () => {
     );
 
     await screen.findByText("Billing investigation");
-    // Pre-condition: the non-selected group is collapsed, so the match is
-    // not yet visible.
-    expect(screen.queryByText("Platform roadmap")).toBeNull();
+    // Workspace/date buckets default open; filtering must keep the matching
+    // nested date visible rather than depending on the former date-only state.
+    expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
 
     const searchInput = screen.getByPlaceholderText("Search sessions");
     fireEvent.change(searchInput, { target: { value: "platform" } });
@@ -169,7 +178,7 @@ describe("ChatSidebar", () => {
     );
 
     await screen.findByText("Billing investigation");
-    expect(screen.queryByText("Platform roadmap")).toBeNull();
+    expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
 
     const searchInput = screen.getByPlaceholderText<HTMLInputElement>("Search sessions");
     fireEvent.change(searchInput, { target: { value: "platform" } });
@@ -182,14 +191,11 @@ describe("ChatSidebar", () => {
 
     await waitFor(() => {
       expect(searchInput.value).toBe("");
-      // The group was collapsed before the search started and was never
-      // manually opened by the user, so it goes back to collapsed instead
-      // of permanently staying expanded because of the search.
-      expect(screen.queryByText("Platform roadmap")).toBeNull();
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
     });
   });
 
-  it("respects a manual collapse made mid-search until the query changes", async () => {
+  it("keeps the matching workspace and date expanded while the search changes", async () => {
     render(
       <AntdApp>
         <ChatSidebar />
@@ -205,26 +211,15 @@ describe("ChatSidebar", () => {
       expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
     });
 
-    // Manually collapse the auto-expanded group that contains the match.
-    // Exactly one date group renders while this filter is active (it holds
-    // the single "Platform roadmap" match), so its header is the sole
-    // group-toggle button whose accessible name ends in the "(1)" count.
-    const groupHeader = screen.getByRole("button", { name: /\(1\)$/ });
-    fireEvent.click(groupHeader);
-
-    await waitFor(() => {
-      expect(screen.queryByText("Platform roadmap")).toBeNull();
-    });
-
-    // Unrelated re-renders (e.g. a store update) should not re-force the
-    // group back open while the same query is still active.
+    // Active filters own visibility, including across unrelated store
+    // updates, so matching workspace and date buckets remain expanded.
     act(() => {
       useAppStore.setState((state) => ({ ...state }));
     });
-    expect(screen.queryByText("Platform roadmap")).toBeNull();
+    expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
 
-    // Changing the query re-derives the auto-expand set, overriding the
-    // manual collapse.
+    // Changing the query re-derives the auto-expand set without hiding the
+    // still-matching session.
     fireEvent.change(searchInput, { target: { value: "roadmap " } });
     await waitFor(() => {
       expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
@@ -282,9 +277,7 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      // Pre-condition: the "Pinned" group is collapsed, so the match is not
-      // yet visible.
-      expect(screen.queryByText("Platform roadmap")).toBeNull();
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
 
       clickStatusFilter("Pinned");
 
@@ -301,7 +294,7 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      expect(screen.queryByText("Platform roadmap")).toBeNull();
+      expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
 
       clickStatusFilter("Pinned");
       await waitFor(() => {
@@ -311,10 +304,7 @@ describe("ChatSidebar", () => {
       clickStatusFilter("All");
 
       await waitFor(() => {
-        // The group was collapsed before filtering started and was never
-        // manually opened by the user, so it goes back to collapsed instead
-        // of permanently staying expanded because of the filter.
-        expect(screen.queryByText("Platform roadmap")).toBeNull();
+        expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
       });
     });
 
@@ -336,8 +326,9 @@ describe("ChatSidebar", () => {
       // Exactly one date group renders while this filter is active (it
       // holds the single pinned "Platform roadmap" match), so its header is
       // the sole group-toggle button whose accessible name ends in "(1)".
-      const groupHeader = screen.getByRole("button", { name: /\(1\)$/ });
-      fireEvent.click(groupHeader);
+      const groupHeader = document.querySelector<HTMLElement>(".chat-sidebar-date-group-header");
+      expect(groupHeader).not.toBeNull();
+      fireEvent.click(groupHeader as HTMLElement);
 
       await waitFor(() => {
         expect(screen.queryByText("Platform roadmap")).toBeNull();
@@ -794,11 +785,9 @@ describe("ChatSidebar", () => {
       }));
     });
 
-    const switchToWorkspaceMode = () => {
-      fireEvent.click(screen.getByText("Workspace"));
-    };
+    const switchToWorkspaceMode = () => {};
 
-    it("stays in date grouping by default, until the toggle is used", async () => {
+    it("uses the fixed workspace-first hierarchy by default", async () => {
       render(
         <AntdApp>
           <ChatSidebar />
@@ -806,14 +795,33 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("date");
-      // No workspace-label group headers ("zenith"/"bamboo") in the default view.
-      expect(screen.queryByText(/^zenith/)).toBeNull();
-      expect(screen.queryByText(/^bamboo/)).toBeNull();
+      await waitFor(() =>
+        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace"),
+      );
+      expect(screen.getByText(/^zenith/)).toBeInTheDocument();
+      expect(screen.getByText(/^bamboo/)).toBeInTheDocument();
     });
 
-    it("buckets same-workspace sessions together once workspace mode is active, and persists the choice", async () => {
+    it("uses the root workspace and expands the hierarchy for a selected child", async () => {
+      useAppStore.setState({ currentSessionId: "child-billing-fix" });
+      useUILayoutStore.setState((state) => ({
+        ...state,
+        leafSessionIds: { lt: "child-billing-fix" },
+      }));
+
       render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      expect(await screen.findByText("Billing investigation")).toBeInTheDocument();
+      expect(screen.getByText("Billing child fix")).toBeInTheDocument();
+      expect(screen.getByText(/^zenith/)).toBeInTheDocument();
+    });
+
+    it("buckets same-workspace sessions together and persists outer expansion", async () => {
+      const first = render(
         <AntdApp>
           <ChatSidebar />
         </AntdApp>,
@@ -838,6 +846,19 @@ describe("ChatSidebar", () => {
       await waitFor(() => {
         expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
       });
+      await waitFor(() =>
+        expect(localStorage.getItem("lotus.sidebar.workspace.expanded.v1")).toContain(
+          "/Users/alice/bamboo",
+        ),
+      );
+
+      first.unmount();
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+      expect(await screen.findByText("Platform roadmap")).toBeInTheDocument();
     });
 
     it("routes sessions with no workspacePath into a trailing 'No workspace' bucket", async () => {

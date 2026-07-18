@@ -259,6 +259,36 @@ describe("ChatSidebarDateGroups scroll-to-active (#93)", () => {
     expect(scrollToIndex).toHaveBeenCalledTimes(1);
     expect(scrollToIndex).toHaveBeenCalledWith(3, { align: "auto" });
   });
+
+  it("targets only the matching nested date virtualizer in workspace mode", () => {
+    const firstDay = Array.from({ length: VIRTUALIZE_THRESHOLD + 5 }, (_, i) =>
+      makeChat(i, { createdAt: new Date(2026, 6, 17, 12, 0, i).getTime() }),
+    );
+    const secondDay = Array.from({ length: VIRTUALIZE_THRESHOLD + 5 }, (_, i) =>
+      makeChat(i + 1000, {
+        id: `second-${i}`,
+        createdAt: new Date(2026, 6, 18, 12, 0, i).getTime(),
+      }),
+    );
+    const workspace = "/work/zenith";
+
+    renderHarness({
+      groupedChatsByDate: { [workspace]: [...firstDay, ...secondDay] },
+      sortedDateKeys: [workspace],
+      expandedKeys: [workspace],
+      groupingMode: "workspace",
+      groupLabels: { [workspace]: "zenith" },
+      scrollTarget: {
+        dateKey: workspace,
+        nestedDateKey: "2026-07-18",
+        rootId: "second-51",
+        childId: null,
+      },
+    });
+
+    expect(scrollToIndex).toHaveBeenCalledTimes(1);
+    expect(scrollToIndex).toHaveBeenCalledWith(3, { align: "auto" });
+  });
 });
 
 describe("ChatSidebarDateGroups live status indicator (#94)", () => {

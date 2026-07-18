@@ -11,8 +11,8 @@
  * ChatSidebarDateGroups.virtualization.test.tsx and
  * ChatSidebarDateGroups.scrollAndStatus.test.tsx, unaffected by this prop.
  */
-import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { App as AntdApp, theme } from "antd";
 
 import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
@@ -83,6 +83,86 @@ function renderHarness(overrides: HarnessOverrides) {
 }
 
 describe("ChatSidebarDateGroups workspace mode (#95)", () => {
+  beforeEach(() => localStorage.clear());
+  it("renders the fixed workspace-first, date-second hierarchy", () => {
+    renderHarness({
+      groupedChatsByDate: {
+        "/Users/alice/zenith": [
+          makeChat(1, { pinned: true, createdAt: new Date(2026, 6, 18, 12).getTime() }),
+          makeChat(2, {
+            createdByScheduleId: "schedule-1",
+            createdAt: new Date(2026, 6, 18, 11).getTime(),
+          }),
+        ],
+      },
+      sortedDateKeys: ["/Users/alice/zenith"],
+      expandedKeys: ["/Users/alice/zenith"],
+      groupingMode: "workspace",
+      groupLabels: { "/Users/alice/zenith": "zenith" },
+    });
+
+    expect(screen.getByText("zenith (2)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Jul 18, 2026 \(2\)/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("pushpin")).toBeInTheDocument();
+    expect(screen.queryByText("Pinned (1)")).toBeNull();
+    expect(screen.queryByText("Scheduled (1)")).toBeNull();
+  });
+
+  it("persists stable workspace/date collapse keys but auto-expands a filtered match", () => {
+    const workspace = "/Users/alice/zenith";
+    const chat = makeChat(1, { pinned: true });
+    const props = {
+      groupedChatsByDate: { [workspace]: [chat] },
+      sortedDateKeys: [workspace],
+      expandedKeys: [workspace],
+      groupingMode: "workspace" as const,
+      groupLabels: { [workspace]: "zenith" },
+    };
+    const { rerender } = renderHarness(props);
+    fireEvent.click(screen.getByRole("button", { name: /Jan 1, 1970 \(1\)/ }));
+    expect(screen.queryByText("Session 1")).toBeNull();
+    expect(localStorage.getItem("lotus.sidebar.workspace-date.collapsed.v1")).toContain(
+      encodeURIComponent(workspace),
+    );
+
+    rerender(
+      <AntdApp>
+        <Harness {...props} hasActiveFilters />
+      </AntdApp>,
+    );
+    expect(screen.getByText("Session 1")).toBeInTheDocument();
+  });
+
+  it("renders workspace → date → root → child and expands a selected child", () => {
+    const root = makeChat(1, {
+      createdAt: new Date(2026, 6, 18, 12).getTime(),
+      config: { systemPromptId: "general_assistant", workspacePath: "/w/zenith" },
+    });
+    const child = makeChat(2, {
+      kind: "child",
+      parentSessionId: root.id,
+      rootSessionId: root.id,
+      title: "Selected child",
+    });
+    renderHarness({
+      groupedChatsByDate: { "/w/zenith": [root] },
+      sortedDateKeys: ["/w/zenith"],
+      expandedKeys: ["/w/zenith"],
+      groupingMode: "workspace",
+      groupLabels: { "/w/zenith": "zenith" },
+      childrenByRoot: { [root.id]: [child] },
+      expandedRootIds: new Set([root.id]),
+      currentSessionId: child.id,
+    });
+
+    expect(screen.getByText("zenith (1)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Jul 18, 2026 \(1\)/ })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(screen.getByText("Session 1")).toBeInTheDocument();
+    expect(screen.getByText("Selected child")).toBeInTheDocument();
+  });
   it("defaults to date-mode label rendering when groupingMode is omitted", () => {
     renderHarness({
       groupedChatsByDate: { Today: [makeChat(0)] },

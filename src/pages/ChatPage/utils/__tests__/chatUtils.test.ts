@@ -1,12 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
   buildWorkspaceGroupLabels,
+  formatCalendarDateKey,
   getDateGroupKeyForChat,
   getSortedDateKeys,
   getSortedWorkspaceKeys,
   getWorkspaceBaseName,
   getWorkspaceGroupKey,
   groupChatsByDate,
+  groupChatsByCalendarDate,
   groupChatsByWorkspace,
   isToday,
   isYesterday,
@@ -785,6 +787,25 @@ describe("chatUtils", () => {
       };
 
       expect(getSortedWorkspaceKeys(grouped)).toEqual(["/w/zenith", NO_WORKSPACE_GROUP_KEY]);
+    });
+  });
+
+  describe("workspace calendar dates", () => {
+    it("uses stable local YYYY-MM-DD keys without relocating pinned or scheduled sessions", () => {
+      const createdAt = new Date(2026, 6, 18, 12).getTime();
+      const grouped = groupChatsByCalendarDate([
+        { id: "regular", createdAt },
+        { id: "scheduled", createdAt: createdAt - 1, createdByScheduleId: "schedule-1" },
+        { id: "pinned", createdAt: createdAt - 2, pinned: true },
+      ]);
+
+      expect(Object.keys(grouped)).toEqual(["2026-07-18"]);
+      expect(grouped["2026-07-18"].map(({ id }) => id)).toEqual(["pinned", "scheduled", "regular"]);
+    });
+
+    it("formats a stable key using the selected Lotus locale", () => {
+      expect(formatCalendarDateKey("2026-07-18", "zh-CN")).toBe("2026年7月18日");
+      expect(formatCalendarDateKey("2026-07-18", "en-US")).toBe("Jul 18, 2026");
     });
   });
 

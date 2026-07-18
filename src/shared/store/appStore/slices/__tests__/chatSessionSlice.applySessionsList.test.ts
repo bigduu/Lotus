@@ -41,6 +41,7 @@ const createSummary = (overrides: Partial<SessionSummary> & { id: string }): Ses
   model_ref: overrides.model_ref ?? null,
   reasoning_effort: overrides.reasoning_effort ?? null,
   created_by_schedule_id: overrides.created_by_schedule_id ?? null,
+  workspace_path: overrides.workspace_path ?? null,
   token_usage: overrides.token_usage,
   created_at: overrides.created_at ?? "2026-01-01T00:00:00.000Z",
   updated_at: overrides.updated_at ?? "2026-01-15T12:00:00.000Z",
@@ -94,6 +95,16 @@ describe("applySessionsList (via refreshChats)", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("maps and refreshes the authoritative workspace_path", async () => {
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [createSummary({ id: "s1", workspace_path: "/work/zenith" })],
+    });
+
+    await store.getState().refreshChats();
+
+    expect(store.getState().chats[0].config.workspacePath).toBe("/work/zenith");
   });
 
   it("keeps the locally-newer title when remote summary is at a lower title_version", async () => {

@@ -456,6 +456,8 @@ export interface SessionSummary {
   reasoning_effort?: ReasoningEffort | null;
   gold_config?: GoldConfig | null;
   created_by_schedule_id?: string | null;
+  /** Workspace recorded by the backend session index. */
+  workspace_path?: string | null;
   token_usage?: TokenBudgetUsage;
   created_at: string;
   updated_at: string;

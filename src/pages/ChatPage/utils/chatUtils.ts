@@ -116,6 +116,46 @@ export const groupChatsByDate = <T extends DateGroupChat>(chats: T[]): Record<st
 };
 
 /**
+ * Workspace sidebar's true second level. Keys are stable local calendar
+ * dates, independent of the browser locale; pinned/scheduled sessions stay
+ * in their real date and are merely ordered first within it.
+ */
+export const groupChatsByCalendarDate = <T extends DateGroupChat>(
+  chats: T[],
+): Record<string, T[]> => {
+  const grouped: Record<string, T[]> = {};
+  for (const chat of chats) {
+    const date = new Date(chat.createdAt);
+    const key = [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+    ].join("-");
+    (grouped[key] ??= []).push(chat);
+  }
+  for (const items of Object.values(grouped)) {
+    items.sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      if (Boolean(a.createdByScheduleId) !== Boolean(b.createdByScheduleId)) {
+        return a.createdByScheduleId ? -1 : 1;
+      }
+      return b.createdAt - a.createdAt;
+    });
+  }
+  return grouped;
+};
+
+export const formatCalendarDateKey = (key: string, language?: string): string => {
+  const [year, month, day] = key.split("-").map(Number);
+  if (!year || !month || !day) return key;
+  return new Intl.DateTimeFormat(language, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(new Date(year, month - 1, day));
+};
+
+/**
  * Group chats by tool category, sort by time within each category
  */
 export const groupChatsByToolCategory = <T extends CategoryGroupChat>(

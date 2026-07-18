@@ -9,10 +9,10 @@ import {
   buildWorkspaceGroupLabels,
   getChatCountByDate,
   getSessionIdsByDate,
-  getDateGroupKeyForChat,
   getSortedDateKeys,
   getSortedWorkspaceKeys,
   getWorkspaceGroupKey,
+  groupChatsByCalendarDate,
   groupChatsByDate,
   groupChatsByWorkspace,
   NO_WORKSPACE_GROUP_KEY,
@@ -33,6 +33,7 @@ type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
 // keystroke. Debounce the *filtering*, not the input value itself, so the
 // text field stays instantly responsive.
 const SEARCH_FILTER_DEBOUNCE_MS = 200;
+const WORKSPACE_EXPANSION_STORAGE_KEY = "lotus.sidebar.workspace.expanded.v1";
 
 const getSidebarChatKind = (kind: ChatItem["kind"]): SidebarChatItem["kind"] =>
   kind === "child" ? "child" : "root";
@@ -207,7 +208,7 @@ export const useChatSidebarState = () => {
     sidebarCollapsed,
     setSidebarCollapsed,
     clearSessionFromAllLeaves,
-    groupingMode,
+    storedGroupingMode,
     setGroupingMode,
   } = useUILayoutStore(
     useShallow((s) => ({
@@ -216,10 +217,17 @@ export const useChatSidebarState = () => {
       clearSessionFromAllLeaves: s.clearSessionFromAllLeaves,
       // Lotus #95 — secondary "group by workspace" sidebar mode, persisted
       // the same way `sidebar.collapsed` already is.
-      groupingMode: s.sidebar.groupingMode,
+      storedGroupingMode: s.sidebar.groupingMode,
       setGroupingMode: s.setSidebarGroupingMode,
     })),
   );
+  const groupingMode = "workspace" as const;
+
+  // #110 fixes the hierarchy to workspace → date. Migrate the former
+  // date/workspace preference once and keep the persisted value canonical.
+  useEffect(() => {
+    if (storedGroupingMode !== "workspace") setGroupingMode("workspace");
+  }, [storedGroupingMode, setGroupingMode]);
 
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
@@ -268,9 +276,22 @@ export const useChatSidebarState = () => {
   // mode's manually-toggled groups into the other's (unrelated) key-space.
   // Starts empty, mirroring `expandedDates`'s own "nothing forced open
   // besides the selected session's group" default.
-  const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Set<string>>(
-    () => new Set(),
-  );
+  const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Set<string>>(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem(WORKSPACE_EXPANSION_STORAGE_KEY) || "[]");
+      return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        WORKSPACE_EXPANSION_STORAGE_KEY,
+        JSON.stringify([...expandedWorkspaceGroups]),
+      );
+    } catch {}
+  }, [expandedWorkspaceGroups]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SidebarStatusFilter>("all");
   const [projectDreamState, setProjectDreamState] = useState<
@@ -287,16 +308,20 @@ export const useChatSidebarState = () => {
 
       const chat = state.chats.find((item) => item.id === sessionId);
       if (!chat) return null;
+      const root =
+        chat.kind === "child"
+          ? state.chats.find((item) => item.id === (chat.rootSessionId || chat.parentSessionId))
+          : chat;
 
       return {
         id: chat.id,
         kind: chat.kind,
         parentSessionId: chat.parentSessionId || null,
         rootSessionId: chat.rootSessionId || null,
-        pinned: Boolean(chat.pinned),
-        createdAt: chat.createdAt,
-        createdByScheduleId: chat.createdByScheduleId || null,
-        workspacePath: chat.config.workspacePath || null,
+        pinned: Boolean(root?.pinned ?? chat.pinned),
+        createdAt: root?.createdAt ?? chat.createdAt,
+        createdByScheduleId: root?.createdByScheduleId || null,
+        workspacePath: root?.config.workspacePath || chat.config.workspacePath || null,
       };
     }),
   );
@@ -396,7 +421,7 @@ export const useChatSidebarState = () => {
     const map: Record<string, SidebarChatItem[]> = {};
     for (const c of chats) {
       if (c.kind !== "child") continue;
-      const rootId = c.parentSessionId || c.rootSessionId;
+      const rootId = c.rootSessionId || c.parentSessionId;
       if (!rootId) continue;
       if (!map[rootId]) map[rootId] = [];
       map[rootId].push(c);
@@ -577,7 +602,10 @@ export const useChatSidebarState = () => {
       const group = grouped[dateKey] || [];
       const rootMatch = group.find((chat) => chat.id === currentSessionId);
       if (rootMatch) {
-        setScrollTarget({ dateKey, rootId: rootMatch.id, childId: null });
+        const nestedDateKey = Object.entries(groupChatsByCalendarDate(group)).find(([, items]) =>
+          items.some((item) => item.id === rootMatch.id),
+        )?.[0];
+        setScrollTarget({ dateKey, nestedDateKey, rootId: rootMatch.id, childId: null });
         return;
       }
 
@@ -586,7 +614,15 @@ export const useChatSidebarState = () => {
           (chat) => chat.id === currentSessionId,
         );
         if (childMatch) {
-          setScrollTarget({ dateKey, rootId: rootChat.id, childId: childMatch.id });
+          const nestedDateKey = Object.entries(groupChatsByCalendarDate(group)).find(([, items]) =>
+            items.some((item) => item.id === rootChat.id),
+          )?.[0];
+          setScrollTarget({
+            dateKey,
+            nestedDateKey,
+            rootId: rootChat.id,
+            childId: childMatch.id,
+          });
           return;
         }
       }
@@ -671,41 +707,15 @@ export const useChatSidebarState = () => {
   const handlePinChat = useCallback(
     (sessionId: string) => {
       pinSession(sessionId);
-      // In date mode, pinned chats move into the cross-workspace "Pinned"
-      // group — expand it so the chat doesn't appear to "disappear"
-      // immediately after pinning. In workspace mode (#95) pinning does NOT
-      // relocate the session (it stays in its workspace group, just sorted
-      // to the top — see groupChatsByWorkspace), so there is no group to
-      // force open.
-      if (groupingMode !== "date") return;
-      setExpandedDates((prev) => {
-        if (prev.has("Pinned")) return prev;
-        const next = new Set(prev);
-        next.add("Pinned");
-        return next;
-      });
     },
-    [groupingMode, pinSession],
+    [pinSession],
   );
 
   const handleUnpinChat = useCallback(
     (sessionId: string) => {
-      // Compute the destination group key (best-effort) so the chat remains visible.
-      const chat = chats.find((c) => c.id === sessionId);
-      const nextGroupKey =
-        groupingMode === "date" && chat ? getDateGroupKeyForChat({ ...chat, pinned: false }) : null;
-
       unpinSession(sessionId);
-
-      if (!nextGroupKey) return;
-      setExpandedDates((prev) => {
-        if (prev.has(nextGroupKey)) return prev;
-        const next = new Set(prev);
-        next.add(nextGroupKey);
-        return next;
-      });
     },
-    [chats, groupingMode, unpinSession],
+    [unpinSession],
   );
 
   const handleDelete = (sessionId: string) => {
@@ -930,7 +940,7 @@ export const useChatSidebarState = () => {
     for (const children of Object.values(allChildrenByRoot)) {
       for (const c of children) {
         if (c.pinned) {
-          const rootId = c.parentSessionId || c.rootSessionId;
+          const rootId = c.rootSessionId || c.parentSessionId;
           if (rootId) ids.add(rootId);
         }
       }
@@ -946,7 +956,7 @@ export const useChatSidebarState = () => {
     // Ensure a selected child is visible, but do not automatically expand every
     // selected root's children — that creates too much persistent sidebar noise.
     if (selectedSessionMeta?.kind === "child") {
-      const rootId = selectedSessionMeta.parentSessionId || selectedSessionMeta.rootSessionId;
+      const rootId = selectedSessionMeta.rootSessionId || selectedSessionMeta.parentSessionId;
       if (rootId) next.add(rootId);
     }
 
