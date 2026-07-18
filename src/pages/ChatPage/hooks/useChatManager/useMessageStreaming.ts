@@ -22,7 +22,10 @@ import { useActiveModel } from "../useActiveModel";
 import { useActiveModelRef } from "../useActiveModelRef";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
-import { normalizePermissionRequest } from "@shared/permissions/permissionContract";
+import {
+  normalizePermissionRequest,
+  phaseOnePermissionDecisionIds,
+} from "@shared/permissions/permissionContract";
 import {
   executeWithOptionalReasoning,
   type PendingQuestionResponse,
@@ -205,6 +208,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       }
 
       if (pending.has_pending_question) {
+        const typedPermission = normalizePermissionRequest(pending);
         debugLog("[Streaming]", "recoverAfterNeedSync.pendingQuestion", {
           sessionId,
           generation: selectGeneration(sessionId)(useAppStore.getState()),
@@ -212,10 +216,12 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         });
         setPendingQuestion(sessionId, {
           question: pending.question || "",
-          options: pending.options || [],
+          options: typedPermission
+            ? phaseOnePermissionDecisionIds(typedPermission)
+            : pending.options || [],
           allowCustom: pending.allow_custom ?? true,
           toolCallId: pending.tool_call_id ?? null,
-          permissionRequest: normalizePermissionRequest(pending) ?? undefined,
+          permissionRequest: typedPermission ?? undefined,
         });
 
         const chat = useAppStore.getState().chats.find((item) => item.id === sessionId);

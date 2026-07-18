@@ -27,7 +27,10 @@ import { createContextHandlers } from "./subscriptionHandlers/contextHandlers";
 import { createTaskListHandlers } from "./subscriptionHandlers/taskListHandlers";
 import { createSessionMetaHandlers } from "./subscriptionHandlers/sessionMetaHandlers";
 import { createChildHandlers } from "./subscriptionHandlers/childHandlers";
-import { normalizePermissionRequest } from "@shared/permissions/permissionContract";
+import {
+  normalizePermissionRequest,
+  phaseOnePermissionDecisionIds,
+} from "@shared/permissions/permissionContract";
 
 /**
  * Open (or reconnect) the SSE subscription for one session. The per-event-domain
@@ -593,10 +596,9 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
           });
           setPendingQuestion(targetSessionId, {
             question: event.question || "",
-            options:
-              typedPermission && typedPermission.allowedDecisions.length > 0
-                ? typedPermission.allowedDecisions.map((decision) => decision.id)
-                : event.options || [],
+            options: typedPermission
+              ? phaseOnePermissionDecisionIds(typedPermission)
+              : event.options || [],
             allowCustom: event.allow_custom ?? true,
             toolCallId: event.tool_call_id ?? null,
             permissionRequest: typedPermission ?? undefined,

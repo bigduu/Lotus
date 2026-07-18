@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPermissionDecisionSubmission,
   normalizePermissionRequest,
+  phaseOnePermissionDecisionIds,
 } from "../permissionContract";
 
 describe("normalizePermissionRequest", () => {
@@ -26,6 +27,21 @@ describe("normalizePermissionRequest", () => {
       suggestedMatchers: [{ id: "m1", kind: "command_prefix", value: "git push" }],
       allowedDecisions: [{ id: "allow_once", scope: "once" }, { id: "future_backend_action" }],
     });
+  });
+
+  it("fails closed for missing request identity and unshipped decision ids", () => {
+    const missingIdentity = normalizePermissionRequest({
+      permission_request: { allowed_decisions: ["allow_once"] },
+    });
+    expect(phaseOnePermissionDecisionIds(missingIdentity)).toEqual([]);
+
+    const request = normalizePermissionRequest({
+      permission_request: {
+        request_id: "r2",
+        allowed_decisions: ["allow_once", "allow_workspace", "future_action", "deny_once"],
+      },
+    });
+    expect(phaseOnePermissionDecisionIds(request)).toEqual(["allow_once", "deny_once"]);
   });
 
   it("submits only an authorized decision and opaque matcher id", () => {

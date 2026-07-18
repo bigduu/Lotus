@@ -427,6 +427,47 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(next[SESSION].interaction.pendingQuestion?.receivedAt).toBe(T1);
   });
 
+  it("updates a replayed permission request when its revision or allowed actions change", () => {
+    let map = seedIdle();
+    const base = {
+      question: "Approve?",
+      options: ["allow_once"],
+      allowCustom: false,
+      toolCallId: "ask-permission",
+      permissionRequest: {
+        requestId: "request-1",
+        policyRevision: 1,
+        allowedDecisions: [{ id: "allow_once" }],
+        suggestedMatchers: [],
+      },
+    };
+    map = applyExecutionEvent(
+      map,
+      { type: "setPendingQuestion", sessionId: SESSION, payload: base },
+      fixedNow(T1),
+    );
+    const next = applyExecutionEvent(
+      map,
+      {
+        type: "setPendingQuestion",
+        sessionId: SESSION,
+        payload: {
+          ...base,
+          options: ["allow_once", "deny_once"],
+          permissionRequest: {
+            ...base.permissionRequest,
+            policyRevision: 2,
+            allowedDecisions: [{ id: "allow_once" }, { id: "deny_once" }],
+          },
+        },
+      },
+      fixedNow(T2),
+    );
+    expect(next).not.toBe(map);
+    expect(next[SESSION].interaction.pendingQuestion?.receivedAt).toBe(T2);
+    expect(next[SESSION].interaction.pendingQuestion?.permissionRequest?.policyRevision).toBe(2);
+  });
+
   it("enqueuePendingChildApproval stores the request without changing phase; dequeue removes it", () => {
     let map = seedIdle();
     const payload = {

@@ -56,6 +56,18 @@ export const buildPermissionDecisionSubmission = (
   };
 };
 
+const PHASE_ONE_DECISIONS = new Set(["allow_once", "deny_once"]);
+
+/** Decisions supported by the currently shipped Bamboo #601 Phase 1 wire. */
+export const phaseOnePermissionDecisionIds = (
+  request: PermissionRequestContract | null,
+): string[] => {
+  if (!request?.requestId) return [];
+  return request.allowedDecisions
+    .map((decision) => decision.id)
+    .filter((id) => PHASE_ONE_DECISIONS.has(id));
+};
+
 const record = (value: unknown): Record<string, unknown> | null =>
   value != null && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
