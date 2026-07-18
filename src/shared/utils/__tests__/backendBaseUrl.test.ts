@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import {
+  buildBambooCompatibleProviderBaseUrls,
   buildBackendUrl,
   clearBackendBaseUrlOverride,
   getBackendBaseUrlSync,
@@ -240,5 +241,37 @@ describe("backendBaseUrl", () => {
 
       expect(url).toBe("http://mac.local:9562/v1");
     });
+  });
+});
+
+describe("buildBambooCompatibleProviderBaseUrls", () => {
+  it("builds local compatibility URLs from the backend API base", () => {
+    expect(buildBambooCompatibleProviderBaseUrls("http://127.0.0.1:9562/v1/")).toEqual([
+      { provider: "openai", url: "http://127.0.0.1:9562/openai/v1" },
+      { provider: "anthropic", url: "http://127.0.0.1:9562/anthropic/v1" },
+      { provider: "gemini", url: "http://127.0.0.1:9562/gemini/v1beta" },
+    ]);
+  });
+
+  it("preserves an HTTPS reverse-proxy path prefix", () => {
+    expect(buildBambooCompatibleProviderBaseUrls("https://example.com/bamboo/v1")).toEqual([
+      { provider: "openai", url: "https://example.com/bamboo/openai/v1" },
+      { provider: "anthropic", url: "https://example.com/bamboo/anthropic/v1" },
+      { provider: "gemini", url: "https://example.com/bamboo/gemini/v1beta" },
+    ]);
+  });
+
+  it("never exposes backend URL credentials in provider URLs", () => {
+    const urls = buildBambooCompatibleProviderBaseUrls(
+      "https://api-user:super-secret@example.com/bamboo/v1",
+    );
+
+    expect(urls.map(({ url }) => url)).toEqual([
+      "https://example.com/bamboo/openai/v1",
+      "https://example.com/bamboo/anthropic/v1",
+      "https://example.com/bamboo/gemini/v1beta",
+    ]);
+    expect(JSON.stringify(urls)).not.toContain("api-user");
+    expect(JSON.stringify(urls)).not.toContain("super-secret");
   });
 });

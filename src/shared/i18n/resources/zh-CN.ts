@@ -1815,6 +1815,20 @@ export const zhCnTranslation = {
       providerTab: {
         title: "LLM 提供商配置",
         description: "配置你偏好的 LLM 提供商。点击“保存并应用配置”后会保存并生效。",
+        bambooApiGuideTitle: "Bamboo Provider 兼容 API 基础地址",
+        bambooApiGuideDescription:
+          "将 OpenAI、Anthropic 或 Gemini 客户端连接到当前 Bamboo 后端时，请使用以下基础地址：",
+        bambooApiProviders: {
+          openai: "OpenAI",
+          anthropic: "Anthropic",
+          gemini: "Gemini",
+        },
+        bambooApiGuideNote:
+          "/v1 仅供 Lotus 和 Bamboo 内部 API 使用；OpenAI 兼容客户端必须使用 /openai/v1。",
+        copyBambooApiUrl: "复制基础地址",
+        copyBambooApiUrlFor: "复制 {{provider}} 基础地址",
+        bambooApiUrlCopied: "基础地址已复制",
+        bambooApiUrlCopyFailed: "复制基础地址失败",
         currentProvider: "当前提供商",
         activeProvider: "当前激活的 LLM 提供商",
         selectProviderRequired: "请选择提供商",

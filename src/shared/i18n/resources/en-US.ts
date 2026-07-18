@@ -1870,6 +1870,20 @@ export const enUsTranslation = {
         title: "LLM Provider Configuration",
         description:
           'Configure your preferred LLM provider. Configuration will be saved and applied when you click "Save and Apply Configuration".',
+        bambooApiGuideTitle: "Bamboo-compatible API base URLs",
+        bambooApiGuideDescription:
+          "Use these base URLs when connecting OpenAI, Anthropic, or Gemini clients to this Bamboo backend:",
+        bambooApiProviders: {
+          openai: "OpenAI",
+          anthropic: "Anthropic",
+          gemini: "Gemini",
+        },
+        bambooApiGuideNote:
+          "The /v1 endpoint is for Lotus and Bamboo's internal API. OpenAI-compatible clients must use /openai/v1.",
+        copyBambooApiUrl: "Copy base URL",
+        copyBambooApiUrlFor: "Copy {{provider}} base URL",
+        bambooApiUrlCopied: "Base URL copied",
+        bambooApiUrlCopyFailed: "Failed to copy base URL",
         currentProvider: "Current Provider",
         activeProvider: "Active LLM Provider",
         selectProviderRequired: "Please select a provider",
