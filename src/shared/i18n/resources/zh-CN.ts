@@ -817,6 +817,7 @@ export const zhCnTranslation = {
         runningTools: "正在调用工具…",
         waitingAnswer: "等待您的回答",
         runningChildren: "正在运行子代理…",
+        evaluatingTasks: "正在评估任务进度…",
         completed: "已完成",
         error: "错误",
         childrenTooltip: "{{running}} 个子代理运行中",

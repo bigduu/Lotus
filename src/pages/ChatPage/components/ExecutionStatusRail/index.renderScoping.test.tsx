@@ -33,7 +33,7 @@
  * render before its only early return.
  */
 import React from "react";
-import { act, render } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { SESSION_ID, OTHER_SESSION_ID, baseExecutionEntry } = vi.hoisted(() => {
@@ -82,6 +82,7 @@ vi.mock("@shared/store/appStore", async () => {
 
   const useAppStore = create(() => ({
     executionBySession: { [SESSION_ID]: baseExecutionEntry() },
+    evaluationStates: {},
   }));
 
   // Mirrors the real `selectRailModel` in
@@ -139,6 +140,7 @@ const resetStore = () => {
   useAppStore.setState(
     {
       executionBySession: { [SESSION_ID]: baseExecutionEntry() },
+      evaluationStates: {},
     },
     false,
   );
@@ -224,5 +226,24 @@ describe("ExecutionStatusRail store subscription scoping (#6)", () => {
     });
 
     expect(renderSpy.mock.calls.length).toBeGreaterThan(countAfterMount);
+  });
+
+  it("shows evaluation independently when the main execution is idle", () => {
+    useAppStore.setState({
+      executionBySession: { [SESSION_ID]: baseExecutionEntry("idle") },
+      evaluationStates: {
+        [SESSION_ID]: {
+          phase: "running",
+          isEvaluating: true,
+          reasoning: null,
+          timestamp: Date.now(),
+        },
+      },
+    } as never);
+
+    render(<ExecutionStatusRail sessionId={SESSION_ID} />);
+
+    expect(screen.getByText("Evaluating task progress…")).toBeTruthy();
+    expect(screen.queryByText("Ready")).toBeNull();
   });
 });

@@ -105,6 +105,9 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
   // (see `executionStateSlice/reducer.ts`), so this bails out unless a
   // field relevant to this session's rail actually changed.
   const model = useAppStore(useShallow(selectRailModel(sessionId)));
+  // Some embedded/legacy store harnesses omit this auxiliary slice.
+  const evaluation = useAppStore((state) => state.evaluationStates?.[sessionId]);
+  const isEvaluating = evaluation?.phase === "running";
 
   // Map the rich RailModel to the display-oriented ExecutionState.
   const executionState = useMemo<ExecutionState>(() => {
@@ -130,7 +133,7 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
   }, [model]);
 
   // Only render when there's an active (non-idle) state
-  if (executionState === "idle") return null;
+  if (executionState === "idle" && !isEvaluating) return null;
 
   const config = STATUS_CONFIGS[executionState];
   const isActive = executionState !== "completed";
@@ -145,14 +148,27 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
     >
       <Flex align="center" gap={8} wrap="wrap" className="lotus-execution-rail__content">
         {/* Status tag */}
-        <Tag
-          icon={config.icon}
-          color={config.color}
-          bordered={false}
-          className="lotus-execution-rail__status-tag"
-        >
-          {t(config.labelKey, config.fallbackLabel)}
-        </Tag>
+        {executionState !== "idle" && (
+          <Tag
+            icon={config.icon}
+            color={config.color}
+            bordered={false}
+            className="lotus-execution-rail__status-tag"
+          >
+            {t(config.labelKey, config.fallbackLabel)}
+          </Tag>
+        )}
+
+        {isEvaluating && (
+          <Tag
+            icon={<SyncOutlined spin />}
+            color="processing"
+            bordered={false}
+            className="lotus-execution-rail__status-tag"
+          >
+            {t("chat.statusRail.evaluatingTasks", "Evaluating task progress…")}
+          </Tag>
+        )}
 
         {/* Concurrent tool calls */}
         {model.activeToolCalls.length > 0 &&

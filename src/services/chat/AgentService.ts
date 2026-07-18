@@ -26,6 +26,7 @@ export type AgentEventType =
   | "task_list_completed"
   | "task_evaluation_started"
   | "task_evaluation_completed"
+  | "task_evaluation_cancelled"
   | "token_budget_updated"
   | "context_compression_status"
   | "context_summarized"
@@ -215,6 +216,8 @@ export interface AgentEvent {
   items_count?: number;
   updates_count?: number;
   reasoning?: string;
+  /** Correlates auxiliary evaluation lifecycle frames; absent on older backends. */
+  generation?: number;
   // Tool lifecycle events
   elapsed_ms?: number;
   is_mutating?: boolean;
@@ -825,8 +828,14 @@ export interface AgentEventHandlers {
     totalToolCalls: number,
     completedAt?: string,
   ) => void;
-  onTaskEvaluationStarted?: (sessionId: string, itemsCount: number) => void;
-  onTaskEvaluationCompleted?: (sessionId: string, updatesCount: number, reasoning: string) => void;
+  onTaskEvaluationStarted?: (sessionId: string, itemsCount: number, generation?: number) => void;
+  onTaskEvaluationCompleted?: (
+    sessionId: string,
+    updatesCount: number,
+    reasoning: string,
+    generation?: number,
+  ) => void;
+  onTaskEvaluationCancelled?: (sessionId: string, generation?: number) => void;
   onTokenBudgetUpdated?: (usage: TokenBudgetUsage) => void;
   onContextCompressionStatus?: (phase: string, status: string) => void;
   onContextSummarized?: (summaryInfo: ContextSummaryInfo) => void;
@@ -1717,7 +1726,7 @@ export class AgentClient {
         break;
       case "task_evaluation_started":
         if (event.session_id && event.items_count !== undefined) {
-          handlers.onTaskEvaluationStarted?.(event.session_id, event.items_count);
+          handlers.onTaskEvaluationStarted?.(event.session_id, event.items_count, event.generation);
         }
         break;
       case "task_evaluation_completed":
@@ -1726,7 +1735,13 @@ export class AgentClient {
             event.session_id,
             event.updates_count,
             event.reasoning,
+            event.generation,
           );
+        }
+        break;
+      case "task_evaluation_cancelled":
+        if (event.session_id) {
+          handlers.onTaskEvaluationCancelled?.(event.session_id, event.generation);
         }
         break;
       case "token_budget_updated":
