@@ -2991,4 +2991,56 @@ describe("useAgentEventSubscription", () => {
       expect.any(AbortController),
     );
   });
+
+  it.each(["complete", "error"] as const)(
+    "clears a running task evaluation when the subscription reaches %s",
+    async (terminal) => {
+      mockState.executionBySession = { "session-1": createBusyExecutionEntry() };
+      mockState.evaluationStates = {};
+      mockState.setEvaluationState.mockImplementation((sessionId: string, evaluation: unknown) => {
+        mockState.evaluationStates[sessionId] = evaluation;
+      });
+      mockState.clearEvaluationState.mockImplementation((sessionId: string) => {
+        delete mockState.evaluationStates[sessionId];
+      });
+      mockStore.getState.mockReturnValue(mockState);
+      mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+        handlers.onTaskEvaluationStarted?.("session-1", 2);
+        if (terminal === "complete") handlers.onComplete?.();
+        else handlers.onError?.("boom");
+      });
+
+      renderHook(() => useAgentEventSubscription());
+
+      await waitFor(() => {
+        expect(mockState.clearEvaluationState).toHaveBeenCalledWith("session-1");
+        expect(mockState.evaluationStates["session-1"]).toBeUndefined();
+      });
+    },
+  );
+
+  it("does not let an old subscription terminal clear a newer generation's evaluation", async () => {
+    mockState.executionBySession = { "session-1": createBusyExecutionEntry({ generation: 1 }) };
+    mockState.evaluationStates = {};
+    mockState.setEvaluationState.mockImplementation((sessionId: string, evaluation: unknown) => {
+      mockState.evaluationStates[sessionId] = evaluation;
+    });
+    mockStore.getState.mockReturnValue(mockState);
+    mockSubscribeToEvents.mockImplementation(async (_sessionId: string, handlers: any) => {
+      handlers.onTaskEvaluationStarted?.("session-1", 2, 2);
+      mockState.executionBySession["session-1"] = createBusyExecutionEntry({ generation: 2 });
+      handlers.onComplete?.();
+    });
+
+    renderHook(() => useAgentEventSubscription());
+
+    await waitFor(() => {
+      expect(mockState.applyAgentEvent).toHaveBeenCalled();
+    });
+    expect(mockState.clearEvaluationState).not.toHaveBeenCalled();
+    expect(mockState.evaluationStates["session-1"]).toMatchObject({
+      phase: "running",
+      generation: 2,
+    });
+  });
 });

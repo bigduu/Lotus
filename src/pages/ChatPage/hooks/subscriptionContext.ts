@@ -40,6 +40,7 @@ export interface SubscriptionContext
     | "setPendingQuestion"
     | "clearPendingQuestion"
     | "enqueuePendingChildApproval"
+    | "dequeuePendingChildApproval"
     | "clearPendingChildApprovalsForChild"
   > {
   message: MessageInstance;

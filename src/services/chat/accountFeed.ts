@@ -17,6 +17,7 @@
 import { AgentClient, type ChangeEvent, type FeedSubscription } from "./AgentService";
 import { useAppStore, selectShouldObserve } from "@shared/store/appStore";
 import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
+import { acceptChildApprovalVersion } from "./childApprovalVersions";
 
 const CURSOR_STORAGE_KEY = "lotus_account_feed_cursor_v1";
 const REFRESH_DEBOUNCE_MS = 400;
@@ -111,6 +112,38 @@ const applyChange = (change: ChangeEvent): void => {
   }
 
   switch (event.type) {
+    case "child_approval_changed": {
+      const parentSessionId = event.parent_session_id;
+      const childSessionId = event.child_session_id;
+      const requestId = event.request_id;
+      if (
+        parentSessionId &&
+        childSessionId &&
+        requestId &&
+        acceptChildApprovalVersion(
+          `${parentSessionId}:${childSessionId}:${requestId}`,
+          event.version,
+        )
+      ) {
+        if (event.status === "pending") {
+          store.enqueuePendingChildApproval(parentSessionId, {
+            childSessionId,
+            requestId,
+            toolName: event.tool_name ?? null,
+            permission: event.permission ?? null,
+            resource: event.resource ?? null,
+          });
+        } else if (
+          event.status === "approved" ||
+          event.status === "denied" ||
+          event.status === "expired" ||
+          event.status === "delivery_failed"
+        ) {
+          store.dequeuePendingChildApproval(parentSessionId, requestId);
+        }
+      }
+      break;
+    }
     case "session_title_updated":
       if (sessionId && typeof event.title === "string") {
         store.applyServerTitle(sessionId, event.title, event.title_version ?? 0);

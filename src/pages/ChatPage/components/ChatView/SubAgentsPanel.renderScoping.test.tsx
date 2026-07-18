@@ -121,7 +121,15 @@ vi.mock("@shared/store/appStore", async () => {
       return entry?.children?.byId ?? {};
     };
 
-  return { useAppStore, selectChildren };
+  const selectPendingChildApprovals =
+    (sessionId: string | null) => (state: ReturnType<typeof useAppStore.getState>) => {
+      const entry = (state.executionBySession as Record<string, unknown>)[sessionId ?? ""] as
+        | { interaction?: { pendingChildApprovals?: unknown[] } }
+        | undefined;
+      return entry?.interaction?.pendingChildApprovals ?? [];
+    };
+
+  return { useAppStore, selectChildren, selectPendingChildApprovals };
 });
 
 vi.mock("@shared/utils/openSession", () => ({

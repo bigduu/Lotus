@@ -30,7 +30,10 @@ export type SidebarChatItem = SidebarChatListItem & {
  * follow-up `scrollIntoView` once its root row is mounted.
  */
 export type SidebarScrollTarget = {
+  /** Top-level workspace key (historically named dateKey). */
   dateKey: string;
+  /** Stable YYYY-MM-DD nested date key in workspace mode. */
+  nestedDateKey?: string;
   rootId: string;
   childId: string | null;
 } | null;

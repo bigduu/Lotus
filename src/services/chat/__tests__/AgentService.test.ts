@@ -937,6 +937,7 @@ describe("AgentClient", () => {
       onTaskListItemProgress: vi.fn(),
       onTaskEvaluationStarted: vi.fn(),
       onTaskEvaluationCompleted: vi.fn(),
+      onTaskEvaluationCancelled: vi.fn(),
       onTokenBudgetUpdated: vi.fn(),
       onContextCompressionStatus: vi.fn(),
       onContextSummarized: vi.fn(),
@@ -959,6 +960,7 @@ describe("AgentClient", () => {
       },
       handlers,
     );
+    (client as any).handleEvent({ type: "task_evaluation_cancelled", session_id: "s1" }, handlers);
     (client as any).handleEvent(
       { type: "task_evaluation_started", session_id: "s1", items_count: 5 },
       handlers,
@@ -1056,8 +1058,9 @@ describe("AgentClient", () => {
     (client as any).handleEvent({ type: "error", message: "boom" }, handlers);
 
     expect(handlers.onTaskListItemProgress).toHaveBeenCalledTimes(1);
-    expect(handlers.onTaskEvaluationStarted).toHaveBeenCalledWith("s1", 5);
-    expect(handlers.onTaskEvaluationCompleted).toHaveBeenCalledWith("s1", 2, "done");
+    expect(handlers.onTaskEvaluationStarted).toHaveBeenCalledWith("s1", 5, undefined);
+    expect(handlers.onTaskEvaluationCompleted).toHaveBeenCalledWith("s1", 2, "done", undefined);
+    expect(handlers.onTaskEvaluationCancelled).toHaveBeenCalledWith("s1", undefined);
     expect(handlers.onTokenBudgetUpdated).toHaveBeenCalledTimes(1);
     expect(handlers.onContextCompressionStatus).toHaveBeenCalledWith("mid-turn", "started");
     expect(handlers.onContextSummarized).toHaveBeenCalledWith({

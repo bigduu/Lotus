@@ -56,6 +56,14 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
     backgroundChildrenByParentRef,
     reconnectStateBySessionRef,
   } = ctx;
+  const finishStaleEvaluation = () => {
+    const store = useAppStore.getState();
+    if (store.executionBySession?.[sessionId]?.generation !== generation) return;
+    const previous = store.evaluationStates?.[sessionId];
+    if (previous?.phase === "running") {
+      store.clearEvaluationState(sessionId);
+    }
+  };
   const state = useAppStore.getState();
   const generation = selectGeneration(sessionId)(state) ?? 0;
   const executionEntry = state.executionBySession?.[sessionId];
@@ -375,6 +383,7 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
         ...createSessionMetaHandlers(run),
         ...createChildHandlers(run),
         onComplete: () => {
+          finishStaleEvaluation();
           // A clarification stream may end with a backend `complete` event even though the
           // root session is merely waiting for user input. Treat that as a terminal close for
           // THIS SSE subscription only; do not run normal completion side effects.
@@ -519,6 +528,7 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
         },
 
         onCancelled: async (cancelMessage?: string) => {
+          finishStaleEvaluation();
           terminalEventSeen = true;
           applyAgentEvent(
             sessionId,
@@ -531,6 +541,7 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
         },
 
         onError: async (errorMessage: string) => {
+          finishStaleEvaluation();
           terminalEventSeen = true;
           applyAgentEvent(
             sessionId,

@@ -1,5 +1,5 @@
 import type { GlobalToken } from "antd/es/theme/interface";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Empty, Flex, List, Space, Tooltip } from "antd";
 import { ApartmentOutlined, DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
@@ -8,7 +8,13 @@ import { ChatItem as ChatItemComponent, type ChatItemStatus } from "../ChatItem"
 import { ChatSidebarVirtualRootList } from "./ChatSidebarVirtualRootList";
 import type { SidebarChatItem, SidebarScrollTarget } from "@shared/types/sidebarChat";
 import type { SidebarRunState } from "@shared/store/appStore";
-import { getChatCountByDate, NO_WORKSPACE_GROUP_KEY } from "../../utils/chatUtils";
+import {
+  getChatCountByDate,
+  formatCalendarDateKey,
+  getSortedDateKeys,
+  groupChatsByCalendarDate,
+  NO_WORKSPACE_GROUP_KEY,
+} from "../../utils/chatUtils";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
 
 // A date group's root-session list switches from plain (unvirtualized)
@@ -30,6 +36,10 @@ const CHILD_ROW_ESTIMATE_PX = 28;
 // rendered DOM node — never virtualized away) stays reliably visible instead
 // of requiring real CSS `position: sticky`.
 const VIRTUAL_LIST_MAX_HEIGHT_PX = 480;
+const WORKSPACE_DATE_COLLAPSE_STORAGE_KEY = "lotus.sidebar.workspace-date.collapsed.v1";
+
+const workspaceDateCollapseKey = (workspaceKey: string, dateKey: string) =>
+  `${encodeURIComponent(workspaceKey)}::${dateKey}`;
 
 /**
  * Combines the live run state (#94) with the session's persisted last-run
@@ -123,8 +133,29 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   groupingMode = "date",
   groupLabels,
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isWorkspaceMode = groupingMode === "workspace";
+  const [collapsedWorkspaceDates, setCollapsedWorkspaceDates] = useState<Set<string>>(() => {
+    try {
+      const value = JSON.parse(localStorage.getItem(WORKSPACE_DATE_COLLAPSE_STORAGE_KEY) || "[]");
+      return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleWorkspaceDate = (workspaceKey: string, dateKey: string) => {
+    const key = workspaceDateCollapseKey(workspaceKey, dateKey);
+    setCollapsedWorkspaceDates((previous) => {
+      const next = new Set(previous);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      try {
+        localStorage.setItem(WORKSPACE_DATE_COLLAPSE_STORAGE_KEY, JSON.stringify([...next]));
+      } catch {}
+      return next;
+    });
+  };
 
   // Resolves the display text for a group header (#95): the translated
   // date-bucket name in the default mode (unchanged), or the friendly
@@ -172,7 +203,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   useEffect(() => {
     if (!scrollTarget) return;
 
-    const group = groupedChatsByDateRef.current[scrollTarget.dateKey] || [];
+    const workspaceGroup = groupedChatsByDateRef.current[scrollTarget.dateKey] || [];
+    const group = scrollTarget.nestedDateKey
+      ? groupChatsByCalendarDate(workspaceGroup)[scrollTarget.nestedDateKey] || []
+      : workspaceGroup;
     const isVirtualized = group.length > VIRTUALIZE_THRESHOLD;
     const targetId = scrollTarget.childId ?? scrollTarget.rootId;
 
@@ -405,6 +439,25 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
     return ROOT_ROW_ESTIMATE_PX + childCount * CHILD_ROW_ESTIMATE_PX;
   };
 
+  const renderRows = (items: SidebarChatItem[], groupKey: string, nestedDateKey?: string) =>
+    items.length > VIRTUALIZE_THRESHOLD ? (
+      <ChatSidebarVirtualRootList
+        items={items}
+        estimateRowHeight={estimateRootRowHeight}
+        renderRow={renderRootRow}
+        maxHeight={VIRTUAL_LIST_MAX_HEIGHT_PX}
+        scrollToItemId={
+          scrollTarget &&
+          scrollTarget.dateKey === groupKey &&
+          scrollTarget.nestedDateKey === nestedDateKey
+            ? scrollTarget.rootId
+            : null
+        }
+      />
+    ) : (
+      <List itemLayout="horizontal" dataSource={items} split={false} renderItem={renderRootRow} />
+    );
+
   return (
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
       {groups.map(({ dateKey, dateGroup, totalChatsInDate }) => {
@@ -523,24 +576,64 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
 
             {isExpanded ? (
               <div style={{ marginTop: 2 }}>
-                {dateGroup.length > VIRTUALIZE_THRESHOLD ? (
-                  <ChatSidebarVirtualRootList
-                    items={dateGroup}
-                    estimateRowHeight={estimateRootRowHeight}
-                    renderRow={renderRootRow}
-                    maxHeight={VIRTUAL_LIST_MAX_HEIGHT_PX}
-                    scrollToItemId={
-                      scrollTarget && scrollTarget.dateKey === dateKey ? scrollTarget.rootId : null
-                    }
-                  />
-                ) : (
-                  <List
-                    itemLayout="horizontal"
-                    dataSource={dateGroup}
-                    split={false}
-                    renderItem={renderRootRow}
-                  />
-                )}
+                {isWorkspaceMode
+                  ? (() => {
+                      const byDate = groupChatsByCalendarDate(dateGroup);
+                      return getSortedDateKeys(byDate).map((nestedDateKey) => {
+                        const stableKey = workspaceDateCollapseKey(dateKey, nestedDateKey);
+                        const containsCurrent = byDate[nestedDateKey].some(
+                          (chat) =>
+                            chat.id === currentSessionId ||
+                            (childrenByRoot[chat.id] || []).some(
+                              (child) => child.id === currentSessionId,
+                            ),
+                        );
+                        const nestedExpanded =
+                          hasActiveFilters ||
+                          containsCurrent ||
+                          !collapsedWorkspaceDates.has(stableKey);
+                        const forcedExpanded = hasActiveFilters || containsCurrent;
+                        const dateLabel = formatCalendarDateKey(
+                          nestedDateKey,
+                          i18n.resolvedLanguage,
+                        );
+                        return (
+                          <div key={stableKey} style={{ marginLeft: 10 }}>
+                            <Flex
+                              role="button"
+                              tabIndex={0}
+                              aria-expanded={nestedExpanded}
+                              aria-label={`${dateLabel} (${byDate[nestedDateKey].length})`}
+                              aria-disabled={forcedExpanded}
+                              align="center"
+                              gap={6}
+                              style={{
+                                cursor: forcedExpanded ? "default" : "pointer",
+                                padding: "3px 8px",
+                              }}
+                              onClick={() => {
+                                if (!forcedExpanded) toggleWorkspaceDate(dateKey, nestedDateKey);
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" || event.key === " ") {
+                                  event.preventDefault();
+                                  if (!forcedExpanded) toggleWorkspaceDate(dateKey, nestedDateKey);
+                                }
+                              }}
+                            >
+                              {nestedExpanded ? <DownOutlined /> : <RightOutlined />}
+                              <span style={{ fontSize: 10, color: token.colorTextSecondary }}>
+                                {dateLabel} ({byDate[nestedDateKey].length})
+                              </span>
+                            </Flex>
+                            {nestedExpanded
+                              ? renderRows(byDate[nestedDateKey], dateKey, nestedDateKey)
+                              : null}
+                          </div>
+                        );
+                      });
+                    })()
+                  : renderRows(dateGroup, dateKey)}
               </div>
             ) : null}
           </div>
