@@ -25,6 +25,7 @@ vi.mock("@shared/store/appStore", () => ({
 
 interface RunOverrides {
   enqueuePendingChildApproval?: ReturnType<typeof vi.fn>;
+  dequeuePendingChildApproval?: ReturnType<typeof vi.fn>;
   clearPendingChildApprovalsForChild?: ReturnType<typeof vi.fn>;
 }
 
@@ -36,6 +37,7 @@ interface RunOverrides {
 function makeRun(overrides: RunOverrides = {}): RunContext {
   const ctx = {
     enqueuePendingChildApproval: overrides.enqueuePendingChildApproval ?? vi.fn(),
+    dequeuePendingChildApproval: overrides.dequeuePendingChildApproval ?? vi.fn(),
     clearPendingChildApprovalsForChild: overrides.clearPendingChildApprovalsForChild ?? vi.fn(),
     // Refs used only by other handlers; safe empty maps.
     backgroundChildrenByParentRef: { current: new Map() },
@@ -71,6 +73,37 @@ beforeEach(() => {
 });
 
 describe("createChildHandlers — onChildApprovalRequested (FIFO queue, #25)", () => {
+  it("folds versioned nested approval outcomes into the existing FIFO", () => {
+    const enqueuePendingChildApproval = vi.fn();
+    const dequeuePendingChildApproval = vi.fn();
+    const handlers = createChildHandlers(
+      makeRun({ enqueuePendingChildApproval, dequeuePendingChildApproval }),
+    );
+
+    handlers.onSubAgentEvent?.("parent-1", "child-9", {
+      type: "child_approval_changed",
+      parent_session_id: "parent-1",
+      child_session_id: "child-9",
+      request_id: "request-versioned",
+      version: 1,
+      status: "pending",
+      tool_name: "Bash",
+    });
+    handlers.onSubAgentEvent?.("parent-1", "child-9", {
+      type: "child_approval_changed",
+      parent_session_id: "parent-1",
+      child_session_id: "child-9",
+      request_id: "request-versioned",
+      version: 2,
+      status: "denied",
+    });
+
+    expect(enqueuePendingChildApproval).toHaveBeenCalledWith(
+      "parent-1",
+      expect.objectContaining({ childSessionId: "child-9", requestId: "request-versioned" }),
+    );
+    expect(dequeuePendingChildApproval).toHaveBeenCalledWith("parent-1", "request-versioned");
+  });
   it("enqueues the pending child-approval request for the parent session", () => {
     const enqueuePendingChildApproval = vi.fn();
     const handlers = createChildHandlers(makeRun({ enqueuePendingChildApproval }));

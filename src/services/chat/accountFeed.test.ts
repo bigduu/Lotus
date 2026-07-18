@@ -19,6 +19,8 @@ const storeActions = {
   applyServerPinned: vi.fn(),
   setAgentAvailability: vi.fn(),
   reconcileOpenSession: vi.fn(),
+  enqueuePendingChildApproval: vi.fn(),
+  dequeuePendingChildApproval: vi.fn(),
 };
 
 vi.mock("./AgentService", () => ({
@@ -92,6 +94,36 @@ describe("accountFeed runner", () => {
       }),
     );
     expect(storeActions.applyServerPinned).toHaveBeenCalledWith("s1", true, "2026-05-31T00:00:01Z");
+  });
+
+  it("routes versioned child approval outcomes by payload parent id", () => {
+    startAccountFeed();
+    const pending = {
+      type: "child_approval_changed" as const,
+      session_id: "child-1",
+      parent_session_id: "parent-1",
+      child_session_id: "child-1",
+      request_id: "request-1",
+      version: 1,
+      status: "pending",
+      tool_name: "Bash",
+      permission: "execute",
+      resource: "npm test",
+    };
+    captured!.onChange(change(20, pending));
+    expect(storeActions.enqueuePendingChildApproval).toHaveBeenCalledWith("parent-1", {
+      childSessionId: "child-1",
+      requestId: "request-1",
+      toolName: "Bash",
+      permission: "execute",
+      resource: "npm test",
+    });
+
+    captured!.onChange(change(21, { ...pending, version: 2, status: "approved" }));
+    expect(storeActions.dequeuePendingChildApproval).toHaveBeenCalledWith("parent-1", "request-1");
+
+    captured!.onChange(change(22, { ...pending, version: 1, status: "denied" }));
+    expect(storeActions.dequeuePendingChildApproval).toHaveBeenCalledTimes(1);
   });
 
   it("debounces a session-index refresh for coarse change events", () => {

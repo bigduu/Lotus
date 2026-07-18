@@ -14,6 +14,7 @@ import {
   CHILD_PREVIEW_MAX_CHARS,
 } from "../useAgentEventSubscription.helpers";
 import type { RunContext } from "../subscriptionContext";
+import { acceptChildApprovalVersion } from "@services/chat/childApprovalVersions";
 
 /** Sub-agent (background child) lifecycle + preview handlers. */
 export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers> {
@@ -35,7 +36,43 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
     lastChildRoundCountRef,
     pendingChildPreviewRef,
   } = run.ctx;
+  const applyApprovalChanged = (
+    parentSessionId: string,
+    childSessionId: string,
+    evt: AgentEvent,
+  ) => {
+    if (
+      !evt.request_id ||
+      !acceptChildApprovalVersion(
+        `${parentSessionId}:${childSessionId}:${evt.request_id}`,
+        evt.version,
+      )
+    ) {
+      return;
+    }
+    if (evt.status === "pending") {
+      enqueuePendingChildApproval(parentSessionId, {
+        childSessionId,
+        requestId: evt.request_id,
+        toolName: evt.tool_name ?? null,
+        permission: evt.permission ?? null,
+        resource: evt.resource ?? null,
+      });
+    } else if (
+      evt.status === "approved" ||
+      evt.status === "denied" ||
+      evt.status === "expired" ||
+      evt.status === "delivery_failed"
+    ) {
+      run.ctx.dequeuePendingChildApproval(parentSessionId, evt.request_id);
+    }
+  };
   return {
+    onChildApprovalChanged: (evt) => {
+      if (evt.parent_session_id && evt.child_session_id) {
+        applyApprovalChanged(evt.parent_session_id, evt.child_session_id, evt);
+      }
+    },
     onSubAgentStarted: (parentSessionId, childSessionId, title) => {
       const bg =
         backgroundChildrenByParentRef.current.get(parentSessionId) ??
@@ -93,6 +130,10 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
     },
 
     onSubAgentEvent: (parentSessionId, childSessionId, evt: AgentEvent) => {
+      if (evt.type === "child_approval_changed") {
+        applyApprovalChanged(parentSessionId, childSessionId, evt);
+        return;
+      }
       if (evt.type === "task_list_updated" && evt.task_list) {
         const sharedSessionId = evt.task_list.session_id || parentSessionId;
         setTaskList(sharedSessionId, evt.task_list);
