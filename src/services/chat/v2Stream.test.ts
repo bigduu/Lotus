@@ -391,66 +391,141 @@ describe("v2Stream WebSocket client", () => {
     });
   });
 
-  describe("liveness watchdog (lotus#87 / bamboo#533)", () => {
-    const keepalive = { ch: "sys", seq: 0, control: { type: "keepalive" } };
-
-    it("consumes sys keepalive frames silently (no handler calls)", () => {
-      const onChange = vi.fn();
-      const onError = vi.fn();
-      subscribeFeed({ onChange, onError }, 0);
-      lastSocket().open();
-
-      expect(() => lastSocket().emit(keepalive)).not.toThrow();
-      expect(onChange).not.toHaveBeenCalled();
-      expect(onError).not.toHaveBeenCalled();
-    });
-
-    it("force-reconnects a socket that goes silent after the backend advertised keepalives", () => {
+  describe("application heartbeat watchdog (lotus#87 / bamboo#588)", () => {
+    it("sends JSON pings every 15s and consumes a top-level pong silently", () => {
       vi.useFakeTimers();
       const onChange = vi.fn();
       const onError = vi.fn();
+      subscribeFeed({ onChange, onError }, 0);
+      const ws = lastSocket();
+      ws.open();
+
+      vi.advanceTimersByTime(15_000);
+      expect(ws.parsedSent()).toContainEqual({ type: "ping" });
+
+      expect(() => ws.emit({ type: "pong" })).not.toThrow();
+      expect(onChange).not.toHaveBeenCalled();
+      expect(onError).not.toHaveBeenCalled();
+      vi.useRealTimers();
+    });
+
+    it("encodes pings as MessagePack when that subprotocol is negotiated", () => {
+      vi.useFakeTimers();
+      setMsgpackFlag(true);
+      subscribeFeed({ onChange: vi.fn() }, 0);
+      const ws = lastSocket();
+      ws.open("bamboo.v2.msgpack");
+
+      vi.advanceTimersByTime(15_000);
+      expect(ws.msgpackSent()).toContainEqual({ type: "ping" });
+      expect(() => ws.emitBinary({ type: "pong" })).not.toThrow();
+      vi.useRealTimers();
+    });
+
+    it("reconnects and replays feed + agent state after 40s of acknowledged silence", async () => {
+      vi.useFakeTimers();
+      const onChange = vi.fn();
+      const onError = vi.fn();
+      const onToken = vi.fn();
       subscribeFeed({ onChange, onError }, 3);
+      const agent = subscribeAgent("s1", { onToken }, tokenDispatch);
 
       const first = lastSocket();
       first.open();
-      // The backend proves keepalive support → the watchdog ARMS.
-      first.emit(keepalive);
+      first.emit({ type: "pong" });
 
-      // Silence past the stale threshold (45s) + one watchdog tick.
-      vi.advanceTimersByTime(56_000);
+      vi.advanceTimersByTime(40_000);
 
-      // The stale socket was torn down and a reconnect scheduled...
       expect(onError).toHaveBeenCalled();
       expect(first.readyState).toBe(MockWebSocket.CLOSED);
-      // ...which, after the backoff, opens a NEW socket and re-subscribes
-      // with the latest cursor — the replayed frames settle any stale UI.
-      vi.advanceTimersByTime(1_000);
+      // Reconnect uses the existing WS path (500ms first backoff), never SSE.
+      vi.advanceTimersByTime(500);
       expect(sockets).toHaveLength(2);
       const second = lastSocket();
       second.open();
       expect(second.parsedSent()).toContainEqual({ type: "subscribe", ch: "feed", since: 3 });
+      expect(second.parsedSent()).toContainEqual({ type: "subscribe", ch: "agent.s1" });
+
+      // Replayed critical state is delivered after re-subscription, and a
+      // synthesized terminal settles a session that completed while offline.
+      second.emit({ ch: "agent.s1", seq: 1, event: { type: "token", content: "replayed" } });
+      second.emit({ ch: "agent.s1", seq: 2, control: { type: "terminal" } });
+      expect(onToken).toHaveBeenCalledWith("replayed");
+      await expect(agent.promise).resolves.toBeUndefined();
 
       vi.useRealTimers();
     });
 
-    it("never fires against a backend that sends no keepalives (old backend, quiet is legitimate)", () => {
+    it("visibility regain sends a half-open socket through the watchdog recovery path", () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));
+      const onError = vi.fn();
+      subscribeFeed({ onChange: vi.fn(), onError }, 9);
+      const first = lastSocket();
+      first.open();
+      first.emit({ type: "pong" });
+
+      // Simulate a suspended tab: wall-clock time advances without running the
+      // heartbeat/watchdog intervals. Visibility regain must perform the same
+      // stale check rather than merely writing subscribe frames to a dead pipe.
+      vi.setSystemTime(new Date("2026-07-18T12:00:40Z"));
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(onError).toHaveBeenCalledTimes(1);
+      expect(first.readyState).toBe(MockWebSocket.CLOSED);
+      vi.advanceTimersByTime(500);
+      expect(sockets).toHaveLength(2);
+      const second = lastSocket();
+      second.open();
+      expect(second.parsedSent()).toContainEqual({ type: "subscribe", ch: "feed", since: 9 });
+
+      vi.useRealTimers();
+    });
+
+    it("never falls back to SSE when replacement sockets flap during watchdog recovery", () => {
+      vi.useFakeTimers();
+      const onConnectFailed = vi.fn();
+      subscribeFeed({ onChange: vi.fn() }, 0, onConnectFailed);
+
+      const stale = lastSocket();
+      stale.open();
+      stale.emit({ type: "pong" });
+      vi.advanceTimersByTime(40_000);
+
+      // Three quick replacement closes used to trip the generic short-lived
+      // circuit breaker and signal SSE fallback despite a proven v2 backend.
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        vi.advanceTimersByTime(500 * 2 ** attempt);
+        const replacement = lastSocket();
+        replacement.open();
+        replacement.drop();
+      }
+
+      expect(onConnectFailed).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(4_000);
+      expect(sockets).toHaveLength(5);
+
+      vi.useRealTimers();
+    });
+
+    it("never fires against an old backend that never sends pong", () => {
       vi.useFakeTimers();
       const onError = vi.fn();
       subscribeFeed({ onChange: vi.fn(), onError }, 0);
 
       const ws = lastSocket();
       ws.open();
-      // NO sys keepalive ever arrives; a long quiet stretch must not reconnect.
       vi.advanceTimersByTime(10 * 60_000);
 
       expect(sockets).toHaveLength(1);
       expect(ws.readyState).toBe(MockWebSocket.OPEN);
       expect(onError).not.toHaveBeenCalled();
+      expect(ws.parsedSent().filter((frame) => frame.type === "ping")).toHaveLength(40);
 
       vi.useRealTimers();
     });
 
-    it("any inbound frame resets the staleness clock, not just keepalives", () => {
+    it("any inbound frame resets the staleness clock after heartbeat is acknowledged", () => {
       vi.useFakeTimers();
       const onChange = vi.fn();
       const onError = vi.fn();
@@ -458,10 +533,8 @@ describe("v2Stream WebSocket client", () => {
 
       const ws = lastSocket();
       ws.open();
-      ws.emit(keepalive); // arm
+      ws.emit({ type: "pong" });
 
-      // Business frames keep arriving every 30s with no further keepalives —
-      // the socket is demonstrably alive, so the watchdog must stay quiet.
       for (let i = 1; i <= 6; i += 1) {
         vi.advanceTimersByTime(30_000);
         ws.emit({ ch: "feed", seq: i, event: change(i) });
@@ -475,101 +548,23 @@ describe("v2Stream WebSocket client", () => {
       vi.useRealTimers();
     });
 
-    it("adapts to the 2s production cadence: dead socket detected in ~6-7s", () => {
+    it("resets heartbeat capability on reconnect for mixed-version backends", () => {
       vi.useFakeTimers();
       const onError = vi.fn();
       subscribeFeed({ onChange: vi.fn(), onError }, 0);
 
-      const ws = lastSocket();
-      ws.open();
-      // Two keepalives 2s apart → observed cadence 2s → threshold clamps to
-      // the 6s floor (3×2s).
-      ws.emit(keepalive);
-      vi.advanceTimersByTime(2_000);
-      ws.emit(keepalive);
+      const first = lastSocket();
+      first.open();
+      first.emit({ type: "pong" });
+      first.drop();
+      vi.advanceTimersByTime(500);
 
-      // 5s of silence: below the floor → still connected.
-      vi.advanceTimersByTime(5_000);
-      expect(ws.readyState).toBe(MockWebSocket.OPEN);
-
-      // Past 6s (+ a tick): the stale socket is torn down.
-      vi.advanceTimersByTime(3_000);
-      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
-      expect(onError).toHaveBeenCalled();
-
-      vi.useRealTimers();
-    });
-
-    it("back-to-back keepalives cannot tighten the threshold below the 6s floor", () => {
-      vi.useFakeTimers();
-      const onError = vi.fn();
-      subscribeFeed({ onChange: vi.fn(), onError }, 0);
-
-      const ws = lastSocket();
-      ws.open();
-      // A burst right after unblock: gaps of ~100ms. 3×0.1s = 0.3s must NOT
-      // become the threshold — the floor holds at 6s.
-      ws.emit(keepalive);
-      vi.advanceTimersByTime(100);
-      ws.emit(keepalive);
-      vi.advanceTimersByTime(100);
-      ws.emit(keepalive);
-
-      // 5s of silence: within the floor → still connected, no false positive.
-      vi.advanceTimersByTime(5_000);
-      expect(ws.readyState).toBe(MockWebSocket.OPEN);
-      expect(onError).not.toHaveBeenCalled();
-
-      vi.useRealTimers();
-    });
-
-    it("adapts the stale threshold to a fast keepalive cadence (~15s detection at 5s cadence)", () => {
-      vi.useFakeTimers();
-      const onError = vi.fn();
-      subscribeFeed({ onChange: vi.fn(), onError }, 0);
-
-      const ws = lastSocket();
-      ws.open();
-      // Two keepalives 5s apart → observed cadence 5s → threshold 15s.
-      ws.emit(keepalive);
-      vi.advanceTimersByTime(5_000);
-      ws.emit(keepalive);
-
-      // 10s of silence: below the adaptive threshold → still connected.
-      vi.advanceTimersByTime(10_000);
-      expect(ws.readyState).toBe(MockWebSocket.OPEN);
-
-      // Past 15s of silence (+ a tick): the stale socket is torn down.
-      vi.advanceTimersByTime(7_000);
-      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
-      expect(onError).toHaveBeenCalled();
-
-      vi.useRealTimers();
-    });
-
-    it("keeps the conservative 45s threshold against an old 15s-cadence backend (no false positives)", () => {
-      vi.useFakeTimers();
-      const onError = vi.fn();
-      subscribeFeed({ onChange: vi.fn(), onError }, 0);
-
-      const ws = lastSocket();
-      ws.open();
-      // Old-server cadence: keepalives every 15s → threshold stays at the 45s
-      // ceiling. Silence WITHIN 45s must never force-reconnect.
-      ws.emit(keepalive);
-      vi.advanceTimersByTime(15_000);
-      ws.emit(keepalive);
-      vi.advanceTimersByTime(15_000);
-      ws.emit(keepalive);
-
-      // 40s of silence: under the ceiling → still connected.
-      vi.advanceTimersByTime(40_000);
-      expect(ws.readyState).toBe(MockWebSocket.OPEN);
-      expect(onError).not.toHaveBeenCalled();
-
-      // Past 45s: genuinely dead → reconnect.
-      vi.advanceTimersByTime(7_000);
-      expect(ws.readyState).toBe(MockWebSocket.CLOSED);
+      const second = lastSocket();
+      second.open();
+      // A mixed-fleet reconnect may land on an old backend. Without a pong on
+      // this connection, the previous connection's ACK must not arm it.
+      vi.advanceTimersByTime(10 * 60_000);
+      expect(second.readyState).toBe(MockWebSocket.OPEN);
 
       vi.useRealTimers();
     });
@@ -657,23 +652,16 @@ describe("v2Stream WebSocket client", () => {
       lastSocket().emit({ ch: "agent.s1", seq: 6, event: { type: "token", content: "hi" } });
     });
 
-    it("the watchdog re-arms per connection: the NEW socket needs its own keepalive", () => {
+    it("does not let a legacy sys keepalive arm the pong-gated watchdog", () => {
       vi.useFakeTimers();
       subscribeFeed({ onChange: vi.fn() }, 0);
 
-      const first = lastSocket();
-      first.open();
-      first.emit(keepalive);
-      vi.advanceTimersByTime(56_000); // stale → force reconnect
-      vi.advanceTimersByTime(1_000); // backoff elapses
-      expect(sockets).toHaveLength(2);
-
-      const second = lastSocket();
-      second.open();
-      // The new connection has NOT advertised keepalives; silence is fine.
+      const ws = lastSocket();
+      ws.open();
+      ws.emit({ ch: "sys", seq: 0, control: { type: "keepalive" } });
       vi.advanceTimersByTime(10 * 60_000);
-      expect(sockets).toHaveLength(2);
-      expect(second.readyState).toBe(MockWebSocket.OPEN);
+      expect(sockets).toHaveLength(1);
+      expect(ws.readyState).toBe(MockWebSocket.OPEN);
 
       vi.useRealTimers();
     });
