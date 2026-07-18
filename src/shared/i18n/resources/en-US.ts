@@ -2689,6 +2689,38 @@ export const enUsTranslation = {
         questionLabel: "Question",
         responseInInputHint: "Use the options or input box below to respond.",
         responseByOptionHint: "Please respond using the options below the input box.",
+        permissionReason: "Bamboo requires approval: {{reason}}",
+        permissionTool: "Tool",
+        permissionAction: "Operation",
+        permissionResource: "Resource",
+        effectiveMode: "Effective mode",
+        bypassStillAsked: "Bypass was requested, but this operation still requires approval.",
+        matchedRule: "Matched rule",
+        suggestedMatchers: "Scope matcher",
+        matcherRequired:
+          "Bamboo must provide exactly one matcher before this permission can be remembered.",
+        decisionNotAllowed: "This permission decision is not authorized by Bamboo.",
+        typedEndpointUnavailable: "This scoped decision requires a newer Bamboo permission API.",
+        permissionDecisions: {
+          allow_once: "Allow once",
+          allow_session: "Allow for this session",
+          allow_workspace: "Remember for this workspace",
+          allow_global: "Remember globally",
+          deny_once: "Deny once",
+          deny_session: "Deny for this session",
+        },
+        confirmScopes: {
+          allow_workspace: {
+            title: "Remember permission for this workspace?",
+            description:
+              "Bamboo will apply the matcher shown in the permission card to this workspace.",
+          },
+          allow_global: {
+            title: "Remember permission globally?",
+            description:
+              "This affects every workspace. Review the exact matcher before continuing.",
+          },
+        },
       },
       skillManager: {
         title: "Skills",

@@ -349,6 +349,33 @@ describe("structured tool payload parsing", () => {
     });
   });
 
+  it("preserves Bamboo typed permission metadata beside legacy fallback fields", () => {
+    const payload = JSON.stringify({
+      status: "awaiting_permission_approval",
+      question: "Approve command?",
+      options: ["Approve", "Deny"],
+      permission_request: {
+        request_id: "req-1",
+        tool_name: "Bash",
+        operation_summary: "Push commits",
+        reason_code: "configured_always_ask",
+        effective_mode: "bypass",
+        bypass_requested: true,
+        allowed_decisions: ["allow_once", "deny_once"],
+      },
+    });
+
+    expect(parseInteractiveQuestionToolResultPayload(payload)?.permissionRequest).toMatchObject({
+      requestId: "req-1",
+      tool: "Bash",
+      action: "Push commits",
+      reasonCode: "configured_always_ask",
+      effectiveMode: "bypass",
+      bypassRequested: true,
+      allowedDecisions: [{ id: "allow_once" }, { id: "deny_once" }],
+    });
+  });
+
   it("decodes unicode-escaped text in interactive question payload", () => {
     const payload = JSON.stringify({
       status: "awaiting_user_input",

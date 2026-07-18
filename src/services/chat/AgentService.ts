@@ -245,6 +245,8 @@ export interface AgentEvent {
   question?: string;
   options?: string[];
   allow_custom?: boolean;
+  /** Bamboo #601 typed contract, nested alongside legacy question/options. */
+  permission_request?: unknown;
   // ExecutionStarted event
   run_id?: string;
   started_at?: string;
@@ -388,6 +390,7 @@ export type PendingQuestionResponse = {
   options?: string[];
   allow_custom?: boolean;
   tool_call_id?: string;
+  permission_request?: unknown;
 };
 
 export interface HistoryResponse {

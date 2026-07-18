@@ -118,10 +118,24 @@ const pendingQuestionPayloadEquals = (
   if (!current) {
     return false;
   }
+  const currentPermission = current.permissionRequest;
+  const nextPermission = payload.permissionRequest;
+  const permissionEqual =
+    currentPermission?.requestId === nextPermission?.requestId &&
+    currentPermission?.policyRevision === nextPermission?.policyRevision &&
+    areStringArraysEqual(
+      currentPermission?.allowedDecisions.map((decision) => decision.id) ?? [],
+      nextPermission?.allowedDecisions.map((decision) => decision.id) ?? [],
+    ) &&
+    areStringArraysEqual(
+      currentPermission?.suggestedMatchers.map((matcher) => matcher.id) ?? [],
+      nextPermission?.suggestedMatchers.map((matcher) => matcher.id) ?? [],
+    );
   return (
     current.question === payload.question &&
     current.allowCustom === payload.allowCustom &&
     current.toolCallId === payload.toolCallId &&
+    permissionEqual &&
     areStringArraysEqual(current.options, payload.options)
   );
 };

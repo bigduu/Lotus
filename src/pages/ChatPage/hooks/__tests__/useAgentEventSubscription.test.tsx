@@ -1396,6 +1396,13 @@ describe("useAgentEventSubscription", () => {
         options: ["A", "B"],
         allow_custom: true,
         tool_call_id: "call-clarify-1",
+        permission_request: {
+          request_id: "permission-1",
+          reason_code: "configured_always_ask",
+          effective_mode: "bypass",
+          allowed_decisions: ["allow_once", "deny_once"],
+          suggested_matchers: [],
+        },
       });
     });
 
@@ -1408,6 +1415,11 @@ describe("useAgentEventSubscription", () => {
       expect.objectContaining({
         question: "Need more info",
         toolCallId: "call-clarify-1",
+        options: ["allow_once", "deny_once"],
+        permissionRequest: expect.objectContaining({
+          requestId: "permission-1",
+          reasonCode: "configured_always_ask",
+        }),
       }),
     );
     expect(mockState.applyAgentEvent).not.toHaveBeenCalledWith(

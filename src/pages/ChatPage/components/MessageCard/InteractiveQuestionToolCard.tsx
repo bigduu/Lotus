@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Space, Typography } from "antd";
+import { Alert, Descriptions, Space, Tag, Typography } from "antd";
 import ReactMarkdown from "react-markdown";
 import { useTranslation } from "react-i18next";
 import type { Components } from "react-markdown";
@@ -7,6 +7,7 @@ import type { PluggableList } from "unified";
 
 import { buildPendingQuestionIdentity } from "../../utils/pendingQuestionIdentity";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
+import type { PermissionRequestContract } from "@shared/permissions/permissionContract";
 
 const { Text } = Typography;
 
@@ -15,6 +16,7 @@ type InteractiveQuestionToolCardProps = {
   question: string;
   options: string[];
   allowCustom: boolean;
+  permissionRequest?: PermissionRequestContract;
   toolCallId?: string | null;
   conclusionMarkdown?: string | null;
   markdownComponents: Components;
@@ -27,6 +29,7 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
   question,
   options,
   allowCustom,
+  permissionRequest,
   toolCallId,
   conclusionMarkdown,
   markdownComponents,
@@ -93,6 +96,65 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
           </ReactMarkdown>
         </div>
       </div>
+
+      {permissionRequest ? (
+        <Space direction="vertical" size="small" style={{ width: "100%" }}>
+          {permissionRequest.explanation || permissionRequest.reasonCode ? (
+            <Alert
+              type={permissionRequest.risk === "high" ? "warning" : "info"}
+              showIcon
+              message={
+                permissionRequest.explanation ||
+                t("components.questionDialog.permissionReason", {
+                  reason: permissionRequest.reasonCode,
+                })
+              }
+            />
+          ) : null}
+          <Descriptions size="small" column={1} bordered>
+            {permissionRequest.tool ? (
+              <Descriptions.Item label={t("components.questionDialog.permissionTool")}>
+                <Text code>{permissionRequest.tool}</Text>
+              </Descriptions.Item>
+            ) : null}
+            {permissionRequest.action ? (
+              <Descriptions.Item label={t("components.questionDialog.permissionAction")}>
+                {permissionRequest.action}
+              </Descriptions.Item>
+            ) : null}
+            {permissionRequest.resource ? (
+              <Descriptions.Item label={t("components.questionDialog.permissionResource")}>
+                <Text code ellipsis={{ tooltip: permissionRequest.resource }}>
+                  {permissionRequest.resource}
+                </Text>
+              </Descriptions.Item>
+            ) : null}
+            {permissionRequest.effectiveMode ? (
+              <Descriptions.Item label={t("components.questionDialog.effectiveMode")}>
+                <Tag>{permissionRequest.effectiveMode}</Tag>
+                {permissionRequest.bypassRequested
+                  ? t("components.questionDialog.bypassStillAsked")
+                  : null}
+              </Descriptions.Item>
+            ) : null}
+            {permissionRequest.matchedRule?.name ? (
+              <Descriptions.Item label={t("components.questionDialog.matchedRule")}>
+                <Text code>{permissionRequest.matchedRule.name}</Text>
+              </Descriptions.Item>
+            ) : null}
+          </Descriptions>
+          {permissionRequest.suggestedMatchers.length > 0 ? (
+            <Text type="secondary">
+              {t("components.questionDialog.suggestedMatchers")}:{" "}
+              {permissionRequest.suggestedMatchers.map((matcher) => (
+                <Tag key={matcher.id}>
+                  {matcher.kind}: {matcher.value}
+                </Tag>
+              ))}
+            </Text>
+          ) : null}
+        </Space>
+      ) : null}
 
       {resolvedExternally ? (
         <Text type="secondary">
