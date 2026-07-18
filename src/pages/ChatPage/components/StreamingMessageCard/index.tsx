@@ -287,8 +287,6 @@ interface StreamingMessageCardProps {
 
 const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessionId }) => {
   const { token } = useToken();
-  const isVdiSafeMode =
-    typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { t } = useTranslation();
   const statusMessageId = `streaming-status-${sessionId}`;
   const liveAssistantState = useAssistantStreamingState(sessionId);
@@ -366,8 +364,6 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
         maxWidth: "800px",
         margin: "0 auto",
         background: "var(--lotus-message-streaming-bg)",
-        backdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
-        WebkitBackdropFilter: isVdiSafeMode ? "none" : "blur(14px)",
         borderRadius: token.borderRadiusLG,
         boxShadow: "none",
         position: "relative",
