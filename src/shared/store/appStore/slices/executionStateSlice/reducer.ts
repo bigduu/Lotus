@@ -122,6 +122,7 @@ const pendingQuestionPayloadEquals = (
     current.question === payload.question &&
     current.allowCustom === payload.allowCustom &&
     current.toolCallId === payload.toolCallId &&
+    current.permissionRequest?.requestId === payload.permissionRequest?.requestId &&
     areStringArraysEqual(current.options, payload.options)
   );
 };

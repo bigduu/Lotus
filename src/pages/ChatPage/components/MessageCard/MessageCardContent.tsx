@@ -136,6 +136,7 @@ const MessageCardContent: React.FC<MessageCardContentProps> = ({
           question={interactiveQuestionPayload.question}
           options={interactiveQuestionPayload.options}
           allowCustom={interactiveQuestionPayload.allow_custom}
+          permissionRequest={interactiveQuestionPayload.permissionRequest}
           toolCallId={message.toolCallId}
           conclusionMarkdown={formatConclusionWithOptionsConclusionAsMarkdown(
             interactiveQuestionPayload.conclusion,

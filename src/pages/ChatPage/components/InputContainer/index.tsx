@@ -129,7 +129,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   );
 
   const [isSavingModel, setIsSavingModel] = useState(false);
-  const { message: messageApi } = AntApp.useApp();
+  const { message: messageApi, modal } = AntApp.useApp();
 
   // Use persisted state or empty defaults
   const content = inputState?.content || "";
@@ -412,6 +412,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         options: pendingQuestion.options,
         allowCustom: pendingQuestion.allowCustom,
         toolCallId: pendingQuestion.toolCallId,
+        permissionRequest: pendingQuestion.permissionRequest,
       }
     : null;
   const isRespondMode = Boolean(currentPendingRespond);
@@ -426,8 +427,63 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     messageApi,
     setContent,
     pendingQuestionToolCallId: currentPendingRespond?.toolCallId ?? null,
+    permissionRequest: currentPendingRespond?.permissionRequest,
     t,
   });
+
+  const permissionDecisionLabel = useCallback(
+    (decision: string) => {
+      const key = decision.toLowerCase();
+      const known = [
+        "allow_once",
+        "allow_session",
+        "allow_workspace",
+        "allow_global",
+        "deny_once",
+        "deny_session",
+      ];
+      return known.includes(key)
+        ? t(`components.questionDialog.permissionDecisions.${key}`)
+        : decision;
+    },
+    [t],
+  );
+
+  const submitRespondOption = useCallback(
+    (decision: string) => {
+      const durable = decision === "allow_workspace" || decision === "allow_global";
+      if (!durable) {
+        void handleRespondSubmit(decision);
+        return;
+      }
+      modal.confirm({
+        title: t(`components.questionDialog.confirmScopes.${decision}.title`),
+        content: (
+          <Space direction="vertical">
+            <span>{t(`components.questionDialog.confirmScopes.${decision}.description`)}</span>
+            {currentPendingRespond?.permissionRequest?.workspacePath ? (
+              <code>{currentPendingRespond.permissionRequest.workspacePath}</code>
+            ) : null}
+            {currentPendingRespond?.permissionRequest?.suggestedMatchers.map((matcher) => (
+              <code key={matcher.id}>
+                {matcher.kind}: {matcher.value}
+              </code>
+            ))}
+          </Space>
+        ),
+        okText: permissionDecisionLabel(decision),
+        okButtonProps: { danger: decision === "allow_global" },
+        onOk: () => handleRespondSubmit(decision),
+      });
+    },
+    [
+      currentPendingRespond?.permissionRequest,
+      handleRespondSubmit,
+      modal,
+      permissionDecisionLabel,
+      t,
+    ],
+  );
 
   // /goal commands are now handled server-side by Bamboo. This hook is retained
   // for local-only UI feedback (toasts) in a future iteration; `handleGoalCommand`
@@ -1108,11 +1164,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
                 key={option}
                 size="small"
                 onClick={() => {
-                  void handleRespondSubmit(option);
+                  submitRespondOption(option);
                 }}
                 disabled={isInputLocked}
               >
-                {option}
+                {permissionDecisionLabel(option)}
               </Button>
             ))}
           </Space>

@@ -8,6 +8,8 @@ import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
 import { debugRespondFlow } from "./debug";
 import type { RespondExecutionDebugSnapshot } from "./types";
+import type { PermissionRequestContract } from "@shared/permissions/permissionContract";
+import { buildPermissionDecisionSubmission } from "@shared/permissions/permissionContract";
 
 interface UseInputContainerRespondProps {
   sessionId: string | null;
@@ -17,6 +19,7 @@ interface UseInputContainerRespondProps {
   messageApi: MessageInstance;
   setContent: (newContent: string) => void;
   pendingQuestionToolCallId: string | null;
+  permissionRequest?: PermissionRequestContract;
   t: TFunction;
 }
 
@@ -28,6 +31,7 @@ export const useInputContainerRespond = ({
   messageApi,
   setContent,
   pendingQuestionToolCallId,
+  permissionRequest,
   t,
 }: UseInputContainerRespondProps) => {
   const markRespondStart = useAppStore((state) => state.markRespondStart);
@@ -108,10 +112,35 @@ export const useInputContainerRespond = ({
           respondPayload.provider = activeModelRef.provider;
         }
 
-        const result = await agentApiClient.post<{
+        type ResumeResult = {
           auto_resume_status?: string;
           run_id?: string;
-        }>(`respond/${sessionId}`, respondPayload);
+        };
+        let result: ResumeResult;
+        if (permissionRequest?.requestId) {
+          try {
+            buildPermissionDecisionSubmission(permissionRequest, trimmed);
+          } catch (error) {
+            throw new Error(
+              error instanceof Error && error.message.includes("matcher")
+                ? t("components.questionDialog.matcherRequired")
+                : t("components.questionDialog.decisionNotAllowed"),
+            );
+          }
+          // #601 Phase 1 intentionally exposes only once decisions and retains
+          // the existing respond endpoint. Keep the typed adapter ready for the
+          // later endpoint, but never send an unshipped draft route or degrade a
+          // remembered scope into a legacy display string.
+          if (trimmed !== "allow_once" && trimmed !== "deny_once") {
+            throw new Error(t("components.questionDialog.typedEndpointUnavailable"));
+          }
+          result = await agentApiClient.post<ResumeResult>(`respond/${sessionId}`, {
+            ...respondPayload,
+            response: trimmed === "allow_once" ? "Approve" : "Deny",
+          });
+        } else {
+          result = await agentApiClient.post<ResumeResult>(`respond/${sessionId}`, respondPayload);
+        }
         debugRespondFlow("input.respond:response", {
           sessionId,
           result,
@@ -180,6 +209,7 @@ export const useInputContainerRespond = ({
       applyExecutionStarted,
       getRespondExecutionDebugSnapshot,
       pendingQuestionToolCallId,
+      permissionRequest,
       t,
     ],
   );

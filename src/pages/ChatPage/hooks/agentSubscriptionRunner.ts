@@ -27,6 +27,7 @@ import { createContextHandlers } from "./subscriptionHandlers/contextHandlers";
 import { createTaskListHandlers } from "./subscriptionHandlers/taskListHandlers";
 import { createSessionMetaHandlers } from "./subscriptionHandlers/sessionMetaHandlers";
 import { createChildHandlers } from "./subscriptionHandlers/childHandlers";
+import { normalizePermissionRequest } from "@shared/permissions/permissionContract";
 
 /**
  * Open (or reconnect) the SSE subscription for one session. The per-event-domain
@@ -574,6 +575,7 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
         },
 
         onNeedClarification: (event) => {
+          const typedPermission = normalizePermissionRequest(event);
           const targetSessionId = event.session_id || sessionId;
           // Only suppress subsequent root-session completion finalization when the
           // clarification belongs to this subscription's own parent session.
@@ -586,11 +588,15 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
             subscriptionGeneration: generation,
             currentStoreGeneration: selectGeneration(targetSessionId)(useAppStore.getState()),
             toolCallId: event.tool_call_id ?? null,
+            permissionRequest: typedPermission ?? undefined,
             questionPreview: (event.question || "").slice(0, 120),
           });
           setPendingQuestion(targetSessionId, {
             question: event.question || "",
-            options: event.options || [],
+            options:
+              typedPermission && typedPermission.allowedDecisions.length > 0
+                ? typedPermission.allowedDecisions.map((decision) => decision.id)
+                : event.options || [],
             allowCustom: event.allow_custom ?? true,
             toolCallId: event.tool_call_id ?? null,
           });

@@ -1,4 +1,6 @@
 import { ExecutionStatus } from "@shared/types/chat";
+import type { PermissionRequestContract } from "@shared/permissions/permissionContract";
+import { normalizePermissionRequest } from "@shared/permissions/permissionContract";
 
 export interface FormattedResult {
   isJson: boolean;
@@ -88,6 +90,7 @@ export interface ConclusionWithOptionsToolResultPayload {
   options: string[];
   allow_custom: boolean;
   conclusion?: ConclusionWithOptionsConclusionPayload;
+  permissionRequest?: PermissionRequestContract;
 }
 
 export type DiffLineKind =
@@ -281,6 +284,7 @@ export const parseInteractiveQuestionToolResultPayload = (
     allow_custom:
       typeof parsed.allow_custom === "boolean" ? parsed.allow_custom : !isLegacyPermission,
     conclusion: parseConclusionWithOptionsConclusionPayload(parsed.conclusion),
+    permissionRequest: normalizePermissionRequest(parsed) ?? undefined,
   };
 };
 

@@ -83,6 +83,7 @@ export interface PendingQuestionPayload {
   options: string[];
   allowCustom: boolean;
   toolCallId: string | null;
+  permissionRequest?: import("@shared/permissions/permissionContract").PermissionRequestContract;
 }
 
 /**
