@@ -6,7 +6,6 @@ import {
   setChildPreviewState,
 } from "../../streaming/childPreviewAtoms";
 import {
-  compactEvaluationReasoning,
   getChildStatus,
   isTaskItemStatus,
   isTerminalChildStatus,
@@ -25,7 +24,6 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
     persistSessionTitle,
     refreshChatsNow,
     scheduleChildPreviewFlush,
-    setEvaluationState,
     enqueuePendingChildApproval,
     clearPendingChildApprovalsForChild,
     setTaskList,
@@ -120,26 +118,6 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
         }
         return;
       }
-      if (evt.type === "task_evaluation_started") {
-        const sharedSessionId = evt.session_id || parentSessionId;
-        setEvaluationState(sharedSessionId, {
-          isEvaluating: true,
-          reasoning: null,
-          timestamp: Date.now(),
-        });
-        return;
-      }
-      if (evt.type === "task_evaluation_completed") {
-        const sharedSessionId = evt.session_id || parentSessionId;
-        const updatesCount = evt.updates_count ?? 0;
-        setEvaluationState(sharedSessionId, {
-          isEvaluating: false,
-          reasoning: updatesCount > 0 ? compactEvaluationReasoning(evt.reasoning ?? "") : null,
-          timestamp: Date.now(),
-        });
-        return;
-      }
-
       const current = selectChildren(parentSessionId)(useAppStore.getState())?.[childSessionId];
       if (isTerminalChildStatus(current?.status)) {
         return;

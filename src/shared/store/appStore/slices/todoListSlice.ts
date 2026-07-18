@@ -56,9 +56,14 @@ export interface TaskListState {
 
 // Evaluation state (NEW)
 export interface EvaluationState {
+  /** Auxiliary evaluator lifecycle; it never implies that the main run is active. */
+  phase: "running" | "completed";
   isEvaluating: boolean;
   reasoning: string | null;
   timestamp: number | null;
+  itemsCount?: number;
+  updatesCount?: number;
+  generation?: number;
 }
 
 export interface TaskListActions {
@@ -232,12 +237,30 @@ export const createTaskListSlice: StateCreator<TaskListSlice, [], [], TaskListSl
 
   // Set evaluation state (NEW)
   setEvaluationState: (sessionId, evalState) =>
-    set((state) => ({
-      evaluationStates: {
-        ...state.evaluationStates,
-        [sessionId]: evalState,
-      },
-    })),
+    set((state) => {
+      const current = state.evaluationStates[sessionId];
+      if (
+        evalState.phase === "running" &&
+        current?.generation !== undefined &&
+        evalState.generation !== undefined &&
+        evalState.generation < current.generation
+      ) {
+        return state;
+      }
+      if (
+        evalState.phase !== "running" &&
+        current?.generation !== undefined &&
+        evalState.generation !== current.generation
+      ) {
+        return state;
+      }
+      return {
+        evaluationStates: {
+          ...state.evaluationStates,
+          [sessionId]: evalState,
+        },
+      };
+    }),
 
   // Clear evaluation state (NEW)
   clearEvaluationState: (sessionId) =>

@@ -78,6 +78,7 @@ describe("taskListSlice", () => {
     harness.getState().setTaskList("session-1", makeTaskList(1));
 
     harness.getState().setEvaluationState("session-1", {
+      phase: "running",
       isEvaluating: true,
       reasoning: "thinking",
       timestamp: 123,
@@ -116,6 +117,40 @@ describe("taskListSlice", () => {
     expect(harness.getState().activeItems["session-1"]).toBeUndefined();
 
     isoSpy.mockRestore();
+  });
+
+  it("rejects stale and uncorrelated evaluation lifecycle terminals", () => {
+    const harness = createSliceHarness<TaskListSlice>(createTaskListSlice);
+    const running = (generation: number) => ({
+      phase: "running" as const,
+      isEvaluating: true,
+      reasoning: null,
+      timestamp: 1,
+      generation,
+    });
+    harness.getState().setEvaluationState("session-1", running(8));
+    harness.getState().setEvaluationState("session-1", running(7));
+    expect(harness.getState().evaluationStates["session-1"]?.generation).toBe(8);
+
+    for (const generation of [7, undefined]) {
+      harness.getState().setEvaluationState("session-1", {
+        phase: "completed",
+        isEvaluating: false,
+        reasoning: null,
+        timestamp: 2,
+        generation,
+      });
+      expect(harness.getState().evaluationStates["session-1"]?.phase).toBe("running");
+    }
+
+    harness.getState().setEvaluationState("session-1", {
+      phase: "completed",
+      isEvaluating: false,
+      reasoning: null,
+      timestamp: 3,
+      generation: 8,
+    });
+    expect(harness.getState().evaluationStates["session-1"]?.phase).toBe("completed");
   });
 
   describe("setTaskList monotonic guard (#39)", () => {

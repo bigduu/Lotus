@@ -841,6 +841,7 @@ export const enUsTranslation = {
         runningTools: "Running tools…",
         waitingAnswer: "Waiting for your answer",
         runningChildren: "Running sub-agents…",
+        evaluatingTasks: "Evaluating task progress…",
         completed: "Completed",
         error: "Error",
         childrenTooltip: "{{running}} running sub-agents",

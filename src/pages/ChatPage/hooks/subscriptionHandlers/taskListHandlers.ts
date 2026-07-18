@@ -52,11 +52,14 @@ export function createTaskListHandlers(run: RunContext): Partial<AgentEventHandl
       );
     },
 
-    onTaskEvaluationStarted: (sid, itemsCount) => {
+    onTaskEvaluationStarted: (sid, itemsCount, generation) => {
       setEvaluationState(sid, {
+        phase: "running",
         isEvaluating: true,
         reasoning: null,
         timestamp: Date.now(),
+        itemsCount,
+        generation,
       });
       message.info(
         i18n.t("app.notifications.evaluatingTasks", {
@@ -66,12 +69,15 @@ export function createTaskListHandlers(run: RunContext): Partial<AgentEventHandl
       );
     },
 
-    onTaskEvaluationCompleted: (sid, updatesCount, reasoning) => {
+    onTaskEvaluationCompleted: (sid, updatesCount, reasoning, generation) => {
       const compactReasoning = compactEvaluationReasoning(reasoning);
       setEvaluationState(sid, {
+        phase: "completed",
         isEvaluating: false,
         reasoning: updatesCount > 0 ? compactReasoning : null,
         timestamp: Date.now(),
+        updatesCount,
+        generation,
       });
 
       if (updatesCount > 0) {
@@ -84,6 +90,17 @@ export function createTaskListHandlers(run: RunContext): Partial<AgentEventHandl
       } else {
         message.info(i18n.t("app.notifications.evaluationCompleteNoUpdates"), 2);
       }
+    },
+
+    onTaskEvaluationCancelled: (sid, generation) => {
+      const previous = useAppStore.getState().evaluationStates[sid];
+      setEvaluationState(sid, {
+        phase: "completed",
+        isEvaluating: false,
+        reasoning: previous?.reasoning ?? null,
+        timestamp: Date.now(),
+        generation,
+      });
     },
   };
 }

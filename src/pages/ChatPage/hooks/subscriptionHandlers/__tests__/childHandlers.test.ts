@@ -13,8 +13,10 @@ import type { RunContext } from "../../subscriptionContext";
  */
 const mockStoreState: {
   children: Record<string, Record<string, unknown>>;
+  evaluationStates: Record<string, { reasoning: string | null; generation?: number }>;
 } = {
   children: {},
+  evaluationStates: {},
 };
 
 vi.mock("@shared/store/appStore", () => ({
@@ -68,6 +70,7 @@ function makeRun(overrides: RunOverrides = {}): RunContext {
 
 beforeEach(() => {
   mockStoreState.children = {};
+  mockStoreState.evaluationStates = {};
 });
 
 describe("createChildHandlers — onChildApprovalRequested (FIFO queue, #25)", () => {
