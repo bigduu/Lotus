@@ -1,11 +1,6 @@
 import React, { useEffect, lazy, Suspense } from "react";
 import { Button, Flex, Grid, Input, Segmented, theme } from "antd";
-import {
-  CalendarOutlined,
-  FolderOutlined,
-  MenuFoldOutlined,
-  SearchOutlined,
-} from "@ant-design/icons";
+import { MenuFoldOutlined, SearchOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
@@ -40,7 +35,6 @@ export const ChatSidebar: React.FC = () => {
     currentSessionId,
     expandedKeys,
     groupingMode,
-    setGroupingMode,
     workspaceGroupLabels,
     handleCollapseChange,
     handleDelete,
@@ -155,30 +149,6 @@ export const ChatSidebar: React.FC = () => {
             { label: t("chat.sidebar.filters.pinned", "Pinned"), value: "pinned" },
             { label: t("chat.sidebar.filters.running", "Running"), value: "running" },
             { label: t("chat.sidebar.filters.child", "Child"), value: "child" },
-          ]}
-        />
-
-        {/* Lotus #95 — secondary grouping toggle: date buckets (default,
-            unchanged) vs. clustering sessions by workspace so same-project
-            sessions from different days sit together. Choice persists via
-            useUILayoutStore (sidebar.groupingMode). */}
-        <Segmented
-          block
-          size={screens.xs ? "middle" : "small"}
-          value={groupingMode}
-          aria-label={t("chat.sidebar.groupBy.ariaLabel", "Group sessions by")}
-          onChange={(value) => setGroupingMode(value as typeof groupingMode)}
-          options={[
-            {
-              label: t("chat.sidebar.groupBy.date", "Date"),
-              value: "date",
-              icon: <CalendarOutlined />,
-            },
-            {
-              label: t("chat.sidebar.groupBy.workspace", "Workspace"),
-              value: "workspace",
-              icon: <FolderOutlined />,
-            },
           ]}
         />
       </Flex>
