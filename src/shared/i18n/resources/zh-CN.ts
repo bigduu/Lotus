@@ -404,8 +404,13 @@ export const zhCnTranslation = {
         },
         bypassPermissions: {
           label: "免确认",
-          onTitle: "已开启「绕过权限」——本会话执行工具时不再请求确认。点击关闭。",
-          offTitle: "「绕过权限」已关闭——高风险工具会请求确认。点击可让本会话跳过确认。",
+          onTitle:
+            "免确认已开启——普通权限提示会被跳过，但强制高危操作和用户配置的始终询问规则仍需确认。点击关闭。",
+          offTitle: "免确认已关闭——高风险操作可能请求确认。点击可跳过本会话的普通权限提示。",
+          onLabel: "免确认：开",
+          offLabel: "免确认：关",
+          pending: "保存中…",
+          success: "已保存",
           error: "更新绕过权限失败",
         },
         strictToolOnlyMode: "严格仅工具模式",

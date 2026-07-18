@@ -4,6 +4,11 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import type { ChatItem } from "@shared/types/chat";
 import type { SessionSummary } from "@services/chat/AgentService";
 import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
+import {
+  beginBypassPermissionMutation,
+  failBypassPermissionMutation,
+  resetBypassPermissionMutations,
+} from "../../bypassPermissionMutations";
 
 // Hoisted mock so per-test re-stubbing of `listSessions` reaches the slice's
 // singleton AgentClient instance.
@@ -49,6 +54,7 @@ const createSummary = (overrides: Partial<SessionSummary> & { id: string }): Ses
   message_count: overrides.message_count ?? 0,
   has_attachments: false,
   is_running: overrides.is_running ?? false,
+  bypass_permissions: overrides.bypass_permissions ?? false,
 });
 
 const createChat = (overrides: Partial<ChatItem> & { id: string }): ChatItem => ({
@@ -89,6 +95,7 @@ describe("applySessionsList (via refreshChats)", () => {
   let store: StoreApi<ChatSlice>;
 
   beforeEach(() => {
+    resetBypassPermissionMutations();
     store = createTestStore();
     mockListSessions.mockReset();
   });
@@ -102,9 +109,49 @@ describe("applySessionsList (via refreshChats)", () => {
       sessions: [createSummary({ id: "s1", workspace_path: "/work/zenith" })],
     });
 
-    await store.getState().refreshChats();
+    await store.getState().refreshChatsNow();
 
     expect(store.getState().chats[0].config.workspacePath).toBe("/work/zenith");
+  });
+
+  it("lets server OFF replace stale local bypass ON after refresh", async () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          config: {
+            systemPromptId: "general_assistant",
+            baseSystemPrompt: "Base prompt",
+            lastUsedEnhancedPrompt: null,
+            bypassPermissions: true,
+          },
+        }),
+      ],
+    }));
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [createSummary({ id: "s1", bypass_permissions: false })],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    expect(store.getState().chats[0].config.bypassPermissions).toBe(false);
+  });
+
+  it("keeps optimistic bypass only during PATCH and rolls back to refreshed server truth", async () => {
+    const revision = beginBypassPermissionMutation("s1", true, false);
+    store.setState((state) => ({
+      ...state,
+      chats: [createChat({ id: "s1" })],
+    }));
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [createSummary({ id: "s1", bypass_permissions: false })],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    expect(store.getState().chats[0].config.bypassPermissions).toBe(true);
+    expect(failBypassPermissionMutation("s1", revision)).toBe(false);
   });
 
   it("keeps the locally-newer title when remote summary is at a lower title_version", async () => {

@@ -258,20 +258,28 @@ export const parseInteractiveQuestionToolResultPayload = (
     return null;
   }
 
-  const question = normalizeOptionalText(parsed.question);
-  if (!question) {
-    return null;
-  }
-
   const status = normalizeOptionalText(parsed.status);
   if (status && status !== "awaiting_user_input" && status !== "awaiting_permission_approval") {
     return null;
   }
 
+  const isLegacyPermission = status === "awaiting_permission_approval";
+  const question = normalizeOptionalText(parsed.question);
+  if (!question && !isLegacyPermission) {
+    return null;
+  }
+
   return {
-    question,
-    options: normalizeTextArray(parsed.options),
-    allow_custom: typeof parsed.allow_custom === "boolean" ? parsed.allow_custom : true,
+    // Older Bamboo builds sometimes emitted only status/type/resource. Always
+    // route that recognized payload into the dedicated permission UI instead
+    // of exposing its raw JSON. Do not reconstruct or broaden a typed policy.
+    question: question ?? "Permission approval required",
+    options:
+      isLegacyPermission && normalizeTextArray(parsed.options).length === 0
+        ? ["Approve", "Deny"]
+        : normalizeTextArray(parsed.options),
+    allow_custom:
+      typeof parsed.allow_custom === "boolean" ? parsed.allow_custom : !isLegacyPermission,
     conclusion: parseConclusionWithOptionsConclusionPayload(parsed.conclusion),
   };
 };

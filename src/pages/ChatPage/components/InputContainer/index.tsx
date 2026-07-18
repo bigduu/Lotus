@@ -24,6 +24,11 @@ import {
   useAppStore,
 } from "@shared/store/appStore";
 import { readPersistedInputReasoningEffort } from "@shared/store/appStore/slices/inputStateSlice";
+import {
+  beginBypassPermissionMutation,
+  confirmBypassPermissionMutation,
+  failBypassPermissionMutation,
+} from "@shared/store/appStore/bypassPermissionMutations";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
 import { useInputContainerFileReferences } from "./useInputContainerFileReferences";
@@ -124,6 +129,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   );
 
   const [isSavingModel, setIsSavingModel] = useState(false);
+  const { message: messageApi } = AntApp.useApp();
 
   // Use persisted state or empty defaults
   const content = inputState?.content || "";
@@ -203,11 +209,19 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   );
 
   const bypassPermissions = currentChat?.config?.bypassPermissions ?? false;
+  const [bypassMutationStatus, setBypassMutationStatus] = useState<
+    "idle" | "pending" | "success" | "error"
+  >("idle");
+  const bypassStatusSessionRef = useRef(sessionId);
+  bypassStatusSessionRef.current = sessionId;
+  useEffect(() => setBypassMutationStatus("idle"), [sessionId]);
   const setBypassPermissionsPersisted = useCallback(
     async (next: boolean) => {
-      if (!sessionId || !currentChat) {
+      if (!sessionId || !currentChat || bypassMutationStatus === "pending") {
         return;
       }
+      const revision = beginBypassPermissionMutation(sessionId, next, bypassPermissions);
+      setBypassMutationStatus("pending");
       // Optimistic local update; backend already persists to runtime.json.
       updateSession(
         sessionId,
@@ -221,22 +235,38 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       );
       try {
         await agentClient.patchSession(sessionId, { bypass_permissions: next });
+        if (
+          confirmBypassPermissionMutation(sessionId, revision) &&
+          bypassStatusSessionRef.current === sessionId
+        ) {
+          setBypassMutationStatus("success");
+        }
       } catch (error) {
         console.warn("[InputContainer] Failed to persist bypass permissions:", error);
-        // Roll back the optimistic update on failure.
+        // Roll back to the latest backend-confirmed value observed while this
+        // exact mutation was in flight. Never infer rollback as `!next`.
+        const confirmedValue = failBypassPermissionMutation(sessionId, revision);
+        if (confirmedValue === null) return;
+        const latestConfig =
+          useAppStore.getState().chats.find((chat) => chat.id === sessionId)?.config ??
+          currentChat.config;
         updateSession(
           sessionId,
           {
             config: {
-              ...currentChat.config,
-              bypassPermissions: !next,
+              ...latestConfig,
+              bypassPermissions: confirmedValue,
             },
           },
           { skipBackendPatch: true },
         );
+        if (bypassStatusSessionRef.current === sessionId) {
+          setBypassMutationStatus("error");
+          messageApi.error(t("chat.input.bypassPermissions.error"));
+        }
       }
     },
-    [currentChat, sessionId, updateSession],
+    [bypassMutationStatus, bypassPermissions, currentChat, messageApi, sessionId, t, updateSession],
   );
 
   const {
@@ -313,7 +343,6 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   // Use the global Ant App context message API to avoid mounting a per-pane
   // rc-notification container (which can cause update-depth loops in some layouts).
-  const { message: messageApi } = AntApp.useApp();
 
   const isToolSpecificMode = false;
   const isRestrictConversation = false;
@@ -882,9 +911,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         // Toggleable at ANY time, including while the agent is running: the
         // backend adopts a mid-run flip on the next round's tool calls and never
         // reverts it (bamboo #540). The handler still guards on !sessionId.
-        disabled={!sessionId}
+        disabled={!sessionId || bypassMutationStatus === "pending"}
+        loading={bypassMutationStatus === "pending"}
         onClick={() => setBypassPermissionsPersisted(!bypassPermissions)}
         aria-pressed={bypassPermissions}
+        aria-label={
+          bypassPermissions
+            ? t("chat.input.bypassPermissions.onLabel")
+            : t("chat.input.bypassPermissions.offLabel")
+        }
         style={{
           minWidth: isMobile ? 40 : undefined,
           padding: isMobile ? "0 8px" : "0 12px",
@@ -901,11 +936,21 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         <Space size={6}>
           {bypassPermissions ? <ThunderboltFilled /> : <ThunderboltOutlined />}
           {!isMobile && <span>{t("chat.input.bypassPermissions.label")}</span>}
+          <span aria-live="polite" data-testid="bypass-permissions-status" style={{ fontSize: 11 }}>
+            {bypassMutationStatus === "pending"
+              ? t("chat.input.bypassPermissions.pending")
+              : bypassMutationStatus === "success"
+                ? t("chat.input.bypassPermissions.success")
+                : bypassMutationStatus === "error"
+                  ? t("chat.input.bypassPermissions.error")
+                  : ""}
+          </span>
         </Space>
       </Button>
     ),
     [
       bypassPermissions,
+      bypassMutationStatus,
       sessionId,
       isMobile,
       setBypassPermissionsPersisted,

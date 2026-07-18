@@ -1172,6 +1172,25 @@ describe("isPermissionApprovalResult", () => {
       false,
     );
   });
+
+  it("turns a legacy permission status without a question into a safe card payload", () => {
+    const payload = parseInteractiveQuestionToolResultPayload(
+      JSON.stringify({
+        status: "awaiting_permission_approval",
+        type: "execute",
+        resource: { command: "rm -rf /tmp/example" },
+      }),
+    );
+
+    expect(payload).toEqual(
+      expect.objectContaining({
+        question: "Permission approval required",
+        options: ["Approve", "Deny"],
+        allow_custom: false,
+      }),
+    );
+    expect(JSON.stringify(payload)).not.toContain("rm -rf");
+  });
 });
 
 describe("parseBackgroundBashResultPayload", () => {
