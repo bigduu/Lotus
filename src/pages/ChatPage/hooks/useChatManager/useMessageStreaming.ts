@@ -22,6 +22,7 @@ import { useActiveModel } from "../useActiveModel";
 import { useActiveModelRef } from "../useActiveModelRef";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
+import { normalizePermissionRequest } from "@shared/permissions/permissionContract";
 import {
   executeWithOptionalReasoning,
   type PendingQuestionResponse,
@@ -214,6 +215,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           options: pending.options || [],
           allowCustom: pending.allow_custom ?? true,
           toolCallId: pending.tool_call_id ?? null,
+          permissionRequest: normalizePermissionRequest(pending) ?? undefined,
         });
 
         const chat = useAppStore.getState().chats.find((item) => item.id === sessionId);

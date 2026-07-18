@@ -599,6 +599,7 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
                 : event.options || [],
             allowCustom: event.allow_custom ?? true,
             toolCallId: event.tool_call_id ?? null,
+            permissionRequest: typedPermission ?? undefined,
           });
           // Desktop notification (if any) is delivered by the backend via the
           // `notification` event handled in onNotification below.

@@ -390,6 +390,7 @@ export type PendingQuestionResponse = {
   options?: string[];
   allow_custom?: boolean;
   tool_call_id?: string;
+  permission_request?: unknown;
 };
 
 export interface HistoryResponse {
