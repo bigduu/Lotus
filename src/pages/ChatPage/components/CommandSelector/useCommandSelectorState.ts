@@ -5,6 +5,7 @@ import type { CommandItem } from "@shared/types/command";
 
 interface UseCommandSelectorStateProps {
   visible: boolean;
+  sessionId?: string | null;
   searchText: string;
   onSelect: (command: { name: string; type: string; id: string }) => void;
   onCancel: () => void;
@@ -13,6 +14,7 @@ interface UseCommandSelectorStateProps {
 
 export const useCommandSelectorState = ({
   visible,
+  sessionId,
   searchText,
   onSelect,
   onCancel,
@@ -29,23 +31,29 @@ export const useCommandSelectorState = ({
     if (!visible) return;
 
     const commandService = CommandService.getInstance();
+    let cancelled = false;
     const fetchCommands = async () => {
       setIsLoading(true);
       try {
-        const fetchedCommands = await commandService.listCommands();
+        const fetchedCommands = await commandService.listCommands(sessionId);
+        if (cancelled) return;
         debugLog("[CommandSelector]", "[CommandSelector] Fetched commands:", fetchedCommands);
         setCommands(fetchedCommands);
         setSelectedIndex(0);
       } catch (error) {
+        if (cancelled) return;
         console.error("[CommandSelector] Failed to fetch commands:", error);
         setCommands([]);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     fetchCommands();
-  }, [visible]);
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, sessionId]);
 
   useEffect(() => {
     const filtered = commands.filter((command) => {

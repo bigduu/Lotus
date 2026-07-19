@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { CommandService } from "../../services/CommandService";
 import type { WorkflowCommandInfo } from "../../utils/inputHighlight";
@@ -26,6 +26,8 @@ export const useInputContainerCommand = ({
   const [showCommandSelector, setShowCommandSelector] = useState(false);
   const [commandSearchText, setCommandSearchText] = useState("");
   const [selectedCommand, setSelectedCommand] = useState<WorkflowDraft | null>(null);
+  const currentSessionIdRef = useRef(currentSessionId);
+  currentSessionIdRef.current = currentSessionId;
 
   useEffect(() => {
     setSelectedCommand(null);
@@ -89,6 +91,7 @@ export const useInputContainerCommand = ({
 
   const applyCommandDraft = useCallback(
     async (command: CommandItem) => {
+      const requestSessionId = currentSessionId;
       setShowCommandSelector(false);
 
       const getInsertToken = (cmd: CommandItem): string => {
@@ -181,7 +184,8 @@ export const useInputContainerCommand = ({
           ? command.id.slice("workflow-".length)
           : command.id;
 
-        const fullCommand = await commandService.getCommand(command.type, realId);
+        const fullCommand = await commandService.getCommand(command.type, realId, requestSessionId);
+        if (currentSessionIdRef.current !== requestSessionId) return;
         const workflowContent = fullCommand.content?.trim() || "";
 
         if (workflowContent) {
@@ -199,18 +203,21 @@ export const useInputContainerCommand = ({
           clearCommandDraft();
         }
       } catch (error) {
+        if (currentSessionIdRef.current !== requestSessionId) return;
         console.error(`[InputContainer] Failed to apply command '${command.name}':`, error);
         clearCommandDraft();
       }
     },
-    [clearCommandDraft, onWorkflowDraftChange, setContent, content, textAreaRef],
+    [clearCommandDraft, onWorkflowDraftChange, setContent, content, textAreaRef, currentSessionId],
   );
 
   const handleCommandSelect = useCallback(
     async (commandInfo: { name: string; type: string; id: string }) => {
       try {
+        const requestSessionId = currentSessionId;
         const commandService = CommandService.getInstance();
-        const commands = await commandService.listCommands();
+        const commands = await commandService.listCommands(requestSessionId);
+        if (currentSessionIdRef.current !== requestSessionId) return;
         const command = commands.find(
           (c) => c.id === commandInfo.id && c.type === commandInfo.type,
         );
@@ -226,12 +233,13 @@ export const useInputContainerCommand = ({
 
         await applyCommandDraft(command);
       } catch (error) {
+        if (currentSessionIdRef.current !== currentSessionId) return;
         console.error(`[InputContainer] Failed to select command '${commandInfo.name}':`, error);
         setContent(`/${commandInfo.name} `);
         clearCommandDraft();
       }
     },
-    [applyCommandDraft, clearCommandDraft, setContent],
+    [applyCommandDraft, clearCommandDraft, currentSessionId, setContent],
   );
 
   const handleCommandSelectorCancel = useCallback(() => {
@@ -241,9 +249,11 @@ export const useInputContainerCommand = ({
   const handleAutoComplete = useCallback(
     async (commandName: string) => {
       setShowCommandSelector(false);
+      const requestSessionId = currentSessionId;
       try {
         const commandService = CommandService.getInstance();
-        const commands = await commandService.listCommands();
+        const commands = await commandService.listCommands(requestSessionId);
+        if (currentSessionIdRef.current !== requestSessionId) return;
         const command = commands.find((c) => c.name === commandName);
 
         if (command) {
@@ -254,6 +264,7 @@ export const useInputContainerCommand = ({
           clearCommandDraft();
         }
       } catch (error) {
+        if (currentSessionIdRef.current !== requestSessionId) return;
         console.error(
           `[InputContainer] Failed to load command '${commandName}' in auto-complete:`,
           error,
@@ -262,7 +273,7 @@ export const useInputContainerCommand = ({
         clearCommandDraft();
       }
     },
-    [applyCommandDraft, clearCommandDraft, setContent],
+    [applyCommandDraft, clearCommandDraft, currentSessionId, setContent],
   );
 
   return {

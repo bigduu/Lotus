@@ -11,6 +11,7 @@ const { useToken } = theme;
 
 interface CommandSelectorProps {
   visible: boolean;
+  sessionId?: string | null;
   onSelect: (command: { name: string; type: string; id: string }) => void;
   onCancel: () => void;
   searchText: string;
@@ -42,6 +43,7 @@ const TYPE_CONFIG = {
 
 const CommandSelector: React.FC<CommandSelectorProps> = ({
   visible,
+  sessionId,
   onSelect,
   onCancel,
   searchText,
@@ -59,6 +61,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
     handleCommandSelect,
   } = useCommandSelectorState({
     visible,
+    sessionId,
     searchText,
     onSelect,
     onCancel,

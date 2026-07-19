@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { CommandService } from "../CommandService";
 import { apiClient } from "@services/api";
+import type { CommandListResponse } from "@shared/types/command";
 
 // Mock apiClient
 vi.mock("@services/api", () => ({
@@ -21,6 +22,7 @@ describe("CommandService", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -149,7 +151,7 @@ describe("CommandService", () => {
       expect(result1.slice(1)).toEqual(mockCommands1);
 
       // Force refresh
-      const result2 = await service.listCommands(true);
+      const result2 = await service.listCommands(undefined, true);
       expect(apiClient.get).toHaveBeenCalledTimes(2);
       expect(result2).toHaveLength(2);
       expect(result2[0]).toMatchObject({ id: "builtin-goal", name: "goal", type: "goal" });
@@ -184,8 +186,6 @@ describe("CommandService", () => {
       // Second call (should refresh)
       await service.listCommands();
       expect(apiClient.get).toHaveBeenCalledTimes(2);
-
-      vi.useRealTimers();
     });
 
     it("should throw error when API call fails", async () => {
@@ -291,6 +291,97 @@ describe("CommandService", () => {
       expect(result).toHaveLength(4);
       expect(result.map((c) => c.type)).toEqual(["goal", "workflow", "skill", "mcp"]);
     });
+
+    it("isolates distinct command results and caches by session", async () => {
+      const sessionOneCommand = {
+        id: "skill-session-one",
+        name: "project-skill-one",
+        displayName: "Project Skill One",
+        description: "Only available in session one",
+        type: "skill" as const,
+        metadata: {},
+      };
+      const sessionTwoCommand = {
+        id: "skill-session-two",
+        name: "project-skill-two",
+        displayName: "Project Skill Two",
+        description: "Only available in session two",
+        type: "skill" as const,
+        metadata: {},
+      };
+
+      vi.mocked(apiClient.get).mockImplementation(async (path) => {
+        if (path === "commands?session_id=session-one") {
+          return { commands: [sessionOneCommand], total: 1 };
+        }
+        if (path === "commands?session_id=session-two") {
+          return { commands: [sessionTwoCommand], total: 1 };
+        }
+        throw new Error(`Unexpected path: ${path}`);
+      });
+
+      const sessionOne = await service.listCommands("session-one");
+      const sessionTwo = await service.listCommands("session-two");
+      const cachedSessionOne = await service.listCommands("session-one");
+
+      expect(sessionOne.slice(1)).toEqual([sessionOneCommand]);
+      expect(sessionTwo.slice(1)).toEqual([sessionTwoCommand]);
+      expect(cachedSessionOne).toEqual(sessionOne);
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+      expect(apiClient.get).toHaveBeenNthCalledWith(1, "commands?session_id=session-one");
+      expect(apiClient.get).toHaveBeenNthCalledWith(2, "commands?session_id=session-two");
+      expect(vi.mocked(apiClient.get).mock.calls.flat().join(" ")).not.toContain("workspace_path");
+    });
+
+    it("deduplicates in-flight lists only within the same session", async () => {
+      let resolveSessionOne: ((value: CommandListResponse) => void) | undefined;
+      let resolveSessionTwo: ((value: CommandListResponse) => void) | undefined;
+      const sessionOneResponse = new Promise<CommandListResponse>((resolve) => {
+        resolveSessionOne = resolve;
+      });
+      const sessionTwoResponse = new Promise<CommandListResponse>((resolve) => {
+        resolveSessionTwo = resolve;
+      });
+
+      vi.mocked(apiClient.get).mockImplementation((path) => {
+        if (path === "commands?session_id=session-one") return sessionOneResponse;
+        if (path === "commands?session_id=session-two") return sessionTwoResponse;
+        throw new Error(`Unexpected path: ${path}`);
+      });
+
+      const firstSessionOne = service.listCommands("session-one");
+      const secondSessionOne = service.listCommands("session-one");
+      const firstSessionTwo = service.listCommands("session-two");
+
+      expect(apiClient.get).toHaveBeenCalledTimes(2);
+
+      resolveSessionOne?.({ commands: [], total: 0 });
+      resolveSessionTwo?.({ commands: [], total: 0 });
+      await expect(
+        Promise.all([firstSessionOne, secondSessionOne, firstSessionTwo]),
+      ).resolves.toEqual([expect.any(Array), expect.any(Array), expect.any(Array)]);
+    });
+
+    it("prunes expired entries for all sessions on the next list", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+      vi.mocked(apiClient.get).mockResolvedValue({ commands: [], total: 0 });
+
+      await service.listCommands("session-one");
+      await service.listCommands("session-two");
+      expect(service["cache"].size).toBe(2);
+
+      vi.advanceTimersByTime(30000);
+      await service.listCommands("session-three");
+
+      expect(service["cache"].size).toBe(1);
+      expect(service["cache"].has("session:session-three")).toBe(true);
+
+      await service.listCommands("session-one");
+      expect(apiClient.get).toHaveBeenCalledTimes(4);
+
+      vi.useRealTimers();
+    });
   });
 
   describe("getCommand", () => {
@@ -358,6 +449,28 @@ describe("CommandService", () => {
       }
 
       expect(apiClient.get).toHaveBeenCalledTimes(3);
+    });
+
+    it("scopes detail lookup by session without sending workspace_path", async () => {
+      vi.mocked(apiClient.get).mockResolvedValueOnce({
+        id: "project-skill",
+        content: "session-scoped content",
+      });
+
+      await service.getCommand("skill", "project/skill", "session/a b");
+
+      expect(apiClient.get).toHaveBeenCalledWith(
+        "commands/skill/project/skill?session_id=session%2Fa%20b",
+      );
+      expect(vi.mocked(apiClient.get).mock.calls[0]?.[0]).not.toContain("workspace_path");
+    });
+
+    it("preserves global detail lookup when no session is available", async () => {
+      vi.mocked(apiClient.get).mockResolvedValueOnce({ id: "global-workflow" });
+
+      await service.getCommand("workflow", "global-workflow", null);
+
+      expect(apiClient.get).toHaveBeenCalledWith("commands/workflow/global-workflow");
     });
   });
 
@@ -672,7 +785,7 @@ describe("CommandService", () => {
       });
 
       // User refreshes list
-      const refreshed = await service.listCommands(true);
+      const refreshed = await service.listCommands(undefined, true);
       expect(refreshed).toHaveLength(3);
       expect(refreshed[0]).toMatchObject({ id: "builtin-goal", name: "goal", type: "goal" });
 
