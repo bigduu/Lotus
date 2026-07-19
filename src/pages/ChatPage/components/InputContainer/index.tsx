@@ -1199,6 +1199,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <Suspense fallback={null}>
         <CommandSelector
           visible={commandState.showCommandSelector}
+          sessionId={sessionId}
           onSelect={commandState.handleCommandSelect}
           onCancel={commandState.handleCommandSelectorCancel}
           onAutoComplete={commandState.handleAutoComplete}
