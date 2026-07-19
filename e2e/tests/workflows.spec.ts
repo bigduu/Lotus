@@ -11,9 +11,9 @@ test.describe("Workflow Library", () => {
     await expect(page.getByText("Workflow Library", { exact: true })).toBeVisible();
     await expect(page.getByRole("article").first()).toBeVisible();
     await expect(page.getByLabel("Search workflow catalog")).toBeVisible();
-    await expect(page.getByLabel("Filter by workflow kind")).toBeVisible();
-    await expect(page.getByLabel("Filter by workflow source")).toBeVisible();
-    await expect(page.getByLabel("Filter by workflow status")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Filter by workflow kind" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Filter by workflow source" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Filter by workflow status" })).toBeVisible();
   });
 
   test("filters the catalog without creating local workflow state", async ({ page }) => {
