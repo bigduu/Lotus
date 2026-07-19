@@ -22,6 +22,7 @@ describe("CommandService", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -185,8 +186,6 @@ describe("CommandService", () => {
       // Second call (should refresh)
       await service.listCommands();
       expect(apiClient.get).toHaveBeenCalledTimes(2);
-
-      vi.useRealTimers();
     });
 
     it("should throw error when API call fails", async () => {
@@ -361,6 +360,27 @@ describe("CommandService", () => {
       await expect(
         Promise.all([firstSessionOne, secondSessionOne, firstSessionTwo]),
       ).resolves.toEqual([expect.any(Array), expect.any(Array), expect.any(Array)]);
+    });
+
+    it("prunes expired entries for all sessions on the next list", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+      vi.mocked(apiClient.get).mockResolvedValue({ commands: [], total: 0 });
+
+      await service.listCommands("session-one");
+      await service.listCommands("session-two");
+      expect(service["cache"].size).toBe(2);
+
+      vi.advanceTimersByTime(30000);
+      await service.listCommands("session-three");
+
+      expect(service["cache"].size).toBe(1);
+      expect(service["cache"].has("session:session-three")).toBe(true);
+
+      await service.listCommands("session-one");
+      expect(apiClient.get).toHaveBeenCalledTimes(4);
+
+      vi.useRealTimers();
     });
   });
 

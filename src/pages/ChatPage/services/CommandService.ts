@@ -59,10 +59,19 @@ export class CommandService {
     return CommandService.instance;
   }
 
+  private pruneExpiredCache(now: number): void {
+    for (const [key, entry] of this.cache) {
+      if (now - entry.cachedAt >= this.CACHE_TTL) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
   async listCommands(sessionId?: string | null, forceRefresh = false): Promise<CommandItem[]> {
     const normalizedSessionId = normalizeSessionId(sessionId);
     const cacheKey = normalizedSessionId ? `session:${normalizedSessionId}` : "global";
     const now = Date.now();
+    this.pruneExpiredCache(now);
     const cached = this.cache.get(cacheKey);
 
     if (!forceRefresh && cached && now - cached.cachedAt < this.CACHE_TTL) {
