@@ -57,9 +57,7 @@ test.describe("Settings Management", () => {
 
     await page.fill('[data-testid="proxy-url"]', "http://127.0.0.1:8080");
     await page.click('[data-testid="save-proxy-settings"]');
-    await expect(page.locator('[data-testid="proxy-url"]')).toHaveValue(
-      "http://127.0.0.1:8080",
-    );
+    await expect(page.locator('[data-testid="proxy-url"]')).toHaveValue("http://127.0.0.1:8080");
   });
 
   test("toggles app theme from app tab", async ({ page }) => {
@@ -73,12 +71,13 @@ test.describe("Settings Management", () => {
     expect(nextTheme).not.toBe(initialTheme);
   });
 
-  test("shows workflows management controls", async ({ page }) => {
+  test("shows workflow library controls", async ({ page }) => {
     await openSettingsTab(page, "workflows");
-    await expect(page.locator('[data-testid="create-workflow"]')).toBeVisible();
-    await expect(page.locator('[data-testid="workflow-name"]')).toBeVisible();
-    await expect(page.locator('[data-testid="workflow-content"]')).toBeVisible();
-    await expect(page.locator('[data-testid="save-workflow"]')).toBeVisible();
+    await expect(page.getByText("Workflow Library", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("Search workflow catalog")).toBeVisible();
+    await expect(page.getByLabel("Filter by workflow kind")).toBeVisible();
+    await expect(page.getByLabel("Filter by workflow source")).toBeVisible();
+    await expect(page.getByLabel("Filter by workflow status")).toBeVisible();
   });
 
   test("shows keyword masking controls", async ({ page }) => {
