@@ -12,6 +12,49 @@ interface UseCommandSelectorStateProps {
   onAutoComplete?: (commandName: string) => void;
 }
 
+const commandSearchScore = (command: CommandItem, search: string): number | null => {
+  if (!search) return 0;
+
+  const name = command.name.toLowerCase();
+  const displayName = (command.displayName ?? "").toLowerCase();
+  const description = command.description.toLowerCase();
+
+  if (name === search) return 0;
+  if (name.startsWith(search)) return 1;
+  if (displayName === search) return 2;
+  if (displayName.startsWith(search)) return 3;
+  if (name.includes(search)) return 4;
+  if (displayName.includes(search)) return 5;
+  if (description.includes(search)) return 6;
+
+  if (
+    command.type === "mcp" &&
+    [command.metadata?.serverId, command.metadata?.serverName, command.metadata?.originalName]
+      .filter((value): value is string => typeof value === "string")
+      .some((value) => value.toLowerCase().includes(search))
+  ) {
+    return 7;
+  }
+  if (command.category?.toLowerCase().includes(search)) return 8;
+  if (command.tags?.some((tag) => tag.toLowerCase().includes(search))) return 9;
+  return null;
+};
+
+export const filterAndRankCommands = (
+  commands: CommandItem[],
+  searchText: string,
+): CommandItem[] => {
+  const search = searchText.trim().toLowerCase();
+  return commands
+    .map((command, index) => ({ command, index, score: commandSearchScore(command, search) }))
+    .filter(
+      (candidate): candidate is { command: CommandItem; index: number; score: number } =>
+        candidate.score !== null,
+    )
+    .sort((left, right) => left.score - right.score || left.index - right.index)
+    .map(({ command }) => command);
+};
+
 export const useCommandSelectorState = ({
   visible,
   sessionId,
@@ -56,22 +99,7 @@ export const useCommandSelectorState = ({
   }, [visible, sessionId]);
 
   useEffect(() => {
-    const filtered = commands.filter((command) => {
-      const searchLower = searchText.toLowerCase();
-      const displayNameLower = (command.displayName ?? "").toLowerCase();
-      return (
-        command.name.toLowerCase().includes(searchLower) ||
-        displayNameLower.includes(searchLower) ||
-        command.description.toLowerCase().includes(searchLower) ||
-        (command.type === "mcp" &&
-          [command.metadata?.serverId, command.metadata?.serverName, command.metadata?.originalName]
-            .filter((v): v is string => typeof v === "string")
-            .some((v) => v.toLowerCase().includes(searchLower))) ||
-        (command.category?.toLowerCase().includes(searchLower) ?? false) ||
-        (command.tags?.some((tag: string) => tag.toLowerCase().includes(searchLower)) ?? false)
-      );
-    });
-    setFilteredCommands(filtered);
+    setFilteredCommands(filterAndRankCommands(commands, searchText));
     setSelectedIndex(0);
   }, [commands, searchText]);
 

@@ -1,237 +1,499 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Card, Flex, Input, List, Space, Typography, message, theme } from "antd";
 import {
+  CopyOutlined,
   DeleteOutlined,
   EditOutlined,
+  LockOutlined,
+  PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
   SaveOutlined,
 } from "@ant-design/icons";
 import {
-  WorkflowManagerService,
-  type WorkflowMetadata,
-} from "../../../ChatPage/services/WorkflowManagerService";
-import { ServiceFactory } from "@services/common/ServiceFactory";
+  Alert,
+  Button,
+  Card,
+  Empty,
+  Flex,
+  Input,
+  List,
+  Modal,
+  Select,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+  message,
+  theme,
+} from "antd";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ServiceFactory } from "@services/common/ServiceFactory";
+import { useAppStore } from "@shared/store/appStore";
+import { WorkflowManagerService } from "../../../ChatPage/services/WorkflowManagerService";
+import {
+  NegotiatedWorkflowCatalogAdapter,
+  type LegacyWorkflowManagementClient,
+  type WorkflowCatalogAdapter,
+  type WorkflowCatalogItem,
+  type WorkflowCatalogView,
+  type WorkflowKind,
+  type WorkflowSource,
+  type WorkflowStatus,
+} from "../../../../features/workflows";
 
-const { Text } = Typography;
-const { TextArea } = Input;
+const { Text, Title } = Typography;
 const { useToken } = theme;
 
-const isSafeWorkflowName = (name: string) => {
-  if (!name) return false;
-  if (name.includes("/") || name.includes("\\") || name.includes("..")) {
-    return false;
-  }
-  return true;
+const defaultCatalogAdapter = new NegotiatedWorkflowCatalogAdapter();
+const defaultLegacyManager: LegacyWorkflowManagementClient = {
+  getWorkflow: (name) => WorkflowManagerService.getInstance().getWorkflow(name),
+  saveWorkflow: async (name, content) => {
+    await ServiceFactory.getInstance().saveWorkflow(name, content);
+  },
+  deleteWorkflow: async (name) => {
+    await ServiceFactory.getInstance().deleteWorkflow(name);
+  },
 };
 
-const SystemSettingsWorkflowsTab: React.FC = () => {
+type FilterValue<T extends string> = T | "all";
+
+export interface SystemSettingsWorkflowsTabProps {
+  catalogAdapter?: WorkflowCatalogAdapter;
+  legacyManager?: LegacyWorkflowManagementClient;
+  sessionId?: string | null;
+}
+
+const matchesFilter = <T extends string>(value: T, filter: FilterValue<T>): boolean =>
+  filter === "all" || value === filter;
+
+const isSafeWorkflowName = (name: string): boolean =>
+  Boolean(name) && !name.includes("/") && !name.includes("\\") && !name.includes("..");
+
+const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
+  catalogAdapter = defaultCatalogAdapter,
+  legacyManager = defaultLegacyManager,
+  sessionId,
+}) => {
   const { t } = useTranslation();
   const { token } = useToken();
+  const currentSessionId = useAppStore((state) => state.currentSessionId);
+  const resolvedSessionId = sessionId === undefined ? currentSessionId : sessionId;
   const [msgApi, contextHolder] = message.useMessage();
-  const [workflows, setWorkflows] = useState<WorkflowMetadata[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isLoadingContent, setIsLoadingContent] = useState(false);
+  const [catalog, setCatalog] = useState<WorkflowCatalogView | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [kind, setKind] = useState<FilterValue<WorkflowKind>>("all");
+  const [source, setSource] = useState<FilterValue<WorkflowSource>>("all");
+  const [status, setStatus] = useState<FilterValue<WorkflowStatus>>("all");
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isEditorLoading, setIsEditorLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [selectedWorkflow, setSelectedWorkflow] = useState<WorkflowMetadata | null>(null);
+  const [editingOriginalName, setEditingOriginalName] = useState<string | null>(null);
   const [editorName, setEditorName] = useState("");
   const [editorContent, setEditorContent] = useState("");
-  const [isDirty, setIsDirty] = useState(false);
+  const loadGeneration = useRef(0);
 
-  const workflowService = useMemo(() => WorkflowManagerService.getInstance(), []);
-
-  const loadWorkflows = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const result = await workflowService.listWorkflows();
-      setWorkflows(result);
-      return result;
-    } catch {
-      msgApi.error(t("settings.workflowsTab.loadFailed"));
-      return [];
-    } finally {
-      setIsLoading(false);
-    }
-  }, [msgApi, t, workflowService]);
-
-  useEffect(() => {
-    loadWorkflows();
-  }, [loadWorkflows]);
-
-  const handleSelectWorkflow = useCallback(
-    async (workflow: WorkflowMetadata) => {
-      setSelectedWorkflow(workflow);
-      setEditorName(workflow.name);
-      setIsDirty(false);
-      setIsLoadingContent(true);
+  const loadCatalog = useCallback(
+    async (signal?: AbortSignal) => {
+      const generation = ++loadGeneration.current;
+      setIsLoading(true);
+      setLoadError(null);
       try {
-        const result = await workflowService.getWorkflow(workflow.name);
-        setEditorContent(result.content ?? "");
-      } catch {
-        msgApi.error(t("settings.workflowsTab.loadContentFailed"));
-        setEditorContent("");
+        const nextCatalog = await catalogAdapter.load({ sessionId: resolvedSessionId, signal });
+        if (signal?.aborted || generation !== loadGeneration.current) return;
+        setCatalog(nextCatalog);
+      } catch (error) {
+        if (signal?.aborted || generation !== loadGeneration.current) return;
+        setCatalog(null);
+        setLoadError(
+          error instanceof Error ? error.message : t("settings.workflowsTab.loadFailed"),
+        );
       } finally {
-        setIsLoadingContent(false);
+        if (!signal?.aborted && generation === loadGeneration.current) setIsLoading(false);
       }
     },
-    [msgApi, t, workflowService],
+    [catalogAdapter, resolvedSessionId, t],
   );
 
-  const handleCreateNew = () => {
-    setSelectedWorkflow(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadCatalog(controller.signal);
+    return () => controller.abort();
+  }, [loadCatalog]);
+
+  const filteredItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return (catalog?.items ?? []).filter((item) => {
+      if (!matchesFilter(item.kind, kind)) return false;
+      if (
+        source !== "all" &&
+        item.source !== source &&
+        !item.shadowedCandidates?.some((candidate) => candidate.source === source)
+      ) {
+        return false;
+      }
+      if (
+        status !== "all" &&
+        item.status !== status &&
+        !(status === "shadowed" && item.shadowedCandidates && item.shadowedCandidates.length > 0)
+      ) {
+        return false;
+      }
+      if (!query) return true;
+      return [item.name, item.id, item.description, item.argumentHint]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(query));
+    });
+  }, [catalog?.items, kind, search, source, status]);
+
+  const openLegacyCreate = useCallback(() => {
+    setEditingOriginalName(null);
     setEditorName("");
     setEditorContent("");
-    setIsDirty(false);
-  };
+    setIsEditorOpen(true);
+  }, []);
 
-  const handleSave = useCallback(async () => {
-    if (!isSafeWorkflowName(editorName)) {
+  const openLegacyEdit = useCallback(
+    async (item: WorkflowCatalogItem) => {
+      setEditingOriginalName(item.id);
+      setEditorName(item.id);
+      setEditorContent("");
+      setIsEditorOpen(true);
+      setIsEditorLoading(true);
+      try {
+        const workflow = await legacyManager.getWorkflow(item.id);
+        setEditorName(workflow.name);
+        setEditorContent(workflow.content);
+      } catch (error) {
+        msgApi.error(
+          error instanceof Error ? error.message : t("settings.workflowsTab.loadContentFailed"),
+        );
+        setIsEditorOpen(false);
+      } finally {
+        setIsEditorLoading(false);
+      }
+    },
+    [legacyManager, msgApi, t],
+  );
+
+  const saveLegacyWorkflow = useCallback(async () => {
+    const normalizedName = editorName.trim();
+    if (!isSafeWorkflowName(normalizedName)) {
       msgApi.error(t("settings.workflowsTab.invalidName"));
       return;
     }
-    const exists = workflows.some((workflow) => workflow.name === editorName);
-    if (!selectedWorkflow && exists) {
+    if (!editingOriginalName && catalog?.items.some((item) => item.id === normalizedName)) {
       msgApi.error(t("settings.workflowsTab.nameAlreadyExists"));
       return;
     }
-
     setIsSaving(true);
     try {
-      const serviceFactory = ServiceFactory.getInstance();
-      await serviceFactory.saveWorkflow(editorName, editorContent);
+      await legacyManager.saveWorkflow(normalizedName, editorContent);
       msgApi.success(t("settings.workflowsTab.saved"));
-      setIsDirty(false);
-      const updatedList = await loadWorkflows();
-      const updated = updatedList.find((item) => item.name === editorName);
-      if (updated) {
-        setSelectedWorkflow(updated);
-      }
+      setIsEditorOpen(false);
+      await loadCatalog();
     } catch (error) {
       msgApi.error(error instanceof Error ? error.message : t("settings.workflowsTab.saveFailed"));
     } finally {
       setIsSaving(false);
     }
-  }, [editorContent, editorName, loadWorkflows, msgApi, selectedWorkflow, t, workflows]);
+  }, [
+    catalog?.items,
+    editingOriginalName,
+    editorContent,
+    editorName,
+    legacyManager,
+    loadCatalog,
+    msgApi,
+    t,
+  ]);
 
-  const handleDelete = useCallback(
-    async (workflow: WorkflowMetadata) => {
+  const deleteLegacyWorkflow = useCallback(
+    async (item: WorkflowCatalogItem) => {
       try {
-        const serviceFactory = ServiceFactory.getInstance();
-        await serviceFactory.deleteWorkflow(workflow.name);
+        await legacyManager.deleteWorkflow(item.id);
         msgApi.success(t("settings.workflowsTab.deleted"));
-        if (selectedWorkflow?.name === workflow.name) {
-          handleCreateNew();
-        }
-        await loadWorkflows();
+        await loadCatalog();
       } catch (error) {
         msgApi.error(
           error instanceof Error ? error.message : t("settings.workflowsTab.deleteFailed"),
         );
       }
     },
-    [loadWorkflows, msgApi, selectedWorkflow, t],
+    [legacyManager, loadCatalog, msgApi, t],
+  );
+
+  const renderWorkflow = (item: WorkflowCatalogItem) => (
+    <List.Item key={item.id}>
+      <article aria-labelledby={`workflow-library-${item.id}`} style={{ width: "100%" }}>
+        <Flex justify="space-between" align="flex-start" gap={token.marginMD} wrap>
+          <Space direction="vertical" size={token.marginXXS} style={{ minWidth: 0, flex: 1 }}>
+            <Flex align="center" gap={token.marginXS} wrap>
+              <Title id={`workflow-library-${item.id}`} level={5} style={{ margin: 0 }}>
+                {item.name}
+              </Title>
+              <Tag color={item.kind === "orchestration" ? "purple" : "blue"}>
+                {t(`settings.workflowsTab.kind.${item.kind}`)}
+              </Tag>
+              <Tag>{t(`settings.workflowsTab.source.${item.source}`)}</Tag>
+              <Tag color={item.status === "valid" ? "success" : "warning"}>
+                {t(`settings.workflowsTab.status.${item.status}`)}
+              </Tag>
+              <Tag color="geekblue">
+                {t(`settings.workflowsTab.invocation.${item.invocationPolicy}`)}
+              </Tag>
+              {item.readOnly && (
+                <Tag icon={<LockOutlined />}>{t("settings.workflowsTab.readOnly")}</Tag>
+              )}
+            </Flex>
+            <Text type="secondary">{item.description}</Text>
+            {item.argumentHint && (
+              <Text>
+                {t("settings.workflowsTab.arguments")}: <Text code>{item.argumentHint}</Text>
+              </Text>
+            )}
+            {(item.version || item.revision !== undefined) && (
+              <Text type="secondary">
+                {[
+                  item.version
+                    ? t("settings.workflowsTab.version", { version: item.version })
+                    : null,
+                  item.revision !== undefined
+                    ? t("settings.workflowsTab.revision", { revision: item.revision })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Text>
+            )}
+            {item.lastError && <Text type="danger">{item.lastError}</Text>}
+            {item.shadowedCandidates && item.shadowedCandidates.length > 0 && (
+              <Flex
+                gap={token.marginXS}
+                wrap
+                aria-label={t("settings.workflowsTab.shadowedCandidates")}
+              >
+                <Text type="secondary">{t("settings.workflowsTab.shadowedCandidates")}:</Text>
+                {item.shadowedCandidates.map((candidate, index) => (
+                  <Tag key={`${candidate.source}-${index}`} color="warning">
+                    {t(`settings.workflowsTab.source.${candidate.source}`)} ·{" "}
+                    {t(`settings.workflowsTab.status.${candidate.status}`)}
+                    {candidate.lastError ? ` · ${candidate.lastError}` : ""}
+                  </Tag>
+                ))}
+              </Flex>
+            )}
+          </Space>
+          <Space wrap>
+            <Button
+              icon={<CopyOutlined />}
+              disabled={!catalog?.capabilities.clone}
+              aria-label={t("settings.workflowsTab.cloneWorkflow", { name: item.name })}
+            >
+              {t("settings.workflowsTab.clone")}
+            </Button>
+            <Button
+              icon={<EditOutlined />}
+              disabled={item.readOnly || !catalog?.capabilities.edit}
+              onClick={() => void openLegacyEdit(item)}
+              aria-label={t("settings.workflowsTab.editWorkflow", { name: item.name })}
+            >
+              {t("settings.workflowsTab.edit")}
+            </Button>
+            <Button
+              icon={<PlayCircleOutlined />}
+              disabled={!catalog?.capabilities.run}
+              aria-label={t("settings.workflowsTab.runWorkflow", { name: item.name })}
+            >
+              {t("settings.workflowsTab.run")}
+            </Button>
+            {catalog?.capabilities.mode === "legacy" && !item.readOnly && (
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={() => void deleteLegacyWorkflow(item)}
+                aria-label={t("settings.workflowsTab.deleteWorkflow", { name: item.name })}
+              >
+                {t("settings.workflowsTab.delete")}
+              </Button>
+            )}
+          </Space>
+        </Flex>
+      </article>
+    </List.Item>
   );
 
   return (
-    <div style={{ padding: "24px" }}>
+    <div style={{ padding: token.paddingLG }}>
       {contextHolder}
       <Card
         title={t("settings.workflowsTab.title")}
         extra={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={loadWorkflows} loading={isLoading}>
-              {t("settings.workflowsTab.refresh")}
-            </Button>
-            <Button data-testid="create-workflow" icon={<PlusOutlined />} onClick={handleCreateNew}>
-              {t("settings.workflowsTab.newWorkflow")}
-            </Button>
+            {catalog?.capabilities.mode === "legacy" && (
+              <Button
+                icon={<PlusOutlined />}
+                onClick={openLegacyCreate}
+                aria-label={t("settings.workflowsTab.newWorkflow")}
+              >
+                {t("settings.workflowsTab.newWorkflow")}
+              </Button>
+            )}
             <Button
-              data-testid="save-workflow"
-              type="primary"
-              icon={<SaveOutlined />}
-              onClick={handleSave}
-              loading={isSaving}
-              disabled={!isDirty}
+              icon={<ReloadOutlined />}
+              onClick={() => void loadCatalog()}
+              loading={isLoading}
+              aria-label={t("settings.workflowsTab.refresh")}
             >
-              {t("settings.workflowsTab.save")}
+              {t("settings.workflowsTab.refresh")}
             </Button>
           </Space>
         }
       >
-        <Text type="secondary">{t("settings.workflowsTab.description")}</Text>
-        <Flex gap={token.marginLG} style={{ marginTop: token.marginLG }}>
-          <div style={{ width: 320, flexShrink: 0 }}>
-            <List
-              loading={isLoading}
-              dataSource={workflows}
-              locale={{ emptyText: t("settings.workflowsTab.empty") }}
-              renderItem={(workflow) => (
-                <List.Item
-                  style={{
-                    cursor: "pointer",
-                    backgroundColor:
-                      selectedWorkflow?.name === workflow.name
-                        ? token.colorFillSecondary
-                        : "transparent",
-                    borderRadius: token.borderRadius,
-                    padding: token.paddingSM,
-                  }}
-                  onClick={() => handleSelectWorkflow(workflow)}
-                  actions={[
-                    <Button
-                      data-testid={`delete-workflow-${workflow.name}`}
-                      key="delete"
-                      type="text"
-                      danger
-                      size="small"
-                      icon={<DeleteOutlined />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(workflow);
-                      }}
-                      aria-label={t("settings.workflowsTab.delete")}
-                    />,
-                  ]}
-                >
-                  <Space direction="vertical" size={0}>
-                    <Text strong>/{workflow.name}</Text>
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      {workflow.filename}
-                    </Text>
-                  </Space>
-                </List.Item>
-              )}
+        <Space direction="vertical" size={token.marginLG} style={{ width: "100%" }}>
+          <Text type="secondary">{t("settings.workflowsTab.description")}</Text>
+
+          <Flex gap={token.marginSM} wrap role="search">
+            <Input.Search
+              allowClear
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder={t("settings.workflowsTab.searchPlaceholder")}
+              aria-label={t("settings.workflowsTab.searchLabel")}
+              style={{ minWidth: 220, flex: 1 }}
             />
-          </div>
-          <div style={{ flex: 1 }}>
-            <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-              <Input
-                data-testid="workflow-name"
-                placeholder={t("settings.workflowsTab.namePlaceholder")}
-                value={editorName}
-                onChange={(e) => {
-                  setEditorName(e.target.value);
-                  setIsDirty(true);
-                }}
-                disabled={Boolean(selectedWorkflow)}
-                prefix={<EditOutlined />}
-              />
-              <TextArea
-                data-testid="workflow-content"
-                placeholder={t("settings.workflowsTab.contentPlaceholder")}
-                value={editorContent}
-                onChange={(e) => {
-                  setEditorContent(e.target.value);
-                  setIsDirty(true);
-                }}
-                autoSize={{ minRows: 12 }}
-                disabled={isLoadingContent}
-              />
-            </Space>
-          </div>
-        </Flex>
+            <Select
+              value={kind}
+              onChange={setKind}
+              aria-label={t("settings.workflowsTab.kindFilter")}
+              options={[
+                { value: "all", label: t("settings.workflowsTab.allKinds") },
+                {
+                  value: "instruction",
+                  label: t("settings.workflowsTab.kind.instruction"),
+                },
+                {
+                  value: "orchestration",
+                  label: t("settings.workflowsTab.kind.orchestration"),
+                },
+              ]}
+              style={{ minWidth: 160 }}
+            />
+            <Select
+              value={source}
+              onChange={setSource}
+              aria-label={t("settings.workflowsTab.sourceFilter")}
+              options={[
+                { value: "all", label: t("settings.workflowsTab.allSources") },
+                ...(["builtin", "project", "user", "plugin", "legacy"] as WorkflowSource[]).map(
+                  (value) => ({
+                    value,
+                    label: t(`settings.workflowsTab.source.${value}`),
+                  }),
+                ),
+              ]}
+              style={{ minWidth: 140 }}
+            />
+            <Select
+              value={status}
+              onChange={setStatus}
+              aria-label={t("settings.workflowsTab.statusFilter")}
+              options={[
+                { value: "all", label: t("settings.workflowsTab.allStatuses") },
+                ...(["valid", "invalid", "degraded", "shadowed"] as WorkflowStatus[]).map(
+                  (value) => ({
+                    value,
+                    label: t(`settings.workflowsTab.status.${value}`),
+                  }),
+                ),
+              ]}
+              style={{ minWidth: 140 }}
+            />
+          </Flex>
+
+          {catalog && (
+            <Text type="secondary">
+              {t("settings.workflowsTab.catalogMode", {
+                mode: t(`settings.workflowsTab.mode.${catalog.capabilities.mode}`),
+              })}
+            </Text>
+          )}
+
+          {catalog && catalog.diagnostics.length > 0 && (
+            <Alert
+              type="warning"
+              showIcon
+              message={t("settings.workflowsTab.partialInvalid", {
+                count: catalog.diagnostics.length,
+              })}
+              description={catalog.diagnostics.map((diagnostic) => diagnostic.message).join(" · ")}
+            />
+          )}
+
+          {loadError && (
+            <Alert
+              type="error"
+              showIcon
+              message={t("settings.workflowsTab.loadFailed")}
+              description={loadError}
+            />
+          )}
+
+          {isLoading ? (
+            <Flex justify="center" style={{ padding: token.paddingXL }}>
+              <Spin aria-label={t("settings.workflowsTab.loading")} />
+            </Flex>
+          ) : (
+            <List
+              dataSource={filteredItems}
+              locale={{
+                emptyText: (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description={
+                      search || kind !== "all" || source !== "all" || status !== "all"
+                        ? t("settings.workflowsTab.noMatches")
+                        : t("settings.workflowsTab.empty")
+                    }
+                  />
+                ),
+              }}
+              renderItem={renderWorkflow}
+            />
+          )}
+        </Space>
       </Card>
+      <Modal
+        open={isEditorOpen}
+        title={t("settings.workflowsTab.legacyEditorTitle")}
+        onCancel={() => setIsEditorOpen(false)}
+        onOk={() => void saveLegacyWorkflow()}
+        okText={t("settings.workflowsTab.save")}
+        okButtonProps={{
+          icon: <SaveOutlined />,
+          loading: isSaving,
+          "aria-label": t("settings.workflowsTab.save"),
+        }}
+      >
+        <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+          <Input
+            value={editorName}
+            onChange={(event) => setEditorName(event.target.value)}
+            disabled={Boolean(editingOriginalName)}
+            placeholder={t("settings.workflowsTab.namePlaceholder")}
+            aria-label={t("settings.workflowsTab.namePlaceholder")}
+          />
+          <Input.TextArea
+            value={editorContent}
+            onChange={(event) => setEditorContent(event.target.value)}
+            disabled={isEditorLoading}
+            autoSize={{ minRows: 12 }}
+            placeholder={t("settings.workflowsTab.contentPlaceholder")}
+            aria-label={t("settings.workflowsTab.contentPlaceholder")}
+          />
+        </Space>
+      </Modal>
     </div>
   );
 };

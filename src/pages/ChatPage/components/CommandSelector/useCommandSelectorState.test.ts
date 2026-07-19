@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CommandItem } from "@shared/types/command";
-import { useCommandSelectorState } from "./useCommandSelectorState";
+import { filterAndRankCommands, useCommandSelectorState } from "./useCommandSelectorState";
 
 const commandService = vi.hoisted(() => ({
   listCommands: vi.fn(),
@@ -67,5 +67,34 @@ describe("useCommandSelectorState session scoping", () => {
     expect(result.current.filteredCommands).toEqual([sessionTwoCommand]);
     expect(commandService.listCommands).toHaveBeenNthCalledWith(1, "session-one");
     expect(commandService.listCommands).toHaveBeenNthCalledWith(2, "session-two");
+  });
+});
+
+describe("filterAndRankCommands", () => {
+  it("ranks an exact command name ahead of description-only fuzzy matches", () => {
+    const agentBrowser: CommandItem = {
+      id: "skill-agent-browser",
+      name: "agent-browser",
+      displayName: "Agent Browser",
+      description: "Use for browser review and workflow testing.",
+      type: "skill",
+      metadata: {},
+    };
+    const review: CommandItem = {
+      id: "skill-review",
+      name: "review",
+      displayName: "Review",
+      description: "Review a scoped code change.",
+      type: "skill",
+      metadata: {},
+    };
+
+    expect(filterAndRankCommands([agentBrowser, review], "review")).toEqual([review, agentBrowser]);
+  });
+
+  it("preserves source order when the query is empty", () => {
+    const first = command("first");
+    const second = command("second");
+    expect(filterAndRankCommands([first, second], "")).toEqual([first, second]);
   });
 });

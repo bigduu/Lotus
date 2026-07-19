@@ -51,7 +51,7 @@ interface MessageInputProps {
   images?: ImageFile[];
   onImagesChange?: (images: ImageFile[]) => void;
   allowImages?: boolean;
-  isWorkflowSelectorVisible?: boolean; // Prevent Enter key handling when workflow selector is open
+  isCommandSelectorVisible?: boolean; // Prevent Enter key handling when the command selector is open
   textAreaRef?: React.RefObject<TextAreaRef>; // Add textAreaRef prop
   statusIndicator?: React.ReactNode;
   validateMessage?: (message: string) => {
@@ -78,7 +78,7 @@ export const MessageInput = React.memo<MessageInputProps>(
     images: propImages,
     onImagesChange,
     allowImages = true,
-    isWorkflowSelectorVisible = false,
+    isCommandSelectorVisible = false,
     textAreaRef: externalTextAreaRef, // External ref from parent
     statusIndicator,
     validateMessage,
@@ -173,7 +173,7 @@ export const MessageInput = React.memo<MessageInputProps>(
       images,
       isInputLocked,
       disabled,
-      isWorkflowSelectorVisible,
+      isCommandSelectorVisible,
       onChange,
       onSubmit,
       onRetry,

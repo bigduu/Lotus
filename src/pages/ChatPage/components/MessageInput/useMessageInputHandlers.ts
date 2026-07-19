@@ -10,7 +10,7 @@ interface UseMessageInputHandlersProps {
   /** True when the input should be locked (starting, running, streaming, running_tools, running_children, settling). */
   isInputLocked: boolean;
   disabled: boolean;
-  isWorkflowSelectorVisible: boolean;
+  isCommandSelectorVisible: boolean;
   onChange: (value: string) => void;
   onSubmit: (content: string, images?: ImageFile[]) => void;
   onRetry?: (mode: MessageRetryMode) => void;
@@ -33,7 +33,7 @@ export const useMessageInputHandlers = ({
   images,
   isInputLocked,
   disabled,
-  isWorkflowSelectorVisible,
+  isCommandSelectorVisible,
   onChange,
   onSubmit,
   onRetry,
@@ -112,7 +112,7 @@ export const useMessageInputHandlers = ({
         !event.shiftKey &&
         !isInputLocked &&
         !disabled &&
-        !isWorkflowSelectorVisible
+        !isCommandSelectorVisible
       ) {
         event.preventDefault();
         handleSubmit();
@@ -122,7 +122,7 @@ export const useMessageInputHandlers = ({
       disabled,
       handleSubmit,
       isInputLocked,
-      isWorkflowSelectorVisible,
+      isCommandSelectorVisible,
       onChange,
       onHistoryNavigate,
       textAreaRef,

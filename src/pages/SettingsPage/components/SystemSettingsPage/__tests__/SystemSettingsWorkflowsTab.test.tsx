@@ -1,0 +1,270 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import type {
+  LegacyWorkflowManagementClient,
+  WorkflowCatalogAdapter,
+  WorkflowCatalogView,
+} from "../../../../../features/workflows";
+import SystemSettingsWorkflowsTab from "../SystemSettingsWorkflowsTab";
+
+const typedCatalog: WorkflowCatalogView = {
+  revision: 12,
+  capabilities: {
+    mode: "typed",
+    clone: false,
+    edit: false,
+    activate: false,
+    run: false,
+    cancel: false,
+  },
+  diagnostics: [{ itemId: "broken", message: "Invalid entry was skipped" }],
+  items: [
+    {
+      id: "review",
+      name: "Review",
+      description: "Review a scoped change with evidence.",
+      kind: "instruction",
+      source: "builtin",
+      status: "valid",
+      invocationPolicy: "both",
+      argumentHint: "[scope]",
+      readOnly: true,
+      revision: 7,
+      version: "3",
+      shadowedCandidates: [{ source: "project", status: "invalid", lastError: "Bad override" }],
+    },
+    {
+      id: "release",
+      name: "Release",
+      description: "Prepare a project release.",
+      kind: "orchestration",
+      source: "project",
+      status: "valid",
+      invocationPolicy: "manual",
+      readOnly: false,
+      revision: 5,
+    },
+    {
+      id: "personal-review",
+      name: "Personal review",
+      description: "A user workflow with an invalid local definition.",
+      kind: "instruction",
+      source: "user",
+      status: "invalid",
+      invocationPolicy: "implicit",
+      readOnly: false,
+      revision: 4,
+      lastError: "Invalid argument schema",
+    },
+    {
+      id: "plugin-release",
+      name: "Plugin release",
+      description: "A degraded plugin workflow.",
+      kind: "orchestration",
+      source: "plugin",
+      status: "degraded",
+      invocationPolicy: "manual",
+      readOnly: true,
+      revision: 2,
+    },
+  ],
+};
+
+const adapterWith = (result: WorkflowCatalogView): WorkflowCatalogAdapter => ({
+  load: vi.fn().mockResolvedValue(result),
+});
+
+describe("SystemSettingsWorkflowsTab", () => {
+  it("renders typed workflow metadata and keeps unsupported actions disabled", async () => {
+    const adapter = adapterWith(typedCatalog);
+    render(<SystemSettingsWorkflowsTab catalogAdapter={adapter} sessionId="session-125" />);
+
+    expect(await screen.findByText("Review")).toBeInTheDocument();
+    expect(screen.getAllByText("Instruction")).toHaveLength(2);
+    expect(screen.getByText("Built-in")).toBeInTheDocument();
+    expect(screen.getByText("Manual + automatic")).toBeInTheDocument();
+    expect(screen.getAllByText("Read-only")).toHaveLength(2);
+    expect(screen.getByText("Version 3 · Revision 7")).toBeInTheDocument();
+    expect(screen.getByText("User")).toBeInTheDocument();
+    expect(screen.getByText("Invalid")).toBeInTheDocument();
+    expect(screen.getByText("Invalid argument schema")).toBeInTheDocument();
+    expect(screen.getByText("Plugin")).toBeInTheDocument();
+    expect(screen.getByText("Degraded")).toBeInTheDocument();
+    expect(screen.getByText("Shadowed candidates:")).toBeInTheDocument();
+    expect(screen.getByText("Project · Invalid · Bad override")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Clone Review" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit Review" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run Review" })).toBeDisabled();
+    expect(adapter.load).toHaveBeenCalledWith({
+      sessionId: "session-125",
+      signal: expect.any(AbortSignal),
+    });
+  });
+
+  it("preserves usable entries when the typed catalog contains invalid records", async () => {
+    render(<SystemSettingsWorkflowsTab catalogAdapter={adapterWith(typedCatalog)} />);
+
+    expect(await screen.findByText("Review")).toBeInTheDocument();
+    expect(screen.getByText("1 catalog entry could not be displayed")).toBeInTheDocument();
+    expect(screen.getByText("Invalid entry was skipped")).toBeInTheDocument();
+    expect(screen.getByText("Release")).toBeInTheDocument();
+  });
+
+  it("filters the library without mutating the loaded catalog", async () => {
+    const adapter = adapterWith(typedCatalog);
+    render(<SystemSettingsWorkflowsTab catalogAdapter={adapter} />);
+    await screen.findByText("Review");
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workflow catalog" }), {
+      target: { value: "release" },
+    });
+
+    expect(screen.queryByText("Review")).not.toBeInTheDocument();
+    expect(screen.getByText("Release")).toBeInTheDocument();
+    expect(adapter.load).toHaveBeenCalledTimes(1);
+  });
+
+  it("cannot let an older session request overwrite the current catalog", async () => {
+    let resolveA!: (catalog: WorkflowCatalogView) => void;
+    let resolveB!: (catalog: WorkflowCatalogView) => void;
+    const signals: AbortSignal[] = [];
+    const load = vi.fn<WorkflowCatalogAdapter["load"]>(({ sessionId, signal } = {}) => {
+      if (signal) signals.push(signal);
+      return new Promise<WorkflowCatalogView>((resolve) => {
+        if (sessionId === "session-a") resolveA = resolve;
+        else resolveB = resolve;
+      });
+    });
+    const catalogFor = (id: string): WorkflowCatalogView => ({
+      ...typedCatalog,
+      diagnostics: [],
+      items: [{ ...typedCatalog.items[0], id, name: id }],
+    });
+
+    const { rerender } = render(
+      <SystemSettingsWorkflowsTab catalogAdapter={{ load }} sessionId="session-a" />,
+    );
+    rerender(<SystemSettingsWorkflowsTab catalogAdapter={{ load }} sessionId="session-b" />);
+
+    await act(async () => resolveB(catalogFor("Session B workflow")));
+    expect(await screen.findByText("Session B workflow")).toBeInTheDocument();
+
+    await act(async () => resolveA(catalogFor("Session A workflow")));
+    expect(screen.queryByText("Session A workflow")).not.toBeInTheDocument();
+    expect(screen.getByText("Session B workflow")).toBeInTheDocument();
+    expect(signals[0].aborted).toBe(true);
+  });
+
+  it("labels fallback data as legacy without inventing revision metadata", async () => {
+    const legacyCatalog: WorkflowCatalogView = {
+      capabilities: {
+        mode: "legacy",
+        clone: false,
+        edit: true,
+        activate: false,
+        run: false,
+        cancel: false,
+      },
+      diagnostics: [],
+      items: [
+        {
+          id: "old-review",
+          name: "Old Review",
+          description: "old-review.md",
+          kind: "instruction",
+          source: "legacy",
+          status: "valid",
+          invocationPolicy: "manual",
+          readOnly: false,
+        },
+      ],
+    };
+
+    render(<SystemSettingsWorkflowsTab catalogAdapter={adapterWith(legacyCatalog)} />);
+
+    expect(await screen.findByText("Old Review")).toBeInTheDocument();
+    expect(screen.getByText("Legacy")).toBeInTheDocument();
+    expect(screen.getByText("Catalog source: Legacy adapter")).toBeInTheDocument();
+    expect(screen.queryByText(/Revision/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Version/)).not.toBeInTheDocument();
+  });
+
+  it("preserves real create, edit, and delete behavior in legacy mode", async () => {
+    const legacyCatalog: WorkflowCatalogView = {
+      capabilities: {
+        mode: "legacy",
+        clone: false,
+        edit: true,
+        activate: false,
+        run: false,
+        cancel: false,
+      },
+      diagnostics: [],
+      items: [
+        {
+          id: "old-review",
+          name: "Old Review",
+          description: "old-review.md",
+          kind: "instruction",
+          source: "legacy",
+          status: "valid",
+          invocationPolicy: "manual",
+          readOnly: false,
+        },
+      ],
+    };
+    const legacyManager: LegacyWorkflowManagementClient = {
+      getWorkflow: vi.fn().mockResolvedValue({ name: "old-review", content: "Old content" }),
+      saveWorkflow: vi.fn().mockResolvedValue(undefined),
+      deleteWorkflow: vi.fn().mockResolvedValue(undefined),
+    };
+
+    render(
+      <SystemSettingsWorkflowsTab
+        catalogAdapter={adapterWith(legacyCatalog)}
+        legacyManager={legacyManager}
+        sessionId={null}
+      />,
+    );
+    await screen.findByText("Old Review");
+
+    fireEvent.click(screen.getByRole("button", { name: "New workflow" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Workflow name" }), {
+      target: { value: "triage" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/Describe the workflow steps here/), {
+      target: { value: "Triage content" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(legacyManager.saveWorkflow).toHaveBeenCalledWith("triage", "Triage content"),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Old Review" }));
+    expect(await screen.findByDisplayValue("Old content")).toBeInTheDocument();
+    fireEvent.change(screen.getByDisplayValue("Old content"), {
+      target: { value: "Updated content" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(legacyManager.saveWorkflow).toHaveBeenCalledWith("old-review", "Updated content"),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Old Review" }));
+    await waitFor(() => expect(legacyManager.deleteWorkflow).toHaveBeenCalledWith("old-review"));
+  });
+
+  it("renders a recoverable error and retries through the adapter", async () => {
+    const load = vi
+      .fn<WorkflowCatalogAdapter["load"]>()
+      .mockRejectedValueOnce(new Error("Catalog unavailable"))
+      .mockResolvedValueOnce({ ...typedCatalog, diagnostics: [] });
+
+    render(<SystemSettingsWorkflowsTab catalogAdapter={{ load }} />);
+    expect(await screen.findByText("Catalog unavailable")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Review")).toBeInTheDocument();
+  });
+});

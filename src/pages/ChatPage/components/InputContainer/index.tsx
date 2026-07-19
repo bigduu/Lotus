@@ -1185,7 +1185,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
         statusIndicator={statusIndicator}
         submitButtonLabel={submitButtonLabel}
-        isWorkflowSelectorVisible={commandState.showCommandSelector}
+        isCommandSelectorVisible={commandState.showCommandSelector}
         textAreaRef={textAreaRef}
         validateMessage={validateMessage}
         onAttachmentsAdded={handleAttachmentsAdded}
