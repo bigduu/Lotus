@@ -1255,6 +1255,19 @@ export const zhCnTranslation = {
           model: "模型",
           modelHint: "对应 Codex CLI 的 --model 参数；留空则使用其已配置的默认模型。",
           modelPlaceholder: "Codex 默认模型",
+          mode: "执行模式",
+          modeHint:
+            "Exec 为一次性自治运行；App server 保持 Codex 会话长驻，并把命令/文件审批转发到父级审批弹窗。",
+          modes: {
+            exec: {
+              label: "Exec（每次激活一个进程）",
+              description: "非交互式 codex exec --json，运行中无法发起审批。",
+            },
+            app_server: {
+              label: "App server（交互审批）",
+              description: "长驻 JSON-RPC 会话；命令和文件请求会等待父级决定。",
+            },
+          },
           authMode: "认证模式",
           authModeHint: "请选择凭据与计费的归属。推荐使用最小权限的 Bamboo 模式。",
           authModes: {
@@ -1300,11 +1313,12 @@ export const zhCnTranslation = {
           },
           approvalPolicy: "审批策略",
           approvalPolicyHint:
-            "Codex exec 为非交互模式，因此 Bamboo 仅支持 never 或 on-failure，并始终传入明确的安全值。",
+            "Exec 支持 never/on-failure；App server 固定为 on-request，以便 Bamboo 转发父级决定。",
           approvalPolicies: {
             mapped: "映射默认值（never）",
             never: "从不交互询问",
             onFailure: "失败时在沙箱外重试",
+            onRequest: "每个高风险操作都请求父级审批",
           },
           networkAccess: "网络访问",
           networkAccessHint:

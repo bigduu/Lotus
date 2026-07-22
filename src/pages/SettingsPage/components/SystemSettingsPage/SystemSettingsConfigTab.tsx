@@ -125,6 +125,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           ),
           codex_binary: bambooConfig.subagents?.codex_binary,
           codex_model: bambooConfig.subagents?.codex_model,
+          codex_mode: bambooConfig.subagents?.codex_mode ?? "exec",
           codex_auth_mode: bambooConfig.subagents?.codex_auth_mode ?? "bamboo",
           codex_base_url: bambooConfig.subagents?.codex_base_url,
           codex_wire_api: bambooConfig.subagents?.codex_wire_api,
@@ -278,6 +279,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         const isClaudeCode = config.subagents.executor === SUBAGENT_EXECUTOR_CLAUDE_CODE;
         const isCodex = config.subagents.executor === SUBAGENT_EXECUTOR_CODEX;
         const codexAuthMode = config.subagents.codex_auth_mode ?? "bamboo";
+        const codexMode = config.subagents.codex_mode ?? "exec";
         const isCustomCodex = codexAuthMode === "custom";
         const codexForwardEnv = normalizeToolNames(config.subagents.codex_forward_env ?? []).filter(
           (name) => name !== "OPENAI_API_KEY" || codexAuthMode === "api_key",
@@ -302,6 +304,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
               : undefined,
             codex_binary: isCodex ? config.subagents.codex_binary?.trim() || null : undefined,
             codex_model: isCodex ? config.subagents.codex_model?.trim() || null : undefined,
+            codex_mode: isCodex ? codexMode : undefined,
             codex_auth_mode: isCodex ? codexAuthMode : undefined,
             codex_base_url: isCodex
               ? isCustomCodex
@@ -317,7 +320,9 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
             codex_forward_env: isCodex ? codexForwardEnv : undefined,
             codex_sandbox: isCodex ? (config.subagents.codex_sandbox ?? null) : undefined,
             codex_approval_policy: isCodex
-              ? (config.subagents.codex_approval_policy ?? null)
+              ? codexMode === "app_server"
+                ? "on-request"
+                : (config.subagents.codex_approval_policy ?? null)
               : undefined,
             codex_network_access: isCodex
               ? (config.subagents.codex_network_access ?? false)
