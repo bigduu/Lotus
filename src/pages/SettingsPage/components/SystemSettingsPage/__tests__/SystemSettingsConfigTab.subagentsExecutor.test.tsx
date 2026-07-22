@@ -10,6 +10,7 @@ vi.mock("@services/common/ServiceFactory", () => ({
     getBambooConfig: vi.fn(),
     getBambooTools: vi.fn(),
     validateBambooConfigPatch: vi.fn(),
+    detectCodexCli: vi.fn(),
     setBambooConfig: vi.fn(),
     getProxyAuthStatus: vi.fn(),
     setProxyAuth: vi.fn(),
@@ -20,6 +21,7 @@ vi.mock("@services/common/ServiceFactory", () => ({
 const mockGetBambooConfig = vi.mocked(serviceFactory.getBambooConfig);
 const mockGetBambooTools = vi.mocked(serviceFactory.getBambooTools);
 const mockValidateBambooConfigPatch = vi.mocked(serviceFactory.validateBambooConfigPatch);
+const mockDetectCodexCli = vi.mocked(serviceFactory.detectCodexCli);
 const mockSetBambooConfig = vi.mocked(serviceFactory.setBambooConfig);
 const mockGetProxyAuthStatus = vi.mocked(serviceFactory.getProxyAuthStatus);
 
@@ -44,6 +46,10 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     mockGetBambooTools.mockResolvedValue({ tools: [] });
     mockGetProxyAuthStatus.mockResolvedValue({ configured: false, username: null });
     mockValidateBambooConfigPatch.mockResolvedValue({ valid: true, errors: {} });
+    mockDetectCodexCli.mockResolvedValue({
+      path: "/opt/homebrew/bin/codex",
+      version: "codex-cli 0.144.5",
+    });
     mockSetBambooConfig.mockResolvedValue({});
   });
 
@@ -94,6 +100,17 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           claude_code_permission_mode: undefined,
           claude_code_inherit_user_config: true,
           claude_code_forward_env: ["ANTHROPIC_API_KEY"],
+          codex_binary: undefined,
+          codex_model: undefined,
+          codex_auth_mode: undefined,
+          codex_base_url: undefined,
+          codex_wire_api: undefined,
+          codex_provider_key_ref: undefined,
+          codex_forward_env: undefined,
+          codex_sandbox: undefined,
+          codex_approval_policy: undefined,
+          codex_network_access: undefined,
+          codex_allow_danger_bypass: undefined,
         },
       });
     });
@@ -152,8 +169,135 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           claude_code_permission_mode: undefined,
           claude_code_inherit_user_config: undefined,
           claude_code_forward_env: undefined,
+          codex_binary: undefined,
+          codex_model: undefined,
+          codex_auth_mode: undefined,
+          codex_base_url: undefined,
+          codex_wire_api: undefined,
+          codex_provider_key_ref: undefined,
+          codex_forward_env: undefined,
+          codex_sandbox: undefined,
+          codex_approval_policy: undefined,
+          codex_network_access: undefined,
+          codex_allow_danger_bypass: undefined,
         },
       });
+    });
+  });
+
+  it("detects Codex with the server preflight and saves the mapped defaults", async () => {
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const executorSelect = await screen.findByTestId("subagent-executor");
+    fireEvent.mouseDown(within(executorSelect).getByRole("combobox"));
+    fireEvent.click(await screen.findByTitle("Codex CLI"));
+
+    expect(await screen.findByTestId("codex-executor-settings")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("codex-detect"));
+    await screen.findByTestId("codex-detection-success");
+    expect(mockDetectCodexCli).toHaveBeenCalledWith(undefined);
+    expect(screen.getByTestId("codex-binary")).toHaveValue("/opt/homebrew/bin/codex");
+
+    fireEvent.change(screen.getByTestId("codex-model"), {
+      target: { value: "gpt-5.4" },
+    });
+    fireEvent.click(screen.getByTestId("save-subagent-settings"));
+
+    await waitFor(() => {
+      expect(mockSetBambooConfig).toHaveBeenCalledWith({
+        subagents: {
+          max_concurrent: 8,
+          executor: "codex",
+          claude_code_binary: undefined,
+          claude_code_model: undefined,
+          claude_code_permission_mode: undefined,
+          claude_code_inherit_user_config: undefined,
+          claude_code_forward_env: undefined,
+          codex_binary: "/opt/homebrew/bin/codex",
+          codex_model: "gpt-5.4",
+          codex_auth_mode: "bamboo",
+          codex_base_url: null,
+          codex_wire_api: null,
+          codex_provider_key_ref: null,
+          codex_forward_env: [],
+          codex_sandbox: null,
+          codex_approval_policy: null,
+          codex_network_access: false,
+          codex_allow_danger_bypass: false,
+        },
+      });
+    });
+  });
+
+  it("saves custom-provider auth fields and renders structured validation feedback", async () => {
+    mockValidateBambooConfigPatch.mockResolvedValue({
+      valid: false,
+      errors: {
+        subagents: [
+          {
+            path: "subagents.codex_provider_key_ref",
+            message: "codex_provider_key_ref has an invalid format",
+          },
+        ],
+      },
+    });
+
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const executorSelect = await screen.findByTestId("subagent-executor");
+    fireEvent.mouseDown(within(executorSelect).getByRole("combobox"));
+    fireEvent.click(await screen.findByTitle("Codex CLI"));
+    fireEvent.click(await screen.findByText("Custom provider credential"));
+    fireEvent.change(await screen.findByTestId("codex-base-url"), {
+      target: { value: "https://provider.example/v1" },
+    });
+    fireEvent.change(screen.getByTestId("codex-provider-key-ref"), {
+      target: { value: "not a credential ref" },
+    });
+    fireEvent.click(screen.getByTestId("save-subagent-settings"));
+
+    const feedback = await screen.findByTestId("codex-validation-errors");
+    expect(feedback).toHaveTextContent("subagents.codex_provider_key_ref");
+    expect(feedback).toHaveTextContent("invalid format");
+    expect(mockSetBambooConfig).not.toHaveBeenCalled();
+  });
+
+  it("requires an explicit confirmation before enabling danger bypass", async () => {
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const executorSelect = await screen.findByTestId("subagent-executor");
+    fireEvent.mouseDown(within(executorSelect).getByRole("combobox"));
+    fireEvent.click(await screen.findByTitle("Codex CLI"));
+
+    const sandboxSelect = await screen.findByTestId("codex-sandbox");
+    fireEvent.mouseDown(within(sandboxSelect).getByRole("combobox"));
+    fireEvent.click(await screen.findByTitle("Danger: full filesystem access"));
+
+    const bypass = screen.getByTestId("codex-danger-bypass");
+    expect(bypass).not.toBeChecked();
+    fireEvent.click(bypass);
+    expect(bypass).not.toBeChecked();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Allow danger bypass" }));
+    await waitFor(() => expect(bypass).toBeChecked());
+
+    fireEvent.click(screen.getByTestId("save-subagent-settings"));
+    await waitFor(() => {
+      const patch = mockSetBambooConfig.mock.calls.at(-1)?.[0];
+      expect(patch?.subagents?.codex_sandbox).toBe("danger-full-access");
+      expect(patch?.subagents?.codex_allow_danger_bypass).toBe(true);
     });
   });
 });

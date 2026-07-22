@@ -1270,9 +1270,91 @@ export const enUsTranslation = {
           "Upper bound on actor processes running at once; further spawns wait their turn. Empty = default (8).",
         subagentExecutor: "Executor",
         subagentExecutorHint:
-          "Which engine drives sub-agent actors: the built-in Bamboo agent loop, or the official Claude Code CLI.",
+          "Which engine drives sub-agent actors: the built-in Bamboo agent loop, Claude Code CLI, or Codex CLI.",
         subagentExecutorBuiltIn: "Built-in (Bamboo agent loop)",
         subagentExecutorClaudeCode: "Claude Code CLI",
+        subagentExecutorCodex: "Codex CLI",
+        codex: {
+          notice: "Codex CLI executor",
+          noticeDescription:
+            "Bamboo starts one non-interactive `codex exec --json` process per activation and applies the selected auth and sandbox boundary before every spawn.",
+          binary: "Codex binary path",
+          binaryHint:
+            "Override the executable or leave empty to resolve `codex` from PATH. Detect runs the same version and capability preflight used by workers.",
+          binaryPlaceholder: "codex (resolved from PATH)",
+          detect: "Detect",
+          detectFailed: "Codex CLI detection failed",
+          detected: "Detected {{version}} at {{path}}",
+          model: "Model",
+          modelHint:
+            "Maps to the Codex CLI --model flag. Leave empty to use its configured default.",
+          modelPlaceholder: "Codex default model",
+          authMode: "Authentication mode",
+          authModeHint:
+            "Choose who owns credentials and billing. Bamboo mode is the recommended least-privilege default.",
+          authModes: {
+            bamboo: {
+              label: "Bamboo parent provider (recommended)",
+              billing:
+                "Uses a scoped per-run token against Bamboo's /openai/v1 endpoint; billing and metrics remain in the parent provider.",
+            },
+            inherit: {
+              label: "Inherit user Codex login",
+              billing:
+                "Uses the invoking user's ~/.codex configuration and ChatGPT subscription or configured provider.",
+            },
+            api_key: {
+              label: "OpenAI API key from environment",
+              billing: "Forwards OPENAI_API_KEY explicitly and charges that OpenAI API account.",
+            },
+            custom: {
+              label: "Custom provider credential",
+              billing:
+                "Resolves a provider-instance secret by reference and follows that provider's billing policy.",
+            },
+          },
+          apiKeyEnvironment:
+            "OPENAI_API_KEY is added to the forwarded environment-name list. Bamboo never stores its value in this config.",
+          baseUrl: "Custom provider base URL",
+          baseUrlHint: "Absolute HTTP(S) URL without credentials, query parameters, or a fragment.",
+          providerKeyRef: "Provider credential reference",
+          providerKeyRefHint:
+            "Stable reference from the provider-instance secret store, for example provider.openai.api_key. The plaintext key never round-trips through this form.",
+          wireApi: "Wire API",
+          wireApiHint: "Supported Codex CLI versions use the Responses protocol.",
+          forwardEnv: "Forwarded environment variable names",
+          forwardEnvHint:
+            "Names only, never values. Reserved CODEX_* variables are rejected. API-key mode always includes OPENAI_API_KEY.",
+          forwardEnvPlaceholder: "e.g. HTTPS_PROXY, press Enter to add",
+          sandbox: "Sandbox",
+          sandboxHint:
+            "An unset override maps read-only child profiles to read-only and other profiles to workspace-write.",
+          sandboxes: {
+            mapped: "Mapped automatically (read-only / workspace-write)",
+            readOnly: "Read only",
+            workspaceWrite: "Workspace write",
+            dangerFullAccess: "Danger: full filesystem access",
+          },
+          approvalPolicy: "Approval policy",
+          approvalPolicyHint:
+            "Codex exec is non-interactive, so Bamboo supports only never or on-failure and always passes a concrete safe value.",
+          approvalPolicies: {
+            mapped: "Mapped default (never)",
+            never: "Never ask interactively",
+            onFailure: "Retry outside the sandbox on failure",
+          },
+          networkAccess: "Network access",
+          networkAccessHint:
+            "Applies to workspace-write. Read-only disables it; danger-full-access always has network access.",
+          allowDangerBypass: "Allow danger bypass for parent-bypass runs",
+          allowDangerBypassHint:
+            "This is only the second gate. The parent must also be in bypass mode, and root workers still downgrade to a sandbox.",
+          dangerConfirmTitle: "Allow Codex to disable its OS sandbox?",
+          dangerConfirmDescription:
+            "A qualifying parent-bypass run could read and write outside the workspace and access the network. Enable only for a trusted task and machine.",
+          dangerConfirmAction: "Allow danger bypass",
+          validationFailed: "Codex settings need attention",
+        },
         claudeCodeExecutorNotice:
           "These settings only take effect when Executor is set to Claude Code CLI. By default the child process is isolated from your personal ~/.claude MCP servers, skills, and settings.",
         claudeCodeBinary: "Claude binary path",
