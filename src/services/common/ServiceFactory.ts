@@ -264,6 +264,50 @@ export interface PluginTrustConfig {
   enforcement?: PluginTrustEnforcement;
 }
 
+export type LifecycleHookEvent =
+  | "SessionStart"
+  | "UserPromptSubmit"
+  | "PreToolUse"
+  | "PostToolUse"
+  | "Stop"
+  | "SessionEnd"
+  | "PreCompact"
+  | "Notification";
+
+export interface LifecycleHookCommandConfig {
+  type: "command";
+  command: string;
+  timeout_ms?: number;
+}
+
+export interface LifecycleHookGroupConfig {
+  /** Missing means enabled for backward compatibility with existing files. */
+  enabled?: boolean;
+  matcher?: string;
+  hooks: LifecycleHookCommandConfig[];
+}
+
+export interface LifecycleHooksConfig
+  extends Partial<Record<LifecycleHookEvent, LifecycleHookGroupConfig[]>> {
+  enabled?: boolean;
+}
+
+export interface LifecycleHookTestRequest {
+  event: LifecycleHookEvent;
+  matcher?: string;
+  command: string;
+  timeout_ms: number;
+}
+
+export interface LifecycleHookTestResponse {
+  exit_code: number | null;
+  stdout: string;
+  stderr: string;
+  timed_out: boolean;
+  stdout_truncated: boolean;
+  stderr_truncated: boolean;
+}
+
 export interface BambooConfig {
   model?: string;
   api_key?: string;
@@ -278,6 +322,7 @@ export interface BambooConfig {
   notifications?: NotificationsChannelConfig;
   connect?: ConnectConfig;
   plugin_trust?: PluginTrustConfig;
+  lifecycle_hooks?: LifecycleHooksConfig;
   [key: string]: unknown;
 }
 
@@ -398,6 +443,9 @@ export interface UtilityService {
    * Validate a Bamboo config patch without saving.
    */
   validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse>;
+
+  /** Execute one lifecycle hook against Bamboo's synthetic dry-run payload. */
+  testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse>;
 
   /**
    * Set proxy auth credentials
@@ -536,6 +584,10 @@ class HttpUtilityService implements UtilityService {
 
   async validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse> {
     return apiClient.post<ValidateBambooConfigResponse>("bamboo/config/validate", patch);
+  }
+
+  async testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse> {
+    return apiClient.post<LifecycleHookTestResponse>("bamboo/hooks/test", payload);
   }
 
   async setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse> {
