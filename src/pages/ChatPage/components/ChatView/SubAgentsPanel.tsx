@@ -28,6 +28,7 @@ const normalizeSubAgentStatus = (status?: string): string => {
   if (value === "canceled") return "cancelled";
   if (value === "timeout") return "timed_out";
   if (value === "awaiting_permission") return "awaiting_approval";
+  if (value === "waiting_for_children") return "waiting_children";
   if (value === "queued" || value === "created") return "pending";
   return value;
 };

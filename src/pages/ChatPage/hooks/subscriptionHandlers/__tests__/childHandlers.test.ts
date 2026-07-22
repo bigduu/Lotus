@@ -107,6 +107,24 @@ describe("createChildHandlers — onChildApprovalRequested (FIFO queue, #25)", (
     );
     expect(dequeuePendingChildApproval).toHaveBeenCalledWith("parent-1", "request-versioned");
   });
+
+  it("dequeues the prompt once its durable decision is recorded", () => {
+    const dequeuePendingChildApproval = vi.fn();
+    const handlers = createChildHandlers(makeRun({ dequeuePendingChildApproval }));
+
+    handlers.onChildApprovalChanged?.({
+      type: "child_approval_changed",
+      parent_session_id: "parent-1",
+      child_session_id: "child-1",
+      child_attempt: 1,
+      request_id: "request-recorded",
+      version: 2,
+      status: "decision_recorded",
+    });
+
+    expect(dequeuePendingChildApproval).toHaveBeenCalledWith("parent-1", "request-recorded");
+  });
+
   it("enqueues the pending child-approval request for the parent session", () => {
     const enqueuePendingChildApproval = vi.fn();
     const handlers = createChildHandlers(makeRun({ enqueuePendingChildApproval }));

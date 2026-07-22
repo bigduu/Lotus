@@ -17,7 +17,11 @@
 import { AgentClient, type ChangeEvent, type FeedSubscription } from "./AgentService";
 import { useAppStore, selectShouldObserve } from "@shared/store/appStore";
 import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
-import { acceptChildApprovalVersion } from "./childApprovalVersions";
+import {
+  acceptChildApprovalVersion,
+  childApprovalVersionKey,
+  replaceChildApprovalVersions,
+} from "./childApprovalVersions";
 
 const CURSOR_STORAGE_KEY = "lotus_account_feed_cursor_v1";
 const REFRESH_DEBOUNCE_MS = 400;
@@ -27,6 +31,10 @@ const REFRESH_DEBOUNCE_MS = 400;
 // the narrow `FeedSubscription` interface.
 let eventSource: FeedSubscription | null = null;
 let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+let feedEpoch = 0;
+let hydrationEpoch = 0;
+let bufferingChanges = false;
+let bufferedChanges: ChangeEvent[] = [];
 
 const readCursor = (): number => {
   try {
@@ -83,6 +91,11 @@ const applyChange = (change: ChangeEvent): void => {
   const { event } = change;
   const store = useAppStore.getState();
   const sessionId = change.session_id ?? event.session_id;
+  const parentForChild = (childSessionId: string): string | undefined =>
+    store.chats.find((chat) => chat.id === childSessionId)?.parentSessionId ??
+    Object.entries(store.executionBySession).find(([, entry]) =>
+      Object.prototype.hasOwnProperty.call(entry.children.byId, childSessionId),
+    )?.[0];
 
   // Multi-device: keep the OPEN conversation live (not just the list) when it
   // changes elsewhere.
@@ -121,7 +134,7 @@ const applyChange = (change: ChangeEvent): void => {
         childSessionId &&
         requestId &&
         acceptChildApprovalVersion(
-          `${parentSessionId}:${childSessionId}:${requestId}`,
+          childApprovalVersionKey(parentSessionId, childSessionId, event.child_attempt, requestId),
           event.version,
         )
       ) {
@@ -134,6 +147,7 @@ const applyChange = (change: ChangeEvent): void => {
             resource: event.resource ?? null,
           });
         } else if (
+          event.status === "decision_recorded" ||
           event.status === "approved" ||
           event.status === "denied" ||
           event.status === "expired" ||
@@ -144,6 +158,69 @@ const applyChange = (change: ChangeEvent): void => {
       }
       break;
     }
+    case "sub_agent_started": {
+      const parentSessionId = event.parent_session_id;
+      const childSessionId = event.child_session_id;
+      if (
+        parentSessionId &&
+        childSessionId &&
+        !Object.prototype.hasOwnProperty.call(
+          store.executionBySession[parentSessionId]?.children.byId ?? {},
+          childSessionId,
+        )
+      ) {
+        // Only fill a missing edge. The replacement snapshot may already hold
+        // a newer running/terminal state while this older queued delta was
+        // waiting for an account-feed sequence.
+        store.applyChildProgress(parentSessionId, childSessionId, {
+          title: event.title,
+          status: "pending",
+          lastEventAt: change.ts,
+        });
+      }
+      scheduleRefresh();
+      break;
+    }
+    case "sub_agent_completed": {
+      const parentSessionId = event.parent_session_id;
+      const childSessionId = event.child_session_id;
+      if (parentSessionId && childSessionId) {
+        store.clearPendingChildApprovalsForChild(parentSessionId, childSessionId);
+        store.applyChildProgress(parentSessionId, childSessionId, {
+          status: typeof event.status === "string" ? event.status : "completed",
+          error: event.error,
+          lastEventAt: change.ts,
+        });
+      }
+      scheduleRefresh();
+      break;
+    }
+    case "execution_started":
+      if (sessionId) {
+        const parentSessionId = parentForChild(sessionId);
+        if (parentSessionId) {
+          // A child session can be retried. This later durable delta must
+          // supersede an earlier terminal progress row replayed in the same
+          // hydration barrier.
+          store.applyChildProgress(parentSessionId, sessionId, {
+            status: "running",
+            error: undefined,
+            lastEventAt: event.started_at ?? change.ts,
+          });
+        }
+      }
+      scheduleRefresh();
+      break;
+    case "session_deleted":
+      if (sessionId) {
+        const parentSessionId = parentForChild(sessionId);
+        if (parentSessionId) {
+          store.clearPendingChildApprovalsForChild(parentSessionId, sessionId);
+          store.clearChildProgress(parentSessionId, sessionId);
+        }
+      }
+      scheduleRefresh();
+      break;
     case "session_title_updated":
       if (sessionId && typeof event.title === "string") {
         store.applyServerTitle(sessionId, event.title, event.title_version ?? 0);
@@ -159,7 +236,6 @@ const applyChange = (change: ChangeEvent): void => {
       break;
     // Coarse list/state changes — reuse the existing reconciliation path.
     case "session_created":
-    case "session_deleted":
     case "session_cleared":
     case "message_appended":
     case "task_list_updated":
@@ -168,11 +244,79 @@ const applyChange = (change: ChangeEvent): void => {
     case "complete":
     case "cancelled":
     case "error":
-    case "execution_started":
     case "need_clarification":
     default:
       scheduleRefresh();
       break;
+  }
+};
+
+const applyChangeAndAdvanceCursor = (change: ChangeEvent): void => {
+  useAppStore.getState().setAgentAvailability(true);
+  applyChange(change);
+  writeCursor(change.seq);
+};
+
+/**
+ * Replacement hydration barrier.
+ *
+ * The feed is already subscribed and all arriving deltas are buffered while
+ * the snapshot request is in flight. Once Bamboo returns the account-feed
+ * watermark, local child/approval state is replaced and only buffered events
+ * strictly newer than that watermark are reduced. This is the piece replay by
+ * persisted cursor alone cannot provide after a full browser reload.
+ */
+const hydrateSubagentState = async (client: AgentClient, epoch: number): Promise<void> => {
+  const currentHydration = ++hydrationEpoch;
+  bufferingChanges = true;
+  bufferedChanges = [];
+  try {
+    const snapshot = await client.getSubagentSnapshot();
+    if (epoch !== feedEpoch || currentHydration !== hydrationEpoch || eventSource === null) {
+      return;
+    }
+
+    const replay = bufferedChanges
+      .filter((change) => change.seq > snapshot.snapshot_seq)
+      .sort((left, right) => left.seq - right.seq);
+    bufferedChanges = [];
+    bufferingChanges = false;
+
+    replaceChildApprovalVersions(snapshot.approvals);
+    useAppStore.getState().replaceSubagentSnapshot(snapshot);
+    if (snapshot.snapshot_seq > 0) {
+      writeCursor(snapshot.snapshot_seq);
+    } else {
+      clearCursor();
+    }
+    let lastReplayedSeq = snapshot.snapshot_seq;
+    for (const change of replay) {
+      if (change.seq <= lastReplayedSeq) continue;
+      applyChangeAndAdvanceCursor(change);
+      lastReplayedSeq = change.seq;
+    }
+    // The snapshot supplies progress-only children immediately; refresh the
+    // normal session index as well so titles, placement and tree metadata use
+    // their existing authoritative mapping path.
+    void useAppStore.getState().refreshSessionsIndex();
+  } catch (error) {
+    if (epoch !== feedEpoch || currentHydration !== hydrationEpoch || eventSource === null) {
+      return;
+    }
+    // Compatibility/failure path: never strand already-delivered feed events
+    // behind the barrier. An older backend may not expose the snapshot route;
+    // incremental sync still works, though reload recovery needs the new API.
+    const replay = bufferedChanges.sort((left, right) => left.seq - right.seq);
+    bufferedChanges = [];
+    bufferingChanges = false;
+    let lastReplayedSeq = readCursor();
+    for (const change of replay) {
+      if (change.seq <= lastReplayedSeq) continue;
+      applyChangeAndAdvanceCursor(change);
+      lastReplayedSeq = change.seq;
+    }
+    console.warn("Failed to hydrate authoritative sub-agent snapshot", error);
+    void useAppStore.getState().refreshSessionsIndex();
   }
 };
 
@@ -192,33 +336,54 @@ export const startAccountFeed = (): void => {
     return;
   }
   const client = AgentClient.getInstance();
+  const epoch = ++feedEpoch;
+  let openedOnce = false;
+  bufferingChanges = true;
+  bufferedChanges = [];
+  // Start the REST request before opening the transport so even a transport
+  // implementation that can synchronously enqueue replay frames is behind the
+  // barrier. Promise continuation still runs after `eventSource` is assigned.
+  const initialHydration = hydrateSubagentState(client, epoch);
 
   eventSource = client.subscribeToAccountStream(
     {
       onOpen: () => {
         useAppStore.getState().setAgentAvailability(true);
+        if (openedOnce) {
+          void hydrateSubagentState(client, epoch);
+        }
+        openedOnce = true;
       },
       onError: () => {
         // Transient: the browser will auto-reconnect (resending Last-Event-ID).
         useAppStore.getState().setAgentAvailability(false);
       },
       onReset: () => {
-        // Cursor predated the retained window — drop it and full-resync.
+        // Cursor predated the retained window. The stream fast-forwards to its
+        // current head; replace state at a fresh snapshot watermark before
+        // accepting the new live tail.
         clearCursor();
-        void useAppStore.getState().refreshSessionsIndex();
+        void hydrateSubagentState(client, epoch);
       },
       onChange: (change) => {
-        useAppStore.getState().setAgentAvailability(true);
-        writeCursor(change.seq);
-        applyChange(change);
+        if (bufferingChanges) {
+          bufferedChanges.push(change);
+          return;
+        }
+        applyChangeAndAdvanceCursor(change);
       },
     },
     { since: readCursor() },
   );
+  void initialHydration;
 };
 
 /** Stop the account feed and tear down the connection. */
 export const stopAccountFeed = (): void => {
+  feedEpoch += 1;
+  hydrationEpoch += 1;
+  bufferingChanges = false;
+  bufferedChanges = [];
   if (refreshTimer) {
     clearTimeout(refreshTimer);
     refreshTimer = null;
