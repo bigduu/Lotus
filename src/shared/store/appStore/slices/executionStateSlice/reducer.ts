@@ -1,4 +1,8 @@
-import { AgentEvent, SessionSummary } from "@services/chat/AgentService";
+import {
+  AgentEvent,
+  SessionSummary,
+  type SubagentSnapshotResponse,
+} from "@services/chat/AgentService";
 import {
   MAX_REASONS_KEPT,
   MAX_RESOLVED_CHILD_APPROVALS_KEPT,
@@ -303,6 +307,95 @@ const clearPendingChildApprovalsForChildSnapshot = (
       resolvedChildApprovalRequestIds: resolved,
     },
   };
+};
+
+/**
+ * Account-wide replacement hydration for child lifecycle + approvals.
+ *
+ * This deliberately leaves parent execution phase/generation/confidence and
+ * live-only child preview fields alone. The backend snapshot is authoritative
+ * for which children and user-actionable approvals currently exist; account
+ * feed events newer than its watermark are applied by the feed runner after
+ * this reducer returns.
+ */
+const replaceSubagentSnapshot = (
+  map: ExecutionMap,
+  snapshot: SubagentSnapshotResponse,
+): ExecutionMap => {
+  const approvalsByParent = new Map<
+    string,
+    Array<PendingChildApprovalPayload & { receivedAt: string }>
+  >();
+  for (const approval of snapshot.approvals) {
+    // A decision_recorded entry is still useful to the lifecycle tree, but is
+    // no longer user-actionable and must never resurrect an approval dialog.
+    if (approval.state !== "pending") continue;
+    const queue = approvalsByParent.get(approval.parent_session_id) ?? [];
+    queue.push({
+      childSessionId: approval.child_session_id,
+      requestId: approval.request_id,
+      toolName: approval.tool_name ?? null,
+      permission: approval.permission ?? null,
+      resource: approval.resource ?? null,
+      receivedAt: approval.created_at,
+    });
+    approvalsByParent.set(approval.parent_session_id, queue);
+  }
+
+  const childrenByParent = new Map<string, Record<string, ChildProgress>>();
+  for (const child of snapshot.children) {
+    const existing = map[child.parent_session_id]?.children.byId[child.child_session_id];
+    const byId = childrenByParent.get(child.parent_session_id) ?? {};
+    byId[child.child_session_id] = {
+      ...existing,
+      title: child.title,
+      status: child.status === "waiting_for_children" ? "waiting_children" : child.status,
+      error: child.error,
+      lastEventAt: child.last_seen_at,
+    };
+    childrenByParent.set(child.parent_session_id, byId);
+  }
+
+  const affectedParents = new Set<string>([
+    ...approvalsByParent.keys(),
+    ...childrenByParent.keys(),
+  ]);
+  for (const [sessionId, entry] of Object.entries(map)) {
+    if (
+      entry.interaction.pendingChildApprovals.length > 0 ||
+      Object.keys(entry.children.byId).length > 0
+    ) {
+      affectedParents.add(sessionId);
+    }
+  }
+
+  let nextMap = map;
+  for (const parentSessionId of affectedParents) {
+    const entry = ensureEntry(nextMap, parentSessionId);
+    const pendingChildApprovals = approvalsByParent.get(parentSessionId) ?? [];
+    const authoritativePendingIds = new Set(
+      pendingChildApprovals.map((approval) => approval.requestId),
+    );
+    const byId = childrenByParent.get(parentSessionId) ?? {};
+    const runningCount = Object.values(byId).filter(
+      (child) => child.status === undefined || child.status === "running",
+    ).length;
+    const nextEntry: SessionExecutionState = {
+      ...entry,
+      interaction: {
+        ...entry.interaction,
+        pendingChildApprovals,
+        // The server wins over a stale local tombstone. If an attempted answer
+        // never reached Bamboo, the still-pending request must reappear.
+        resolvedChildApprovalRequestIds: entry.interaction.resolvedChildApprovalRequestIds.filter(
+          (requestId) => !authoritativePendingIds.has(requestId),
+        ),
+      },
+      children: { byId, runningCount },
+    };
+    nextMap = writeEntry(nextMap, parentSessionId, nextEntry);
+  }
+  return nextMap;
 };
 
 /**
@@ -1374,6 +1467,8 @@ export const applyExecutionEvent = (
       }
       return writeEntry(map, action.sessionId, next);
     }
+    case "replaceSubagentSnapshot":
+      return replaceSubagentSnapshot(map, action.snapshot);
     case "resetSession": {
       return removeEntry(map, action.sessionId);
     }

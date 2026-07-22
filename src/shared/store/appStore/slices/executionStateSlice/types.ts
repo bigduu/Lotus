@@ -1,4 +1,8 @@
-import { AgentEvent, SessionSummary } from "@services/chat/AgentService";
+import {
+  AgentEvent,
+  SessionSummary,
+  type SubagentSnapshotResponse,
+} from "@services/chat/AgentService";
 
 // =============================================================================
 // Execution-state model — owned by createExecutionStateSlice.
@@ -244,6 +248,7 @@ export type ExecutionAction =
   | { type: "dequeuePendingChildApproval"; sessionId: string; requestId: string }
   | { type: "clearPendingChildApprovalsForChild"; sessionId: string; childSessionId: string }
   | { type: "reconcilePendingChildApprovals"; sessionId: string; events: AgentEvent[] }
+  | { type: "replaceSubagentSnapshot"; snapshot: SubagentSnapshotResponse }
   | { type: "resetSession"; sessionId: string }
   | {
       type: "applyRunningSnapshot";
@@ -289,6 +294,12 @@ export interface ExecutionStateSlice {
    * desync a live SSE subscription's stale-event guard.
    */
   reconcilePendingChildApprovals: (sessionId: string, events: AgentEvent[]) => void;
+  /**
+   * Replace the account-wide child lifecycle and unresolved approval state
+   * without changing any parent's phase or generation. Feed events buffered
+   * past the snapshot watermark are reduced immediately afterwards.
+   */
+  replaceSubagentSnapshot: (snapshot: SubagentSnapshotResponse) => void;
   resetSession: (sessionId: string) => void;
   applyRunningSnapshot: (
     sessions: Array<{

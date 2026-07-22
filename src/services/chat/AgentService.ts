@@ -227,6 +227,7 @@ export interface AgentEvent {
   // Sub-agent events
   parent_session_id?: string;
   child_session_id?: string;
+  child_attempt?: number;
   title?: string;
   event?: AgentEvent;
   timestamp?: string;
@@ -618,6 +619,56 @@ export interface RunProjectDreamResponse {
 /** Response from POST /api/v1/child-approval/{child_session_id}. */
 export interface ChildApprovalResponse {
   delivered: boolean;
+}
+
+export type SubagentApprovalState =
+  | "pending"
+  | "decision_recorded"
+  | "delivered"
+  | "delivery_failed"
+  | "expired";
+
+export interface SubagentApprovalSnapshot {
+  parent_session_id: string;
+  child_session_id: string;
+  child_attempt: number;
+  request_id: string;
+  tool_name: string;
+  permission: string;
+  resource: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+  state: SubagentApprovalState;
+  approved?: boolean;
+  reason?: string;
+}
+
+export interface SubagentLifecycleSnapshot {
+  parent_session_id: string;
+  child_session_id: string;
+  root_session_id: string;
+  child_attempt: number;
+  title: string;
+  status: string;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+  last_seen_at: string;
+  subagent_type?: string;
+  lifecycle?: string;
+  resident_name?: string;
+  approval_request_ids: string[];
+}
+
+/** Authoritative replacement state paired with an account-feed watermark. */
+export interface SubagentSnapshotResponse {
+  schema_version: number;
+  snapshot_seq: number;
+  approvals_revision: number;
+  generated_at: string;
+  approvals: SubagentApprovalSnapshot[];
+  children: SubagentLifecycleSnapshot[];
 }
 
 export type TruncateSessionMessagesRequest = {
@@ -1252,6 +1303,16 @@ export class AgentClient {
       `child-approval/${encodeURIComponent(childSessionId)}`,
       { request_id: requestId, approved },
     );
+  }
+
+  /**
+   * Fetch the authoritative account-level child lifecycle and unresolved
+   * approval state. The caller buffers account-feed events while this request
+   * is in flight, replaces local state, then replays events newer than
+   * `snapshot_seq`.
+   */
+  async getSubagentSnapshot(): Promise<SubagentSnapshotResponse> {
+    return agentApiClient.get<SubagentSnapshotResponse>("subagents/snapshot");
   }
 
   /**

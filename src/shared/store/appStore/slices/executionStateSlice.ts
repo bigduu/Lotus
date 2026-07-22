@@ -2,6 +2,7 @@ import { StateCreator } from "zustand";
 import type { AppState } from "../";
 import { applyReplayableSessionEvent, isSessionMetadataEvent } from "./sessionMetadataSlice";
 import { AgentEvent } from "@services/chat/AgentService";
+import type { SubagentSnapshotResponse } from "@services/chat/AgentService";
 import { applyExecutionEvent } from "./executionStateSlice/reducer";
 import type { ExecutionAction, ExecutionStateSlice } from "./executionStateSlice/types";
 
@@ -143,6 +144,9 @@ export const createExecutionStateSlice: StateCreator<AppState, [], [], Execution
 
   reconcilePendingChildApprovals: (sessionId, events) =>
     runExecutionAction(set, { type: "reconcilePendingChildApprovals", sessionId, events }),
+
+  replaceSubagentSnapshot: (snapshot: SubagentSnapshotResponse) =>
+    runExecutionAction(set, { type: "replaceSubagentSnapshot", snapshot }),
 
   resetSession: (sessionId) => runExecutionAction(set, { type: "resetSession", sessionId }),
 

@@ -332,6 +332,29 @@ describe("AgentClient", () => {
     expect(result.delivered).toBe(false);
   });
 
+  it("fetches the authoritative sub-agent snapshot", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        schema_version: 1,
+        snapshot_seq: 41,
+        approvals_revision: 7,
+        generated_at: "2026-07-22T00:00:00Z",
+        approvals: [],
+        children: [],
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    const result = await client.getSubagentSnapshot();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/subagents/snapshot"),
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(result.snapshot_seq).toBe(41);
+    expect(result.approvals_revision).toBe(7);
+  });
+
   it("gets a session system prompt snapshot with aligned fields", async () => {
     fetchMock.mockResolvedValue(
       mockFetchResponse({

@@ -13,7 +13,10 @@ import {
   CHILD_PREVIEW_MAX_CHARS,
 } from "../useAgentEventSubscription.helpers";
 import type { RunContext } from "../subscriptionContext";
-import { acceptChildApprovalVersion } from "@services/chat/childApprovalVersions";
+import {
+  acceptChildApprovalVersion,
+  childApprovalVersionKey,
+} from "@services/chat/childApprovalVersions";
 
 /** Sub-agent (background child) lifecycle + preview handlers. */
 export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers> {
@@ -42,7 +45,7 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
     if (
       !evt.request_id ||
       !acceptChildApprovalVersion(
-        `${parentSessionId}:${childSessionId}:${evt.request_id}`,
+        childApprovalVersionKey(parentSessionId, childSessionId, evt.child_attempt, evt.request_id),
         evt.version,
       )
     ) {
@@ -57,6 +60,7 @@ export function createChildHandlers(run: RunContext): Partial<AgentEventHandlers
         resource: evt.resource ?? null,
       });
     } else if (
+      evt.status === "decision_recorded" ||
       evt.status === "approved" ||
       evt.status === "denied" ||
       evt.status === "expired" ||
