@@ -17,8 +17,13 @@ import {
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
 import AccessPasswordCard from "./AccessPasswordCard";
+import CodexExecutorSettings from "./CodexExecutorSettings";
 import { serviceFactory } from "@services/common/ServiceFactory";
-import type { BambooConfig } from "@services/common/ServiceFactory";
+import type {
+  BambooConfig,
+  BambooConfigValidationIssue,
+  BambooSubagentsConfig,
+} from "@services/common/ServiceFactory";
 import type { AppLocale } from "@shared/i18n/types";
 
 interface ConfigFormState extends BambooConfig {
@@ -27,15 +32,7 @@ interface ConfigFormState extends BambooConfig {
   memory: {
     auto_dream_enabled: boolean;
   };
-  subagents: {
-    max_concurrent?: number;
-    executor?: string;
-    claude_code_binary?: string;
-    claude_code_model?: string;
-    claude_code_permission_mode?: string;
-    claude_code_inherit_user_config?: boolean;
-    claude_code_forward_env?: string[];
-  };
+  subagents: BambooSubagentsConfig;
 }
 
 type ConfigSaveSection = "network" | "memory" | "subagents";
@@ -45,6 +42,7 @@ const { useToken } = theme;
 const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:9562/v1";
 const SUBAGENT_EXECUTOR_BUILT_IN = "bamboo_runtime";
 const SUBAGENT_EXECUTOR_CLAUDE_CODE = "claude_code";
+const SUBAGENT_EXECUTOR_CODEX = "codex";
 const CLAUDE_CODE_PERMISSION_MODES = [
   "default",
   "acceptEdits",
@@ -96,6 +94,9 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   const [savedDisabledTools, setSavedDisabledTools] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isToolsBusy, setIsToolsBusy] = useState(false);
+  const [subagentValidationIssues, setSubagentValidationIssues] = useState<
+    BambooConfigValidationIssue[]
+  >([]);
 
   // Load config
   const loadConfig = useCallback(async () => {
@@ -122,8 +123,20 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           claude_code_forward_env: normalizeToolNames(
             bambooConfig.subagents?.claude_code_forward_env ?? [],
           ),
+          codex_binary: bambooConfig.subagents?.codex_binary,
+          codex_model: bambooConfig.subagents?.codex_model,
+          codex_auth_mode: bambooConfig.subagents?.codex_auth_mode ?? "bamboo",
+          codex_base_url: bambooConfig.subagents?.codex_base_url,
+          codex_wire_api: bambooConfig.subagents?.codex_wire_api,
+          codex_provider_key_ref: bambooConfig.subagents?.codex_provider_key_ref,
+          codex_forward_env: normalizeToolNames(bambooConfig.subagents?.codex_forward_env ?? []),
+          codex_sandbox: bambooConfig.subagents?.codex_sandbox,
+          codex_approval_policy: bambooConfig.subagents?.codex_approval_policy,
+          codex_network_access: bambooConfig.subagents?.codex_network_access ?? false,
+          codex_allow_danger_bypass: bambooConfig.subagents?.codex_allow_danger_bypass ?? false,
         },
       });
+      setSubagentValidationIssues([]);
       const nextDisabled = readDisabledTools(bambooConfig);
       setDisabledTools(nextDisabled);
       setSavedDisabledTools(nextDisabled);
@@ -170,6 +183,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleSubagentExecutorChange = (value: string) => {
+    setSubagentValidationIssues([]);
     setConfig((prev) => ({
       ...prev,
       // Always store a concrete string (never `undefined`): the save patch
@@ -182,6 +196,17 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       subagents: {
         ...prev.subagents,
         executor: value,
+      },
+    }));
+  };
+
+  const handleCodexSettingsChange = (patch: Partial<BambooSubagentsConfig>) => {
+    setSubagentValidationIssues([]);
+    setConfig((prev) => ({
+      ...prev,
+      subagents: {
+        ...prev.subagents,
+        ...patch,
       },
     }));
   };
@@ -251,6 +276,15 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         };
       } else {
         const isClaudeCode = config.subagents.executor === SUBAGENT_EXECUTOR_CLAUDE_CODE;
+        const isCodex = config.subagents.executor === SUBAGENT_EXECUTOR_CODEX;
+        const codexAuthMode = config.subagents.codex_auth_mode ?? "bamboo";
+        const isCustomCodex = codexAuthMode === "custom";
+        const codexForwardEnv = normalizeToolNames(config.subagents.codex_forward_env ?? []).filter(
+          (name) => name !== "OPENAI_API_KEY" || codexAuthMode === "api_key",
+        );
+        if (isCodex && codexAuthMode === "api_key" && !codexForwardEnv.includes("OPENAI_API_KEY")) {
+          codexForwardEnv.push("OPENAI_API_KEY");
+        }
         patch = {
           subagents: {
             max_concurrent: config.subagents.max_concurrent,
@@ -266,6 +300,31 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
             claude_code_forward_env: isClaudeCode
               ? config.subagents.claude_code_forward_env
               : undefined,
+            codex_binary: isCodex ? config.subagents.codex_binary?.trim() || null : undefined,
+            codex_model: isCodex ? config.subagents.codex_model?.trim() || null : undefined,
+            codex_auth_mode: isCodex ? codexAuthMode : undefined,
+            codex_base_url: isCodex
+              ? isCustomCodex
+                ? config.subagents.codex_base_url?.trim() || null
+                : null
+              : undefined,
+            codex_wire_api: isCodex ? (isCustomCodex ? "responses" : null) : undefined,
+            codex_provider_key_ref: isCodex
+              ? isCustomCodex
+                ? config.subagents.codex_provider_key_ref?.trim() || null
+                : null
+              : undefined,
+            codex_forward_env: isCodex ? codexForwardEnv : undefined,
+            codex_sandbox: isCodex ? (config.subagents.codex_sandbox ?? null) : undefined,
+            codex_approval_policy: isCodex
+              ? (config.subagents.codex_approval_policy ?? null)
+              : undefined,
+            codex_network_access: isCodex
+              ? (config.subagents.codex_network_access ?? false)
+              : undefined,
+            codex_allow_danger_bypass: isCodex
+              ? (config.subagents.codex_allow_danger_bypass ?? false)
+              : undefined,
           },
         };
       }
@@ -278,11 +337,19 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           Object.values(validation.errors || {})
             .flat()
             .filter(Boolean)[0];
-        msgApi.error(issue?.message || t("settings.configTab.invalidConfig"));
+        if (section === "subagents") {
+          setSubagentValidationIssues(validation.errors?.subagents ?? []);
+        }
+        msgApi.error(
+          issue ? `${issue.path}: ${issue.message}` : t("settings.configTab.invalidConfig"),
+        );
         return;
       }
 
       await serviceFactory.setBambooConfig(patch);
+      if (section === "subagents") {
+        setSubagentValidationIssues([]);
+      }
       msgApi.success(t("settings.configTab.saveConfigSuccess"));
     } catch (error) {
       console.error("Failed to save config:", error);
@@ -528,6 +595,10 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                             label: t("settings.configTab.subagentExecutorClaudeCode"),
                             value: SUBAGENT_EXECUTOR_CLAUDE_CODE,
                           },
+                          {
+                            label: t("settings.configTab.subagentExecutorCodex"),
+                            value: SUBAGENT_EXECUTOR_CODEX,
+                          },
                         ]}
                       />
                     </div>
@@ -657,6 +728,14 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                           />
                         </div>
                       </Space>
+                    )}
+
+                    {config.subagents.executor === SUBAGENT_EXECUTOR_CODEX && (
+                      <CodexExecutorSettings
+                        value={config.subagents}
+                        validationIssues={subagentValidationIssues}
+                        onChange={handleCodexSettingsChange}
+                      />
                     )}
 
                     <div style={{ display: "flex", justifyContent: "flex-end" }}>

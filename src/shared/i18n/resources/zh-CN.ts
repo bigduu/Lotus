@@ -1237,9 +1237,87 @@ export const zhCnTranslation = {
           "同时运行的 actor 进程上限，超出的派生请求排队等待。留空使用默认值（8）。",
         subagentExecutor: "执行引擎 (Executor)",
         subagentExecutorHint:
-          "驱动子代理 Actor 的引擎：内置的 Bamboo agent loop，或官方 Claude Code CLI。",
+          "驱动子代理 Actor 的引擎：内置 Bamboo agent loop、Claude Code CLI 或 Codex CLI。",
         subagentExecutorBuiltIn: "内置（Bamboo agent loop）",
         subagentExecutorClaudeCode: "Claude Code CLI",
+        subagentExecutorCodex: "Codex CLI",
+        codex: {
+          notice: "Codex CLI 执行器",
+          noticeDescription:
+            "Bamboo 每次激活都会启动一个非交互式 `codex exec --json` 进程，并在派生前应用所选认证与沙箱边界。",
+          binary: "Codex 可执行文件路径",
+          binaryHint:
+            "可覆盖可执行文件；留空则从 PATH 解析 `codex`。检测会运行与 worker 完全相同的版本和能力预检。",
+          binaryPlaceholder: "codex（从 PATH 解析）",
+          detect: "检测",
+          detectFailed: "Codex CLI 检测失败",
+          detected: "已检测到 {{version}}，路径：{{path}}",
+          model: "模型",
+          modelHint: "对应 Codex CLI 的 --model 参数；留空则使用其已配置的默认模型。",
+          modelPlaceholder: "Codex 默认模型",
+          authMode: "认证模式",
+          authModeHint: "请选择凭据与计费的归属。推荐使用最小权限的 Bamboo 模式。",
+          authModes: {
+            bamboo: {
+              label: "Bamboo 父 Provider（推荐）",
+              billing:
+                "使用仅本次运行有效的 token 访问 Bamboo /openai/v1；计费和指标仍归父 Provider。",
+            },
+            inherit: {
+              label: "继承用户 Codex 登录",
+              billing: "使用调用用户的 ~/.codex 配置，以及对应的 ChatGPT 订阅或已配置 Provider。",
+            },
+            api_key: {
+              label: "环境变量中的 OpenAI API Key",
+              billing: "显式转发 OPENAI_API_KEY，并向该 OpenAI API 账户计费。",
+            },
+            custom: {
+              label: "自定义 Provider 凭据",
+              billing: "按引用解析 Provider 实例密钥，并遵循该 Provider 的计费策略。",
+            },
+          },
+          apiKeyEnvironment:
+            "OPENAI_API_KEY 会加入转发环境变量名称列表；Bamboo 不会在此配置中保存它的值。",
+          baseUrl: "自定义 Provider Base URL",
+          baseUrlHint: "必须是绝对 HTTP(S) URL，且不能含凭据、查询参数或 fragment。",
+          providerKeyRef: "Provider 凭据引用",
+          providerKeyRefHint:
+            "Provider 实例密钥存储中的稳定引用，例如 provider.openai.api_key。明文密钥不会经过此表单往返。",
+          wireApi: "Wire API",
+          wireApiHint: "受支持的 Codex CLI 版本使用 Responses 协议。",
+          forwardEnv: "转发的环境变量名称",
+          forwardEnvHint:
+            "仅填写名称，不能填写值；保留的 CODEX_* 变量会被拒绝。API Key 模式始终包含 OPENAI_API_KEY。",
+          forwardEnvPlaceholder: "例如 HTTPS_PROXY，按 Enter 添加",
+          sandbox: "沙箱",
+          sandboxHint:
+            "未显式覆盖时，只读子代理映射为 read-only，其他子代理映射为 workspace-write。",
+          sandboxes: {
+            mapped: "自动映射（read-only / workspace-write）",
+            readOnly: "只读",
+            workspaceWrite: "工作区可写",
+            dangerFullAccess: "危险：完整文件系统访问",
+          },
+          approvalPolicy: "审批策略",
+          approvalPolicyHint:
+            "Codex exec 为非交互模式，因此 Bamboo 仅支持 never 或 on-failure，并始终传入明确的安全值。",
+          approvalPolicies: {
+            mapped: "映射默认值（never）",
+            never: "从不交互询问",
+            onFailure: "失败时在沙箱外重试",
+          },
+          networkAccess: "网络访问",
+          networkAccessHint:
+            "适用于 workspace-write；read-only 会禁用网络，danger-full-access 始终可访问网络。",
+          allowDangerBypass: "允许父级 bypass 运行关闭 Codex OS 沙箱",
+          allowDangerBypassHint:
+            "这只是第二道门。父运行还必须处于 bypass 模式；以 root 运行的 worker 仍会降级为沙箱模式。",
+          dangerConfirmTitle: "允许 Codex 关闭 OS 沙箱？",
+          dangerConfirmDescription:
+            "满足条件的父级 bypass 运行可以读写工作区外文件并访问网络。仅应在可信任务和机器上启用。",
+          dangerConfirmAction: "允许危险 bypass",
+          validationFailed: "Codex 设置需要修正",
+        },
         claudeCodeExecutorNotice:
           "以下设置仅在执行引擎选择 Claude Code CLI 时生效。默认情况下，子进程与你个人的 ~/.claude MCP 服务器、技能和设置是隔离的。",
         claudeCodeBinary: "Claude 可执行文件路径",

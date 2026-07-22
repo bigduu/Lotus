@@ -141,6 +141,28 @@ export interface BambooSubagentsConfig {
    * through this config.
    */
   claude_code_forward_env?: string[];
+  /** `executor === "codex"` only: override the Codex CLI executable. */
+  codex_binary?: string | null;
+  /** `executor === "codex"` only: optional `--model` override. */
+  codex_model?: string | null;
+  /** Authentication and billing boundary used by the Codex child. */
+  codex_auth_mode?: "inherit" | "api_key" | "custom" | "bamboo";
+  /** Custom-provider base URL; valid only when `codex_auth_mode === "custom"`. */
+  codex_base_url?: string | null;
+  /** Supported Codex provider wire protocol (currently Responses only). */
+  codex_wire_api?: "responses" | null;
+  /** Stable provider-instance credential reference for custom auth. */
+  codex_provider_key_ref?: string | null;
+  /** Extra environment variable names forwarded after the child environment is cleared. */
+  codex_forward_env?: string[] | null;
+  /** Explicit sandbox override; null/unset derives the mapped parent default. */
+  codex_sandbox?: "read-only" | "workspace-write" | "danger-full-access" | null;
+  /** Explicit non-interactive approval policy; null/unset maps to `never`. */
+  codex_approval_policy?: "never" | "on-failure" | null;
+  /** Allow network access inside a workspace-write sandbox. */
+  codex_network_access?: boolean;
+  /** Second gate required before a parent-bypass run may disable the OS sandbox. */
+  codex_allow_danger_bypass?: boolean;
 }
 
 /**
@@ -352,6 +374,11 @@ export interface ValidateBambooConfigResponse {
   errors: Record<string, BambooConfigValidationIssue[]>;
 }
 
+export interface CodexCliDiscoveryResponse {
+  path: string;
+  version: string;
+}
+
 export interface AccessStatusResponse {
   password_enabled: boolean;
   local_bypass: boolean;
@@ -443,6 +470,9 @@ export interface UtilityService {
    * Validate a Bamboo config patch without saving.
    */
   validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse>;
+
+  /** Resolve and capability-check the Codex executable without saving config. */
+  detectCodexCli(binary?: string): Promise<CodexCliDiscoveryResponse>;
 
   /** Execute one lifecycle hook against Bamboo's synthetic dry-run payload. */
   testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse>;
@@ -584,6 +614,12 @@ class HttpUtilityService implements UtilityService {
 
   async validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse> {
     return apiClient.post<ValidateBambooConfigResponse>("bamboo/config/validate", patch);
+  }
+
+  async detectCodexCli(binary?: string): Promise<CodexCliDiscoveryResponse> {
+    return apiClient.post<CodexCliDiscoveryResponse>("bamboo/config/codex/detect", {
+      binary: binary?.trim() || undefined,
+    });
   }
 
   async testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse> {
