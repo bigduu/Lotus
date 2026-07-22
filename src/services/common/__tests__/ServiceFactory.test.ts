@@ -181,6 +181,31 @@ describe("ServiceFactory", () => {
       });
     });
 
+    describe("testLifecycleHook", () => {
+      it("should post a lifecycle hook dry-run request", async () => {
+        const payload = {
+          event: "PreToolUse" as const,
+          matcher: "^Bash$",
+          command: "printf dry-run",
+          timeout_ms: 2_000,
+        };
+        const mockResponse = {
+          exit_code: 0,
+          stdout: "dry-run",
+          stderr: "",
+          timed_out: false,
+          stdout_truncated: false,
+          stderr_truncated: false,
+        };
+        vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
+
+        const result = await serviceFactory.testLifecycleHook(payload);
+
+        expect(result).toEqual(mockResponse);
+        expect(apiClient.post).toHaveBeenCalledWith("bamboo/hooks/test", payload);
+      });
+    });
+
     describe("resetBambooConfig", () => {
       it("should reset config", async () => {
         const mockResponse = { success: true };
@@ -416,6 +441,7 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("getModelLimitDefaults");
       expect(utility).toHaveProperty("setBambooConfig");
       expect(utility).toHaveProperty("validateBambooConfigPatch");
+      expect(utility).toHaveProperty("testLifecycleHook");
       expect(utility).toHaveProperty("setProxyAuth");
       expect(utility).toHaveProperty("getProxyAuthStatus");
       expect(utility).toHaveProperty("clearProxyAuth");
