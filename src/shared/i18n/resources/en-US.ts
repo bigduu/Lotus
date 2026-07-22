@@ -1289,6 +1289,21 @@ export const enUsTranslation = {
           modelHint:
             "Maps to the Codex CLI --model flag. Leave empty to use its configured default.",
           modelPlaceholder: "Codex default model",
+          mode: "Execution mode",
+          modeHint:
+            "Exec is one-shot and autonomous. App server keeps the Codex session alive and routes command/file approvals to the parent approval dialog.",
+          modes: {
+            exec: {
+              label: "Exec (one process per activation)",
+              description:
+                "Non-interactive codex exec --json; approvals cannot be requested mid-turn.",
+            },
+            app_server: {
+              label: "App server (interactive approvals)",
+              description:
+                "Long-lived JSON-RPC session; command and file requests wait for the parent decision.",
+            },
+          },
           authMode: "Authentication mode",
           authModeHint:
             "Choose who owns credentials and billing. Bamboo mode is the recommended least-privilege default.",
@@ -1337,11 +1352,12 @@ export const enUsTranslation = {
           },
           approvalPolicy: "Approval policy",
           approvalPolicyHint:
-            "Codex exec is non-interactive, so Bamboo supports only never or on-failure and always passes a concrete safe value.",
+            "Exec supports never/on-failure. App server fixes this to on-request so Bamboo can relay the parent decision.",
           approvalPolicies: {
             mapped: "Mapped default (never)",
             never: "Never ask interactively",
             onFailure: "Retry outside the sandbox on failure",
+            onRequest: "Ask the parent for each risky action",
           },
           networkAccess: "Network access",
           networkAccessHint:

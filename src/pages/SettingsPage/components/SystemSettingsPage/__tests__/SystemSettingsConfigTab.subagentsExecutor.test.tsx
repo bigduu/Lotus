@@ -102,6 +102,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           claude_code_forward_env: ["ANTHROPIC_API_KEY"],
           codex_binary: undefined,
           codex_model: undefined,
+          codex_mode: undefined,
           codex_auth_mode: undefined,
           codex_base_url: undefined,
           codex_wire_api: undefined,
@@ -171,6 +172,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           claude_code_forward_env: undefined,
           codex_binary: undefined,
           codex_model: undefined,
+          codex_mode: undefined,
           codex_auth_mode: undefined,
           codex_base_url: undefined,
           codex_wire_api: undefined,
@@ -199,7 +201,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     expect(await screen.findByTestId("codex-executor-settings")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("codex-detect"));
     await screen.findByTestId("codex-detection-success");
-    expect(mockDetectCodexCli).toHaveBeenCalledWith(undefined);
+    expect(mockDetectCodexCli).toHaveBeenCalledWith(undefined, "exec");
     expect(screen.getByTestId("codex-binary")).toHaveValue("/opt/homebrew/bin/codex");
 
     fireEvent.change(screen.getByTestId("codex-model"), {
@@ -219,6 +221,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           claude_code_forward_env: undefined,
           codex_binary: "/opt/homebrew/bin/codex",
           codex_model: "gpt-5.4",
+          codex_mode: "exec",
           codex_auth_mode: "bamboo",
           codex_base_url: null,
           codex_wire_api: null,
@@ -230,6 +233,33 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           codex_allow_danger_bypass: false,
         },
       });
+    });
+  });
+
+  it("saves app-server mode with the mandatory parent approval policy", async () => {
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const executorSelect = await screen.findByTestId("subagent-executor");
+    fireEvent.mouseDown(within(executorSelect).getByRole("combobox"));
+    fireEvent.click(await screen.findByTitle("Codex CLI"));
+    fireEvent.click(await screen.findByText("App server (interactive approvals)"));
+
+    expect(screen.getByTestId("codex-mode")).toHaveTextContent(
+      "App server (interactive approvals)",
+    );
+    fireEvent.click(screen.getByTestId("codex-detect"));
+    await screen.findByTestId("codex-detection-success");
+    expect(mockDetectCodexCli).toHaveBeenCalledWith(undefined, "app_server");
+    fireEvent.click(screen.getByTestId("save-subagent-settings"));
+
+    await waitFor(() => {
+      const patch = mockSetBambooConfig.mock.calls.at(-1)?.[0];
+      expect(patch?.subagents?.codex_mode).toBe("app_server");
+      expect(patch?.subagents?.codex_approval_policy).toBe("on-request");
     });
   });
 

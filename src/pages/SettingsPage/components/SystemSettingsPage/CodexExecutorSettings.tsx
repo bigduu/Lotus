@@ -24,6 +24,7 @@ import {
 const { Text } = Typography;
 
 const CODEX_AUTH_MODES = ["bamboo", "inherit", "api_key", "custom"] as const;
+const CODEX_MODES = ["exec", "app_server"] as const;
 const MAPPED_POLICY = "__mapped__";
 
 interface CodexExecutorSettingsProps {
@@ -61,8 +62,10 @@ export const CodexExecutorSettings: React.FC<CodexExecutorSettingsProps> = ({
   const [detectionError, setDetectionError] = useState<string | null>(null);
 
   const authMode = value.codex_auth_mode ?? "bamboo";
+  const codexMode = value.codex_mode ?? "exec";
   const sandbox = value.codex_sandbox ?? MAPPED_POLICY;
-  const approvalPolicy = value.codex_approval_policy ?? MAPPED_POLICY;
+  const approvalPolicy =
+    value.codex_approval_policy ?? (codexMode === "app_server" ? "on-request" : MAPPED_POLICY);
   const isCustom = authMode === "custom";
   const isApiKey = authMode === "api_key";
   const dangerRequested = sandbox === "danger-full-access";
@@ -72,7 +75,10 @@ export const CodexExecutorSettings: React.FC<CodexExecutorSettingsProps> = ({
     setIsDetecting(true);
     setDetectionError(null);
     try {
-      const result = await serviceFactory.detectCodexCli(value.codex_binary ?? undefined);
+      const result = await serviceFactory.detectCodexCli(
+        value.codex_binary ?? undefined,
+        codexMode,
+      );
       setDiscovery(result);
       onChange({ codex_binary: result.path });
     } catch (error) {
@@ -188,6 +194,41 @@ export const CodexExecutorSettings: React.FC<CodexExecutorSettingsProps> = ({
           placeholder={t("settings.configTab.codex.modelPlaceholder")}
           onChange={(event) => onChange({ codex_model: event.target.value.trim() || undefined })}
         />
+      </Field>
+
+      <Field
+        label={t("settings.configTab.codex.mode")}
+        hint={t("settings.configTab.codex.modeHint")}
+      >
+        <Radio.Group
+          data-testid="codex-mode"
+          value={codexMode}
+          onChange={(event) => {
+            const next = event.target.value as (typeof CODEX_MODES)[number];
+            onChange({
+              codex_mode: next,
+              codex_approval_policy:
+                next === "app_server"
+                  ? "on-request"
+                  : value.codex_approval_policy === "on-request"
+                    ? undefined
+                    : value.codex_approval_policy,
+            });
+          }}
+        >
+          <Space direction="vertical">
+            {CODEX_MODES.map((mode) => (
+              <Radio key={mode} value={mode}>
+                <Space direction="vertical" size={0}>
+                  <Text>{t(`settings.configTab.codex.modes.${mode}.label`)}</Text>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {t(`settings.configTab.codex.modes.${mode}.description`)}
+                  </Text>
+                </Space>
+              </Radio>
+            ))}
+          </Space>
+        </Radio.Group>
       </Field>
 
       <Field
@@ -323,15 +364,27 @@ export const CodexExecutorSettings: React.FC<CodexExecutorSettingsProps> = ({
             })
           }
           options={[
-            {
-              value: MAPPED_POLICY,
-              label: t("settings.configTab.codex.approvalPolicies.mapped"),
-            },
-            { value: "never", label: t("settings.configTab.codex.approvalPolicies.never") },
-            {
-              value: "on-failure",
-              label: t("settings.configTab.codex.approvalPolicies.onFailure"),
-            },
+            ...(codexMode === "app_server"
+              ? [
+                  {
+                    value: "on-request",
+                    label: t("settings.configTab.codex.approvalPolicies.onRequest"),
+                  },
+                ]
+              : [
+                  {
+                    value: MAPPED_POLICY,
+                    label: t("settings.configTab.codex.approvalPolicies.mapped"),
+                  },
+                  {
+                    value: "never",
+                    label: t("settings.configTab.codex.approvalPolicies.never"),
+                  },
+                  {
+                    value: "on-failure",
+                    label: t("settings.configTab.codex.approvalPolicies.onFailure"),
+                  },
+                ]),
           ]}
         />
       </Field>

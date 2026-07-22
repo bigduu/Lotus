@@ -145,6 +145,8 @@ export interface BambooSubagentsConfig {
   codex_binary?: string | null;
   /** `executor === "codex"` only: optional `--model` override. */
   codex_model?: string | null;
+  /** One-shot exec (default) or long-lived app-server approval relay. */
+  codex_mode?: "exec" | "app_server";
   /** Authentication and billing boundary used by the Codex child. */
   codex_auth_mode?: "inherit" | "api_key" | "custom" | "bamboo";
   /** Custom-provider base URL; valid only when `codex_auth_mode === "custom"`. */
@@ -157,8 +159,8 @@ export interface BambooSubagentsConfig {
   codex_forward_env?: string[] | null;
   /** Explicit sandbox override; null/unset derives the mapped parent default. */
   codex_sandbox?: "read-only" | "workspace-write" | "danger-full-access" | null;
-  /** Explicit non-interactive approval policy; null/unset maps to `never`. */
-  codex_approval_policy?: "never" | "on-failure" | null;
+  /** Mode-specific approval policy. App-server uses `on-request`. */
+  codex_approval_policy?: "never" | "on-failure" | "on-request" | null;
   /** Allow network access inside a workspace-write sandbox. */
   codex_network_access?: boolean;
   /** Second gate required before a parent-bypass run may disable the OS sandbox. */
@@ -472,7 +474,7 @@ export interface UtilityService {
   validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse>;
 
   /** Resolve and capability-check the Codex executable without saving config. */
-  detectCodexCli(binary?: string): Promise<CodexCliDiscoveryResponse>;
+  detectCodexCli(binary?: string, mode?: "exec" | "app_server"): Promise<CodexCliDiscoveryResponse>;
 
   /** Execute one lifecycle hook against Bamboo's synthetic dry-run payload. */
   testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse>;
@@ -616,9 +618,13 @@ class HttpUtilityService implements UtilityService {
     return apiClient.post<ValidateBambooConfigResponse>("bamboo/config/validate", patch);
   }
 
-  async detectCodexCli(binary?: string): Promise<CodexCliDiscoveryResponse> {
+  async detectCodexCli(
+    binary?: string,
+    mode: "exec" | "app_server" = "exec",
+  ): Promise<CodexCliDiscoveryResponse> {
     return apiClient.post<CodexCliDiscoveryResponse>("bamboo/config/codex/detect", {
       binary: binary?.trim() || undefined,
+      mode,
     });
   }
 
