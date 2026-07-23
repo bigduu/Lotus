@@ -1,14 +1,18 @@
 export type WorkflowKind = "instruction" | "orchestration";
 
-export type WorkflowSource = "builtin" | "project" | "user" | "plugin" | "legacy";
+export type WorkflowSource = "builtin" | "project" | "workspace" | "user" | "plugin" | "legacy";
 
 export type WorkflowStatus = "valid" | "invalid" | "degraded" | "shadowed";
 
 export type InvocationPolicy = "manual" | "implicit" | "both";
 
+export type WorkflowMigrationStatus = "available" | "migrated";
+
 export interface WorkflowShadowedCandidate {
   source: WorkflowSource;
   status: Extract<WorkflowStatus, "valid" | "invalid">;
+  legacy?: boolean;
+  migrationStatus?: WorkflowMigrationStatus;
   lastError?: string;
 }
 
@@ -19,6 +23,8 @@ export interface WorkflowCatalogItem {
   kind: WorkflowKind;
   source: WorkflowSource;
   status: WorkflowStatus;
+  legacy?: boolean;
+  migrationStatus?: WorkflowMigrationStatus;
   invocationPolicy: InvocationPolicy;
   argumentHint?: string;
   argumentSchema?: Record<string, unknown>;

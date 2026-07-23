@@ -12,6 +12,7 @@ import type {
   WorkflowCatalogItem,
   WorkflowCatalogView,
   WorkflowKind,
+  WorkflowMigrationStatus,
   WorkflowShadowedCandidate,
   WorkflowSource,
   WorkflowStatus,
@@ -72,12 +73,19 @@ const isWorkflowKind = (value: unknown): value is WorkflowKind =>
 const isWorkflowSource = (value: unknown): value is WorkflowSource =>
   value === "builtin" ||
   value === "project" ||
+  value === "workspace" ||
   value === "user" ||
   value === "plugin" ||
   value === "legacy";
 
 const isWorkflowStatus = (value: unknown): value is WorkflowStatus =>
   value === "valid" || value === "invalid" || value === "degraded" || value === "shadowed";
+
+const migrationStatusFromTyped = (value: unknown): WorkflowMigrationStatus | undefined => {
+  if (value === undefined || value === null) return undefined;
+  if (value === "available" || value === "migrated") return value;
+  throw new Error("invalid migration status");
+};
 
 const invocationPolicyFromMetadata = (value: unknown): InvocationPolicy => {
   if (!isJsonObject(value)) return "manual";
@@ -96,9 +104,12 @@ const shadowedCandidateFromTyped = (raw: unknown): WorkflowShadowedCandidate => 
   if (raw.status !== "valid" && raw.status !== "invalid") {
     throw new Error("invalid shadowed candidate status");
   }
+  const migrationStatus = migrationStatusFromTyped(raw.migration_status ?? raw.migrationStatus);
   return {
     source: raw.source,
     status: raw.status,
+    ...(raw.legacy === true ? { legacy: true } : {}),
+    ...(migrationStatus ? { migrationStatus } : {}),
     lastError: optionalString(raw.last_error ?? raw.lastError),
   };
 };
@@ -123,6 +134,7 @@ const typedEntryToCatalogItem = (raw: unknown): WorkflowCatalogItem => {
   const shadowedCandidates = raw.shadowed_candidates ?? raw.shadowedCandidates ?? [];
   if (!Array.isArray(shadowedCandidates)) throw new Error("invalid shadowed candidates");
   const mappedShadowedCandidates = shadowedCandidates.map(shadowedCandidateFromTyped);
+  const migrationStatus = migrationStatusFromTyped(raw.migration_status ?? raw.migrationStatus);
 
   return {
     id,
@@ -131,6 +143,8 @@ const typedEntryToCatalogItem = (raw: unknown): WorkflowCatalogItem => {
     kind,
     source,
     status: rawStatus,
+    ...(raw.legacy === true ? { legacy: true } : {}),
+    ...(migrationStatus ? { migrationStatus } : {}),
     invocationPolicy: invocationPolicyFromMetadata(invocationPolicy),
     argumentHint: optionalString(argumentHint),
     argumentSchema: isJsonObject(argumentSchema) ? argumentSchema : undefined,

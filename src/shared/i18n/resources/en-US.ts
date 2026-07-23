@@ -2008,6 +2008,13 @@ export const enUsTranslation = {
         partialInvalid_other: "{{count}} catalog entries could not be displayed",
         shadowedCandidates: "Shadowed candidates",
         readOnly: "Read-only",
+        legacy: "Legacy",
+        migrate: "Migrate",
+        migrated: "Workflow migrated; the legacy source was preserved",
+        alreadyMigrated: "Workflow was already migrated; the legacy source is preserved",
+        migrationFailed: "Failed to migrate workflow",
+        migrationNeedsSession: "Open a workspace session before migrating this workflow",
+        migrateWorkflow: "Migrate {{name}}",
         arguments: "Arguments",
         version: "Version {{version}}",
         revision: "Revision {{revision}}",
@@ -2038,9 +2045,14 @@ export const enUsTranslation = {
         source: {
           builtin: "Built-in",
           project: "Project",
+          workspace: "Workspace",
           user: "User",
           plugin: "Plugin",
           legacy: "Legacy",
+        },
+        migrationStatus: {
+          available: "Migration available",
+          migrated: "Migrated",
         },
         status: {
           valid: "Valid",
