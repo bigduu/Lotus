@@ -7,6 +7,7 @@ import {
   PlusOutlined,
   ReloadOutlined,
   SaveOutlined,
+  SwapOutlined,
 } from "@ant-design/icons";
 import {
   Alert,
@@ -32,11 +33,13 @@ import { useAppStore } from "@shared/store/appStore";
 import { WorkflowManagerService } from "../../../ChatPage/services/WorkflowManagerService";
 import {
   NegotiatedWorkflowCatalogAdapter,
+  BambooWorkflowMigrationClient,
   type LegacyWorkflowManagementClient,
   type WorkflowCatalogAdapter,
   type WorkflowCatalogItem,
   type WorkflowCatalogView,
   type WorkflowKind,
+  type WorkflowMigrationClient,
   type WorkflowSource,
   type WorkflowStatus,
 } from "../../../../features/workflows";
@@ -45,6 +48,7 @@ const { Text, Title } = Typography;
 const { useToken } = theme;
 
 const defaultCatalogAdapter = new NegotiatedWorkflowCatalogAdapter();
+const defaultMigrationClient = new BambooWorkflowMigrationClient();
 const defaultLegacyManager: LegacyWorkflowManagementClient = {
   getWorkflow: (name) => WorkflowManagerService.getInstance().getWorkflow(name),
   saveWorkflow: async (name, content) => {
@@ -60,6 +64,7 @@ type FilterValue<T extends string> = T | "all";
 export interface SystemSettingsWorkflowsTabProps {
   catalogAdapter?: WorkflowCatalogAdapter;
   legacyManager?: LegacyWorkflowManagementClient;
+  migrationClient?: WorkflowMigrationClient;
   sessionId?: string | null;
 }
 
@@ -72,6 +77,7 @@ const isSafeWorkflowName = (name: string): boolean =>
 const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
   catalogAdapter = defaultCatalogAdapter,
   legacyManager = defaultLegacyManager,
+  migrationClient = defaultMigrationClient,
   sessionId,
 }) => {
   const { t } = useTranslation();
@@ -89,6 +95,7 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isEditorLoading, setIsEditorLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [migratingWorkflowId, setMigratingWorkflowId] = useState<string | null>(null);
   const [editingOriginalName, setEditingOriginalName] = useState<string | null>(null);
   const [editorName, setEditorName] = useState("");
   const [editorContent, setEditorContent] = useState("");
@@ -224,6 +231,35 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
     [legacyManager, loadCatalog, msgApi, t],
   );
 
+  const migrateLegacyWorkflow = useCallback(
+    async (item: WorkflowCatalogItem) => {
+      const trustedSessionId = resolvedSessionId?.trim();
+      if (!trustedSessionId) {
+        msgApi.error(t("settings.workflowsTab.migrationNeedsSession"));
+        return;
+      }
+      setMigratingWorkflowId(item.id);
+      try {
+        const result = await migrationClient.migrate(item.id, trustedSessionId);
+        msgApi.success(
+          t(
+            result.outcome === "already_migrated"
+              ? "settings.workflowsTab.alreadyMigrated"
+              : "settings.workflowsTab.migrated",
+          ),
+        );
+        await loadCatalog();
+      } catch (error) {
+        msgApi.error(
+          error instanceof Error ? error.message : t("settings.workflowsTab.migrationFailed"),
+        );
+      } finally {
+        setMigratingWorkflowId(null);
+      }
+    },
+    [loadCatalog, migrationClient, msgApi, resolvedSessionId, t],
+  );
+
   const renderWorkflow = (item: WorkflowCatalogItem) => (
     <List.Item key={item.id}>
       <article aria-labelledby={`workflow-library-${item.id}`} style={{ width: "100%" }}>
@@ -240,6 +276,12 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
               <Tag color={item.status === "valid" ? "success" : "warning"}>
                 {t(`settings.workflowsTab.status.${item.status}`)}
               </Tag>
+              {item.legacy && <Tag color="orange">{t("settings.workflowsTab.legacy")}</Tag>}
+              {item.migrationStatus && (
+                <Tag color={item.migrationStatus === "available" ? "warning" : "success"}>
+                  {t(`settings.workflowsTab.migrationStatus.${item.migrationStatus}`)}
+                </Tag>
+              )}
               <Tag color="geekblue">
                 {t(`settings.workflowsTab.invocation.${item.invocationPolicy}`)}
               </Tag>
@@ -279,6 +321,10 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
                   <Tag key={`${candidate.source}-${index}`} color="warning">
                     {t(`settings.workflowsTab.source.${candidate.source}`)} ·{" "}
                     {t(`settings.workflowsTab.status.${candidate.status}`)}
+                    {candidate.legacy ? ` · ${t("settings.workflowsTab.legacy")}` : ""}
+                    {candidate.migrationStatus
+                      ? ` · ${t(`settings.workflowsTab.migrationStatus.${candidate.migrationStatus}`)}`
+                      : ""}
                     {candidate.lastError ? ` · ${candidate.lastError}` : ""}
                   </Tag>
                 ))}
@@ -286,6 +332,17 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
             )}
           </Space>
           <Space wrap>
+            {item.migrationStatus === "available" && (
+              <Button
+                icon={<SwapOutlined />}
+                loading={migratingWorkflowId === item.id}
+                disabled={!resolvedSessionId?.trim()}
+                onClick={() => void migrateLegacyWorkflow(item)}
+                aria-label={t("settings.workflowsTab.migrateWorkflow", { name: item.name })}
+              >
+                {t("settings.workflowsTab.migrate")}
+              </Button>
+            )}
             <Button
               icon={<CopyOutlined />}
               disabled={!catalog?.capabilities.clone}
@@ -386,12 +443,19 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
               aria-label={t("settings.workflowsTab.sourceFilter")}
               options={[
                 { value: "all", label: t("settings.workflowsTab.allSources") },
-                ...(["builtin", "project", "user", "plugin", "legacy"] as WorkflowSource[]).map(
-                  (value) => ({
-                    value,
-                    label: t(`settings.workflowsTab.source.${value}`),
-                  }),
-                ),
+                ...(
+                  [
+                    "builtin",
+                    "project",
+                    "workspace",
+                    "user",
+                    "plugin",
+                    "legacy",
+                  ] as WorkflowSource[]
+                ).map((value) => ({
+                  value,
+                  label: t(`settings.workflowsTab.source.${value}`),
+                })),
               ]}
               style={{ minWidth: 140 }}
             />

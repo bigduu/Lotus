@@ -1950,6 +1950,13 @@ export const zhCnTranslation = {
         partialInvalid_other: "有 {{count}} 条目录记录无法显示",
         shadowedCandidates: "被覆盖的候选项",
         readOnly: "只读",
+        legacy: "旧版",
+        migrate: "迁移",
+        migrated: "工作流已迁移，旧版源文件保持不变",
+        alreadyMigrated: "工作流已经迁移，旧版源文件保持不变",
+        migrationFailed: "迁移工作流失败",
+        migrationNeedsSession: "请先打开一个 workspace 会话再迁移此工作流",
+        migrateWorkflow: "迁移 {{name}}",
         arguments: "参数",
         version: "版本 {{version}}",
         revision: "修订 {{revision}}",
@@ -1980,9 +1987,14 @@ export const zhCnTranslation = {
         source: {
           builtin: "内置",
           project: "项目",
+          workspace: "工作区",
           user: "用户",
           plugin: "插件",
           legacy: "旧版",
+        },
+        migrationStatus: {
+          available: "可迁移",
+          migrated: "已迁移",
         },
         status: {
           valid: "有效",

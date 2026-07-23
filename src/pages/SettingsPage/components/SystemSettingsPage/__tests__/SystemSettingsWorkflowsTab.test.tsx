@@ -4,6 +4,7 @@ import type {
   LegacyWorkflowManagementClient,
   WorkflowCatalogAdapter,
   WorkflowCatalogView,
+  WorkflowMigrationClient,
 } from "../../../../../features/workflows";
 import SystemSettingsWorkflowsTab from "../SystemSettingsWorkflowsTab";
 
@@ -67,6 +68,22 @@ const typedCatalog: WorkflowCatalogView = {
       readOnly: true,
       revision: 2,
     },
+    {
+      id: "legacy-repo-review",
+      name: "Repository legacy review",
+      description: "A workspace legacy workflow ready to migrate.",
+      kind: "instruction",
+      source: "workspace",
+      status: "valid",
+      legacy: true,
+      migrationStatus: "available",
+      invocationPolicy: "manual",
+      readOnly: false,
+      revision: 6,
+      shadowedCandidates: [
+        { source: "plugin", status: "valid", legacy: true, migrationStatus: "available" },
+      ],
+    },
   ],
 };
 
@@ -80,7 +97,7 @@ describe("SystemSettingsWorkflowsTab", () => {
     render(<SystemSettingsWorkflowsTab catalogAdapter={adapter} sessionId="session-125" />);
 
     expect(await screen.findByText("Review")).toBeInTheDocument();
-    expect(screen.getAllByText("Instruction")).toHaveLength(2);
+    expect(screen.getAllByText("Instruction")).toHaveLength(3);
     expect(screen.getByText("Built-in")).toBeInTheDocument();
     expect(screen.getByText("Manual + automatic")).toBeInTheDocument();
     expect(screen.getAllByText("Read-only")).toHaveLength(2);
@@ -90,8 +107,12 @@ describe("SystemSettingsWorkflowsTab", () => {
     expect(screen.getByText("Invalid argument schema")).toBeInTheDocument();
     expect(screen.getByText("Plugin")).toBeInTheDocument();
     expect(screen.getByText("Degraded")).toBeInTheDocument();
-    expect(screen.getByText("Shadowed candidates:")).toBeInTheDocument();
+    expect(screen.getAllByText("Shadowed candidates:")).toHaveLength(2);
     expect(screen.getByText("Project · Invalid · Bad override")).toBeInTheDocument();
+    expect(screen.getByText("Workspace")).toBeInTheDocument();
+    expect(screen.getByText("Migration available")).toBeInTheDocument();
+    expect(screen.getByText("Plugin · Valid · Legacy · Migration available")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Migrate Repository legacy review" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Clone Review" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Edit Review" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Run Review" })).toBeDisabled();
@@ -99,6 +120,54 @@ describe("SystemSettingsWorkflowsTab", () => {
       sessionId: "session-125",
       signal: expect.any(AbortSignal),
     });
+  });
+
+  it("migrates an available legacy workflow through the trusted session and refreshes", async () => {
+    const load = vi.fn<WorkflowCatalogAdapter["load"]>().mockResolvedValue(typedCatalog);
+    const migrate = vi.fn<WorkflowMigrationClient["migrate"]>().mockResolvedValue({
+      workflow_id: "legacy-repo-review",
+      outcome: "migrated",
+      source_preserved: true,
+      catalog_revision: 13,
+    });
+    render(
+      <SystemSettingsWorkflowsTab
+        catalogAdapter={{ load }}
+        migrationClient={{ migrate }}
+        sessionId=" session-561 "
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Migrate Repository legacy review" }),
+    );
+
+    await waitFor(() => expect(migrate).toHaveBeenCalledWith("legacy-repo-review", "session-561"));
+    await waitFor(() => expect(load).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByText("Workflow migrated; the legacy source was preserved"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows migration failure without fabricating a refresh", async () => {
+    const load = vi.fn<WorkflowCatalogAdapter["load"]>().mockResolvedValue(typedCatalog);
+    const migrate = vi
+      .fn<WorkflowMigrationClient["migrate"]>()
+      .mockRejectedValue(new Error("Target Skill already exists"));
+    render(
+      <SystemSettingsWorkflowsTab
+        catalogAdapter={{ load }}
+        migrationClient={{ migrate }}
+        sessionId="session-561"
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Migrate Repository legacy review" }),
+    );
+
+    expect(await screen.findByText("Target Skill already exists")).toBeInTheDocument();
+    expect(load).toHaveBeenCalledTimes(1);
   });
 
   it("preserves usable entries when the typed catalog contains invalid records", async () => {
