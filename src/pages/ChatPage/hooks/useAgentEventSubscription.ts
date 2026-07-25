@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useMemo } from "react";
 import { useShallow } from "zustand/react/shallow";
 import { AgentClient } from "@services/chat/AgentService";
 import { useAppStore, selectShouldObserve, selectGeneration } from "@shared/store/appStore";
@@ -68,9 +68,11 @@ export function useAgentEventSubscription() {
   );
 
   const agentClientRef = useRef<AgentClient | null>(null);
-  if (!agentClientRef.current) {
-    agentClientRef.current = getSharedAgentClient();
-  }
+  useMemo(() => {
+    if (!agentClientRef.current) {
+      agentClientRef.current = getSharedAgentClient();
+    }
+  }, []);
   const taskBaselineRecoveryRef = useRef<Set<string>>(new Set());
   const parentSettleTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const titleRefreshRetryTimersRef = useRef<
@@ -535,7 +537,7 @@ export function useAgentEventSubscription() {
 
   // Retry pending processing chats when chats/config updates (e.g. sessionId arrives)
   useEffect(() => {
-    return useAppStore.subscribe(
+    const unsubscribe = useAppStore.subscribe(
       (s) => s.chats,
       () => {
         if (pendingSessionIdsRef.current.size === 0) return;
@@ -549,6 +551,11 @@ export function useAgentEventSubscription() {
         }
       },
     );
+    // Wrap the teardown in an explicit function so future cleanup additions
+    // (timer clears, abort, etc.) have one place to live and cannot be missed.
+    return () => {
+      unsubscribe();
+    };
   }, [ensureSubscription]);
 
   // Effect: reconcile on tab-visibility regain. A backgrounded tab (Safari
@@ -601,12 +608,23 @@ export function useAgentEventSubscription() {
   // Effect B: unmount cleanup only
   useEffect(() => {
     const subscriptionsBySession = subscriptionsBySessionRef.current;
+    const titleRefreshRetryTimers = titleRefreshRetryTimersRef.current;
 
     return () => {
       const activeSessionIds = Array.from(subscriptionsBySession.keys());
       for (const sessionId of activeSessionIds) {
         cleanupChat(sessionId, { clearDraft: true, clearTitleRetry: true });
       }
+      // Title-refresh timers can outlive their session's subscription (they are
+      // scheduled after completion and re-check lazily). Clear every remaining
+      // one so unmount never leaks a setTimeout that fires setState on an
+      // unmounted owner.
+      for (const entry of titleRefreshRetryTimers.values()) {
+        if (entry.timer) {
+          clearTimeout(entry.timer);
+        }
+      }
+      titleRefreshRetryTimers.clear();
     };
   }, [cleanupChat]);
 }
