@@ -790,15 +790,20 @@ describe("AgentClient", () => {
     expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
   });
 
-  it("rejects subscribeToEvents on EventSource error before terminal event", async () => {
+  it("does not reject on transient EventSource errors before a terminal event (lets the browser reconnect)", async () => {
     const client = AgentClient.getInstance();
 
     const pending = client.subscribeToEvents("session-1", {});
 
     expect(eventSourceInstances).toHaveLength(1);
+    // Simulate a transient disconnect (wifi flicker, tab throttle). The
+    // browser auto-reconnects, so the subscription promise should stay
+    // pending and EventSource should not be closed.
     eventSourceInstances[0]?.onerror?.();
 
-    await expect(pending).rejects.toThrow("EventSource connection failed for session session-1");
+    // Still pending; resolve it via the terminal [DONE] marker.
+    eventSourceInstances[0]?.onmessage?.({ data: "[DONE]" } as MessageEvent<string>);
+    await expect(pending).resolves.toBeUndefined();
     expect(eventSourceInstances[0]?.close).toHaveBeenCalled();
   });
 

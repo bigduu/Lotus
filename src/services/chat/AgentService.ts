@@ -1584,7 +1584,12 @@ export class AgentClient {
           settleResolve();
           return;
         }
-        settleReject(new Error(`EventSource connection failed for session ${sessionId}`));
+        // Transient disconnect (wifi flicker, tab throttle, server restart):
+        // the browser's native EventSource will auto-reconnect and resend
+        // Last-Event-ID, so the backend replays only what was missed. Do NOT
+        // reject here — that would abort the whole run on the first blip and
+        // leave it stuck with no live updates. Mirrors the account feed's
+        // transient-error handling in `subscribeAccountStreamSse`.
       };
     });
   }
