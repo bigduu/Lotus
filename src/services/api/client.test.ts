@@ -165,3 +165,117 @@ describe("ApiClient fetchWithRetry abort semantics (#10)", () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 });
+
+describe("ApiClient non-idempotent write safety", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const makeFailingFetch = (status: number) =>
+    vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: "boom" } }), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+  it.each([
+    ["post" as const, {}],
+    ["put" as const, {}],
+    ["patch" as const, {}],
+    ["delete" as const, undefined],
+  ])("does not retry %s on a 5xx error", async (method, body) => {
+    const client = new ApiClient({ baseUrl: "http://example.test/v1" });
+    const fetchMock = makeFailingFetch(502);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promise =
+      method === "delete" ? client[method]("bamboo/config") : client[method]("bamboo/config", body);
+
+    await expect(promise).rejects.toMatchObject({ status: 502, message: "boom" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["post" as const, {}],
+    ["put" as const, {}],
+    ["patch" as const, {}],
+  ])("allows %s to retry when explicitly marked retryable", async (method, body) => {
+    const client = new ApiClient({ baseUrl: "http://example.test/v1" });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: { message: "boom" } }), {
+          status: 502,
+          headers: { "content-type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      client[method]("bamboo/config", body, { retryable: true } as RequestInit),
+    ).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("ApiClient fetchRaw", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("times out after the configurable timeoutMs", async () => {
+    vi.useFakeTimers();
+    const client = new ApiClient({ baseUrl: "http://example.test/v1" });
+    const fetchMock = makeHangingAbortableFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const promise = client.fetchRaw("events/session-1", { timeoutMs: 5000 });
+    const assertion = expect(promise).rejects.toMatchObject({ name: "AbortError" });
+
+    await vi.advanceTimersByTimeAsync(5000);
+    await assertion;
+  });
+
+  it("parses backend error bodies like the JSON path", async () => {
+    const client = new ApiClient({ baseUrl: "http://example.test/v1" });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => makeJsonResponse(500, { error: { message: "server side error" } })),
+    );
+
+    await expect(client.fetchRaw("events/session-1")).rejects.toMatchObject({
+      name: "ApiError",
+      status: 500,
+      message: "server side error",
+    });
+  });
+});
+
+describe("ApiClient getHistory URL encoding", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("passes the history path through verbatim (encoding is the caller's job)", async () => {
+    const client = new ApiClient({ baseUrl: "http://example.test/v1" });
+    const fetchMock = vi.fn(async () => makeJsonResponse(200, { messages: [], is_delta: false }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    // getHistory encodes the session id; the client must not double-encode it.
+    await expect(client.get("history/session%2Fwith%2Fslashes")).resolves.toEqual({
+      messages: [],
+      is_delta: false,
+    });
+
+    const calledUrl = fetchMock.mock.calls[0]?.[0] as string;
+    expect(calledUrl).toBe("http://example.test/v1/history/session%2Fwith%2Fslashes");
+  });
+});

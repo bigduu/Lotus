@@ -115,37 +115,7 @@ export class ApiClient {
   private async handleResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
       const body = await response.text().catch(() => undefined);
-
-      // Try to parse error details from response body
-      let errorMessage = response.statusText;
-      if (body) {
-        try {
-          const errorData = JSON.parse(body);
-          // Check for common error field names.
-          //
-          // Bamboo backend ResponseError shape:
-          //   { "error": { "message": "...", "type": "...", "code": "..." } }
-          // Some endpoints also return:
-          //   { "success": false, "error": "..." }
-          const nestedMessage =
-            typeof errorData?.error === "object"
-              ? (errorData.error?.message as unknown)
-              : undefined;
-          const directError = typeof errorData?.error === "string" ? errorData.error : undefined;
-
-          errorMessage =
-            directError ||
-            (typeof nestedMessage === "string" ? nestedMessage : undefined) ||
-            errorData.message ||
-            errorData.detail ||
-            response.statusText;
-        } catch {
-          // If not JSON, use the raw body as error message
-          errorMessage = body || response.statusText;
-        }
-      }
-
-      throw new ApiError(errorMessage, response.status, response.statusText, body);
+      throw this.createApiError(response.status, response.statusText, body);
     }
 
     // Handle 204 No Content
@@ -168,11 +138,43 @@ export class ApiClient {
     return response.json();
   }
 
+  private createApiError(status: number, statusText: string, body?: string): ApiError {
+    let errorMessage = statusText;
+    if (body) {
+      try {
+        const errorData = JSON.parse(body);
+        // Check for common error field names.
+        //
+        // Bamboo backend ResponseError shape:
+        //   { "error": { "message": "...", "type": "...", "code": "..." } }
+        // Some endpoints also return:
+        //   { "success": false, "error": "..." }
+        const nestedMessage =
+          typeof errorData?.error === "object" ? (errorData.error?.message as unknown) : undefined;
+        const directError = typeof errorData?.error === "string" ? errorData.error : undefined;
+
+        errorMessage =
+          directError ||
+          (typeof nestedMessage === "string" ? nestedMessage : undefined) ||
+          errorData.message ||
+          errorData.detail ||
+          statusText;
+      } catch {
+        // If not JSON, use the raw body as error message
+        errorMessage = body || statusText;
+      }
+    }
+    return new ApiError(errorMessage, status, statusText, body);
+  }
+
   /**
-   * Delay helper for retries
+   * Delay helper for retries with jitter.
    */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private delay(baseMs: number, attempt: number): Promise<void> {
+    // Full jitter: 0..base to avoid thundering herd on coordinated reconnect.
+    const jitter = 0.5 + Math.random() * 0.5;
+    const delayMs = Math.floor(baseMs * Math.pow(2, attempt) * jitter);
+    return new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
   /**
@@ -210,26 +212,30 @@ export class ApiClient {
   }
 
   /**
-   * Fetch with retry logic for transient failures
+   * Fetch with retry logic for transient failures.
+   *
+   * Important: only safe (idempotent) methods retry by default. Non-idempotent
+   * POST/PUT/PATCH/DELETE are NOT retried because the server may already have
+   * executed the request when the response was lost. Pass `retryable: true` to
+   * opt-in for specific endpoints that are safe to replay.
    */
   private async fetchWithRetry(
     url: string,
     options: RequestInit,
-    maxRetries: number = 3,
+    maxRetries: number = 1,
+    retryable: boolean = false,
   ): Promise<Response> {
     let lastError: Error | null = null;
+    let lastStatus: number | null = null;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         const response = await fetch(url, options);
+        lastStatus = response.status;
 
-        // Retry on 5xx errors
-        if (response.status >= 500 && attempt < maxRetries - 1) {
-          const delayMs = 1000 * Math.pow(2, attempt); // Exponential backoff: 1s, 2s, 4s
-          console.warn(
-            `Request failed with ${response.status}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`,
-          );
-          await this.delay(delayMs);
+        // Only retry 5xx from safe/retryable endpoints, and never on the last attempt.
+        if (retryable && response.status >= 500 && attempt < maxRetries - 1) {
+          await this.delay(1000, attempt);
           continue;
         }
 
@@ -242,195 +248,57 @@ export class ApiClient {
         // further attempt would fail immediately and only waste the
         // exponential backoff delay. Propagate immediately instead (#10).
         if (err.name === "AbortError") {
+          // If we were retrying because of 5xx errors, surface the last 5xx
+          // instead of a misleading timeout error.
+          if (retryable && lastStatus != null && lastStatus >= 500) {
+            throw this.createApiError(lastStatus, "Server error", undefined);
+          }
           throw err;
         }
 
         lastError = err;
 
-        // Only retry on network errors, not on client errors
-        if (attempt < maxRetries - 1) {
-          const delayMs = 1000 * Math.pow(2, attempt);
-          console.warn(
-            `Network error: ${lastError.message}, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`,
-          );
-          await this.delay(delayMs);
+        // Only retry network errors for safe/retryable endpoints.
+        if (retryable && attempt < maxRetries - 1) {
+          await this.delay(1000, attempt);
         }
       }
+    }
+
+    // If we ended with 5xx on the last attempt, throw an ApiError rather than
+    // the lower-level network error so callers can inspect status/message.
+    if (retryable && lastStatus != null && lastStatus >= 500) {
+      throw this.createApiError(lastStatus, "Server error", undefined);
     }
 
     throw lastError || new Error("Max retries exceeded");
   }
 
   /**
-   * Make a GET request with timeout and retry
+   * Core request dispatcher.
    */
-  async get<T>(path: string, options?: RequestInit): Promise<T> {
+  private async requestWithRetry<T>(
+    method: string,
+    path: string,
+    {
+      data,
+      options,
+      maxRetries = 1,
+      retryable = false,
+      timeoutMs = 30000,
+    }: {
+      data?: unknown;
+      options?: RequestInit;
+      maxRetries?: number;
+      retryable?: boolean;
+      timeoutMs?: number;
+    } = {},
+  ): Promise<T> {
     const url = this.buildUrl(path);
-    logApiRequest("GET", url);
+    logApiRequest(method, url);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
-
-    try {
-      const response = await this.fetchWithRetry(
-        url,
-        {
-          ...options,
-          method: "GET",
-          headers: {
-            ...this.defaultHeaders,
-            ...options?.headers,
-          },
-          credentials: "include",
-          signal,
-        },
-        3, // 3 retries
-      );
-      return this.handleResponse<T>(response);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  /**
-   * Make a POST request with timeout and retry
-   */
-  async post<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
-    const url = this.buildUrl(path);
-    logApiRequest("POST", url);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
-
-    try {
-      const response = await this.fetchWithRetry(
-        url,
-        {
-          ...options,
-          method: "POST",
-          headers: {
-            ...this.defaultHeaders,
-            ...options?.headers,
-          },
-          credentials: "include",
-          body: data ? JSON.stringify(data) : undefined,
-          signal,
-        },
-        3, // 3 retries
-      );
-      return this.handleResponse<T>(response);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  /**
-   * Make a PUT request with timeout and retry
-   */
-  async put<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
-    const url = this.buildUrl(path);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
-
-    try {
-      const response = await this.fetchWithRetry(
-        url,
-        {
-          ...options,
-          method: "PUT",
-          headers: {
-            ...this.defaultHeaders,
-            ...options?.headers,
-          },
-          credentials: "include",
-          body: data ? JSON.stringify(data) : undefined,
-          signal,
-        },
-        3, // 3 retries
-      );
-      return this.handleResponse<T>(response);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  /**
-   * Make a PATCH request with timeout and retry
-   */
-  async patch<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
-    const url = this.buildUrl(path);
-    logApiRequest("PATCH", url);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
-
-    try {
-      const response = await this.fetchWithRetry(
-        url,
-        {
-          ...options,
-          method: "PATCH",
-          headers: {
-            ...this.defaultHeaders,
-            ...options?.headers,
-          },
-          credentials: "include",
-          body: data ? JSON.stringify(data) : undefined,
-          signal,
-        },
-        3,
-      );
-      return this.handleResponse<T>(response);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  /**
-   * Make a DELETE request with timeout and retry
-   */
-  async delete<T>(path: string, options?: RequestInit): Promise<T> {
-    const url = this.buildUrl(path);
-    logApiRequest("DELETE", url);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
-    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
-
-    try {
-      const response = await this.fetchWithRetry(
-        url,
-        {
-          ...options,
-          method: "DELETE",
-          headers: {
-            ...this.defaultHeaders,
-            ...options?.headers,
-          },
-          credentials: "include",
-          signal,
-        },
-        3, // 3 retries
-      );
-      return this.handleResponse<T>(response);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  /**
-   * Make a request with custom method and timeout
-   */
-  async request<T>(method: string, path: string, options?: RequestInit): Promise<T> {
-    const url = this.buildUrl(path);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
 
     try {
@@ -444,9 +312,11 @@ export class ApiClient {
             ...options?.headers,
           },
           credentials: "include",
+          body: data ? JSON.stringify(data) : undefined,
           signal,
         },
-        3, // 3 retries
+        maxRetries,
+        retryable,
       );
       return this.handleResponse<T>(response);
     } finally {
@@ -455,30 +325,119 @@ export class ApiClient {
   }
 
   /**
-   * Make a request and return raw Response for streaming
-   * Note: No retry logic for streaming endpoints
+   * Make a GET request with timeout and retry.
+   * GET is idempotent and retries automatically on 5xx/network errors.
    */
-  async fetchRaw(path: string, options?: RequestInit): Promise<Response> {
-    const url = this.buildUrl(path);
-    logApiRequest("GET", url);
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...this.defaultHeaders,
-        ...options?.headers,
-      },
-      credentials: "include",
+  async get<T>(path: string, options?: RequestInit): Promise<T> {
+    return this.requestWithRetry<T>("GET", path, { options, maxRetries: 3, retryable: true });
+  }
+
+  /**
+   * Make a POST request with timeout. POST is non-idempotent and is NOT retried
+   * by default to avoid double-execution (e.g. duplicate agent runs, double
+   * LLM charges, duplicate approvals). Pass `retryable: true` in `options` only
+   * for explicitly safe-to-replay endpoints.
+   */
+  async post<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const retryable = options?.["retryable" as keyof RequestInit] === true;
+    return this.requestWithRetry<T>("POST", path, {
+      data,
+      options,
+      maxRetries: retryable ? 3 : 1,
+      retryable,
     });
+  }
 
-    if (!response.ok) {
-      throw new ApiError(
-        `API request failed: ${response.statusText}`,
-        response.status,
-        response.statusText,
-      );
+  /**
+   * Make a PUT request with timeout. PUT is non-idempotent and is NOT retried
+   * by default.
+   */
+  async put<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const retryable = options?.["retryable" as keyof RequestInit] === true;
+    return this.requestWithRetry<T>("PUT", path, {
+      data,
+      options,
+      maxRetries: retryable ? 3 : 1,
+      retryable,
+    });
+  }
+
+  /**
+   * Make a PATCH request with timeout. PATCH is non-idempotent and is NOT retried
+   * by default.
+   */
+  async patch<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const retryable = options?.["retryable" as keyof RequestInit] === true;
+    return this.requestWithRetry<T>("PATCH", path, {
+      data,
+      options,
+      maxRetries: retryable ? 3 : 1,
+      retryable,
+    });
+  }
+
+  /**
+   * Make a DELETE request with timeout. DELETE is non-idempotent and is NOT retried
+   * by default.
+   */
+  async delete<T>(path: string, options?: RequestInit): Promise<T> {
+    const retryable = options?.["retryable" as keyof RequestInit] === true;
+    return this.requestWithRetry<T>("DELETE", path, {
+      options,
+      maxRetries: retryable ? 3 : 1,
+      retryable,
+    });
+  }
+
+  /**
+   * Make a request with a custom method and timeout.
+   * Custom methods are not retried by default; pass `retryable: true` to opt in.
+   */
+  async request<T>(method: string, path: string, options?: RequestInit): Promise<T> {
+    const retryable = options?.["retryable" as keyof RequestInit] === true;
+    return this.requestWithRetry<T>(method, path, {
+      options,
+      maxRetries: retryable ? 3 : 1,
+      retryable,
+    });
+  }
+
+  /**
+   * Make a request and return raw Response for streaming.
+   *
+   * Uses a caller-configurable timeout (default 120s) and reuses the same error
+   * body parsing as the standard JSON path so backend messages are surfaced.
+   * Streaming endpoints are not retried by default.
+   */
+  async fetchRaw(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<Response> {
+    const url = this.buildUrl(path);
+    const timeoutMs = options?.timeoutMs ?? 120000;
+    logApiRequest("GET", url);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const signal = this.combineAbortSignals(controller.signal, options?.signal ?? undefined);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...this.defaultHeaders,
+          ...options?.headers,
+        },
+        credentials: "include",
+        signal,
+      });
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => undefined);
+        throw this.createApiError(response.status, response.statusText, body);
+      }
+
+      return response;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    return response;
   }
 }
 

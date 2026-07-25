@@ -1990,9 +1990,12 @@ export class AgentClient {
     // Delta mode: when a cursor is supplied, the backend returns only messages
     // appended after it (`is_delta: true`), so a client that already has most
     // of the history only transfers the tail.
+    // Encode the session id in the path segment — without this, an id containing
+    // `/`, `?` or `#` would silently break the route or hit the wrong endpoint.
+    const encodedSessionId = encodeURIComponent(sessionId);
     const path = sinceMessageId
-      ? `history/${sessionId}?since_message_id=${encodeURIComponent(sinceMessageId)}`
-      : `history/${sessionId}`;
+      ? `history/${encodedSessionId}?since_message_id=${encodeURIComponent(sinceMessageId)}`
+      : `history/${encodedSessionId}`;
     const response = await agentApiClient.get<HistoryResponse>(path);
     debugLog("[AgentClient]", "history.response", summarizeHistoryResponse(response));
     return response;
