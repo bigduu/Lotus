@@ -1,7 +1,7 @@
 import { theme } from "antd";
 import { useEffect, useRef } from "react";
-import mermaid from "mermaid";
 import { useMermaidSettings } from "../../store/mermaidSettingsStore";
+import { getMermaid } from "./mermaidRenderManager";
 
 /**
  * Hook to dynamically update Mermaid theme based on Ant Design theme
@@ -35,126 +35,136 @@ export const useMermaidTheme = () => {
       activeTheme = isDark ? "dark" : userSettings.theme;
     }
 
-    mermaid.initialize({
-      startOnLoad: false,
-      theme: activeTheme,
-      // Keep in sync with mermaidConfig.ts: strict + TOP-LEVEL htmlLabels:false
-      // so labels render as native SVG <text> (survive DOMPurify, capture
-      // cleanly when rasterized for PDF). The per-diagram flowchart.htmlLabels
-      // below is not sufficient on its own in mermaid 11.15.
-      securityLevel: "strict",
-      htmlLabels: false,
-      suppressErrorRendering: true,
-      // SECURITY (issue #38): keep in sync with mermaidConfig.ts — every
-      // mermaid.initialize() call resets `secure` to mermaid's defaults plus
-      // whatever this call passes, so the themeCSS/themeVariables/fontFamily
-      // lock has to be repeated here too (this hook re-initializes on every
-      // theme change, i.e. on every app theme/mermaid-settings change).
-      secure: ["themeCSS", "themeVariables", "fontFamily"],
-      fontSize: userSettings.fontSize,
-
-      // Apply custom theme variables if provided
-      themeVariables:
-        Object.keys(userSettings.themeVariables).length > 0
-          ? userSettings.themeVariables
-          : undefined,
-
-      // Flowchart with user settings
-      flowchart: {
-        useMaxWidth: userSettings.useMaxWidth,
-        // false: native SVG <text> labels. HTML (<foreignObject>) labels get
-        // stripped by DOMPurify and rasterize unreliably in PDF export.
+    // Lazily load mermaid (off the critical path) before re-initializing with
+    // the theme-specific config. `getMermaid` runs the base init once; this
+    // call layers the user's theme/diagram settings on top of it.
+    let cancelled = false;
+    void getMermaid().then((mermaid) => {
+      if (cancelled) return;
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: activeTheme,
+        // Keep in sync with mermaidConfig.ts: strict + TOP-LEVEL htmlLabels:false
+        // so labels render as native SVG <text> (survive DOMPurify, capture
+        // cleanly when rasterized for PDF). The per-diagram flowchart.htmlLabels
+        // below is not sufficient on its own in mermaid 11.15.
+        securityLevel: "strict",
         htmlLabels: false,
-        curve: userSettings.flowchartCurve,
-        nodeSpacing: userSettings.flowchartNodeSpacing,
-        rankSpacing: userSettings.flowchartRankSpacing,
-      },
+        suppressErrorRendering: true,
+        // SECURITY (issue #38): keep in sync with mermaidConfig.ts — every
+        // mermaid.initialize() call resets `secure` to mermaid's defaults plus
+        // whatever this call passes, so the themeCSS/themeVariables/fontFamily
+        // lock has to be repeated here too (this hook re-initializes on every
+        // theme change, i.e. on every app theme/mermaid-settings change).
+        secure: ["themeCSS", "themeVariables", "fontFamily"],
+        fontSize: userSettings.fontSize,
 
-      // Sequence with user settings
-      sequence: {
-        useMaxWidth: userSettings.useMaxWidth,
-        diagramMarginX: 10,
-        diagramMarginY: 10,
-        actorMargin: userSettings.sequenceActorMargin,
-        width: userSettings.sequenceWidth,
-        height: userSettings.sequenceHeight,
-        boxMargin: 10,
-        boxTextMargin: 5,
-        noteMargin: 10,
-        messageMargin: userSettings.sequenceMessageMargin,
-        mirrorActors: true,
-        bottomMarginAdj: 1,
-        rightAngles: false,
-        showSequenceNumbers: false,
-      },
+        // Apply custom theme variables if provided
+        themeVariables:
+          Object.keys(userSettings.themeVariables).length > 0
+            ? userSettings.themeVariables
+            : undefined,
 
-      // Gantt with user settings
-      gantt: {
-        useMaxWidth: userSettings.useMaxWidth,
-        leftPadding: 75,
-        gridLineStartPadding: 35,
-        barHeight: userSettings.ganttBarHeight,
-        barGap: 4,
-        topPadding: userSettings.ganttTopPadding,
-      },
+        // Flowchart with user settings
+        flowchart: {
+          useMaxWidth: userSettings.useMaxWidth,
+          // false: native SVG <text> labels. HTML (<foreignObject>) labels get
+          // stripped by DOMPurify and rasterize unreliably in PDF export.
+          htmlLabels: false,
+          curve: userSettings.flowchartCurve,
+          nodeSpacing: userSettings.flowchartNodeSpacing,
+          rankSpacing: userSettings.flowchartRankSpacing,
+        },
 
-      journey: {
-        useMaxWidth: userSettings.useMaxWidth,
-        diagramMarginX: 50,
-        diagramMarginY: 10,
-        leftMargin: 150,
-        width: 150,
-        height: 50,
-        boxMargin: 10,
-        boxTextMargin: 5,
-        noteMargin: 10,
-        messageMargin: 35,
-        messageAlign: "center",
-      },
+        // Sequence with user settings
+        sequence: {
+          useMaxWidth: userSettings.useMaxWidth,
+          diagramMarginX: 10,
+          diagramMarginY: 10,
+          actorMargin: userSettings.sequenceActorMargin,
+          width: userSettings.sequenceWidth,
+          height: userSettings.sequenceHeight,
+          boxMargin: 10,
+          boxTextMargin: 5,
+          noteMargin: 10,
+          messageMargin: userSettings.sequenceMessageMargin,
+          mirrorActors: true,
+          bottomMarginAdj: 1,
+          rightAngles: false,
+          showSequenceNumbers: false,
+        },
 
-      timeline: {
-        useMaxWidth: userSettings.useMaxWidth,
-        diagramMarginX: 50,
-        diagramMarginY: 10,
-        leftMargin: 150,
-        width: 150,
-        height: 50,
-        boxMargin: 10,
-        boxTextMargin: 5,
-        noteMargin: 10,
-        messageMargin: 35,
-      },
+        // Gantt with user settings
+        gantt: {
+          useMaxWidth: userSettings.useMaxWidth,
+          leftPadding: 75,
+          gridLineStartPadding: 35,
+          barHeight: userSettings.ganttBarHeight,
+          barGap: 4,
+          topPadding: userSettings.ganttTopPadding,
+        },
 
-      gitGraph: {
-        useMaxWidth: userSettings.useMaxWidth,
-        showBranches: true,
-        showCommitLabel: true,
-      },
+        journey: {
+          useMaxWidth: userSettings.useMaxWidth,
+          diagramMarginX: 50,
+          diagramMarginY: 10,
+          leftMargin: 150,
+          width: 150,
+          height: 50,
+          boxMargin: 10,
+          boxTextMargin: 5,
+          noteMargin: 10,
+          messageMargin: 35,
+          messageAlign: "center",
+        },
 
-      c4: {
-        useMaxWidth: userSettings.useMaxWidth,
-        diagramMarginX: 50,
-        diagramMarginY: 10,
-        c4ShapeMargin: 50,
-        c4ShapePadding: 20,
-        width: 216,
-        height: 60,
-        boxMargin: 10,
-      },
+        timeline: {
+          useMaxWidth: userSettings.useMaxWidth,
+          diagramMarginX: 50,
+          diagramMarginY: 10,
+          leftMargin: 150,
+          width: 150,
+          height: 50,
+          boxMargin: 10,
+          boxTextMargin: 5,
+          noteMargin: 10,
+          messageMargin: 35,
+        },
 
-      sankey: {
-        useMaxWidth: userSettings.useMaxWidth,
-      },
+        gitGraph: {
+          useMaxWidth: userSettings.useMaxWidth,
+          showBranches: true,
+          showCommitLabel: true,
+        },
 
-      xyChart: {
-        useMaxWidth: userSettings.useMaxWidth,
-      },
+        c4: {
+          useMaxWidth: userSettings.useMaxWidth,
+          diagramMarginX: 50,
+          diagramMarginY: 10,
+          c4ShapeMargin: 50,
+          c4ShapePadding: 20,
+          width: 216,
+          height: 60,
+          boxMargin: 10,
+        },
 
-      block: {
-        useMaxWidth: userSettings.useMaxWidth,
-        padding: 8,
-      },
+        sankey: {
+          useMaxWidth: userSettings.useMaxWidth,
+        },
+
+        xyChart: {
+          useMaxWidth: userSettings.useMaxWidth,
+        },
+
+        block: {
+          useMaxWidth: userSettings.useMaxWidth,
+          padding: 8,
+        },
+      });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [token, userSettings]);
 };
 

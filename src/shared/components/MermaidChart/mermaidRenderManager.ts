@@ -1,3 +1,4 @@
+import type { Mermaid } from "mermaid";
 import { sanitizeSvgMarkup } from "./sanitizeSvg";
 
 export type MermaidRenderResult = {
@@ -12,7 +13,7 @@ const MAX_CACHE = 200;
 const resultCache = new Map<string, MermaidRenderResult>();
 const inFlight = new Map<string, Promise<MermaidRenderResult>>();
 
-let mermaidPromise: Promise<typeof import("mermaid")> | null = null;
+let mermaidPromise: Promise<Mermaid> | null = null;
 
 const countInvalidNegativeRectWidths = (svgMarkup: string): number => {
   const parser = new DOMParser();
@@ -24,12 +25,39 @@ const countInvalidNegativeRectWidths = (svgMarkup: string): number => {
   }, 0);
 };
 
-async function getMermaid() {
+/**
+ * Lazily load mermaid and run its BASE initialization exactly once. This is the
+ * single import boundary for the mermaid package — nothing on the first-paint
+ * critical path imports mermaid statically, so the ~667 KB bundle (plus wardley
+ * and katex grammars) only loads when a diagram is actually rendered or the
+ * theme hook runs.
+ *
+ * `useMermaidTheme` re-initializes with theme-specific config on every theme
+ * change, so the base config here only needs the security/safety knobs that
+ * must hold before any theme override is applied.
+ */
+export async function getMermaid() {
   if (!mermaidPromise) {
-    mermaidPromise = import("mermaid");
+    mermaidPromise = import("mermaid").then((mod) => {
+      const mermaid = mod.default ?? mod;
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "dark",
+        securityLevel: "strict",
+        htmlLabels: false,
+        suppressErrorRendering: true,
+        // SECURITY (issue #38): lock CSS-bearing config keys. See the matching
+        // comment in useMermaidTheme.ts for the full rationale — both call
+        // sites must keep `secure` in sync.
+        secure: ["themeCSS", "themeVariables", "fontFamily"],
+      });
+      mermaid.parseError = function (err) {
+        console.warn("Mermaid parse error (handled gracefully):", err);
+      };
+      return mermaid;
+    });
   }
-  const mod = await mermaidPromise;
-  return mod.default ?? mod;
+  return mermaidPromise;
 }
 
 function lruSet(key: string, val: MermaidRenderResult) {

