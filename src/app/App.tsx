@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { App as AntdApp, Button, ConfigProvider as AntdConfigProvider } from "antd";
+import { App as AntdApp, Button, ConfigProvider as AntdConfigProvider, Flex, Spin } from "antd";
 import { useTranslation } from "react-i18next";
 import "./App.css";
 import { MainLayout } from "./MainLayout";
@@ -38,6 +38,18 @@ function App() {
   } | null>(null);
   const [isAccessVerified, setIsAccessVerified] = useState(false);
   const [antdLocale, setAntdLocale] = useState<Locale | null>(null);
+  // Slow-start feedback (#172): the backend probe can retry for up to ~20s
+  // — after a few seconds, tell the user what the wait is about.
+  const [startupWaitLong, setStartupWaitLong] = useState(false);
+
+  useEffect(() => {
+    if (isSetupComplete !== null || backendStartupError) {
+      setStartupWaitLong(false);
+      return;
+    }
+    const timer = setTimeout(() => setStartupWaitLong(true), 5000);
+    return () => clearTimeout(timer);
+  }, [isSetupComplete, backendStartupError]);
 
   // antd locale bundles load on demand (see antdLocale.ts). Resolve the active
   // locale whenever appLocale changes; null briefly until the chunk loads.
@@ -249,7 +261,21 @@ function App() {
         </div>
       );
     }
-    return <div style={{ padding: 40, textAlign: "center" }}>{t("app.loading")}</div>;
+    return (
+      <Flex
+        vertical
+        align="center"
+        justify="center"
+        gap={12}
+        style={{ padding: 40, minHeight: "40vh" }}
+      >
+        <Spin size="large" />
+        <div>{t("app.loading")}</div>
+        {startupWaitLong ? (
+          <div style={{ opacity: 0.65, fontSize: 13 }}>{t("app.loadingSlow")}</div>
+        ) : null}
+      </Flex>
+    );
   }
 
   const appContent = isSetupComplete ? (

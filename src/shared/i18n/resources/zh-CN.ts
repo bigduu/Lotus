@@ -2,6 +2,7 @@ export const zhCnTranslation = {
   translation: {
     app: {
       loading: "加载中...",
+      loadingSlow: "正在连接后端，最长可能需要约 20 秒…",
       retry: "重试",
       backendNotReachable: "无法连接后端 {{baseUrl}}（最近错误：{{message}}）",
       errorBoundary: {
@@ -254,6 +255,7 @@ export const zhCnTranslation = {
       complete: {
         title: "一切就绪！",
         restartMessage: "正在重新加载应用...",
+        restartButton: "立即重启",
       },
       error: {
         completeFailed: "完成设置失败，请重试。",

@@ -40,7 +40,7 @@ export const SetupPage = () => {
         <Title level={2}>{t("setup.complete.title")}</Title>
         <Paragraph>{t("setup.complete.restartMessage")}</Paragraph>
         <Button data-testid="setup-restart" onClick={() => window.location.reload()}>
-          {t("setup.complete.restartMessage")}
+          {t("setup.complete.restartButton")}
         </Button>
       </div>
     );

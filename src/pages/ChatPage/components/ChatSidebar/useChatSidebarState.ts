@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App as AntdApp, Modal } from "antd";
+import { App as AntdApp } from "antd";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
@@ -170,7 +170,7 @@ const matchesStatusFilter = (
 
 export const useChatSidebarState = () => {
   const { t } = useTranslation();
-  const { message } = AntdApp.useApp();
+  const { message, modal } = AntdApp.useApp();
   const {
     chats,
     currentSessionId,
@@ -740,7 +740,7 @@ export const useChatSidebarState = () => {
   );
 
   const handleDelete = (sessionId: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: t("chat.sidebar.delete.title"),
       content: t("chat.sidebar.delete.confirm"),
       okText: t("common.delete"),
@@ -904,7 +904,7 @@ export const useChatSidebarState = () => {
         ? t("chat.sidebar.unassigned", "Unassigned")
         : (projectGroupLabels[groupKey] ?? groupKey);
 
-    Modal.confirm({
+    modal.confirm({
       title: t("chat.sidebar.deleteByProject.title", { project: projectLabel }),
       content: t("chat.sidebar.deleteByProject.confirm", {
         count: chatCount,
@@ -944,7 +944,7 @@ export const useChatSidebarState = () => {
       setIsNewChatSelectorOpen(false);
     } catch (error) {
       console.error("Failed to create chat:", error);
-      Modal.error({
+      modal.error({
         title: t("chat.sidebar.createFailedTitle"),
         content: error instanceof Error ? error.message : t("chat.sidebar.createFailedUnknown"),
       });
