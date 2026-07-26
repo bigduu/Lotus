@@ -71,8 +71,11 @@ interface ConfigSectionStoreState {
     expectedRevision?: number,
   ) => Promise<ConfigSectionEnvelope<ConfigSectionDataMap[K]>>;
   loadProxyAuthStatus: (options?: { force?: boolean }) => Promise<ProxyAuthStatus>;
-  replaceProxyAuth: (auth: { username: string; password: string }) => Promise<ProxyAuthStatus>;
-  clearProxyAuth: () => Promise<ProxyAuthStatus>;
+  replaceProxyAuth: (
+    auth: { username: string; password: string },
+    expectedRevision?: number,
+  ) => Promise<ProxyAuthStatus>;
+  clearProxyAuth: (expectedRevision?: number) => Promise<ProxyAuthStatus>;
   handleConfigEvent: (
     section: string,
     revision: number,
@@ -554,39 +557,47 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       }
     },
 
-    replaceProxyAuth: async (auth) => {
-      const current = await get().loadProxyAuthStatus();
+    replaceProxyAuth: async (auth, expectedRevision) => {
+      const revision = expectedRevision ?? (await get().loadProxyAuthStatus()).revision;
+      const mutationSequence = beginMutation("credentials");
       try {
-        const status = await configSectionsService.replaceProxyAuth(current.revision, auth);
+        const status = await configSectionsService.replaceProxyAuth(revision, auth);
         set((state) => ({
           proxyAuthStatus:
             (state.proxyAuthStatus?.revision ?? -1) > status.revision
               ? state.proxyAuthStatus
               : status,
-          proxyAuthError: null,
+          proxyAuthError: isLatestMutation("credentials", mutationSequence)
+            ? null
+            : state.proxyAuthError,
         }));
         const adopted = get().proxyAuthStatus;
         return adopted && adopted.revision > status.revision ? adopted : status;
       } catch (error) {
+        if (!isLatestMutation("credentials", mutationSequence)) throw error;
         set({ proxyAuthError: errorMessage(error) });
         throw error;
       }
     },
 
-    clearProxyAuth: async () => {
-      const current = await get().loadProxyAuthStatus();
+    clearProxyAuth: async (expectedRevision) => {
+      const revision = expectedRevision ?? (await get().loadProxyAuthStatus()).revision;
+      const mutationSequence = beginMutation("credentials");
       try {
-        const status = await configSectionsService.clearProxyAuth(current.revision);
+        const status = await configSectionsService.clearProxyAuth(revision);
         set((state) => ({
           proxyAuthStatus:
             (state.proxyAuthStatus?.revision ?? -1) > status.revision
               ? state.proxyAuthStatus
               : status,
-          proxyAuthError: null,
+          proxyAuthError: isLatestMutation("credentials", mutationSequence)
+            ? null
+            : state.proxyAuthError,
         }));
         const adopted = get().proxyAuthStatus;
         return adopted && adopted.revision > status.revision ? adopted : status;
       } catch (error) {
+        if (!isLatestMutation("credentials", mutationSequence)) throw error;
         set({ proxyAuthError: errorMessage(error) });
         throw error;
       }
