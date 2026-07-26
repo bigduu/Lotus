@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsKeywordMaskingTab from "../SystemSettingsKeywordMaskingTab";
 import { ServiceFactory } from "@services/common/ServiceFactory";
@@ -269,30 +269,32 @@ describe("SystemSettingsKeywordMaskingTab", () => {
       });
 
       const state = useConfigSectionStore.getState();
-      useConfigSectionStore.setState({
-        sections: {
-          ...state.sections,
-          "model-policy": {
-            ...state.sections["model-policy"],
-            envelope: {
-              ...state.sections["model-policy"].envelope!,
-              revision: 8,
-              data: {
-                keyword_masking: {
-                  entries: [
-                    { pattern: "old", match_type: "exact", enabled: true },
-                    { pattern: "remote", match_type: "regex", enabled: true },
-                  ],
+      act(() => {
+        useConfigSectionStore.setState({
+          sections: {
+            ...state.sections,
+            "model-policy": {
+              ...state.sections["model-policy"],
+              envelope: {
+                ...state.sections["model-policy"].envelope!,
+                revision: 8,
+                data: {
+                  keyword_masking: {
+                    entries: [
+                      { pattern: "old", match_type: "exact", enabled: true },
+                      { pattern: "remote", match_type: "regex", enabled: true },
+                    ],
+                  },
                 },
               },
             },
           },
-        },
+        });
       });
 
       expect(await screen.findByText("Keyword masking changed on disk")).toBeInTheDocument();
       expect(screen.getByTestId("keyword-pattern-input")).toHaveValue("local");
-      fireEvent.click(screen.getByRole("button", { name: "Reapply" }));
+      fireEvent.click(screen.getByRole("button", { name: "Reapply draft" }));
       fireEvent.click(screen.getByTestId("save-keyword"));
 
       await waitFor(() =>
@@ -305,6 +307,49 @@ describe("SystemSettingsKeywordMaskingTab", () => {
           },
         }),
       );
+    });
+
+    it("reloads the latest snapshot and discards a dirty edit", async () => {
+      mockGetConfig.mockResolvedValue({
+        entries: [{ pattern: "old", match_type: "exact", enabled: true }],
+      });
+
+      render(<SystemSettingsKeywordMaskingTab />);
+      await screen.findByText("old");
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+      fireEvent.change(screen.getByTestId("keyword-pattern-input"), {
+        target: { value: "local" },
+      });
+
+      const state = useConfigSectionStore.getState();
+      act(() => {
+        useConfigSectionStore.setState({
+          sections: {
+            ...state.sections,
+            "model-policy": {
+              ...state.sections["model-policy"],
+              envelope: {
+                ...state.sections["model-policy"].envelope!,
+                revision: 8,
+                data: {
+                  keyword_masking: {
+                    entries: [{ pattern: "remote", match_type: "regex", enabled: true }],
+                  },
+                },
+              },
+            },
+          },
+        });
+      });
+      mockGetConfig.mockResolvedValue({
+        entries: [{ pattern: "remote", match_type: "regex", enabled: true }],
+      });
+
+      fireEvent.click(await screen.findByRole("button", { name: "Reload latest" }));
+
+      expect(await screen.findByText("remote")).toBeInTheDocument();
+      expect(screen.queryByTestId("keyword-pattern-input")).not.toBeInTheDocument();
+      expect(screen.queryByText("Keyword masking changed on disk")).not.toBeInTheDocument();
     });
   });
 

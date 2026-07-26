@@ -1856,6 +1856,13 @@ export const enUsTranslation = {
         validationFailedPrefix: "Validation failed",
         patternRequired: "Pattern cannot be empty",
         invalidRegexPattern: "Invalid regex pattern",
+        externalChange: "Keyword masking changed on disk",
+        externalChangeDescription:
+          "Your draft is based on revision {{loaded}}; revision {{latest}} is now available.",
+        externalCompareTitle: "Compare keyword revisions",
+        reload: "Reload latest",
+        compare: "Compare",
+        reapply: "Reapply draft",
         example: {
           literalToken: "Mask a literal token",
           githubTokens: "Mask GitHub tokens",

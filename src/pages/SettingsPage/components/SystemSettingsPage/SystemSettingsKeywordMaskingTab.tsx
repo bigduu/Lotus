@@ -345,6 +345,15 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     });
   };
 
+  const reloadExternalChanges = () => {
+    setEditingIndex(null);
+    setEditPattern("");
+    setEditMatchType("exact");
+    setEditEnabled(true);
+    setExampleValue(undefined);
+    void loadConfig();
+  };
+
   const preview = applyPreviewMasking(previewText, editPattern, editMatchType);
 
   return (
@@ -374,13 +383,15 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
               "settings.keywordMaskingTab.externalChange",
               "Keyword masking changed on disk",
             )}
-            description={t(
-              "settings.keywordMaskingTab.externalChangeDescription",
-              "Your unsaved edit was kept. Reload to discard it, compare revisions, or reapply it on the latest snapshot.",
-            )}
+            description={t("settings.keywordMaskingTab.externalChangeDescription", {
+              defaultValue:
+                "Your draft is based on revision {{loaded}}; revision {{latest}} is now available.",
+              loaded: baseRevision,
+              latest: externalRevision,
+            })}
             action={
               <Flex gap={8} wrap="wrap">
-                <Button size="small" onClick={() => void loadConfig()}>
+                <Button size="small" onClick={reloadExternalChanges}>
                   {t("settings.keywordMaskingTab.reload", "Reload")}
                 </Button>
                 <Button size="small" onClick={compareExternalChanges}>

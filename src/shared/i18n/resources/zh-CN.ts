@@ -1797,6 +1797,12 @@ export const zhCnTranslation = {
         validationFailedPrefix: "校验失败",
         patternRequired: "匹配模式不能为空",
         invalidRegexPattern: "无效的正则表达式模式",
+        externalChange: "关键词脱敏配置已在外部更新",
+        externalChangeDescription: "当前草稿基于版本 {{loaded}}；最新版本为 {{latest}}。",
+        externalCompareTitle: "比较关键词配置版本",
+        reload: "重新加载最新版本",
+        compare: "比较",
+        reapply: "重新应用草稿",
         example: {
           literalToken: "脱敏字面量 token",
           githubTokens: "脱敏 GitHub token",
