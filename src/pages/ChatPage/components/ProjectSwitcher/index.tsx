@@ -9,6 +9,7 @@ import { useAppStore } from "@shared/store/appStore";
 // Lazy-load the manager modal — it pulls in the workspace picker, resource
 // summary, and mutation flows, none of which are needed until opened.
 const ProjectManagerModal = lazy(() => import("../ProjectManagerModal"));
+const LegacyMigrationModal = lazy(() => import("../LegacyMigrationModal"));
 
 /**
  * Project switcher (#154): picks the "active" Project used as the default
@@ -27,6 +28,7 @@ export const ProjectSwitcher: React.FC = () => {
     })),
   );
   const [managerOpen, setManagerOpen] = useState(false);
+  const [migrationOpen, setMigrationOpen] = useState(false);
 
   const options = useMemo(() => {
     const active = Object.values(projects)
@@ -68,7 +70,17 @@ export const ProjectSwitcher: React.FC = () => {
 
       {managerOpen ? (
         <Suspense fallback={null}>
-          <ProjectManagerModal open={managerOpen} onClose={() => setManagerOpen(false)} />
+          <ProjectManagerModal
+            open={managerOpen}
+            onClose={() => setManagerOpen(false)}
+            onOpenMigration={() => setMigrationOpen(true)}
+          />
+        </Suspense>
+      ) : null}
+
+      {migrationOpen ? (
+        <Suspense fallback={null}>
+          <LegacyMigrationModal open={migrationOpen} onClose={() => setMigrationOpen(false)} />
         </Suspense>
       ) : null}
     </Flex>

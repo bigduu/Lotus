@@ -286,12 +286,15 @@ export class ApiClient {
       maxRetries = 1,
       retryable = false,
       timeoutMs = 30000,
+      onResponse,
     }: {
       data?: unknown;
       options?: RequestInit;
       maxRetries?: number;
       retryable?: boolean;
       timeoutMs?: number;
+      /** Inspect the raw response (e.g. read the ETag header) before parsing. */
+      onResponse?: (response: Response) => void;
     } = {},
   ): Promise<T> {
     const url = this.buildUrl(path);
@@ -318,6 +321,7 @@ export class ApiClient {
         maxRetries,
         retryable,
       );
+      onResponse?.(response);
       return this.handleResponse<T>(response);
     } finally {
       clearTimeout(timeoutId);
@@ -330,6 +334,26 @@ export class ApiClient {
    */
   async get<T>(path: string, options?: RequestInit): Promise<T> {
     return this.requestWithRetry<T>("GET", path, { options, maxRetries: 3, retryable: true });
+  }
+
+  /**
+   * GET that also exposes the response ETag header. Flows using optimistic
+   * concurrency (If-Match on a later write) read the version this way.
+   */
+  async getWithEtag<T>(
+    path: string,
+    options?: RequestInit,
+  ): Promise<{ data: T; etag: string | null }> {
+    let etag: string | null = null;
+    const data = await this.requestWithRetry<T>("GET", path, {
+      options,
+      maxRetries: 3,
+      retryable: true,
+      onResponse: (response) => {
+        etag = response.headers.get("etag");
+      },
+    });
+    return { data, etag };
   }
 
   /**
