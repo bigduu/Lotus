@@ -12,14 +12,30 @@ const STATUS_COLOR = {
   invalid: "error",
 } as const;
 
-const redactError = (value: string): string =>
-  value
-    .replace(/https?:\/\/[^\s@/]+:[^\s@/]+@/gi, "https://[redacted]@")
-    .replace(/(token|password|secret|api[_-]?key)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]");
+export const redactConfigError = (value: string): string => {
+  const redacted = value
+    .replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/gi, "[redacted private key]")
+    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi, "$1[redacted]@")
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/._~=-]+/gi, "$1 [redacted]")
+    .replace(
+      /("(?:token|password|secret|api[_-]?key|authorization|private[_-]?key|passphrase)"\s*:\s*)"[^"]*"/gi,
+      '$1"[redacted]"',
+    )
+    .replace(
+      /(\b(?:token|password|secret|api[_-]?key|authorization|private[_-]?key|passphrase)\b\s*[:=]\s*)('[^']*'|"[^"]*"|[^\s,;}\]]+)/gi,
+      "$1[redacted]",
+    )
+    .replace(
+      /([?&](?:token|password|secret|api[_-]?key|authorization|passphrase)=)[^&#\s]*/gi,
+      "$1[redacted]",
+    );
+  return redacted.length > 2_000 ? `${redacted.slice(0, 2_000)}… [truncated]` : redacted;
+};
 
 export const ConfigSectionStatus = ({ sections }: { sections: ConfigSectionId[] }) => {
   const allSections = useConfigSectionStore((state) => state.sections);
   const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const clearConflict = useConfigSectionStore((state) => state.clearConflict);
   const sectionKey = sections.join("|");
   const stableSections = useMemo(
     () => sectionKey.split("|").filter(Boolean) as ConfigSectionId[],
@@ -35,7 +51,10 @@ export const ConfigSectionStatus = ({ sections }: { sections: ConfigSectionId[] 
   }, [loadSection, stableSections]);
 
   const unhealthy = snapshots.filter(
-    ({ snapshot }) => snapshot.error || (snapshot.envelope && snapshot.envelope.status !== "healthy"),
+    ({ snapshot }) =>
+      snapshot.error ||
+      snapshot.conflict ||
+      (snapshot.envelope && snapshot.envelope.status !== "healthy"),
   );
 
   return (
@@ -46,9 +65,11 @@ export const ConfigSectionStatus = ({ sections }: { sections: ConfigSectionId[] 
           return (
             <Tag
               key={section}
-              color={envelope ? STATUS_COLOR[envelope.status] : snapshot.error ? "error" : "default"}
+              color={
+                envelope ? STATUS_COLOR[envelope.status] : snapshot.error ? "error" : "default"
+              }
             >
-              {section}: {snapshot.loading ? "loading" : envelope?.status ?? "unavailable"}
+              {section}: {snapshot.loading ? "loading" : (envelope?.status ?? "unavailable")}
               {envelope ? ` · r${envelope.revision}` : ""}
             </Tag>
           );
@@ -57,22 +78,38 @@ export const ConfigSectionStatus = ({ sections }: { sections: ConfigSectionId[] 
       {snapshots.map(({ section, snapshot }) =>
         snapshot.envelope ? (
           <Text key={`${section}-meta`} type="secondary" style={{ fontSize: 12 }}>
-            {section}: {snapshot.envelope.source_path} · {snapshot.envelope.source_kind} · loaded {snapshot.envelope.loaded_at}
+            {section}: {snapshot.envelope.source_path} · {snapshot.envelope.source_kind} · loaded{" "}
+            {snapshot.envelope.loaded_at}
           </Text>
         ) : null,
       )}
       {unhealthy.map(({ section, snapshot }) => {
-        const detail = snapshot.error ?? snapshot.envelope?.last_error ?? "Section is not healthy.";
+        const conflict = snapshot.conflict;
+        const detail = conflict
+          ? `Your draft expected revision ${conflict.expectedRevision}; the server is at revision ${
+              conflict.currentRevision ?? "unknown"
+            }. Reload the latest snapshot, then compare or reapply your draft before saving again.`
+          : (snapshot.error ?? snapshot.envelope?.last_error ?? "Section is not healthy.");
         return (
           <Alert
             key={`${section}-error`}
-            type={snapshot.envelope?.status === "invalid" ? "error" : "warning"}
+            type={snapshot.envelope?.status === "invalid" || conflict ? "error" : "warning"}
             showIcon
-            message={`${section} configuration ${snapshot.envelope?.status ?? "unavailable"}`}
-            description={redactError(detail)}
+            message={
+              conflict
+                ? `${section} revision conflict`
+                : `${section} configuration ${snapshot.envelope?.status ?? "unavailable"}`
+            }
+            description={redactConfigError(detail)}
             action={
-              <Button size="small" onClick={() => void loadSection(section, { force: true })}>
-                Retry
+              <Button
+                size="small"
+                onClick={() => {
+                  clearConflict(section);
+                  void loadSection(section, { force: true });
+                }}
+              >
+                {conflict ? "Reload latest" : "Retry"}
               </Button>
             }
           />
