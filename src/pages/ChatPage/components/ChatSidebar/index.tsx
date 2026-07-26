@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
 import { ChatSidebarFooter } from "./ChatSidebarFooter";
+import { ProjectSwitcher } from "../ProjectSwitcher";
 import { useChatSidebarState } from "./useChatSidebarState";
 
 // Lazy-load SystemPromptSelector — its full module tree (Modal, Radio, List,
@@ -127,6 +128,7 @@ export const ChatSidebar: React.FC = () => {
           padding: "6px 10px 6px 10px",
         }}
       >
+        <ProjectSwitcher />
         <Input
           allowClear
           value={searchQuery}

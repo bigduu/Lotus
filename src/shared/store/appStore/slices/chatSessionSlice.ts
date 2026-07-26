@@ -96,11 +96,17 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
     // Resolve the Project identity once so the create request carries it
     // (#134): an explicit caller value wins, otherwise the currently active
-    // Project. The local chat config trusts ONLY the backend-assigned value
-    // — if an older backend ignores the field, the session lands in
-    // Unassigned until the backend learns Projects, instead of the client
-    // fabricating a membership the backend never persisted.
-    const requestedProjectId = chatData.config?.projectId ?? get().activeProjectId ?? null;
+    // Project — but only when that Project is actually active. A dangling
+    // activeProjectId (archived/pruned elsewhere) must not be sent: the
+    // backend would reject every new session with 409 `project_archived`.
+    // The local chat config trusts ONLY the backend-assigned value — if an
+    // older backend ignores the field, the session lands in Unassigned
+    // instead of the client fabricating a membership the backend never
+    // persisted.
+    const activeProjectId = get().activeProjectId;
+    const activeProject = activeProjectId ? get().projects[activeProjectId] : undefined;
+    const requestedProjectId =
+      chatData.config?.projectId ?? (activeProject?.status === "active" ? activeProjectId : null);
 
     const created = await agentClient.createSession({
       title,
