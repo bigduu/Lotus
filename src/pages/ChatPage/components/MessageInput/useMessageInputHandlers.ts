@@ -117,19 +117,33 @@ export const useMessageInputHandlers = ({
         !event.shiftKey &&
         (event.key === "ArrowUp" || event.key === "ArrowDown")
       ) {
-        const direction = event.key === "ArrowUp" ? "previous" : "next";
-        const historyValue = onHistoryNavigate(direction, value);
-        if (historyValue !== null && historyValue !== undefined) {
-          event.preventDefault();
-          onChange(historyValue);
-          requestAnimationFrame(() => {
-            const textArea = textAreaRef.current?.resizableTextArea?.textArea || null;
-            if (textArea) {
-              const caret = historyValue.length;
-              textArea.setSelectionRange(caret, caret);
-            }
-          });
-          return;
+        // Only hijack the arrow keys at the text edges (#169): ArrowUp on
+        // the first line, ArrowDown on the last line. In the middle of a
+        // multiline draft the keys must move the caret, not replace the
+        // draft with a history entry.
+        const caret = event.currentTarget?.selectionStart ?? 0;
+        const firstNewline = value.indexOf("\n");
+        const lastNewline = value.lastIndexOf("\n");
+        const onFirstLine = firstNewline === -1 || caret <= firstNewline;
+        const onLastLine = lastNewline === -1 || caret > lastNewline;
+        const atEdge =
+          (event.key === "ArrowUp" && onFirstLine) || (event.key === "ArrowDown" && onLastLine);
+
+        if (atEdge) {
+          const direction = event.key === "ArrowUp" ? "previous" : "next";
+          const historyValue = onHistoryNavigate(direction, value);
+          if (historyValue !== null && historyValue !== undefined) {
+            event.preventDefault();
+            onChange(historyValue);
+            requestAnimationFrame(() => {
+              const textArea = textAreaRef.current?.resizableTextArea?.textArea || null;
+              if (textArea) {
+                const caret = historyValue.length;
+                textArea.setSelectionRange(caret, caret);
+              }
+            });
+            return;
+          }
         }
       }
 

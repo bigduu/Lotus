@@ -219,6 +219,7 @@ export const enUsTranslation = {
     common: {
       cancel: "Cancel",
       ok: "OK",
+      continue: "Continue",
       apply: "Apply",
       save: "Save",
       delete: "Delete",
@@ -512,6 +513,7 @@ export const enUsTranslation = {
         retryFailed: "Retry failed request",
         retryOptions: "Retry options",
         cancelRequest: "Cancel request",
+        cancelUnavailable: "Cannot cancel in the current state",
         sendMessage: "Send message",
         copyMessage: "Copy message",
         referenceMessage: "Reference message",
@@ -843,6 +845,9 @@ export const enUsTranslation = {
         badges: {
           workspace: "workspace",
         },
+        replaceDraftTitle: "Open template in a new session?",
+        replaceDraftContent:
+          "The template opens in a new session. Your current draft stays in the old session.",
         noResults:
           "No templates match your search. Try a different keyword or start a blank session.",
       },
