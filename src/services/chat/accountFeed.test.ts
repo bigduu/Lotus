@@ -81,6 +81,7 @@ const startAndHydrate = async (): Promise<void> => {
 
 describe("accountFeed runner", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     // The runner guards on a browser EventSource; provide a stub global.
     (globalThis as Record<string, unknown>).EventSource = class {};
     captured = null;
@@ -333,6 +334,30 @@ describe("accountFeed runner", () => {
     captured!.onOpen?.();
 
     expect(resync).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["transport reconnect", () => captured!.onOpen?.()],
+    ["feed reset", () => captured!.onReset?.()],
+  ])("retries an observable config resync failure after %s", async (_reason, trigger) => {
+    await startAndHydrate();
+    vi.useFakeTimers();
+    const resync = vi
+      .spyOn(useConfigSectionStore.getState(), "resyncLoadedSections")
+      .mockRejectedValueOnce(new Error("partial section refresh failure"))
+      .mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    trigger();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(resync).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Configuration resync failed"));
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(resync).toHaveBeenCalledTimes(2);
+    expect(closeSpy).not.toHaveBeenCalled();
   });
 
   it("replaces from an advanced-cursor snapshot then replays only events above its watermark", async () => {

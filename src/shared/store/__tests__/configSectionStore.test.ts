@@ -4,6 +4,8 @@ import {
   configSectionsService,
   type ConfigSectionEnvelope,
   type CoreSection,
+  type McpSection,
+  type NotificationSectionEnvelope,
   type ProviderSection,
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "../configSectionStore";
@@ -48,6 +50,60 @@ const providerEnvelope = (revision: number): ConfigSectionEnvelope<ProviderSecti
   source_kind: "file",
   status: "healthy",
   last_error: null,
+});
+
+const mcpEnvelope = (revision: number): ConfigSectionEnvelope<McpSection> => ({
+  data: {
+    version: 1,
+    servers: [],
+    credential_status: {},
+  },
+  revision,
+  loaded_at: "2026-07-24T00:00:00Z",
+  source_path: "/tmp/mcp.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+});
+
+const notificationEnvelope = (
+  sectionRevision: number,
+  credentialRevision: number,
+): NotificationSectionEnvelope => ({
+  data: {
+    desktop: { enabled: true },
+    ntfy: {
+      enabled: false,
+      base_url: "https://ntfy.sh",
+      topic: "",
+      credential: {
+        credential_ref: null,
+        configured: false,
+        source: null,
+        updated_at: null,
+      },
+    },
+    bark: {
+      enabled: false,
+      base_url: "https://api.day.app",
+      credential: {
+        credential_ref: null,
+        configured: false,
+        source: null,
+        updated_at: null,
+      },
+    },
+  },
+  revision: sectionRevision,
+  loaded_at: "2026-07-24T00:00:00Z",
+  source_path: "/tmp/notifications.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+  credential_revision: credentialRevision,
+  credential_status: "healthy",
+  credential_source: "file",
+  credential_last_error: null,
 });
 
 describe("useConfigSectionStore", () => {
@@ -157,6 +213,77 @@ describe("useConfigSectionStore", () => {
     expect(JSON.stringify(stored)).not.toContain("plaintext-provider-secret");
   });
 
+  it("uses the canonical MCP save and never regresses a concurrently newer snapshot", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        mcp: { ...state.sections.mcp, envelope: mcpEnvelope(1) },
+      },
+    }));
+    let resolveSave!: (value: ConfigSectionEnvelope<McpSection>) => void;
+    const save = vi.spyOn(configSectionsService, "putMcpSettings").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const credentialChanges = {
+      servers: { stdio: { env: { TOKEN: "replacement-secret" } } },
+    };
+
+    const pending = useConfigSectionStore
+      .getState()
+      .saveMcpSettings(mcpEnvelope(1).data, credentialChanges, 1);
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        mcp: { ...state.sections.mcp, envelope: mcpEnvelope(3) },
+      },
+    }));
+    resolveSave(mcpEnvelope(2));
+
+    await expect(pending).resolves.toEqual(mcpEnvelope(3));
+    expect(save).toHaveBeenCalledWith(1, mcpEnvelope(1).data, credentialChanges);
+    expect(useConfigSectionStore.getState().sections.mcp.envelope).toEqual(mcpEnvelope(3));
+  });
+
+  it("records a canonical MCP save conflict without replacing the cached envelope", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        mcp: { ...state.sections.mcp, envelope: mcpEnvelope(4) },
+      },
+    }));
+    vi.spyOn(configSectionsService, "putMcpSettings").mockRejectedValueOnce(
+      new ConfigConflictError({
+        expectedRevision: 4,
+        currentRevision: 5,
+        message: "revision conflict",
+      }),
+    );
+
+    await expect(
+      useConfigSectionStore.getState().saveMcpSettings(mcpEnvelope(4).data, {}, 4),
+    ).rejects.toThrow("revision conflict");
+    expect(useConfigSectionStore.getState().sections.mcp.envelope).toEqual(mcpEnvelope(4));
+    expect(useConfigSectionStore.getState().sections.mcp.conflict?.currentRevision).toBe(5);
+  });
+
+  it("retains notification credential metadata alongside the typed section revision", async () => {
+    vi.spyOn(configSectionsService, "getSection").mockResolvedValueOnce(
+      notificationEnvelope(7, 70),
+    );
+
+    await useConfigSectionStore.getState().loadSection("notifications");
+
+    expect(useConfigSectionStore.getState().sections.notifications.envelope).toMatchObject({
+      revision: 7,
+      credential_revision: 70,
+      credential_status: "healthy",
+      credential_source: "file",
+    });
+  });
+
   it("resets a section without optimistic data replacement", async () => {
     useConfigSectionStore.setState((state) => ({
       sections: {
@@ -262,5 +389,72 @@ describe("useConfigSectionStore", () => {
     expect(getSection).toHaveBeenCalledTimes(1);
     expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(3);
     vi.useRealTimers();
+  });
+
+  it("retains a newer event target while a GET is in flight and retries until it converges", async () => {
+    vi.useFakeTimers();
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(1) },
+      },
+    }));
+    let resolveFirst!: (value: ConfigSectionEnvelope<CoreSection>) => void;
+    const getSection = vi
+      .spyOn(configSectionsService, "getSection")
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve as typeof resolveFirst;
+          }),
+      )
+      .mockResolvedValueOnce(envelope(3));
+
+    const initialRefresh = useConfigSectionStore.getState().loadSection("core", { force: true });
+    useConfigSectionStore.getState().handleConfigEvent("core", 3, "config.changed");
+    await vi.advanceTimersByTimeAsync(80);
+    expect(getSection).toHaveBeenCalledTimes(1);
+
+    resolveFirst(envelope(2));
+    await initialRefresh;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(2);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(getSection).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(getSection).toHaveBeenCalledTimes(2);
+    expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(3);
+    vi.useRealTimers();
+  });
+
+  it("surfaces partial reconnect resync failures and remains retryable", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(1) },
+        hooks: { ...state.sections.hooks, envelope: envelope(1) as never },
+      },
+    }));
+    const getSection = vi
+      .spyOn(configSectionsService, "getSection")
+      .mockImplementation(async (section) => {
+        if (section === "core") throw new Error("redacted core refresh failure");
+        return envelope(2) as never;
+      });
+
+    await expect(useConfigSectionStore.getState().resyncLoadedSections()).rejects.toThrow(
+      "Failed to resync configuration sections: core",
+    );
+    expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(1);
+    expect(useConfigSectionStore.getState().sections.core.error).toBe(
+      "redacted core refresh failure",
+    );
+    expect(useConfigSectionStore.getState().sections.hooks.envelope?.revision).toBe(2);
+
+    getSection.mockResolvedValue(envelope(3) as never);
+    await expect(useConfigSectionStore.getState().resyncLoadedSections()).resolves.toBeUndefined();
+    expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(3);
+    expect(useConfigSectionStore.getState().sections.core.error).toBeNull();
   });
 });
