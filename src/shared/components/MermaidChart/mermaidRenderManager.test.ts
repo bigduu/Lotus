@@ -5,6 +5,9 @@ const mockRender = vi.fn();
 
 vi.mock("mermaid", () => ({
   default: {
+    // The lazy `getMermaid()` loader calls `initialize()` on first use —
+    // the mock must provide it (#145 turned the import lazy).
+    initialize: vi.fn(),
     parse: mockParse,
     render: mockRender,
   },
