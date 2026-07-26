@@ -407,6 +407,12 @@ export type PendingQuestionResponse = {
 
 export interface HistoryResponse {
   session_id: string;
+  /** Whether the cold fetch dropped older messages to stay under the cap. */
+  truncated?: boolean;
+  /** Pre-cap UI-visible message count — the authoritative full-session
+   * count that `/execute`'s sync check compares against (#152). Present on
+   * cold fetches; fall back to `messages.length` when absent. */
+  total_message_count?: number;
   compression_events?: Array<{
     id: string;
     created_at: string;
