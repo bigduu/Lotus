@@ -746,9 +746,17 @@ export const useChatSidebarState = () => {
       okText: t("common.delete"),
       okType: "danger",
       cancelText: t("common.cancel"),
-      onOk: () => {
-        clearSessionFromAllLeaves(sessionId);
-        deleteSession(sessionId);
+      onOk: async () => {
+        try {
+          await deleteSession(sessionId);
+          clearSessionFromAllLeaves(sessionId);
+        } catch (error) {
+          // The backend delete failed — local state was left untouched
+          // (#163), so the session is still here; tell the user instead of
+          // pretending it was deleted.
+          console.error("[ChatSidebar] Failed to delete session:", error);
+          message.error(error instanceof Error ? error.message : t("chat.sidebar.deleteFailed"));
+        }
       },
     });
   };
@@ -905,9 +913,13 @@ export const useChatSidebarState = () => {
       okText: t("common.delete"),
       okType: "danger",
       cancelText: t("common.cancel"),
-      onOk: () => {
-        sessionIds.forEach((id) => clearSessionFromAllLeaves(id));
-        deleteSessions(sessionIds);
+      onOk: async () => {
+        const { failedIds } = await deleteSessions(sessionIds);
+        const succeededIds = sessionIds.filter((id) => !failedIds.includes(id));
+        succeededIds.forEach((id) => clearSessionFromAllLeaves(id));
+        if (failedIds.length > 0) {
+          message.warning(t("chat.sidebar.deleteSomeFailed", { count: failedIds.length }));
+        }
       },
     });
   };

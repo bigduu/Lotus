@@ -158,11 +158,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   deleteSession: async (sessionId) => {
-    try {
-      await agentClient.deleteSession(sessionId);
-    } catch (error) {
-      console.error(`[ChatSlice] Failed to delete backend session ${sessionId}:`, error);
-    }
+    // Backend first (#163): only remove locally once the delete is
+    // confirmed. A failed delete leaves the local state untouched instead
+    // of silently diverging (the session would "come back" on the next
+    // refresh anyway, after the user was told it was gone).
+    await agentClient.deleteSession(sessionId);
 
     set((state) => {
       const toDelete = new Set<string>();
@@ -191,9 +191,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   deleteSessions: async (sessionIds) => {
-    for (const id of sessionIds) {
-      await get().deleteSession(id);
-    }
+    // All-settled so one failure does not abort the rest (#163); the
+    // caller surfaces the failures.
+    const results = await Promise.allSettled(sessionIds.map((id) => get().deleteSession(id)));
+    const failedIds = sessionIds.filter((_, index) => results[index].status === "rejected");
+    return { failedIds };
   },
 
   updateSession: (sessionId, updates, options) => {
@@ -206,6 +208,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       typeof updates.title === "string" || typeof updates.pinned === "boolean";
     const shouldBumpUpdatedAt = hasSessionLevelConfigUpdate || hasSessionLevelTopLevelUpdate;
     const localUpdatedAt = shouldBumpUpdatedAt ? new Date().toISOString() : undefined;
+
+    // Captured BEFORE the optimistic write so a failed backend patch can
+    // roll the patched fields back (#163).
+    const previousChat = get().chats.find((c) => c.id === sessionId);
 
     set((state) => {
       const chats = state.chats.map((chat) =>
@@ -259,12 +265,52 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     // `skipBackendPatch` so we update local state only — otherwise this would
     // fire a redundant second PATCH for the same change.
     if (!options?.skipBackendPatch && Object.keys(patch).length > 0) {
+      // Rollback fields come from `previousChat` (captured above, before
+      // the optimistic write) — a failed optimistic write must not "lock
+      // in" a state the backend never confirmed (it would even win against
+      // the correct server value via preferLocalSessionFields).
+      const rollbackConfig: Partial<ChatItem["config"]> = {};
+      if (previousChat) {
+        if (Object.prototype.hasOwnProperty.call(patch, "model")) {
+          rollbackConfig.model = previousChat.config.model;
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, "model_ref")) {
+          rollbackConfig.model_ref = previousChat.config.model_ref;
+        }
+        if (
+          Object.prototype.hasOwnProperty.call(patch, "reasoning_effort") ||
+          Object.prototype.hasOwnProperty.call(patch, "clear_reasoning_effort")
+        ) {
+          rollbackConfig.reasoningEffort = previousChat.config.reasoningEffort;
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, "gold_config")) {
+          rollbackConfig.goldConfig = previousChat.config.goldConfig;
+        }
+      }
+
       // NOTE: `patchSession` returns void, so the backend's bumped
       // `title_version` (and any other authoritative server fields) is not
       // available here. The backend emits SSE events (e.g. `session_title_updated`)
       // that `applyServerTitle` reconciles into local state.
       agentClient.patchSession(sessionId, patch).catch((e) => {
         console.warn(`[ChatSlice] Failed to patch session ${sessionId}:`, e);
+        if (!previousChat) return;
+        set((state) => ({
+          ...state,
+          chats: state.chats.map((chat) =>
+            chat.id === sessionId
+              ? {
+                  ...chat,
+                  ...(typeof updates.title === "string" ? { title: previousChat.title } : {}),
+                  ...(typeof updates.pinned === "boolean" ? { pinned: previousChat.pinned } : {}),
+                  ...(localUpdatedAt ? { updatedAt: previousChat.updatedAt } : {}),
+                  ...(Object.keys(rollbackConfig).length > 0
+                    ? { config: { ...chat.config, ...rollbackConfig } }
+                    : {}),
+                }
+              : chat,
+          ),
+        }));
       });
     }
   },

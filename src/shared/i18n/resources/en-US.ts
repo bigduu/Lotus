@@ -336,6 +336,8 @@ export const enUsTranslation = {
           title: "Delete Session",
           confirm: "Are you sure you want to delete this session?",
         },
+        deleteFailed: "Failed to delete the session",
+        deleteSomeFailed: "{{count}} sessions could not be deleted",
         deleteByDate: {
           title: "Delete sessions from {{date}}",
           confirm: "Are you sure you want to delete {{count}} sessions from {{date}}?",
