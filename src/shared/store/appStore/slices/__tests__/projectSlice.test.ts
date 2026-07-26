@@ -239,6 +239,56 @@ describe("projectSlice", () => {
     });
   });
 
+  describe("activeProjectId hygiene (#154)", () => {
+    it("clears the active project when it is archived locally", async () => {
+      const { projectService } = await import("@services/project");
+      const original = projectService.archiveProject;
+      projectService.archiveProject = vi
+        .fn()
+        .mockResolvedValue(makeManifest("p1", { status: "archived", revision: 2 }));
+      const harness = createHarness();
+      harness.setState({
+        projects: { p1: stored(makeManifest("p1")) },
+        activeProjectId: "p1",
+      });
+      try {
+        await harness.getState().archiveProject("p1", 1);
+      } finally {
+        projectService.archiveProject = original;
+      }
+
+      expect(harness.getState().projects["p1"]?.status).toBe("archived");
+      expect(harness.getState().activeProjectId).toBeNull();
+    });
+
+    it("clears the active project when an archived event arrives", () => {
+      const harness = createHarness();
+      harness.setState({
+        projects: { p1: stored(makeManifest("p1")) },
+        activeProjectId: "p1",
+      });
+
+      harness
+        .getState()
+        .applyProjectEvent({ type: "project_archived", project_id: "p1", revision: 2 });
+
+      expect(harness.getState().activeProjectId).toBeNull();
+    });
+
+    it("clears the active project when the remote list prunes it", async () => {
+      listProjects.mockResolvedValue({ projects: [] });
+      const harness = createHarness();
+      harness.setState({
+        projects: { p1: stored(makeManifest("p1")) },
+        activeProjectId: "p1",
+      });
+
+      await harness.getState().loadProjects();
+
+      expect(harness.getState().activeProjectId).toBeNull();
+    });
+  });
+
   describe("migrateLegacyMemory", () => {
     it("does not fabricate a manifest for an unknown project", async () => {
       const harness = createHarness();
