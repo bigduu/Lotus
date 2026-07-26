@@ -75,7 +75,7 @@ const ARCHIVED = makeProject("proj-old", "old-stuff", { status: "archived" });
 const renderModal = () =>
   render(
     <AntdApp>
-      <ProjectManagerModal open={true} onClose={() => {}} />
+      <ProjectManagerModal open={true} onClose={() => {}} onOpenMigration={() => {}} />
     </AntdApp>,
   );
 
