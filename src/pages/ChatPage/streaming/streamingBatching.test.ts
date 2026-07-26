@@ -59,6 +59,38 @@ describe("assistantStreamingAtoms — chunk batching (#166)", () => {
 
     expect(getAssistantStreamingState("s1").content).toBe("");
   });
+
+  it("keeps sessions independent while sharing one flush timer", () => {
+    clearAssistantStreamingState("s2");
+    appendAssistantStreamingChunk("s1", "alpha");
+    appendAssistantStreamingChunk("s2", "beta");
+
+    // An authoritative set on s1 flushes everything, including s2's pending.
+    setAssistantStreamingState("s1", { content: "alpha-final" });
+
+    expect(getAssistantStreamingState("s1").content).toBe("alpha-final");
+    expect(getAssistantStreamingState("s2").content).toBe("beta");
+  });
+
+  it("accumulates fresh chunks after a clear (new run on the same session)", () => {
+    appendAssistantStreamingChunk("s1", "old-run");
+    clearAssistantStreamingState("s1");
+
+    appendAssistantStreamingChunk("s1", "new");
+    appendAssistantStreamingChunk("s1", "-run");
+    vi.advanceTimersByTime(60);
+
+    expect(getAssistantStreamingState("s1").content).toBe("new-run");
+  });
+
+  it("manual flush lands buffered chunks synchronously (finalize read path)", () => {
+    // Mirrors agentSubscriptionRunner's onComplete: the last tokens may sit
+    // in the buffer milliseconds before finalization — flush, then read.
+    appendAssistantStreamingChunk("s1", "tail-end");
+    flushAssistantStreamingChunks();
+
+    expect(getAssistantStreamingState("s1").content).toBe("tail-end");
+  });
 });
 
 describe("useThrottledValue (#166)", () => {

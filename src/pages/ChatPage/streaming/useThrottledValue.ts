@@ -20,6 +20,11 @@ export const useThrottledValue = <T>(value: T, intervalMs: number): T => {
 
     if (elapsed >= intervalMs) {
       // Leading edge: enough time passed since the last flush — render now.
+      // Cancel any pending trailing flush so it cannot push the window out.
+      if (timerRef.current !== null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
       lastFlushAtRef.current = now;
       setThrottled(value);
       return;

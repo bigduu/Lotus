@@ -21,54 +21,6 @@ const assistantModule = createStreamingAtomModule<AssistantStreamingState>(
 export const assistantStreamingStore = assistantModule.store;
 export const assistantStreamingAtomFamily = assistantModule.atomFamily;
 
-export const appendAssistantStreamingChunkAtom = atom(
-  null,
-  (
-    get,
-    set,
-    payload: {
-      sessionId: string | null | undefined;
-      chunk: string;
-    },
-  ) => {
-    const normalizedSessionId = normalizeStreamingKeyPart(payload.sessionId);
-    const chunk = payload.chunk ?? "";
-    if (!normalizedSessionId || !chunk) return;
-
-    const targetAtom = assistantStreamingAtomFamily(normalizedSessionId);
-    const prev = get(targetAtom);
-    set(targetAtom, {
-      ...prev,
-      content: prev.content + chunk,
-      updatedAt: Date.now(),
-    });
-  },
-);
-
-export const appendAssistantReasoningChunkAtom = atom(
-  null,
-  (
-    get,
-    set,
-    payload: {
-      sessionId: string | null | undefined;
-      chunk: string;
-    },
-  ) => {
-    const normalizedSessionId = normalizeStreamingKeyPart(payload.sessionId);
-    const chunk = payload.chunk ?? "";
-    if (!normalizedSessionId || !chunk) return;
-
-    const targetAtom = assistantStreamingAtomFamily(normalizedSessionId);
-    const prev = get(targetAtom);
-    set(targetAtom, {
-      ...prev,
-      reasoningContent: prev.reasoningContent + chunk,
-      updatedAt: Date.now(),
-    });
-  },
-);
-
 export const setAssistantStreamingStateAtom = atom(
   null,
   (
