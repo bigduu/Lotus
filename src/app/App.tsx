@@ -12,6 +12,7 @@ import { ServiceFactory } from "../services/common/ServiceFactory";
 import { getBackendBaseUrlSync } from "../shared/utils/backendBaseUrl";
 import { changeLocale } from "@shared/i18n";
 import { getAntdLocale } from "@shared/i18n/antdLocale";
+import type { Locale } from "antd/es/locale";
 import { APP_LOCALE_STORAGE_KEY, type AppLocale, resolveInitialLocale } from "@shared/i18n/types";
 import { isVdiSafeModeEnabled } from "@shared/utils/vdiSafeMode";
 import { THEME_STORAGE_KEY } from "@shared/theme/storageKeys";
@@ -36,6 +37,19 @@ function App() {
     requires_password: boolean;
   } | null>(null);
   const [isAccessVerified, setIsAccessVerified] = useState(false);
+  const [antdLocale, setAntdLocale] = useState<Locale | null>(null);
+
+  // antd locale bundles load on demand (see antdLocale.ts). Resolve the active
+  // locale whenever appLocale changes; null briefly until the chunk loads.
+  useEffect(() => {
+    let cancelled = false;
+    void getAntdLocale(appLocale).then((locale) => {
+      if (!cancelled) setAntdLocale(locale);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [appLocale]);
 
   // Save theme to localStorage when it changes
   useEffect(() => {
@@ -191,7 +205,7 @@ function App() {
   if (accessStatus?.requires_password && !isAccessVerified) {
     return (
       <AntdConfigProvider
-        locale={getAntdLocale(appLocale)}
+        locale={antdLocale ?? undefined}
         theme={{
           token: themeToken,
           algorithm: themeAlgorithm,
@@ -251,7 +265,7 @@ function App() {
 
   return (
     <AntdConfigProvider
-      locale={getAntdLocale(appLocale)}
+      locale={antdLocale ?? undefined}
       theme={{
         token: themeToken,
         algorithm: themeAlgorithm,

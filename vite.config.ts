@@ -16,13 +16,19 @@ export default defineConfig(async ({ command }) => ({
 
   plugins: [
     react(),
-    // Bundle analysis — run `npx vite build` then open stats.html
-    visualizer({
-      filename: "stats.html",
-      gzipSize: true,
-      brotliSize: true,
-      open: false,
-    }),
+    // Bundle analysis — gated behind ANALYZE=true so a normal build does not
+    // serialize the full module graph into a 3.6 MB stats.html on every run.
+    // Run `ANALYZE=true npx vite build` then open stats.html.
+    ...(process.env.ANALYZE === "true"
+      ? [
+          visualizer({
+            filename: "stats.html",
+            gzipSize: true,
+            brotliSize: true,
+            open: false,
+          }),
+        ]
+      : []),
   ],
 
   resolve: {
@@ -105,6 +111,10 @@ export default defineConfig(async ({ command }) => ({
             ),
           ],
           "vendor-charts": ["recharts"],
+          // `openai` is a heavy SDK (~300 KB+) pulled in transitively by the
+          // metrics services; pin it to its own chunk so it never lands in the
+          // main or SettingsPage chunks unless metrics are actually used.
+          "vendor-openai": ["openai"],
           "vendor-mermaid": ["mermaid"],
           "vendor-i18n": ["i18next", "react-i18next"],
           "vendor-pdf": ["jspdf", "html2canvas"],

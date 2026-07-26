@@ -390,6 +390,20 @@ export class ApiClient {
   }
 
   /**
+   * Make a DELETE request that includes a JSON body. Standard `fetch` supports
+   * body on DELETE, and some Bamboo endpoints (e.g. unbind workspace) require it.
+   */
+  async deleteWithBody<T>(path: string, data?: unknown, options?: RequestInit): Promise<T> {
+    const retryable = options?.["retryable" as keyof RequestInit] === true;
+    return this.requestWithRetry<T>("DELETE", path, {
+      data,
+      options,
+      maxRetries: retryable ? 3 : 1,
+      retryable,
+    });
+  }
+
+  /**
    * Make a request with a custom method and timeout.
    * Custom methods are not retried by default; pass `retryable: true` to opt in.
    */

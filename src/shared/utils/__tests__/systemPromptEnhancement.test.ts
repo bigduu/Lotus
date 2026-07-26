@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildEnhancedSystemPrompt,
-  getEffectiveSystemPrompt,
   getSystemPromptEnhancement,
   getSystemPromptEnhancementPipeline,
   getSystemPromptEnhancementText,
@@ -97,41 +96,6 @@ describe("systemPromptEnhancement", () => {
     );
   });
 
-  it("appends workspace context after enhancements", () => {
-    setSystemPromptEnhancement("User enhancement");
-
-    const result = getEffectiveSystemPrompt("Base prompt", "/Users/alice/app");
-    const workspaceSegment = [
-      "Workspace path: /Users/alice/app",
-      "If you need to inspect files, check the workspace first, then check Bamboo data at `${BAMBOO_DATA_DIR}` (default `~/.bamboo`) and the config file at `${BAMBOO_DATA_DIR}/config.json`.",
-    ].join("\n");
-
-    expect(result).toBe(
-      [
-        "Base prompt",
-        getOSInfoEnhancementPrompt().trim(),
-        OPERATIONAL_GUIDANCE_PROMPT,
-        "User enhancement",
-        workspaceSegment,
-      ].join("\n\n"),
-    );
-  });
-
-  it("omits workspace context when no workspace is set", () => {
-    setSystemPromptEnhancement("User enhancement");
-
-    const result = getEffectiveSystemPrompt("Base prompt", "");
-
-    expect(result).toBe(
-      [
-        "Base prompt",
-        getOSInfoEnhancementPrompt().trim(),
-        OPERATIONAL_GUIDANCE_PROMPT,
-        "User enhancement",
-      ].join("\n\n"),
-    );
-  });
-
   it("OS info enhancement is always first in the pipeline", () => {
     setSystemPromptEnhancement("User enhancement");
     setMermaidEnhancementEnabled(true);
@@ -190,5 +154,18 @@ describe("systemPromptEnhancement", () => {
     expect(getSystemPromptEnhancementText()).not.toContain(
       getCopilotConclusionWithOptionsEnhancementPrompt().trim(),
     );
+  });
+
+  it("never injects Project/Workspace organizational context (#134)", () => {
+    // Bamboo generates the organizational context server-side; the client
+    // enhancement pipeline must not carry a second copy.
+    setSystemPromptEnhancement("User enhancement");
+    setMermaidEnhancementEnabled(true);
+    setTaskEnhancementEnabled(true);
+
+    const text = getSystemPromptEnhancementText("copilot");
+    expect(text).not.toContain("Workspace path:");
+    expect(text).not.toContain("Project path:");
+    expect(text).not.toContain("project_id");
   });
 });

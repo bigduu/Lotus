@@ -35,7 +35,8 @@ export const ChatSidebar: React.FC = () => {
     currentSessionId,
     expandedKeys,
     groupingMode,
-    workspaceGroupLabels,
+    projectGroupLabels,
+    archivedProjectKeys,
     handleCollapseChange,
     handleDelete,
     handleDeleteByDate,
@@ -168,7 +169,8 @@ export const ChatSidebar: React.FC = () => {
           groupedChatsByDate={activeGroupedChats}
           sortedDateKeys={activeSortedGroupKeys}
           groupingMode={groupingMode}
-          groupLabels={workspaceGroupLabels}
+          groupLabels={projectGroupLabels}
+          archivedGroupKeys={archivedProjectKeys}
           childrenByRoot={childrenByRoot}
           expandedRootIds={expandedRootIds}
           onToggleRootExpanded={toggleRootExpanded}

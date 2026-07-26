@@ -325,6 +325,9 @@ export const enUsTranslation = {
           workspace: "Workspace",
         },
         noWorkspace: "No workspace",
+        unassigned: "Unassigned",
+        missingProject: "Missing project",
+        archived: "Archived",
         actions: {
           collapseChildren: "Collapse child sessions",
           expandChildren: "Expand child sessions",
@@ -340,6 +343,10 @@ export const enUsTranslation = {
         deleteByWorkspace: {
           title: "Delete sessions in {{workspace}}",
           confirm: "Are you sure you want to delete {{count}} sessions in {{workspace}}?",
+        },
+        deleteByProject: {
+          title: "Delete sessions in {{project}}",
+          confirm: "Are you sure you want to delete {{count}} sessions in {{project}}?",
         },
         newSessionWithPrompt: "New session with {{prompt}}",
         title: "Chat sidebar",

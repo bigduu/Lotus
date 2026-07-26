@@ -234,6 +234,24 @@ const applyChange = (change: ChangeEvent): void => {
       }
       scheduleRefresh();
       break;
+    case "project_created":
+    case "project_updated":
+    case "project_archived": {
+      const projectId = event.project_id;
+      const revision = event.revision;
+      if (projectId && typeof revision === "number") {
+        store.applyProjectEvent({ type: event.type, project_id: projectId, revision });
+      }
+      break;
+    }
+    case "session_project_updated": {
+      // Project reassignment changes the sidebar group. Reconcile via the
+      // existing session list path rather than duplicating merge logic here.
+      if (sessionId) {
+        scheduleRefresh();
+      }
+      break;
+    }
     // Coarse list/state changes — reuse the existing reconciliation path.
     case "session_created":
     case "session_cleared":

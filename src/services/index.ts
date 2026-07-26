@@ -76,6 +76,20 @@ export type {
   WorkspaceInfo,
 } from "./workspace";
 
+// Project Service
+export { ProjectService, projectService, NO_PROJECT_GROUP_KEY, NO_PROJECT_ID } from "./project";
+export type {
+  CreateProjectRequest,
+  PatchProjectRequest,
+  ProjectListResponse,
+  ProjectManifest,
+  ProjectResourceSummary,
+  ProjectStatus,
+  ProjectSummary,
+  WorkspaceBinding,
+  WorkspaceBindingRequest,
+} from "./project";
+
 // Metrics Service
 export { MetricsService, metricsService } from "./metrics";
 export type {

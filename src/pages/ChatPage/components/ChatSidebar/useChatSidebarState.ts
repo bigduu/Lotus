@@ -6,23 +6,20 @@ import { useShallow } from "zustand/react/shallow";
 import { AgentClient } from "@services/chat/AgentService";
 
 import {
-  buildWorkspaceGroupLabels,
   getChatCountByDate,
   getSessionIdsByDate,
-  getSortedDateKeys,
-  getSortedWorkspaceKeys,
-  getWorkspaceGroupKey,
+  getSortedProjectKeys,
   groupChatsByCalendarDate,
-  groupChatsByDate,
-  groupChatsByWorkspace,
-  NO_WORKSPACE_GROUP_KEY,
+  groupChatsByProject,
 } from "../../utils/chatUtils";
+import { NO_PROJECT_GROUP_KEY } from "@services/project";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useAppStore } from "@shared/store/appStore";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { SidebarChatItem, SidebarScrollTarget } from "@shared/types/sidebarChat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
+import type { SidebarGroupingMode } from "@shared/store/uiLayoutStore.types";
 import { openSession } from "@shared/utils/openSession";
 import { selectIsBusy, selectSidebarRunStateMap } from "@shared/store/appStore";
 
@@ -34,6 +31,7 @@ type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
 // text field stays instantly responsive.
 const SEARCH_FILTER_DEBOUNCE_MS = 200;
 const WORKSPACE_EXPANSION_STORAGE_KEY = "lotus.sidebar.workspace.expanded.v1";
+const PROJECT_EXPANSION_STORAGE_KEY = "lotus.sidebar.project.expanded.v1";
 
 const getSidebarChatKind = (kind: ChatItem["kind"]): SidebarChatItem["kind"] =>
   kind === "child" ? "child" : "root";
@@ -53,6 +51,7 @@ const projectSidebarChatItem = (chat: ChatItem): SidebarChatItem => ({
   config: {
     systemPromptId: chat.config.systemPromptId,
     workspacePath: chat.config.workspacePath || null,
+    projectId: chat.config.projectId || null,
   },
 });
 
@@ -69,7 +68,8 @@ const hasSameSidebarProjection = (prev: SidebarChatItem, chat: ChatItem): boolea
   prev.lastRunError === (chat.lastRunError || null) &&
   prev.createdAt === chat.createdAt &&
   prev.config.systemPromptId === chat.config.systemPromptId &&
-  prev.config.workspacePath === (chat.config.workspacePath || null);
+  prev.config.workspacePath === (chat.config.workspacePath || null) &&
+  prev.config.projectId === (chat.config.projectId || null);
 
 const projectSidebarChats = (() => {
   let prevSource: ReadonlyArray<ChatItem> | null = null;
@@ -221,13 +221,48 @@ export const useChatSidebarState = () => {
       setGroupingMode: s.setSidebarGroupingMode,
     })),
   );
-  const groupingMode = "workspace" as const;
+  const groupingMode: SidebarGroupingMode = "project";
 
-  // #110 fixes the hierarchy to workspace → date. Migrate the former
-  // date/workspace preference once and keep the persisted value canonical.
+  // Lotus #134 — the sidebar hierarchy is Project-first (Project → Date →
+  // root/child session). Migrate the former date/workspace preference once
+  // and keep the persisted value canonical.
   useEffect(() => {
-    if (storedGroupingMode !== "workspace") setGroupingMode("workspace");
+    if (storedGroupingMode !== "project") setGroupingMode("project");
   }, [storedGroupingMode, setGroupingMode]);
+
+  // Project metadata is ID-normalized in the app store; the sidebar joins
+  // session `projectId`s against it for group labels/archived status.
+  const { projects, loadProjects, ensureProject } = useAppStore(
+    useShallow((state) => ({
+      projects: state.projects,
+      loadProjects: state.loadProjects,
+      ensureProject: state.ensureProject,
+    })),
+  );
+
+  useEffect(() => {
+    loadProjects().catch((error) => {
+      console.warn("[ChatSidebar] Failed to load projects:", error);
+    });
+  }, [loadProjects]);
+
+  // Sessions can reference Projects that have not been loaded into the local
+  // map yet (e.g. created on another device). Fetch those lazily so the
+  // sidebar can show real names instead of the "Missing project" fallback.
+  useEffect(() => {
+    const known = useAppStore.getState().projects;
+    const missing = new Set<string>();
+    for (const chat of chats) {
+      const projectId = chat.config.projectId;
+      if (projectId && !known[projectId]) missing.add(projectId);
+    }
+    for (const projectId of missing) {
+      ensureProject(projectId).catch(() => {
+        // 404s are handled inside ensureProject (drops the record); other
+        // failures leave the "Missing project" label in place.
+      });
+    }
+  }, [chats, ensureProject]);
 
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
@@ -270,15 +305,15 @@ export const useChatSidebarState = () => {
 
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
   const [scheduleThisSessionId, setScheduleThisSessionId] = useState<string | null>(null);
-  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set(["Today"]));
-  // Baseline expanded-group state for workspace mode (#95) — kept separate
-  // from `expandedDates` so switching grouping modes doesn't carry one
-  // mode's manually-toggled groups into the other's (unrelated) key-space.
-  // Starts empty, mirroring `expandedDates`'s own "nothing forced open
-  // besides the selected session's group" default.
-  const [expandedWorkspaceGroups, setExpandedWorkspaceGroups] = useState<Set<string>>(() => {
+  // Lotus #134 — Project expansion is keyed by stable `project_id`, so a
+  // Project rename or a session's workspace switch never loses expansion
+  // state. The old workspace-path keys cannot be mapped to project ids
+  // reliably, so they are discarded (never used to fabricate Projects).
+  const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(() => {
     try {
-      const value = JSON.parse(localStorage.getItem(WORKSPACE_EXPANSION_STORAGE_KEY) || "[]");
+      localStorage.removeItem(WORKSPACE_EXPANSION_STORAGE_KEY);
+      localStorage.removeItem("lotus.sidebar.workspace-date.collapsed.v1");
+      const value = JSON.parse(localStorage.getItem(PROJECT_EXPANSION_STORAGE_KEY) || "[]");
       return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
     } catch {
       return new Set();
@@ -287,11 +322,11 @@ export const useChatSidebarState = () => {
   useEffect(() => {
     try {
       localStorage.setItem(
-        WORKSPACE_EXPANSION_STORAGE_KEY,
-        JSON.stringify([...expandedWorkspaceGroups]),
+        PROJECT_EXPANSION_STORAGE_KEY,
+        JSON.stringify([...expandedProjectGroups]),
       );
     } catch {}
-  }, [expandedWorkspaceGroups]);
+  }, [expandedProjectGroups]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SidebarStatusFilter>("all");
   const [projectDreamState, setProjectDreamState] = useState<
@@ -322,27 +357,16 @@ export const useChatSidebarState = () => {
         createdAt: root?.createdAt ?? chat.createdAt,
         createdByScheduleId: root?.createdByScheduleId || null,
         workspacePath: root?.config.workspacePath || chat.config.workspacePath || null,
+        projectId: root?.config.projectId || chat.config.projectId || null,
       };
     }),
   );
 
-  const currentDateGroupKey = useMemo(() => {
+  // Project mode (#134): the selected session's stable Project key, so its
+  // group auto-expands. Unassigned sessions resolve to the fixed sentinel.
+  const currentProjectGroupKey = useMemo(() => {
     if (!selectedSessionMeta) return null;
-    if (selectedSessionMeta.pinned) return "Pinned";
-    if (selectedSessionMeta.createdByScheduleId) return "Scheduled";
-    return new Date(selectedSessionMeta.createdAt).toLocaleDateString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
-  }, [selectedSessionMeta]);
-
-  // Mirrors `currentDateGroupKey` above, but for the workspace grouping mode
-  // (#95) — resolves which workspace group the selected session lives in so
-  // its group auto-expands the same way the date group does today.
-  const currentWorkspaceGroupKey = useMemo(() => {
-    if (!selectedSessionMeta) return null;
-    return getWorkspaceGroupKey(selectedSessionMeta.workspacePath);
+    return selectedSessionMeta.projectId?.trim() || NO_PROJECT_GROUP_KEY;
   }, [selectedSessionMeta]);
 
   // Debounce the expensive filter recomputation, not the input value: the
@@ -523,48 +547,50 @@ export const useChatSidebarState = () => {
     statusFilter,
   ]);
 
-  const groupedChatsByDate = useMemo(
-    () => (sidebarCollapsed ? emptyGrouped : groupChatsByDate(filteredRootSessions)),
+  // ─── Top-level grouping: by Project (#134) ─────────────────────────
+  // Same `filteredRootSessions` input and Record<string, T[]> shape as the
+  // other pipelines. Group keys are stable backend `project_id`s (or the
+  // `NO_PROJECT_GROUP_KEY` sentinel) — a workspace switch never moves a
+  // session to another group.
+  const groupedChatsByProject = useMemo(
+    () => (sidebarCollapsed ? emptyGrouped : groupChatsByProject(filteredRootSessions)),
     [filteredRootSessions, sidebarCollapsed, emptyGrouped],
   );
-  const sortedDateKeys = useMemo(
-    () => (sidebarCollapsed ? emptyStrArr : getSortedDateKeys(groupedChatsByDate)),
-    [groupedChatsByDate, sidebarCollapsed, emptyStrArr],
+  // Archived Projects sink below active ones; Unassigned stays last
+  // (getSortedProjectKeys).
+  const archivedProjectKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const project of Object.values(projects)) {
+      if (project.status === "archived") keys.add(project.id);
+    }
+    return keys;
+  }, [projects]);
+  const sortedProjectKeys = useMemo(
+    () =>
+      sidebarCollapsed
+        ? emptyStrArr
+        : getSortedProjectKeys(groupedChatsByProject, archivedProjectKeys),
+    [groupedChatsByProject, archivedProjectKeys, sidebarCollapsed, emptyStrArr],
   );
-
-  // ─── Secondary grouping: by workspace (#95) ────────────────────────
-  // Same `filteredRootSessions` input, same generic Record<string, T[]>
-  // shape as the date grouping above — so every downstream consumer
-  // (ChatSidebarDateGroups, ChatSidebarVirtualRootList, getSessionIdsByDate,
-  // getChatCountByDate) works unmodified regardless of which grouping is
-  // active.
-  const groupedChatsByWorkspace = useMemo(
-    () => (sidebarCollapsed ? emptyGrouped : groupChatsByWorkspace(filteredRootSessions)),
-    [filteredRootSessions, sidebarCollapsed, emptyGrouped],
-  );
-  const sortedWorkspaceKeys = useMemo(
-    () => (sidebarCollapsed ? emptyStrArr : getSortedWorkspaceKeys(groupedChatsByWorkspace)),
-    [groupedChatsByWorkspace, sidebarCollapsed, emptyStrArr],
-  );
-  // Friendly display label per workspace-path group key (basename, with
-  // parent-dir disambiguation on collision — see buildWorkspaceGroupLabels).
-  // The "no workspace" sentinel key is excluded; its label is a translated
-  // string resolved in the presentation layer instead.
-  const workspaceGroupLabels = useMemo(() => {
+  // Display label per Project group key, joined from the ID-normalized
+  // Project store. A session referencing a Project that is deleted or not
+  // visible gets an explicit "Missing project" label instead of silently
+  // falling back to workspace grouping.
+  const projectGroupLabels = useMemo(() => {
     if (sidebarCollapsed) return emptyLabelMap;
-    const paths = Object.keys(groupedChatsByWorkspace).filter((k) => k !== NO_WORKSPACE_GROUP_KEY);
-    if (paths.length === 0) return emptyLabelMap;
-    return buildWorkspaceGroupLabels(paths);
-  }, [groupedChatsByWorkspace, sidebarCollapsed, emptyLabelMap]);
+    const labels: Record<string, string> = {};
+    for (const key of Object.keys(groupedChatsByProject)) {
+      if (key === NO_PROJECT_GROUP_KEY) continue;
+      labels[key] = projects[key]?.name ?? t("chat.sidebar.missingProject", "Missing project");
+    }
+    return labels;
+  }, [groupedChatsByProject, projects, sidebarCollapsed, emptyLabelMap, t]);
 
-  // The grouping actually rendered — swaps wholesale between the date and
-  // workspace pipelines above based on the persisted `groupingMode` (#95).
-  // Plain (unmemoized) picks: cheap reference selection, not derived work.
-  const activeGroupedChats =
-    groupingMode === "workspace" ? groupedChatsByWorkspace : groupedChatsByDate;
-  const activeSortedGroupKeys = groupingMode === "workspace" ? sortedWorkspaceKeys : sortedDateKeys;
-  const currentGroupKey =
-    groupingMode === "workspace" ? currentWorkspaceGroupKey : currentDateGroupKey;
+  // The grouping actually rendered (#134 — the sidebar hierarchy is
+  // Project-first). Plain (unmemoized) picks: cheap reference selection.
+  const activeGroupedChats = groupedChatsByProject;
+  const activeSortedGroupKeys = sortedProjectKeys;
+  const currentGroupKey = currentProjectGroupKey;
 
   // ─── Scroll-to-active-session target (#93) ─────────────────────────
   // Resolves which date group + row the currently active session lives in,
@@ -650,8 +676,7 @@ export const useChatSidebarState = () => {
       return activeSortedGroupKeys.filter((key) => !searchCollapseOverrides.has(key));
     }
 
-    const baseline = groupingMode === "workspace" ? expandedWorkspaceGroups : expandedDates;
-    const next = new Set(baseline);
+    const next = new Set(expandedProjectGroups);
     if (currentGroupKey) {
       next.add(currentGroupKey);
     }
@@ -659,9 +684,7 @@ export const useChatSidebarState = () => {
   }, [
     activeSortedGroupKeys,
     currentGroupKey,
-    expandedDates,
-    expandedWorkspaceGroups,
-    groupingMode,
+    expandedProjectGroups,
     hasActiveFilters,
     searchCollapseOverrides,
   ]);
@@ -693,9 +716,7 @@ export const useChatSidebarState = () => {
       return;
     }
 
-    const setBaseline =
-      groupingMode === "workspace" ? setExpandedWorkspaceGroups : setExpandedDates;
-    setBaseline((prev) => {
+    setExpandedProjectGroups((prev) => {
       if (prev.size !== next.size) return next;
       for (const k of next) {
         if (!prev.has(k)) return next;
@@ -863,33 +884,24 @@ export const useChatSidebarState = () => {
     [message, projectDreamState, refreshChats, t],
   );
 
-  // Handles "delete all sessions in this group" for both grouping modes
-  // (#95) — the confirm copy differs (a date label vs. a workspace label),
-  // but the mechanics (resolve session ids from the currently-rendered
-  // group, clear them from panes, bulk-delete) are identical, driven by
-  // whichever grouping is active.
+  // Handles "delete all sessions in this Project group" (#134) — resolves
+  // session ids from the currently-rendered group, clears them from panes,
+  // and bulk-deletes.
   const handleDeleteByGroup = (groupKey: string) => {
     const sessionIds = getSessionIdsByDate(activeGroupedChats, groupKey);
     const chatCount = getChatCountByDate(activeGroupedChats, groupKey);
 
-    const isWorkspaceMode = groupingMode === "workspace";
-    const workspaceLabel = isWorkspaceMode
-      ? (workspaceGroupLabels[groupKey] ?? t("chat.sidebar.noWorkspace", "No workspace"))
-      : "";
+    const projectLabel =
+      groupKey === NO_PROJECT_GROUP_KEY
+        ? t("chat.sidebar.unassigned", "Unassigned")
+        : (projectGroupLabels[groupKey] ?? groupKey);
 
     Modal.confirm({
-      title: isWorkspaceMode
-        ? t("chat.sidebar.deleteByWorkspace.title", { workspace: workspaceLabel })
-        : t("chat.sidebar.deleteByDate.title", { date: groupKey }),
-      content: isWorkspaceMode
-        ? t("chat.sidebar.deleteByWorkspace.confirm", {
-            count: chatCount,
-            workspace: workspaceLabel,
-          })
-        : t("chat.sidebar.deleteByDate.confirm", {
-            count: chatCount,
-            date: groupKey,
-          }),
+      title: t("chat.sidebar.deleteByProject.title", { project: projectLabel }),
+      content: t("chat.sidebar.deleteByProject.confirm", {
+        count: chatCount,
+        project: projectLabel,
+      }),
       okText: t("common.delete"),
       okType: "danger",
       cancelText: t("common.cancel"),
@@ -1002,17 +1014,14 @@ export const useChatSidebarState = () => {
     collapsed: sidebarCollapsed,
     currentSessionId,
     expandedKeys,
-    // `groupedChatsByDate`/`sortedDateKeys` remain the literal date grouping
-    // (used internally above, e.g. by handleDeleteByGroup's date branch);
-    // `activeGroupedChats`/`activeSortedGroupKeys` are what the presentation
-    // layer should actually render — they already reflect `groupingMode`
-    // (#95).
-    groupedChatsByDate,
+    // `activeGroupedChats`/`activeSortedGroupKeys` are the Project-first
+    // grouping (#134) the presentation layer renders.
     activeGroupedChats,
     activeSortedGroupKeys,
     groupingMode,
     setGroupingMode,
-    workspaceGroupLabels,
+    projectGroupLabels,
+    archivedProjectKeys,
     hasActiveFilters,
     handleCollapseChange,
     handleDelete,
@@ -1040,7 +1049,6 @@ export const useChatSidebarState = () => {
     searchQuery,
     selectSession,
     setCollapsed: setSidebarCollapsed,
-    sortedDateKeys,
     statusFilter,
     systemPrompts,
     titleGenerationState,

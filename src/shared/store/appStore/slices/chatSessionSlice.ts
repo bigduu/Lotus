@@ -94,6 +94,14 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         useProviderStore.getState().providerInstances,
       );
 
+    // Resolve the Project identity once so the create request carries it
+    // (#134): an explicit caller value wins, otherwise the currently active
+    // Project. The local chat config trusts ONLY the backend-assigned value
+    // — if an older backend ignores the field, the session lands in
+    // Unassigned until the backend learns Projects, instead of the client
+    // fabricating a membership the backend never persisted.
+    const requestedProjectId = chatData.config?.projectId ?? get().activeProjectId ?? null;
+
     const created = await agentClient.createSession({
       title,
       system_prompt: basePrompt || undefined,
@@ -102,6 +110,8 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       provider: providerValue,
       reasoning_effort: reasoningEffort || undefined,
       gold_config: chatData.config?.goldConfig ?? undefined,
+      project_id: requestedProjectId,
+      workspace_path: chatData.config?.workspacePath?.trim() || null,
     });
 
     const newChat: ChatItem = {
@@ -109,6 +119,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       title,
       config: {
         ...chatData.config,
+        projectId: created.session.project_id ?? undefined,
         model: created.session.model,
         model_ref: created.session.model_ref ?? null,
         reasoningEffort: created.session.reasoning_effort ?? null,

@@ -406,6 +406,11 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           enhance_prompt: enhancePrompt || undefined,
           copilot_conclusion_with_options_enhancement_enabled:
             copilotConclusionWithOptionsEnhancementEnabled,
+          // Carried for the backend's consistency check (409
+          // `session_project_reassignment_required` on mismatch). Omitted
+          // when unknown — Bamboo treats a missing field as "no opinion",
+          // never as an unassign instruction.
+          project_id: currentChat?.config?.projectId ?? undefined,
           workspace_path: workspacePath || undefined,
           selected_skill_ids:
             selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
