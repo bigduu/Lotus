@@ -3108,6 +3108,9 @@ export const enUsTranslation = {
         exportSvg: "Export SVG",
         exportFailed: "Failed to export diagram",
         downloadChartAriaLabel: "Download chart",
+        zoomInAriaLabel: "Zoom in",
+        zoomOutAriaLabel: "Zoom out",
+        resetZoomAriaLabel: "Reset zoom",
       },
     },
     validation: {
