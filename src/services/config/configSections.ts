@@ -13,6 +13,7 @@ import type {
   ProviderType,
   RequestOverridesConfig,
 } from "@shared/types/providerConfig";
+import type { McpServerConfig } from "../mcp/types";
 
 export const CONFIG_SECTION_IDS = [
   "core",
@@ -113,18 +114,37 @@ export interface ProviderSection {
   };
 }
 
-export type ProviderCredentialChange =
-  | { action: "replace"; value: string }
-  | { action: "clear" };
+export type ProviderCredentialChange = { action: "replace"; value: string } | { action: "clear" };
 
 export interface ProviderCredentialChanges {
   providers?: Partial<Record<ProviderType, ProviderCredentialChange>>;
   provider_instances?: Record<string, ProviderCredentialChange>;
 }
 
+export interface McpCredentialStatus {
+  configured: boolean;
+  source: string | null;
+  updated_at: string | null;
+}
+
+export interface McpServerCredentialStatus {
+  env: Record<string, McpCredentialStatus>;
+  headers: Record<string, McpCredentialStatus>;
+}
+
 export interface McpSection {
-  version?: number;
-  servers: Array<Record<string, unknown>>;
+  version: number;
+  servers: McpServerConfig[];
+  credential_status: Record<string, McpServerCredentialStatus>;
+}
+
+export interface McpServerCredentialChanges {
+  env?: Record<string, string | null>;
+  headers?: Record<string, string | null>;
+}
+
+export interface McpCredentialChanges {
+  servers?: Record<string, McpServerCredentialChanges>;
 }
 
 export interface ToolsSkillsSection {
@@ -183,6 +203,13 @@ export interface NotificationSection {
     base_url: string;
     credential: NotificationCredentialStatus;
   };
+}
+
+export interface NotificationSectionEnvelope extends ConfigSectionEnvelope<NotificationSection> {
+  credential_revision: number;
+  credential_status: ConfigSectionStatus;
+  credential_source: ConfigSectionSourceKind | null;
+  credential_last_error: string | null;
 }
 
 export interface HooksSection {
@@ -247,22 +274,40 @@ export class ConfigConflictError extends Error {
   }
 }
 
+const parseRevisionValue = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && /^\d+$/.test(value.trim())) return Number(value);
+  return null;
+};
+
+const parseRevisionMessage = (value: unknown): number | null => {
+  if (typeof value !== "string") return null;
+  const match = value.match(/\bactual(?:\s+revision)?\s*[:=]?\s*(\d+)\b/i);
+  return match ? Number(match[1]) : null;
+};
+
 const parseConflictRevision = (error: ApiError): number | null => {
-  if (!error.body) return null;
+  if (!error.body) return parseRevisionMessage(error.message);
   try {
     const parsed = JSON.parse(error.body) as {
-      error?: { actual?: unknown; current_revision?: unknown; message?: unknown };
+      error?: { actual?: unknown; current_revision?: unknown; message?: unknown } | string;
       actual?: unknown;
       current_revision?: unknown;
+      message?: unknown;
     };
+    const nested = typeof parsed.error === "object" && parsed.error !== null ? parsed.error : null;
     const raw =
-      parsed.error?.actual ??
-      parsed.error?.current_revision ??
-      parsed.actual ??
-      parsed.current_revision;
-    return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+      nested?.actual ?? nested?.current_revision ?? parsed.actual ?? parsed.current_revision;
+    return (
+      parseRevisionValue(raw) ??
+      parseRevisionMessage(nested?.message) ??
+      parseRevisionMessage(parsed.error) ??
+      parseRevisionMessage(parsed.message) ??
+      parseRevisionMessage(error.message) ??
+      parseRevisionMessage(error.body)
+    );
   } catch {
-    return null;
+    return parseRevisionMessage(error.body) ?? parseRevisionMessage(error.message);
   }
 };
 
@@ -277,25 +322,30 @@ const mapConflict = (error: unknown, expectedRevision: number): never => {
   throw error;
 };
 
-const normalizeNotificationEnvelope = (
-  response: NotificationConfigResponse,
-): ConfigSectionEnvelope<NotificationSection> => ({
-  data: response.data,
-  revision: response.revision,
-  loaded_at: new Date().toISOString(),
-  source_path: response.source ?? "credentials.json",
-  source_kind: response.source === "backup" ? "backup" : "file",
-  status: response.status,
-  last_error: response.last_error,
-});
-
 interface NotificationConfigResponse {
   data: NotificationSection;
   revision: number;
   status: ConfigSectionStatus;
-  source: string | null;
+  source: ConfigSectionSourceKind | null;
   last_error: string | null;
 }
+
+const mergeNotificationEnvelope = (
+  section: ConfigSectionEnvelope<unknown>,
+  credentials: NotificationConfigResponse,
+): NotificationSectionEnvelope => ({
+  data: credentials.data,
+  revision: section.revision,
+  loaded_at: section.loaded_at,
+  source_path: section.source_path,
+  source_kind: section.source_kind,
+  status: section.status,
+  last_error: section.last_error,
+  credential_revision: credentials.revision,
+  credential_status: credentials.status,
+  credential_source: credentials.source,
+  credential_last_error: credentials.last_error,
+});
 
 export interface NotificationSectionDraft {
   desktop: { enabled: boolean | null };
@@ -336,6 +386,18 @@ const normalizeCredentialEnvelope = (
 });
 
 class ConfigSectionsService {
+  async getNotificationSection(): Promise<NotificationSectionEnvelope> {
+    const [section, credentials] = await Promise.all([
+      apiClient.get<ConfigSectionEnvelope<unknown>>("/bamboo/config/sections/notifications"),
+      apiClient.get<NotificationConfigResponse>("/bamboo/config/notifications"),
+    ]);
+    return mergeNotificationEnvelope(section, credentials);
+  }
+
+  async getMcpSettings(): Promise<ConfigSectionEnvelope<McpSection>> {
+    return apiClient.get<ConfigSectionEnvelope<McpSection>>("/bamboo/config/sections/mcp");
+  }
+
   async getSection<K extends ConfigSectionId>(
     section: K,
   ): Promise<ConfigSectionEnvelope<ConfigSectionDataMap[K]>> {
@@ -344,12 +406,12 @@ class ConfigSectionsService {
         "/bamboo/config/provider-settings",
       );
     }
+    if (section === "mcp") {
+      return this.getMcpSettings() as Promise<ConfigSectionEnvelope<ConfigSectionDataMap[K]>>;
+    }
     if (section === "notifications") {
-      const response = await apiClient.get<NotificationConfigResponse>(
-        "/bamboo/config/notifications",
-      );
-      return normalizeNotificationEnvelope(response) as ConfigSectionEnvelope<
-        ConfigSectionDataMap[K]
+      return this.getNotificationSection() as unknown as Promise<
+        ConfigSectionEnvelope<ConfigSectionDataMap[K]>
       >;
     }
     if (section === "credentials") {
@@ -373,6 +435,22 @@ class ConfigSectionsService {
         `/bamboo/config/sections/${encodeURIComponent(section)}`,
         { expected_revision: expectedRevision, data },
       );
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async putMcpSettings(
+    expectedRevision: number,
+    data: McpSection,
+    credentialChanges: McpCredentialChanges = {},
+  ): Promise<ConfigSectionEnvelope<McpSection>> {
+    try {
+      return await apiClient.put<ConfigSectionEnvelope<McpSection>>("/bamboo/config/sections/mcp", {
+        expected_revision: expectedRevision,
+        data,
+        credential_changes: credentialChanges,
+      });
     } catch (error) {
       return mapConflict(error, expectedRevision);
     }
@@ -428,9 +506,24 @@ class ConfigSectionsService {
   }
 
   async putNotifications(
-    expectedRevision: number,
+    expectedSectionRevision: number,
     data: NotificationSectionDraft,
-  ): Promise<ConfigSectionEnvelope<NotificationSection>> {
+  ): Promise<NotificationSectionEnvelope> {
+    // Notification metadata is revisioned by its typed section, while the
+    // compatibility transaction that owns ntfy/Bark credentials uses the
+    // credential-store revision. Always refresh both immediately before the
+    // write: a cached credential revision can conflict with an unrelated
+    // credential update, and a stale typed draft must never overwrite newer
+    // notification metadata merely because the credential CAS still matches.
+    const current = await this.getNotificationSection();
+    if (current.revision !== expectedSectionRevision) {
+      throw new ConfigConflictError({
+        expectedRevision: expectedSectionRevision,
+        currentRevision: current.revision,
+        message: "The notification configuration changed on disk.",
+      });
+    }
+
     const notifications = {
       desktop: data.desktop,
       ntfy: {
@@ -451,12 +544,25 @@ class ConfigSectionsService {
     };
     try {
       await apiClient.post("/bamboo/config", {
-        expected_revision: expectedRevision,
+        expected_revision: current.credential_revision,
         notifications,
       });
-      return this.getSection("notifications");
+      return this.getNotificationSection();
     } catch (error) {
-      return mapConflict(error, expectedRevision);
+      if (isApiError(error) && error.status === 409) {
+        let currentRevision: number | null = null;
+        try {
+          currentRevision = (await this.getNotificationSection()).revision;
+        } catch {
+          // Preserve the original conflict when the diagnostic refresh also fails.
+        }
+        throw new ConfigConflictError({
+          expectedRevision: expectedSectionRevision,
+          currentRevision,
+          message: error.message || "The notification configuration changed on disk.",
+        });
+      }
+      throw error;
     }
   }
 

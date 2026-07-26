@@ -3,14 +3,15 @@ import { apiClient, ApiError } from "@services/api";
 import {
   ConfigConflictError,
   configSectionsService,
+  type McpSection,
   type NotificationSection,
   type ProviderSection,
 } from "../configSections";
 
-const notificationResponse = (revision: number) => ({
-  revision,
+const notificationResponse = (credentialRevision: number) => ({
+  revision: credentialRevision,
   status: "healthy" as const,
-  source: "file",
+  source: "file" as const,
   last_error: null,
   data: {
     desktop: { enabled: true },
@@ -38,6 +39,37 @@ const notificationResponse = (revision: number) => ({
   } satisfies NotificationSection,
 });
 
+const notificationSectionResponse = (
+  sectionRevision: number,
+  status: "healthy" | "missing" | "degraded" | "invalid" = "healthy",
+) => ({
+  data: { notifications: {} },
+  revision: sectionRevision,
+  loaded_at: `2026-07-24T00:00:${sectionRevision}Z`,
+  source_path: "/tmp/notifications.json",
+  source_kind: "file" as const,
+  status,
+  last_error: status === "healthy" ? null : "redacted section diagnostic",
+});
+
+const mockNotificationReads = (sectionRevisions: number[], credentialRevisions: number[]) => {
+  const sections = [...sectionRevisions];
+  const credentials = [...credentialRevisions];
+  return vi.spyOn(apiClient, "get").mockImplementation(async (path: string) => {
+    if (path === "/bamboo/config/sections/notifications") {
+      const revision = sections.shift();
+      if (revision === undefined) throw new Error("Unexpected typed notification read");
+      return notificationSectionResponse(revision) as never;
+    }
+    if (path === "/bamboo/config/notifications") {
+      const revision = credentials.shift();
+      if (revision === undefined) throw new Error("Unexpected credential notification read");
+      return notificationResponse(revision) as never;
+    }
+    throw new Error(`Unexpected GET ${path}`);
+  });
+};
+
 const providerResponse = (revision: number) => ({
   data: {
     provider: "openai",
@@ -62,6 +94,54 @@ const providerResponse = (revision: number) => ({
   revision,
   loaded_at: "2026-07-24T00:00:00Z",
   source_path: "/tmp/providers.json",
+  source_kind: "file" as const,
+  status: "healthy" as const,
+  last_error: null,
+});
+
+const mcpResponse = (revision: number) => ({
+  data: {
+    version: 1,
+    servers: [
+      {
+        id: "stdio",
+        name: "Canonical stdio",
+        enabled: true,
+        transport: {
+          type: "stdio" as const,
+          command: "node",
+          args: ["server.js"],
+          env: { TOKEN: "" },
+          startup_timeout_ms: 20_000,
+        },
+        request_timeout_ms: 60_000,
+        healthcheck_interval_ms: 30_000,
+        reconnect: {
+          enabled: true,
+          initial_backoff_ms: 1_000,
+          max_backoff_ms: 30_000,
+          max_attempts: 3,
+        },
+        allowed_tools: [],
+        denied_tools: [],
+      },
+    ],
+    credential_status: {
+      stdio: {
+        env: {
+          TOKEN: {
+            configured: true,
+            source: "user",
+            updated_at: null,
+          },
+        },
+        headers: {},
+      },
+    },
+  } satisfies McpSection,
+  revision,
+  loaded_at: "2026-07-24T00:00:00Z",
+  source_path: "/tmp/mcp.json",
   source_kind: "file" as const,
   status: "healthy" as const,
   last_error: null,
@@ -101,18 +181,39 @@ describe("configSectionsService", () => {
     expect(JSON.stringify(response.data)).not.toContain("****");
   });
 
-  it("omits untouched notification secrets instead of sending masks", async () => {
-    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
-    vi.spyOn(apiClient, "get").mockResolvedValue(notificationResponse(2));
+  it("merges typed notification metadata with a deliberately different credential revision", async () => {
+    const get = mockNotificationReads([7], [70]);
 
-    await configSectionsService.putNotifications(1, {
+    const result = await configSectionsService.getSection("notifications");
+
+    expect(result).toMatchObject({
+      revision: 7,
+      source_path: "/tmp/notifications.json",
+      data: notificationResponse(70).data,
+      credential_revision: 70,
+      credential_status: "healthy",
+      credential_source: "file",
+    });
+    expect(get).toHaveBeenCalledWith("/bamboo/config/sections/notifications");
+    expect(get).toHaveBeenCalledWith("/bamboo/config/notifications");
+  });
+
+  it("freshly reads both notification revisions before every save and omits untouched secrets", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
+    const get = mockNotificationReads([7, 7, 8], [70, 71, 72]);
+
+    // Prime a prior read to prove the save does not reuse its credential
+    // revision. The preflight must adopt credential revision 71, not 70.
+    await configSectionsService.getSection("notifications");
+
+    const result = await configSectionsService.putNotifications(7, {
       desktop: { enabled: true },
       ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
       bark: { enabled: false, base_url: "https://api.day.app" },
     });
 
     expect(post).toHaveBeenCalledWith("/bamboo/config", {
-      expected_revision: 1,
+      expected_revision: 71,
       notifications: {
         desktop: { enabled: true },
         ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
@@ -120,13 +221,16 @@ describe("configSectionsService", () => {
       },
     });
     expect(JSON.stringify(post.mock.calls[0])).not.toContain("****");
+    expect(result.revision).toBe(8);
+    expect(result.credential_revision).toBe(72);
+    expect(get).toHaveBeenCalledTimes(6);
   });
 
   it("sends null only for an explicit credential clear", async () => {
     const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
-    vi.spyOn(apiClient, "get").mockResolvedValue(notificationResponse(3));
+    mockNotificationReads([20, 21], [90, 91]);
 
-    await configSectionsService.putNotifications(2, {
+    await configSectionsService.putNotifications(20, {
       desktop: { enabled: true },
       ntfy: {
         enabled: true,
@@ -142,14 +246,127 @@ describe("configSectionsService", () => {
     });
   });
 
-  it("maps a 409 response to a typed revision conflict", async () => {
-    vi.spyOn(apiClient, "put").mockRejectedValue(
+  it("rejects a stale typed notification base before the credential transaction", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
+    mockNotificationReads([8], [71]);
+
+    await expect(
+      configSectionsService.putNotifications(7, {
+        desktop: { enabled: true },
+        ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
+        bark: { enabled: false, base_url: "https://api.day.app" },
+      }),
+    ).rejects.toMatchObject<ConfigConflictError>({
+      conflict: {
+        expectedRevision: 7,
+        currentRevision: 8,
+        message: "The notification configuration changed on disk.",
+      },
+    });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("reports the typed notification revision after a credential-transaction race", async () => {
+    mockNotificationReads([7, 8], [70, 71]);
+    vi.spyOn(apiClient, "post").mockRejectedValue(
       new ApiError(
-        "revision conflict",
+        "Configuration revision conflict: expected 70, actual 71",
         409,
         "Conflict",
-        JSON.stringify({ error: { actual: 8 } }),
+        JSON.stringify({
+          error: {
+            message: "Configuration revision conflict: expected 70, actual 71",
+            type: "api_error",
+            code: "config_revision_conflict",
+          },
+        }),
       ),
+    );
+
+    await expect(
+      configSectionsService.putNotifications(7, {
+        desktop: { enabled: true },
+        ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
+        bark: { enabled: false, base_url: "https://api.day.app" },
+      }),
+    ).rejects.toMatchObject<ConfigConflictError>({
+      conflict: {
+        expectedRevision: 7,
+        currentRevision: 8,
+      },
+    });
+  });
+
+  it("uses the canonical MCP settings route for reads", async () => {
+    const response = mcpResponse(5);
+    const get = vi.spyOn(apiClient, "get").mockResolvedValue(response);
+
+    await expect(configSectionsService.getMcpSettings()).resolves.toEqual(response);
+    await expect(configSectionsService.getSection("mcp")).resolves.toEqual(response);
+    expect(get).toHaveBeenNthCalledWith(1, "/bamboo/config/sections/mcp");
+    expect(get).toHaveBeenNthCalledWith(2, "/bamboo/config/sections/mcp");
+  });
+
+  it("writes canonical MCP data with explicit credential changes", async () => {
+    const response = mcpResponse(6);
+    const put = vi.spyOn(apiClient, "put").mockResolvedValue(response);
+    const credentialChanges = {
+      servers: {
+        stdio: {
+          env: { TOKEN: "new-mcp-secret" },
+          headers: { Authorization: null },
+        },
+      },
+    };
+
+    await expect(
+      configSectionsService.putMcpSettings(5, response.data, credentialChanges),
+    ).resolves.toEqual(response);
+    expect(put).toHaveBeenCalledWith("/bamboo/config/sections/mcp", {
+      expected_revision: 5,
+      data: response.data,
+      credential_changes: credentialChanges,
+    });
+    expect(JSON.stringify(response.data)).not.toContain("new-mcp-secret");
+    expect(JSON.stringify(response.data)).not.toContain("credential_ref");
+  });
+
+  it.each([
+    [
+      "direct",
+      JSON.stringify({
+        message: "Configuration revision conflict: expected 5, actual 9",
+      }),
+    ],
+    [
+      "nested",
+      JSON.stringify({
+        error: {
+          message: "Configuration revision conflict: expected 5, actual 9",
+          type: "api_error",
+          code: "config_revision_conflict",
+        },
+      }),
+    ],
+  ])("parses the actual MCP revision from a %s Bamboo conflict message", async (_shape, body) => {
+    vi.spyOn(apiClient, "put").mockRejectedValue(
+      new ApiError("revision conflict", 409, "Conflict", body),
+    );
+
+    await expect(
+      configSectionsService.putMcpSettings(5, mcpResponse(5).data),
+    ).rejects.toMatchObject<ConfigConflictError>({
+      conflict: {
+        expectedRevision: 5,
+        currentRevision: 9,
+        message: "revision conflict",
+      },
+    });
+  });
+
+  it("maps a 409 response to a typed revision conflict", async () => {
+    vi.spyOn(apiClient, "put").mockRejectedValue(
+      new ApiError("revision conflict", 409, "Conflict", JSON.stringify({ error: { actual: 8 } })),
     );
 
     await expect(
@@ -183,14 +400,19 @@ describe("configSectionsService", () => {
       revision: 4,
       status: "healthy",
     });
-    const get = vi.spyOn(apiClient, "get").mockResolvedValue(notificationResponse(4));
+    const get = mockNotificationReads([4], [44]);
 
     const result = await configSectionsService.resetSection("notifications", 3);
 
     expect(post).toHaveBeenCalledWith("/bamboo/config/sections/notifications/reset", {
       expected_revision: 3,
     });
+    expect(get).toHaveBeenCalledWith("/bamboo/config/sections/notifications");
     expect(get).toHaveBeenCalledWith("/bamboo/config/notifications");
+    expect(result.revision).toBe(4);
+    expect((result as typeof result & { credential_revision: number }).credential_revision).toBe(
+      44,
+    );
     expect(result.data.ntfy.credential.configured).toBe(true);
   });
 
