@@ -177,29 +177,6 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
     getItemKey,
   });
 
-  // Mark currently-rendered entries as animated once their animation
-  // window has elapsed (#170) — see the comment above animatedEntryKeysRef.
-  useEffect(() => {
-    const pending: string[] = [];
-    for (const item of virtualizer.getVirtualItems()) {
-      const entry = messagesRef.current[item.index];
-      if (entry) {
-        const key = entryKey(entry);
-        if (!animatedEntryKeysRef.current.has(key)) {
-          pending.push(key);
-        }
-      }
-    }
-    if (pending.length === 0) return;
-    const timer = setTimeout(() => {
-      for (const key of pending) {
-        animatedEntryKeysRef.current.add(key);
-      }
-      setAnimationTick((tick: number) => tick + 1);
-    }, ENTRANCE_ANIMATION_MS + 100);
-    return () => clearTimeout(timer);
-  }, [renderableMessages, animationTick, virtualizer]);
-
   const renderMessageSelectionCheckbox = (messageId: string, align: "flex-start" | "flex-end") => {
     if (!selectionMode) return null;
 
@@ -330,6 +307,41 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
 
   const hasMessages = (showMessagesView || hasSystemPrompt) && renderableMessages.length > 0;
   const virtualItems = virtualizer.getVirtualItems();
+  // Stable signature of the currently visible entry keys — lets the
+  // animation-marking effect above re-run when scrolling reveals new rows.
+  const visibleKeysSignature = virtualItems
+    .map((item) => {
+      const entry = messagesRef.current[item.index];
+      return entry ? entryKey(entry) : "";
+    })
+    .join(" ");
+
+  // Mark currently-rendered entries as animated once their animation
+  // window has elapsed (#170) — see the comment above animatedEntryKeysRef.
+  useEffect(() => {
+    const pending: string[] = [];
+    for (const item of virtualizer.getVirtualItems()) {
+      const entry = messagesRef.current[item.index];
+      if (entry) {
+        const key = entryKey(entry);
+        if (!animatedEntryKeysRef.current.has(key)) {
+          pending.push(key);
+        }
+      }
+    }
+    if (pending.length === 0) return;
+    const timer = setTimeout(() => {
+      for (const key of pending) {
+        animatedEntryKeysRef.current.add(key);
+      }
+      setAnimationTick((tick: number) => tick + 1);
+    }, ENTRANCE_ANIMATION_MS + 100);
+    return () => clearTimeout(timer);
+    // visibleKeysSignature covers rows revealed by scrolling (#170):
+    // `renderableMessages` identity doesn't change on scroll, so without
+    // the visible-set dependency a row first mounted by scrolling would
+    // never be marked and would replay the animation on every revisit.
+  }, [renderableMessages, visibleKeysSignature, animationTick, virtualizer]);
 
   return (
     <Content

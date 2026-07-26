@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createRef } from "react";
 
@@ -118,5 +118,39 @@ describe("ChatMessagesList entrance animations (#170)", () => {
       expect(animated).toHaveLength(1);
       expect(animated[0].textContent).toContain("m3");
     });
+  });
+
+  it("marks rows revealed by scrolling so revisiting them does not replay (#170)", async () => {
+    const many = entriesOf(Array.from({ length: 20 }, (_, i) => `m${i + 1}`));
+    const props = { ...baseProps, renderableMessages: many };
+    const { container } = render(<ChatMessagesList {...props} />);
+    const scroller = baseProps.messagesListRef.current as HTMLElement;
+
+    // Initial viewport rows animate, then get marked.
+    await waitFor(() => {
+      expect(container.querySelectorAll(".messageEnter").length).toBeGreaterThan(0);
+    });
+    await waitFor(() => {
+      expect(container.querySelectorAll(".messageEnter")).toHaveLength(0);
+    });
+
+    // Scroll down: previously unmounted rows appear (they animate once)…
+    scroller.scrollTop = 1600;
+    fireEvent.scroll(scroller);
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-chat-entry-id="m20"]').length).toBe(1);
+    });
+    await waitFor(() => {
+      // …and are then marked too — nothing left animating.
+      expect(container.querySelectorAll(".messageEnter")).toHaveLength(0);
+    });
+
+    // Scroll back up: the initial rows were marked long ago — no replay.
+    scroller.scrollTop = 0;
+    fireEvent.scroll(scroller);
+    await waitFor(() => {
+      expect(container.querySelectorAll('[data-chat-entry-id="m1"]').length).toBe(1);
+    });
+    expect(container.querySelectorAll(".messageEnter")).toHaveLength(0);
   });
 });
