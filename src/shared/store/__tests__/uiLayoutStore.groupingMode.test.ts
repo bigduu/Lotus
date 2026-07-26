@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Lotus #95 — the sidebar's secondary "group by workspace" mode persists its
-// choice the same way `sidebar.collapsed` already does. These tests cover
-// the persistence contract directly at the store layer (default value,
+// Lotus #95 introduced the persisted sidebar grouping-mode preference; #134
+// switched the default (and only app-level) mode to "project". These tests
+// cover the persistence contract directly at the store layer (default value,
 // round-trip through localStorage, and sanitizing a corrupted/invalid
-// persisted value) — UI-level coverage (the toggle control itself, and its
-// effect on the rendered groups) lives in ChatSidebar.test.tsx.
+// persisted value) — UI-level coverage lives in ChatSidebar.test.tsx.
 
 const LAYOUT_STORAGE_KEY = "copilot_ui_layout_v1";
 
@@ -32,9 +31,9 @@ describe("uiLayoutStore sidebar grouping mode (#95)", () => {
     vi.resetModules();
   });
 
-  it("defaults to 'date' when nothing is persisted", async () => {
+  it("defaults to 'project' when nothing is persisted", async () => {
     const { useUILayoutStore } = await import("../uiLayoutStore");
-    expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("date");
+    expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("project");
   });
 
   it("setSidebarGroupingMode updates state and persists the choice", async () => {
@@ -64,14 +63,14 @@ describe("uiLayoutStore sidebar grouping mode (#95)", () => {
     );
 
     const { useUILayoutStore } = await import("../uiLayoutStore");
-    expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("date");
+    expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("project");
   });
 
   it("is a no-op (no redundant persist/state-change) when set to the current value", async () => {
     const { useUILayoutStore } = await import("../uiLayoutStore");
 
     const before = useUILayoutStore.getState().sidebar;
-    useUILayoutStore.getState().setSidebarGroupingMode("date");
+    useUILayoutStore.getState().setSidebarGroupingMode("project");
     expect(useUILayoutStore.getState().sidebar).toBe(before);
   });
 });

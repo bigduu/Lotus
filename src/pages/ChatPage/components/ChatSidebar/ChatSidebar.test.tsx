@@ -24,10 +24,33 @@ vi.mock("../SystemPromptSelector", () => ({
   default: () => null,
 }));
 
+// The sidebar hook loads Projects on mount; keep all network out of tests.
+const { mockListProjects, mockGetProject } = vi.hoisted(() => ({
+  mockListProjects: vi.fn(),
+  mockGetProject: vi.fn(),
+}));
+vi.mock("@services/project", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@services/project")>();
+  return {
+    ...actual,
+    projectService: {
+      ...actual.projectService,
+      listProjects: mockListProjects,
+      getProject: mockGetProject,
+    },
+  };
+});
+
 describe("ChatSidebar", () => {
   beforeEach(() => {
     localStorage.removeItem("lotus.sidebar.workspace.expanded.v1");
     localStorage.removeItem("lotus.sidebar.project.expanded.v1");
+    // Default: no Projects on the backend; individual suites override this.
+    // Note the slice treats the remote list as authoritative and prunes
+    // anything absent from it, so suites seeding `projects` MUST also make
+    // the list endpoint return them.
+    mockListProjects.mockResolvedValue({ projects: [] });
+    mockGetProject.mockRejectedValue(new Error("unexpected getProject in test"));
     useUILayoutStore.setState((state) => ({
       ...state,
       sidebar: {
@@ -765,12 +788,19 @@ describe("ChatSidebar", () => {
       schema_version: 1,
       workspace_bindings: [],
       legacy_project_keys: [],
+      // Records normally land in the store via mergeProjectIntoMap, which
+      // stamps detail_loaded; without it the sidebar would refetch (and, in
+      // tests, hit the mocked failing getProject).
+      detail_loaded: true,
     });
 
     // "root-billing" -> zenith project, "root-platform" -> bamboo project,
     // and a third, project-less session so the "Unassigned" trailing bucket
     // has something in it.
     beforeEach(() => {
+      mockListProjects.mockResolvedValue({
+        projects: [makeProject("proj-zenith", "zenith"), makeProject("proj-bamboo", "bamboo")],
+      });
       useAppStore.setState((state) => ({
         ...state,
         projects: {
@@ -913,6 +943,29 @@ describe("ChatSidebar", () => {
         expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
         expect(screen.queryByText("Billing investigation")).toBeNull();
       });
+    });
+
+    it("discards the legacy workspace expansion keys on mount (#134)", async () => {
+      localStorage.setItem(
+        "lotus.sidebar.workspace.expanded.v1",
+        JSON.stringify(["/Users/alice/zenith"]),
+      );
+      localStorage.setItem(
+        "lotus.sidebar.workspace-date.collapsed.v1",
+        JSON.stringify(["%2FUsers%2Falice%2Fzenith::2025-03-01"]),
+      );
+
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
+      // Legacy workspace-path keys cannot be mapped to project ids, so they
+      // are dropped rather than used to fabricate Project expansion state.
+      expect(localStorage.getItem("lotus.sidebar.workspace.expanded.v1")).toBeNull();
+      expect(localStorage.getItem("lotus.sidebar.workspace-date.collapsed.v1")).toBeNull();
     });
 
     it("still reflects a live per-item run status in project mode (#104)", async () => {

@@ -21,7 +21,9 @@ export interface ProjectSummary {
   status: ProjectStatus;
   revision: number;
   resource_revision: number;
-  workspace_count: number;
+  /** Precomputed binding count. Not yet returned by Bamboo (#727) — derive
+   * from `workspace_bindings.length` when absent. */
+  workspace_count?: number;
   /** Project default workspace, used when creating a session without an explicit pick. */
   default_workspace_path?: string | null;
   created_at: string;

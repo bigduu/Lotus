@@ -312,6 +312,7 @@ export const useChatSidebarState = () => {
   const [expandedProjectGroups, setExpandedProjectGroups] = useState<Set<string>>(() => {
     try {
       localStorage.removeItem(WORKSPACE_EXPANSION_STORAGE_KEY);
+      localStorage.removeItem("lotus.sidebar.workspace-date.collapsed.v1");
       const value = JSON.parse(localStorage.getItem(PROJECT_EXPANSION_STORAGE_KEY) || "[]");
       return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
     } catch {

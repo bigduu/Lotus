@@ -36,7 +36,7 @@ export type LayoutNode = LayoutLeafNode | LayoutSplitNode;
  */
 export type SidebarGroupingMode = "date" | "workspace" | "project";
 
-export const DEFAULT_SIDEBAR_GROUPING_MODE: SidebarGroupingMode = "date";
+export const DEFAULT_SIDEBAR_GROUPING_MODE: SidebarGroupingMode = "project";
 
 export type SidebarLayout = {
   collapsed: boolean;

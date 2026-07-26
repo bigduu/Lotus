@@ -294,7 +294,6 @@ export interface AgentEvent {
   resource_revision?: number;
   // SessionProjectUpdated event: explicit null means Unassigned.
   metadata_version?: number;
-  project_name?: string;
 }
 
 /**
@@ -620,9 +619,9 @@ export interface PatchSessionRequest {
   /** Per-session "bypass permissions" toggle: when true, tool permission
    * checks are skipped for this session only. */
   bypass_permissions?: boolean;
-  /** Explicit Project re-assignment or workspace update. */
+  /** Explicit Project re-assignment (null = unassign). Workspace changes are
+   * NOT patchable today — Bamboo-agent#726 tracks persisting them. */
   project_id?: string | null;
-  workspace_path?: string | null;
 }
 
 export interface RunProjectDreamResponse {
