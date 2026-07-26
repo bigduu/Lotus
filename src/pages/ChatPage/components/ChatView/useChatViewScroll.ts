@@ -183,21 +183,40 @@ export const useChatViewScroll = ({
     scrollToBottom,
   });
 
+  // rAF gate (#169): native scroll events fire far more often than once
+  // per frame — coalesce the indicator refresh (up to four setStates) into
+  // a single update per frame, the same scheduling the other effects in
+  // this file already use.
+  const scrollIndicatorFrameRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (scrollIndicatorFrameRef.current !== null) {
+        cancelAnimationFrame(scrollIndicatorFrameRef.current);
+      }
+    },
+    [],
+  );
+
   const handleMessagesScroll = useCallback(
     (e: React.UIEvent<HTMLElement>) => {
-      const indicatorState = refreshScrollIndicators();
-      if (!indicatorState) return;
+      if (scrollIndicatorFrameRef.current === null) {
+        scrollIndicatorFrameRef.current = requestAnimationFrame(() => {
+          scrollIndicatorFrameRef.current = null;
+          const indicatorState = refreshScrollIndicators();
+          if (!indicatorState) return;
 
-      if (indicatorState.distanceFromBottom > SCROLL_POSITION_THRESHOLD_PX) {
-        userHasScrolledUpRef.current = true;
-        stickToBottomRef.current = false;
-      } else if (indicatorState.atBottom) {
-        userHasScrolledUpRef.current = false;
-        stickToBottomRef.current = true;
-        clearUnreadState();
+          if (indicatorState.distanceFromBottom > SCROLL_POSITION_THRESHOLD_PX) {
+            userHasScrolledUpRef.current = true;
+            stickToBottomRef.current = false;
+          } else if (indicatorState.atBottom) {
+            userHasScrolledUpRef.current = false;
+            stickToBottomRef.current = true;
+            clearUnreadState();
+          }
+        });
       }
 
-      // Save scroll position (pass event to handler)
+      // Save scroll position (pass event to handler) — has its own debounce.
       handleScrollPersistence(e);
     },
     [clearUnreadState, refreshScrollIndicators, handleScrollPersistence],

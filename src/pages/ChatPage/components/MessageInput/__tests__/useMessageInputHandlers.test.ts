@@ -628,6 +628,90 @@ describe("useMessageInputHandlers", () => {
       expect(mockTextArea.setSelectionRange).toHaveBeenCalledWith(14, 14);
     });
 
+    it("does not hijack ArrowUp/ArrowDown in the middle of a multiline draft (#169)", () => {
+      const onChange = vi.fn();
+      const onHistoryNavigate = vi.fn().mockReturnValue("previous value");
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "line one\nline two\nline three",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange,
+          onSubmit: vi.fn(),
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+          onHistoryNavigate,
+        }),
+      );
+
+      // Caret on the middle line: both arrows belong to caret movement.
+      const middleCaret = { selectionStart: 12 };
+      for (const key of ["ArrowUp", "ArrowDown"]) {
+        act(() => {
+          result.current.handleKeyDown({
+            key,
+            shiftKey: false,
+            preventDefault: vi.fn(),
+            currentTarget: middleCaret,
+          } as any);
+        });
+      }
+      expect(onHistoryNavigate).not.toHaveBeenCalled();
+      expect(onChange).not.toHaveBeenCalled();
+
+      // Caret on the first line: ArrowUp navigates; ArrowDown does not.
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowUp",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 3 },
+        } as any);
+      });
+      expect(onHistoryNavigate).toHaveBeenCalledWith("previous", "line one\nline two\nline three");
+
+      onHistoryNavigate.mockClear();
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowDown",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 3 },
+        } as any);
+      });
+      expect(onHistoryNavigate).not.toHaveBeenCalled();
+
+      // Caret on the last line: ArrowDown navigates; ArrowUp does not.
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowDown",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 28 },
+        } as any);
+      });
+      expect(onHistoryNavigate).toHaveBeenCalledWith("next", "line one\nline two\nline three");
+
+      onHistoryNavigate.mockClear();
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowUp",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 28 },
+        } as any);
+      });
+      // ArrowUp on the last line moves the caret up a line — no navigation.
+      expect(onHistoryNavigate).not.toHaveBeenCalled();
+    });
+
     it("should navigate history with ArrowDown", () => {
       const onChange = vi.fn();
       const onHistoryNavigate = vi.fn().mockReturnValue("next value");

@@ -187,7 +187,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const currentSessionId = useAppStore((state) => sessionId ?? state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(currentSessionId));
   const addChat = useAppStore((state) => state.addChat);
@@ -507,8 +507,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
     async (template: LauncherTemplate) => {
       if (pendingTaskId) return;
 
-      setPendingTaskId(template.id);
-      try {
+      const launchTemplate = async () => {
         const defaultPromptConfig = resolveDefaultPromptConfig(systemPrompts, lastSelectedPromptId);
         const newSessionId = await addChat({
           title: template.sessionTitle,
@@ -529,6 +528,66 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
         }
 
         requestComposerFocus(newSessionId);
+      };
+
+      setPendingTaskId(template.id);
+      try {
+        // Draft preservation (#169): the pane may already be bound to an
+        // EMPTY session holding a non-empty draft. Launching a template
+        // must not silently drop that context.
+        const boundSessionId = sessionId ?? currentSessionId;
+        const boundChat = boundSessionId
+          ? useAppStore.getState().chats.find((chat) => chat.id === boundSessionId)
+          : undefined;
+        const boundDraft = boundSessionId
+          ? (useAppStore.getState().inputStates[boundSessionId]?.content ?? "")
+          : "";
+        const hasBoundDraft =
+          Boolean(boundChat) &&
+          (boundChat?.messages.length ?? 0) === 0 &&
+          Boolean(boundDraft.trim());
+
+        if (hasBoundDraft && boundSessionId && !template.baseSystemPrompt) {
+          // Prompt-less templates (e.g. blank): reuse the bound session and
+          // append the prefill after a blank line — no new empty session,
+          // no lost draft.
+          const merged = template.prefill.trim()
+            ? `${boundDraft.trimEnd()}\n\n${template.prefill}`
+            : boundDraft;
+          setInputContent(boundSessionId, merged);
+          assignSessionToActiveLeaf(boundSessionId);
+          requestComposerFocus(boundSessionId);
+          return;
+        }
+
+        if (hasBoundDraft && boundSessionId) {
+          // Prompt-bearing templates still open a new session (the system
+          // prompt is the point of the template) — confirm first and make
+          // clear the draft stays in the old session.
+          setPendingTaskId(null);
+          modal.confirm({
+            title: t("chat.emptyLauncher.replaceDraftTitle", "Open template in a new session?"),
+            content: t(
+              "chat.emptyLauncher.replaceDraftContent",
+              "The template opens in a new session. Your current draft stays in the old session.",
+            ),
+            okText: t("common.continue", "Continue"),
+            cancelText: t("common.cancel"),
+            onOk: () => {
+              void launchTemplate().catch((error: unknown) => {
+                console.error("[EmptyTaskLauncher] Failed to create session", error);
+                message.error(
+                  error instanceof Error
+                    ? error.message
+                    : t("chat.emptyLauncher.errors.createFailed", "Failed to create session"),
+                );
+              });
+            },
+          });
+          return;
+        }
+
+        await launchTemplate();
       } catch (error) {
         console.error("[EmptyTaskLauncher] Failed to create session", error);
         message.error(
@@ -542,10 +601,13 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
     },
     [
       addChat,
+      currentSessionId,
       lastSelectedPromptId,
       message,
+      modal,
       pendingTaskId,
       requestComposerFocus,
+      sessionId,
       setInputContent,
       systemPrompts,
       t,

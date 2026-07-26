@@ -109,7 +109,10 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
         type="primary"
         icon={effectiveCanCancel ? <StopOutlined /> : <ArrowUpOutlined />}
         onClick={effectiveCanCancel ? onCancel : onSubmit}
-        loading={effectiveCanCancel && !onCancel}
+        // effectiveCanCancel && !onCancel means the session is busy but no
+        // cancel path is wired for this state (#169) — show an explained
+        // disabled button instead of an infinite spinner.
+        loading={false}
         disabled={
           effectiveCanCancel
             ? !onCancel || disabled
@@ -139,8 +142,20 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
           transition: "all 0.26s cubic-bezier(0.16, 1, 0.3, 1)",
           transform: "scale(1)",
         }}
-        title={effectiveCanCancel ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
-        aria-label={effectiveCanCancel ? t("chat.actions.cancelRequest") : resolvedSubmitLabel}
+        title={
+          effectiveCanCancel
+            ? onCancel
+              ? t("chat.actions.cancelRequest")
+              : t("chat.actions.cancelUnavailable", "Cannot cancel in the current state")
+            : resolvedSubmitLabel
+        }
+        aria-label={
+          effectiveCanCancel
+            ? onCancel
+              ? t("chat.actions.cancelRequest")
+              : t("chat.actions.cancelUnavailable", "Cannot cancel in the current state")
+            : resolvedSubmitLabel
+        }
       />
     </Flex>
   );

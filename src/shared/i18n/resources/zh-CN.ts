@@ -216,6 +216,7 @@ export const zhCnTranslation = {
     common: {
       cancel: "取消",
       ok: "确定",
+      continue: "继续",
       apply: "应用",
       save: "保存",
       delete: "删除",
@@ -500,6 +501,7 @@ export const zhCnTranslation = {
         retryFailed: "重试失败的请求",
         retryOptions: "重试选项",
         cancelRequest: "取消请求",
+        cancelUnavailable: "当前状态无法取消",
         sendMessage: "发送消息",
         copyMessage: "复制消息",
         referenceMessage: "引用消息",
@@ -820,6 +822,8 @@ export const zhCnTranslation = {
         badges: {
           workspace: "工作区",
         },
+        replaceDraftTitle: "在新会话中打开模板？",
+        replaceDraftContent: "模板将在新会话中打开，当前草稿会保留在原来的会话中。",
         noResults: "没有匹配的模板。请尝试其他关键词，或直接开始一个空白会话。",
       },
       multiPane: {
