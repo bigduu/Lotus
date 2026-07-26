@@ -851,6 +851,8 @@ export const zhCnTranslation = {
         restoreChat: "仅恢复会话",
         restoreFilesAndChat: "恢复文件和会话",
         deleteMessage: "删除消息",
+        deleteConfirmTitle: "删除这条消息？",
+        deleteConfirmContent: "将从会话历史中删除这条消息，操作不可撤销。",
         deleteFailed: "删除消息失败",
         deleteNotFound: "后端中找不到该消息，请刷新后重试",
         deleteConflict: "会话正在运行，请先停止后再删除",

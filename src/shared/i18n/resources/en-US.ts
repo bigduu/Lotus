@@ -875,6 +875,9 @@ export const enUsTranslation = {
         restoreChat: "Restore chat only",
         restoreFilesAndChat: "Restore files and chat",
         deleteMessage: "Delete message",
+        deleteConfirmTitle: "Delete this message?",
+        deleteConfirmContent:
+          "This deletes the message from the session history. It cannot be undone.",
         deleteFailed: "Failed to delete message",
         deleteNotFound: "Message no longer exists on backend. Reload and retry.",
         deleteConflict: "Session is running. Stop it and try deleting again.",
