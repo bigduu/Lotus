@@ -17,12 +17,10 @@ import {
 import type { ColumnsType } from "antd/es/table";
 import { SaveOutlined, ReloadOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import {
-  serviceFactory,
-  type ModelLimitDefault,
-} from "../../services/common/ServiceFactory";
+import { serviceFactory, type ModelLimitDefault } from "../../services/common/ServiceFactory";
 import { getUsedModels, removeUsedModel } from "../ChatPage/utils/usedModels";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import type { ConfigSectionEnvelope, ModelLimitsSection } from "@services/config/configSections";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -317,10 +315,27 @@ export const ModelLimitsSettings: React.FC = () => {
   const customCounter = useRef(0);
   const [baseRevision, setBaseRevision] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
   const baseOverridesRef = useRef<OverrideConfig[]>([]);
   const snapshot = useConfigSectionStore((state) => state.sections["model-limits"]);
   const loadSection = useConfigSectionStore((state) => state.loadSection);
   const saveSection = useConfigSectionStore((state) => state.saveSection);
+
+  const adoptEnvelope = useCallback(
+    (
+      envelope: ConfigSectionEnvelope<ModelLimitsSection>,
+      defaults = globalDefault,
+      usedModels = getUsedModels(),
+    ) => {
+      const overrides = parseOverrides(envelope.data);
+      setRows(buildRows(defaults, overrides, usedModels));
+      baseOverridesRef.current = structuredClone(overrides);
+      setBaseRevision(envelope.revision);
+      setDirty(false);
+      setShowComparison(false);
+    },
+    [globalDefault],
+  );
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
@@ -331,11 +346,7 @@ export const ModelLimitsSettings: React.FC = () => {
       ]);
       const def = parseGlobalDefault(defaultsResponse);
       setGlobalDefault(def);
-      const overrides = parseOverrides(envelope.data);
-      setRows(buildRows(def, overrides, getUsedModels()));
-      baseOverridesRef.current = structuredClone(overrides);
-      setBaseRevision(envelope.revision);
-      setDirty(false);
+      adoptEnvelope(envelope, def);
     } catch (error) {
       console.error("Failed to load model limits settings:", error);
       msgApi.error(t("settings.modelLimits.loadFailed"));
@@ -344,7 +355,7 @@ export const ModelLimitsSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [loadSection, msgApi, t]);
+  }, [adoptEnvelope, loadSection, msgApi, t]);
 
   // Load exactly once on mount. A ran-once guard prevents the effect from
   // re-firing (and reloading from the backend) mid-edit.
@@ -355,6 +366,12 @@ export const ModelLimitsSettings: React.FC = () => {
     didLoad.current = true;
     void loadSettings();
   }, [loadSettings]);
+
+  useEffect(() => {
+    const envelope = snapshot.envelope;
+    if (!envelope || baseRevision === null || envelope.revision === baseRevision || dirty) return;
+    adoptEnvelope(envelope);
+  }, [adoptEnvelope, baseRevision, dirty, snapshot.envelope]);
 
   const updateRow = useCallback((id: string, patch: Partial<LimitRow>) => {
     setDirty(true);
@@ -433,9 +450,7 @@ export const ModelLimitsSettings: React.FC = () => {
     try {
       if (baseRevision === null) throw new Error("Model limits are not loaded.");
       const saved = await saveSection("model-limits", overrides, baseRevision);
-      baseOverridesRef.current = parseOverrides(saved.data);
-      setBaseRevision(saved.revision);
-      setDirty(false);
+      adoptEnvelope(saved);
       msgApi.success(t("settings.modelLimits.saveSuccess"));
     } catch (error) {
       console.error("Failed to save model limits settings:", error);
@@ -450,20 +465,11 @@ export const ModelLimitsSettings: React.FC = () => {
     try {
       if (baseRevision === null) throw new Error("Model limits are not loaded.");
       const saved = await saveSection("model-limits", [], baseRevision);
-      baseOverridesRef.current = parseOverrides(saved.data);
-      setBaseRevision(saved.revision);
-      setDirty(false);
-      setRows((prev) =>
-        prev
-          .filter((row) => !row.isCustom)
-          .map((row) => ({
-            ...row,
-            customized: false,
-            max_context_tokens: globalDefault.max_context_tokens,
-            max_output_tokens: globalDefault.max_output_tokens,
-            safety_margin: undefined,
-          })),
-      );
+      const visibleModels = rows
+        .filter((row) => !row.isCustom)
+        .map((row) => row.model_pattern)
+        .filter(Boolean);
+      adoptEnvelope(saved, globalDefault, [...getUsedModels(), ...visibleModels]);
       msgApi.success(t("settings.modelLimits.resetSuccess"));
     } catch (error) {
       console.error("Failed to reset model limits settings:", error);
@@ -586,6 +592,20 @@ export const ModelLimitsSettings: React.FC = () => {
     dirty && snapshot.envelope && snapshot.envelope.revision !== baseRevision
       ? snapshot.envelope.revision
       : null;
+  const comparison =
+    showComparison && externalRevision !== null && snapshot.envelope
+      ? JSON.stringify(
+          {
+            baseRevision,
+            latestRevision: snapshot.envelope.revision,
+            base: baseOverridesRef.current,
+            draft: rowsToOverrides(rows),
+            latest: parseOverrides(snapshot.envelope.data),
+          },
+          null,
+          2,
+        )
+      : null;
 
   return (
     <div className="model-limits-settings">
@@ -601,6 +621,9 @@ export const ModelLimitsSettings: React.FC = () => {
                 <Button size="small" onClick={() => void loadSettings()}>
                   Reload
                 </Button>
+                <Button size="small" onClick={() => setShowComparison((current) => !current)}>
+                  Compare
+                </Button>
                 <Button
                   size="small"
                   onClick={() => {
@@ -614,6 +637,7 @@ export const ModelLimitsSettings: React.FC = () => {
                     setRows(buildRows(globalDefault, rebased, getUsedModels()));
                     baseOverridesRef.current = structuredClone(latest);
                     setBaseRevision(snapshot.envelope.revision);
+                    setShowComparison(false);
                   }}
                 >
                   Reapply
@@ -621,6 +645,14 @@ export const ModelLimitsSettings: React.FC = () => {
               </Space>
             }
           />
+        ) : null}
+        {comparison ? (
+          <pre
+            data-testid="model-limits-revision-comparison"
+            style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}
+          >
+            {comparison}
+          </pre>
         ) : null}
         <Title level={4}>{t("settings.modelLimits.title")}</Title>
         <Paragraph type="secondary">

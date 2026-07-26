@@ -14,6 +14,10 @@ import {
 import { useTranslation } from "react-i18next";
 import { getErrorMessage } from "@services/api";
 import {
+  type ConfigSectionEnvelope,
+  type ToolsSkillsSection,
+} from "@services/config/configSections";
+import {
   type PluginTrustConfig,
   type PluginTrustEnforcement,
   type TrustedKeyConfig,
@@ -67,31 +71,43 @@ const PluginTrustSection: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [baseRevision, setBaseRevision] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
   const baseDraftRef = useRef<TrustDraft | null>(null);
   const snapshot = useConfigSectionStore((state) => state.sections["tools-skills"]);
   const loadSection = useConfigSectionStore((state) => state.loadSection);
   const saveSection = useConfigSectionStore((state) => state.saveSection);
+
+  const adoptEnvelope = useCallback((envelope: ConfigSectionEnvelope<ToolsSkillsSection>) => {
+    const nextDraft = draftFromConfig(envelope.data.plugin_trust);
+    setDraft(nextDraft);
+    baseDraftRef.current = structuredClone(nextDraft);
+    setBaseRevision(envelope.revision);
+    setDirty(false);
+    setShowComparison(false);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
       const envelope = await loadSection("tools-skills", { force: true });
-      const nextDraft = draftFromConfig(envelope.data.plugin_trust);
-      setDraft(nextDraft);
-      baseDraftRef.current = structuredClone(nextDraft);
-      setBaseRevision(envelope.revision);
-      setDirty(false);
+      adoptEnvelope(envelope);
     } catch (error) {
       setLoadError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [loadSection]);
+  }, [adoptEnvelope, loadSection]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const envelope = snapshot.envelope;
+    if (!envelope || baseRevision === null || envelope.revision === baseRevision || dirty) return;
+    adoptEnvelope(envelope);
+  }, [adoptEnvelope, baseRevision, dirty, snapshot.envelope]);
 
   const patch = (p: Partial<TrustDraft>) => {
     setDraft((d) => ({ ...d, ...p }));
@@ -141,11 +157,7 @@ const PluginTrustSection: React.FC = () => {
         { ...(snapshot.envelope?.data ?? {}), plugin_trust: pluginTrust },
         baseRevision,
       );
-      const nextDraft = draftFromConfig(savedEnvelope.data.plugin_trust);
-      setDraft(nextDraft);
-      baseDraftRef.current = structuredClone(nextDraft);
-      setBaseRevision(savedEnvelope.revision);
-      setDirty(false);
+      adoptEnvelope(savedEnvelope);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (error) {
@@ -158,6 +170,20 @@ const PluginTrustSection: React.FC = () => {
   const externalRevision =
     dirty && snapshot.envelope && baseRevision !== snapshot.envelope.revision
       ? snapshot.envelope.revision
+      : null;
+  const comparison =
+    showComparison && externalRevision !== null && snapshot.envelope && baseDraftRef.current
+      ? JSON.stringify(
+          {
+            baseRevision,
+            latestRevision: snapshot.envelope.revision,
+            base: baseDraftRef.current,
+            draft,
+            latest: draftFromConfig(snapshot.envelope.data.plugin_trust),
+          },
+          null,
+          2,
+        )
       : null;
 
   return (
@@ -191,6 +217,9 @@ const PluginTrustSection: React.FC = () => {
                 <Button size="small" onClick={() => void load()}>
                   Reload
                 </Button>
+                <Button size="small" onClick={() => setShowComparison((current) => !current)}>
+                  Compare
+                </Button>
                 <Button
                   size="small"
                   onClick={() => {
@@ -199,6 +228,7 @@ const PluginTrustSection: React.FC = () => {
                     setDraft(reapplyConfigChanges(baseDraftRef.current, draft, latest));
                     baseDraftRef.current = structuredClone(latest);
                     setBaseRevision(snapshot.envelope.revision);
+                    setShowComparison(false);
                   }}
                 >
                   Reapply
@@ -206,6 +236,15 @@ const PluginTrustSection: React.FC = () => {
               </Flex>
             }
           />
+        ) : null}
+
+        {comparison ? (
+          <pre
+            data-testid="plugin-trust-revision-comparison"
+            style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}
+          >
+            {comparison}
+          </pre>
         ) : null}
 
         {!loading && !loadError && (

@@ -1,15 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configSectionsService } from "../../services/config/configSections";
 import { useConfigSectionStore } from "../../shared/store/configSectionStore";
 import ModelLimitsSettings from "./ModelLimitsSettings";
 
-const {
-  mockGetModelLimitDefaults,
-  mockGetUsedModels,
-  mockRemoveUsedModel,
-} = vi.hoisted(() => ({
+const { mockGetModelLimitDefaults, mockGetUsedModels, mockRemoveUsedModel } = vi.hoisted(() => ({
   mockGetModelLimitDefaults: vi.fn(),
   mockGetUsedModels: vi.fn(),
   mockRemoveUsedModel: vi.fn(),
@@ -126,9 +122,13 @@ describe("ModelLimitsSettings", () => {
       expect(configSectionsService.putSection).toHaveBeenCalled();
     });
 
-    const [section, revision, payload] = vi.mocked(configSectionsService.putSection).mock.calls.at(
-      -1,
-    ) as [string, number, Array<{ model_pattern: string; max_context_tokens: number }>];
+    const [section, revision, payload] = vi
+      .mocked(configSectionsService.putSection)
+      .mock.calls.at(-1) as [
+      string,
+      number,
+      Array<{ model_pattern: string; max_context_tokens: number }>,
+    ];
     expect(section).toBe("model-limits");
     expect(revision).toBe(3);
     expect(payload).toHaveLength(1);
@@ -179,5 +179,78 @@ describe("ModelLimitsSettings", () => {
     await waitFor(() => {
       expect(screen.queryByText("claude-haiku-4-5-20251001")).not.toBeInTheDocument();
     });
+  });
+
+  it("adopts a newer model-limit snapshot while the editor is clean", async () => {
+    render(<ModelLimitsSettings />);
+    await screen.findByText("Token Budget Model Limits");
+
+    act(() => {
+      useConfigSectionStore.setState((state) => ({
+        sections: {
+          ...state.sections,
+          "model-limits": {
+            ...state.sections["model-limits"],
+            envelope: modelLimitsEnvelope(
+              [
+                {
+                  model_pattern: "remote-model",
+                  max_context_tokens: 256000,
+                  max_output_tokens: 32000,
+                },
+              ],
+              4,
+            ) as never,
+          },
+        },
+      }));
+    });
+
+    expect(await screen.findByText("remote-model")).toBeInTheDocument();
+    expect(screen.queryByText(/changed on disk/i)).not.toBeInTheDocument();
+  });
+
+  it("preserves, compares, and reapplies a dirty model-limit draft", async () => {
+    mockGetUsedModels.mockReturnValue(["gpt-4o"]);
+    render(<ModelLimitsSettings />);
+    await screen.findByText("gpt-4o");
+    fireEvent.click(screen.getByRole("button", { name: /customize/i }));
+    const contextInput = await screen.findByDisplayValue("1000000");
+    fireEvent.change(contextInput, { target: { value: "128000" } });
+    fireEvent.blur(contextInput);
+
+    act(() => {
+      useConfigSectionStore.setState((state) => ({
+        sections: {
+          ...state.sections,
+          "model-limits": {
+            ...state.sections["model-limits"],
+            envelope: modelLimitsEnvelope(
+              [
+                {
+                  model_pattern: "gpt-4o",
+                  max_context_tokens: 256000,
+                  max_output_tokens: 32000,
+                },
+              ],
+              4,
+            ) as never,
+          },
+        },
+      }));
+    });
+
+    expect(await screen.findByText(/changed on disk/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("128000")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Compare" }));
+    const comparison = screen.getByTestId("model-limits-revision-comparison");
+    expect(comparison).toHaveTextContent("128000");
+    expect(comparison).toHaveTextContent("256000");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reapply" }));
+    expect(screen.getByDisplayValue("128000")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /save/i }));
+    await waitFor(() => expect(configSectionsService.putSection).toHaveBeenCalled());
+    expect(vi.mocked(configSectionsService.putSection).mock.calls.at(-1)?.[1]).toBe(4);
   });
 });
