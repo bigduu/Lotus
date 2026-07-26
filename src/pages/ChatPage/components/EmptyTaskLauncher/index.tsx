@@ -531,62 +531,74 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       };
 
       setPendingTaskId(template.id);
-      try {
-        // Draft preservation (#169): the pane may already be bound to an
-        // EMPTY session holding a non-empty draft. Launching a template
-        // must not silently drop that context.
-        const boundSessionId = sessionId ?? currentSessionId;
-        const boundChat = boundSessionId
-          ? useAppStore.getState().chats.find((chat) => chat.id === boundSessionId)
-          : undefined;
-        const boundDraft = boundSessionId
-          ? (useAppStore.getState().inputStates[boundSessionId]?.content ?? "")
-          : "";
-        const hasBoundDraft =
-          Boolean(boundChat) &&
-          (boundChat?.messages.length ?? 0) === 0 &&
-          Boolean(boundDraft.trim());
+      // Draft preservation (#169): the pane may already be bound to an
+      // EMPTY session holding a non-empty draft. Launching a template
+      // must not silently drop that context.
+      const boundSessionId = sessionId ?? currentSessionId;
+      const boundChat = boundSessionId
+        ? useAppStore.getState().chats.find((chat) => chat.id === boundSessionId)
+        : undefined;
+      const boundInput = boundSessionId
+        ? useAppStore.getState().inputStates[boundSessionId]
+        : undefined;
+      const boundDraft = boundInput?.content ?? "";
+      const hasBoundContext =
+        Boolean(boundChat) &&
+        (boundChat?.messages.length ?? 0) === 0 &&
+        (Boolean(boundDraft.trim()) ||
+          (boundInput?.attachments.length ?? 0) > 0 ||
+          Boolean(boundInput?.referenceText?.trim()));
 
-        if (hasBoundDraft && boundSessionId && !template.baseSystemPrompt) {
-          // Prompt-less templates (e.g. blank): reuse the bound session and
-          // append the prefill after a blank line — no new empty session,
-          // no lost draft.
-          const merged = template.prefill.trim()
-            ? `${boundDraft.trimEnd()}\n\n${template.prefill}`
-            : boundDraft;
+      if (hasBoundContext && boundSessionId && !template.baseSystemPrompt) {
+        // Prompt-less templates (e.g. blank): reuse the bound session and
+        // append the prefill after a blank line — no new empty session,
+        // no lost draft.
+        const merged = template.prefill.trim()
+          ? `${boundDraft.trimEnd()}\n\n${template.prefill}`
+          : boundDraft;
+        // Skip the write when nothing would change (avoids a no-op
+        // store notification).
+        if (merged !== boundDraft) {
           setInputContent(boundSessionId, merged);
-          assignSessionToActiveLeaf(boundSessionId);
-          requestComposerFocus(boundSessionId);
-          return;
         }
+        assignSessionToActiveLeaf(boundSessionId);
+        requestComposerFocus(boundSessionId);
+        setPendingTaskId(null);
+        return;
+      }
 
-        if (hasBoundDraft && boundSessionId) {
-          // Prompt-bearing templates still open a new session (the system
-          // prompt is the point of the template) — confirm first and make
-          // clear the draft stays in the old session.
-          setPendingTaskId(null);
-          modal.confirm({
-            title: t("chat.emptyLauncher.replaceDraftTitle", "Open template in a new session?"),
-            content: t(
-              "chat.emptyLauncher.replaceDraftContent",
-              "The template opens in a new session. Your current draft stays in the old session.",
-            ),
-            okText: t("common.continue", "Continue"),
-            cancelText: t("common.cancel"),
-            onOk: () => {
-              void launchTemplate().catch((error: unknown) => {
+      if (hasBoundContext && boundSessionId) {
+        // Prompt-bearing templates still open a new session (the system
+        // prompt is the point of the template) — confirm first and make
+        // clear the draft stays in the old session. pendingTaskId stays
+        // set while the dialog is open so cards can't be double-launched.
+        modal.confirm({
+          title: t("chat.emptyLauncher.replaceDraftTitle", "Open template in a new session?"),
+          content: t(
+            "chat.emptyLauncher.replaceDraftContent",
+            "The template opens in a new session. Your current draft stays in the old session.",
+          ),
+          okText: t("common.continue", "Continue"),
+          cancelText: t("common.cancel"),
+          onOk: () =>
+            launchTemplate()
+              .catch((error: unknown) => {
                 console.error("[EmptyTaskLauncher] Failed to create session", error);
                 message.error(
                   error instanceof Error
                     ? error.message
                     : t("chat.emptyLauncher.errors.createFailed", "Failed to create session"),
                 );
-              });
-            },
-          });
-          return;
-        }
+              })
+              .finally(() => {
+                setPendingTaskId(null);
+              }),
+          onCancel: () => setPendingTaskId(null),
+        });
+        return;
+      }
 
+      try {
         await launchTemplate();
       } catch (error) {
         console.error("[EmptyTaskLauncher] Failed to create session", error);

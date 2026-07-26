@@ -316,4 +316,31 @@ describe("EmptyTaskLauncher", () => {
     // The draft in the bound session is untouched.
     expect(useAppStore.getState().inputStates["empty-session"]?.content).toBe("my existing draft");
   });
+
+  it("does not create a session when the draft confirmation is cancelled (#169)", async () => {
+    useAppStore.setState((state: any) => ({
+      ...state,
+      inputStates: {
+        "empty-session": {
+          content: "my existing draft",
+          referenceText: null,
+          attachments: [],
+          reasoningEffort: "medium",
+        },
+      },
+    }));
+    const chatsBefore = useAppStore.getState().chats.length;
+
+    render(
+      <AntdApp>
+        <EmptyTaskLauncher sessionId="empty-session" />
+      </AntdApp>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Code review" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(useAppStore.getState().chats.length).toBe(chatsBefore);
+    expect(useAppStore.getState().inputStates["empty-session"]?.content).toBe("my existing draft");
+  });
 });

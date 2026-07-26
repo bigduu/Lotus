@@ -26,10 +26,13 @@ describe("MessageInputControlsRight — cancel affordance (#169)", () => {
 
     const button = screen.getByTestId("cancel-button");
     expect(button).toBeDisabled();
-    // An explanation, not an infinite spinner.
-    expect(button).toHaveAttribute("title", "Cannot cancel in the current state");
-    expect(button).toHaveAttribute("aria-label", "Cannot cancel in the current state");
+    // No infinite spinner…
     expect(button.querySelector(".ant-btn-loading-icon")).toBeNull();
+    // …and an antd Tooltip wrapper around the disabled button (native
+    // `title` is suppressed on disabled buttons, the wrapper keeps the
+    // explanation hoverable), plus an accessible name for screen readers.
+    expect(button.parentElement?.tagName).toBe("SPAN");
+    expect(button).toHaveAttribute("aria-label", "Cannot cancel in the current state");
   });
 
   it("shows an enabled cancel button when a cancel handler exists", () => {
@@ -38,7 +41,7 @@ describe("MessageInputControlsRight — cancel affordance (#169)", () => {
 
     const button = screen.getByTestId("cancel-button");
     expect(button).toBeEnabled();
-    expect(button).toHaveAttribute("title", "Cancel request");
+    expect(button).toHaveAttribute("aria-label", "Cancel request");
 
     button.click();
     expect(onCancel).toHaveBeenCalled();
