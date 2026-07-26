@@ -35,6 +35,7 @@ interface UseMcpSettingsOptions {
 interface UseMcpSettingsResult {
   servers: McpServer[];
   credentialStatusByServer: Record<string, McpServerCredentialStatus>;
+  configRevision: number | null;
   selectedServerId: string | null;
   selectedServerTools: McpToolInfo[];
   isLoadingServers: boolean;
@@ -45,7 +46,11 @@ interface UseMcpSettingsResult {
   setSelectedServerId: (serverId: string | null) => void;
   refreshServers: (options?: { silent?: boolean }) => Promise<void>;
   addServer: (config: McpServerConfig) => Promise<void>;
-  updateServer: (serverId: string, config: McpServerConfig) => Promise<void>;
+  updateServer: (
+    serverId: string,
+    config: McpServerConfig,
+    expectedRevision: number,
+  ) => Promise<void>;
   deleteServer: (serverId: string) => Promise<void>;
   importServers: (
     servers: Record<string, unknown>,
@@ -348,6 +353,7 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   const [credentialStatusByServer, setCredentialStatusByServer] = useState<
     Record<string, McpServerCredentialStatus>
   >({});
+  const [configRevision, setConfigRevision] = useState<number | null>(null);
   const [selectedServerId, setSelectedServerIdState] = useState<string | null>(null);
   const [toolsByServer, setToolsByServer] = useState<Record<string, McpToolInfo[]>>({});
   const [toolLoadingByServer, setToolLoadingByServer] = useState<Record<string, boolean>>({});
@@ -371,6 +377,7 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
       if ((envelopeRef.current?.revision ?? -1) > envelope.revision) return;
       envelopeRef.current = envelope;
       runtimeServersRef.current = runtimeServers;
+      setConfigRevision(envelope.revision);
       const merged = mergeCanonicalWithRuntime(envelope.data, runtimeServers);
       setServers(merged);
       setCredentialStatusByServer(envelope.data.credential_status);
@@ -446,13 +453,13 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   );
 
   const mutateServers = useCallback(
-    async (candidateServers: McpServerConfig[]) => {
+    async (candidateServers: McpServerConfig[], expectedRevision?: number) => {
       const current = envelopeRef.current ?? (await loadSection("mcp", { force: true }));
       const mutation = prepareMcpMutation(current.data, candidateServers);
       const saved = await saveMcpSettings(
         mutation.data,
         mutation.credentialChanges,
-        current.revision,
+        expectedRevision ?? current.revision,
       );
       // The canonical mutation has already committed at this point. Adopt it
       // immediately and treat runtime-status refresh as best effort so a
@@ -496,7 +503,7 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   );
 
   const updateServer = useCallback(
-    async (serverId: string, config: McpServerConfig) => {
+    async (serverId: string, config: McpServerConfig, expectedRevision: number) => {
       setIsMutatingConfig(true);
       try {
         const current = envelopeRef.current ?? (await loadSection("mcp", { force: true }));
@@ -506,6 +513,7 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
         const normalized = { ...config, id: serverId };
         await mutateServers(
           current.data.servers.map((server) => (server.id === serverId ? normalized : server)),
+          expectedRevision,
         );
         setError(null);
       } catch (updateError) {
@@ -688,10 +696,18 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   useEffect(() => {
     const envelope = mcpSnapshot.envelope;
     if (!envelope || envelope.revision <= (envelopeRef.current?.revision ?? -1)) return;
+    adoptSection(envelope, runtimeServersRef.current);
     void service
       .getServers()
       .then((runtimeServers) => adoptSection(envelope, runtimeServers))
-      .catch(() => undefined);
+      .catch((runtimeError: unknown) => {
+        setRuntimeStatusError(
+          toErrorMessage(
+            runtimeError,
+            "Configuration refreshed, but MCP runtime status is unavailable",
+          ),
+        );
+      });
   }, [adoptSection, mcpSnapshot.envelope, service]);
 
   useEffect(() => {
@@ -701,6 +717,7 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   return {
     servers,
     credentialStatusByServer,
+    configRevision,
     selectedServerId,
     selectedServerTools,
     isLoadingServers,

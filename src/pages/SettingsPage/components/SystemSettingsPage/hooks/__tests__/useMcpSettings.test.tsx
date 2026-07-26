@@ -168,6 +168,7 @@ describe("useMcpSettings canonical config controller", () => {
     });
     expect(JSON.stringify(result.current.servers[0]?.config)).not.toContain("****...****");
     expect(result.current.servers[0]?.runtime?.status).toBe(ServerStatus.Ready);
+    expect(result.current.configRevision).toBe(7);
     expect(service).not.toHaveProperty("addServer");
     expect(storeMocks.loadSection).toHaveBeenCalledWith("mcp", { force: true });
   });
@@ -191,7 +192,7 @@ describe("useMcpSettings canonical config controller", () => {
       await waitFor(() => expect(result.current.servers).toHaveLength(1));
 
       await act(async () => {
-        await result.current.updateServer("filesystem", { ...config, name: "renamed" });
+        await result.current.updateServer("filesystem", { ...config, name: "renamed" }, 7);
       });
 
       expect(storeMocks.saveMcpSettings).toHaveBeenCalledTimes(1);
@@ -216,6 +217,7 @@ describe("useMcpSettings canonical config controller", () => {
       await result.current.updateServer(
         "filesystem",
         stdioConfig("filesystem", { TOKEN: "new-secret" }),
+        7,
       );
     });
 
@@ -240,7 +242,7 @@ describe("useMcpSettings canonical config controller", () => {
     await waitFor(() => expect(result.current.servers).toHaveLength(1));
 
     await act(async () => {
-      await result.current.updateServer("filesystem", stdioConfig("filesystem"));
+      await result.current.updateServer("filesystem", stdioConfig("filesystem"), 7);
     });
 
     expect(storeMocks.saveMcpSettings.mock.calls[0]?.[1]).toEqual({
@@ -261,6 +263,7 @@ describe("useMcpSettings canonical config controller", () => {
       await result.current.updateServer(
         "filesystem",
         sseConfig("filesystem", [{ name: "Authorization", value: "replacement" }]),
+        7,
       );
     });
     expect(storeMocks.saveMcpSettings.mock.calls[0]?.[1]).toEqual({
@@ -349,6 +352,7 @@ describe("useMcpSettings canonical config controller", () => {
         result.current.updateServer(
           "filesystem",
           stdioConfig("filesystem", { TOKEN: "****...****" }),
+          7,
         ),
       ).rejects.toThrow("Masked MCP credential placeholders");
     });
@@ -369,6 +373,7 @@ describe("useMcpSettings canonical config controller", () => {
         result.current.updateServer(
           "filesystem",
           stdioConfig("filesystem", { TOKEN: "  ***..***  " }),
+          7,
         ),
       ).rejects.toThrow("Masked MCP credential placeholders");
     });
@@ -400,10 +405,14 @@ describe("useMcpSettings canonical config controller", () => {
 
     await act(async () => {
       await expect(
-        result.current.updateServer("filesystem", {
-          ...stdioConfig("filesystem"),
-          name: "saved-name",
-        }),
+        result.current.updateServer(
+          "filesystem",
+          {
+            ...stdioConfig("filesystem"),
+            name: "saved-name",
+          },
+          7,
+        ),
       ).resolves.toBeUndefined();
     });
 
@@ -425,13 +434,58 @@ describe("useMcpSettings canonical config controller", () => {
 
     await act(async () => {
       await expect(
-        result.current.updateServer("filesystem", {
-          ...stdioConfig("filesystem"),
-          name: "stale",
-        }),
+        result.current.updateServer(
+          "filesystem",
+          {
+            ...stdioConfig("filesystem"),
+            name: "stale",
+          },
+          7,
+        ),
       ).rejects.toBe(conflict);
     });
     expect(result.current.error).toBe("Configuration revision conflict");
+    expect(storeMocks.saveMcpSettings.mock.calls[0]?.[2]).toBe(7);
+  });
+
+  it("uses the edit's captured revision after the canonical snapshot advances", async () => {
+    const canonical = sectionEnvelope([stdioConfig("filesystem")], 7);
+    const conflict = new ConfigConflictError({
+      expectedRevision: 7,
+      currentRevision: 8,
+      message: "Configuration revision conflict",
+    });
+    const { result, rerender } = renderWithSection(canonical);
+    await waitFor(() => expect(result.current.configRevision).toBe(7));
+
+    storeMocks.snapshot.envelope = sectionEnvelope(
+      [{ ...stdioConfig("filesystem"), name: "remote-name" }],
+      8,
+    );
+    rerender();
+    await waitFor(() => {
+      expect(result.current.configRevision).toBe(8);
+      expect(result.current.servers[0]?.name).toBe("remote-name");
+    });
+
+    storeMocks.saveMcpSettings.mockRejectedValueOnce(conflict);
+    await act(async () => {
+      await expect(
+        result.current.updateServer(
+          "filesystem",
+          { ...stdioConfig("filesystem"), name: "local-name" },
+          7,
+        ),
+      ).rejects.toBe(conflict);
+    });
+
+    expect(storeMocks.saveMcpSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        servers: [expect.objectContaining({ id: "filesystem", name: "local-name" })],
+      }),
+      {},
+      7,
+    );
   });
 
   it("keeps runtime tool loading on the runtime-only service", async () => {
