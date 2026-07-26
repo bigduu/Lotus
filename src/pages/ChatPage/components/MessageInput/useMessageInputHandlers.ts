@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import i18n from "i18next";
 import type { ImageFile } from "../../utils/imageUtils";
@@ -82,6 +82,19 @@ export const useMessageInputHandlers = ({
     value,
   ]);
 
+  // Tracks IME composition state via composition events. The native
+  // `isComposing` flag on keydown is unreliable in some browsers (Safari
+  // timing), so the Enter branch checks both.
+  const composingRef = useRef(false);
+
+  const handleCompositionStart = useCallback(() => {
+    composingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback(() => {
+    composingRef.current = false;
+  }, []);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (
@@ -105,6 +118,13 @@ export const useMessageInputHandlers = ({
           });
           return;
         }
+      }
+
+      // IME composition guard (#161): during CJK composition, Enter confirms
+      // the candidate — it must NOT send the message. Check both the native
+      // flag and the composition-event ref (Safari timing).
+      if (event.nativeEvent?.isComposing || composingRef.current) {
+        return;
       }
 
       if (
@@ -142,5 +162,9 @@ export const useMessageInputHandlers = ({
     handleKeyDown,
     handleSubmit,
     handleRetry,
+    compositionProps: {
+      onCompositionStart: handleCompositionStart,
+      onCompositionEnd: handleCompositionEnd,
+    },
   };
 };

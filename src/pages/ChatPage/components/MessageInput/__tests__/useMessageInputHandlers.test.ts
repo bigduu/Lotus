@@ -417,6 +417,92 @@ describe("useMessageInputHandlers", () => {
       expect(onSubmit).toHaveBeenCalled();
     });
 
+    it("should not submit when the native event reports IME composition (#161)", () => {
+      const onSubmit = vi.fn();
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "nihao",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange: vi.fn(),
+          onSubmit,
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+        }),
+      );
+
+      const event = {
+        key: "Enter",
+        shiftKey: false,
+        preventDefault: vi.fn(),
+        nativeEvent: { isComposing: true },
+      } as any;
+
+      act(() => {
+        result.current.handleKeyDown(event);
+      });
+
+      // Enter belongs to the IME candidate confirmation, not to "send".
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("should not submit between compositionstart and compositionend, and submit after (#161)", () => {
+      const onSubmit = vi.fn();
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "test",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange: vi.fn(),
+          onSubmit,
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+        }),
+      );
+
+      const enterEvent = {
+        key: "Enter",
+        shiftKey: false,
+        preventDefault: vi.fn(),
+        nativeEvent: { isComposing: false },
+      } as any;
+
+      // Safari-style path: the native flag is unreliable, the composition
+      // events are the source of truth.
+      act(() => {
+        result.current.compositionProps.onCompositionStart();
+      });
+      act(() => {
+        result.current.handleKeyDown(enterEvent);
+      });
+      expect(enterEvent.preventDefault).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      act(() => {
+        result.current.compositionProps.onCompositionEnd();
+      });
+      act(() => {
+        result.current.handleKeyDown(enterEvent);
+      });
+      expect(enterEvent.preventDefault).toHaveBeenCalled();
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
     it("should not submit on Shift+Enter", () => {
       const onSubmit = vi.fn();
       const messageApi = { error: vi.fn() };

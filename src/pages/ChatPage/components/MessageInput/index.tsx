@@ -168,7 +168,7 @@ export const MessageInput = React.memo<MessageInputProps>(
     // Note: Tool validation logic removed - users no longer input tool commands directly
     // Tools are now called autonomously by LLM based on user intent
 
-    const { handleKeyDown, handleSubmit, handleRetry } = useMessageInputHandlers({
+    const { handleKeyDown, handleSubmit, handleRetry, compositionProps } = useMessageInputHandlers({
       value,
       images,
       isInputLocked,
@@ -244,6 +244,8 @@ export const MessageInput = React.memo<MessageInputProps>(
               highlightOverlayRef={highlightOverlayRef}
               onChange={onChange}
               onKeyDown={handleKeyDown}
+              onCompositionStart={compositionProps.onCompositionStart}
+              onCompositionEnd={compositionProps.onCompositionEnd}
               onPaste={handlePaste}
               onScrollSync={syncOverlayScroll}
             />

@@ -21,6 +21,8 @@ interface MessageInputFieldProps {
   highlightOverlayRef: React.RefObject<HTMLDivElement>;
   onChange: (value: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onCompositionStart?: (event: React.CompositionEvent<HTMLTextAreaElement>) => void;
+  onCompositionEnd?: (event: React.CompositionEvent<HTMLTextAreaElement>) => void;
   onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onScrollSync: () => void;
 }
@@ -35,6 +37,8 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
   highlightOverlayRef,
   onChange,
   onKeyDown,
+  onCompositionStart,
+  onCompositionEnd,
   onPaste,
   onScrollSync,
 }) => {
@@ -116,6 +120,8 @@ const MessageInputField: React.FC<MessageInputFieldProps> = ({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
+        onCompositionStart={onCompositionStart}
+        onCompositionEnd={onCompositionEnd}
         onPaste={onPaste}
         placeholder={placeholder}
         disabled={disabled}
