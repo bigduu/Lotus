@@ -454,7 +454,7 @@ describe("useMessageInputHandlers", () => {
       expect(onSubmit).not.toHaveBeenCalled();
     });
 
-    it("should not submit between compositionstart and compositionend, and submit after (#161)", () => {
+    it("should block the candidate-confirming Enter on the Safari event sequence (#161)", async () => {
       const onSubmit = vi.fn();
       const messageApi = { error: vi.fn() };
       const textAreaRef = { current: null };
@@ -475,31 +475,38 @@ describe("useMessageInputHandlers", () => {
         }),
       );
 
-      const enterEvent = {
-        key: "Enter",
-        shiftKey: false,
-        preventDefault: vi.fn(),
-        nativeEvent: { isComposing: false },
-      } as any;
+      const enterEvent = () =>
+        ({
+          key: "Enter",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          nativeEvent: { isComposing: false },
+        }) as any;
 
-      // Safari-style path: the native flag is unreliable, the composition
-      // events are the source of truth.
+      // Real WebKit sequence: compositionend fires BEFORE the keydown of
+      // the candidate-confirming Enter, synchronously in the same task, so
+      // both the native flag and a naively-cleared ref read false here.
       act(() => {
         result.current.compositionProps.onCompositionStart();
       });
       act(() => {
-        result.current.handleKeyDown(enterEvent);
-      });
-      expect(enterEvent.preventDefault).not.toHaveBeenCalled();
-      expect(onSubmit).not.toHaveBeenCalled();
-
-      act(() => {
         result.current.compositionProps.onCompositionEnd();
       });
+      const confirmEnter = enterEvent();
       act(() => {
-        result.current.handleKeyDown(enterEvent);
+        result.current.handleKeyDown(confirmEnter);
       });
-      expect(enterEvent.preventDefault).toHaveBeenCalled();
+      expect(confirmEnter.preventDefault).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      // The flag clears asynchronously, so the user's NEXT deliberate Enter
+      // (always a later task) sends normally.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const deliberateEnter = enterEvent();
+      act(() => {
+        result.current.handleKeyDown(deliberateEnter);
+      });
+      expect(deliberateEnter.preventDefault).toHaveBeenCalled();
       expect(onSubmit).toHaveBeenCalledTimes(1);
     });
 
