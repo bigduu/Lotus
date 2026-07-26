@@ -4,11 +4,13 @@ import {
   formatCalendarDateKey,
   getDateGroupKeyForChat,
   getSortedDateKeys,
+  getSortedProjectKeys,
   getSortedWorkspaceKeys,
   getWorkspaceBaseName,
   getWorkspaceGroupKey,
   groupChatsByDate,
   groupChatsByCalendarDate,
+  groupChatsByProject,
   groupChatsByWorkspace,
   isToday,
   isYesterday,
@@ -22,6 +24,7 @@ import {
   getChatCountByDate,
   NO_WORKSPACE_GROUP_KEY,
 } from "../chatUtils";
+import { NO_PROJECT_GROUP_KEY } from "@services/project";
 import { ChatItem } from "@shared/types/chat";
 
 describe("chatUtils", () => {
@@ -833,6 +836,114 @@ describe("chatUtils", () => {
         "/Users/alice/zenith/bamboo": "zenith · bamboo",
         "/Users/alice/other/bamboo": "other · bamboo",
       });
+    });
+  });
+
+  describe("groupChatsByProject (#134)", () => {
+    it("buckets sessions by stable projectId regardless of workspace", () => {
+      // Two sessions in the same Project but different workspaces (checkout
+      // vs worktree) must land in one group; a third session belongs to a
+      // different Project.
+      const chats = [
+        {
+          id: "1",
+          createdAt: 1000,
+          config: { projectId: "proj-zenith", workspacePath: "/Users/alice/zenith" },
+        },
+        {
+          id: "2",
+          createdAt: 5000,
+          config: { projectId: "proj-bamboo", workspacePath: "/Users/alice/bamboo" },
+        },
+        {
+          id: "3",
+          createdAt: 3000,
+          config: { projectId: "proj-zenith", workspacePath: "/tmp/zenith-worktree" },
+        },
+      ];
+
+      const grouped = groupChatsByProject(chats);
+
+      expect(Object.keys(grouped).sort()).toEqual(["proj-bamboo", "proj-zenith"]);
+      expect(grouped["proj-zenith"].map((c) => c.id)).toEqual(["3", "1"]);
+      expect(grouped["proj-bamboo"].map((c) => c.id)).toEqual(["2"]);
+    });
+
+    it("routes sessions with no projectId into the sentinel bucket", () => {
+      const chats = [
+        { id: "1", createdAt: 1000, config: { projectId: null } },
+        { id: "2", createdAt: 2000, config: { projectId: undefined } },
+        { id: "3", createdAt: 3000, config: { projectId: "" } },
+        { id: "4", createdAt: 4000, config: { projectId: "   " } },
+      ];
+
+      const grouped = groupChatsByProject(chats);
+
+      expect(Object.keys(grouped)).toEqual([NO_PROJECT_GROUP_KEY]);
+      expect(grouped[NO_PROJECT_GROUP_KEY]).toHaveLength(4);
+    });
+
+    it("does NOT split pinned sessions into a separate cross-project bucket — they sort first within their own group instead", () => {
+      const chats = [
+        { id: "1", createdAt: 1000, pinned: false, config: { projectId: "proj-zenith" } },
+        { id: "2", createdAt: 2000, pinned: true, config: { projectId: "proj-zenith" } },
+      ];
+
+      const grouped = groupChatsByProject(chats);
+
+      expect(Object.keys(grouped)).toEqual(["proj-zenith"]);
+      // Pinned sorts first even though it's not the most recent.
+      expect(grouped["proj-zenith"].map((c) => c.id)).toEqual(["2", "1"]);
+    });
+  });
+
+  describe("getSortedProjectKeys (#134)", () => {
+    it("orders projects by latest activity, most recent first", () => {
+      const grouped = {
+        "proj-old": [{ createdAt: 1000 }],
+        "proj-new": [{ createdAt: 9000 }],
+      };
+
+      expect(getSortedProjectKeys(grouped)).toEqual(["proj-new", "proj-old"]);
+    });
+
+    it("always places the unassigned bucket last, regardless of recency", () => {
+      const grouped = {
+        [NO_PROJECT_GROUP_KEY]: [{ createdAt: 99999 }],
+        "proj-zenith": [{ createdAt: 1 }],
+      };
+
+      expect(getSortedProjectKeys(grouped)).toEqual(["proj-zenith", NO_PROJECT_GROUP_KEY]);
+    });
+
+    it("sinks archived projects below active ones but above Unassigned", () => {
+      const grouped = {
+        "proj-archived": [{ createdAt: 99999 }],
+        "proj-active": [{ createdAt: 1 }],
+        [NO_PROJECT_GROUP_KEY]: [{ createdAt: 50000 }],
+      };
+      const archived = new Set(["proj-archived"]);
+
+      expect(getSortedProjectKeys(grouped, archived)).toEqual([
+        "proj-active",
+        "proj-archived",
+        NO_PROJECT_GROUP_KEY,
+      ]);
+    });
+
+    it("keeps archived projects recency-ordered among themselves", () => {
+      const grouped = {
+        "proj-archived-old": [{ createdAt: 1000 }],
+        "proj-archived-new": [{ createdAt: 9000 }],
+        "proj-active": [{ createdAt: 1 }],
+      };
+      const archived = new Set(["proj-archived-old", "proj-archived-new"]);
+
+      expect(getSortedProjectKeys(grouped, archived)).toEqual([
+        "proj-active",
+        "proj-archived-new",
+        "proj-archived-old",
+      ]);
     });
   });
 });

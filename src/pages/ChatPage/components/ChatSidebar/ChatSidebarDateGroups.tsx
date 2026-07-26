@@ -15,6 +15,7 @@ import {
   groupChatsByCalendarDate,
   NO_WORKSPACE_GROUP_KEY,
 } from "../../utils/chatUtils";
+import { NO_PROJECT_GROUP_KEY } from "@services/project";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
 
 // A date group's root-session list switches from plain (unvirtualized)
@@ -37,9 +38,10 @@ const CHILD_ROW_ESTIMATE_PX = 28;
 // of requiring real CSS `position: sticky`.
 const VIRTUAL_LIST_MAX_HEIGHT_PX = 480;
 const WORKSPACE_DATE_COLLAPSE_STORAGE_KEY = "lotus.sidebar.workspace-date.collapsed.v1";
+const PROJECT_DATE_COLLAPSE_STORAGE_KEY = "lotus.sidebar.project-date.collapsed.v1";
 
-const workspaceDateCollapseKey = (workspaceKey: string, dateKey: string) =>
-  `${encodeURIComponent(workspaceKey)}::${dateKey}`;
+const groupDateCollapseKey = (groupKey: string, dateKey: string) =>
+  `${encodeURIComponent(groupKey)}::${dateKey}`;
 
 /**
  * Combines the live run state (#94) with the session's persisted last-run
@@ -88,20 +90,28 @@ type ChatSidebarDateGroupsProps = {
   /** Which row to scroll into view for the active session, if any (#93). */
   scrollTarget: SidebarScrollTarget;
   /**
-   * Which top-level grouping is being rendered (#95) — defaults to "date",
-   * the historical/only behavior, so every existing caller (and every
-   * existing test) that never passes this prop is completely unaffected.
-   * In "workspace" mode, group keys are workspace paths (or the
-   * `NO_WORKSPACE_GROUP_KEY` sentinel) instead of date-bucket names, so the
-   * label/tooltip/highlight logic below switches accordingly.
+   * Which top-level grouping is being rendered (#95, #134) — defaults to
+   * "date", the historical/only behavior, so every existing caller (and
+   * every existing test) that never passes this prop is completely
+   * unaffected. In "workspace" mode, group keys are workspace paths (or the
+   * `NO_WORKSPACE_GROUP_KEY` sentinel); in "project" mode they are stable
+   * backend project ids (or the `NO_PROJECT_GROUP_KEY` sentinel). Both
+   * non-date modes nest calendar-date buckets inside each top-level group,
+   * so the label/tooltip/highlight logic below switches accordingly.
    */
-  groupingMode?: "date" | "workspace";
+  groupingMode?: "date" | "workspace" | "project";
   /**
-   * Workspace-path -> friendly display label (basename, collision-
-   * disambiguated — see `buildWorkspaceGroupLabels`). Only consulted when
-   * `groupingMode === "workspace"`.
+   * Group-key -> friendly display label. In workspace mode this maps
+   * workspace paths to basenames (see `buildWorkspaceGroupLabels`); in
+   * project mode it maps project ids to Project names joined from the
+   * Project store (with a "Missing project" fallback already applied).
    */
   groupLabels?: Record<string, string>;
+  /**
+   * Project group keys whose Project is archived (#134) — rendered with an
+   * "Archived" badge in the group header. Only consulted in project mode.
+   */
+  archivedGroupKeys?: ReadonlySet<string>;
 };
 
 export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
@@ -132,36 +142,49 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   scrollTarget,
   groupingMode = "date",
   groupLabels,
+  archivedGroupKeys,
 }) => {
   const { t, i18n } = useTranslation();
   const isWorkspaceMode = groupingMode === "workspace";
-  const [collapsedWorkspaceDates, setCollapsedWorkspaceDates] = useState<Set<string>>(() => {
+  const isProjectMode = groupingMode === "project";
+  // Both non-date modes nest calendar-date buckets under the top-level group.
+  const isNestedMode = isWorkspaceMode || isProjectMode;
+  const dateCollapseStorageKey = isProjectMode
+    ? PROJECT_DATE_COLLAPSE_STORAGE_KEY
+    : WORKSPACE_DATE_COLLAPSE_STORAGE_KEY;
+  const [collapsedGroupDates, setCollapsedGroupDates] = useState<Set<string>>(() => {
     try {
-      const value = JSON.parse(localStorage.getItem(WORKSPACE_DATE_COLLAPSE_STORAGE_KEY) || "[]");
+      const value = JSON.parse(localStorage.getItem(dateCollapseStorageKey) || "[]");
       return new Set(Array.isArray(value) ? value.filter((item) => typeof item === "string") : []);
     } catch {
       return new Set();
     }
   });
 
-  const toggleWorkspaceDate = (workspaceKey: string, dateKey: string) => {
-    const key = workspaceDateCollapseKey(workspaceKey, dateKey);
-    setCollapsedWorkspaceDates((previous) => {
+  const toggleGroupDate = (groupKey: string, dateKey: string) => {
+    const key = groupDateCollapseKey(groupKey, dateKey);
+    setCollapsedGroupDates((previous) => {
       const next = new Set(previous);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       try {
-        localStorage.setItem(WORKSPACE_DATE_COLLAPSE_STORAGE_KEY, JSON.stringify([...next]));
+        localStorage.setItem(dateCollapseStorageKey, JSON.stringify([...next]));
       } catch {}
       return next;
     });
   };
 
-  // Resolves the display text for a group header (#95): the translated
+  // Resolves the display text for a group header (#95, #134): the translated
   // date-bucket name in the default mode (unchanged), or the friendly
-  // workspace label (falling back to the raw key/"No workspace" sentinel)
-  // in workspace mode.
+  // workspace label / Project name (falling back to the raw key or the
+  // no-workspace / Unassigned sentinel) in the nested modes.
   const resolveGroupLabel = (groupKey: string): string => {
+    if (isProjectMode) {
+      if (groupKey === NO_PROJECT_GROUP_KEY) {
+        return t("chat.sidebar.unassigned", "Unassigned");
+      }
+      return groupLabels?.[groupKey] ?? t("chat.sidebar.missingProject", "Missing project");
+    }
     if (!isWorkspaceMode) {
       return translateDateKey(groupKey, t);
     }
@@ -173,7 +196,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
 
   // In workspace mode the group key IS the full workspace path (see
   // `getWorkspaceGroupKey`), so it doubles as the tooltip content that
-  // disambiguates a collision-shortened label — no separate lookup needed.
+  // disambiguates a collision-shortened label. Project labels already come
+  // from the Project store by name, so no tooltip is needed there.
   const resolveGroupTooltip = (groupKey: string): string | undefined =>
     isWorkspaceMode && groupKey !== NO_WORKSPACE_GROUP_KEY ? groupKey : undefined;
 
@@ -537,13 +561,14 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                     style={{
                       fontSize: 10.5,
                       fontWeight: 700,
-                      // Workspace paths (unlike "TODAY"/"THIS WEEK") read
-                      // poorly forced to uppercase — leave their casing
-                      // alone in workspace mode.
-                      textTransform: isWorkspaceMode ? "none" : "uppercase",
+                      // Workspace paths and Project names (unlike
+                      // "TODAY"/"THIS WEEK") read poorly forced to
+                      // uppercase — leave their casing alone in the
+                      // nested grouping modes.
+                      textTransform: isNestedMode ? "none" : "uppercase",
                       letterSpacing: "0.3px",
                       color:
-                        !isWorkspaceMode && dateKey === "Today"
+                        !isNestedMode && dateKey === "Today"
                           ? "var(--lotus-primary)"
                           : token.colorTextSecondary,
                       minWidth: 0,
@@ -555,6 +580,23 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                     {resolveGroupLabel(dateKey)} ({totalChatsInDate})
                   </span>
                 </Tooltip>
+                {isProjectMode && archivedGroupKeys?.has(dateKey) ? (
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontWeight: 600,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.3px",
+                      color: token.colorTextTertiary,
+                      border: `1px solid ${token.colorBorderSecondary}`,
+                      borderRadius: token.borderRadiusSM,
+                      padding: "0 4px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    {t("chat.sidebar.archived", "Archived")}
+                  </span>
+                ) : null}
               </Flex>
 
               <Button
@@ -576,11 +618,11 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
 
             {isExpanded ? (
               <div style={{ marginTop: 2 }}>
-                {isWorkspaceMode
+                {isNestedMode
                   ? (() => {
                       const byDate = groupChatsByCalendarDate(dateGroup);
                       return getSortedDateKeys(byDate).map((nestedDateKey) => {
-                        const stableKey = workspaceDateCollapseKey(dateKey, nestedDateKey);
+                        const stableKey = groupDateCollapseKey(dateKey, nestedDateKey);
                         const containsCurrent = byDate[nestedDateKey].some(
                           (chat) =>
                             chat.id === currentSessionId ||
@@ -591,7 +633,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                         const nestedExpanded =
                           hasActiveFilters ||
                           containsCurrent ||
-                          !collapsedWorkspaceDates.has(stableKey);
+                          !collapsedGroupDates.has(stableKey);
                         const forcedExpanded = hasActiveFilters || containsCurrent;
                         const dateLabel = formatCalendarDateKey(
                           nestedDateKey,
@@ -612,12 +654,12 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                                 padding: "3px 8px",
                               }}
                               onClick={() => {
-                                if (!forcedExpanded) toggleWorkspaceDate(dateKey, nestedDateKey);
+                                if (!forcedExpanded) toggleGroupDate(dateKey, nestedDateKey);
                               }}
                               onKeyDown={(event) => {
                                 if (event.key === "Enter" || event.key === " ") {
                                   event.preventDefault();
-                                  if (!forcedExpanded) toggleWorkspaceDate(dateKey, nestedDateKey);
+                                  if (!forcedExpanded) toggleGroupDate(dateKey, nestedDateKey);
                                 }
                               }}
                             >

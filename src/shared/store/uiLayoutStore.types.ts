@@ -34,7 +34,7 @@ export type LayoutNode = LayoutLeafNode | LayoutSplitNode;
  * alongside the rest of the sidebar layout so the user's choice survives a
  * reload, same as `collapsed`/`widthPx`.
  */
-export type SidebarGroupingMode = "date" | "workspace";
+export type SidebarGroupingMode = "date" | "workspace" | "project";
 
 export const DEFAULT_SIDEBAR_GROUPING_MODE: SidebarGroupingMode = "date";
 

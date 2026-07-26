@@ -43,6 +43,7 @@ export type AgentEventType =
   | "session_created"
   | "session_deleted"
   | "session_cleared"
+  | "session_project_updated"
   | "message_appended"
   | "plan_mode_entered"
   | "plan_mode_exited"
@@ -52,6 +53,9 @@ export type AgentEventType =
   | "execution_started"
   | "runner_progress"
   | "goal_status_changed"
+  | "project_created"
+  | "project_updated"
+  | "project_archived"
   | "complete"
   | "cancelled"
   | "error";
@@ -284,6 +288,13 @@ export interface AgentEvent {
   bash_id?: string;
   command?: string;
   exit_code?: number;
+  // Project lifecycle events (project_created, project_updated, project_archived)
+  project_id?: string;
+  revision?: number;
+  resource_revision?: number;
+  // SessionProjectUpdated event: explicit null means Unassigned.
+  metadata_version?: number;
+  project_name?: string;
 }
 
 /**
@@ -318,6 +329,7 @@ export interface ChatRequest {
   system_prompt?: string;
   enhance_prompt?: string;
   copilot_conclusion_with_options_enhancement_enabled?: boolean;
+  project_id?: string | null;
   workspace_path?: string;
   selected_skill_ids?: string[];
   images?: Array<{
@@ -466,6 +478,8 @@ export interface SessionSummary {
   reasoning_effort?: ReasoningEffort | null;
   gold_config?: GoldConfig | null;
   created_by_schedule_id?: string | null;
+  /** Stable Project identity assigned to this session. */
+  project_id?: string | null;
   /** Workspace recorded by the backend session index. */
   workspace_path?: string | null;
   token_usage?: TokenBudgetUsage;
@@ -540,6 +554,10 @@ export interface CreateSessionRequest {
   provider?: string;
   reasoning_effort?: ReasoningEffort;
   gold_config?: GoldConfig;
+  /** Stable Project identity to assign to the new session. */
+  project_id?: string | null;
+  /** Initial workspace directory for the session. */
+  workspace_path?: string | null;
 }
 
 export interface CreateSessionResponse {
@@ -602,6 +620,9 @@ export interface PatchSessionRequest {
   /** Per-session "bypass permissions" toggle: when true, tool permission
    * checks are skipped for this session only. */
   bypass_permissions?: boolean;
+  /** Explicit Project re-assignment or workspace update. */
+  project_id?: string | null;
+  workspace_path?: string | null;
 }
 
 export interface RunProjectDreamResponse {
@@ -712,6 +733,7 @@ export interface ScheduleRunConfig {
   task_message?: string;
   model?: string;
   reasoning_effort?: ReasoningEffort;
+  project_id?: string | null;
   workspace_path?: string;
   enhance_prompt?: string;
   auto_execute?: boolean;

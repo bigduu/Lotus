@@ -19,6 +19,7 @@ export type SidebarChatItem = SidebarChatListItem & {
   config: {
     systemPromptId: string;
     workspacePath: string | null;
+    projectId: string | null;
   };
 };
 
@@ -30,9 +31,10 @@ export type SidebarChatItem = SidebarChatListItem & {
  * follow-up `scrollIntoView` once its root row is mounted.
  */
 export type SidebarScrollTarget = {
-  /** Top-level workspace key (historically named dateKey). */
+  /** Top-level group key (historically named dateKey; a Project id in the
+   * Project-first hierarchy, `#134`). */
   dateKey: string;
-  /** Stable YYYY-MM-DD nested date key in workspace mode. */
+  /** Stable YYYY-MM-DD nested date key inside the top-level group. */
   nestedDateKey?: string;
   rootId: string;
   childId: string | null;

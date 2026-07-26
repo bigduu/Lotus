@@ -406,6 +406,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           enhance_prompt: enhancePrompt || undefined,
           copilot_conclusion_with_options_enhancement_enabled:
             copilotConclusionWithOptionsEnhancementEnabled,
+          project_id: currentChat?.config?.projectId ?? null,
           workspace_path: workspacePath || undefined,
           selected_skill_ids:
             selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
