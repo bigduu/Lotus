@@ -2,6 +2,7 @@ export const enUsTranslation = {
   translation: {
     app: {
       loading: "Loading...",
+      loadingSlow: "Connecting to the backend — this can take up to ~20 seconds…",
       retry: "Retry",
       backendNotReachable: "Backend not reachable at {{baseUrl}} (last error: {{message}})",
       errorBoundary: {
@@ -259,6 +260,7 @@ export const enUsTranslation = {
       complete: {
         title: "All Set!",
         restartMessage: "Reloading the application...",
+        restartButton: "Restart now",
       },
       error: {
         completeFailed: "Failed to complete setup. Please try again.",
