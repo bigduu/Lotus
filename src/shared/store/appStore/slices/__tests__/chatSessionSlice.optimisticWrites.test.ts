@@ -135,5 +135,87 @@ describe("optimistic write rollback (#163)", () => {
 
       expect(store.getState().chats[0].pinned).toBe(true);
     });
+
+    it("restores the bumped updatedAt on rollback so refresh can heal", async () => {
+      mockPatchSession.mockRejectedValue(new Error("500"));
+      const store = createTestStore([makeChat("s1")]);
+      const originalUpdatedAt = store.getState().chats[0].updatedAt;
+
+      store.getState().updateSession("s1", { pinned: true });
+      expect(store.getState().chats[0].updatedAt).not.toBe(originalUpdatedAt);
+
+      await vi.waitFor(() => {
+        expect(store.getState().chats[0].updatedAt).toBe(originalUpdatedAt);
+      });
+    });
+
+    it("double in-flight: the last failure restores the pre-first-write baseline (Case B)", async () => {
+      // Both patches fail (e.g. offline while the user retries a model
+      // switch). The first failure must NOT roll back (the newer write owns
+      // the outcome); the second must restore the values from BEFORE the
+      // first optimistic write — otherwise the first unconfirmed value
+      // sticks via preferLocalSessionFields.
+      let rejectFirst: (error: Error) => void = () => {};
+      let rejectSecond: (error: Error) => void = () => {};
+      mockPatchSession
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectFirst = reject;
+            }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectSecond = reject;
+            }),
+        );
+      const store = createTestStore([makeChat("s1")]);
+
+      store.getState().updateSession("s1", {
+        config: { ...store.getState().chats[0].config, model: "gpt-v1" },
+      });
+      store.getState().updateSession("s1", {
+        config: { ...store.getState().chats[0].config, model: "gpt-v2" },
+      });
+      expect(store.getState().chats[0].config.model).toBe("gpt-v2");
+
+      // First write fails while the second is still in flight: no rollback.
+      rejectFirst(new Error("500"));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(store.getState().chats[0].config.model).toBe("gpt-v2");
+
+      // Second (last) failure rolls back to the pre-first-write baseline.
+      rejectSecond(new Error("500"));
+      await vi.waitFor(() => {
+        expect(store.getState().chats[0].config.model).toBe("gpt-old");
+      });
+    });
+
+    it("double in-flight: first failure does not clobber a later confirmed value (Case A)", async () => {
+      let rejectFirst: (error: Error) => void = () => {};
+      mockPatchSession
+        .mockImplementationOnce(
+          () =>
+            new Promise((_, reject) => {
+              rejectFirst = reject;
+            }),
+        )
+        .mockResolvedValueOnce(undefined);
+      const store = createTestStore([makeChat("s1")]);
+
+      store.getState().updateSession("s1", {
+        config: { ...store.getState().chats[0].config, model: "gpt-v1" },
+      });
+      store.getState().updateSession("s1", {
+        config: { ...store.getState().chats[0].config, model: "gpt-v2" },
+      });
+
+      rejectFirst(new Error("500"));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+
+      // The second write succeeded — its value must survive.
+      expect(store.getState().chats[0].config.model).toBe("gpt-v2");
+    });
   });
 });

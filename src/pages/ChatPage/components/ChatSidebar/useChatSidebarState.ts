@@ -753,9 +753,9 @@ export const useChatSidebarState = () => {
         } catch (error) {
           // The backend delete failed — local state was left untouched
           // (#163), so the session is still here; tell the user instead of
-          // pretending it was deleted.
+          // pretending it was deleted. Technical details go to the console.
           console.error("[ChatSidebar] Failed to delete session:", error);
-          message.error(error instanceof Error ? error.message : t("chat.sidebar.deleteFailed"));
+          message.error(t("chat.sidebar.deleteFailed"));
         }
       },
     });

@@ -43,6 +43,15 @@ const agentClient = AgentClient.getInstance();
 const reconcileTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const RECONCILE_DEBOUNCE_MS = 300;
 
+// In-flight backend PATCH tracking per session (#163): the first dispatch
+// captures a baseline (the pre-optimistic chat record); a failure while a
+// NEWER patch is still in flight does NOT roll back (the newer write owns
+// the outcome), while the LAST failed write restores the baseline — so a
+// retry-then-fail sequence can never leave an unconfirmed optimistic value
+// "locked in" (it would otherwise beat the authoritative server value via
+// preferLocalSessionFields).
+const patchInFlight = new Map<string, { count: number; baseline: ChatItem | null }>();
+
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
   chats: [],
   currentSessionId: null,
@@ -265,45 +274,49 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     // `skipBackendPatch` so we update local state only — otherwise this would
     // fire a redundant second PATCH for the same change.
     if (!options?.skipBackendPatch && Object.keys(patch).length > 0) {
-      // Rollback fields come from `previousChat` (captured above, before
-      // the optimistic write) — a failed optimistic write must not "lock
-      // in" a state the backend never confirmed (it would even win against
-      // the correct server value via preferLocalSessionFields).
-      const rollbackConfig: Partial<ChatItem["config"]> = {};
-      if (previousChat) {
+      // The first in-flight dispatch captures the baseline (the chat record
+      // before ANY optimistic write in this burst). See patchInFlight above.
+      const tracker = patchInFlight.get(sessionId) ?? { count: 0, baseline: null };
+      if (tracker.count === 0) {
+        tracker.baseline = previousChat ?? null;
+      }
+      tracker.count += 1;
+      patchInFlight.set(sessionId, tracker);
+
+      const rollbackFromBaseline = () => {
+        const current = patchInFlight.get(sessionId);
+        // A newer patch is still in flight — it owns the outcome; rolling
+        // back now could clobber its (possibly confirmed) values.
+        if (!current || current.count > 1) return;
+        const baseline = current.baseline;
+        if (!baseline) return;
+
+        const rollbackConfig: Partial<ChatItem["config"]> = {};
         if (Object.prototype.hasOwnProperty.call(patch, "model")) {
-          rollbackConfig.model = previousChat.config.model;
+          rollbackConfig.model = baseline.config.model;
         }
         if (Object.prototype.hasOwnProperty.call(patch, "model_ref")) {
-          rollbackConfig.model_ref = previousChat.config.model_ref;
+          rollbackConfig.model_ref = baseline.config.model_ref;
         }
         if (
           Object.prototype.hasOwnProperty.call(patch, "reasoning_effort") ||
           Object.prototype.hasOwnProperty.call(patch, "clear_reasoning_effort")
         ) {
-          rollbackConfig.reasoningEffort = previousChat.config.reasoningEffort;
+          rollbackConfig.reasoningEffort = baseline.config.reasoningEffort;
         }
         if (Object.prototype.hasOwnProperty.call(patch, "gold_config")) {
-          rollbackConfig.goldConfig = previousChat.config.goldConfig;
+          rollbackConfig.goldConfig = baseline.config.goldConfig;
         }
-      }
 
-      // NOTE: `patchSession` returns void, so the backend's bumped
-      // `title_version` (and any other authoritative server fields) is not
-      // available here. The backend emits SSE events (e.g. `session_title_updated`)
-      // that `applyServerTitle` reconciles into local state.
-      agentClient.patchSession(sessionId, patch).catch((e) => {
-        console.warn(`[ChatSlice] Failed to patch session ${sessionId}:`, e);
-        if (!previousChat) return;
         set((state) => ({
           ...state,
           chats: state.chats.map((chat) =>
             chat.id === sessionId
               ? {
                   ...chat,
-                  ...(typeof updates.title === "string" ? { title: previousChat.title } : {}),
-                  ...(typeof updates.pinned === "boolean" ? { pinned: previousChat.pinned } : {}),
-                  ...(localUpdatedAt ? { updatedAt: previousChat.updatedAt } : {}),
+                  ...(typeof updates.title === "string" ? { title: baseline.title } : {}),
+                  ...(typeof updates.pinned === "boolean" ? { pinned: baseline.pinned } : {}),
+                  ...(localUpdatedAt ? { updatedAt: baseline.updatedAt } : {}),
                   ...(Object.keys(rollbackConfig).length > 0
                     ? { config: { ...chat.config, ...rollbackConfig } }
                     : {}),
@@ -311,7 +324,26 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
               : chat,
           ),
         }));
-      });
+      };
+
+      // NOTE: `patchSession` returns void, so the backend's bumped
+      // `title_version` (and any other authoritative server fields) is not
+      // available here. The backend emits SSE events (e.g. `session_title_updated`)
+      // that `applyServerTitle` reconciles into local state.
+      agentClient
+        .patchSession(sessionId, patch)
+        .catch((e) => {
+          console.warn(`[ChatSlice] Failed to patch session ${sessionId}:`, e);
+          rollbackFromBaseline();
+        })
+        .finally(() => {
+          const current = patchInFlight.get(sessionId);
+          if (!current) return;
+          current.count -= 1;
+          if (current.count <= 0) {
+            patchInFlight.delete(sessionId);
+          }
+        });
     }
   },
 
