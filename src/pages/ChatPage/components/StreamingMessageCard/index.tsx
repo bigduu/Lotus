@@ -8,12 +8,22 @@ import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
 import rehypeSanitize from "rehype-sanitize";
 import { useAssistantStreamingState } from "../../streaming/useAssistantStreamingState";
+import { useThrottledValue } from "../../streaming/useThrottledValue";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import { renderCodeBlock } from "@shared/components/Markdown/MarkdownCodeBlock";
 import { openExternalLink } from "@shared/utils/openExternalLink";
 
 const { Text } = Typography;
 const { useToken } = theme;
+
+// Upper bound on Markdown re-render frequency while streaming (#166).
+const MARKDOWN_THROTTLE_MS = 120;
+
+// react-markdown re-parses its entire children string on every render with
+// no caching of its own. Memoizing the component means the (expensive)
+// parse only re-runs when the throttled string actually changes — not on
+// every per-frame status/cursor re-render (#166).
+const MemoizedReactMarkdown = memo(ReactMarkdown);
 
 const STREAMING_BLOCK_MARGIN_PX = 8;
 const STREAMING_INLINE_MARGIN_PX = 4;
@@ -290,8 +300,16 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
   const { t } = useTranslation();
   const statusMessageId = `streaming-status-${sessionId}`;
   const liveAssistantState = useAssistantStreamingState(sessionId);
-  const content = liveAssistantState.content;
-  const reasoningContent = liveAssistantState.reasoningContent;
+  // Throttle the Markdown inputs below the per-frame streaming cadence
+  // (#166): ReactMarkdown re-parses the FULL accumulated text on every
+  // render, so rendering at 60fps mid-stream is the app's hottest path.
+  // ~8fps for the parse is visually indistinguishable; status text and the
+  // blinking cursor still update per frame.
+  const content = useThrottledValue(liveAssistantState.content, MARKDOWN_THROTTLE_MS);
+  const reasoningContent = useThrottledValue(
+    liveAssistantState.reasoningContent,
+    MARKDOWN_THROTTLE_MS,
+  );
   const [statusContent, setStatusContent] = useState<string>(
     () => streamingMessageBus.getLatest(statusMessageId) ?? "",
   );
@@ -392,13 +410,13 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
                   key: "reasoning",
                   label: <Text strong>{t("chat.messageCard.reasoning")}</Text>,
                   children: (
-                    <ReactMarkdown
+                    <MemoizedReactMarkdown
                       remarkPlugins={markdownPlugins}
                       rehypePlugins={rehypePlugins}
                       components={markdownComponents}
                     >
                       {reasoningContent}
-                    </ReactMarkdown>
+                    </MemoizedReactMarkdown>
                   ),
                 },
               ]}
@@ -412,13 +430,13 @@ const StreamingMessageCard: React.FC<StreamingMessageCardProps> = memo(({ sessio
           ) : null}
 
           {content ? (
-            <ReactMarkdown
+            <MemoizedReactMarkdown
               remarkPlugins={markdownPlugins}
               rehypePlugins={rehypePlugins}
               components={markdownComponents}
             >
               {content}
-            </ReactMarkdown>
+            </MemoizedReactMarkdown>
           ) : null}
           <span
             className="blinking-cursor"

@@ -3,6 +3,7 @@ import { useAppStore, selectShouldObserve, selectGeneration } from "@shared/stor
 import { streamingMessageBus } from "../utils/streamingMessageBus";
 import {
   clearAssistantStreamingState,
+  flushAssistantStreamingChunks,
   getAssistantStreamingState,
 } from "../streaming/assistantStreamingAtoms";
 import type { Message } from "@shared/types/chatMessages";
@@ -94,6 +95,9 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
   const messageId = `streaming-${sessionId}`;
   const reasoningMessageId = `streaming-reasoning-${sessionId}`;
   const statusMessageId = `streaming-status-${sessionId}`;
+  // Seed from the fully-flushed draft (#166): chunks may still sit in the
+  // batching buffer when a resubscribe happens mid-stream.
+  flushAssistantStreamingChunks();
   const existingAssistantDraft = getAssistantStreamingState(sessionId);
   const existingStatus = streamingMessageBus.getLatest(statusMessageId);
   streamingStateBySessionRef.current.set(sessionId, {
@@ -434,6 +438,10 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
             if (isSuperseded()) return;
 
             const state = streamingStateBySessionRef.current.get(sessionId);
+            // Land any chunks still in the batching buffer before reading the
+            // draft (#166) — otherwise the final ≤50ms of tokens are missing
+            // from the finalized message.
+            flushAssistantStreamingChunks();
             const liveAssistantDraft = getAssistantStreamingState(sessionId);
             const streamedRaw = liveAssistantDraft.content || state?.content || "";
             const streamedReasoningRaw =
