@@ -43,6 +43,15 @@ const agentClient = AgentClient.getInstance();
 const reconcileTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const RECONCILE_DEBOUNCE_MS = 300;
 
+// In-flight backend PATCH tracking per session (#163): the first dispatch
+// captures a baseline (the pre-optimistic chat record); a failure while a
+// NEWER patch is still in flight does NOT roll back (the newer write owns
+// the outcome), while the LAST failed write restores the baseline — so a
+// retry-then-fail sequence can never leave an unconfirmed optimistic value
+// "locked in" (it would otherwise beat the authoritative server value via
+// preferLocalSessionFields).
+const patchInFlight = new Map<string, { count: number; baseline: ChatItem | null }>();
+
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
   chats: [],
   currentSessionId: null,
@@ -158,11 +167,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   deleteSession: async (sessionId) => {
-    try {
-      await agentClient.deleteSession(sessionId);
-    } catch (error) {
-      console.error(`[ChatSlice] Failed to delete backend session ${sessionId}:`, error);
-    }
+    // Backend first (#163): only remove locally once the delete is
+    // confirmed. A failed delete leaves the local state untouched instead
+    // of silently diverging (the session would "come back" on the next
+    // refresh anyway, after the user was told it was gone).
+    await agentClient.deleteSession(sessionId);
 
     set((state) => {
       const toDelete = new Set<string>();
@@ -191,9 +200,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   deleteSessions: async (sessionIds) => {
-    for (const id of sessionIds) {
-      await get().deleteSession(id);
-    }
+    // All-settled so one failure does not abort the rest (#163); the
+    // caller surfaces the failures.
+    const results = await Promise.allSettled(sessionIds.map((id) => get().deleteSession(id)));
+    const failedIds = sessionIds.filter((_, index) => results[index].status === "rejected");
+    return { failedIds };
   },
 
   updateSession: (sessionId, updates, options) => {
@@ -206,6 +217,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       typeof updates.title === "string" || typeof updates.pinned === "boolean";
     const shouldBumpUpdatedAt = hasSessionLevelConfigUpdate || hasSessionLevelTopLevelUpdate;
     const localUpdatedAt = shouldBumpUpdatedAt ? new Date().toISOString() : undefined;
+
+    // Captured BEFORE the optimistic write so a failed backend patch can
+    // roll the patched fields back (#163).
+    const previousChat = get().chats.find((c) => c.id === sessionId);
 
     set((state) => {
       const chats = state.chats.map((chat) =>
@@ -259,13 +274,76 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     // `skipBackendPatch` so we update local state only — otherwise this would
     // fire a redundant second PATCH for the same change.
     if (!options?.skipBackendPatch && Object.keys(patch).length > 0) {
+      // The first in-flight dispatch captures the baseline (the chat record
+      // before ANY optimistic write in this burst). See patchInFlight above.
+      const tracker = patchInFlight.get(sessionId) ?? { count: 0, baseline: null };
+      if (tracker.count === 0) {
+        tracker.baseline = previousChat ?? null;
+      }
+      tracker.count += 1;
+      patchInFlight.set(sessionId, tracker);
+
+      const rollbackFromBaseline = () => {
+        const current = patchInFlight.get(sessionId);
+        // A newer patch is still in flight — it owns the outcome; rolling
+        // back now could clobber its (possibly confirmed) values.
+        if (!current || current.count > 1) return;
+        const baseline = current.baseline;
+        if (!baseline) return;
+
+        const rollbackConfig: Partial<ChatItem["config"]> = {};
+        if (Object.prototype.hasOwnProperty.call(patch, "model")) {
+          rollbackConfig.model = baseline.config.model;
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, "model_ref")) {
+          rollbackConfig.model_ref = baseline.config.model_ref;
+        }
+        if (
+          Object.prototype.hasOwnProperty.call(patch, "reasoning_effort") ||
+          Object.prototype.hasOwnProperty.call(patch, "clear_reasoning_effort")
+        ) {
+          rollbackConfig.reasoningEffort = baseline.config.reasoningEffort;
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, "gold_config")) {
+          rollbackConfig.goldConfig = baseline.config.goldConfig;
+        }
+
+        set((state) => ({
+          ...state,
+          chats: state.chats.map((chat) =>
+            chat.id === sessionId
+              ? {
+                  ...chat,
+                  ...(typeof updates.title === "string" ? { title: baseline.title } : {}),
+                  ...(typeof updates.pinned === "boolean" ? { pinned: baseline.pinned } : {}),
+                  ...(localUpdatedAt ? { updatedAt: baseline.updatedAt } : {}),
+                  ...(Object.keys(rollbackConfig).length > 0
+                    ? { config: { ...chat.config, ...rollbackConfig } }
+                    : {}),
+                }
+              : chat,
+          ),
+        }));
+      };
+
       // NOTE: `patchSession` returns void, so the backend's bumped
       // `title_version` (and any other authoritative server fields) is not
       // available here. The backend emits SSE events (e.g. `session_title_updated`)
       // that `applyServerTitle` reconciles into local state.
-      agentClient.patchSession(sessionId, patch).catch((e) => {
-        console.warn(`[ChatSlice] Failed to patch session ${sessionId}:`, e);
-      });
+      agentClient
+        .patchSession(sessionId, patch)
+        .catch((e) => {
+          console.warn(`[ChatSlice] Failed to patch session ${sessionId}:`, e);
+          rollbackFromBaseline();
+        })
+        .finally(() => {
+          const current = patchInFlight.get(sessionId);
+          if (!current) return;
+          current.count -= 1;
+          if (current.count <= 0) {
+            patchInFlight.delete(sessionId);
+          }
+        });
     }
   },
 

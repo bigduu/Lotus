@@ -32,7 +32,8 @@ export interface ChatSlice {
   addChat: (chat: Omit<ChatItem, "id">) => Promise<string>;
   selectSession: (sessionId: string | null) => void;
   deleteSession: (sessionId: string) => Promise<void>;
-  deleteSessions: (sessionIds: string[]) => Promise<void>;
+  /** Bulk delete; resolves with the ids whose backend delete failed. */
+  deleteSessions: (sessionIds: string[]) => Promise<{ failedIds: string[] }>;
   updateSession: (
     sessionId: string,
     updates: Partial<ChatItem>,

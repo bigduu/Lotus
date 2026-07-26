@@ -134,7 +134,7 @@ describe("chatSessionSlice deletion", () => {
     expect(store.getState().chats).toHaveLength(0);
   });
 
-  it("still removes chat locally when backend deletion fails", async () => {
+  it("keeps the chat locally and rejects when backend deletion fails (#163)", async () => {
     const store = createTestStore();
     const chat = createChat("session-1");
     deleteSessionMock.mockRejectedValueOnce(new Error("delete failed"));
@@ -146,10 +146,12 @@ describe("chatSessionSlice deletion", () => {
       latestActiveSessionId: chat.id,
     }));
 
-    await expect(store.getState().deleteSession(chat.id)).resolves.toBeUndefined();
+    await expect(store.getState().deleteSession(chat.id)).rejects.toThrow("delete failed");
 
     expect(deleteSessionMock).toHaveBeenCalledWith("session-1");
-    expect(store.getState().chats).toHaveLength(0);
+    // The local session is left untouched so UI and backend stay consistent.
+    expect(store.getState().chats).toHaveLength(1);
+    expect(store.getState().currentSessionId).toBe(chat.id);
   });
 
   it("deletes all linked backend sessions when removing multiple chats", async () => {

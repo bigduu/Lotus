@@ -328,6 +328,8 @@ export const zhCnTranslation = {
           title: "删除会话",
           confirm: "确定要删除这个会话吗？",
         },
+        deleteFailed: "删除会话失败",
+        deleteSomeFailed: "{{count}} 个会话删除失败",
         deleteByDate: {
           title: "删除 {{date}} 的会话",
           confirm: "确定要删除 {{date}} 的 {{count}} 个会话吗？",
