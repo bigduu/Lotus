@@ -711,6 +711,14 @@ export const CommandPalette: React.FC = () => {
               "commandPalette.searchPlaceholder",
               "Search sessions, settings, and actions",
             )}
+            role="combobox"
+            aria-expanded={true}
+            aria-controls="lotus-command-palette-listbox"
+            aria-activedescendant={
+              filteredActions.length > 0
+                ? `lotus-command-palette-option-${filteredActions[selectedIndex]?.id}`
+                : undefined
+            }
             suffix={
               <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                 ⌘K
@@ -729,7 +737,12 @@ export const CommandPalette: React.FC = () => {
           </span>
         </div>
 
-        <div ref={listRef} className="lotus-command-palette-list" role="listbox">
+        <div
+          ref={listRef}
+          className="lotus-command-palette-list"
+          role="listbox"
+          id="lotus-command-palette-listbox"
+        >
           {filteredActions.length === 0 ? (
             <div className="lotus-command-palette-empty">
               <AppstoreOutlined />
@@ -741,7 +754,10 @@ export const CommandPalette: React.FC = () => {
               return (
                 <button
                   key={action.id}
+                  id={`lotus-command-palette-option-${action.id}`}
                   type="button"
+                  role="option"
+                  aria-selected={isSelected}
                   className={`lotus-command-palette-item ${isSelected ? "is-selected" : ""}`}
                   data-command-index={index}
                   onMouseEnter={() => setSelectedIndex(index)}

@@ -3026,6 +3026,9 @@ export const zhCnTranslation = {
         exportSvg: "导出 SVG",
         exportFailed: "导出图表失败",
         downloadChartAriaLabel: "下载图表",
+        zoomInAriaLabel: "放大",
+        zoomOutAriaLabel: "缩小",
+        resetZoomAriaLabel: "重置缩放",
       },
     },
     validation: {

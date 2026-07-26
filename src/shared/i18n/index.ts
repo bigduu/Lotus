@@ -4569,6 +4569,8 @@ export const i18nReady = (async () => {
   if (i18n.language !== initialLocale) {
     await i18n.changeLanguage(initialLocale);
   }
+  // Sync <html lang> with the resolved locale at startup (#167).
+  document.documentElement.lang = initialLocale;
 })();
 
 /**
@@ -4578,7 +4580,11 @@ export const i18nReady = (async () => {
 export const changeLocale = async (locale: AppLocale) => {
   await i18nReady;
   await ensureLocaleResource(locale);
-  return i18n.changeLanguage(locale);
+  const result = await i18n.changeLanguage(locale);
+  // Keep <html lang> in sync (#167): screen readers, font fallback and
+  // line-breaking heuristics all key off this attribute.
+  document.documentElement.lang = locale;
+  return result;
 };
 
 export default i18n;

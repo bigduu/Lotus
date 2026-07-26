@@ -183,6 +183,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                   type="text"
                   onClick={() => zoomIn()}
                   style={{ fontSize: 12, padding: "2px 6px" }}
+                  aria-label={t("components.mermaid.zoomInAriaLabel", "Zoom in")}
                 >
                   +
                 </Button>
@@ -191,6 +192,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                   type="text"
                   onClick={() => zoomOut()}
                   style={{ fontSize: 12, padding: "2px 6px" }}
+                  aria-label={t("components.mermaid.zoomOutAriaLabel", "Zoom out")}
                 >
                   -
                 </Button>
@@ -199,6 +201,7 @@ const MermaidChartViewer: React.FC<MermaidChartViewerProps> = ({
                   type="text"
                   onClick={() => resetTransform()}
                   style={{ fontSize: 10, padding: "2px 6px" }}
+                  aria-label={t("components.mermaid.resetZoomAriaLabel", "Reset zoom")}
                 >
                   ⌂
                 </Button>

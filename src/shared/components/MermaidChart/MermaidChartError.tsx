@@ -29,6 +29,12 @@ const MermaidChartError: React.FC<MermaidChartErrorProps> = ({
   return (
     <div
       className={className}
+      role="region"
+      aria-label={t("components.mermaid.errorTitlePrefix", "Mermaid render error")}
+      // The error text is clipped to maxHeight with overflow:auto — make the
+      // region keyboard-scrollable instead of hiding the rest behind a
+      // hover-only `title` tooltip (#167).
+      tabIndex={0}
       style={{
         color: token.colorError,
         padding: `${token.paddingXS}px ${token.paddingSM}px`,

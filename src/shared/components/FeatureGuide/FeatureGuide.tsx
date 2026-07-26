@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Tour } from "antd";
 import type { TourProps } from "antd";
 import { useTranslation } from "react-i18next";
@@ -36,18 +36,43 @@ export const FeatureGuide: React.FC<FeatureGuideProps> = ({ disabled = false }) 
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [targets, setTargets] = useState<ResolvedTargets | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (disabled || isOnboardingComplete()) return;
 
     const timer = setTimeout(() => {
-      const resolved = queryTargets();
-      setTargets(resolved);
       setOpen(true);
     }, 800);
 
     return () => clearTimeout(timer);
   }, [disabled]);
+
+  // Re-query targets each time the tour opens — the initial mount timer
+  // fires before the layout settles (sidebar hidden on mobile etc.), so
+  // targets resolved only once at mount can be stale (#167).
+  useEffect(() => {
+    if (!open) return;
+    setTargets(queryTargets());
+
+    // Move focus into the tour panel so keyboard/screen-reader users
+    // notice the overlay; restore it on close.
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+    const raf = requestAnimationFrame(() => {
+      const panel = document.querySelector<HTMLElement>(".ant-tour");
+      const focusable =
+        panel?.querySelector<HTMLElement>(".ant-tour-close") ??
+        panel?.querySelector<HTMLElement>("button, [href], [tabindex]") ??
+        panel;
+      focusable?.focus?.();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [open]);
+
+  useEffect(() => {
+    if (open) return;
+    previousFocusRef.current?.focus?.();
+  }, [open]);
 
   const steps: TourProps["steps"] = useMemo(
     () => [
