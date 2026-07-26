@@ -1,7 +1,9 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsClustersTab from "../SystemSettingsClustersTab";
 import { settingsService, FabricListResponse, FabricNode } from "@services/config/SettingsService";
+import { configSectionsService } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 vi.mock("@services/config/SettingsService", async () => {
   const actual = await vi.importActual("@services/config/SettingsService");
@@ -118,7 +120,26 @@ const keylessKeyNode: FabricNode = {
 describe("SystemSettingsClustersTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useConfigSectionStore.getState().reset();
+    vi.spyOn(configSectionsService, "listCredentials").mockResolvedValue({
+      data: [],
+      revision: 21,
+      status: "healthy",
+      source: "credentials.json",
+      last_error: null,
+    });
+    vi.spyOn(configSectionsService, "getSection").mockResolvedValue({
+      data: {},
+      revision: 8,
+      loaded_at: "2026-07-23T00:00:00.000Z",
+      source_path: "/tmp/cluster-fabric.json",
+      source_kind: "file",
+      status: "healthy",
+      last_error: null,
+    } as never);
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("renders the empty state when no nodes are registered", async () => {
     mockListNodes.mockResolvedValue(emptyList);
@@ -138,7 +159,7 @@ describe("SystemSettingsClustersTab", () => {
 
   it("creates an SSH node from the Add modal", async () => {
     mockListNodes.mockResolvedValue(emptyList);
-    mockCreateNode.mockResolvedValue(sshNode);
+    mockCreateNode.mockResolvedValue({ revision: 22, node: sshNode });
     render(<SystemSettingsClustersTab />);
     await waitFor(() => expect(mockListNodes).toHaveBeenCalled());
 
@@ -159,7 +180,8 @@ describe("SystemSettingsClustersTab", () => {
     fireEvent.click(screen.getByText("Save"));
 
     await waitFor(() => expect(mockCreateNode).toHaveBeenCalled());
-    const req = mockCreateNode.mock.calls[0][0];
+    const [req, revision] = mockCreateNode.mock.calls[0];
+    expect(revision).toBe(21);
     expect(req.label).toBe("gpu-1");
     expect(req.placement.type).toBe("ssh");
     if (req.placement.type === "ssh") {
@@ -168,9 +190,9 @@ describe("SystemSettingsClustersTab", () => {
     }
   });
 
-  it("preserves the stored inline key when editing a key node with fields left blank", async () => {
+  it("omits the stored inline key when editing with the secret left blank", async () => {
     mockListNodes.mockResolvedValue({ nodes: [inlineKeyNode], clusters: [] });
-    mockUpdateNode.mockResolvedValue(inlineKeyNode);
+    mockUpdateNode.mockResolvedValue({ revision: 22, node: inlineKeyNode });
     render(<SystemSettingsClustersTab />);
     await screen.findByText("key-1");
 
@@ -179,19 +201,20 @@ describe("SystemSettingsClustersTab", () => {
     fireEvent.click(screen.getByText("Save"));
 
     await waitFor(() => expect(mockUpdateNode).toHaveBeenCalled());
-    const [id, req] = mockUpdateNode.mock.calls[0];
+    const [id, req, revision] = mockUpdateNode.mock.calls[0];
     expect(id).toBe("n2");
+    expect(revision).toBe(21);
     expect(req.placement.type).toBe("ssh");
     if (req.placement.type === "ssh" && req.placement.auth.method === "private_key") {
-      // Existing masked key preserved; no path invented.
-      expect(req.placement.auth.private_key).toBe(SECRET_MASK);
+      // The credential API preserves an omitted secret; the mask never round-trips.
+      expect(req.placement.auth.private_key).toBeUndefined();
       expect(req.placement.auth.private_key_path).toBeUndefined();
     }
   });
 
   it("does not invent a masked inline key when editing a path-only key node", async () => {
     mockListNodes.mockResolvedValue({ nodes: [pathKeyNode], clusters: [] });
-    mockUpdateNode.mockResolvedValue(pathKeyNode);
+    mockUpdateNode.mockResolvedValue({ revision: 22, node: pathKeyNode });
     render(<SystemSettingsClustersTab />);
     await screen.findByText("path-1");
 
@@ -268,7 +291,7 @@ describe("SystemSettingsClustersTab", () => {
 
   it("persists auto-recover when toggled on", async () => {
     mockListNodes.mockResolvedValue({ nodes: [inlineKeyNode], clusters: [] });
-    mockUpdateNode.mockResolvedValue(inlineKeyNode);
+    mockUpdateNode.mockResolvedValue({ revision: 22, node: inlineKeyNode });
     render(<SystemSettingsClustersTab />);
     await screen.findByText("key-1");
 

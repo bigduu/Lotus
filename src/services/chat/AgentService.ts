@@ -49,6 +49,9 @@ export type AgentEventType =
   | "plan_file_updated"
   | "need_clarification"
   | "notification"
+  | "config.changed"
+  | "config.invalid"
+  | "config.recovered"
   | "execution_started"
   | "runner_progress"
   | "goal_status_changed"
@@ -259,6 +262,9 @@ export interface AgentEvent {
   title_version?: number;
   source?: "auto" | "manual" | "fallback";
   updated_at?: string;
+  // Live versioned configuration events.
+  section?: string;
+  revision?: number;
   // SessionPinnedUpdated event
   pinned?: boolean;
   // MessageAppended / SessionCreated events

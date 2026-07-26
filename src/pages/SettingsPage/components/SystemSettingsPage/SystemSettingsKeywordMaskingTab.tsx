@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   App as AntApp,
   Button,
   Card,
@@ -16,6 +17,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, SaveOutlined } from "@ant-d
 import { ServiceFactory } from "@services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
 import i18n from "@shared/i18n";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -25,6 +27,54 @@ interface KeywordEntry {
   match_type: "exact" | "regex";
   enabled: boolean;
 }
+
+const readKeywordEntries = (keywordMasking: unknown): KeywordEntry[] => {
+  if (Array.isArray(keywordMasking)) return keywordMasking as KeywordEntry[];
+  if (
+    keywordMasking &&
+    typeof keywordMasking === "object" &&
+    Array.isArray((keywordMasking as { entries?: unknown }).entries)
+  ) {
+    return (keywordMasking as { entries: KeywordEntry[] }).entries;
+  }
+  return [];
+};
+
+const entriesEqual = (left: KeywordEntry | undefined, right: KeywordEntry | undefined): boolean =>
+  Boolean(
+    left &&
+      right &&
+      left.pattern === right.pattern &&
+      left.match_type === right.match_type &&
+      left.enabled === right.enabled,
+  );
+
+export const reapplyKeywordEntries = (
+  base: KeywordEntry[],
+  draft: KeywordEntry[],
+  latest: KeywordEntry[],
+): KeywordEntry[] => {
+  const rebased = latest.map((entry) => ({ ...entry }));
+
+  for (let index = base.length - 1; index >= 0; index -= 1) {
+    if (draft[index] !== undefined) continue;
+    const latestIndex = rebased.findIndex((entry) => entriesEqual(entry, base[index]));
+    if (latestIndex >= 0) rebased.splice(latestIndex, 1);
+  }
+
+  for (let index = 0; index < base.length; index += 1) {
+    if (!draft[index] || entriesEqual(base[index], draft[index])) continue;
+    const latestIndex = rebased.findIndex((entry) => entriesEqual(entry, base[index]));
+    const targetIndex = latestIndex >= 0 ? latestIndex : Math.min(index, rebased.length);
+    if (targetIndex < rebased.length) rebased[targetIndex] = { ...draft[index] };
+    else rebased.push({ ...draft[index] });
+  }
+
+  for (const entry of draft.slice(base.length)) {
+    rebased.push({ ...entry });
+  }
+  return rebased;
+};
 
 const keywordExamples = [
   {
@@ -80,7 +130,7 @@ const applyPreviewMasking = (
 
 const SystemSettingsKeywordMaskingTab: React.FC = () => {
   const { t } = useTranslation();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const { token } = useToken();
   const [entries, setEntries] = useState<KeywordEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,26 +140,48 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
   const [editEnabled, setEditEnabled] = useState(true);
   const [exampleValue, setExampleValue] = useState<string | undefined>();
   const [previewText, setPreviewText] = useState("My token is sk-123");
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [externalRevision, setExternalRevision] = useState<number | null>(null);
+  const baseEntriesRef = useRef<KeywordEntry[]>([]);
+  const snapshot = useConfigSectionStore((state) => state.sections["model-policy"]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveSection = useConfigSectionStore((state) => state.saveSection);
 
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const serviceFactory = ServiceFactory.getInstance();
-      const response = await serviceFactory.getKeywordMaskingConfig();
-      // Type assertion to match the frontend enum type
-      setEntries(response.entries as KeywordEntry[]);
+      const envelope = await loadSection("model-policy", { force: true });
+      const nextEntries = readKeywordEntries(envelope.data.keyword_masking);
+      setEntries(nextEntries);
+      baseEntriesRef.current = structuredClone(nextEntries);
+      setBaseRevision(envelope.revision);
+      setExternalRevision(null);
     } catch (error) {
       message.error(t("settings.keywordMaskingTab.loadFailed"));
       console.error(error);
     } finally {
       setLoading(false);
     }
-  }, [message, t]);
+  }, [loadSection, message, t]);
 
   // Load keyword masking config on mount
   useEffect(() => {
     void loadConfig();
   }, [loadConfig]);
+
+  useEffect(() => {
+    const envelope = snapshot.envelope;
+    if (!envelope || baseRevision === null || envelope.revision === baseRevision) return;
+    const latest = readKeywordEntries(envelope.data.keyword_masking);
+    if (editingIndex !== null) {
+      setExternalRevision(envelope.revision);
+      return;
+    }
+    setEntries(latest);
+    baseEntriesRef.current = structuredClone(latest);
+    setBaseRevision(envelope.revision);
+    setExternalRevision(null);
+  }, [baseRevision, editingIndex, snapshot.envelope]);
 
   const saveConfig = async (newEntries: KeywordEntry[]) => {
     try {
@@ -128,9 +200,20 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       }
 
       // Save if validation passes
-      const response = await serviceFactory.updateKeywordMaskingConfig(newEntries);
-      // Type assertion to match the frontend enum type
-      setEntries(response.entries as KeywordEntry[]);
+      if (baseRevision === null) throw new Error("Model policy is not loaded.");
+      const saved = await saveSection(
+        "model-policy",
+        {
+          ...(snapshot.envelope?.data ?? {}),
+          keyword_masking: { entries: newEntries },
+        },
+        baseRevision,
+      );
+      const savedEntries = readKeywordEntries(saved.data.keyword_masking);
+      setEntries(savedEntries);
+      baseEntriesRef.current = structuredClone(savedEntries);
+      setBaseRevision(saved.revision);
+      setExternalRevision(null);
       message.success(t("settings.keywordMaskingTab.saveSuccess"));
       return true;
     } catch (error) {
@@ -207,6 +290,61 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     await saveConfig(newEntries);
   };
 
+  const currentDraftEntries = (): KeywordEntry[] => {
+    if (editingIndex === null) return entries;
+    const draft = [...entries];
+    draft[editingIndex] = {
+      pattern: editPattern,
+      match_type: editMatchType,
+      enabled: editEnabled,
+    };
+    return draft;
+  };
+
+  const reapplyExternalChanges = () => {
+    const envelope = snapshot.envelope;
+    if (!envelope || externalRevision === null) return;
+    const latest = readKeywordEntries(envelope.data.keyword_masking);
+    const currentDraft = currentDraftEntries();
+    const rebased = reapplyKeywordEntries(baseEntriesRef.current, currentDraft, latest);
+    const editedEntry = editingIndex === null ? null : currentDraft[editingIndex];
+    setEntries(rebased);
+    if (editedEntry) {
+      const nextIndex = rebased.findIndex(
+        (entry) =>
+          entry.pattern === editedEntry.pattern &&
+          entry.match_type === editedEntry.match_type &&
+          entry.enabled === editedEntry.enabled,
+      );
+      setEditingIndex(nextIndex >= 0 ? nextIndex : null);
+    }
+    baseEntriesRef.current = structuredClone(latest);
+    setBaseRevision(envelope.revision);
+    setExternalRevision(null);
+  };
+
+  const compareExternalChanges = () => {
+    const envelope = snapshot.envelope;
+    if (!envelope) return;
+    modal.info({
+      title: t("settings.keywordMaskingTab.externalCompareTitle", "Compare keyword revisions"),
+      width: 760,
+      content: (
+        <pre style={{ maxHeight: 460, overflow: "auto", whiteSpace: "pre-wrap" }}>
+          {JSON.stringify(
+            {
+              base: baseEntriesRef.current,
+              draft: currentDraftEntries(),
+              latest: readKeywordEntries(envelope.data.keyword_masking),
+            },
+            null,
+            2,
+          )}
+        </pre>
+      ),
+    });
+  };
+
   const preview = applyPreviewMasking(previewText, editPattern, editMatchType);
 
   return (
@@ -227,6 +365,34 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     >
       <Space direction="vertical" style={{ width: "100%" }} size="large">
         <Text type="secondary">{t("settings.keywordMaskingTab.description")}</Text>
+
+        {externalRevision !== null ? (
+          <Alert
+            type="warning"
+            showIcon
+            message={t(
+              "settings.keywordMaskingTab.externalChange",
+              "Keyword masking changed on disk",
+            )}
+            description={t(
+              "settings.keywordMaskingTab.externalChangeDescription",
+              "Your unsaved edit was kept. Reload to discard it, compare revisions, or reapply it on the latest snapshot.",
+            )}
+            action={
+              <Flex gap={8} wrap="wrap">
+                <Button size="small" onClick={() => void loadConfig()}>
+                  {t("settings.keywordMaskingTab.reload", "Reload")}
+                </Button>
+                <Button size="small" onClick={compareExternalChanges}>
+                  {t("settings.keywordMaskingTab.compare", "Compare")}
+                </Button>
+                <Button size="small" type="primary" onClick={reapplyExternalChanges}>
+                  {t("settings.keywordMaskingTab.reapply", "Reapply")}
+                </Button>
+              </Flex>
+            }
+          />
+        ) : null}
 
         <List
           loading={loading}

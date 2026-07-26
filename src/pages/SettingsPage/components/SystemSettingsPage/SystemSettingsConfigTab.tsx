@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Card,
   Space,
@@ -13,6 +13,7 @@ import {
   Spin,
   Switch,
   Tabs,
+  Modal,
 } from "antd";
 import { useTranslation } from "react-i18next";
 import { NetworkSettingsCard } from "./NetworkSettingsCard";
@@ -25,8 +26,11 @@ import type {
   BambooSubagentsConfig,
 } from "@services/common/ServiceFactory";
 import type { AppLocale } from "@shared/i18n/types";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import type { ToolsSkillsSection } from "@services/config/configSections";
+import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
 
-interface ConfigFormState extends BambooConfig {
+interface ConfigFormState {
   http_proxy: string;
   https_proxy: string;
   memory: {
@@ -54,14 +58,55 @@ const normalizeToolNames = (names: string[]): string[] =>
   [...new Set(names.map((name) => name.trim()).filter((name) => name.length > 0))].sort();
 
 const readDisabledTools = (
-  bambooConfig: Awaited<ReturnType<typeof serviceFactory.getBambooConfig>>,
+  section: ToolsSkillsSection,
 ): string[] => {
-  const rawDisabled = bambooConfig.tools?.disabled;
+  const rawDisabled = section.tools?.disabled;
   if (!Array.isArray(rawDisabled)) {
     return [];
   }
 
   return normalizeToolNames(rawDisabled.filter((name): name is string => typeof name === "string"));
+};
+
+const normalizeSubagentsForm = (subagents: BambooSubagentsConfig): BambooSubagentsConfig => ({
+  max_concurrent: subagents.max_concurrent,
+  executor: subagents.executor,
+  claude_code_binary: subagents.claude_code_binary,
+  claude_code_model: subagents.claude_code_model,
+  claude_code_permission_mode: subagents.claude_code_permission_mode,
+  claude_code_inherit_user_config: subagents.claude_code_inherit_user_config ?? false,
+  claude_code_forward_env: normalizeToolNames(subagents.claude_code_forward_env ?? []),
+  codex_binary: subagents.codex_binary,
+  codex_model: subagents.codex_model,
+  codex_mode: subagents.codex_mode ?? "exec",
+  codex_auth_mode: subagents.codex_auth_mode ?? "bamboo",
+  codex_base_url: subagents.codex_base_url,
+  codex_wire_api: subagents.codex_wire_api,
+  codex_provider_key_ref: subagents.codex_provider_key_ref,
+  codex_forward_env: normalizeToolNames(subagents.codex_forward_env ?? []),
+  codex_sandbox: subagents.codex_sandbox,
+  codex_approval_policy: subagents.codex_approval_policy,
+  codex_network_access: subagents.codex_network_access ?? false,
+  codex_allow_danger_bypass: subagents.codex_allow_danger_bypass ?? false,
+});
+
+interface ConfigBaseDrafts {
+  core: Pick<ConfigFormState, "http_proxy" | "https_proxy">;
+  memory: ConfigFormState["memory"];
+  subagents: BambooSubagentsConfig;
+  toolsDisabled: string[];
+}
+
+const reapplyDisabledTools = (base: string[], draft: string[], latest: string[]): string[] => {
+  const baseSet = new Set(base);
+  const draftSet = new Set(draft);
+  const result = new Set(latest);
+  for (const tool of new Set([...base, ...draft])) {
+    if (baseSet.has(tool) === draftSet.has(tool)) continue;
+    if (draftSet.has(tool)) result.add(tool);
+    else result.delete(tool);
+  }
+  return normalizeToolNames([...result]);
 };
 
 interface SystemSettingsConfigTabProps {
@@ -97,73 +142,147 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   const [subagentValidationIssues, setSubagentValidationIssues] = useState<
     BambooConfigValidationIssue[]
   >([]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveSection = useConfigSectionStore((state) => state.saveSection);
+  const coreSnapshot = useConfigSectionStore((state) => state.sections.core);
+  const memorySnapshot = useConfigSectionStore((state) => state.sections.memory);
+  const subagentsSnapshot = useConfigSectionStore((state) => state.sections.subagents);
+  const toolsSnapshot = useConfigSectionStore((state) => state.sections["tools-skills"]);
+  const [baseRevisions, setBaseRevisions] = useState<
+    Partial<Record<"core" | "memory" | "subagents" | "tools-skills", number>>
+  >({});
+  const [dirtySections, setDirtySections] = useState<
+    Partial<Record<"core" | "memory" | "subagents" | "tools-skills", boolean>>
+  >({});
+  const baseDraftsRef = useRef<ConfigBaseDrafts | null>(null);
 
   // Load config
   const loadConfig = useCallback(async () => {
     setIsLoading(true);
     try {
-      const [bambooConfig, toolsResponse] = await Promise.all([
-        serviceFactory.getBambooConfig(),
+      const [core, memory, subagents, toolsSkills, toolsResponse] = await Promise.all([
+        loadSection("core", { force: true }),
+        loadSection("memory", { force: true }),
+        loadSection("subagents", { force: true }),
+        loadSection("tools-skills", { force: true }),
         serviceFactory.getBambooTools(),
       ]);
-      setConfig({
-        http_proxy: bambooConfig.http_proxy || "",
-        https_proxy: bambooConfig.https_proxy || "",
+      const nextConfig: ConfigFormState = {
+        http_proxy: core.data.http_proxy || "",
+        https_proxy: core.data.https_proxy || "",
         memory: {
-          auto_dream_enabled: bambooConfig.memory?.auto_dream_enabled ?? false,
+          auto_dream_enabled: memory.data?.auto_dream_enabled ?? false,
         },
-        subagents: {
-          max_concurrent: bambooConfig.subagents?.max_concurrent,
-          executor: bambooConfig.subagents?.executor,
-          claude_code_binary: bambooConfig.subagents?.claude_code_binary,
-          claude_code_model: bambooConfig.subagents?.claude_code_model,
-          claude_code_permission_mode: bambooConfig.subagents?.claude_code_permission_mode,
-          claude_code_inherit_user_config:
-            bambooConfig.subagents?.claude_code_inherit_user_config ?? false,
-          claude_code_forward_env: normalizeToolNames(
-            bambooConfig.subagents?.claude_code_forward_env ?? [],
-          ),
-          codex_binary: bambooConfig.subagents?.codex_binary,
-          codex_model: bambooConfig.subagents?.codex_model,
-          codex_mode: bambooConfig.subagents?.codex_mode ?? "exec",
-          codex_auth_mode: bambooConfig.subagents?.codex_auth_mode ?? "bamboo",
-          codex_base_url: bambooConfig.subagents?.codex_base_url,
-          codex_wire_api: bambooConfig.subagents?.codex_wire_api,
-          codex_provider_key_ref: bambooConfig.subagents?.codex_provider_key_ref,
-          codex_forward_env: normalizeToolNames(bambooConfig.subagents?.codex_forward_env ?? []),
-          codex_sandbox: bambooConfig.subagents?.codex_sandbox,
-          codex_approval_policy: bambooConfig.subagents?.codex_approval_policy,
-          codex_network_access: bambooConfig.subagents?.codex_network_access ?? false,
-          codex_allow_danger_bypass: bambooConfig.subagents?.codex_allow_danger_bypass ?? false,
-        },
-      });
+        subagents: normalizeSubagentsForm(subagents.data),
+      };
+      setConfig(nextConfig);
       setSubagentValidationIssues([]);
-      const nextDisabled = readDisabledTools(bambooConfig);
+      const nextDisabled = readDisabledTools(toolsSkills.data);
       setDisabledTools(nextDisabled);
       setSavedDisabledTools(nextDisabled);
       setAvailableTools(normalizeToolNames(toolsResponse.tools || []));
+      baseDraftsRef.current = {
+        core: {
+          http_proxy: nextConfig.http_proxy,
+          https_proxy: nextConfig.https_proxy,
+        },
+        memory: structuredClone(nextConfig.memory),
+        subagents: structuredClone(nextConfig.subagents),
+        toolsDisabled: [...nextDisabled],
+      };
+      setBaseRevisions({
+        core: core.revision,
+        memory: memory.revision,
+        subagents: subagents.revision,
+        "tools-skills": toolsSkills.revision,
+      });
+      setDirtySections({});
     } catch (error) {
       console.error("Failed to load config:", error);
       msgApi.error(t("settings.configTab.loadConfigFailed"));
     } finally {
       setIsLoading(false);
     }
-  }, [msgApi, t]);
+  }, [loadSection, msgApi, t]);
 
   useEffect(() => {
     loadConfig();
   }, [loadConfig]);
 
+  useEffect(() => {
+    const envelope = coreSnapshot.envelope;
+    if (!envelope || envelope.revision === baseRevisions.core || dirtySections.core) return;
+    setConfig((current) => ({
+      ...current,
+      http_proxy: envelope.data.http_proxy ?? "",
+      https_proxy: envelope.data.https_proxy ?? "",
+    }));
+    if (baseDraftsRef.current) {
+      baseDraftsRef.current.core = {
+        http_proxy: envelope.data.http_proxy ?? "",
+        https_proxy: envelope.data.https_proxy ?? "",
+      };
+    }
+    setBaseRevisions((current) => ({ ...current, core: envelope.revision }));
+  }, [baseRevisions.core, coreSnapshot.envelope, dirtySections.core]);
+
+  useEffect(() => {
+    const envelope = memorySnapshot.envelope;
+    if (!envelope || envelope.revision === baseRevisions.memory || dirtySections.memory) return;
+    setConfig((current) => ({
+      ...current,
+      memory: { auto_dream_enabled: envelope.data?.auto_dream_enabled ?? false },
+    }));
+    if (baseDraftsRef.current) {
+      baseDraftsRef.current.memory = {
+        auto_dream_enabled: envelope.data?.auto_dream_enabled ?? false,
+      };
+    }
+    setBaseRevisions((current) => ({ ...current, memory: envelope.revision }));
+  }, [baseRevisions.memory, dirtySections.memory, memorySnapshot.envelope]);
+
+  useEffect(() => {
+    const envelope = subagentsSnapshot.envelope;
+    if (!envelope || envelope.revision === baseRevisions.subagents || dirtySections.subagents) return;
+    const nextSubagents = normalizeSubagentsForm(envelope.data);
+    setConfig((current) => ({ ...current, subagents: nextSubagents }));
+    if (baseDraftsRef.current) {
+      baseDraftsRef.current.subagents = structuredClone(nextSubagents);
+    }
+    setBaseRevisions((current) => ({ ...current, subagents: envelope.revision }));
+  }, [baseRevisions.subagents, dirtySections.subagents, subagentsSnapshot.envelope]);
+
+  useEffect(() => {
+    const envelope = toolsSnapshot.envelope;
+    if (
+      !envelope ||
+      envelope.revision === baseRevisions["tools-skills"] ||
+      dirtySections["tools-skills"]
+    ) {
+      return;
+    }
+    const nextDisabled = readDisabledTools(envelope.data);
+    setDisabledTools(nextDisabled);
+    setSavedDisabledTools(nextDisabled);
+    if (baseDraftsRef.current) {
+      baseDraftsRef.current.toolsDisabled = [...nextDisabled];
+    }
+    setBaseRevisions((current) => ({ ...current, "tools-skills": envelope.revision }));
+  }, [baseRevisions, dirtySections, toolsSnapshot.envelope]);
+
   // Handlers
   const handleHttpProxyChange = (value: string) => {
+    setDirtySections((current) => ({ ...current, core: true }));
     setConfig((prev) => ({ ...prev, http_proxy: value }));
   };
 
   const handleHttpsProxyChange = (value: string) => {
+    setDirtySections((current) => ({ ...current, core: true }));
     setConfig((prev) => ({ ...prev, https_proxy: value }));
   };
 
   const handleAutoDreamToggle = (checked: boolean) => {
+    setDirtySections((current) => ({ ...current, memory: true }));
     setConfig((prev) => ({
       ...prev,
       memory: {
@@ -174,6 +293,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleSubagentMaxConcurrentChange = (value: number | null) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setConfig((prev) => ({
       ...prev,
       subagents: {
@@ -184,6 +304,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleSubagentExecutorChange = (value: string) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setSubagentValidationIssues([]);
     setConfig((prev) => ({
       ...prev,
@@ -202,6 +323,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleCodexSettingsChange = (patch: Partial<BambooSubagentsConfig>) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setSubagentValidationIssues([]);
     setConfig((prev) => ({
       ...prev,
@@ -213,6 +335,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleClaudeCodeBinaryChange = (value: string) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setConfig((prev) => ({
       ...prev,
       subagents: {
@@ -223,6 +346,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleClaudeCodeModelChange = (value: string) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setConfig((prev) => ({
       ...prev,
       subagents: {
@@ -233,6 +357,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleClaudeCodePermissionModeChange = (value: string) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setConfig((prev) => ({
       ...prev,
       subagents: {
@@ -243,6 +368,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleClaudeCodeInheritUserConfigToggle = (checked: boolean) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setConfig((prev) => ({
       ...prev,
       subagents: {
@@ -253,6 +379,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleClaudeCodeForwardEnvChange = (values: string[]) => {
+    setDirtySections((current) => ({ ...current, subagents: true }));
     setConfig((prev) => ({
       ...prev,
       subagents: {
@@ -266,6 +393,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     setIsLoading(true);
     try {
       let patch: BambooConfig;
+      let savedRevision: number;
       if (section === "network") {
         patch = {
           http_proxy: config.http_proxy,
@@ -351,7 +479,64 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         return;
       }
 
-      await serviceFactory.setBambooConfig(patch);
+      if (section === "network") {
+        const baseRevision = baseRevisions.core;
+        if (baseRevision === undefined) throw new Error("Core configuration is not loaded.");
+        const saved = await saveSection(
+          "core",
+          {
+            ...(coreSnapshot.envelope?.data ?? {}),
+            http_proxy: config.http_proxy,
+            https_proxy: config.https_proxy,
+          },
+          baseRevision,
+        );
+        savedRevision = saved.revision;
+        if (baseDraftsRef.current) {
+          baseDraftsRef.current.core = {
+            http_proxy: saved.data.http_proxy ?? "",
+            https_proxy: saved.data.https_proxy ?? "",
+          };
+        }
+        setBaseRevisions((current) => ({ ...current, core: savedRevision }));
+        setDirtySections((current) => ({ ...current, core: false }));
+      } else if (section === "memory") {
+        const baseRevision = baseRevisions.memory;
+        if (baseRevision === undefined) throw new Error("Memory configuration is not loaded.");
+        const saved = await saveSection(
+          "memory",
+          {
+            ...(memorySnapshot.envelope?.data ?? {}),
+            auto_dream_enabled: config.memory.auto_dream_enabled,
+          },
+          baseRevision,
+        );
+        savedRevision = saved.revision;
+        if (baseDraftsRef.current) {
+          baseDraftsRef.current.memory = {
+            auto_dream_enabled: saved.data?.auto_dream_enabled ?? false,
+          };
+        }
+        setBaseRevisions((current) => ({ ...current, memory: savedRevision }));
+        setDirtySections((current) => ({ ...current, memory: false }));
+      } else {
+        const baseRevision = baseRevisions.subagents;
+        if (baseRevision === undefined) throw new Error("Sub-agent configuration is not loaded.");
+        const saved = await saveSection(
+          "subagents",
+          {
+            ...(subagentsSnapshot.envelope?.data ?? {}),
+            ...(patch.subagents ?? {}),
+          },
+          baseRevision,
+        );
+        savedRevision = saved.revision;
+        if (baseDraftsRef.current) {
+          baseDraftsRef.current.subagents = normalizeSubagentsForm(saved.data);
+        }
+        setBaseRevisions((current) => ({ ...current, subagents: savedRevision }));
+        setDirtySections((current) => ({ ...current, subagents: false }));
+      }
       if (section === "subagents") {
         setSubagentValidationIssues([]);
       }
@@ -378,6 +563,7 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const handleToolEnabledChange = (toolName: string, enabled: boolean) => {
+    setDirtySections((current) => ({ ...current, "tools-skills": true }));
     setDisabledTools((previous) => {
       const next = new Set(previous);
       if (enabled) {
@@ -407,11 +593,24 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     setIsToolsBusy(true);
     try {
       const nextDisabled = normalizeToolNames(disabledTools);
-      await serviceFactory.setBambooConfig({
-        tools: {
-          disabled: nextDisabled,
+      const baseRevision = baseRevisions["tools-skills"];
+      if (baseRevision === undefined) throw new Error("Tools configuration is not loaded.");
+      const saved = await saveSection(
+        "tools-skills",
+        {
+          ...(toolsSnapshot.envelope?.data ?? {}),
+          tools: {
+            ...(toolsSnapshot.envelope?.data.tools ?? {}),
+            disabled: nextDisabled,
+          },
         },
-      });
+        baseRevision,
+      );
+      if (baseDraftsRef.current) {
+        baseDraftsRef.current.toolsDisabled = readDisabledTools(saved.data);
+      }
+      setBaseRevisions((current) => ({ ...current, "tools-skills": saved.revision }));
+      setDirtySections((current) => ({ ...current, "tools-skills": false }));
       setDisabledTools(nextDisabled);
       setSavedDisabledTools(nextDisabled);
       msgApi.success(t("settings.configTab.toolsSaveSuccess"));
@@ -425,10 +624,126 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
 
   const hasToolChanges = JSON.stringify(disabledTools) !== JSON.stringify(savedDisabledTools);
   const disabledToolSet = new Set(disabledTools);
+  const externalSections = [
+    ["core", coreSnapshot.envelope?.revision, baseRevisions.core, dirtySections.core],
+    ["memory", memorySnapshot.envelope?.revision, baseRevisions.memory, dirtySections.memory],
+    [
+      "subagents",
+      subagentsSnapshot.envelope?.revision,
+      baseRevisions.subagents,
+      dirtySections.subagents,
+    ],
+    [
+      "tools-skills",
+      toolsSnapshot.envelope?.revision,
+      baseRevisions["tools-skills"],
+      dirtySections["tools-skills"],
+    ],
+  ].filter((entry) => entry[3] && entry[1] !== undefined && entry[1] !== entry[2]) as Array<
+    [string, number, number | undefined, boolean]
+  >;
+
+  const reapplyExternalDrafts = () => {
+    const baseDrafts = baseDraftsRef.current;
+    if (!baseDrafts) return;
+    const externalNames = new Set(externalSections.map(([section]) => section));
+    let nextConfig = config;
+    const nextBaseDrafts = structuredClone(baseDrafts);
+
+    if (externalNames.has("core") && coreSnapshot.envelope) {
+      const latest = {
+        http_proxy: coreSnapshot.envelope.data.http_proxy ?? "",
+        https_proxy: coreSnapshot.envelope.data.https_proxy ?? "",
+      };
+      const rebased = reapplyConfigChanges(
+        baseDrafts.core,
+        { http_proxy: config.http_proxy, https_proxy: config.https_proxy },
+        latest,
+      );
+      nextConfig = { ...nextConfig, ...rebased };
+      nextBaseDrafts.core = latest;
+    }
+    if (externalNames.has("memory") && memorySnapshot.envelope) {
+      const latest = {
+        auto_dream_enabled: memorySnapshot.envelope.data?.auto_dream_enabled ?? false,
+      };
+      const rebased = reapplyConfigChanges(baseDrafts.memory, config.memory, latest);
+      nextConfig = { ...nextConfig, memory: rebased };
+      nextBaseDrafts.memory = latest;
+    }
+    if (externalNames.has("subagents") && subagentsSnapshot.envelope) {
+      const latest = normalizeSubagentsForm(subagentsSnapshot.envelope.data);
+      const rebased = reapplyConfigChanges(
+        baseDrafts.subagents,
+        config.subagents,
+        latest,
+      );
+      nextConfig = { ...nextConfig, subagents: rebased };
+      nextBaseDrafts.subagents = structuredClone(latest);
+    }
+    if (externalNames.has("tools-skills") && toolsSnapshot.envelope) {
+      const latest = readDisabledTools(toolsSnapshot.envelope.data);
+      const rebased = reapplyDisabledTools(
+        baseDrafts.toolsDisabled,
+        disabledTools,
+        latest,
+      );
+      setDisabledTools(rebased);
+      nextBaseDrafts.toolsDisabled = [...latest];
+    }
+
+    setConfig(nextConfig);
+    baseDraftsRef.current = nextBaseDrafts;
+    setBaseRevisions((current) => {
+      const next = { ...current };
+      for (const [section, revision] of externalSections) {
+        next[section as keyof typeof next] = revision;
+      }
+      return next;
+    });
+  };
+
+  const compareExternalDrafts = () => {
+    Modal.info({
+      title: "Configuration changed on disk",
+      content: (
+        <Space direction="vertical">
+          {externalSections.map(([section, latest, base]) => (
+            <Text key={section}>
+              {section}: draft based on r{base ?? "?"}, latest is r{latest}
+            </Text>
+          ))}
+        </Space>
+      ),
+    });
+  };
 
   return (
     <Spin spinning={isLoading} tip={t("settings.common.loading")}>
-      <Tabs
+      <div>
+        {externalSections.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: token.marginMD }}
+            message="Configuration changed on disk"
+            description="Your unsaved edits were kept. Reload to discard them, compare revisions, or reapply them on the latest snapshot before saving."
+            action={
+              <Space>
+                <Button size="small" onClick={compareExternalDrafts}>
+                  Compare
+                </Button>
+                <Button size="small" onClick={() => void loadConfig()}>
+                  Reload
+                </Button>
+                <Button size="small" type="primary" onClick={reapplyExternalDrafts}>
+                  Reapply
+                </Button>
+              </Space>
+            }
+          />
+        )}
+        <Tabs
         items={[
           {
             key: "general",
@@ -851,7 +1166,8 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
             ),
           },
         ]}
-      />
+        />
+      </div>
     </Spin>
   );
 };

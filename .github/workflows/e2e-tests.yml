@@ -20,9 +20,6 @@ on:
 
 jobs:
   test-browser-mode:
-    # E2E currently depends on external/backend runtime behavior and is flaky.
-    # Keep running for visibility, but do not fail the whole repository checks.
-    continue-on-error: true
     runs-on: ubuntu-latest
     env:
       NPM_CONFIG_AUDIT: "false"
@@ -114,6 +111,7 @@ jobs:
         env:
           E2E_BASE_URL: http://127.0.0.1:1420
           E2E_API_URL: http://127.0.0.1:9562
+          E2E_DATA_DIR: /tmp/test-data
           E2E_SUITE: browser
 
       - name: Upload Playwright report

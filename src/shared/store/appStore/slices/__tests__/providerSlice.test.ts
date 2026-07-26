@@ -1,13 +1,19 @@
 import { act } from "@testing-library/react";
 import { useProviderStore } from "../providerSlice";
-import { settingsService } from "@services/config/SettingsService";
 import type { ProviderConfig } from "@shared/types/providerConfig";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
+import type {
+  ConfigSectionEnvelope,
+  ProviderSection,
+} from "@services/config/configSections";
 
-vi.mock("@services/config/SettingsService", () => ({
-  settingsService: {
-    getProviderConfig: vi.fn(),
-    getProviderInstances: vi.fn(),
+const { loadSectionMock } = vi.hoisted(() => ({
+  loadSectionMock: vi.fn(),
+}));
+
+vi.mock("@shared/store/configSectionStore", () => ({
+  useConfigSectionStore: {
+    getState: () => ({ loadSection: loadSectionMock }),
   },
 }));
 
@@ -20,6 +26,29 @@ const defaults = (
 ): NonNullable<ProviderConfig["defaults"]> => ({
   chat: modelRef(provider, model),
   ...extra,
+});
+
+const providerEnvelope = (
+  data: Partial<ProviderSection> = {},
+  revision = 1,
+): ConfigSectionEnvelope<ProviderSection> => ({
+  data: {
+    provider: "copilot",
+    providers: {},
+    defaults: null,
+    features: {},
+    provider_instances: {},
+    default_provider_instance_id: null,
+    available_providers: ["copilot", "openai", "anthropic", "gemini", "bodhi"],
+    credential_status: { providers: {}, provider_instances: {} },
+    ...data,
+  },
+  revision,
+  loaded_at: "2026-07-24T00:00:00Z",
+  source_path: "/tmp/providers.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
 });
 
 describe("providerSlice", () => {
@@ -69,33 +98,42 @@ describe("providerSlice", () => {
         defaults: defaults("anthropic", "claude-3"),
         providers: {
           anthropic: {
-            api_key: "test-key",
+            api_key: "",
           },
         },
       };
-      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(mockConfig);
+      loadSectionMock.mockResolvedValueOnce(
+        providerEnvelope({
+          provider: mockConfig.provider,
+          defaults: mockConfig.defaults ?? null,
+          providers: {
+            anthropic: { model: "claude-3" },
+          },
+        }),
+      );
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
       });
 
       const state = useProviderStore.getState();
-      expect(state.providerConfig).toEqual(mockConfig);
+      expect(state.providerConfig).toEqual({
+        ...mockConfig,
+        providers: { anthropic: { model: "claude-3" } },
+        features: {},
+      });
       expect(state.currentProvider).toBe("anthropic");
       expect(state.isLoading).toBe(false);
       expect(state.error).toBeNull();
     });
 
     it("should set loading state while loading", async () => {
-      vi.mocked(settingsService.getProviderConfig).mockImplementationOnce(
+      loadSectionMock.mockImplementationOnce(
         () =>
           new Promise((resolve) =>
             setTimeout(
               () =>
-                resolve({
-                  provider: "copilot",
-                  providers: {},
-                }),
+                resolve(providerEnvelope()),
               100,
             ),
           ),
@@ -110,7 +148,7 @@ describe("providerSlice", () => {
 
     it("should handle load errors", async () => {
       const error = new Error("Network error");
-      vi.mocked(settingsService.getProviderConfig).mockRejectedValueOnce(error);
+      loadSectionMock.mockRejectedValueOnce(error);
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -123,7 +161,7 @@ describe("providerSlice", () => {
     });
 
     it("should handle non-Error errors", async () => {
-      vi.mocked(settingsService.getProviderConfig).mockRejectedValueOnce("string error");
+      loadSectionMock.mockRejectedValueOnce("string error");
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -146,7 +184,13 @@ describe("providerSlice", () => {
           },
         },
       };
-      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(mockConfig);
+      loadSectionMock.mockResolvedValueOnce(
+        providerEnvelope({
+          provider: mockConfig.provider,
+          defaults: mockConfig.defaults ?? null,
+          providers: { openai: {} },
+        }),
+      );
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -165,7 +209,13 @@ describe("providerSlice", () => {
           },
         },
       };
-      vi.mocked(settingsService.getProviderConfig).mockResolvedValueOnce(mockConfig);
+      loadSectionMock.mockResolvedValueOnce(
+        providerEnvelope({
+          provider: mockConfig.provider,
+          defaults: mockConfig.defaults ?? null,
+          providers: { openai: {} },
+        }),
+      );
 
       await act(async () => {
         await useProviderStore.getState().loadProviderConfig();
@@ -445,7 +495,24 @@ describe("providerSlice", () => {
           chat: { provider: "inst-openai-1", model: "gpt-4o" },
         },
       };
-      vi.mocked(settingsService.getProviderInstances).mockResolvedValueOnce(mockResponse);
+      loadSectionMock.mockResolvedValueOnce(
+        providerEnvelope({
+          defaults: mockResponse.defaults,
+          provider_instances: {
+            "inst-openai-1": {
+              provider_type: "openai",
+              label: "My OpenAI",
+              enabled: true,
+            },
+            "inst-anthropic-1": {
+              provider_type: "anthropic",
+              label: "My Anthropic",
+              enabled: true,
+            },
+          },
+          default_provider_instance_id: "inst-openai-1",
+        }),
+      );
 
       await act(async () => {
         await useProviderStore.getState().loadProviderInstances();
@@ -453,11 +520,14 @@ describe("providerSlice", () => {
 
       const state = useProviderStore.getState();
       expect(state.providerInstances).toHaveLength(2);
-      expect(state.providerInstances[0].id).toBe("inst-openai-1");
+      expect(state.providerInstances.map((instance) => instance.id)).toEqual(
+        expect.arrayContaining(["inst-openai-1", "inst-anthropic-1"]),
+      );
       expect(state.defaultProviderInstanceId).toBe("inst-openai-1");
       expect(state.currentProvider).toBe("inst-openai-1");
       expect(state.isInstancesLoaded).toBe(true);
       expect(state.isLoading).toBe(false);
+      expect(JSON.stringify(state.providerInstances)).not.toContain("sk-");
     });
 
     it("should build legacy-compatible providerConfig from instances", async () => {
@@ -476,7 +546,20 @@ describe("providerSlice", () => {
           chat: { provider: "inst-1", model: "gpt-4o" },
         },
       };
-      vi.mocked(settingsService.getProviderInstances).mockResolvedValueOnce(mockResponse);
+      loadSectionMock.mockResolvedValueOnce(
+        providerEnvelope({
+          defaults: mockResponse.defaults,
+          provider_instances: {
+            "inst-1": {
+              provider_type: "openai",
+              label: "Test",
+              enabled: true,
+              base_url: "https://example.com",
+            },
+          },
+          default_provider_instance_id: "inst-1",
+        }),
+      );
 
       await act(async () => {
         await useProviderStore.getState().loadProviderInstances();
@@ -490,7 +573,7 @@ describe("providerSlice", () => {
 
     it("should handle load errors gracefully", async () => {
       const error = new Error("Instance API not available");
-      vi.mocked(settingsService.getProviderInstances).mockRejectedValueOnce(error);
+      loadSectionMock.mockRejectedValueOnce(error);
 
       await act(async () => {
         await useProviderStore.getState().loadProviderInstances();
@@ -503,9 +586,7 @@ describe("providerSlice", () => {
     });
 
     it("should handle empty instances list", async () => {
-      vi.mocked(settingsService.getProviderInstances).mockResolvedValueOnce({
-        instances: [],
-      });
+      loadSectionMock.mockResolvedValueOnce(providerEnvelope());
 
       await act(async () => {
         await useProviderStore.getState().loadProviderInstances();

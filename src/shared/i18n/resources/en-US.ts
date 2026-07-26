@@ -903,6 +903,8 @@ export const enUsTranslation = {
         localStorageCleared: "Local storage has been cleared",
         resetSuccessReloading: "Application reset successful. Reloading...",
         resetFailed: "Failed to reset application",
+        resetConfigPartialFailure:
+          "{{count}} configuration sections could not be reset. Review the per-section results.",
         promptEnhancementSaved: "System prompt enhancement saved",
       },
       notificationsTab: {
@@ -1187,7 +1189,9 @@ export const enUsTranslation = {
         resetApplicationIntro: "Are you sure? This will:",
         resetStepDeleteAllSessions: "Delete ALL sessions (including pinned)",
         resetStepClearStorage: "Clear all local storage data",
-        resetStepResetConfig: "Reset config.json to default",
+        resetStepResetConfig:
+          "Reset these typed configuration sections and their owned credentials:",
+        resetSectionResults: "Configuration reset progress",
         resetStepSetupFlow: "Trigger the initial setup flow on next launch",
         resetStepReplayGuide: "Replay feature guide",
         resetStepReload: "Reload the application",
@@ -1424,6 +1428,7 @@ export const enUsTranslation = {
         httpsProxy: "HTTPS Proxy",
         proxyPlaceholder: "http://proxy.example.com:8080",
         proxyAuthTitle: "Proxy Authentication",
+        proxyConfigured: "Proxy credentials are configured",
         proxyConfiguredForUser: "Configured for user: {{username}}",
         clearCredentials: "Clear Credentials",
         username: "Username",
@@ -2125,6 +2130,20 @@ export const enUsTranslation = {
         saveConfigSuccess: "Configuration saved successfully",
         saveConfigFailed: "Failed to save configuration",
         saveConfigErrorPrefix: "Failed to save configuration",
+        credentialCleared: "Credential cleared",
+        credentialClearFailed: "Failed to clear credential",
+        confirmClearCredential:
+          "Clear this credential? The provider will no longer be able to authenticate with it.",
+        clear: "Clear",
+        clearCredential: "Clear credential",
+        compareChanges: "Compare changes",
+        compareRevision: "Loaded revision {{loaded}}; latest revision is {{latest}}.",
+        externalRevisionTitle: "Provider settings changed externally",
+        externalRevisionDescription:
+          "A newer provider configuration is available. Reload it or explicitly reapply your local draft before saving.",
+        reloadLatest: "Reload latest",
+        draftReapplied: "Local draft reapplied to the latest revision",
+        reapplyDraft: "Reapply local draft",
         applyConfigSuccess:
           "Configuration applied successfully. Changes will take effect for new conversations.",
         applyConfigFailed: "Failed to apply configuration",

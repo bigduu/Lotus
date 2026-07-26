@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import { Button, Flex, Layout, Tabs, Typography, message, theme } from "antd";
 import type { TabsProps } from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
@@ -49,6 +50,13 @@ import {
   ADVANCED_ONLY_SETTINGS_TABS,
 } from "@shared/store/experienceModeStore";
 import { APP_VERSION } from "@shared/constants/appVersion";
+import ConfigSectionStatus from "./ConfigSectionStatus";
+import {
+  CONFIG_SECTION_IDS,
+  type ConfigSectionId,
+} from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import type { ResetSectionResult } from "./SystemSettingsAppTab";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -72,6 +80,7 @@ const SystemSettingsPage = ({
   const { token } = useToken();
   const { deleteAllChats } = useChatManager();
   const [isResetting, setIsResetting] = useState(false);
+  const [resetSectionResults, setResetSectionResults] = useState<ResetSectionResult[]>([]);
   const [msgApi, contextHolder] = message.useMessage();
   const [promptEnhancement, setPromptEnhancement] = useState("");
   const [mermaidEnhancementEnabled, setMermaidEnhancementEnabledState] = useState(
@@ -93,6 +102,12 @@ const SystemSettingsPage = ({
   const setActiveTabKey = useSettingsViewStore((state) => state.setActiveTabKey);
   const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);
   const settingsHeaderTopOffsetPx = token.paddingSM;
+  const withConfigStatus = (sections: ConfigSectionId[], children: ReactNode) => (
+    <>
+      <ConfigSectionStatus sections={sections} />
+      {children}
+    </>
+  );
 
   // Build grouped tab items
   const groupLabel = (key: string, label: string): NonNullable<TabsProps["items"]>[number] => ({
@@ -129,22 +144,48 @@ const SystemSettingsPage = ({
 
   const handleResetApp = async () => {
     setIsResetting(true);
+    setResetSectionResults([]);
     try {
-      // 1. Delete all chats (including pinned)
+      const results: ResetSectionResult[] = [];
+      for (const section of CONFIG_SECTION_IDS) {
+        try {
+          const store = useConfigSectionStore.getState();
+          const current = await store.loadSection(section, { force: true });
+          await store.resetSection(section, current.revision);
+          results.push({ section, status: "success" });
+        } catch (error) {
+          results.push({
+            section,
+            status: "failed",
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+        setResetSectionResults([...results]);
+      }
+
+      const failures = results.filter((result) => result.status === "failed");
+      if (failures.length > 0) {
+        msgApi.error(
+          t("settings.notifications.resetConfigPartialFailure", {
+            count: failures.length,
+            defaultValue: "{{count}} configuration sections could not be reset.",
+          }),
+        );
+        setIsResetting(false);
+        return;
+      }
+
+      // Delete user data only after every typed configuration reset succeeds.
       await deleteAllChats();
 
-      // 2. Reset setup status to force re-initialization on next launch
+      // Reset setup status to force re-initialization on next launch.
       await serviceFactory.resetSetupStatus();
 
-      // 3. Reset config.json on backend
-      await serviceFactory.resetBambooConfig();
-
-      // 4. Clear localStorage
+      // Clear localStorage and reload only after the complete reset succeeds.
       localStorage.clear();
 
       msgApi.success(t("settings.notifications.resetSuccessReloading"));
 
-      // 5. Reload the page after a short delay
       setTimeout(() => {
         window.location.reload();
       }, 1500);
@@ -253,12 +294,12 @@ const SystemSettingsPage = ({
             {
               key: "provider",
               label: tabLabel("provider", t("settings.page.tabs.provider")),
-              children: <ProviderSettings />,
+              children: withConfigStatus(["providers", "credentials"], <ProviderSettings />),
             },
             {
               key: "model-limits",
               label: tabLabel("model-limits", t("settings.page.tabs.modelLimits")),
-              children: <ModelLimitsSettings />,
+              children: withConfigStatus(["model-limits"], <ModelLimitsSettings />),
             },
             {
               key: "prompts",
@@ -287,17 +328,17 @@ const SystemSettingsPage = ({
             {
               key: "skills",
               label: tabLabel("skills", t("settings.page.tabs.skills")),
-              children: <SkillManager />,
+              children: withConfigStatus(["tools-skills"], <SkillManager />),
             },
             {
               key: "mcp",
               label: tabLabel("mcp", t("settings.page.tabs.mcp")),
-              children: <SystemSettingsMcpTab />,
+              children: withConfigStatus(["mcp", "credentials"], <SystemSettingsMcpTab />),
             },
             {
               key: "plugins",
               label: tabLabel("plugins", t("settings.page.tabs.plugins")),
-              children: <SystemSettingsPluginsTab />,
+              children: withConfigStatus(["tools-skills"], <SystemSettingsPluginsTab />),
             },
             {
               key: "workflows",
@@ -307,31 +348,37 @@ const SystemSettingsPage = ({
             {
               key: "hooks",
               label: tabLabel("hooks", t("settings.page.tabs.hooks")),
-              children: <SystemSettingsHooksTab />,
+              children: withConfigStatus(["hooks"], <SystemSettingsHooksTab />),
             },
             // ── Security ──
             groupLabel("group-security", t("settings.page.groups.securityAndPrivacy")),
             {
               key: "permissions",
               label: tabLabel("permissions", t("settings.page.tabs.permissions")),
-              children: <SystemSettingsPermissionsTab />,
+              children: withConfigStatus(
+                ["access-control", "credentials"],
+                <SystemSettingsPermissionsTab />,
+              ),
             },
             {
               key: "masking",
               label: tabLabel("masking", t("settings.page.tabs.masking")),
-              children: <SystemSettingsKeywordMaskingTab />,
+              children: withConfigStatus(["model-policy"], <SystemSettingsKeywordMaskingTab />),
             },
             {
               key: "env-vars",
               label: tabLabel("env-vars", t("settings.page.tabs.envVars")),
-              children: <SystemSettingsEnvVarsTab />,
+              children: withConfigStatus(["env", "credentials"], <SystemSettingsEnvVarsTab />),
             },
             // ── Deployment ──
             groupLabel("group-deployment", t("settings.page.groups.deployment", "Deployment")),
             {
               key: "clusters",
               label: tabLabel("clusters", t("settings.page.tabs.clusters", "Clusters")),
-              children: <SystemSettingsClustersTab />,
+              children: withConfigStatus(
+                ["cluster-fabric", "credentials"],
+                <SystemSettingsClustersTab />,
+              ),
             },
             // ── Monitoring ──
             groupLabel("group-monitoring", t("settings.page.groups.monitoring")),
@@ -350,12 +397,13 @@ const SystemSettingsPage = ({
             {
               key: "config",
               label: tabLabel("config", t("settings.page.tabs.config")),
-              children: (
+              children: withConfigStatus(
+                ["core", "memory", "subagents", "tools-skills"],
                 <SystemSettingsConfigTab
                   msgApi={msgApi}
                   locale={locale}
                   onLocaleChange={onLocaleChange}
-                />
+                />,
               ),
             },
             {
@@ -369,12 +417,18 @@ const SystemSettingsPage = ({
                 "notifications",
                 t("settings.page.tabs.notifications", "Notifications"),
               ),
-              children: <SystemSettingsNotificationsTab />,
+              children: withConfigStatus(
+                ["notifications", "credentials"],
+                <SystemSettingsNotificationsTab />,
+              ),
             },
             {
               key: "connect",
               label: tabLabel("connect", t("settings.page.tabs.connect", "Connect")),
-              children: <SystemSettingsConnectTab />,
+              children: withConfigStatus(
+                ["connect", "credentials"],
+                <SystemSettingsConnectTab />,
+              ),
             },
             {
               key: "app",
@@ -388,6 +442,7 @@ const SystemSettingsPage = ({
                   onClearLocalStorage={handleClearLocalStorage}
                   onResetApp={handleResetApp}
                   isResetting={isResetting}
+                  resetSectionResults={resetSectionResults}
                   darkModeKey={DARK_MODE_KEY}
                 />
               ),

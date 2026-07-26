@@ -17,14 +17,14 @@ const loadStoreContext = async () => {
 
   const storeModule = await import("../index");
   const { AgentClient } = await import("@services/chat/AgentService");
-  const { serviceFactory } = await import("@services/common/ServiceFactory");
   const { useBambooConfigStore } = await import("@shared/store/bambooConfigStore");
+  const { useConfigSectionStore } = await import("@shared/store/configSectionStore");
 
   return {
     ...storeModule,
     AgentClient,
-    serviceFactory,
     useBambooConfigStore,
+    useConfigSectionStore,
   };
 };
 
@@ -214,8 +214,8 @@ describe("store/index bootstrap and scheduling", () => {
       bootstrapCritical,
       bootstrapDeferred,
       useAppStore,
-      serviceFactory,
       useBambooConfigStore,
+      useConfigSectionStore,
     } = await loadStoreContext();
     const startAgentHealthCheckSpy = vi.fn();
     const startSessionsIndexSyncSpy = vi.fn();
@@ -233,27 +233,26 @@ describe("store/index bootstrap and scheduling", () => {
 
     const loadConfigSpy = vi.fn().mockResolvedValue({ proxy_auth_mode: "auto" });
     const loadProxyAuthStatusSpy = vi.fn().mockResolvedValue({ configured: false, username: null });
-    useBambooConfigStore.setState({
-      loadConfig: loadConfigSpy,
+    useBambooConfigStore.setState({ loadConfig: loadConfigSpy } as any);
+    const replaceProxyAuthSpy = vi.fn().mockResolvedValue({ configured: true });
+    useConfigSectionStore.setState({
       loadProxyAuthStatus: loadProxyAuthStatusSpy,
+      replaceProxyAuth: replaceProxyAuthSpy,
     } as any);
 
     localStorage.setItem(
       PROXY_AUTH_STORAGE_KEY,
       JSON.stringify({ username: "alice", password: "secret" }),
     );
-    const setProxyAuthSpy = vi
-      .spyOn(serviceFactory, "setProxyAuth")
-      .mockResolvedValue({ success: true });
-
     await bootstrapCritical(true);
     await bootstrapDeferred();
     await bootstrapCritical();
 
-    expect(setProxyAuthSpy).toHaveBeenCalledWith({
+    expect(replaceProxyAuthSpy).toHaveBeenCalledWith({
       username: "alice",
       password: "secret",
     });
+    expect(localStorage.getItem(PROXY_AUTH_STORAGE_KEY)).toBeNull();
     expect(loadProxyAuthStatusSpy).not.toHaveBeenCalled();
     expect(loadChatsSpy).toHaveBeenCalledTimes(1);
     expect(fetchModelsSpy).toHaveBeenCalledTimes(1);
@@ -267,8 +266,8 @@ describe("store/index bootstrap and scheduling", () => {
       bootstrapCritical,
       bootstrapDeferred,
       useAppStore,
-      serviceFactory,
       useBambooConfigStore,
+      useConfigSectionStore,
     } = await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
@@ -284,18 +283,24 @@ describe("store/index bootstrap and scheduling", () => {
     const loadProxyAuthStatusSpy = vi
       .fn()
       .mockResolvedValue({ configured: true, username: "user" });
-    useBambooConfigStore.setState({
-      loadConfig: loadConfigSpy,
+    useBambooConfigStore.setState({ loadConfig: loadConfigSpy } as any);
+    const replaceProxyAuthSpy = vi.fn();
+    useConfigSectionStore.setState({
       loadProxyAuthStatus: loadProxyAuthStatusSpy,
+      replaceProxyAuth: replaceProxyAuthSpy,
     } as any);
-    const setProxyAuthSpy = vi.spyOn(serviceFactory, "setProxyAuth");
+    localStorage.setItem(
+      PROXY_AUTH_STORAGE_KEY,
+      JSON.stringify({ username: "stale", password: "plaintext" }),
+    );
 
     await bootstrapCritical(true);
     await bootstrapDeferred();
 
     expect(loadConfigSpy).toHaveBeenCalledTimes(1);
     expect(loadProxyAuthStatusSpy).toHaveBeenCalledWith({ force: true });
-    expect(setProxyAuthSpy).not.toHaveBeenCalled();
+    expect(replaceProxyAuthSpy).not.toHaveBeenCalled();
+    expect(localStorage.getItem(PROXY_AUTH_STORAGE_KEY)).toBeNull();
     expect(loadChatsSpy).toHaveBeenCalledTimes(1);
     expect(fetchModelsSpy).toHaveBeenCalledTimes(1);
     expect(loadSystemPromptsSpy).toHaveBeenCalledTimes(1);
@@ -306,8 +311,8 @@ describe("store/index bootstrap and scheduling", () => {
       bootstrapCritical,
       bootstrapDeferred,
       useAppStore,
-      serviceFactory,
       useBambooConfigStore,
+      useConfigSectionStore,
     } = await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
@@ -325,18 +330,19 @@ describe("store/index bootstrap and scheduling", () => {
 
     const loadConfigSpy = vi.fn().mockResolvedValue({ proxy_auth_mode: "required" });
     const loadProxyAuthStatusSpy = vi.fn().mockResolvedValue({ configured: false, username: null });
-    useBambooConfigStore.setState({
-      loadConfig: loadConfigSpy,
+    useBambooConfigStore.setState({ loadConfig: loadConfigSpy } as any);
+    const replaceProxyAuthSpy = vi.fn();
+    useConfigSectionStore.setState({
       loadProxyAuthStatus: loadProxyAuthStatusSpy,
+      replaceProxyAuth: replaceProxyAuthSpy,
     } as any);
-    const setProxyAuthSpy = vi.spyOn(serviceFactory, "setProxyAuth");
 
     await bootstrapCritical(true);
     await bootstrapDeferred();
 
     expect(loadConfigSpy).toHaveBeenCalledTimes(1);
     expect(loadProxyAuthStatusSpy).toHaveBeenCalledWith({ force: true });
-    expect(setProxyAuthSpy).not.toHaveBeenCalled();
+    expect(replaceProxyAuthSpy).not.toHaveBeenCalled();
     expect(fetchModelsSpy).not.toHaveBeenCalled();
     expect(useAppStore.getState().models).toEqual([]);
     expect(useAppStore.getState().selectedModel).toBeUndefined();
@@ -351,8 +357,8 @@ describe("store/index bootstrap and scheduling", () => {
       bootstrapCritical,
       bootstrapDeferred,
       useAppStore,
-      serviceFactory,
       useBambooConfigStore,
+      useConfigSectionStore,
     } = await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
@@ -367,24 +373,25 @@ describe("store/index bootstrap and scheduling", () => {
 
     useBambooConfigStore.setState({
       loadConfig: vi.fn().mockResolvedValue({ proxy_auth_mode: "required" }),
+    } as any);
+    const replaceProxyAuthSpy = vi.fn().mockResolvedValue({ configured: true });
+    useConfigSectionStore.setState({
       loadProxyAuthStatus: vi.fn().mockResolvedValue({ configured: false, username: null }),
+      replaceProxyAuth: replaceProxyAuthSpy,
     } as any);
 
     localStorage.setItem(
       PROXY_AUTH_STORAGE_KEY,
       JSON.stringify({ username: "alice", password: "secret" }),
     );
-    const setProxyAuthSpy = vi
-      .spyOn(serviceFactory, "setProxyAuth")
-      .mockResolvedValue({ success: true });
-
     await bootstrapCritical(true);
     await bootstrapDeferred();
 
-    expect(setProxyAuthSpy).toHaveBeenCalledWith({
+    expect(replaceProxyAuthSpy).toHaveBeenCalledWith({
       username: "alice",
       password: "secret",
     });
+    expect(localStorage.getItem(PROXY_AUTH_STORAGE_KEY)).toBeNull();
     expect(fetchModelsSpy).toHaveBeenCalledTimes(1);
     expect(useAppStore.getState().modelsError).toBeUndefined();
     expect(loadChatsSpy).toHaveBeenCalledTimes(1);
@@ -396,8 +403,8 @@ describe("store/index bootstrap and scheduling", () => {
       bootstrapCritical,
       bootstrapDeferred,
       useAppStore,
-      serviceFactory,
       useBambooConfigStore,
+      useConfigSectionStore,
     } = await loadStoreContext();
     const loadChatsSpy = vi.fn().mockResolvedValue(undefined);
     const fetchModelsSpy = vi.fn().mockResolvedValue(undefined);
@@ -409,14 +416,15 @@ describe("store/index bootstrap and scheduling", () => {
     } as any);
     useBambooConfigStore.setState({
       loadConfig: vi.fn().mockResolvedValue({ proxy_auth_mode: "auto" }),
-      loadProxyAuthStatus: vi.fn(),
     } as any);
 
     localStorage.setItem(
       PROXY_AUTH_STORAGE_KEY,
       JSON.stringify({ username: "alice", password: "secret" }),
     );
-    vi.spyOn(serviceFactory, "setProxyAuth").mockRejectedValue(new Error("boom"));
+    useConfigSectionStore.setState({
+      replaceProxyAuth: vi.fn().mockRejectedValue(new Error("boom")),
+    } as any);
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await bootstrapCritical(true);
@@ -444,7 +452,6 @@ describe("store/index bootstrap and scheduling", () => {
     } as any);
     useBambooConfigStore.setState({
       loadConfig: vi.fn().mockRejectedValue(new Error("config unavailable")),
-      loadProxyAuthStatus: vi.fn(),
     } as any);
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -479,7 +486,6 @@ describe("store/index bootstrap and scheduling", () => {
     } as any);
     useBambooConfigStore.setState({
       loadConfig: vi.fn().mockResolvedValue({ proxy_auth_mode: "auto" }),
-      loadProxyAuthStatus: vi.fn(),
     } as any);
 
     await bootstrapCritical(true);

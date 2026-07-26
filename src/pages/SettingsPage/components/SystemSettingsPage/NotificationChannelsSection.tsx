@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Card, Divider, Flex, Input, Select, Switch, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import { agentApiClient, getErrorMessage } from "@services/api";
-import { serviceFactory, type NotificationsChannelConfig } from "@services/common/ServiceFactory";
-import { isMaskedSecret } from "@shared/utils/secrets";
+import type { NotificationSection } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -24,46 +25,31 @@ interface ChannelsDraft {
 const DEFAULT_NTFY_BASE_URL = "https://ntfy.sh";
 const DEFAULT_BARK_BASE_URL = "https://api.day.app";
 
-function draftFromConfig(notifications: NotificationsChannelConfig | undefined): ChannelsDraft {
-  const desktopEnabled = notifications?.desktop?.enabled;
+function draftFromConfig(notifications: NotificationSection | undefined): ChannelsDraft {
+  const desktopEnabled = notifications?.desktop.enabled;
   return {
     desktopMode: desktopEnabled === true ? "on" : desktopEnabled === false ? "off" : "auto",
-    ntfyEnabled: notifications?.ntfy?.enabled ?? false,
-    ntfyBaseUrl: notifications?.ntfy?.base_url ?? DEFAULT_NTFY_BASE_URL,
-    ntfyTopic: notifications?.ntfy?.topic ?? "",
-    // Never prefill a masked secret — see isMaskedSecret contract.
-    ntfyToken: isMaskedSecret(notifications?.ntfy?.token) ? "" : (notifications?.ntfy?.token ?? ""),
-    barkEnabled: notifications?.bark?.enabled ?? false,
-    barkBaseUrl: notifications?.bark?.base_url ?? DEFAULT_BARK_BASE_URL,
-    barkDeviceKey: isMaskedSecret(notifications?.bark?.device_key)
-      ? ""
-      : (notifications?.bark?.device_key ?? ""),
+    ntfyEnabled: notifications?.ntfy.enabled ?? false,
+    ntfyBaseUrl: notifications?.ntfy.base_url ?? DEFAULT_NTFY_BASE_URL,
+    ntfyTopic: notifications?.ntfy.topic ?? "",
+    ntfyToken: "",
+    barkEnabled: notifications?.bark.enabled ?? false,
+    barkBaseUrl: notifications?.bark.base_url ?? DEFAULT_BARK_BASE_URL,
+    barkDeviceKey: "",
   };
 }
 
 /**
  * Notification delivery channels: native desktop plus ntfy/Bark push relays.
  *
- * Reads/writes the `notifications` sub-tree of the bamboo config via
- * whole-document `GET`/partial-patch `POST bamboo/config` (server-side
- * deep-merge), the same pattern used by `SystemSettingsHooksTab`. A partial
- * `{"notifications":{"ntfy":{...}}}` body is safe — it merges onto the
- * existing document and never clobbers sibling channels.
- *
- * The ntfy `token` / Bark `device_key` fields follow the `isMaskedSecret`
- * contract exactly: the server never emits a plaintext secret on GET — it's
- * either absent (nothing configured) or redacted to `****...****`
- * (configured) — so these fields always load empty, and a save only sends a
- * value when the user actually typed a new one. An untouched field on an
- * already-configured channel is omitted from the patch entirely so the
- * server keeps the stored secret.
+ * Reads/writes the versioned `notifications` section and sends its expected
+ * revision on every update. Secret inputs are write-only: status metadata is
+ * displayed separately, untouched values are omitted, and clear is explicit.
  */
 const NotificationChannelsSection: React.FC = () => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const [notifications, setNotifications] = useState<NotificationsChannelConfig | undefined>(
-    undefined,
-  );
+  const [notifications, setNotifications] = useState<NotificationSection | undefined>(undefined);
   const [draft, setDraft] = useState<ChannelsDraft>(() => draftFromConfig(undefined));
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -73,29 +59,46 @@ const NotificationChannelsSection: React.FC = () => {
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
   const [attempted, setAttempted] = useState<string[] | null>(null);
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const baseDraftRef = useRef<ChannelsDraft | null>(null);
+  const snapshot = useConfigSectionStore((state) => state.sections.notifications);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveNotifications = useConfigSectionStore((state) => state.saveNotifications);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const cfg = await serviceFactory.getBambooConfig();
-      setNotifications(cfg.notifications);
-      setDraft(draftFromConfig(cfg.notifications));
+      const envelope = await loadSection("notifications", { force: true });
+      setNotifications(envelope.data);
+      const nextDraft = draftFromConfig(envelope.data);
+      setDraft(nextDraft);
+      baseDraftRef.current = structuredClone(nextDraft);
+      setBaseRevision(envelope.revision);
+      setDirty(false);
     } catch (error) {
       setLoadError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadSection]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const patch = (p: Partial<ChannelsDraft>) => setDraft((d) => ({ ...d, ...p }));
+  const patch = (p: Partial<ChannelsDraft>) => {
+    setDraft((d) => ({ ...d, ...p }));
+    setDirty(true);
+  };
 
-  const hasStoredNtfyToken = isMaskedSecret(notifications?.ntfy?.token);
-  const hasStoredBarkKey = isMaskedSecret(notifications?.bark?.device_key);
+  const hasStoredNtfyToken = notifications?.ntfy.credential.configured ?? false;
+  const hasStoredBarkKey = notifications?.bark.credential.configured ?? false;
+  const externalRevision =
+    dirty && snapshot.envelope && baseRevision !== snapshot.envelope.revision
+      ? snapshot.envelope.revision
+      : null;
 
   const save = async () => {
     setSaving(true);
@@ -104,8 +107,9 @@ const NotificationChannelsSection: React.FC = () => {
     try {
       const ntfyToken = draft.ntfyToken.trim();
       const barkDeviceKey = draft.barkDeviceKey.trim();
-      const configPatch: { notifications: NotificationsChannelConfig } = {
-        notifications: {
+      if (baseRevision === null) throw new Error("Notification configuration is not loaded.");
+      const savedEnvelope = await saveNotifications(
+        {
           desktop: {
             // "auto" clears the override back to null (server picks
             // standalone-vs-sidecar default); "on"/"off" is explicit.
@@ -123,12 +127,53 @@ const NotificationChannelsSection: React.FC = () => {
             ...(barkDeviceKey ? { device_key: barkDeviceKey } : {}),
           },
         },
-      };
-      const savedCfg = await serviceFactory.setBambooConfig(configPatch);
-      setNotifications(savedCfg.notifications);
-      setDraft(draftFromConfig(savedCfg.notifications));
+        baseRevision,
+      );
+      setNotifications(savedEnvelope.data);
+      const nextDraft = draftFromConfig(savedEnvelope.data);
+      setDraft(nextDraft);
+      baseDraftRef.current = structuredClone(nextDraft);
+      setBaseRevision(savedEnvelope.revision);
+      setDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+    } catch (error) {
+      setSaveError(getErrorMessage(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearCredential = async (channel: "ntfy" | "bark") => {
+    if (baseRevision === null) return;
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const savedEnvelope = await saveNotifications(
+        {
+          desktop: {
+            enabled: draft.desktopMode === "auto" ? null : draft.desktopMode === "on",
+          },
+          ntfy: {
+            enabled: draft.ntfyEnabled,
+            base_url: draft.ntfyBaseUrl.trim() || DEFAULT_NTFY_BASE_URL,
+            topic: draft.ntfyTopic.trim(),
+            ...(channel === "ntfy" ? { token: null } : {}),
+          },
+          bark: {
+            enabled: draft.barkEnabled,
+            base_url: draft.barkBaseUrl.trim() || DEFAULT_BARK_BASE_URL,
+            ...(channel === "bark" ? { device_key: null } : {}),
+          },
+        },
+        baseRevision,
+      );
+      setNotifications(savedEnvelope.data);
+      const nextDraft = draftFromConfig(savedEnvelope.data);
+      setDraft(nextDraft);
+      baseDraftRef.current = structuredClone(nextDraft);
+      setBaseRevision(savedEnvelope.revision);
+      setDirty(false);
     } catch (error) {
       setSaveError(getErrorMessage(error));
     } finally {
@@ -170,6 +215,35 @@ const NotificationChannelsSection: React.FC = () => {
               <Button size="small" onClick={() => void load()}>
                 {t("settings.notificationsTab.channels.retry", "Retry")}
               </Button>
+            }
+          />
+        ) : null}
+
+        {externalRevision !== null ? (
+          <Alert
+            type="warning"
+            showIcon
+            message="Notification configuration changed on disk"
+            description={`Your draft is based on revision ${baseRevision}; revision ${externalRevision} is now available.`}
+            action={
+              <Flex gap={8}>
+                <Button size="small" onClick={() => void load()}>
+                  Reload
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    if (!snapshot.envelope || !baseDraftRef.current) return;
+                    const latest = draftFromConfig(snapshot.envelope.data);
+                    setDraft(reapplyConfigChanges(baseDraftRef.current, draft, latest));
+                    setNotifications(snapshot.envelope.data);
+                    baseDraftRef.current = structuredClone(latest);
+                    setBaseRevision(snapshot.envelope.revision);
+                  }}
+                >
+                  Reapply
+                </Button>
+              </Flex>
             }
           />
         ) : null}
@@ -262,6 +336,11 @@ const NotificationChannelsSection: React.FC = () => {
                   }
                 />
               </label>
+              {hasStoredNtfyToken ? (
+                <Button size="small" danger onClick={() => void clearCredential("ntfy")}>
+                  Clear configured token
+                </Button>
+              ) : null}
             </Flex>
 
             <Divider style={{ margin: `${token.marginXS}px 0` }} />
@@ -287,6 +366,11 @@ const NotificationChannelsSection: React.FC = () => {
                   placeholder={DEFAULT_BARK_BASE_URL}
                 />
               </label>
+              {hasStoredBarkKey ? (
+                <Button size="small" danger onClick={() => void clearCredential("bark")}>
+                  Clear configured device key
+                </Button>
+              ) : null}
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                   {t("settings.notificationsTab.channels.bark.deviceKey", "Device Key")}

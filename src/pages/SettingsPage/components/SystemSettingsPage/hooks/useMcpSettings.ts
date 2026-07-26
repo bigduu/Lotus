@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { mcpService, type McpServer, type McpServerConfig, type McpToolInfo } from "@services/mcp";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 export type McpServerAction = "connect" | "disconnect" | "refresh" | "delete";
 
@@ -16,8 +17,6 @@ interface McpSettingsService {
 
 interface UseMcpSettingsOptions {
   service?: McpSettingsService;
-  autoRefreshMs?: number;
-  autoRefreshEnabled?: boolean;
 }
 
 interface UseMcpSettingsResult {
@@ -41,8 +40,6 @@ interface UseMcpSettingsResult {
   isServerActionLoading: (serverId: string, action: McpServerAction) => boolean;
 }
 
-const DEFAULT_AUTO_REFRESH_MS = 5_000;
-
 const toErrorMessage = (error: unknown, fallback: string): string => {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -53,11 +50,7 @@ const toErrorMessage = (error: unknown, fallback: string): string => {
 const getActionKey = (serverId: string, action: McpServerAction): string => `${serverId}:${action}`;
 
 export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSettingsResult => {
-  const {
-    service = mcpService,
-    autoRefreshMs = DEFAULT_AUTO_REFRESH_MS,
-    autoRefreshEnabled = true,
-  } = options;
+  const { service = mcpService } = options;
 
   const [servers, setServers] = useState<McpServer[]>([]);
   const [selectedServerId, setSelectedServerIdState] = useState<string | null>(null);
@@ -70,6 +63,8 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   const [error, setError] = useState<string | null>(null);
 
   const configCacheRef = useRef<Record<string, McpServerConfig>>({});
+  const mcpSnapshot = useConfigSectionStore((state) => state.sections.mcp);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
 
   const mergeServers = useCallback((incoming: McpServer[]): McpServer[] => {
     const incomingIds = new Set(incoming.map((server) => server.id));
@@ -337,22 +332,14 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   }, [selectedServerId, toolLoadingByServer]);
 
   useEffect(() => {
+    void loadSection("mcp").catch(() => undefined);
     void refreshServers().catch(() => undefined);
-  }, [refreshServers]);
+  }, [loadSection, refreshServers]);
 
   useEffect(() => {
-    if (!autoRefreshEnabled || autoRefreshMs <= 0) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      void refreshServers({ silent: true }).catch(() => undefined);
-    }, autoRefreshMs);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [autoRefreshEnabled, autoRefreshMs, refreshServers]);
+    if (!mcpSnapshot.envelope) return;
+    void refreshServers({ silent: true }).catch(() => undefined);
+  }, [mcpSnapshot.envelope, refreshServers]);
 
   useEffect(() => {
     if (!selectedServerId) {

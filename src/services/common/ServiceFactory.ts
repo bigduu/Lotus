@@ -171,10 +171,8 @@ export interface BambooSubagentsConfig {
  * Notification delivery channels: native desktop plus ntfy/Bark push relays
  * (mirrors the backend's `notifications` config sub-tree).
  *
- * Secrets (`ntfy.token`, `bark.device_key`) are never returned in plaintext by
- * `GET bamboo/config` — either absent (nothing configured) or redacted to the
- * `****...****` placeholder (configured). See `@shared/utils/secrets`'
- * `isMaskedSecret` for the client-side handling contract.
+ * Legacy effective-config reads may contain masked secret placeholders. New
+ * settings code uses typed section metadata plus explicit credential writes.
  */
 export interface NotificationsChannelConfig {
   desktop?: {
@@ -207,17 +205,12 @@ export interface NotificationsChannelConfig {
  * platform rather than an arbitrary list.
  *
  * `token` (Telegram bot token) and `app_secret` (Feishu app secret) are
- * secrets: `GET bamboo/config` redacts a configured value to `****...****`
- * (see `@shared/utils/secrets`' `isMaskedSecret`) and never emits plaintext.
- * Unlike the single-object `notifications.ntfy`/`notifications.bark`
- * sub-trees, `connect.platforms` is an ARRAY — the backend's
- * `preserve_masked_connect_secrets` resolves a masked placeholder
- * POSITIONALLY (patch index against `current.connect.platforms[index]`,
- * cross-checked against `type`), so an untouched secret must be echoed back
- * as the literal `****...****` placeholder (not simply omitted) for the
- * server to keep the stored value.
+ * write-only in the typed settings flow. Their configured state is exposed as
+ * metadata, while unchanged secrets are omitted and clear uses explicit null.
  */
 export interface ConnectPlatformConfig {
+  /** Stable server-managed identity used to preserve credential ownership. */
+  id?: string;
   /** Platform adapter selector: `"telegram"` | `"feishu"`. */
   type: string;
   /** Telegram bot token. Secret — see the masked-secret contract above. */
@@ -480,29 +473,6 @@ export interface UtilityService {
   testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse>;
 
   /**
-   * Set proxy auth credentials
-   */
-  setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse>;
-
-  /**
-   * Get proxy auth status (returns whether proxy auth is configured, without password)
-   */
-  getProxyAuthStatus(): Promise<{
-    configured: boolean;
-    username: string | null;
-  }>;
-
-  /**
-   * Clear proxy auth credentials
-   */
-  clearProxyAuth(): Promise<ApiSuccessResponse>;
-
-  /**
-   * Reset Bamboo config (delete config.json)
-   */
-  resetBambooConfig(): Promise<ApiSuccessResponse>;
-
-  /**
    * Check whether `config.json` was recovered from corruption at load and is
    * awaiting confirmation (Lotus #59 / bamboo #153).
    */
@@ -582,12 +552,7 @@ class HttpUtilityService implements UtilityService {
   }
 
   async getBambooConfig(): Promise<BambooConfig> {
-    try {
-      return await apiClient.get<BambooConfig>("bamboo/config");
-    } catch (error) {
-      console.error("Failed to fetch Bamboo config:", error);
-      return {};
-    }
+    return apiClient.get<BambooConfig>("bamboo/config");
   }
 
   async getBambooTools(): Promise<{ tools: string[] }> {
@@ -630,36 +595,6 @@ class HttpUtilityService implements UtilityService {
 
   async testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse> {
     return apiClient.post<LifecycleHookTestResponse>("bamboo/hooks/test", payload);
-  }
-
-  async setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse> {
-    return apiClient.post<ApiSuccessResponse>("bamboo/proxy-auth", auth);
-  }
-
-  async getProxyAuthStatus(): Promise<{
-    configured: boolean;
-    username: string | null;
-  }> {
-    try {
-      return await apiClient.get<{
-        configured: boolean;
-        username: string | null;
-      }>("bamboo/proxy-auth/status");
-    } catch (error) {
-      console.error("Failed to fetch proxy auth status:", error);
-      return { configured: false, username: null };
-    }
-  }
-
-  async clearProxyAuth(): Promise<ApiSuccessResponse> {
-    return apiClient.post<ApiSuccessResponse>("bamboo/proxy-auth", {
-      username: "",
-      password: "",
-    });
-  }
-
-  async resetBambooConfig(): Promise<ApiSuccessResponse> {
-    return apiClient.post<ApiSuccessResponse>("bamboo/config/reset", {});
   }
 
   async getConfigRecoveryStatus(): Promise<ConfigRecoveryStatusResponse> {

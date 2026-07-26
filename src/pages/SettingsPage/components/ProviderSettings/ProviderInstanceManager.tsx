@@ -34,6 +34,7 @@ import type {
   CreateProviderInstanceRequest,
   UpdateProviderInstanceRequest,
 } from "@shared/types/providerConfig";
+import type { ProviderCredentialStatus } from "@services/config/configSections";
 import { PROVIDER_LABELS } from "@shared/types/providerConfig";
 import { PROVIDER_VENDOR_PRESETS } from "@shared/constants/providerPresets";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
@@ -41,7 +42,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { DeviceCodeModal } from "./DeviceCodeModal";
-import { isMaskedSecretValue, sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
+import { sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
 import { copyText } from "@shared/utils/clipboard";
 import type { DeviceCodeInfo } from "./DeviceCodeModal";
 import { theme } from "antd";
@@ -395,8 +396,22 @@ const InstanceConfigFields: React.FC<{
 export const ProviderInstanceManager: React.FC<{
   instances: ProviderInstance[];
   defaultInstanceId: string | null;
-  onInstancesChanged: () => Promise<void>;
-}> = ({ instances, defaultInstanceId, onInstancesChanged }) => {
+  credentialStatusById: Record<string, ProviderCredentialStatus>;
+  onCreateInstance: (request: CreateProviderInstanceRequest) => Promise<void>;
+  onUpdateInstance: (instanceId: string, request: UpdateProviderInstanceRequest) => Promise<void>;
+  onDeleteInstance: (instanceId: string) => Promise<void>;
+  onSetDefaultInstance: (instanceId: string) => Promise<void>;
+  onClearInstanceCredential: (instanceId: string) => Promise<void>;
+}> = ({
+  instances,
+  defaultInstanceId,
+  credentialStatusById,
+  onCreateInstance,
+  onUpdateInstance,
+  onDeleteInstance,
+  onSetDefaultInstance,
+  onClearInstanceCredential,
+}) => {
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
   const { token } = theme.useToken();
@@ -660,7 +675,7 @@ export const ProviderInstanceManager: React.FC<{
 
       if (editingInstance) {
         const updateReq: UpdateProviderInstanceRequest = { label, enabled, config };
-        await settingsService.updateProviderInstance(editingInstance.id, updateReq);
+        await onUpdateInstance(editingInstance.id, updateReq);
         message.success(t("settings.providerTab.instanceUpdated", "Provider instance updated"));
       } else {
         const createReq: CreateProviderInstanceRequest = {
@@ -669,12 +684,11 @@ export const ProviderInstanceManager: React.FC<{
           enabled: enabled ?? true,
           config,
         };
-        await settingsService.createProviderInstance(createReq);
+        await onCreateInstance(createReq);
         message.success(t("settings.providerTab.instanceCreated", "Provider instance created"));
       }
 
       setInstanceModalOpen(false);
-      await onInstancesChanged();
       await useProviderStore.getState().loadProviderInstances();
     } catch (error) {
       if (isApiError(error)) {
@@ -685,15 +699,21 @@ export const ProviderInstanceManager: React.FC<{
     } finally {
       setSavingInstance(false);
     }
-  }, [editingInstance, instanceForm, message, onInstancesChanged, t]);
+  }, [
+    editingInstance,
+    instanceForm,
+    message,
+    onCreateInstance,
+    onUpdateInstance,
+    t,
+  ]);
 
   const handleDeleteInstance = useCallback(
     async (instanceId: string) => {
       try {
         setDeletingInstanceId(instanceId);
-        await settingsService.deleteProviderInstance(instanceId);
+        await onDeleteInstance(instanceId);
         message.success(t("settings.providerTab.instanceDeleted", "Provider instance deleted"));
-        await onInstancesChanged();
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
@@ -705,15 +725,14 @@ export const ProviderInstanceManager: React.FC<{
         setDeletingInstanceId(null);
       }
     },
-    [onInstancesChanged, message, t],
+    [onDeleteInstance, message, t],
   );
 
   const handleSetDefaultInstance = useCallback(
     async (instanceId: string) => {
       try {
-        await settingsService.setDefaultProviderInstance(instanceId);
+        await onSetDefaultInstance(instanceId);
         message.success(t("settings.providerTab.defaultInstanceSet", "Default provider updated"));
-        await onInstancesChanged();
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
@@ -723,20 +742,31 @@ export const ProviderInstanceManager: React.FC<{
         );
       }
     },
-    [onInstancesChanged, message, t],
+    [onSetDefaultInstance, message, t],
   );
 
+  const handleClearInstanceCredential = useCallback(async () => {
+    if (!editingInstance) return;
+    try {
+      setSavingInstance(true);
+      await onClearInstanceCredential(editingInstance.id);
+      message.success(
+        t("settings.providerTab.credentialCleared", "Provider credential cleared"),
+      );
+      setInstanceModalOpen(false);
+      await useProviderStore.getState().loadProviderInstances();
+    } catch (error) {
+      message.error(
+        isApiError(error)
+          ? error.message
+          : t("settings.providerTab.credentialClearFailed", "Failed to clear credential"),
+      );
+    } finally {
+      setSavingInstance(false);
+    }
+  }, [editingInstance, message, onClearInstanceCredential, t]);
+
   const selectedPreset = PROVIDER_VENDOR_PRESETS.find((item) => item.id === selectedPresetId);
-
-  const loadInstances = useCallback(async () => {
-    await onInstancesChanged();
-  }, [onInstancesChanged]);
-
-  // Re-load on mount - only once
-  useEffect(() => {
-    void loadInstances();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -971,14 +1001,29 @@ export const ProviderInstanceManager: React.FC<{
                 form={instanceForm}
                 type={selectedType}
                 hasStoredApiKey={Boolean(
-                  editingInstance &&
-                    isMaskedSecretValue(
-                      (editingInstance.config as Record<string, unknown> | undefined)?.api_key,
-                    ),
+                  editingInstance && credentialStatusById[editingInstance.id]?.configured,
                 )}
               />
             )}
           </Form.Item>
+
+          {editingInstance &&
+            editingInstance.type !== "copilot" &&
+            credentialStatusById[editingInstance.id]?.configured && (
+              <Popconfirm
+                title={t(
+                  "settings.providerTab.confirmClearCredential",
+                  "Clear the stored credential for this provider?",
+                )}
+                onConfirm={() => void handleClearInstanceCredential()}
+                okText={t("settings.providerTab.clear", "Clear")}
+                cancelText={t("settings.providerTab.cancel", "Cancel")}
+              >
+                <Button danger>
+                  {t("settings.providerTab.clearCredential", "Clear stored credential")}
+                </Button>
+              </Popconfirm>
+            )}
 
           {selectedType === "copilot" && renderCopilotAuthCard("middle")}
         </Form>

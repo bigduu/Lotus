@@ -35,16 +35,19 @@ export interface EnvVarResponse {
   secret: boolean;
   /** Whether a real value is configured (useful for secrets where value is masked). */
   has_value: boolean;
+  configured: boolean;
   description?: string;
 }
 
 export interface EnvVarsListResponse {
+  revision: number;
   entries: EnvVarResponse[];
 }
 
 export interface UpsertEnvVarRequest {
   name: string;
-  value: string;
+  /** Missing keeps an existing value; an empty string explicitly clears it. */
+  value?: string;
   secret: boolean;
   description?: string;
 }
@@ -55,9 +58,9 @@ export interface ReplaceEnvVarsRequest {
 
 // ── Cluster Fabric types ────────────────────────────────────────
 //
-// Mirrors bamboo-config `cluster_fabric`. SSH secrets are redacted in
-// responses (returned as the mask "****...****"); re-sending the mask on an
-// update preserves the stored secret.
+// Mirrors bamboo-config `cluster_fabric`. Secret values may be masked on
+// compatibility reads, but revisioned writes omit unchanged values and never
+// send the mask back.
 
 export type SshAuth =
   | { method: "system_ssh_config" }
@@ -130,6 +133,16 @@ export interface FabricCluster {
 export interface FabricListResponse {
   nodes: FabricNode[];
   clusters: FabricCluster[];
+}
+
+export interface NodeMutationResponse {
+  revision: number;
+  node: FabricNode;
+}
+
+export interface NodeDeleteResponse {
+  success: boolean;
+  revision: number;
 }
 
 export interface NodeUpsertRequest {
@@ -346,22 +359,34 @@ export class SettingsService {
   /**
    * Create or update a single environment variable.
    */
-  async upsertEnvVar(entry: UpsertEnvVarRequest): Promise<EnvVarsListResponse> {
-    return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars", entry);
+  async upsertEnvVar(
+    entry: UpsertEnvVarRequest,
+    expectedRevision: number,
+  ): Promise<EnvVarsListResponse> {
+    return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars", {
+      expected_revision: expectedRevision,
+      ...entry,
+    });
   }
 
   /**
    * Delete an environment variable by name.
    */
-  async deleteEnvVar(name: string): Promise<EnvVarsListResponse> {
-    return apiClient.delete<EnvVarsListResponse>(`/bamboo/env-vars/${encodeURIComponent(name)}`);
+  async deleteEnvVar(name: string, expectedRevision: number): Promise<EnvVarsListResponse> {
+    return apiClient.delete<EnvVarsListResponse>(
+      `/bamboo/env-vars/${encodeURIComponent(name)}?expected_revision=${expectedRevision}`,
+    );
   }
 
   /**
    * Replace the entire env vars list (bulk save).
    */
-  async replaceEnvVars(entries: UpsertEnvVarRequest[]): Promise<EnvVarsListResponse> {
-    return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars/replace", {
+  async replaceEnvVars(
+    entries: UpsertEnvVarRequest[],
+    expectedRevision: number,
+  ): Promise<EnvVarsListResponse> {
+    return apiClient.put<EnvVarsListResponse>("/bamboo/env-vars", {
+      expected_revision: expectedRevision,
       entries,
     });
   }
@@ -374,18 +399,30 @@ export class SettingsService {
   }
 
   /** Create a node. */
-  async createNode(req: NodeUpsertRequest): Promise<FabricNode> {
-    return apiClient.post<FabricNode>("/bamboo/settings/nodes", req);
+  async createNode(req: NodeUpsertRequest, expectedRevision: number): Promise<NodeMutationResponse> {
+    return apiClient.post<NodeMutationResponse>("/bamboo/settings/nodes", {
+      expected_revision: expectedRevision,
+      ...req,
+    });
   }
 
   /** Update a node (re-send the secret mask to preserve the stored secret). */
-  async updateNode(id: string, req: NodeUpsertRequest): Promise<FabricNode> {
-    return apiClient.put<FabricNode>(`/bamboo/settings/nodes/${encodeURIComponent(id)}`, req);
+  async updateNode(
+    id: string,
+    req: NodeUpsertRequest,
+    expectedRevision: number,
+  ): Promise<NodeMutationResponse> {
+    return apiClient.put<NodeMutationResponse>(`/bamboo/settings/nodes/${encodeURIComponent(id)}`, {
+      expected_revision: expectedRevision,
+      ...req,
+    });
   }
 
   /** Delete a node. */
-  async deleteNode(id: string): Promise<void> {
-    await apiClient.delete(`/bamboo/settings/nodes/${encodeURIComponent(id)}`);
+  async deleteNode(id: string, expectedRevision: number): Promise<NodeDeleteResponse> {
+    return apiClient.delete<NodeDeleteResponse>(
+      `/bamboo/settings/nodes/${encodeURIComponent(id)}?expected_revision=${expectedRevision}`,
+    );
   }
 
   /** Create a cluster. */

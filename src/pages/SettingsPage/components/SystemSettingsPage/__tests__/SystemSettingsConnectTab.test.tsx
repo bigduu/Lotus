@@ -1,38 +1,61 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { configSectionsService } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import SystemSettingsConnectTab from "../SystemSettingsConnectTab";
-
-const { mockGetBambooConfig, mockSetBambooConfig } = vi.hoisted(() => ({
-  mockGetBambooConfig: vi.fn(),
-  mockSetBambooConfig: vi.fn(),
-}));
-
-vi.mock("@services/common/ServiceFactory", () => ({
-  serviceFactory: {
-    getBambooConfig: mockGetBambooConfig,
-    setBambooConfig: mockSetBambooConfig,
-  },
-}));
 
 const CONFIGURED_CONNECT = {
   platforms: [
-    { type: "telegram", token: "****...****", allow_from: ["u1"] },
     {
+      id: "telegram-main",
+      type: "telegram",
+      token_configured: true,
+      token_credential_ref: "connect:telegram-main:token",
+      allow_from: ["u1"],
+    },
+    {
+      id: "feishu-main",
       type: "feishu",
       app_id: "cli_abc123",
-      app_secret: "****...****",
+      app_secret_configured: true,
+      app_secret_credential_ref: "connect:feishu-main:app_secret",
       domain: "lark",
       allow_from: ["ou_1"],
     },
   ],
 };
 
+const connectEnvelope = (data = CONFIGURED_CONNECT, revision = 7) => ({
+  data,
+  revision,
+  loaded_at: "2026-07-23T00:00:00.000Z",
+  source_path: "/tmp/connect.json",
+  source_kind: "file" as const,
+  status: "healthy" as const,
+  last_error: null,
+});
+
+const credentialsEnvelope = (revision = 31) => ({
+  data: [],
+  revision,
+  status: "healthy" as const,
+  source: "credentials.json",
+  last_error: null,
+});
+
 describe("SystemSettingsConnectTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetBambooConfig.mockResolvedValue({ connect: CONFIGURED_CONNECT });
-    mockSetBambooConfig.mockResolvedValue({ connect: CONFIGURED_CONNECT });
+    useConfigSectionStore.getState().reset();
+    vi.spyOn(configSectionsService, "getSection").mockResolvedValue(connectEnvelope() as never);
+    vi.spyOn(configSectionsService, "listCredentials").mockResolvedValue(credentialsEnvelope());
+    vi.spyOn(configSectionsService, "putConnect").mockImplementation(async (_revision, data) => ({
+      envelope: connectEnvelope({ platforms: data.platforms } as never, 8),
+      credentialRevision: 32,
+    }));
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("never prefills a masked secret into the token/app-secret inputs", async () => {
     render(<SystemSettingsConnectTab />);
@@ -60,18 +83,21 @@ describe("SystemSettingsConnectTab", () => {
     expect(feishuSwitch).toHaveAttribute("aria-checked", "true");
   });
 
-  it("re-sends the mask placeholder (not omits it) for an untouched configured secret", async () => {
+  it("omits untouched configured secrets and preserves stable platform ids", async () => {
     render(<SystemSettingsConnectTab />);
     await screen.findByTestId("connect-telegram-token");
 
     fireEvent.click(screen.getByTestId("connect-save-button"));
 
-    await waitFor(() => expect(mockSetBambooConfig).toHaveBeenCalledTimes(1));
-    const patch = mockSetBambooConfig.mock.calls[0][0];
-    const telegram = patch.connect.platforms.find((p: { type: string }) => p.type === "telegram");
-    const feishu = patch.connect.platforms.find((p: { type: string }) => p.type === "feishu");
-    expect(telegram.token).toBe("****...****");
-    expect(feishu.app_secret).toBe("****...****");
+    await waitFor(() => expect(configSectionsService.putConnect).toHaveBeenCalledTimes(1));
+    const [revision, patch] = vi.mocked(configSectionsService.putConnect).mock.calls[0];
+    const telegram = patch.platforms.find((p: { type: string }) => p.type === "telegram");
+    const feishu = patch.platforms.find((p: { type: string }) => p.type === "feishu");
+    expect(revision).toBe(31);
+    expect(telegram).toMatchObject({ id: "telegram-main", type: "telegram" });
+    expect(telegram).not.toHaveProperty("token");
+    expect(feishu).toMatchObject({ id: "feishu-main", type: "feishu" });
+    expect(feishu).not.toHaveProperty("app_secret");
   });
 
   it("sends the new plaintext value when a secret is edited", async () => {
@@ -81,9 +107,9 @@ describe("SystemSettingsConnectTab", () => {
     fireEvent.change(tokenInput, { target: { value: "tg-new-secret" } });
     fireEvent.click(screen.getByTestId("connect-save-button"));
 
-    await waitFor(() => expect(mockSetBambooConfig).toHaveBeenCalledTimes(1));
-    const patch = mockSetBambooConfig.mock.calls[0][0];
-    const telegram = patch.connect.platforms.find((p: { type: string }) => p.type === "telegram");
+    await waitFor(() => expect(configSectionsService.putConnect).toHaveBeenCalledTimes(1));
+    const [, patch] = vi.mocked(configSectionsService.putConnect).mock.calls[0];
+    const telegram = patch.platforms.find((p: { type: string }) => p.type === "telegram");
     expect(telegram.token).toBe("tg-new-secret");
   });
 
@@ -94,30 +120,32 @@ describe("SystemSettingsConnectTab", () => {
     fireEvent.click(telegramSwitch);
     fireEvent.click(screen.getByTestId("connect-save-button"));
 
-    await waitFor(() => expect(mockSetBambooConfig).toHaveBeenCalledTimes(1));
-    const patch = mockSetBambooConfig.mock.calls[0][0];
-    expect(patch.connect.platforms.some((p: { type: string }) => p.type === "telegram")).toBe(
-      false,
-    );
-    expect(patch.connect.platforms.some((p: { type: string }) => p.type === "feishu")).toBe(true);
+    await waitFor(() => expect(configSectionsService.putConnect).toHaveBeenCalledTimes(1));
+    const [, patch] = vi.mocked(configSectionsService.putConnect).mock.calls[0];
+    expect(patch.platforms.some((p: { type: string }) => p.type === "telegram")).toBe(false);
+    expect(patch.platforms.some((p: { type: string }) => p.type === "feishu")).toBe(true);
   });
 
   it("omits a secret field for a newly enabled platform with no stored value", async () => {
-    mockGetBambooConfig.mockResolvedValue({ connect: { platforms: [] } });
+    vi.mocked(configSectionsService.getSection).mockResolvedValue(
+      connectEnvelope({ platforms: [] }) as never,
+    );
     render(<SystemSettingsConnectTab />);
     const telegramSwitch = await screen.findByTestId("connect-telegram-enabled");
 
     fireEvent.click(telegramSwitch);
     fireEvent.click(screen.getByTestId("connect-save-button"));
 
-    await waitFor(() => expect(mockSetBambooConfig).toHaveBeenCalledTimes(1));
-    const patch = mockSetBambooConfig.mock.calls[0][0];
-    const telegram = patch.connect.platforms.find((p: { type: string }) => p.type === "telegram");
+    await waitFor(() => expect(configSectionsService.putConnect).toHaveBeenCalledTimes(1));
+    const [, patch] = vi.mocked(configSectionsService.putConnect).mock.calls[0];
+    const telegram = patch.platforms.find((p: { type: string }) => p.type === "telegram");
     expect(telegram).not.toHaveProperty("token");
   });
 
   it("shows a deny-all warning when a platform is enabled with no allowed IDs", async () => {
-    mockGetBambooConfig.mockResolvedValue({ connect: { platforms: [] } });
+    vi.mocked(configSectionsService.getSection).mockResolvedValue(
+      connectEnvelope({ platforms: [] }) as never,
+    );
     render(<SystemSettingsConnectTab />);
     const telegramSwitch = await screen.findByTestId("connect-telegram-enabled");
 

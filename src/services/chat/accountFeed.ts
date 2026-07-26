@@ -16,6 +16,7 @@
  */
 import { AgentClient, type ChangeEvent, type FeedSubscription } from "./AgentService";
 import { useAppStore, selectShouldObserve } from "@shared/store/appStore";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
 import {
   acceptChildApprovalVersion,
@@ -234,6 +235,15 @@ const applyChange = (change: ChangeEvent): void => {
       }
       scheduleRefresh();
       break;
+    case "config.changed":
+    case "config.invalid":
+    case "config.recovered":
+      if (event.section && typeof event.revision === "number") {
+        useConfigSectionStore
+          .getState()
+          .handleConfigEvent(event.section, event.revision, event.type);
+      }
+      break;
     // Coarse list/state changes — reuse the existing reconciliation path.
     case "session_created":
     case "session_cleared":
@@ -349,6 +359,7 @@ export const startAccountFeed = (): void => {
     {
       onOpen: () => {
         useAppStore.getState().setAgentAvailability(true);
+        void useConfigSectionStore.getState().resyncLoadedSections();
         if (openedOnce) {
           void hydrateSubagentState(client, epoch);
         }
@@ -363,6 +374,7 @@ export const startAccountFeed = (): void => {
         // current head; replace state at a fresh snapshot watermark before
         // accepting the new live tail.
         clearCursor();
+        void useConfigSectionStore.getState().resyncLoadedSections();
         void hydrateSubagentState(client, epoch);
       },
       onChange: (change) => {

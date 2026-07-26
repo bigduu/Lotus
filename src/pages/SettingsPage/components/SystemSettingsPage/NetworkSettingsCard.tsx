@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button, Card, Input, Space, Typography, Alert, theme } from "antd";
 import { useTranslation } from "react-i18next";
-import { useBambooConfigStore } from "@shared/store/bambooConfigStore";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -27,11 +27,12 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const proxyAuthStatus = useBambooConfigStore((state) => state.proxyAuthStatus);
-  const isLoadingProxyAuthStatus = useBambooConfigStore((state) => state.isLoadingProxyAuthStatus);
-  const loadProxyAuthStatus = useBambooConfigStore((state) => state.loadProxyAuthStatus);
-  const applyProxyAuth = useBambooConfigStore((state) => state.applyProxyAuth);
-  const clearProxyAuth = useBambooConfigStore((state) => state.clearProxyAuth);
+  const proxyAuthStatus = useConfigSectionStore((state) => state.proxyAuthStatus);
+  const isLoadingProxyAuthStatus = useConfigSectionStore((state) => state.proxyAuthLoading);
+  const proxyAuthError = useConfigSectionStore((state) => state.proxyAuthError);
+  const loadProxyAuthStatus = useConfigSectionStore((state) => state.loadProxyAuthStatus);
+  const replaceProxyAuth = useConfigSectionStore((state) => state.replaceProxyAuth);
+  const clearProxyAuth = useConfigSectionStore((state) => state.clearProxyAuth);
 
   const [proxyAuthForm, setProxyAuthForm] = useState({
     username: "",
@@ -52,7 +53,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
 
     setIsApplyingProxyAuth(true);
     try {
-      await applyProxyAuth({
+      await replaceProxyAuth({
         username,
         password: proxyAuthForm.password,
       });
@@ -83,6 +84,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
     >
       <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
         <Alert message={t("settings.networkCard.guideTip")} type="info" showIcon />
+        {proxyAuthError && <Alert message={proxyAuthError} type="error" showIcon />}
         {/* HTTP Proxy */}
         <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.networkCard.httpProxy")}</Text>
@@ -100,6 +102,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
         <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.networkCard.httpsProxy")}</Text>
           <Input
+            data-testid="https-proxy-url"
             style={{ width: "100%" }}
             value={httpsProxy}
             onChange={(e) => onHttpsProxyChange(e.target.value)}
@@ -117,14 +120,9 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
         >
           {proxyAuthStatus?.configured ? (
             <Space direction="vertical" style={{ width: "100%" }}>
-              <Alert
-                type="success"
-                message={t("settings.networkCard.proxyConfiguredForUser", {
-                  username: proxyAuthStatus.username ?? "",
-                })}
-                showIcon
-              />
+              <Alert type="success" message={t("settings.networkCard.proxyConfigured")} showIcon />
               <Button
+                data-testid="proxy-auth-clear"
                 onClick={handleClearProxyAuth}
                 loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
                 danger
@@ -135,6 +133,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
           ) : (
             <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
               <Input
+                data-testid="proxy-auth-username"
                 placeholder={t("settings.networkCard.username")}
                 value={proxyAuthForm.username}
                 onChange={(e) =>
@@ -145,6 +144,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
                 }
               />
               <Input.Password
+                data-testid="proxy-auth-password"
                 placeholder={t("settings.networkCard.password")}
                 value={proxyAuthForm.password}
                 onChange={(e) =>
@@ -155,6 +155,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
                 }
               />
               <Button
+                data-testid="proxy-auth-apply"
                 type="primary"
                 onClick={handleApplyProxyAuth}
                 loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}

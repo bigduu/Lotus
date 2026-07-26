@@ -4,7 +4,7 @@ import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { skillService } from "../../services/skill/SkillService";
 import type { SkillDefinition } from "@shared/types/skill";
-import { useBambooConfigStore } from "../../shared/store/bambooConfigStore";
+import { useConfigSectionStore } from "../../shared/store/configSectionStore";
 import { SkillCard } from "./SkillCard";
 
 // Refresh interval in milliseconds (30 seconds)
@@ -13,9 +13,9 @@ const REFRESH_INTERVAL = 30000;
 export const SkillManager = () => {
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
-  const bambooConfig = useBambooConfigStore((state) => state.config);
-  const loadConfig = useBambooConfigStore((state) => state.loadConfig);
-  const saveConfig = useBambooConfigStore((state) => state.saveConfig);
+  const toolsSkills = useConfigSectionStore((state) => state.sections["tools-skills"]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveSection = useConfigSectionStore((state) => state.saveSection);
 
   const [skills, setSkills] = useState<SkillDefinition[]>([]);
   const [isLoadingSkills, setIsLoadingSkills] = useState(false);
@@ -28,18 +28,24 @@ export const SkillManager = () => {
 
   const disabledSkillIds = useMemo(
     () =>
-      new Set((bambooConfig?.skills?.disabled ?? []).map((value) => value.trim()).filter(Boolean)),
-    [bambooConfig],
+      new Set(
+        (toolsSkills.envelope?.data.skills?.disabled ?? [])
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    [toolsSkills.envelope],
   );
 
   const loadSkillSettings = useCallback(
-    async (refresh = true) => {
+    async (refresh = true, refreshConfig = false) => {
       setIsLoadingSkills(true);
       setSkillsError(null);
       try {
         const [skillResponse] = await Promise.all([
           skillService.listSkills({ includeDisabled: true }, refresh),
-          loadConfig({ force: refresh }),
+          refreshConfig
+            ? loadSection("tools-skills", { force: true })
+            : loadSection("tools-skills"),
         ]);
         setSkills(skillResponse.skills);
         setLastRefresh(new Date());
@@ -51,15 +57,17 @@ export const SkillManager = () => {
         setIsLoadingSkills(false);
       }
     },
-    [loadConfig, t],
+    [loadSection, t],
   );
 
   // Load skills on mount and periodically (with refresh from disk)
   useEffect(() => {
-    void loadSkillSettings(true);
+    void loadSkillSettings(true, true);
 
     const intervalId = setInterval(() => {
-      void loadSkillSettings(true);
+      // Skill files can change independently, but config is event-driven and
+      // must not be polled with the catalog refresh.
+      void loadSkillSettings(true, false);
     }, REFRESH_INTERVAL);
 
     return () => clearInterval(intervalId);
@@ -68,7 +76,7 @@ export const SkillManager = () => {
   // Refresh when window regains focus
   useEffect(() => {
     const handleFocus = () => {
-      void loadSkillSettings(true);
+      void loadSkillSettings(true, true);
     };
 
     window.addEventListener("focus", handleFocus);
@@ -77,7 +85,7 @@ export const SkillManager = () => {
 
   // Manual refresh handler
   const handleRefresh = useCallback(async () => {
-    await loadSkillSettings(true);
+    await loadSkillSettings(true, true);
     message.success(t("components.skillManager.skillsRefreshed"));
   }, [loadSkillSettings, message, t]);
 
@@ -93,8 +101,8 @@ export const SkillManager = () => {
     async (skillId: string, nextDisabled: boolean) => {
       setSavingSkillId(skillId);
       try {
-        const latestConfig = await loadConfig({ force: true });
-        const currentDisabled = latestConfig?.skills?.disabled ?? [];
+        const latest = await loadSection("tools-skills", { force: true });
+        const currentDisabled = latest.data.skills?.disabled ?? [];
         const nextDisabledList = Array.from(
           new Set(
             (nextDisabled
@@ -106,13 +114,13 @@ export const SkillManager = () => {
           ),
         ).sort();
 
-        await saveConfig({
-          ...(latestConfig ?? {}),
+        await saveSection("tools-skills", {
+          ...latest.data,
           skills: {
-            ...(latestConfig?.skills ?? {}),
+            ...(latest.data.skills ?? {}),
             disabled: nextDisabledList,
           },
-        });
+        }, latest.revision);
         message.success(t("components.skillManager.skillStateSaved"));
       } catch (error) {
         message.error(
@@ -122,7 +130,7 @@ export const SkillManager = () => {
         setSavingSkillId(null);
       }
     },
-    [loadConfig, message, saveConfig, t],
+    [loadSection, message, saveSection, t],
   );
 
   // Filter skills

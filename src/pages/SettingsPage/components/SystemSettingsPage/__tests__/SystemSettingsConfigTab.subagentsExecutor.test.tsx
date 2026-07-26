@@ -1,29 +1,49 @@
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App as AntdApp } from "antd";
 
 import SystemSettingsConfigTab from "../SystemSettingsConfigTab";
-import { serviceFactory } from "@services/common/ServiceFactory";
+import { serviceFactory, type BambooSubagentsConfig } from "@services/common/ServiceFactory";
+import { configSectionsService, type ConfigSectionId } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 vi.mock("@services/common/ServiceFactory", () => ({
   serviceFactory: {
-    getBambooConfig: vi.fn(),
     getBambooTools: vi.fn(),
     validateBambooConfigPatch: vi.fn(),
     detectCodexCli: vi.fn(),
-    setBambooConfig: vi.fn(),
-    getProxyAuthStatus: vi.fn(),
-    setProxyAuth: vi.fn(),
-    clearProxyAuth: vi.fn(),
   },
 }));
 
-const mockGetBambooConfig = vi.mocked(serviceFactory.getBambooConfig);
 const mockGetBambooTools = vi.mocked(serviceFactory.getBambooTools);
 const mockValidateBambooConfigPatch = vi.mocked(serviceFactory.validateBambooConfigPatch);
 const mockDetectCodexCli = vi.mocked(serviceFactory.detectCodexCli);
-const mockSetBambooConfig = vi.mocked(serviceFactory.setBambooConfig);
-const mockGetProxyAuthStatus = vi.mocked(serviceFactory.getProxyAuthStatus);
+
+let subagentsData: BambooSubagentsConfig;
+
+const sectionEnvelope = (section: ConfigSectionId) => ({
+  data:
+    section === "core"
+      ? { http_proxy: "", https_proxy: "" }
+      : section === "memory"
+        ? { auto_dream_enabled: false }
+        : section === "subagents"
+          ? subagentsData
+          : section === "tools-skills"
+            ? { tools: { disabled: [] } }
+            : {},
+  revision: section === "subagents" ? 14 : 2,
+  loaded_at: "2026-07-23T00:00:00.000Z",
+  source_path: `/tmp/${section}.json`,
+  source_kind: "file" as const,
+  status: "healthy" as const,
+  last_error: null,
+});
+
+const lastSavedSubagents = (): BambooSubagentsConfig | undefined =>
+  vi.mocked(configSectionsService.putSection).mock.calls.at(-1)?.[2] as
+    | BambooSubagentsConfig
+    | undefined;
 
 describe("SystemSettingsConfigTab sub-agent executor settings", () => {
   const msgApi = {
@@ -33,25 +53,37 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetBambooConfig.mockResolvedValue({
-      http_proxy: "",
-      https_proxy: "",
-      memory: {
-        auto_dream_enabled: false,
-      },
-      subagents: {
-        max_concurrent: 8,
-      },
+    useConfigSectionStore.getState().reset();
+    subagentsData = { max_concurrent: 8 };
+    vi.spyOn(configSectionsService, "getSection").mockImplementation(
+      async (section) => sectionEnvelope(section) as never,
+    );
+    vi.spyOn(configSectionsService, "putSection").mockImplementation(
+      async (section, _revision, data) => ({
+        ...sectionEnvelope(section),
+        data,
+        revision: 15,
+      }) as never,
+    );
+    vi.spyOn(configSectionsService, "getProxyAuthStatus").mockResolvedValue({
+      configured: false,
+      credential_ref: null,
+      source: null,
+      updated_at: null,
+      revision: 1,
+      status: "healthy",
+      source_kind: "file",
+      last_error: null,
     });
     mockGetBambooTools.mockResolvedValue({ tools: [] });
-    mockGetProxyAuthStatus.mockResolvedValue({ configured: false, username: null });
     mockValidateBambooConfigPatch.mockResolvedValue({ valid: true, errors: {} });
     mockDetectCodexCli.mockResolvedValue({
       path: "/opt/homebrew/bin/codex",
       version: "codex-cli 0.144.5",
     });
-    mockSetBambooConfig.mockResolvedValue({});
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("defaults to the built-in executor and hides the Claude Code fields", async () => {
     render(
@@ -91,8 +123,10 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      expect(mockSetBambooConfig).toHaveBeenCalledWith({
-        subagents: {
+      expect(configSectionsService.putSection).toHaveBeenCalledWith(
+        "subagents",
+        14,
+        {
           max_concurrent: 8,
           executor: "claude_code",
           claude_code_binary: "/usr/local/bin/claude",
@@ -113,22 +147,12 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           codex_network_access: undefined,
           codex_allow_danger_bypass: undefined,
         },
-      });
+      );
     });
   });
 
   it("sends an explicit bamboo_runtime executor when reverting from Claude Code to built-in", async () => {
-    // The save patch is deep-merged server-side (bamboo-config's
-    // deep_merge_json): an OMITTED key means "leave unchanged," not
-    // "clear." So reverting away from a previously-saved claude_code
-    // executor must send the concrete "bamboo_runtime" string, never
-    // `undefined` (which would silently leave claude_code active).
-    mockGetBambooConfig.mockResolvedValue({
-      http_proxy: "",
-      https_proxy: "",
-      memory: { auto_dream_enabled: false },
-      subagents: { max_concurrent: 8, executor: "claude_code" },
-    });
+    subagentsData = { max_concurrent: 8, executor: "claude_code" };
 
     render(
       <AntdApp>
@@ -145,8 +169,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      const patch = mockSetBambooConfig.mock.calls.at(-1)?.[0];
-      expect(patch?.subagents?.executor).toBe("bamboo_runtime");
+      expect(lastSavedSubagents()?.executor).toBe("bamboo_runtime");
     });
   });
 
@@ -161,8 +184,10 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      expect(mockSetBambooConfig).toHaveBeenCalledWith({
-        subagents: {
+      expect(configSectionsService.putSection).toHaveBeenCalledWith(
+        "subagents",
+        14,
+        {
           max_concurrent: 8,
           executor: undefined,
           claude_code_binary: undefined,
@@ -183,7 +208,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           codex_network_access: undefined,
           codex_allow_danger_bypass: undefined,
         },
-      });
+      );
     });
   });
 
@@ -210,8 +235,10 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      expect(mockSetBambooConfig).toHaveBeenCalledWith({
-        subagents: {
+      expect(configSectionsService.putSection).toHaveBeenCalledWith(
+        "subagents",
+        14,
+        {
           max_concurrent: 8,
           executor: "codex",
           claude_code_binary: undefined,
@@ -232,7 +259,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
           codex_network_access: false,
           codex_allow_danger_bypass: false,
         },
-      });
+      );
     });
   });
 
@@ -257,9 +284,8 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      const patch = mockSetBambooConfig.mock.calls.at(-1)?.[0];
-      expect(patch?.subagents?.codex_mode).toBe("app_server");
-      expect(patch?.subagents?.codex_approval_policy).toBe("on-request");
+      expect(lastSavedSubagents()?.codex_mode).toBe("app_server");
+      expect(lastSavedSubagents()?.codex_approval_policy).toBe("on-request");
     });
   });
 
@@ -297,7 +323,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     const feedback = await screen.findByTestId("codex-validation-errors");
     expect(feedback).toHaveTextContent("subagents.codex_provider_key_ref");
     expect(feedback).toHaveTextContent("invalid format");
-    expect(mockSetBambooConfig).not.toHaveBeenCalled();
+    expect(configSectionsService.putSection).not.toHaveBeenCalled();
   });
 
   it("requires an explicit confirmation before enabling danger bypass", async () => {
@@ -325,9 +351,8 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
 
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
     await waitFor(() => {
-      const patch = mockSetBambooConfig.mock.calls.at(-1)?.[0];
-      expect(patch?.subagents?.codex_sandbox).toBe("danger-full-access");
-      expect(patch?.subagents?.codex_allow_danger_bypass).toBe(true);
+      expect(lastSavedSubagents()?.codex_sandbox).toBe("danger-full-access");
+      expect(lastSavedSubagents()?.codex_allow_danger_bypass).toBe(true);
     });
   });
 });

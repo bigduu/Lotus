@@ -1,6 +1,8 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsEnvVarsTab from "../SystemSettingsEnvVarsTab";
+import { configSectionsService } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import {
   settingsService,
   EnvVarsListResponse,
@@ -60,7 +62,7 @@ const mockDeleteEnvVar = vi.mocked(settingsService.deleteEnvVar);
 
 // ── Fixtures ────────────────────────────────────────────────
 
-const emptyList: EnvVarsListResponse = { entries: [] };
+const emptyList: EnvVarsListResponse = { revision: 3, entries: [] };
 
 const sampleEntries: EnvVarResponse[] = [
   {
@@ -68,6 +70,7 @@ const sampleEntries: EnvVarResponse[] = [
     value: "production",
     secret: false,
     has_value: true,
+    configured: true,
     description: "Node environment",
   },
   {
@@ -75,6 +78,7 @@ const sampleEntries: EnvVarResponse[] = [
     value: "****...****",
     secret: true,
     has_value: true,
+    configured: true,
     description: "GitHub PAT",
   },
   {
@@ -82,21 +86,34 @@ const sampleEntries: EnvVarResponse[] = [
     value: "****...****",
     secret: true,
     has_value: false,
+    configured: false,
     description: undefined,
   },
 ];
 
-const sampleList: EnvVarsListResponse = { entries: sampleEntries };
+const sampleList: EnvVarsListResponse = { revision: 3, entries: sampleEntries };
 
 // ── Tests ───────────────────────────────────────────────────
 
 describe("SystemSettingsEnvVarsTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useConfigSectionStore.getState().reset();
+    vi.spyOn(configSectionsService, "getSection").mockResolvedValue({
+      data: [],
+      revision: 5,
+      loaded_at: "2026-07-23T00:00:00.000Z",
+      source_path: "/tmp/env.json",
+      source_kind: "file",
+      status: "healthy",
+      last_error: null,
+    } as never);
     mockGetEnvVars.mockResolvedValue(emptyList);
     mockUpsertEnvVar.mockResolvedValue(emptyList);
     mockDeleteEnvVar.mockResolvedValue(emptyList);
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   // ── Loading & Display ────────────────────────────────────
 
@@ -214,7 +231,16 @@ describe("SystemSettingsEnvVarsTab", () => {
 
     it("should call upsertEnvVar on form submit", async () => {
       const newEntries: EnvVarsListResponse = {
-        entries: [{ name: "NEW_VAR", value: "new_val", secret: false, has_value: true }],
+        revision: 4,
+        entries: [
+          {
+            name: "NEW_VAR",
+            value: "new_val",
+            secret: false,
+            has_value: true,
+            configured: true,
+          },
+        ],
       };
       mockUpsertEnvVar.mockResolvedValue(newEntries);
 
@@ -239,6 +265,7 @@ describe("SystemSettingsEnvVarsTab", () => {
   describe("deleting variables", () => {
     it("should call deleteEnvVar on confirm", async () => {
       const afterDelete: EnvVarsListResponse = {
+        revision: 4,
         entries: [sampleEntries[1], sampleEntries[2]], // NODE_ENV removed
       };
       mockGetEnvVars.mockResolvedValue(sampleList);

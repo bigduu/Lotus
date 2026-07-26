@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Button,
@@ -14,11 +14,12 @@ import {
 import { useTranslation } from "react-i18next";
 import { getErrorMessage } from "@services/api";
 import {
-  serviceFactory,
   type PluginTrustConfig,
   type PluginTrustEnforcement,
   type TrustedKeyConfig,
 } from "@services/common/ServiceFactory";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -44,13 +45,10 @@ function draftFromConfig(pluginTrust: PluginTrustConfig | undefined): TrustDraft
  * signing keys, and the persistent enforcement escape hatch that back every
  * URL plugin install (bamboo PRs #449/#450/#465/#483).
  *
- * Reads/writes the `plugin_trust` sub-tree of the bamboo config via the same
- * whole-document `GET`/partial-patch `POST bamboo/config` surface as
- * `NotificationChannelsSection`/`SystemSettingsConnectTab`. `trusted_hosts`/
- * `trusted_keys` ship with built-in defaults (nova/magpie's official keys +
- * `github.com/bigduu/`) — an absent `plugin_trust` in the GET response means
- * "using the built-in defaults", so the empty-array fallback here is only
- * ever hit before the first load resolves.
+ * Reads/writes `plugin_trust` through the versioned `tools-skills` section.
+ * `trusted_hosts`/`trusted_keys` ship with built-in defaults (nova/magpie's
+ * official keys + `github.com/bigduu/`) — an absent `plugin_trust` means
+ * "using the built-in defaults".
  *
  * `enforcement: "off"` disables the host allowlist, signature, AND checksum
  * requirement for every URL install/update server-wide (equivalent to
@@ -67,27 +65,41 @@ const PluginTrustSection: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const baseDraftRef = useRef<TrustDraft | null>(null);
+  const snapshot = useConfigSectionStore((state) => state.sections["tools-skills"]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveSection = useConfigSectionStore((state) => state.saveSection);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const cfg = await serviceFactory.getBambooConfig();
-      setDraft(draftFromConfig(cfg.plugin_trust));
+      const envelope = await loadSection("tools-skills", { force: true });
+      const nextDraft = draftFromConfig(envelope.data.plugin_trust);
+      setDraft(nextDraft);
+      baseDraftRef.current = structuredClone(nextDraft);
+      setBaseRevision(envelope.revision);
+      setDirty(false);
     } catch (error) {
       setLoadError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [loadSection]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const patch = (p: Partial<TrustDraft>) => setDraft((d) => ({ ...d, ...p }));
+  const patch = (p: Partial<TrustDraft>) => {
+    setDraft((d) => ({ ...d, ...p }));
+    setDirty(true);
+  };
 
   const updateKey = (index: number, key: Partial<TrustedKeyConfig>) => {
+    setDirty(true);
     setDraft((d) => ({
       ...d,
       trustedKeys: d.trustedKeys.map((entry, i) => (i === index ? { ...entry, ...key } : entry)),
@@ -95,6 +107,7 @@ const PluginTrustSection: React.FC = () => {
   };
 
   const addKey = () => {
+    setDirty(true);
     setDraft((d) => ({
       ...d,
       trustedKeys: [...d.trustedKeys, { label: "", algorithm: DEFAULT_ALGORITHM, public_key: "" }],
@@ -102,6 +115,7 @@ const PluginTrustSection: React.FC = () => {
   };
 
   const removeKey = (index: number) => {
+    setDirty(true);
     setDraft((d) => ({ ...d, trustedKeys: d.trustedKeys.filter((_, i) => i !== index) }));
   };
 
@@ -110,21 +124,28 @@ const PluginTrustSection: React.FC = () => {
     setSaveError(null);
     setSaved(false);
     try {
-      const configPatch: { plugin_trust: PluginTrustConfig } = {
-        plugin_trust: {
-          trusted_hosts: draft.trustedHosts.map((h) => h.trim()).filter((h) => h.length > 0),
-          trusted_keys: draft.trustedKeys
-            .map((k) => ({
-              label: k.label.trim(),
-              algorithm: (k.algorithm || DEFAULT_ALGORITHM).trim(),
-              public_key: k.public_key.trim(),
-            }))
-            .filter((k) => k.label.length > 0 && k.public_key.length > 0),
-          enforcement: draft.enforcement,
-        },
+      if (baseRevision === null) throw new Error("Plugin trust configuration is not loaded.");
+      const pluginTrust: PluginTrustConfig = {
+        trusted_hosts: draft.trustedHosts.map((h) => h.trim()).filter((h) => h.length > 0),
+        trusted_keys: draft.trustedKeys
+          .map((k) => ({
+            label: k.label.trim(),
+            algorithm: (k.algorithm || DEFAULT_ALGORITHM).trim(),
+            public_key: k.public_key.trim(),
+          }))
+          .filter((k) => k.label.length > 0 && k.public_key.length > 0),
+        enforcement: draft.enforcement,
       };
-      const savedCfg = await serviceFactory.setBambooConfig(configPatch);
-      setDraft(draftFromConfig(savedCfg.plugin_trust));
+      const savedEnvelope = await saveSection(
+        "tools-skills",
+        { ...(snapshot.envelope?.data ?? {}), plugin_trust: pluginTrust },
+        baseRevision,
+      );
+      const nextDraft = draftFromConfig(savedEnvelope.data.plugin_trust);
+      setDraft(nextDraft);
+      baseDraftRef.current = structuredClone(nextDraft);
+      setBaseRevision(savedEnvelope.revision);
+      setDirty(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (error) {
@@ -133,6 +154,11 @@ const PluginTrustSection: React.FC = () => {
       setSaving(false);
     }
   };
+
+  const externalRevision =
+    dirty && snapshot.envelope && baseRevision !== snapshot.envelope.revision
+      ? snapshot.envelope.revision
+      : null;
 
   return (
     <Card size="small" className="lotus-settings-card" loading={loading}>
@@ -151,6 +177,33 @@ const PluginTrustSection: React.FC = () => {
               <Button size="small" onClick={() => void load()}>
                 {t("settings.pluginsTab.trustConfig.retry")}
               </Button>
+            }
+          />
+        ) : null}
+
+        {externalRevision !== null ? (
+          <Alert
+            type="warning"
+            showIcon
+            message={`Plugin trust changed on disk (r${baseRevision} → r${externalRevision})`}
+            action={
+              <Flex gap={8}>
+                <Button size="small" onClick={() => void load()}>
+                  Reload
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    if (!snapshot.envelope || !baseDraftRef.current) return;
+                    const latest = draftFromConfig(snapshot.envelope.data.plugin_trust);
+                    setDraft(reapplyConfigChanges(baseDraftRef.current, draft, latest));
+                    baseDraftRef.current = structuredClone(latest);
+                    setBaseRevision(snapshot.envelope.revision);
+                  }}
+                >
+                  Reapply
+                </Button>
+              </Flex>
             }
           />
         ) : null}

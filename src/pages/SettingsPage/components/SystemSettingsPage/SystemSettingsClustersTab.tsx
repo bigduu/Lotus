@@ -27,10 +27,10 @@ import {
   NodeUpsertRequest,
   SshAuth,
 } from "@services/config/SettingsService";
+import { configSectionsService } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 const { Text, Paragraph } = Typography;
-
-const SECRET_MASK = "****...****";
 
 /** Status → antd Tag color. */
 const STATUS_COLOR: Record<NodeStatus, string> = {
@@ -99,6 +99,9 @@ const SystemSettingsClustersTab: React.FC = () => {
   const [logsNode, setLogsNode] = useState<FabricNode | null>(null);
   const [logsText, setLogsText] = useState("");
   const [logsLoading, setLogsLoading] = useState(false);
+  const [credentialRevision, setCredentialRevision] = useState<number | null>(null);
+  const clusterSnapshot = useConfigSectionStore((state) => state.sections["cluster-fabric"]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
 
   const placementType = Form.useWatch("placement_type", form);
   const authMethod = Form.useWatch("auth_method", form);
@@ -114,10 +117,15 @@ const SystemSettingsClustersTab: React.FC = () => {
       const seq = ++fetchSeq.current;
       if (!silent) setLoading(true);
       try {
-        const res = await settingsService.listNodes();
+        const [res, credentials] = await Promise.all([
+          settingsService.listNodes(),
+          configSectionsService.listCredentials(),
+          loadSection("cluster-fabric", { force: true }).catch(() => undefined),
+        ]);
         if (seq !== fetchSeq.current) return; // superseded by a newer fetch
         setNodes(res.nodes);
         setClusters(res.clusters);
+        setCredentialRevision(credentials.revision);
       } catch {
         // A background poll shouldn't spam errors; only surface an explicit load.
         if (!silent) message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
@@ -125,12 +133,17 @@ const SystemSettingsClustersTab: React.FC = () => {
         if (!silent) setLoading(false);
       }
     },
-    [message, t],
+    [loadSection, message, t],
   );
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    if (clusterSnapshot.envelope) void fetchAll(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clusterSnapshot.envelope?.revision]);
 
   // Live status: silently re-poll while the tab is visible and no modal is open
   // (editing/logs), so health flips (running↔unreachable) + "last seen" refresh
@@ -210,9 +223,8 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   const buildPlacement = (v: NodeFormValues): NodePlacement => {
     if (v.placement_type === "local") return { type: "local" };
-    // Secrets come back masked; only mask-preserve one the edited node ACTUALLY
-    // had, so switching auth methods (password→key) or clearing an inline key on
-    // a path-based node never stores the mask string as a bogus secret.
+    // Secret fields stay blank. Omission preserves an existing credential;
+    // switching auth methods or supplying a replacement is explicit.
     const original = editingId ? nodes.find((n) => n.id === editingId) : undefined;
     const originalAuth =
       original?.placement.type === "ssh"
@@ -230,17 +242,15 @@ const SystemSettingsClustersTab: React.FC = () => {
         originalAuth?.method === "private_key" ? originalAuth.passphrase : undefined;
       auth = {
         method: "private_key",
-        private_key: preserve(existingKey, v.private_key)
-          ? SECRET_MASK
-          : v.private_key || undefined,
+        private_key: preserve(existingKey, v.private_key) ? undefined : v.private_key || undefined,
         private_key_path: v.private_key_path || undefined,
-        passphrase: preserve(existingPass, v.passphrase) ? SECRET_MASK : v.passphrase || undefined,
+        passphrase: preserve(existingPass, v.passphrase) ? undefined : v.passphrase || undefined,
       };
     } else {
       const existingPw = originalAuth?.method === "password" ? originalAuth.password : undefined;
       auth = {
         method: "password",
-        password: preserve(existingPw, v.password) ? SECRET_MASK : v.password,
+        password: preserve(existingPw, v.password) ? undefined : v.password,
       };
     }
     return {
@@ -253,6 +263,10 @@ const SystemSettingsClustersTab: React.FC = () => {
   };
 
   const handleSave = async (v: NodeFormValues) => {
+    if (credentialRevision === null) {
+      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      return;
+    }
     const req: NodeUpsertRequest = {
       label: v.label.trim(),
       placement: buildPlacement(v),
@@ -265,9 +279,11 @@ const SystemSettingsClustersTab: React.FC = () => {
     };
 
     try {
-      const saved = editingId
-        ? await settingsService.updateNode(editingId, req)
-        : await settingsService.createNode(req);
+      const result = editingId
+        ? await settingsService.updateNode(editingId, req, credentialRevision)
+        : await settingsService.createNode(req, credentialRevision);
+      const saved = result.node;
+      setCredentialRevision(result.revision);
 
       // The cluster Select uses tags-mode → value is an array; take the first.
       const clusterName = Array.isArray(v.cluster_name) ? v.cluster_name[0] : v.cluster_name;
@@ -337,8 +353,10 @@ const SystemSettingsClustersTab: React.FC = () => {
   // ── Row actions ──────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
+    if (credentialRevision === null) return;
     try {
-      await settingsService.deleteNode(id);
+      const result = await settingsService.deleteNode(id, credentialRevision);
+      setCredentialRevision(result.revision);
       message.success(t("settings.clusters.deleted", "Node deleted"));
       fetchAll();
     } catch (err: unknown) {

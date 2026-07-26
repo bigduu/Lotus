@@ -1,5 +1,10 @@
 import { create } from "zustand";
 import { settingsService } from "@services/config/SettingsService";
+import {
+  providerSectionToInstances,
+  providerSectionToLegacyConfig,
+} from "@services/config/providerSettings";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type { ProviderConfig, ProviderType, ProviderInstance } from "@shared/types/providerConfig";
 import type {
   ProviderModelRef,
@@ -126,7 +131,8 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   loadProviderConfig: async () => {
     set({ isLoading: true, error: null });
     try {
-      const config = await settingsService.getProviderConfig();
+      const envelope = await useConfigSectionStore.getState().loadSection("providers");
+      const config = providerSectionToLegacyConfig(envelope.data);
 
       // Build defaults from providers.{provider}.model if defaults is missing
       // (backward compatibility with backend that stores model in providers).
@@ -148,7 +154,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
 
       set({
         providerConfig: config,
-        currentProvider: config.provider as ProviderType,
+        currentProvider: config.provider,
         isLoading: false,
       });
     } catch (error) {
@@ -164,10 +170,10 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   loadProviderInstances: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await settingsService.getProviderInstances();
-
-      const instances = response.instances ?? [];
-      const defaultId = response.default_provider_instance_id ?? null;
+      const envelope = await useConfigSectionStore.getState().loadSection("providers");
+      const section = envelope.data;
+      const instances = providerSectionToInstances(section);
+      const defaultId = section.default_provider_instance_id;
 
       // Build legacy-compatible providerConfig from instances + defaults.
       // This keeps existing consumers working during migration.
@@ -179,10 +185,10 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       // Also preserve original type-keyed entries so legacy code can still
       // look up providers by type name.
       const legacyConfig: ProviderConfig = {
-        provider: defaultId ?? "",
-        defaults: response.defaults,
+        provider: defaultId ?? section.provider,
+        defaults: section.defaults ?? undefined,
         providers: legacyProviders as ProviderConfig["providers"],
-        features: response.features,
+        features: section.features,
       };
 
       // Back-fill defaults from legacy model field if needed
@@ -199,7 +205,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       set({
         providerInstances: instances,
         defaultProviderInstanceId: defaultId,
-        currentProvider: defaultId ?? response.defaults?.chat?.provider ?? "",
+        currentProvider: defaultId ?? section.defaults?.chat?.provider ?? section.provider,
         providerConfig: legacyConfig,
         isInstancesLoaded: true,
         isLoading: false,

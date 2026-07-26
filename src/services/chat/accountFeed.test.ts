@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AccountStreamHandlers, ChangeEvent, SubagentSnapshotResponse } from "./AgentService";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 // Capture the handlers passed to subscribeToAccountStream so the test can drive
 // the feed without a real EventSource.
@@ -98,6 +99,7 @@ describe("accountFeed runner", () => {
     storeActions.refreshSessionsIndex.mockResolvedValue(undefined);
     storeActions.refreshChatsNow.mockResolvedValue(undefined);
     localStorage.clear();
+    useConfigSectionStore.getState().reset();
   });
 
   afterEach(() => {
@@ -308,6 +310,29 @@ describe("accountFeed runner", () => {
 
     expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBe("7");
     expect(storeActions.setAgentAvailability).toHaveBeenCalledWith(true);
+  });
+
+  it("routes config events only to the changed section store", async () => {
+    const handler = vi.spyOn(useConfigSectionStore.getState(), "handleConfigEvent");
+    await startAndHydrate();
+
+    captured!.onChange(change(8, { type: "config.invalid", section: "hooks", revision: 12 }));
+
+    expect(handler).toHaveBeenCalledWith("hooks", 12, "config.invalid");
+    expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
+  });
+
+  it("resyncs loaded config sections when the transport reconnects", async () => {
+    const resync = vi
+      .spyOn(useConfigSectionStore.getState(), "resyncLoadedSections")
+      .mockResolvedValue(undefined);
+    await startAndHydrate();
+
+    captured!.onOpen?.();
+    captured!.onError?.();
+    captured!.onOpen?.();
+
+    expect(resync).toHaveBeenCalledTimes(2);
   });
 
   it("replaces from an advanced-cursor snapshot then replays only events above its watermark", async () => {

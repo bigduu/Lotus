@@ -2,6 +2,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsKeywordMaskingTab from "../SystemSettingsKeywordMaskingTab";
 import { ServiceFactory } from "@services/common/ServiceFactory";
+import { configSectionsService } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 // Mock ServiceFactory
 vi.mock("@services/common/ServiceFactory");
@@ -43,9 +45,12 @@ describe("SystemSettingsKeywordMaskingTab", () => {
   const mockGetConfig = vi.fn();
   const mockUpdateConfig = vi.fn();
   const mockValidateEntries = vi.fn();
+  const mockGetSection = vi.spyOn(configSectionsService, "getSection");
+  const mockPutSection = vi.spyOn(configSectionsService, "putSection");
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useConfigSectionStore.getState().reset();
 
     // Setup ServiceFactory mock
     vi.mocked(ServiceFactory.getInstance).mockReturnValue({
@@ -58,6 +63,33 @@ describe("SystemSettingsKeywordMaskingTab", () => {
     mockGetConfig.mockResolvedValue({ entries: [] });
     mockValidateEntries.mockResolvedValue({ valid: true });
     mockUpdateConfig.mockResolvedValue({ entries: [] });
+    mockGetSection.mockImplementation(async (section) => {
+      if (section !== "model-policy") throw new Error(`Unexpected section: ${section}`);
+      const config = await mockGetConfig();
+      return {
+        data: { keyword_masking: { entries: config.entries } },
+        revision: 7,
+        loaded_at: "2026-07-24T00:00:00Z",
+        source_path: "/tmp/model-policy.json",
+        source_kind: "file",
+        status: "healthy",
+        last_error: null,
+      } as any;
+    });
+    mockPutSection.mockImplementation(async (section, expectedRevision, data) => {
+      if (section !== "model-policy") throw new Error(`Unexpected section: ${section}`);
+      const entries = (data as any).keyword_masking?.entries ?? [];
+      const updated = await mockUpdateConfig(entries);
+      return {
+        data: { ...(data as any), keyword_masking: { entries: updated.entries } },
+        revision: expectedRevision + 1,
+        loaded_at: "2026-07-24T00:00:01Z",
+        source_path: "/tmp/model-policy.json",
+        source_kind: "file",
+        status: "healthy",
+        last_error: null,
+      } as any;
+    });
   });
 
   describe("initialization and loading", () => {
@@ -221,6 +253,58 @@ describe("SystemSettingsKeywordMaskingTab", () => {
           { pattern: "new", match_type: "exact", enabled: true },
         ]);
       });
+    });
+
+    it("keeps a dirty edit and reapplies it over a newer external revision", async () => {
+      mockGetConfig.mockResolvedValue({
+        entries: [{ pattern: "old", match_type: "exact", enabled: true }],
+      });
+      mockUpdateConfig.mockImplementation(async (entries) => ({ entries }));
+
+      render(<SystemSettingsKeywordMaskingTab />);
+      await screen.findByText("old");
+      fireEvent.click(screen.getByRole("button", { name: /edit/i }));
+      fireEvent.change(screen.getByTestId("keyword-pattern-input"), {
+        target: { value: "local" },
+      });
+
+      const state = useConfigSectionStore.getState();
+      useConfigSectionStore.setState({
+        sections: {
+          ...state.sections,
+          "model-policy": {
+            ...state.sections["model-policy"],
+            envelope: {
+              ...state.sections["model-policy"].envelope!,
+              revision: 8,
+              data: {
+                keyword_masking: {
+                  entries: [
+                    { pattern: "old", match_type: "exact", enabled: true },
+                    { pattern: "remote", match_type: "regex", enabled: true },
+                  ],
+                },
+              },
+            },
+          },
+        },
+      });
+
+      expect(await screen.findByText("Keyword masking changed on disk")).toBeInTheDocument();
+      expect(screen.getByTestId("keyword-pattern-input")).toHaveValue("local");
+      fireEvent.click(screen.getByRole("button", { name: "Reapply" }));
+      fireEvent.click(screen.getByTestId("save-keyword"));
+
+      await waitFor(() =>
+        expect(mockPutSection).toHaveBeenCalledWith("model-policy", 8, {
+          keyword_masking: {
+            entries: [
+              { pattern: "local", match_type: "exact", enabled: true },
+              { pattern: "remote", match_type: "regex", enabled: true },
+            ],
+          },
+        }),
+      );
     });
   });
 

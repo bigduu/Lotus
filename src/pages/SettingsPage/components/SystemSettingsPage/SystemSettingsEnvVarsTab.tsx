@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import {
   App as AntApp,
+  Alert,
   Button,
   Card,
   Form,
@@ -20,6 +21,7 @@ import {
   EnvVarResponse,
   UpsertEnvVarRequest,
 } from "@services/config/SettingsService";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 const { Text, Paragraph } = Typography;
 
@@ -39,7 +41,11 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
+  const [revision, setRevision] = useState<number | null>(null);
+  const [clearRequested, setClearRequested] = useState(false);
   const [form] = Form.useForm();
+  const envSnapshot = useConfigSectionStore((state) => state.sections.env);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
 
   // ── Data fetching ───────────────────────────────────────────────
 
@@ -48,16 +54,26 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     try {
       const res = await settingsService.getEnvVars();
       setEntries(res.entries);
+      setRevision(res.revision);
+      await loadSection("env", { force: true }).catch(() => undefined);
     } catch {
       message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
     } finally {
       setLoading(false);
     }
-  }, [message, t]);
+  }, [loadSection, message, t]);
 
   useEffect(() => {
     fetchEntries();
   }, [fetchEntries]);
+
+  useEffect(() => {
+    if (!envSnapshot.envelope || revision === null) return;
+    void fetchEntries();
+    // The typed section revision and credential transaction revision are
+    // distinct counters; a new section envelope is only a refresh signal.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [envSnapshot.envelope?.revision]);
 
   // ── CRUD ────────────────────────────────────────────────────────
 
@@ -67,16 +83,21 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     secret: boolean;
     description?: string;
   }) => {
+    if (revision === null) {
+      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
+      return;
+    }
     const req: UpsertEnvVarRequest = {
       name: values.name.trim(),
-      value: values.value,
+      ...(!editingName || values.value || clearRequested ? { value: values.value } : {}),
       secret: values.secret ?? false,
       description: values.description?.trim() || undefined,
     };
 
     try {
-      const res = await settingsService.upsertEnvVar(req);
+      const res = await settingsService.upsertEnvVar(req, revision);
       setEntries(res.entries);
+      setRevision(res.revision);
       message.success(
         editingName
           ? t("settings.envVars.updated", "Variable updated")
@@ -92,9 +113,11 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
   };
 
   const handleDelete = async (name: string) => {
+    if (revision === null) return;
     try {
-      const res = await settingsService.deleteEnvVar(name);
+      const res = await settingsService.deleteEnvVar(name, revision);
       setEntries(res.entries);
+      setRevision(res.revision);
       message.success(t("settings.envVars.deleted", "Variable deleted"));
     } catch (err: unknown) {
       message.error(
@@ -107,6 +130,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
   // ── Modal helpers ───────────────────────────────────────────────
 
   const openAddModal = () => {
+    setClearRequested(false);
     setEditingName(null);
     form.resetFields();
     form.setFieldsValue({ secret: false });
@@ -114,6 +138,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
   };
 
   const openEditModal = (entry: EnvVarResponse) => {
+    setClearRequested(false);
     setEditingName(entry.name);
     form.setFieldsValue({
       name: entry.name,
@@ -125,6 +150,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
   };
 
   const closeModal = () => {
+    setClearRequested(false);
     setModalOpen(false);
     setEditingName(null);
     form.resetFields();
@@ -234,6 +260,10 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           )}
         </Paragraph>
 
+        {envSnapshot.error ? (
+          <Alert type="warning" showIcon message={envSnapshot.error} style={{ marginBottom: 12 }} />
+        ) : null}
+
         <Table
           dataSource={entries}
           columns={columns}
@@ -310,6 +340,19 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
               visibilityToggle
             />
           </Form.Item>
+          {editingName ? (
+            <Button
+              size="small"
+              danger={clearRequested}
+              onClick={() => {
+                setClearRequested((current) => !current);
+                form.setFieldValue("value", "");
+              }}
+              style={{ marginTop: -12, marginBottom: 12 }}
+            >
+              {clearRequested ? "Value will be cleared" : "Clear stored value"}
+            </Button>
+          ) : null}
 
           <Form.Item
             name="secret"

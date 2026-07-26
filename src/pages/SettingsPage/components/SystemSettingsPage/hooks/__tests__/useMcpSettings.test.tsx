@@ -50,7 +50,7 @@ const makeConfig = (id: string): McpServerConfig => ({
 });
 
 describe("useMcpSettings", () => {
-  it("loads servers immediately and auto-refreshes status", async () => {
+  it("loads servers immediately without polling", async () => {
     const service = {
       getServers: vi.fn().mockResolvedValue([makeServer("filesystem")]),
       addServer: vi.fn(),
@@ -62,20 +62,13 @@ describe("useMcpSettings", () => {
       getTools: vi.fn().mockResolvedValue([]),
     };
 
-    const { result } = renderHook(() =>
-      useMcpSettings({
-        service,
-        autoRefreshMs: 20,
-      }),
-    );
+    const { result } = renderHook(() => useMcpSettings({ service }));
 
     await waitFor(() => {
       expect(result.current.servers).toHaveLength(1);
     });
 
-    await waitFor(() => {
-      expect(service.getServers.mock.calls.length).toBeGreaterThanOrEqual(2);
-    });
+    expect(service.getServers).toHaveBeenCalledTimes(1);
   });
 
   it("adds servers then refreshes list", async () => {

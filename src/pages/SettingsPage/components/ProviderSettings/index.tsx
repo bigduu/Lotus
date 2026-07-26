@@ -1,5 +1,5 @@
 import { debugLog } from "@shared/utils/debugFlags";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   App as AntApp,
   Form,
@@ -16,6 +16,7 @@ import {
   Switch,
   Tooltip,
   Alert,
+  Popconfirm,
   theme,
 } from "antd";
 import {
@@ -41,15 +42,12 @@ import type {
   ProviderType,
   DefaultsConfig,
   ProviderInstance,
-  ProviderInstancesConfig,
+  CreateProviderInstanceRequest,
+  UpdateProviderInstanceRequest,
 } from "@shared/types/providerConfig";
 import { PROVIDER_LABELS } from "@shared/types/providerConfig";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
-import {
-  ServiceFactory,
-  type BambooConfig,
-  type BambooConfigValidationIssue,
-} from "@services/common/ServiceFactory";
+import { type BambooMemoryConfig } from "@services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
 import { redactSensitive } from "@shared/utils/secrets";
 import { isMaskedSecretValue } from "./providerInstanceUtils";
@@ -60,6 +58,16 @@ import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
 import { getBambooCompatibleProviderBaseUrls } from "@shared/utils/backendBaseUrl";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import type {
+  ProviderCredentialChanges,
+  ProviderCredentialStatus,
+  ProviderInstanceSettings,
+  ProviderSection,
+} from "@services/config/configSections";
+import { providerSectionToInstances } from "@services/config/providerSettings";
+import { v4 as uuid } from "uuid";
+import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
 
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
@@ -99,7 +107,7 @@ type ModelPreferenceField = keyof Pick<
   "chat" | "fast" | "task_summary" | "memory_background" | "sub_agent" | "vision"
 >;
 
-type ProviderSettingsFormValues = Omit<ProviderConfig, "provider" | "providers"> & {
+type ProviderSettingsFormValues = Omit<ProviderConfig, "provider" | "providers" | "defaults"> & {
   provider?: string;
   providers: EditableProviders;
   defaults?: EditableDefaults;
@@ -112,6 +120,8 @@ const MODEL_PROVIDERS = [
   "copilot",
   "bodhi",
 ] as const satisfies readonly ModelProvider[];
+
+const EMPTY_PROVIDER_CREDENTIAL_STATUS: Record<string, ProviderCredentialStatus> = {};
 
 const ProviderModelRefField: React.FC<{
   value?: ProviderModelRef;
@@ -136,8 +146,45 @@ const setLegacyProviderModel = (
   } as AnyEditableProviderConfig;
 };
 
-const getLegacyMemoryBackgroundModel = (config: BambooConfig): string | undefined => {
-  const legacyValue = config.memory?.background_model?.trim();
+const buildProviderInstanceSettings = (
+  type: ProviderType,
+  label: string | undefined,
+  enabled: boolean | undefined,
+  rawConfig: Record<string, unknown>,
+): { settings: ProviderInstanceSettings; credential?: string } => {
+  const config = structuredClone(rawConfig);
+  const apiKey = typeof config.api_key === "string" ? config.api_key.trim() : "";
+  delete config.api_key;
+  const settings: ProviderInstanceSettings = {
+    provider_type: type,
+    label: label?.trim() || PROVIDER_LABELS[type],
+    enabled: enabled ?? true,
+    base_url: config.base_url as string | null | undefined,
+    model: config.model as string | null | undefined,
+    fast_model: config.fast_model as string | null | undefined,
+    vision_model: config.vision_model as string | null | undefined,
+    reasoning_effort: config.reasoning_effort as
+      | ProviderInstanceSettings["reasoning_effort"]
+      | undefined,
+    responses_only_models: config.responses_only_models as string[] | undefined,
+    request_overrides: config.request_overrides as
+      | ProviderInstanceSettings["request_overrides"]
+      | undefined,
+    target_provider: config.target_provider as
+      | ProviderInstanceSettings["target_provider"]
+      | undefined,
+    thinking_replay_always: config.thinking_replay_always as boolean | null | undefined,
+  };
+  return {
+    settings,
+    credential: apiKey && !isMaskedSecretValue(apiKey) ? apiKey : undefined,
+  };
+};
+
+const getLegacyMemoryBackgroundModel = (
+  memory: BambooMemoryConfig | null | undefined,
+): string | undefined => {
+  const legacyValue = memory?.background_model?.trim();
   return legacyValue ? legacyValue : undefined;
 };
 
@@ -200,12 +247,15 @@ const renderReasoningEffortSelect = (t: TFunction, props?: ReasoningEffortSelect
 export const ProviderSettings: React.FC = () => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [applyingConfig, setApplyingConfig] = useState(false);
   const [currentProvider, setCurrentProvider] = useState<ProviderType>("copilot");
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const baseFormRef = useRef<ProviderSettingsFormValues | null>(null);
   // Legacy-mode providers whose api_key is already configured (GET returned the
   // redaction placeholder). Their key field stays empty; empty = keep stored key.
   const [providersWithStoredKey, setProvidersWithStoredKey] = useState<Set<string>>(new Set());
@@ -231,29 +281,46 @@ export const ProviderSettings: React.FC = () => {
   >("idle");
   const [modelAutoSaveError, setModelAutoSaveError] = useState<string | null>(null);
 
-  const buildInstanceModeFormState = useCallback(
-    (response: ProviderInstancesConfig, bambooConfig?: BambooConfig) => {
-      const instances = response.instances ?? [];
-      const providersWithEditorFields = instances.reduce<EditableProviders>((acc, instance) => {
-        const editableConfig = {
-          ...(instance.config as Record<string, unknown>),
-        } as AnyEditableProviderConfig;
+  const buildProviderFormState = useCallback(
+    (response: ProviderSection, memory?: BambooMemoryConfig | null) => {
+      const instances = providerSectionToInstances(response);
+      const providersWithEditorFields = instances.reduce<EditableProviders>(
+        (acc, instance) => {
+          const editableConfig = {
+            ...(instance.config as Record<string, unknown>),
+          } as AnyEditableProviderConfig;
+          if (
+            editableConfig.request_overrides &&
+            typeof editableConfig.request_overrides === "object"
+          ) {
+            editableConfig.request_overrides_json = JSON.stringify(
+              editableConfig.request_overrides,
+              null,
+              2,
+            );
+          }
+          acc[instance.id] = editableConfig;
+          return acc;
+        },
+        structuredClone(response.providers) as EditableProviders,
+      );
+
+      for (const provider of MODEL_PROVIDERS) {
+        const providerConfig = providersWithEditorFields[provider];
         if (
-          editableConfig.request_overrides &&
-          typeof editableConfig.request_overrides === "object"
+          providerConfig?.request_overrides &&
+          typeof providerConfig.request_overrides === "object"
         ) {
-          editableConfig.request_overrides_json = JSON.stringify(
-            editableConfig.request_overrides,
+          providerConfig.request_overrides_json = JSON.stringify(
+            providerConfig.request_overrides,
             null,
             2,
           );
         }
-        acc[instance.id] = editableConfig;
-        return acc;
-      }, {});
+      }
 
       let defaults = response.defaults ? ({ ...response.defaults } as EditableDefaults) : undefined;
-      const defaultInstanceId = response.default_provider_instance_id ?? null;
+      const defaultInstanceId = response.default_provider_instance_id;
       const defaultInstance = defaultInstanceId
         ? instances.find((instance) => instance.id === defaultInstanceId)
         : undefined;
@@ -269,9 +336,7 @@ export const ProviderSettings: React.FC = () => {
         };
       }
 
-      const legacyMemoryBackgroundModel = bambooConfig
-        ? getLegacyMemoryBackgroundModel(bambooConfig)
-        : undefined;
+      const legacyMemoryBackgroundModel = getLegacyMemoryBackgroundModel(memory);
       const memoryBackgroundProvider = getMemoryBackgroundFallbackProvider(
         defaults,
         defaultInstanceId,
@@ -287,6 +352,7 @@ export const ProviderSettings: React.FC = () => {
       }
 
       return {
+        provider: response.provider,
         defaults,
         features: response.features,
         providers: providersWithEditorFields,
@@ -295,16 +361,45 @@ export const ProviderSettings: React.FC = () => {
     [],
   );
 
-  const syncInstanceModeState = useCallback(
-    (response: ProviderInstancesConfig, bambooConfig?: BambooConfig) => {
-      setInstances(response.instances ?? []);
-      setDefaultInstanceId(response.default_provider_instance_id ?? null);
-      setIsInstanceMode(true);
-      form.setFieldsValue(buildInstanceModeFormState(response, bambooConfig));
+  const syncProviderState = useCallback(
+    (response: ProviderSection, memory?: BambooMemoryConfig | null, revision?: number) => {
+      const nextInstances = providerSectionToInstances(response);
+      setInstances(nextInstances);
+      setDefaultInstanceId(response.default_provider_instance_id);
+      setIsInstanceMode(nextInstances.length > 0);
+      setCurrentProvider(response.provider as ProviderType);
+      setProvidersWithStoredKey(
+        new Set(
+          MODEL_PROVIDERS.filter(
+            (provider) => response.credential_status.providers[provider]?.configured,
+          ),
+        ),
+      );
+      setExpandedProviderPanels(
+        Array.from(
+          new Set([
+            response.provider,
+            ...MODEL_PROVIDERS.filter((provider) => Boolean(response.providers[provider])),
+          ]),
+        ),
+      );
+      const nextForm = buildProviderFormState(response, memory);
+      form.setFieldsValue(nextForm);
+      baseFormRef.current = structuredClone(nextForm);
+      if (revision !== undefined) setBaseRevision(revision);
+      setDirty(false);
       setConfigLoaded(true);
     },
-    [buildInstanceModeFormState, form],
+    [buildProviderFormState, form],
   );
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveProviderSettings = useConfigSectionStore((state) => state.saveProviderSettings);
+  const providerCredentialStatusById = useConfigSectionStore(
+    (state) =>
+      state.sections.providers.envelope?.data.credential_status.provider_instances ??
+      EMPTY_PROVIDER_CREDENTIAL_STATUS,
+  );
+  const providerEnvelope = useConfigSectionStore((state) => state.sections.providers.envelope);
 
   const getProviderDisplayLabel = useCallback(
     (providerOrInstanceId?: string) => {
@@ -316,24 +411,6 @@ export const ProviderSettings: React.FC = () => {
       return PROVIDER_LABELS[providerOrInstanceId as ProviderType] || providerOrInstanceId;
     },
     [instances],
-  );
-
-  const getExpandedLegacyPanels = useCallback(
-    (provider: string | undefined, providers: EditableProviders | undefined) => {
-      const panels = new Set<string>();
-      if (provider?.trim()) {
-        panels.add(provider);
-      }
-      for (const key of MODEL_PROVIDERS) {
-        const config = providers?.[key];
-        if (!config) continue;
-        if (Object.keys(config).length > 0) {
-          panels.add(key);
-        }
-      }
-      return Array.from(panels);
-    },
-    [],
   );
 
   useEffect(() => {
@@ -367,100 +444,19 @@ export const ProviderSettings: React.FC = () => {
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
-      const [response, bambooConfig] = await Promise.all([
-        settingsService.getProviderConfig(),
-        ServiceFactory.getInstance()
-          .getBambooConfig()
-          .catch(() => ({}) as BambooConfig),
+      const [providers, memory] = await Promise.all([
+        loadSection("providers", { force: true }),
+        loadSection("memory"),
       ]);
-
-      // Build defaults from providers.{provider}.model if defaults is missing
-      // (backward compatibility with backend that stores model in providers).
-      let defaults = response.defaults ? ({ ...response.defaults } as EditableDefaults) : undefined;
-      if (!defaults?.chat?.model && response.provider && response.providers) {
-        const providerName = response.provider as ModelProvider;
-        const providerCfg = response.providers[providerName];
-        const legacyModel = (providerCfg as { model?: string } | undefined)?.model;
-        if (legacyModel) {
-          defaults = {
-            ...(defaults || {}),
-            chat: {
-              provider: providerName,
-              model: legacyModel,
-            },
-          };
-        }
-      }
-
-      const legacyMemoryBackgroundModel = getLegacyMemoryBackgroundModel(bambooConfig);
-      const memoryBackgroundProvider = getMemoryBackgroundFallbackProvider(
-        defaults,
-        response.provider || null,
-      );
-      if (legacyMemoryBackgroundModel && !defaults?.memory_background && memoryBackgroundProvider) {
-        defaults = {
-          ...(defaults || {}),
-          memory_background: {
-            provider: memoryBackgroundProvider,
-            model: legacyMemoryBackgroundModel,
-          },
-        };
-      }
-
-      const persistedDefaults = isCompleteProviderModelRef(defaults?.chat)
-        ? (defaults as DefaultsConfig)
-        : undefined;
-
-      const config: ProviderConfig = {
-        provider: response.provider,
-        defaults: persistedDefaults,
-        providers: response.providers || {},
-        features: response.features,
-      };
-
-      debugLog("[Provider]", "Loaded provider config:", redactSensitive(config));
-      const providersWithEditorFields: EditableProviders = {
-        ...(config.providers || {}),
-      };
-      const storedKeyProviders = new Set<string>();
-      MODEL_PROVIDERS.forEach((provider) => {
-        const providerCfg = providersWithEditorFields[provider];
-        if (!providerCfg) return;
-        // Never prefill the redaction placeholder into the editable field — an
-        // incomplete paste over it (`****...****sk-new…`) used to silently keep
-        // the old key (bamboo #430). Empty field = keep stored key.
-        if (isMaskedSecretValue((providerCfg as Record<string, unknown>).api_key)) {
-          storedKeyProviders.add(provider);
-          delete (providerCfg as Record<string, unknown>).api_key;
-        }
-        if (providerCfg.request_overrides && typeof providerCfg.request_overrides === "object") {
-          providerCfg.request_overrides_json = JSON.stringify(
-            providerCfg.request_overrides,
-            null,
-            2,
-          );
-        }
-      });
-      setProvidersWithStoredKey(storedKeyProviders);
-
-      setCurrentProvider(config.provider as ProviderType);
-      setIsInstanceMode(false);
-      setExpandedProviderPanels(
-        getExpandedLegacyPanels(config.provider, providersWithEditorFields),
-      );
-      form.setFieldsValue({
-        ...config,
-        providers: providersWithEditorFields,
-        defaults: config.defaults,
-      });
-      setConfigLoaded(true);
+      debugLog("[Provider]", "Loaded provider section:", redactSensitive(providers.data));
+      syncProviderState(providers.data, memory.data, providers.revision);
     } catch (error) {
       message.error(t("settings.providerTab.loadConfigFailed"));
       console.error("Failed to load provider config:", error);
     } finally {
       setLoading(false);
     }
-  }, [form, getExpandedLegacyPanels, message, t]);
+  }, [loadSection, message, syncProviderState, t]);
 
   const loadEnvVars = useCallback(async () => {
     try {
@@ -471,22 +467,141 @@ export const ProviderSettings: React.FC = () => {
     }
   }, []);
 
-  const handleInstancesChanged = useCallback(async () => {
-    try {
-      const [response, bambooConfig] = await Promise.all([
-        settingsService.getProviderInstances(),
-        ServiceFactory.getInstance()
-          .getBambooConfig()
-          .catch(() => ({}) as BambooConfig),
-      ]);
-      if (!Array.isArray(response.instances)) {
-        throw new Error("Provider instances API returned an invalid payload");
+  const commitProviderMutation = useCallback(
+    async (
+      mutate: (draft: ProviderSection) => void,
+      credentialChanges: ProviderCredentialChanges = {},
+    ) => {
+      const snapshot = useConfigSectionStore.getState().sections.providers.envelope;
+      if (!snapshot) throw new Error("Load providers before saving them.");
+      const draft = structuredClone(snapshot.data);
+      mutate(draft);
+      const saved = await saveProviderSettings(draft, credentialChanges, snapshot.revision);
+      const memory = useConfigSectionStore.getState().sections.memory.envelope?.data;
+      if (dirty) {
+        const nextInstances = providerSectionToInstances(saved.data);
+        setInstances(nextInstances);
+        setDefaultInstanceId(saved.data.default_provider_instance_id);
+        setIsInstanceMode(nextInstances.length > 0);
+        setProvidersWithStoredKey(
+          new Set(
+            MODEL_PROVIDERS.filter(
+              (provider) => saved.data.credential_status.providers[provider]?.configured,
+            ),
+          ),
+        );
+        setBaseRevision(saved.revision);
+      } else {
+        syncProviderState(saved.data, memory, saved.revision);
       }
-      syncInstanceModeState(response, bambooConfig);
-    } catch {
-      // Will be reflected in empty state
-    }
-  }, [syncInstanceModeState]);
+    },
+    [dirty, saveProviderSettings, syncProviderState],
+  );
+
+  const handleCreateInstance = useCallback(
+    async (request: CreateProviderInstanceRequest) => {
+      const id = uuid();
+      const { settings, credential } = buildProviderInstanceSettings(
+        request.type,
+        request.label,
+        request.enabled,
+        request.config,
+      );
+      await commitProviderMutation(
+        (draft) => {
+          draft.provider_instances[id] = settings;
+        },
+        credential
+          ? {
+              provider_instances: {
+                [id]: { action: "replace", value: credential },
+              },
+            }
+          : {},
+      );
+    },
+    [commitProviderMutation],
+  );
+
+  const handleUpdateInstance = useCallback(
+    async (instanceId: string, request: UpdateProviderInstanceRequest) => {
+      const snapshot = useConfigSectionStore.getState().sections.providers.envelope;
+      const existing = snapshot?.data.provider_instances[instanceId];
+      if (!existing) throw new Error(`Provider instance '${instanceId}' no longer exists.`);
+      const {
+        provider_type: _providerType,
+        label: _label,
+        enabled: _enabled,
+        ...existingConfig
+      } = existing;
+      const { settings, credential } = buildProviderInstanceSettings(
+        existing.provider_type,
+        request.label ?? existing.label ?? undefined,
+        request.enabled ?? existing.enabled,
+        request.config ?? existingConfig,
+      );
+      await commitProviderMutation(
+        (draft) => {
+          draft.provider_instances[instanceId] = settings;
+        },
+        credential
+          ? {
+              provider_instances: {
+                [instanceId]: { action: "replace", value: credential },
+              },
+            }
+          : {},
+      );
+    },
+    [commitProviderMutation],
+  );
+
+  const handleDeleteInstance = useCallback(
+    async (instanceId: string) => {
+      await commitProviderMutation((draft) => {
+        delete draft.provider_instances[instanceId];
+        if (draft.default_provider_instance_id === instanceId) {
+          draft.default_provider_instance_id = null;
+        }
+      });
+    },
+    [commitProviderMutation],
+  );
+
+  const handleSetDefaultInstance = useCallback(
+    async (instanceId: string) => {
+      await commitProviderMutation((draft) => {
+        if (!draft.provider_instances[instanceId]) {
+          throw new Error(`Provider instance '${instanceId}' no longer exists.`);
+        }
+        draft.default_provider_instance_id = instanceId;
+      });
+    },
+    [commitProviderMutation],
+  );
+
+  const handleClearInstanceCredential = useCallback(
+    async (instanceId: string) => {
+      await commitProviderMutation(() => undefined, {
+        provider_instances: {
+          [instanceId]: { action: "clear" },
+        },
+      });
+    },
+    [commitProviderMutation],
+  );
+
+  const handleClearProviderCredential = useCallback(
+    async (provider: ProviderType) => {
+      await commitProviderMutation(() => undefined, {
+        providers: {
+          [provider]: { action: "clear" },
+        },
+      });
+      message.success(t("settings.providerTab.credentialCleared", "Provider credential cleared"));
+    },
+    [commitProviderMutation, message, t],
+  );
 
   const checkCopilotAuthStatus = useCallback(async () => {
     try {
@@ -508,23 +623,19 @@ export const ProviderSettings: React.FC = () => {
     void loadEnvVars();
     void useProviderStore.getState().loadCatalog();
     void checkCopilotAuthStatus();
-    void (async () => {
-      try {
-        const [response, bambooConfig] = await Promise.all([
-          settingsService.getProviderInstances(),
-          ServiceFactory.getInstance()
-            .getBambooConfig()
-            .catch(() => ({}) as BambooConfig),
-        ]);
-        if (!Array.isArray(response.instances)) {
-          throw new Error("Provider instances API returned an invalid payload");
-        }
-        syncInstanceModeState(response, bambooConfig);
-      } catch {
-        await loadConfig();
-      }
-    })();
-  }, [loadConfig, loadEnvVars, checkCopilotAuthStatus, syncInstanceModeState]);
+    void loadConfig();
+  }, [loadConfig, loadEnvVars, checkCopilotAuthStatus]);
+
+  useEffect(() => {
+    if (!configLoaded || !providerEnvelope || providerEnvelope.revision === baseRevision || dirty) {
+      return;
+    }
+    syncProviderState(
+      providerEnvelope.data,
+      useConfigSectionStore.getState().sections.memory.envelope?.data,
+      providerEnvelope.revision,
+    );
+  }, [baseRevision, configLoaded, dirty, providerEnvelope, syncProviderState]);
 
   // ── Copilot auth handlers ─────────────────────────────
 
@@ -626,72 +737,6 @@ export const ProviderSettings: React.FC = () => {
     return t("settings.providerTab.unknownError");
   };
 
-  const clearProviderValidationErrors = (provider: ProviderType) => {
-    form.setFields([
-      { name: ["provider"], errors: [] },
-      { name: ["providers", provider, "api_key"], errors: [] },
-      { name: ["defaults", "chat"], errors: [] },
-    ]);
-  };
-
-  const pathToName = (path: string): Array<string | number> | null => {
-    const trimmed = path.trim();
-    if (!trimmed) return null;
-    if (trimmed.includes(".")) return trimmed.split(".").filter(Boolean);
-    if (trimmed === "provider") return ["provider"];
-    if (trimmed === "provider/providers") return ["provider"];
-    return null;
-  };
-
-  const applyValidationIssuesToForm = (
-    issues: BambooConfigValidationIssue[],
-    provider: ProviderType,
-  ) => {
-    if (!issues.length) return;
-    const fields: Parameters<typeof form.setFields>[0] = issues
-      .map((issue) => {
-        const direct = pathToName(issue.path);
-        if (direct) return { name: direct, errors: [issue.message] };
-        if (issue.message.toLowerCase().includes("api key")) {
-          return { name: ["providers", provider, "api_key"], errors: [issue.message] };
-        }
-        return { name: ["provider"], errors: [issue.message] };
-      })
-      .filter(
-        (field, index, arr) =>
-          arr.findIndex((f) => JSON.stringify(f.name) === JSON.stringify(field.name)) === index,
-      );
-    if (fields.length) form.setFields(fields);
-  };
-
-  const validateProviderPatch = async (values: ProviderSettingsFormValues) => {
-    const provider = (values.provider || currentProvider) as ProviderType;
-    clearProviderValidationErrors(provider);
-    try {
-      const serviceFactory = ServiceFactory.getInstance();
-      const result = await serviceFactory.validateBambooConfigPatch({
-        provider: values.provider,
-        providers: values.providers || {},
-        defaults: values.defaults,
-        features: {
-          ...(values.features || {}),
-          provider_model_ref: true,
-        },
-      });
-      if (result.valid) return { valid: true };
-      const providerIssues = result.errors?.provider || [];
-      applyValidationIssuesToForm(providerIssues, provider);
-      const first = providerIssues[0];
-      return {
-        valid: false,
-        message: first?.message || t("settings.providerTab.invalidConfig"),
-      };
-    } catch (error) {
-      console.warn("Config validation failed, falling back to save:", error);
-      return { valid: true };
-    }
-  };
-
   const handleSave = async (
     values: ProviderSettingsFormValues,
     options?: { showMessage?: boolean; throwOnError?: boolean },
@@ -701,7 +746,7 @@ export const ProviderSettings: React.FC = () => {
       const normalizedValues: ProviderSettingsFormValues = {
         provider: values.provider,
         defaults: values.defaults,
-        providers: { ...(values.providers || {}) },
+        providers: structuredClone(values.providers || {}),
         features: {
           ...(values.features || {}),
           provider_model_ref: true,
@@ -744,16 +789,20 @@ export const ProviderSettings: React.FC = () => {
         delete providerCfg.request_overrides_json;
       }
 
-      // Never send an empty or placeholder api_key. Omission = keep the stored
-      // key (the backend deep-merges the patch); an empty string would be an
-      // explicit clear, and a placeholder would round-trip the redaction mask.
+      const credentialChanges: ProviderCredentialChanges = {};
       for (const p of MODEL_PROVIDERS) {
         const providerCfg = editableProviders[p] as Record<string, unknown> | undefined;
         if (!providerCfg || !("api_key" in providerCfg)) continue;
         const apiKey = providerCfg.api_key;
-        if (typeof apiKey !== "string" || !apiKey.trim() || isMaskedSecretValue(apiKey)) {
-          delete providerCfg.api_key;
+        if (typeof apiKey === "string" && apiKey.trim() && !isMaskedSecretValue(apiKey)) {
+          credentialChanges.providers = {
+            ...(credentialChanges.providers || {}),
+            [p]: { action: "replace", value: apiKey },
+          };
         }
+        // Plaintext exists only in this local submit frame. The section data
+        // and Zustand snapshot are always secret-free.
+        delete providerCfg.api_key;
       }
 
       // Sync defaults.chat to providers.{provider}.model for backward compatibility
@@ -765,40 +814,32 @@ export const ProviderSettings: React.FC = () => {
         setLegacyProviderModel(providersWithModel, activeProvider, defaultChatModel.model);
       }
 
-      if (isInstanceMode) {
-        const serviceFactory = ServiceFactory.getInstance();
-        const instancePayload: BambooConfig = {
-          defaults: normalizedValues.defaults,
-          features: {
-            ...(normalizedValues.features || {}),
-            provider_model_ref: true,
-          },
-        };
-        debugLog("[Provider]", "Saving instance-mode config:", redactSensitive(instancePayload));
-        await serviceFactory.setBambooConfig(instancePayload);
-      } else {
-        // ── Legacy save path ───────────────────────────────────────
-        const provider = (normalizedValues.provider || currentProvider) as ProviderType;
-        const payload: Record<string, unknown> = {
-          provider,
-          defaults: normalizedValues.defaults,
-          providers: providersWithModel,
-          features: normalizedValues.features,
-        };
+      const snapshot = useConfigSectionStore.getState().sections.providers.envelope;
+      if (!snapshot) throw new Error("Load providers before saving them.");
+      if (baseRevision === null) throw new Error("Provider revision is not loaded.");
+      const payload: ProviderSection = {
+        ...snapshot.data,
+        provider: isInstanceMode
+          ? snapshot.data.provider
+          : normalizedValues.provider || currentProvider,
+        providers: isInstanceMode
+          ? snapshot.data.providers
+          : (providersWithModel as ProviderSection["providers"]),
+        defaults: normalizedValues.defaults as DefaultsConfig,
+        features: {
+          ...snapshot.data.features,
+          ...(normalizedValues.features || {}),
+          provider_model_ref: true,
+        },
+      };
 
-        const validation = await validateProviderPatch(normalizedValues);
-        if (!validation.valid) {
-          const errorMessage = validation.message || t("settings.providerTab.invalidConfig");
-          if (options?.showMessage !== false) {
-            message.error(`${t("settings.providerTab.invalidConfigPrefix")}: ${errorMessage}`);
-          }
-          if (options?.throwOnError) throw new Error(errorMessage);
-          return;
-        }
-
-        debugLog("[Provider]", "Saving provider config:", redactSensitive(payload));
-        await settingsService.saveProviderConfig(payload);
-      }
+      debugLog("[Provider]", "Saving provider section:", redactSensitive(payload));
+      const saved = await saveProviderSettings(payload, credentialChanges, baseRevision);
+      syncProviderState(
+        saved.data,
+        useConfigSectionStore.getState().sections.memory.envelope?.data,
+        saved.revision,
+      );
 
       if (options?.showMessage !== false) {
         message.success(t("settings.providerTab.saveConfigSuccess"));
@@ -956,10 +997,14 @@ export const ProviderSettings: React.FC = () => {
         if (!instance) {
           throw new Error(t("settings.providerTab.providerNotConfigured"));
         }
-        await settingsService.updateProviderInstance(instance.id, {
-          config: { reasoning_effort: value ?? null },
+        await handleUpdateInstance(instance.id, {
+          label: instance.label,
+          enabled: instance.enabled,
+          config: {
+            ...instance.config,
+            reasoning_effort: value ?? null,
+          },
         });
-        await handleInstancesChanged();
         await useProviderStore.getState().loadProviderInstances();
       } else {
         const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
@@ -1059,9 +1104,9 @@ export const ProviderSettings: React.FC = () => {
       const cfg = form.getFieldValue(["providers", provider]);
       if (!cfg) return false;
       if (provider === "copilot") return copilotAuthStatus?.authenticated ?? false;
-      return Boolean(cfg.api_key);
+      return providersWithStoredKey.has(provider) || Boolean(cfg.api_key);
     },
-    [form, copilotAuthStatus],
+    [form, copilotAuthStatus, providersWithStoredKey],
   );
 
   // ── Unified model preferences ───────────────────────
@@ -1241,6 +1286,21 @@ export const ProviderSettings: React.FC = () => {
       hasStoredKey
         ? t("settings.providerTab.apiKeyKeepPlaceholder", "Configured — leave empty to keep")
         : defaultPlaceholder;
+    const clearStoredCredential = hasStoredKey && provider !== "copilot" && (
+      <Popconfirm
+        title={t(
+          "settings.providerTab.confirmClearCredential",
+          "Clear the stored credential for this provider?",
+        )}
+        onConfirm={() => void handleClearProviderCredential(provider)}
+        okText={t("settings.providerTab.clear", "Clear")}
+        cancelText={t("settings.providerTab.cancel", "Cancel")}
+      >
+        <Button danger size="small" style={{ marginBottom: 16 }}>
+          {t("settings.providerTab.clearCredential", "Clear stored credential")}
+        </Button>
+      </Popconfirm>
+    );
 
     switch (provider) {
       case "openai":
@@ -1259,6 +1319,7 @@ export const ProviderSettings: React.FC = () => {
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
+            {clearStoredCredential}
             <Form.Item
               name={["providers", "openai", "base_url"]}
               label={t("settings.providerTab.baseUrlOptional")}
@@ -1312,6 +1373,7 @@ export const ProviderSettings: React.FC = () => {
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
+            {clearStoredCredential}
             <Form.Item
               name={["providers", "anthropic", "base_url"]}
               label={t("settings.providerTab.baseUrlOptional")}
@@ -1363,6 +1425,7 @@ export const ProviderSettings: React.FC = () => {
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
+            {clearStoredCredential}
             <Form.Item
               name={["providers", "gemini", "base_url"]}
               label={t("settings.providerTab.baseUrlOptional")}
@@ -1502,6 +1565,7 @@ export const ProviderSettings: React.FC = () => {
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
+            {clearStoredCredential}
             <Form.Item
               name={["providers", "bodhi", "base_url"]}
               label={t("settings.providerTab.bodhiBaseUrl")}
@@ -1568,6 +1632,60 @@ export const ProviderSettings: React.FC = () => {
 
   // ── Main render ──────────────────────────────────────
 
+  const externalRevision =
+    dirty && providerEnvelope && baseRevision !== null && providerEnvelope.revision !== baseRevision
+      ? providerEnvelope.revision
+      : null;
+
+  const compareProviderDraft = () => {
+    if (!providerEnvelope || baseRevision === null) return;
+    const safeDraft = redactSensitive(form.getFieldsValue(true));
+    modal.info({
+      title: t("settings.providerTab.compareChanges", "Compare provider changes"),
+      width: 760,
+      content: (
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Text>
+            {t("settings.providerTab.compareRevision", {
+              defaultValue: "Draft r{{base}} vs latest r{{latest}}",
+              base: baseRevision,
+              latest: providerEnvelope.revision,
+            })}
+          </Text>
+          <pre style={{ maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap" }}>
+            {JSON.stringify({ draft: safeDraft, latest: providerEnvelope.data }, null, 2)}
+          </pre>
+        </Space>
+      ),
+    });
+  };
+
+  const reapplyProviderDraft = () => {
+    if (!providerEnvelope || baseRevision === null || baseFormRef.current === null) return;
+    const memory = useConfigSectionStore.getState().sections.memory.envelope?.data;
+    const latestForm = buildProviderFormState(providerEnvelope.data, memory);
+    const currentDraft = form.getFieldsValue(true) as ProviderSettingsFormValues;
+    const rebased = reapplyConfigChanges(baseFormRef.current, currentDraft, latestForm);
+    form.setFieldsValue(rebased);
+    baseFormRef.current = structuredClone(latestForm);
+    setBaseRevision(providerEnvelope.revision);
+    setCurrentProvider((rebased.provider || providerEnvelope.data.provider) as ProviderType);
+    const nextInstances = providerSectionToInstances(providerEnvelope.data);
+    setInstances(nextInstances);
+    setDefaultInstanceId(providerEnvelope.data.default_provider_instance_id);
+    setIsInstanceMode(nextInstances.length > 0);
+    setProvidersWithStoredKey(
+      new Set(
+        MODEL_PROVIDERS.filter(
+          (provider) => providerEnvelope.data.credential_status.providers[provider]?.configured,
+        ),
+      ),
+    );
+    message.info(
+      t("settings.providerTab.draftReapplied", "Draft kept and rebased onto the latest revision."),
+    );
+  };
+
   return (
     <Card
       title={t("settings.providerTab.title")}
@@ -1575,6 +1693,46 @@ export const ProviderSettings: React.FC = () => {
       className="lotus-settings-card"
     >
       <Paragraph type="secondary">{t("settings.providerTab.description")}</Paragraph>
+
+      {externalRevision !== null && providerEnvelope && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={t(
+            "settings.providerTab.externalRevisionTitle",
+            "Provider configuration changed on disk",
+          )}
+          description={t("settings.providerTab.externalRevisionDescription", {
+            defaultValue:
+              "Your draft is based on revision {{base}}; revision {{latest}} is now available.",
+            base: baseRevision,
+            latest: externalRevision,
+          })}
+          action={
+            <Space wrap>
+              <Button
+                size="small"
+                onClick={() =>
+                  syncProviderState(
+                    providerEnvelope.data,
+                    useConfigSectionStore.getState().sections.memory.envelope?.data,
+                    providerEnvelope.revision,
+                  )
+                }
+              >
+                {t("settings.providerTab.reloadLatest", "Reload latest")}
+              </Button>
+              <Button size="small" onClick={compareProviderDraft}>
+                {t("settings.providerTab.compareChanges", "Compare")}
+              </Button>
+              <Button size="small" type="primary" onClick={reapplyProviderDraft}>
+                {t("settings.providerTab.reapplyDraft", "Reapply draft")}
+              </Button>
+            </Space>
+          }
+        />
+      )}
 
       <Alert
         type="info"
@@ -1637,6 +1795,7 @@ export const ProviderSettings: React.FC = () => {
         form={form}
         layout="vertical"
         onFinish={handleSaveAndApply}
+        onValuesChange={() => setDirty(true)}
         disabled={loading && !configLoaded}
       >
         {!isInstanceMode && (
@@ -1706,14 +1865,9 @@ export const ProviderSettings: React.FC = () => {
 
         {renderModelPreferences()}
 
-        {/* Provider instances or legacy provider panels */}
-        {isInstanceMode ? (
-          <ProviderInstanceManager
-            instances={instances}
-            defaultInstanceId={defaultInstanceId}
-            onInstancesChanged={handleInstancesChanged}
-          />
-        ) : (
+        {/* Built-in metadata remains editable until the first instance is
+            configured; instance CRUD is always available. */}
+        {!isInstanceMode && (
           <Collapse
             activeKey={expandedProviderPanels}
             onChange={(activeKey) =>
@@ -1734,6 +1888,16 @@ export const ProviderSettings: React.FC = () => {
             }))}
           />
         )}
+        <ProviderInstanceManager
+          instances={instances}
+          defaultInstanceId={defaultInstanceId}
+          credentialStatusById={providerCredentialStatusById}
+          onCreateInstance={handleCreateInstance}
+          onUpdateInstance={handleUpdateInstance}
+          onDeleteInstance={handleDeleteInstance}
+          onSetDefaultInstance={handleSetDefaultInstance}
+          onClearInstanceCredential={handleClearInstanceCredential}
+        />
 
         <Divider />
 

@@ -3,7 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
-import { settingsService } from "@services/config/SettingsService";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ProviderInstance } from "@shared/types/providerConfig";
 
@@ -82,11 +81,6 @@ vi.mock("antd", async () => {
 
 vi.mock("@services/config/SettingsService", () => ({
   settingsService: {
-    getProviderInstances: vi.fn(),
-    createProviderInstance: vi.fn(),
-    updateProviderInstance: vi.fn(),
-    deleteProviderInstance: vi.fn(),
-    setDefaultProviderInstance: vi.fn(),
     startCopilotAuth: vi.fn(),
     completeCopilotAuth: vi.fn(),
     getCopilotAuthStatus: vi.fn(),
@@ -124,8 +118,16 @@ function getTextareaWithin(testId: string): HTMLTextAreaElement {
 }
 
 describe("ProviderInstanceManager — request_overrides_json field", () => {
-  const mockedCreate = vi.mocked(settingsService.createProviderInstance);
-  const mockedUpdate = vi.mocked(settingsService.updateProviderInstance);
+  const onCreateInstance = vi.fn().mockResolvedValue(undefined);
+  const onUpdateInstance = vi.fn().mockResolvedValue(undefined);
+  const commonProps = {
+    credentialStatusById: {},
+    onCreateInstance,
+    onUpdateInstance,
+    onDeleteInstance: vi.fn().mockResolvedValue(undefined),
+    onSetDefaultInstance: vi.fn().mockResolvedValue(undefined),
+    onClearInstanceCredential: vi.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -137,12 +139,11 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
   });
 
   it("blocks save and surfaces a field-level error for invalid JSON, without crashing", async () => {
-    const onInstancesChanged = vi.fn().mockResolvedValue(undefined);
     render(
       <ProviderInstanceManager
         instances={[]}
         defaultInstanceId={null}
-        onInstancesChanged={onInstancesChanged}
+        {...commonProps}
       />,
     );
 
@@ -162,26 +163,17 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
     await screen.findByText((content) =>
       content.startsWith("Invalid request_overrides JSON for OpenAI"),
     );
-    expect(mockedCreate).not.toHaveBeenCalled();
+    expect(onCreateInstance).not.toHaveBeenCalled();
     // The modal is still open (create dialog title still present).
     expect(screen.getByText("Create Provider Instance")).toBeInTheDocument();
   }, 20000);
 
   it("round-trips valid JSON into config.request_overrides on create", async () => {
-    mockedCreate.mockResolvedValue({
-      id: "inst-1",
-      type: "openai",
-      label: "My OpenAI",
-      enabled: true,
-      config: {},
-    } as ProviderInstance);
-    const onInstancesChanged = vi.fn().mockResolvedValue(undefined);
-
     render(
       <ProviderInstanceManager
         instances={[]}
         defaultInstanceId={null}
-        onInstancesChanged={onInstancesChanged}
+        {...commonProps}
       />,
     );
 
@@ -197,8 +189,8 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
 
-    await waitFor(() => expect(mockedCreate).toHaveBeenCalled());
-    const payload = mockedCreate.mock.calls[0]?.[0];
+    await waitFor(() => expect(onCreateInstance).toHaveBeenCalled());
+    const payload = onCreateInstance.mock.calls[0]?.[0];
     expect(payload?.config.request_overrides).toEqual({ common: { headers: { "x-test": "1" } } });
   }, 20000);
 
@@ -209,20 +201,23 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
       label: "My OpenAI",
       enabled: true,
       config: {
-        // All-asterisk placeholder marks the api_key as already configured
-        // (isMaskedSecretValue), so the edit form doesn't require re-entry.
-        api_key: "****",
         base_url: "https://api.openai.com/v1",
         request_overrides: { common: { headers: { "x-test": "1" } } },
       },
     };
-    const onInstancesChanged = vi.fn().mockResolvedValue(undefined);
-
     render(
       <ProviderInstanceManager
         instances={[instance]}
         defaultInstanceId={null}
-        onInstancesChanged={onInstancesChanged}
+        {...commonProps}
+        credentialStatusById={{
+          "inst-1": {
+            credential_ref: "provider_instance.inst-1.api_key",
+            configured: true,
+            source: "user",
+            updated_at: null,
+          },
+        }}
       />,
     );
 
@@ -243,21 +238,23 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
       label: "My OpenAI",
       enabled: true,
       config: {
-        // All-asterisk placeholder marks the api_key as already configured
-        // (isMaskedSecretValue), so the edit form doesn't require re-entry.
-        api_key: "****",
         base_url: "https://api.openai.com/v1",
         request_overrides: { common: { headers: { "x-test": "1" } } },
       },
     };
-    mockedUpdate.mockResolvedValue({ ...instance } as ProviderInstance);
-    const onInstancesChanged = vi.fn().mockResolvedValue(undefined);
-
     render(
       <ProviderInstanceManager
         instances={[instance]}
         defaultInstanceId={null}
-        onInstancesChanged={onInstancesChanged}
+        {...commonProps}
+        credentialStatusById={{
+          "inst-1": {
+            credential_ref: "provider_instance.inst-1.api_key",
+            configured: true,
+            source: "user",
+            updated_at: null,
+          },
+        }}
       />,
     );
 
@@ -281,8 +278,8 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "OK" }));
 
-    await waitFor(() => expect(mockedUpdate).toHaveBeenCalled());
-    const [, payload] = mockedUpdate.mock.calls[0] ?? [];
+    await waitFor(() => expect(onUpdateInstance).toHaveBeenCalled());
+    const [, payload] = onUpdateInstance.mock.calls[0] ?? [];
     expect(payload?.config?.request_overrides).toEqual({ common: { headers: { "x-test": "2" } } });
   }, 20000);
 });
