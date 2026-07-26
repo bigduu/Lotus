@@ -417,6 +417,99 @@ describe("useMessageInputHandlers", () => {
       expect(onSubmit).toHaveBeenCalled();
     });
 
+    it("should not submit when the native event reports IME composition (#161)", () => {
+      const onSubmit = vi.fn();
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "nihao",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange: vi.fn(),
+          onSubmit,
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+        }),
+      );
+
+      const event = {
+        key: "Enter",
+        shiftKey: false,
+        preventDefault: vi.fn(),
+        nativeEvent: { isComposing: true },
+      } as any;
+
+      act(() => {
+        result.current.handleKeyDown(event);
+      });
+
+      // Enter belongs to the IME candidate confirmation, not to "send".
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("should block the candidate-confirming Enter on the Safari event sequence (#161)", async () => {
+      const onSubmit = vi.fn();
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "test",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange: vi.fn(),
+          onSubmit,
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+        }),
+      );
+
+      const enterEvent = () =>
+        ({
+          key: "Enter",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          nativeEvent: { isComposing: false },
+        }) as any;
+
+      // Real WebKit sequence: compositionend fires BEFORE the keydown of
+      // the candidate-confirming Enter, synchronously in the same task, so
+      // both the native flag and a naively-cleared ref read false here.
+      act(() => {
+        result.current.compositionProps.onCompositionStart();
+      });
+      act(() => {
+        result.current.compositionProps.onCompositionEnd();
+      });
+      const confirmEnter = enterEvent();
+      act(() => {
+        result.current.handleKeyDown(confirmEnter);
+      });
+      expect(confirmEnter.preventDefault).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      // The flag clears asynchronously, so the user's NEXT deliberate Enter
+      // (always a later task) sends normally.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const deliberateEnter = enterEvent();
+      act(() => {
+        result.current.handleKeyDown(deliberateEnter);
+      });
+      expect(deliberateEnter.preventDefault).toHaveBeenCalled();
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
     it("should not submit on Shift+Enter", () => {
       const onSubmit = vi.fn();
       const messageApi = { error: vi.fn() };

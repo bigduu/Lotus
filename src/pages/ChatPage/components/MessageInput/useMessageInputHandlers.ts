@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import i18n from "i18next";
 import type { ImageFile } from "../../utils/imageUtils";
@@ -82,6 +82,32 @@ export const useMessageInputHandlers = ({
     value,
   ]);
 
+  // Tracks IME composition state via composition events. Checked alongside
+  // the native `isComposing` keydown flag, which is unreliable on Safari.
+  const composingRef = useRef(false);
+  const compositionEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleCompositionStart = useCallback(() => {
+    // A pending async clear from a previous compositionend must not fire
+    // mid-composition (composition restarted quickly).
+    if (compositionEndTimerRef.current !== null) {
+      clearTimeout(compositionEndTimerRef.current);
+      compositionEndTimerRef.current = null;
+    }
+    composingRef.current = true;
+  }, []);
+
+  const handleCompositionEnd = useCallback(() => {
+    // Safari/WKWebView fires compositionend BEFORE the keydown of the
+    // candidate-confirming Enter — synchronously, in the same task. Clearing
+    // the flag asynchronously keeps that Enter blocked as "still composing",
+    // while the user's next deliberate Enter (always a later task) sends.
+    compositionEndTimerRef.current = setTimeout(() => {
+      compositionEndTimerRef.current = null;
+      composingRef.current = false;
+    }, 0);
+  }, []);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (
@@ -105,6 +131,13 @@ export const useMessageInputHandlers = ({
           });
           return;
         }
+      }
+
+      // IME composition guard (#161): during CJK composition, Enter confirms
+      // the candidate — it must NOT send the message. Check both the native
+      // flag and the composition-event ref (Safari timing).
+      if (event.nativeEvent?.isComposing || composingRef.current) {
+        return;
       }
 
       if (
@@ -142,5 +175,9 @@ export const useMessageInputHandlers = ({
     handleKeyDown,
     handleSubmit,
     handleRetry,
+    compositionProps: {
+      onCompositionStart: handleCompositionStart,
+      onCompositionEnd: handleCompositionEnd,
+    },
   };
 };
