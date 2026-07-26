@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { message } from "antd";
+import { App as AntApp, message } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProviderSettings } from "./index";
@@ -115,6 +115,7 @@ function setupProviderSettingsFetch(
 ) {
   const postedBodies: Array<Record<string, unknown>> = [];
   const credentialChangeBodies: Array<Record<string, unknown>> = [];
+  const putRequests: Array<Record<string, unknown>> = [];
   let revision = 1;
   let currentSection = providerSectionFromLegacy(deepClone(initialConfig));
   const catalog =
@@ -152,6 +153,7 @@ function setupProviderSettingsFetch(
 
     if (method === "PUT" && isProviderSectionEndpoint) {
       const body = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
+      putRequests.push(deepClone(body));
       if (options?.rejectProviderSave) {
         return jsonResponse(options.rejectProviderSave.body, {
           ok: false,
@@ -174,6 +176,7 @@ function setupProviderSettingsFetch(
   return {
     postedBodies,
     credentialChangeBodies,
+    putRequests,
     getCurrentConfig: () => currentSection,
     publishExternal: (nextSection: ProviderSection) => {
       currentSection = deepClone(nextSection);
@@ -238,6 +241,13 @@ async function waitForOpenAIApiKeyValue(value = "") {
     expect(input).toBeTruthy();
     expect(input?.value).toBe(value);
   });
+}
+
+function getInputWithin(testId: string): HTMLInputElement {
+  const field = screen.getByTestId(testId);
+  const input = field instanceof HTMLInputElement ? field : field.querySelector("input");
+  if (!input) throw new Error(`No <input> found within testid "${testId}"`);
+  return input;
 }
 
 describe("ProviderSettings", () => {
@@ -585,7 +595,7 @@ describe("ProviderSettings", () => {
   }, 20000);
 
   it("saves through the canonical CAS route and applies the adopted snapshot", async () => {
-    setupProviderSettingsFetch({
+    const api = setupProviderSettingsFetch({
       provider: "openai",
       defaults: {
         chat: { provider: "openai", model: "gpt-4o" },
@@ -600,6 +610,9 @@ describe("ProviderSettings", () => {
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-4o");
     await waitForOpenAIApiKeyValue();
+    fireEvent.change(getInputWithin("api-key-input"), {
+      target: { value: "sk-new-value" },
+    });
     await waitFor(() => {
       expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
     });
@@ -624,6 +637,14 @@ describe("ProviderSettings", () => {
       provider: "openai",
       model: "gpt-4o",
     });
+    expect(useConfigSectionStore.getState().sections.providers.envelope?.revision).toBe(2);
+    expect((api.postedBodies.at(-1)?.providers as any)?.openai).not.toHaveProperty("api_key");
+    expect(api.credentialChangeBodies.at(-1)).toMatchObject({
+      providers: {
+        openai: { action: "replace", value: "sk-new-value" },
+      },
+    });
+    await waitForOpenAIApiKeyValue();
   }, 20000);
 
   it("reapplies only local provider edits over an external revision", async () => {
@@ -640,8 +661,9 @@ describe("ProviderSettings", () => {
 
     render(<ProviderSettings />);
     await waitForModelPreferenceValue("chat", "openai/gpt-old");
-    await selectModelPreferenceOption("chat", "gpt-new");
-    await waitForModelPreferenceValue("chat", "openai/gpt-new");
+    fireEvent.change(screen.getByPlaceholderText("https://api.openai.com/v1"), {
+      target: { value: "https://local.example/v1" },
+    });
 
     const external = deepClone(api.getCurrentConfig());
     external.defaults = {
@@ -657,9 +679,125 @@ describe("ProviderSettings", () => {
 
     await waitFor(() => expect(api.postedBodies.length).toBeGreaterThan(0));
     expect(api.postedBodies.at(-1)?.defaults).toMatchObject({
-      chat: { provider: "openai", model: "gpt-new" },
+      chat: { provider: "openai", model: "gpt-old" },
       fast: { provider: "openai", model: "gpt-4.1-mini" },
     });
+    expect(api.postedBodies.at(-1)?.providers).toMatchObject({
+      openai: { base_url: "https://local.example/v1" },
+    });
+    expect(api.putRequests.at(-1)?.expected_revision).toBe(2);
+  }, 20000);
+
+  it("adopts a newer provider snapshot while the form is clean", async () => {
+    const api = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-old" },
+        fast: { provider: "openai", model: "gpt-4o-mini" },
+      },
+      providers: {
+        openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
+      },
+    });
+
+    render(<ProviderSettings />);
+    await waitForModelPreferenceValue("fast", "openai/gpt-4o-mini");
+
+    const external = deepClone(api.getCurrentConfig());
+    external.defaults = {
+      ...external.defaults,
+      fast: { provider: "openai", model: "gpt-4.1-mini" },
+    };
+    act(() => api.publishExternal(external));
+
+    await waitForModelPreferenceValue("fast", "openai/gpt-4.1-mini");
+    expect(screen.queryByRole("button", { name: "Reapply local draft" })).not.toBeInTheDocument();
+  }, 20000);
+
+  it("keeps a dirty credential draft secret-free in compare and reloads the latest snapshot", async () => {
+    const api = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-old" },
+        fast: { provider: "openai", model: "gpt-4o-mini" },
+      },
+      providers: {
+        openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
+      },
+    });
+
+    render(<ProviderSettings />);
+    await waitForOpenAIApiKeyValue();
+    fireEvent.change(getInputWithin("api-key-input"), {
+      target: { value: "sk-local-replacement" },
+    });
+
+    const external = deepClone(api.getCurrentConfig());
+    external.defaults = {
+      ...external.defaults,
+      fast: { provider: "openai", model: "gpt-4.1-mini" },
+    };
+    act(() => api.publishExternal(external));
+
+    expect(await screen.findByText("Reapply local draft")).toBeInTheDocument();
+    await waitForOpenAIApiKeyValue("sk-local-replacement");
+
+    fireEvent.click(screen.getByText("Compare changes"));
+    const modalInfo = vi.mocked(AntApp.useApp().modal.info);
+    expect(modalInfo).toHaveBeenCalled();
+    const comparisonText = (modalInfo.mock.calls.at(-1)?.[0] as any).content.props.children[1].props
+      .children;
+    expect(comparisonText).not.toContain("sk-local-replacement");
+
+    fireEvent.click(screen.getByText("Reload latest"));
+    await waitForOpenAIApiKeyValue();
+    await waitForModelPreferenceValue("fast", "openai/gpt-4.1-mini");
+    expect(screen.queryByText("Reapply local draft")).not.toBeInTheDocument();
+  }, 20000);
+
+  it("submits the captured revision and preserves the draft when a stale save is rejected", async () => {
+    const api = setupProviderSettingsFetch(
+      {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "openai", model: "gpt-old" },
+        },
+        providers: {
+          openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
+        },
+      },
+      {
+        rejectProviderSave: {
+          status: 409,
+          body: {
+            error: "revision conflict",
+            expected_revision: 1,
+            actual_revision: 2,
+          },
+        },
+      },
+    );
+
+    render(<ProviderSettings />);
+    await waitForModelPreferenceValue("chat", "openai/gpt-old");
+    fireEvent.change(screen.getByPlaceholderText("https://api.openai.com/v1"), {
+      target: { value: "https://local.example/v1" },
+    });
+
+    const external = deepClone(api.getCurrentConfig());
+    external.features = { ...external.features, provider_model_ref: true };
+    act(() => api.publishExternal(external));
+    expect(await screen.findByRole("button", { name: "Reapply local draft" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("save-api-settings"));
+
+    await waitFor(() => expect(api.putRequests.length).toBeGreaterThan(0));
+    expect(api.putRequests.at(-1)?.expected_revision).toBe(1);
+    expect(useConfigSectionStore.getState().sections.providers.envelope?.revision).toBe(2);
+    expect(screen.getByPlaceholderText("https://api.openai.com/v1")).toHaveValue(
+      "https://local.example/v1",
+    );
+    expect(screen.getByRole("button", { name: "Reapply local draft" })).toBeInTheDocument();
   }, 20000);
 
   it("blocks save when defaults.chat is missing (client-side required)", async () => {

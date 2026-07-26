@@ -181,6 +181,18 @@ const buildProviderInstanceSettings = (
   };
 };
 
+const withoutProviderCredentials = (
+  values: ProviderSettingsFormValues,
+): ProviderSettingsFormValues => {
+  const safe = structuredClone(values);
+  for (const providerConfig of Object.values(safe.providers ?? {})) {
+    if (!providerConfig || typeof providerConfig !== "object") continue;
+    delete (providerConfig as Record<string, unknown>).api_key;
+    delete (providerConfig as Record<string, unknown>).api_key_encrypted;
+  }
+  return safe;
+};
+
 const getLegacyMemoryBackgroundModel = (
   memory: BambooMemoryConfig | null | undefined,
 ): string | undefined => {
@@ -289,6 +301,8 @@ export const ProviderSettings: React.FC = () => {
           const editableConfig = {
             ...(instance.config as Record<string, unknown>),
           } as AnyEditableProviderConfig;
+          delete (editableConfig as Record<string, unknown>).api_key;
+          delete (editableConfig as Record<string, unknown>).api_key_encrypted;
           if (
             editableConfig.request_overrides &&
             typeof editableConfig.request_overrides === "object"
@@ -307,6 +321,10 @@ export const ProviderSettings: React.FC = () => {
 
       for (const provider of MODEL_PROVIDERS) {
         const providerConfig = providersWithEditorFields[provider];
+        if (providerConfig) {
+          delete (providerConfig as Record<string, unknown>).api_key;
+          delete (providerConfig as Record<string, unknown>).api_key_encrypted;
+        }
         if (
           providerConfig?.request_overrides &&
           typeof providerConfig.request_overrides === "object"
@@ -384,6 +402,7 @@ export const ProviderSettings: React.FC = () => {
         ),
       );
       const nextForm = buildProviderFormState(response, memory);
+      form.resetFields();
       form.setFieldsValue(nextForm);
       baseFormRef.current = structuredClone(nextForm);
       if (revision !== undefined) setBaseRevision(revision);
@@ -470,13 +489,14 @@ export const ProviderSettings: React.FC = () => {
   const commitProviderMutation = useCallback(
     async (
       mutate: (draft: ProviderSection) => void,
-      credentialChanges: ProviderCredentialChanges = {},
+      credentialChanges: ProviderCredentialChanges,
+      expectedRevision: number,
     ) => {
       const snapshot = useConfigSectionStore.getState().sections.providers.envelope;
       if (!snapshot) throw new Error("Load providers before saving them.");
       const draft = structuredClone(snapshot.data);
       mutate(draft);
-      const saved = await saveProviderSettings(draft, credentialChanges, snapshot.revision);
+      const saved = await saveProviderSettings(draft, credentialChanges, expectedRevision);
       const memory = useConfigSectionStore.getState().sections.memory.envelope?.data;
       if (dirty) {
         const nextInstances = providerSectionToInstances(saved.data);
@@ -490,7 +510,6 @@ export const ProviderSettings: React.FC = () => {
             ),
           ),
         );
-        setBaseRevision(saved.revision);
       } else {
         syncProviderState(saved.data, memory, saved.revision);
       }
@@ -499,7 +518,7 @@ export const ProviderSettings: React.FC = () => {
   );
 
   const handleCreateInstance = useCallback(
-    async (request: CreateProviderInstanceRequest) => {
+    async (request: CreateProviderInstanceRequest, expectedRevision: number) => {
       const id = uuid();
       const { settings, credential } = buildProviderInstanceSettings(
         request.type,
@@ -518,13 +537,18 @@ export const ProviderSettings: React.FC = () => {
               },
             }
           : {},
+        expectedRevision,
       );
     },
     [commitProviderMutation],
   );
 
   const handleUpdateInstance = useCallback(
-    async (instanceId: string, request: UpdateProviderInstanceRequest) => {
+    async (
+      instanceId: string,
+      request: UpdateProviderInstanceRequest,
+      expectedRevision: number,
+    ) => {
       const snapshot = useConfigSectionStore.getState().sections.providers.envelope;
       const existing = snapshot?.data.provider_instances[instanceId];
       if (!existing) throw new Error(`Provider instance '${instanceId}' no longer exists.`);
@@ -551,56 +575,77 @@ export const ProviderSettings: React.FC = () => {
               },
             }
           : {},
+        expectedRevision,
       );
     },
     [commitProviderMutation],
   );
 
   const handleDeleteInstance = useCallback(
-    async (instanceId: string) => {
-      await commitProviderMutation((draft) => {
-        delete draft.provider_instances[instanceId];
-        if (draft.default_provider_instance_id === instanceId) {
-          draft.default_provider_instance_id = null;
-        }
-      });
+    async (instanceId: string, expectedRevision: number) => {
+      await commitProviderMutation(
+        (draft) => {
+          delete draft.provider_instances[instanceId];
+          if (draft.default_provider_instance_id === instanceId) {
+            draft.default_provider_instance_id = null;
+          }
+        },
+        {},
+        expectedRevision,
+      );
     },
     [commitProviderMutation],
   );
 
   const handleSetDefaultInstance = useCallback(
-    async (instanceId: string) => {
-      await commitProviderMutation((draft) => {
-        if (!draft.provider_instances[instanceId]) {
-          throw new Error(`Provider instance '${instanceId}' no longer exists.`);
-        }
-        draft.default_provider_instance_id = instanceId;
-      });
+    async (instanceId: string, expectedRevision: number) => {
+      await commitProviderMutation(
+        (draft) => {
+          if (!draft.provider_instances[instanceId]) {
+            throw new Error(`Provider instance '${instanceId}' no longer exists.`);
+          }
+          draft.default_provider_instance_id = instanceId;
+        },
+        {},
+        expectedRevision,
+      );
     },
     [commitProviderMutation],
   );
 
   const handleClearInstanceCredential = useCallback(
-    async (instanceId: string) => {
-      await commitProviderMutation(() => undefined, {
-        provider_instances: {
-          [instanceId]: { action: "clear" },
+    async (instanceId: string, expectedRevision: number) => {
+      await commitProviderMutation(
+        () => undefined,
+        {
+          provider_instances: {
+            [instanceId]: { action: "clear" },
+          },
         },
-      });
+        expectedRevision,
+      );
     },
     [commitProviderMutation],
   );
 
   const handleClearProviderCredential = useCallback(
     async (provider: ProviderType) => {
-      await commitProviderMutation(() => undefined, {
-        providers: {
-          [provider]: { action: "clear" },
+      const expectedRevision = providerEnvelope?.revision;
+      if (expectedRevision === undefined) {
+        throw new Error("Load providers before clearing credentials.");
+      }
+      await commitProviderMutation(
+        () => undefined,
+        {
+          providers: {
+            [provider]: { action: "clear" },
+          },
         },
-      });
+        expectedRevision,
+      );
       message.success(t("settings.providerTab.credentialCleared", "Provider credential cleared"));
     },
-    [commitProviderMutation, message, t],
+    [commitProviderMutation, message, providerEnvelope?.revision, t],
   );
 
   const checkCopilotAuthStatus = useCallback(async () => {
@@ -997,14 +1042,21 @@ export const ProviderSettings: React.FC = () => {
         if (!instance) {
           throw new Error(t("settings.providerTab.providerNotConfigured"));
         }
-        await handleUpdateInstance(instance.id, {
-          label: instance.label,
-          enabled: instance.enabled,
-          config: {
-            ...instance.config,
-            reasoning_effort: value ?? null,
+        if (!providerEnvelope) {
+          throw new Error("Load providers before saving them.");
+        }
+        await handleUpdateInstance(
+          instance.id,
+          {
+            label: instance.label,
+            enabled: instance.enabled,
+            config: {
+              ...instance.config,
+              reasoning_effort: value ?? null,
+            },
           },
-        });
+          providerEnvelope.revision,
+        );
         await useProviderStore.getState().loadProviderInstances();
       } else {
         const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
@@ -1639,7 +1691,13 @@ export const ProviderSettings: React.FC = () => {
 
   const compareProviderDraft = () => {
     if (!providerEnvelope || baseRevision === null) return;
-    const safeDraft = redactSensitive(form.getFieldsValue(true));
+    const safeDraft = withoutProviderCredentials(
+      form.getFieldsValue(true) as ProviderSettingsFormValues,
+    );
+    const memory = useConfigSectionStore.getState().sections.memory.envelope?.data;
+    const safeLatest = withoutProviderCredentials(
+      buildProviderFormState(providerEnvelope.data, memory),
+    );
     modal.info({
       title: t("settings.providerTab.compareChanges", "Compare provider changes"),
       width: 760,
@@ -1647,13 +1705,13 @@ export const ProviderSettings: React.FC = () => {
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Text>
             {t("settings.providerTab.compareRevision", {
-              defaultValue: "Draft r{{base}} vs latest r{{latest}}",
-              base: baseRevision,
+              defaultValue: "Loaded revision {{loaded}}; latest revision is {{latest}}.",
+              loaded: baseRevision,
               latest: providerEnvelope.revision,
             })}
           </Text>
           <pre style={{ maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap" }}>
-            {JSON.stringify({ draft: safeDraft, latest: providerEnvelope.data }, null, 2)}
+            {JSON.stringify({ draft: safeDraft, latest: safeLatest }, null, 2)}
           </pre>
         </Space>
       ),
@@ -1666,6 +1724,7 @@ export const ProviderSettings: React.FC = () => {
     const latestForm = buildProviderFormState(providerEnvelope.data, memory);
     const currentDraft = form.getFieldsValue(true) as ProviderSettingsFormValues;
     const rebased = reapplyConfigChanges(baseFormRef.current, currentDraft, latestForm);
+    form.resetFields();
     form.setFieldsValue(rebased);
     baseFormRef.current = structuredClone(latestForm);
     setBaseRevision(providerEnvelope.revision);
@@ -1705,8 +1764,8 @@ export const ProviderSettings: React.FC = () => {
           )}
           description={t("settings.providerTab.externalRevisionDescription", {
             defaultValue:
-              "Your draft is based on revision {{base}}; revision {{latest}} is now available.",
-            base: baseRevision,
+              "Your draft is based on revision {{loaded}}; revision {{latest}} is now available.",
+            loaded: baseRevision,
             latest: externalRevision,
           })}
           action={
@@ -1890,7 +1949,11 @@ export const ProviderSettings: React.FC = () => {
         )}
         <ProviderInstanceManager
           instances={instances}
+          latestInstances={
+            providerEnvelope ? providerSectionToInstances(providerEnvelope.data) : instances
+          }
           defaultInstanceId={defaultInstanceId}
+          currentRevision={providerEnvelope?.revision ?? null}
           credentialStatusById={providerCredentialStatusById}
           onCreateInstance={handleCreateInstance}
           onUpdateInstance={handleUpdateInstance}
