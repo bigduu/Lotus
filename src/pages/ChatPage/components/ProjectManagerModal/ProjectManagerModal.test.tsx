@@ -1,0 +1,284 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { App as AntdApp } from "antd";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import ProjectManagerModal from "./index";
+import { useAppStore } from "@shared/store/appStore";
+import { ApiError } from "@services/api";
+import type { ProjectManifest } from "@services/project";
+
+const {
+  mockListProjects,
+  mockGetProject,
+  mockCreateProject,
+  mockPatchProject,
+  mockArchiveProject,
+  mockBindWorkspace,
+  mockUnbindWorkspace,
+  mockGetProjectResources,
+} = vi.hoisted(() => ({
+  mockListProjects: vi.fn(),
+  mockGetProject: vi.fn(),
+  mockCreateProject: vi.fn(),
+  mockPatchProject: vi.fn(),
+  mockArchiveProject: vi.fn(),
+  mockBindWorkspace: vi.fn(),
+  mockUnbindWorkspace: vi.fn(),
+  mockGetProjectResources: vi.fn(),
+}));
+
+vi.mock("@services/project", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@services/project")>();
+  return {
+    ...actual,
+    projectService: {
+      ...actual.projectService,
+      listProjects: mockListProjects,
+      getProject: mockGetProject,
+      createProject: mockCreateProject,
+      patchProject: mockPatchProject,
+      archiveProject: mockArchiveProject,
+      bindWorkspace: mockBindWorkspace,
+      unbindWorkspace: mockUnbindWorkspace,
+      getProjectResources: mockGetProjectResources,
+    },
+  };
+});
+
+const makeProject = (
+  id: string,
+  name: string,
+  overrides: Partial<ProjectManifest> = {},
+): ProjectManifest =>
+  ({
+    id,
+    name,
+    description: null,
+    status: "active",
+    revision: 1,
+    resource_revision: 1,
+    created_at: "2025-03-01T00:00:00Z",
+    updated_at: "2025-03-01T00:00:00Z",
+    schema_version: 1,
+    workspace_bindings: [],
+    legacy_project_keys: [],
+    detail_loaded: true,
+    ...overrides,
+  }) as ProjectManifest;
+
+const ZENITH = makeProject("proj-zenith", "zenith", {
+  workspace_bindings: [{ path: "/repo/zenith", label: null, git_common_dir: null }],
+});
+const BAMBOO = makeProject("proj-bamboo", "bamboo");
+const ARCHIVED = makeProject("proj-old", "old-stuff", { status: "archived" });
+
+const renderModal = () =>
+  render(
+    <AntdApp>
+      <ProjectManagerModal open={true} onClose={() => {}} />
+    </AntdApp>,
+  );
+
+describe("ProjectManagerModal (#154)", () => {
+  beforeEach(() => {
+    mockListProjects.mockReset();
+    mockGetProject.mockReset();
+    mockCreateProject.mockReset();
+    mockPatchProject.mockReset();
+    mockArchiveProject.mockReset();
+    mockBindWorkspace.mockReset();
+    mockUnbindWorkspace.mockReset();
+    mockGetProjectResources.mockReset();
+
+    mockGetProject.mockImplementation((id: string) =>
+      Promise.resolve(id === "proj-bamboo" ? BAMBOO : id === "proj-old" ? ARCHIVED : ZENITH),
+    );
+    mockGetProjectResources.mockResolvedValue({
+      project_id: "proj-zenith",
+      resource_revision: 3,
+      resources: [
+        { kind: "skills", present: true, item_count: 2 },
+        { kind: "memory", present: true, item_count: 5 },
+        { kind: "settings", present: false, item_count: 0 },
+      ],
+    });
+
+    useAppStore.setState((state) => ({
+      ...state,
+      projects: {
+        "proj-zenith": ZENITH,
+        "proj-bamboo": BAMBOO,
+        "proj-old": ARCHIVED,
+      },
+      activeProjectId: "proj-zenith",
+      projectResources: {},
+    }));
+  });
+
+  it("lists active projects before archived ones and shows the detail panel", async () => {
+    renderModal();
+
+    expect(await screen.findByTestId("project-list-item-proj-zenith")).toBeInTheDocument();
+    expect(screen.getByTestId("project-list-item-proj-old")).toHaveTextContent("Archived");
+    expect(screen.getByTestId("project-detail-name")).toHaveValue("zenith");
+    // Workspace binding from the manifest.
+    expect(await screen.findByText("/repo/zenith")).toBeInTheDocument();
+    // Resource summary only shows present kinds, with counts and revision.
+    expect(await screen.findByText("skills (2)")).toBeInTheDocument();
+    expect(screen.getByText("memory (5)")).toBeInTheDocument();
+    expect(screen.queryByText(/settings/)).not.toBeInTheDocument();
+    expect(screen.getByText("Resource revision: 3")).toBeInTheDocument();
+  });
+
+  it("creates a project with an initial workspace binding", async () => {
+    const created = makeProject("proj-new", "nova", { revision: 1 });
+    mockCreateProject.mockResolvedValue(created);
+    renderModal();
+
+    fireEvent.click(screen.getByTestId("project-create-open"));
+    fireEvent.change(screen.getByTestId("project-create-name"), { target: { value: "nova" } });
+    fireEvent.change(screen.getByTestId("project-create-workspace"), {
+      target: { value: "/repo/nova" },
+    });
+    fireEvent.click(screen.getByTestId("project-create-submit"));
+
+    await waitFor(() =>
+      expect(mockCreateProject).toHaveBeenCalledWith({
+        name: "nova",
+        description: null,
+        workspace_bindings: [{ path: "/repo/nova", label: null, git_common_dir: null }],
+      }),
+    );
+    // Creating a project makes it the active project (projectSlice behavior).
+    await waitFor(() => expect(useAppStore.getState().activeProjectId).toBe("proj-new"));
+  });
+
+  it("requires a name when creating", async () => {
+    renderModal();
+
+    fireEvent.click(screen.getByTestId("project-create-open"));
+    fireEvent.click(screen.getByTestId("project-create-submit"));
+
+    expect(await screen.findByText("Please enter a project name")).toBeInTheDocument();
+    expect(mockCreateProject).not.toHaveBeenCalled();
+  });
+
+  it("saves rename/description through the CAS patch endpoint", async () => {
+    mockPatchProject.mockResolvedValue(makeProject("proj-zenith", "zenith2", { revision: 2 }));
+    renderModal();
+
+    fireEvent.change(await screen.findByTestId("project-detail-name"), {
+      target: { value: "zenith2" },
+    });
+    fireEvent.click(screen.getByTestId("project-detail-save"));
+
+    await waitFor(() =>
+      expect(mockPatchProject).toHaveBeenCalledWith("proj-zenith", 1, {
+        name: "zenith2",
+        description: null,
+      }),
+    );
+  });
+
+  it("surfaces a revision conflict and reloads the manifest on 412", async () => {
+    mockPatchProject.mockRejectedValue(new ApiError("Precondition Failed", 412, "Failed"));
+    renderModal();
+
+    fireEvent.change(await screen.findByTestId("project-detail-name"), {
+      target: { value: "zenith2" },
+    });
+    fireEvent.click(screen.getByTestId("project-detail-save"));
+
+    expect(await screen.findByText(/modified elsewhere/)).toBeInTheDocument();
+    await waitFor(() => expect(mockGetProject).toHaveBeenCalledWith("proj-zenith"));
+  });
+
+  it("archives a project after confirmation", async () => {
+    mockArchiveProject.mockResolvedValue(
+      makeProject("proj-zenith", "zenith", { status: "archived", revision: 2 }),
+    );
+    renderModal();
+
+    fireEvent.click(await screen.findByTestId("project-archive"));
+    // The Popconfirm renders its own "Archive" OK button next to the trigger.
+    const archiveButtons = await screen.findAllByRole("button", { name: "Archive" });
+    fireEvent.click(archiveButtons[archiveButtons.length - 1]);
+
+    await waitFor(() => expect(mockArchiveProject).toHaveBeenCalledWith("proj-zenith", 1));
+  });
+
+  it("binds and unbinds workspaces with the current revision", async () => {
+    mockBindWorkspace.mockResolvedValue(
+      makeProject("proj-zenith", "zenith", {
+        revision: 2,
+        workspace_bindings: [
+          { path: "/repo/zenith", label: null, git_common_dir: null },
+          { path: "/repo/nova", label: null, git_common_dir: null },
+        ],
+      }),
+    );
+    mockUnbindWorkspace.mockResolvedValue(
+      makeProject("proj-zenith", "zenith", { revision: 3, workspace_bindings: [] }),
+    );
+    renderModal();
+
+    fireEvent.change(await screen.findByTestId("project-bind-input"), {
+      target: { value: "/repo/nova" },
+    });
+    fireEvent.click(screen.getByTestId("project-bind-submit"));
+    await waitFor(() =>
+      expect(mockBindWorkspace).toHaveBeenCalledWith("proj-zenith", 1, {
+        path: "/repo/nova",
+        label: null,
+        git_common_dir: null,
+      }),
+    );
+
+    // After the successful bind the store holds revision 2, which the
+    // unbind call must use for its own CAS check.
+    const unbindButtons = await screen.findAllByRole("button", { name: /unbind workspace/i });
+    fireEvent.click(unbindButtons[0]);
+    await waitFor(() =>
+      expect(mockUnbindWorkspace).toHaveBeenCalledWith("proj-zenith", 2, { path: "/repo/zenith" }),
+    );
+  });
+
+  it("keeps unsaved name edits when a bind/unbind bumps the revision", async () => {
+    mockBindWorkspace.mockResolvedValue(
+      makeProject("proj-zenith", "zenith", {
+        revision: 2,
+        workspace_bindings: [
+          { path: "/repo/zenith", label: null, git_common_dir: null },
+          { path: "/repo/nova", label: null, git_common_dir: null },
+        ],
+      }),
+    );
+    renderModal();
+
+    // Type an unsaved rename…
+    fireEvent.change(await screen.findByTestId("project-detail-name"), {
+      target: { value: "zenith-renamed-draft" },
+    });
+    // …then bind a workspace, which returns a new manifest (revision bump).
+    fireEvent.change(await screen.findByTestId("project-bind-input"), {
+      target: { value: "/repo/nova" },
+    });
+    fireEvent.click(screen.getByTestId("project-bind-submit"));
+
+    await waitFor(() => expect(mockBindWorkspace).toHaveBeenCalled());
+    // The draft must survive — a revision bump is not a selection change.
+    expect(screen.getByTestId("project-detail-name")).toHaveValue("zenith-renamed-draft");
+  });
+
+  it("hides mutation controls for archived projects", async () => {
+    renderModal();
+
+    fireEvent.click(await screen.findByTestId("project-list-item-proj-old"));
+
+    await waitFor(() => expect(screen.getByTestId("project-detail-name")).toHaveValue("old-stuff"));
+    expect(screen.queryByTestId("project-detail-save")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("project-archive")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("project-bind-submit")).not.toBeInTheDocument();
+    expect(screen.getByText(/Bamboo-agent#725/)).toBeInTheDocument();
+  });
+});

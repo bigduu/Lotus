@@ -135,6 +135,11 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
             projectsLoadedAt: Date.now(),
             projectsAvailable: true,
             projectsError: null,
+            // Pruned away by the remote list → can no longer be the default.
+            activeProjectId:
+              state.activeProjectId && !projects[state.activeProjectId]
+                ? null
+                : state.activeProjectId,
           };
         });
       } catch (error) {
@@ -182,6 +187,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
               return {
                 projects,
                 projectsMissing: { ...state.projectsMissing, [id]: true },
+                activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
               };
             });
             return;
@@ -226,7 +232,12 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       set((state) => {
         const projects = { ...state.projects };
         mergeProjectIntoMap(projects, manifest);
-        return { projects };
+        // An archived Project cannot take new sessions (backend 409
+        // `project_archived`) — never leave it as the creation default.
+        return {
+          projects,
+          activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
+        };
       });
       return manifest;
     },
@@ -355,7 +366,14 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
           revision: event.revision,
           updated_at: new Date().toISOString(),
         };
-        return { projects };
+        return {
+          projects,
+          // Archived elsewhere → drop it as the creation default here too.
+          activeProjectId:
+            event.type === "project_archived" && state.activeProjectId === id
+              ? null
+              : state.activeProjectId,
+        };
       });
     },
   };
