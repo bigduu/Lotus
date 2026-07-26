@@ -1,5 +1,5 @@
 import type { GlobalToken } from "antd/es/theme/interface";
-import React, { useState } from "react";
+import React from "react";
 import { useAppStore } from "@shared/store/appStore";
 import {
   Alert,
@@ -120,8 +120,13 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
   const activeItemId = useAppStore((state) => state.activeItems[sharedSessionId]);
   const evaluationState = useAppStore((state) => state.evaluationStates[sharedSessionId]);
 
-  const [isCollapsed, setIsCollapsed] = useState(initialCollapsed);
-  const [isPinned, setIsPinned] = useState(false);
+  // Pin/collapse state lives in the store keyed by sharedSessionId (#170) —
+  // the virtualized message list unmounts this component when it scrolls
+  // out of overscan, and component-local state would be silently reset.
+  const uiState = useAppStore((state) => state.todoListUiStates[sharedSessionId]);
+  const setTodoListUiState = useAppStore((state) => state.setTodoListUiState);
+  const isCollapsed = uiState?.isCollapsed ?? initialCollapsed;
+  const isPinned = uiState?.isPinned ?? false;
 
   // Use evaluation state from store
   const isEvaluating = evaluationState?.isEvaluating || false;
@@ -156,16 +161,16 @@ export const TodoList: React.FC<TaskListPanelProps> = ({
   // Toggle collapse state
   const toggleCollapse = () => {
     if (!isPinned) {
-      setIsCollapsed(!isCollapsed);
+      setTodoListUiState(sharedSessionId, { isCollapsed: !isCollapsed });
     }
   };
 
   // Toggle pin state
   const togglePin = () => {
-    setIsPinned(!isPinned);
-    if (!isPinned) {
-      setIsCollapsed(false);
-    }
+    setTodoListUiState(sharedSessionId, {
+      isPinned: !isPinned,
+      ...(!isPinned ? { isCollapsed: false } : {}),
+    });
   };
 
   const { title, items, progress } = taskList;

@@ -52,6 +52,9 @@ export interface TaskListState {
   activeItems: Record<string, string | null>;
   // Map of session ID to evaluation state (NEW)
   evaluationStates: Record<string, EvaluationState>;
+  /** UI-only panel state per session (#170): must survive the virtualized
+   * message list unmounting and remounting rows. */
+  todoListUiStates: Record<string, { isPinned: boolean; isCollapsed: boolean }>;
 }
 
 // Evaluation state (NEW)
@@ -81,9 +84,16 @@ export interface TaskListActions {
   setEvaluationState: (sessionId: string, state: EvaluationState) => void;
   // Clear evaluation state (NEW)
   clearEvaluationState: (sessionId: string) => void;
+  /** Patch the TodoList panel's persisted UI state (#170). */
+  setTodoListUiState: (
+    sessionId: string,
+    patch: Partial<{ isPinned: boolean; isCollapsed: boolean }>,
+  ) => void;
 }
 
 export type TaskListSlice = TaskListState & TaskListActions;
+
+const DEFAULT_TODO_LIST_UI_STATE = { isPinned: false, isCollapsed: true };
 
 const agentClient = AgentClient.getInstance();
 
@@ -96,6 +106,7 @@ export const createTaskListSlice: StateCreator<TaskListSlice, [], [], TaskListSl
   taskListVersions: {},
   activeItems: {},
   evaluationStates: {},
+  todoListUiStates: {},
 
   // Set full task list (from TaskListUpdated event, a child sub-agent's
   // forwarded snapshot, or a REST/baseline load). This is a genuine
@@ -270,4 +281,15 @@ export const createTaskListSlice: StateCreator<TaskListSlice, [], [], TaskListSl
         evaluationStates: remainingEvaluations,
       };
     }),
+
+  setTodoListUiState: (sessionId, patch) =>
+    set((state) => ({
+      todoListUiStates: {
+        ...state.todoListUiStates,
+        [sessionId]: {
+          ...(state.todoListUiStates[sessionId] ?? DEFAULT_TODO_LIST_UI_STATE),
+          ...patch,
+        },
+      },
+    })),
 });
