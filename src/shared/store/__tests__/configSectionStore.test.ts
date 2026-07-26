@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ConfigConflictError,
   configSectionsService,
+  type ConnectSection,
   type ConfigSectionEnvelope,
   type CoreSection,
   type McpSection,
@@ -61,6 +62,16 @@ const mcpEnvelope = (revision: number): ConfigSectionEnvelope<McpSection> => ({
   revision,
   loaded_at: "2026-07-24T00:00:00Z",
   source_path: "/tmp/mcp.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+});
+
+const connectEnvelope = (revision: number): ConfigSectionEnvelope<ConnectSection> => ({
+  data: { platforms: [] },
+  revision,
+  loaded_at: "2026-07-24T00:00:00Z",
+  source_path: "/tmp/connect.json",
   source_kind: "file",
   status: "healthy",
   last_error: null,
@@ -152,6 +163,72 @@ describe("useConfigSectionStore", () => {
     expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(2);
   });
 
+  it("does not let a late generic save response overwrite or return past a newer snapshot", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(1) },
+      },
+    }));
+    let resolveSave!: (value: ConfigSectionEnvelope<CoreSection>) => void;
+    vi.spyOn(configSectionsService, "putSection").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve as typeof resolveSave;
+        }),
+    );
+
+    const pending = useConfigSectionStore
+      .getState()
+      .saveSection("core", { http_proxy: "http://proxy-2" }, 1);
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(3) },
+      },
+    }));
+    resolveSave(envelope(2));
+
+    await expect(pending).resolves.toEqual(envelope(3));
+    expect(useConfigSectionStore.getState().sections.core.envelope).toEqual(envelope(3));
+  });
+
+  it("ignores an older mutation error after a newer save succeeds", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(1) },
+      },
+    }));
+    let rejectFirst!: (reason: unknown) => void;
+    vi.spyOn(configSectionsService, "putSection")
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirst = reject;
+          }),
+      )
+      .mockResolvedValueOnce(envelope(2));
+
+    const first = useConfigSectionStore
+      .getState()
+      .saveSection("core", { http_proxy: "http://first" }, 1);
+    await useConfigSectionStore.getState().saveSection("core", { http_proxy: "http://second" }, 1);
+    rejectFirst(
+      new ConfigConflictError({
+        expectedRevision: 1,
+        currentRevision: 2,
+        message: "stale request failed",
+      }),
+    );
+
+    await expect(first).rejects.toThrow("stale request failed");
+    const snapshot = useConfigSectionStore.getState().sections.core;
+    expect(snapshot.envelope).toEqual(envelope(2));
+    expect(snapshot.error).toBeNull();
+    expect(snapshot.conflict).toBeNull();
+  });
+
   it("records a 409 conflict without changing local data", async () => {
     useConfigSectionStore.setState((state) => ({
       sections: {
@@ -211,6 +288,38 @@ describe("useConfigSectionStore", () => {
     const stored = useConfigSectionStore.getState().sections.providers.envelope;
     expect(stored).toEqual(after);
     expect(JSON.stringify(stored)).not.toContain("plaintext-provider-secret");
+  });
+
+  it("does not regress providers when a save response arrives after a newer event snapshot", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        providers: { ...state.sections.providers, envelope: providerEnvelope(4) },
+      },
+    }));
+    let resolveSave!: (value: ConfigSectionEnvelope<ProviderSection>) => void;
+    vi.spyOn(configSectionsService, "putProviderSettings").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    const pending = useConfigSectionStore
+      .getState()
+      .saveProviderSettings(providerEnvelope(4).data, {}, 4);
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        providers: { ...state.sections.providers, envelope: providerEnvelope(6) },
+      },
+    }));
+    resolveSave(providerEnvelope(5));
+
+    await expect(pending).resolves.toEqual(providerEnvelope(6));
+    expect(useConfigSectionStore.getState().sections.providers.envelope).toEqual(
+      providerEnvelope(6),
+    );
   });
 
   it("uses the canonical MCP save and never regresses a concurrently newer snapshot", async () => {
@@ -284,6 +393,63 @@ describe("useConfigSectionStore", () => {
     });
   });
 
+  it("does not regress notification or connect saves behind newer section snapshots", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        notifications: {
+          ...state.sections.notifications,
+          envelope: notificationEnvelope(7, 70),
+        },
+        connect: { ...state.sections.connect, envelope: connectEnvelope(7) },
+      },
+    }));
+    let resolveNotifications!: (value: NotificationSectionEnvelope) => void;
+    let resolveConnect!: (value: {
+      envelope: ConfigSectionEnvelope<ConnectSection>;
+      credentialRevision: number;
+    }) => void;
+    vi.spyOn(configSectionsService, "putNotifications").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveNotifications = resolve;
+        }),
+    );
+    vi.spyOn(configSectionsService, "putConnect").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveConnect = resolve;
+        }),
+    );
+
+    const notificationSave = useConfigSectionStore
+      .getState()
+      .saveNotifications(notificationEnvelope(7, 70).data, 7);
+    const connectSave = useConfigSectionStore.getState().saveConnect({ platforms: [] }, 70);
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        notifications: {
+          ...state.sections.notifications,
+          envelope: notificationEnvelope(9, 90),
+        },
+        connect: { ...state.sections.connect, envelope: connectEnvelope(9) },
+      },
+    }));
+    resolveNotifications(notificationEnvelope(8, 80));
+    resolveConnect({ envelope: connectEnvelope(8), credentialRevision: 80 });
+
+    await expect(notificationSave).resolves.toEqual(notificationEnvelope(9, 90));
+    await expect(connectSave).resolves.toEqual({
+      envelope: connectEnvelope(9),
+      credentialRevision: 80,
+    });
+    expect(useConfigSectionStore.getState().sections.notifications.envelope).toEqual(
+      notificationEnvelope(9, 90),
+    );
+    expect(useConfigSectionStore.getState().sections.connect.envelope).toEqual(connectEnvelope(9));
+  });
+
   it("resets a section without optimistic data replacement", async () => {
     useConfigSectionStore.setState((state) => ({
       sections: {
@@ -307,6 +473,34 @@ describe("useConfigSectionStore", () => {
     await reset;
     expect(useConfigSectionStore.getState().sections.core.envelope).toEqual(envelope(9, {}));
     expect(useConfigSectionStore.getState().sections.core.loading).toBe(false);
+  });
+
+  it("does not regress a reset response behind a newer event snapshot", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(8) },
+      },
+    }));
+    let resolveReset!: (value: ConfigSectionEnvelope<CoreSection>) => void;
+    vi.spyOn(configSectionsService, "resetSection").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveReset = resolve as typeof resolveReset;
+        }),
+    );
+
+    const pending = useConfigSectionStore.getState().resetSection("core", 8);
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(10) },
+      },
+    }));
+    resolveReset(envelope(9, {}));
+
+    await expect(pending).resolves.toEqual(envelope(10));
+    expect(useConfigSectionStore.getState().sections.core.envelope).toEqual(envelope(10));
   });
 
   it("keeps the last-known-good section and records a reset conflict", async () => {
@@ -366,6 +560,33 @@ describe("useConfigSectionStore", () => {
     await store.replaceProxyAuth({ username: "alice", password: "secret" });
     expect(replace).toHaveBeenCalledWith(3, { username: "alice", password: "secret" });
     expect(useConfigSectionStore.getState().proxyAuthStatus).toEqual(configured);
+  });
+
+  it("does not let a stale proxy status load regress a newer credential mutation", async () => {
+    const status = (revision: number, configured: boolean) => ({
+      configured,
+      credential_ref: configured ? "proxy.default.auth" : null,
+      source: configured ? "user" : null,
+      updated_at: null,
+      revision,
+      status: "healthy" as const,
+      source_kind: "file",
+      last_error: null,
+    });
+    let resolveLoad!: (value: ReturnType<typeof status>) => void;
+    vi.spyOn(configSectionsService, "getProxyAuthStatus").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+
+    const pending = useConfigSectionStore.getState().loadProxyAuthStatus({ force: true });
+    useConfigSectionStore.setState({ proxyAuthStatus: status(4, true) });
+    resolveLoad(status(3, false));
+
+    await expect(pending).resolves.toEqual(status(4, true));
+    expect(useConfigSectionStore.getState().proxyAuthStatus).toEqual(status(4, true));
   });
 
   it("coalesces event bursts and preserves data while invalid", async () => {

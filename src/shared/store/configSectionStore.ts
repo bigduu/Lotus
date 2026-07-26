@@ -100,6 +100,7 @@ const inFlightLoads = new Map<ConfigSectionId, Promise<ConfigSectionEnvelope<unk
 let proxyAuthLoad: Promise<ProxyAuthStatus> | null = null;
 const eventTimers = new Map<ConfigSectionId, ReturnType<typeof setTimeout>>();
 const pendingEventRevisions = new Map<ConfigSectionId, number>();
+const mutationSequences = new Map<ConfigSectionId, number>();
 const CONFIG_EVENT_DEBOUNCE_MS = 80;
 const CONFIG_EVENT_RETRY_MS = 1_000;
 
@@ -112,6 +113,15 @@ const isSectionId = (value: string): value is ConfigSectionId =>
 const unhealthyStatusFor = (
   eventType: "config.invalid" | "config.changed" | "config.recovered",
 ): ConfigSectionStatus | null => (eventType === "config.invalid" ? "invalid" : null);
+
+const beginMutation = (section: ConfigSectionId): number => {
+  const sequence = (mutationSequences.get(section) ?? 0) + 1;
+  mutationSequences.set(section, sequence);
+  return sequence;
+};
+
+const isLatestMutation = (section: ConfigSectionId, sequence: number): boolean =>
+  mutationSequences.get(section) === sequence;
 
 export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) => {
   function scheduleEventConvergence(
@@ -242,23 +252,32 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       if (revision === undefined) {
         throw new Error(`Load ${section} before saving it.`);
       }
+      const mutationSequence = beginMutation(section);
       try {
         const envelope = await configSectionsService.putSection(section, revision, data);
-        set((state) => ({
-          sections: {
-            ...state.sections,
-            [section]: {
-              ...state.sections[section],
-              envelope,
-              loading: false,
-              error: null,
-              conflict: null,
+        set((state) => {
+          const current = state.sections[section];
+          const adoptedEnvelope =
+            (current.envelope?.revision ?? -1) > envelope.revision ? current.envelope : envelope;
+          const latestMutation = isLatestMutation(section, mutationSequence);
+          return {
+            sections: {
+              ...state.sections,
+              [section]: {
+                ...current,
+                envelope: adoptedEnvelope,
+                loading: false,
+                error: latestMutation ? null : current.error,
+                conflict: latestMutation ? null : current.conflict,
+              },
             },
-          },
-        }));
-        return envelope;
+          };
+        });
+        const adopted = get().sections[section].envelope;
+        return adopted && adopted.revision > envelope.revision ? adopted : envelope;
       } catch (error) {
         const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+        if (!isLatestMutation(section, mutationSequence)) throw error;
         set((state) => ({
           sections: {
             ...state.sections,
@@ -278,6 +297,7 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const snapshot = get().sections[section];
       const revision = expectedRevision ?? snapshot.envelope?.revision;
       if (revision === undefined) throw new Error("Load mcp before saving it.");
+      const mutationSequence = beginMutation(section);
       try {
         const envelope = await configSectionsService.putMcpSettings(
           revision,
@@ -295,8 +315,8 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
                 ...current,
                 envelope: adoptedEnvelope,
                 loading: false,
-                error: null,
-                conflict: null,
+                error: isLatestMutation(section, mutationSequence) ? null : current.error,
+                conflict: isLatestMutation(section, mutationSequence) ? null : current.conflict,
               },
             },
           };
@@ -306,6 +326,7 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
         return adopted && adopted.revision > envelope.revision ? adopted : envelope;
       } catch (error) {
         const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+        if (!isLatestMutation(section, mutationSequence)) throw error;
         set((state) => ({
           sections: {
             ...state.sections,
@@ -325,27 +346,37 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const snapshot = get().sections[section];
       const revision = expectedRevision ?? snapshot.envelope?.revision;
       if (revision === undefined) throw new Error("Load providers before saving them.");
+      const mutationSequence = beginMutation(section);
       try {
         const envelope = await configSectionsService.putProviderSettings(
           revision,
           data,
           credentialChanges,
         );
-        set((state) => ({
-          sections: {
-            ...state.sections,
-            [section]: {
-              ...state.sections[section],
-              envelope,
-              loading: false,
-              error: null,
-              conflict: null,
+        set((state) => {
+          const current = state.sections[section];
+          const adoptedEnvelope =
+            (current.envelope?.revision ?? -1) > envelope.revision ? current.envelope : envelope;
+          const latestMutation = isLatestMutation(section, mutationSequence);
+          return {
+            sections: {
+              ...state.sections,
+              [section]: {
+                ...current,
+                envelope: adoptedEnvelope,
+                loading: false,
+                error: latestMutation ? null : current.error,
+                conflict: latestMutation ? null : current.conflict,
+              },
             },
-          },
-        }));
-        return envelope;
+          };
+        });
+        const adopted = get().sections[section]
+          .envelope as ConfigSectionEnvelope<ProviderSection> | null;
+        return adopted && adopted.revision > envelope.revision ? adopted : envelope;
       } catch (error) {
         const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+        if (!isLatestMutation(section, mutationSequence)) throw error;
         set((state) => ({
           sections: {
             ...state.sections,
@@ -365,23 +396,32 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const snapshot = get().sections[section];
       const revision = expectedRevision ?? snapshot.envelope?.revision;
       if (revision === undefined) throw new Error("Load notifications before saving them.");
+      const mutationSequence = beginMutation(section);
       try {
         const envelope = await configSectionsService.putNotifications(revision, data);
-        set((state) => ({
-          sections: {
-            ...state.sections,
-            [section]: {
-              ...state.sections[section],
-              envelope,
-              loading: false,
-              error: null,
-              conflict: null,
+        set((state) => {
+          const current = state.sections[section];
+          const adoptedEnvelope =
+            (current.envelope?.revision ?? -1) > envelope.revision ? current.envelope : envelope;
+          const latestMutation = isLatestMutation(section, mutationSequence);
+          return {
+            sections: {
+              ...state.sections,
+              [section]: {
+                ...current,
+                envelope: adoptedEnvelope,
+                loading: false,
+                error: latestMutation ? null : current.error,
+                conflict: latestMutation ? null : current.conflict,
+              },
             },
-          },
-        }));
-        return envelope;
+          };
+        });
+        const adopted = get().sections[section].envelope as NotificationSectionEnvelope | null;
+        return adopted && adopted.revision > envelope.revision ? adopted : envelope;
       } catch (error) {
         const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+        if (!isLatestMutation(section, mutationSequence)) throw error;
         set((state) => ({
           sections: {
             ...state.sections,
@@ -394,23 +434,38 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
 
     saveConnect: async (data, expectedCredentialRevision) => {
       const section = "connect" as const;
+      const mutationSequence = beginMutation(section);
       try {
         const result = await configSectionsService.putConnect(expectedCredentialRevision, data);
-        set((state) => ({
-          sections: {
-            ...state.sections,
-            [section]: {
-              ...state.sections[section],
-              envelope: result.envelope,
-              loading: false,
-              error: null,
-              conflict: null,
+        set((state) => {
+          const current = state.sections[section];
+          const adoptedEnvelope =
+            (current.envelope?.revision ?? -1) > result.envelope.revision
+              ? current.envelope
+              : result.envelope;
+          const latestMutation = isLatestMutation(section, mutationSequence);
+          return {
+            sections: {
+              ...state.sections,
+              [section]: {
+                ...current,
+                envelope: adoptedEnvelope,
+                loading: false,
+                error: latestMutation ? null : current.error,
+                conflict: latestMutation ? null : current.conflict,
+              },
             },
-          },
-        }));
-        return result;
+          };
+        });
+        const adopted = get().sections[section].envelope;
+        return {
+          ...result,
+          envelope:
+            adopted && adopted.revision > result.envelope.revision ? adopted : result.envelope,
+        };
       } catch (error) {
         const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+        if (!isLatestMutation(section, mutationSequence)) throw error;
         set((state) => ({
           sections: {
             ...state.sections,
@@ -425,6 +480,7 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const snapshot = get().sections[section];
       const revision = expectedRevision ?? snapshot.envelope?.revision;
       if (revision === undefined) throw new Error(`Load ${section} before resetting it.`);
+      const mutationSequence = beginMutation(section);
 
       set((state) => ({
         sections: {
@@ -434,21 +490,29 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       }));
       try {
         const envelope = await configSectionsService.resetSection(section, revision);
-        set((state) => ({
-          sections: {
-            ...state.sections,
-            [section]: {
-              ...state.sections[section],
-              envelope,
-              loading: false,
-              error: null,
-              conflict: null,
+        set((state) => {
+          const current = state.sections[section];
+          const adoptedEnvelope =
+            (current.envelope?.revision ?? -1) > envelope.revision ? current.envelope : envelope;
+          const latestMutation = isLatestMutation(section, mutationSequence);
+          return {
+            sections: {
+              ...state.sections,
+              [section]: {
+                ...current,
+                envelope: adoptedEnvelope,
+                loading: false,
+                error: latestMutation ? null : current.error,
+                conflict: latestMutation ? null : current.conflict,
+              },
             },
-          },
-        }));
-        return envelope;
+          };
+        });
+        const adopted = get().sections[section].envelope;
+        return adopted && adopted.revision > envelope.revision ? adopted : envelope;
       } catch (error) {
         const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+        if (!isLatestMutation(section, mutationSequence)) throw error;
         set((state) => ({
           sections: {
             ...state.sections,
@@ -473,8 +537,15 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       proxyAuthLoad = configSectionsService.getProxyAuthStatus();
       try {
         const status = await proxyAuthLoad;
-        set({ proxyAuthStatus: status, proxyAuthLoading: false, proxyAuthError: null });
-        return status;
+        set((state) => {
+          const adopted =
+            (state.proxyAuthStatus?.revision ?? -1) > status.revision
+              ? state.proxyAuthStatus
+              : status;
+          return { proxyAuthStatus: adopted, proxyAuthLoading: false, proxyAuthError: null };
+        });
+        const adopted = get().proxyAuthStatus;
+        return adopted && adopted.revision > status.revision ? adopted : status;
       } catch (error) {
         set({ proxyAuthLoading: false, proxyAuthError: errorMessage(error) });
         throw error;
@@ -487,8 +558,15 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const current = await get().loadProxyAuthStatus();
       try {
         const status = await configSectionsService.replaceProxyAuth(current.revision, auth);
-        set({ proxyAuthStatus: status, proxyAuthError: null });
-        return status;
+        set((state) => ({
+          proxyAuthStatus:
+            (state.proxyAuthStatus?.revision ?? -1) > status.revision
+              ? state.proxyAuthStatus
+              : status,
+          proxyAuthError: null,
+        }));
+        const adopted = get().proxyAuthStatus;
+        return adopted && adopted.revision > status.revision ? adopted : status;
       } catch (error) {
         set({ proxyAuthError: errorMessage(error) });
         throw error;
@@ -499,8 +577,15 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const current = await get().loadProxyAuthStatus();
       try {
         const status = await configSectionsService.clearProxyAuth(current.revision);
-        set({ proxyAuthStatus: status, proxyAuthError: null });
-        return status;
+        set((state) => ({
+          proxyAuthStatus:
+            (state.proxyAuthStatus?.revision ?? -1) > status.revision
+              ? state.proxyAuthStatus
+              : status,
+          proxyAuthError: null,
+        }));
+        const adopted = get().proxyAuthStatus;
+        return adopted && adopted.revision > status.revision ? adopted : status;
       } catch (error) {
         set({ proxyAuthError: errorMessage(error) });
         throw error;
@@ -566,6 +651,7 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       for (const timer of eventTimers.values()) clearTimeout(timer);
       eventTimers.clear();
       pendingEventRevisions.clear();
+      mutationSequences.clear();
       inFlightLoads.clear();
       proxyAuthLoad = null;
       set({
