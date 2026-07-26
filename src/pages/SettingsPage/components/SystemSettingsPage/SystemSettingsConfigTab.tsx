@@ -29,6 +29,7 @@ import type { AppLocale } from "@shared/i18n/types";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type { ToolsSkillsSection } from "@services/config/configSections";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { redactConfigError } from "./ConfigSectionStatus";
 
 interface ConfigFormState {
   http_proxy: string;
@@ -492,6 +493,11 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           baseRevision,
         );
         savedRevision = saved.revision;
+        setConfig((current) => ({
+          ...current,
+          http_proxy: saved.data.http_proxy ?? "",
+          https_proxy: saved.data.https_proxy ?? "",
+        }));
         if (baseDraftsRef.current) {
           baseDraftsRef.current.core = {
             http_proxy: saved.data.http_proxy ?? "",
@@ -512,6 +518,12 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           baseRevision,
         );
         savedRevision = saved.revision;
+        setConfig((current) => ({
+          ...current,
+          memory: {
+            auto_dream_enabled: saved.data?.auto_dream_enabled ?? false,
+          },
+        }));
         if (baseDraftsRef.current) {
           baseDraftsRef.current.memory = {
             auto_dream_enabled: saved.data?.auto_dream_enabled ?? false,
@@ -531,8 +543,10 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           baseRevision,
         );
         savedRevision = saved.revision;
+        const canonicalSubagents = normalizeSubagentsForm(saved.data);
+        setConfig((current) => ({ ...current, subagents: canonicalSubagents }));
         if (baseDraftsRef.current) {
-          baseDraftsRef.current.subagents = normalizeSubagentsForm(saved.data);
+          baseDraftsRef.current.subagents = structuredClone(canonicalSubagents);
         }
         setBaseRevisions((current) => ({ ...current, subagents: savedRevision }));
         setDirtySections((current) => ({ ...current, subagents: false }));
@@ -606,13 +620,14 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         },
         baseRevision,
       );
+      const canonicalDisabled = readDisabledTools(saved.data);
       if (baseDraftsRef.current) {
-        baseDraftsRef.current.toolsDisabled = readDisabledTools(saved.data);
+        baseDraftsRef.current.toolsDisabled = [...canonicalDisabled];
       }
       setBaseRevisions((current) => ({ ...current, "tools-skills": saved.revision }));
       setDirtySections((current) => ({ ...current, "tools-skills": false }));
-      setDisabledTools(nextDisabled);
-      setSavedDisabledTools(nextDisabled);
+      setDisabledTools(canonicalDisabled);
+      setSavedDisabledTools(canonicalDisabled);
       msgApi.success(t("settings.configTab.toolsSaveSuccess"));
     } catch (error) {
       console.error("Failed to save tool settings:", error);
@@ -704,16 +719,66 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
   };
 
   const compareExternalDrafts = () => {
+    const baseDrafts = baseDraftsRef.current;
+    if (!baseDrafts) return;
+    const comparison = Object.fromEntries(
+      externalSections.map(([section]) => {
+        if (section === "core") {
+          return [
+            section,
+            {
+              base: baseDrafts.core,
+              draft: {
+                http_proxy: config.http_proxy,
+                https_proxy: config.https_proxy,
+              },
+              latest: {
+                http_proxy: coreSnapshot.envelope?.data.http_proxy ?? "",
+                https_proxy: coreSnapshot.envelope?.data.https_proxy ?? "",
+              },
+            },
+          ];
+        }
+        if (section === "memory") {
+          return [
+            section,
+            {
+              base: baseDrafts.memory,
+              draft: config.memory,
+              latest: {
+                auto_dream_enabled: memorySnapshot.envelope?.data?.auto_dream_enabled ?? false,
+              },
+            },
+          ];
+        }
+        if (section === "subagents") {
+          return [
+            section,
+            {
+              base: baseDrafts.subagents,
+              draft: config.subagents,
+              latest: subagentsSnapshot.envelope
+                ? normalizeSubagentsForm(subagentsSnapshot.envelope.data)
+                : null,
+            },
+          ];
+        }
+        return [
+          section,
+          {
+            base: baseDrafts.toolsDisabled,
+            draft: disabledTools,
+            latest: toolsSnapshot.envelope ? readDisabledTools(toolsSnapshot.envelope.data) : null,
+          },
+        ];
+      }),
+    );
     Modal.info({
       title: "Configuration changed on disk",
       content: (
-        <Space direction="vertical">
-          {externalSections.map(([section, latest, base]) => (
-            <Text key={section}>
-              {section}: draft based on r{base ?? "?"}, latest is r{latest}
-            </Text>
-          ))}
-        </Space>
+        <pre style={{ maxHeight: 460, overflow: "auto", whiteSpace: "pre-wrap" }}>
+          {redactConfigError(JSON.stringify(comparison, null, 2))}
+        </pre>
       ),
     });
   };

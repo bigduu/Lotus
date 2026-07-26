@@ -105,6 +105,31 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
     });
   });
 
+  it("adopts the canonical memory snapshot returned by the server", async () => {
+    vi.mocked(configSectionsService.putSection).mockImplementationOnce(
+      async (section, _revision, data) =>
+        ({
+          ...sectionEnvelope(section),
+          data: { ...(data as object), auto_dream_enabled: true },
+          revision: 5,
+        }) as never,
+    );
+
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const toggle = await screen.findByTestId("auto-dream-toggle");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByTestId("save-memory-settings"));
+
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+    expect(useConfigSectionStore.getState().sections.memory.envelope?.revision).toBe(5);
+  });
+
   it("falls back to disabled auto dream when memory config is missing", async () => {
     vi.mocked(configSectionsService.getSection).mockImplementation(
       async (section) => sectionEnvelope(section, null) as never,
