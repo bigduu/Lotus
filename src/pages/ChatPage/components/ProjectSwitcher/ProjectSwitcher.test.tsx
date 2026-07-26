@@ -10,10 +10,6 @@ vi.mock("../ProjectManagerModal", () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>ProjectManagerModalStub</div> : null),
 }));
 
-vi.mock("../LegacyMigrationModal", () => ({
-  default: () => null,
-}));
-
 const makeProject = (id: string, name: string, status: "active" | "archived" = "active") =>
   ({
     id,

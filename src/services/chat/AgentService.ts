@@ -563,10 +563,6 @@ export interface CreateSessionResponse {
   session: SessionSummary;
 }
 
-export interface GetSessionResponse {
-  session: SessionSummary;
-}
-
 export interface SessionSystemPromptResponse {
   session_id: string;
   base_system_prompt: string;
@@ -1208,43 +1204,6 @@ export class AgentClient {
   async patchSession(sessionId: string, req: PatchSessionRequest): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     await agentApiClient.patch(`sessions/${encodedSessionId}`, req);
-  }
-
-  /**
-   * Read a session together with its metadata_version (ETag), the optimistic
-   * concurrency token required for Project reassignment (Bamboo returns 428
-   * without it and 412 on a stale one).
-   */
-  async getSessionWithVersion(
-    sessionId: string,
-  ): Promise<{ session: SessionSummary; metadataVersion: number | null }> {
-    const encodedSessionId = encodeURIComponent(sessionId);
-    const { data, etag } = await agentApiClient.getWithEtag<GetSessionResponse>(
-      `sessions/${encodedSessionId}`,
-    );
-    const parsed = etag ? Number(etag.replace(/^W\//, "").replace(/"/g, "")) : NaN;
-    return {
-      session: data.session,
-      metadataVersion: Number.isFinite(parsed) ? parsed : null,
-    };
-  }
-
-  /**
-   * Explicit Project reassignment of a session (#134 / Bamboo patch.rs):
-   * requires `If-Match: "<metadata_version>"`. On 412 the caller should
-   * refetch the version and retry; on 409 the session is running.
-   */
-  async reassignSessionProject(
-    sessionId: string,
-    projectId: string | null,
-    metadataVersion: number,
-  ): Promise<void> {
-    const encodedSessionId = encodeURIComponent(sessionId);
-    await agentApiClient.patch(
-      `sessions/${encodedSessionId}`,
-      { project_id: projectId },
-      { headers: { "If-Match": `"${metadataVersion}"` } },
-    );
   }
 
   /**

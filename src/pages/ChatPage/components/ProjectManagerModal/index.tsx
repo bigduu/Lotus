@@ -26,8 +26,6 @@ const { Text } = Typography;
 type ProjectManagerModalProps = {
   open: boolean;
   onClose: () => void;
-  /** Opens the legacy migration wizard (rendered as a sibling modal). */
-  onOpenMigration: () => void;
 };
 
 /**
@@ -39,11 +37,7 @@ type ProjectManagerModalProps = {
  * - default workspace selection (Bamboo-agent#692),
  * - session counts in the list (Bamboo-agent#727).
  */
-const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
-  open,
-  onClose,
-  onOpenMigration,
-}) => {
+const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({ open, onClose }) => {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
   const { token } = theme.useToken();
@@ -87,12 +81,6 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
-
-  // Unassigned root sessions — the entry point to the legacy migration
-  // wizard (#156). Children inherit their root's project on the backend.
-  const unassignedRootCount = useAppStore(
-    (state) => state.chats.filter((chat) => chat.kind !== "child" && !chat.config.projectId).length,
-  );
 
   // Create form
   const [newName, setNewName] = useState("");
@@ -276,17 +264,6 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
           >
             {t("chat.project.newProject", "New project")}
           </Button>
-          {unassignedRootCount > 0 ? (
-            <Button
-              size="small"
-              onClick={onOpenMigration}
-              style={{ marginBottom: 8 }}
-              data-testid="open-legacy-migration"
-            >
-              {t("chat.migration.entry")} (
-              {t("chat.migration.entryCount", { count: unassignedRootCount })})
-            </Button>
-          ) : null}
           <List
             size="small"
             dataSource={sortedProjects}
