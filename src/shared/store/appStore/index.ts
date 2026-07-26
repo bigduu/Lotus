@@ -9,6 +9,7 @@ import { TokenBudgetSlice, createTokenBudgetSlice } from "./slices/tokenBudgetSl
 import { TaskListSlice, createTaskListSlice } from "./slices/todoListSlice";
 import { InputStateSlice, createInputStateSlice } from "./slices/inputStateSlice";
 import { ExecutionStateSlice, createExecutionStateSlice } from "./slices/executionStateSlice";
+import { ProjectSlice, createProjectSlice } from "./slices/projectSlice";
 import { AgentClient } from "@services/chat/AgentService";
 import { startAccountFeed } from "@services/chat/accountFeed";
 import { clearStoredProxyAuth, readStoredProxyAuth } from "@shared/utils/proxyAuth";
@@ -52,6 +53,7 @@ export type AppState = ChatSlice &
   TaskListSlice &
   InputStateSlice &
   ExecutionStateSlice &
+  ProjectSlice &
   AgentAvailabilitySlice &
   SessionIndexSyncSlice;
 
@@ -67,6 +69,7 @@ export const useAppStore = create<AppState>()(
       ...createTaskListSlice(set, get, api),
       ...createInputStateSlice(set, get, api),
       ...createExecutionStateSlice(set, get, api),
+      ...createProjectSlice(set, get, api),
       agentAvailability: null,
       setAgentAvailability: (available) => {
         set({ agentAvailability: available });

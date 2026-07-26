@@ -17,7 +17,7 @@ import {
 } from "./uiLayoutStore.types";
 
 const isSidebarGroupingMode = (value: unknown): value is SidebarGroupingMode =>
-  value === "date" || value === "workspace";
+  value === "date" || value === "workspace" || value === "project";
 
 export const readStoredLayout = (): string | null => {
   try {

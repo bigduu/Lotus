@@ -79,6 +79,7 @@ const areChatConfigsEquivalent = (a: ChatItem["config"], b: ChatItem["config"]):
     a.lastUsedEnhancedPrompt === b.lastUsedEnhancedPrompt &&
     a.agentRole === b.agentRole &&
     a.workspacePath === b.workspacePath &&
+    a.projectId === b.projectId &&
     a.model === b.model &&
     areModelRefsEqual(a.model_ref, b.model_ref) &&
     a.reasoningEffort === b.reasoningEffort &&

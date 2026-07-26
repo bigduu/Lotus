@@ -1,4 +1,5 @@
 import { ChatItem } from "@shared/types/chat";
+import { NO_PROJECT_GROUP_KEY } from "@services/project";
 
 export const generateChatTitle = (chatNumber: number): string => {
   const now = new Date();
@@ -404,4 +405,67 @@ export const buildWorkspaceGroupLabels = (paths: string[]): Record<string, strin
   }
 
   return labels;
+};
+
+// ─── Secondary grouping: by Project (Lotus #134) ───────────────────────
+// Sessions with the same `projectId` are grouped under a single stable
+// Project identity. Workspace changes do not alter the Project key.
+
+type ProjectGroupChat = {
+  pinned?: boolean;
+  createdAt: number;
+  config: {
+    projectId?: string | null;
+  };
+};
+
+const getProjectGroupKey = (projectId?: string | null): string =>
+  projectId?.trim() || NO_PROJECT_GROUP_KEY;
+
+/**
+ * Group chats by Project id. Within each Project, pinned sessions sort first
+ * and the rest sort by `createdAt` descending. The "No Project" bucket is kept
+ * at the bottom by {@link getSortedProjectKeys}.
+ */
+export const groupChatsByProject = <T extends ProjectGroupChat>(
+  chats: T[],
+): Record<string, T[]> => {
+  const grouped: Record<string, T[]> = {};
+
+  for (const chat of chats) {
+    const key = getProjectGroupKey(chat.config.projectId);
+    (grouped[key] ??= []).push(chat);
+  }
+
+  for (const items of Object.values(grouped)) {
+    items.sort((a, b) => {
+      if (Boolean(a.pinned) !== Boolean(b.pinned)) return a.pinned ? -1 : 1;
+      return b.createdAt - a.createdAt;
+    });
+  }
+
+  return grouped;
+};
+
+/**
+ * Sort Project group keys by most-recently-active Project first. Archived
+ * Projects sink below active ones (still recency-ordered among themselves);
+ * Unassigned sessions are always placed last, regardless of recency.
+ */
+export const getSortedProjectKeys = <T extends { createdAt: number }>(
+  grouped: Record<string, T[]>,
+  archivedKeys?: ReadonlySet<string>,
+): string[] => {
+  return Object.keys(grouped).sort((a, b) => {
+    if (a === NO_PROJECT_GROUP_KEY) return 1;
+    if (b === NO_PROJECT_GROUP_KEY) return -1;
+
+    const aArchived = archivedKeys?.has(a) ?? false;
+    const bArchived = archivedKeys?.has(b) ?? false;
+    if (aArchived !== bArchived) return aArchived ? 1 : -1;
+
+    const aTime = (grouped[a] || []).reduce((max, chat) => Math.max(max, chat.createdAt), 0);
+    const bTime = (grouped[b] || []).reduce((max, chat) => Math.max(max, chat.createdAt), 0);
+    return bTime - aTime;
+  });
 };

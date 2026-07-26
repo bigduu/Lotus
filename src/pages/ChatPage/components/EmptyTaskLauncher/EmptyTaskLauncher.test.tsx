@@ -176,4 +176,73 @@ describe("EmptyTaskLauncher", () => {
 
     window.removeEventListener(CHAT_FOCUS_INPUT_EVENT, handleFocusEvent as EventListener);
   });
+
+  it("does not inherit a workspace from an arbitrary chat when no session is active (#134)", async () => {
+    // No current session: the old fallback scanned `chats` for any
+    // workspacePath, which leaks a workspace across Projects. The launcher
+    // must create the session with no workspace instead.
+    useAppStore.setState({
+      currentSessionId: null,
+      latestActiveSessionId: null,
+      activeProjectId: null,
+    } as any);
+
+    render(
+      <AntdApp>
+        <EmptyTaskLauncher embedded={true} />
+      </AntdApp>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Blank session" }));
+
+    await waitFor(() => {
+      expect(useAppStore.getState().chats.some((chat: any) => chat.id === "session-blank")).toBe(
+        true,
+      );
+    });
+
+    const createdSession = useAppStore
+      .getState()
+      .chats.find((chat: any) => chat.id === "session-blank");
+    expect(createdSession?.config.workspacePath).toBeUndefined();
+  });
+
+  it("falls back to the active Project's default workspace when no session is active (#134)", async () => {
+    useAppStore.setState({
+      currentSessionId: null,
+      latestActiveSessionId: null,
+      activeProjectId: "proj-zenith",
+      projects: {
+        "proj-zenith": {
+          id: "proj-zenith",
+          name: "zenith",
+          description: null,
+          status: "active",
+          revision: 1,
+          resource_revision: 1,
+          default_workspace_path: "/repo/zenith",
+          created_at: "2025-03-01T00:00:00Z",
+          updated_at: "2025-03-01T00:00:00Z",
+          schema_version: 1,
+          workspace_bindings: [],
+          legacy_project_keys: [],
+        },
+      },
+    } as any);
+
+    render(
+      <AntdApp>
+        <EmptyTaskLauncher embedded={true} />
+      </AntdApp>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Blank session" }));
+
+    await waitFor(() => {
+      const createdSession = useAppStore
+        .getState()
+        .chats.find((chat: any) => chat.id === "session-blank");
+      expect(createdSession?.config.workspacePath).toBe("/repo/zenith");
+    });
+  });
 });

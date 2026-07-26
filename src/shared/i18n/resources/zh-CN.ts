@@ -317,6 +317,9 @@ export const zhCnTranslation = {
           workspace: "按工作区",
         },
         noWorkspace: "无工作区",
+        unassigned: "未归属",
+        missingProject: "项目缺失",
+        archived: "已归档",
         actions: {
           collapseChildren: "折叠子会话",
           expandChildren: "展开子会话",
@@ -332,6 +335,10 @@ export const zhCnTranslation = {
         deleteByWorkspace: {
           title: "删除「{{workspace}}」中的会话",
           confirm: "确定要删除「{{workspace}}」中的 {{count}} 个会话吗？",
+        },
+        deleteByProject: {
+          title: "删除「{{project}}」中的会话",
+          confirm: "确定要删除「{{project}}」中的 {{count}} 个会话吗？",
         },
         newSessionWithPrompt: "基于 {{prompt}} 的新会话",
         title: "会话侧边栏",

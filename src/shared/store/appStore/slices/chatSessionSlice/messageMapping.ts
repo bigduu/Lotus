@@ -122,6 +122,7 @@ export const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
       baseSystemPrompt: DEFAULT_BASE_SYSTEM_PROMPT,
       lastUsedEnhancedPrompt: null,
       workspacePath: s.workspace_path ?? undefined,
+      projectId: s.project_id ?? undefined,
       model: s.model,
       model_ref: s.model_ref ?? null,
       reasoningEffort: s.reasoning_effort ?? null,

@@ -24,9 +24,33 @@ vi.mock("../SystemPromptSelector", () => ({
   default: () => null,
 }));
 
+// The sidebar hook loads Projects on mount; keep all network out of tests.
+const { mockListProjects, mockGetProject } = vi.hoisted(() => ({
+  mockListProjects: vi.fn(),
+  mockGetProject: vi.fn(),
+}));
+vi.mock("@services/project", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@services/project")>();
+  return {
+    ...actual,
+    projectService: {
+      ...actual.projectService,
+      listProjects: mockListProjects,
+      getProject: mockGetProject,
+    },
+  };
+});
+
 describe("ChatSidebar", () => {
   beforeEach(() => {
     localStorage.removeItem("lotus.sidebar.workspace.expanded.v1");
+    localStorage.removeItem("lotus.sidebar.project.expanded.v1");
+    // Default: no Projects on the backend; individual suites override this.
+    // Note the slice treats the remote list as authoritative and prunes
+    // anything absent from it, so suites seeding `projects` MUST also make
+    // the list endpoint return them.
+    mockListProjects.mockResolvedValue({ projects: [] });
+    mockGetProject.mockRejectedValue(new Error("unexpected getProject in test"));
     useUILayoutStore.setState((state) => ({
       ...state,
       sidebar: {
@@ -750,20 +774,46 @@ describe("ChatSidebar", () => {
     expect(state.activeTabKey).toBe("schedules");
   });
 
-  describe("workspace grouping mode (#95)", () => {
-    // "root-billing" -> zenith, "root-platform" -> bamboo, and a third,
-    // workspace-less session so the "No workspace" trailing bucket has
-    // something in it.
+  describe("project grouping mode (#134)", () => {
+    const makeProject = (id: string, name: string) => ({
+      id,
+      name,
+      description: null,
+      status: "active" as const,
+      revision: 1,
+      resource_revision: 1,
+      workspace_count: 1,
+      created_at: "2025-03-01T00:00:00Z",
+      updated_at: "2025-03-01T00:00:00Z",
+      schema_version: 1,
+      workspace_bindings: [],
+      legacy_project_keys: [],
+      // Records normally land in the store via mergeProjectIntoMap, which
+      // stamps detail_loaded; without it the sidebar would refetch (and, in
+      // tests, hit the mocked failing getProject).
+      detail_loaded: true,
+    });
+
+    // "root-billing" -> zenith project, "root-platform" -> bamboo project,
+    // and a third, project-less session so the "Unassigned" trailing bucket
+    // has something in it.
     beforeEach(() => {
+      mockListProjects.mockResolvedValue({
+        projects: [makeProject("proj-zenith", "zenith"), makeProject("proj-bamboo", "bamboo")],
+      });
       useAppStore.setState((state) => ({
         ...state,
+        projects: {
+          "proj-zenith": makeProject("proj-zenith", "zenith"),
+          "proj-bamboo": makeProject("proj-bamboo", "bamboo"),
+        },
         chats: [
           ...state.chats.map((chat) => {
             if (chat.id === "root-billing") {
-              return { ...chat, config: { ...chat.config, workspacePath: "/Users/alice/zenith" } };
+              return { ...chat, config: { ...chat.config, projectId: "proj-zenith" } };
             }
             if (chat.id === "root-platform") {
-              return { ...chat, config: { ...chat.config, workspacePath: "/Users/alice/bamboo" } };
+              return { ...chat, config: { ...chat.config, projectId: "proj-bamboo" } };
             }
             return chat;
           }),
@@ -785,9 +835,7 @@ describe("ChatSidebar", () => {
       }));
     });
 
-    const switchToWorkspaceMode = () => {};
-
-    it("uses the fixed workspace-first hierarchy by default", async () => {
+    it("uses the fixed project-first hierarchy by default", async () => {
       render(
         <AntdApp>
           <ChatSidebar />
@@ -795,14 +843,12 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      await waitFor(() =>
-        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace"),
-      );
+      await waitFor(() => expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("project"));
       expect(screen.getByText(/^zenith/)).toBeInTheDocument();
       expect(screen.getByText(/^bamboo/)).toBeInTheDocument();
     });
 
-    it("uses the root workspace and expands the hierarchy for a selected child", async () => {
+    it("uses the root project and expands the hierarchy for a selected child", async () => {
       useAppStore.setState({ currentSessionId: "child-billing-fix" });
       useUILayoutStore.setState((state) => ({
         ...state,
@@ -820,7 +866,7 @@ describe("ChatSidebar", () => {
       expect(screen.getByText(/^zenith/)).toBeInTheDocument();
     });
 
-    it("buckets same-workspace sessions together and persists outer expansion", async () => {
+    it("buckets same-project sessions together and persists outer expansion", async () => {
       const first = render(
         <AntdApp>
           <ChatSidebar />
@@ -828,15 +874,14 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      switchToWorkspaceMode();
 
       await waitFor(() => {
-        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace");
+        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("project");
       });
 
       // The selected session's ("root-billing", zenith) group auto-expands.
       expect(screen.getByText("Billing investigation")).toBeInTheDocument();
-      // A different workspace's group is not the selected session's group,
+      // A different project's group is not the selected session's group,
       // so it starts collapsed.
       expect(screen.queryByText("Platform roadmap")).toBeNull();
 
@@ -847,9 +892,7 @@ describe("ChatSidebar", () => {
         expect(screen.getByText("Platform roadmap")).toBeInTheDocument();
       });
       await waitFor(() =>
-        expect(localStorage.getItem("lotus.sidebar.workspace.expanded.v1")).toContain(
-          "/Users/alice/bamboo",
-        ),
+        expect(localStorage.getItem("lotus.sidebar.project.expanded.v1")).toContain("proj-bamboo"),
       );
 
       first.unmount();
@@ -861,7 +904,7 @@ describe("ChatSidebar", () => {
       expect(await screen.findByText("Platform roadmap")).toBeInTheDocument();
     });
 
-    it("routes sessions with no workspacePath into a trailing 'No workspace' bucket", async () => {
+    it("routes sessions with no projectId into a trailing 'Unassigned' bucket", async () => {
       render(
         <AntdApp>
           <ChatSidebar />
@@ -869,20 +912,19 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      switchToWorkspaceMode();
       await waitFor(() => {
-        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace");
+        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("project");
       });
 
       expect(screen.queryByText("Loose session")).toBeNull();
 
-      fireEvent.click(screen.getByText(/No workspace/));
+      fireEvent.click(screen.getByText(/Unassigned/));
       await waitFor(() => {
         expect(screen.getByText("Loose session")).toBeInTheDocument();
       });
     });
 
-    it("keeps search filtering working in workspace mode, auto-expanding the matching group", async () => {
+    it("keeps search filtering working in project mode, auto-expanding the matching group", async () => {
       render(
         <AntdApp>
           <ChatSidebar />
@@ -890,9 +932,8 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      switchToWorkspaceMode();
       await waitFor(() => {
-        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("workspace");
+        expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("project");
       });
 
       const searchInput = screen.getByPlaceholderText("Search sessions");
@@ -904,7 +945,16 @@ describe("ChatSidebar", () => {
       });
     });
 
-    it("still reflects a live per-item run status in workspace mode (#104)", async () => {
+    it("discards the legacy workspace expansion keys on mount (#134)", async () => {
+      localStorage.setItem(
+        "lotus.sidebar.workspace.expanded.v1",
+        JSON.stringify(["/Users/alice/zenith"]),
+      );
+      localStorage.setItem(
+        "lotus.sidebar.workspace-date.collapsed.v1",
+        JSON.stringify(["%2FUsers%2Falice%2Fzenith::2025-03-01"]),
+      );
+
       render(
         <AntdApp>
           <ChatSidebar />
@@ -912,7 +962,20 @@ describe("ChatSidebar", () => {
       );
 
       await screen.findByText("Billing investigation");
-      switchToWorkspaceMode();
+      // Legacy workspace-path keys cannot be mapped to project ids, so they
+      // are dropped rather than used to fabricate Project expansion state.
+      expect(localStorage.getItem("lotus.sidebar.workspace.expanded.v1")).toBeNull();
+      expect(localStorage.getItem("lotus.sidebar.workspace-date.collapsed.v1")).toBeNull();
+    });
+
+    it("still reflects a live per-item run status in project mode (#104)", async () => {
+      render(
+        <AntdApp>
+          <ChatSidebar />
+        </AntdApp>,
+      );
+
+      await screen.findByText("Billing investigation");
       await waitFor(() => {
         expect(screen.getByText("Billing investigation")).toBeInTheDocument();
       });
@@ -1001,8 +1064,8 @@ describe("ChatSidebar", () => {
         }
       });
 
-      it("virtualizes a single workspace's group once it exceeds the threshold", async () => {
-        const bigWorkspaceChats = Array.from({ length: 60 }, (_, i) => ({
+      it("virtualizes a single project's group once it exceeds the threshold", async () => {
+        const bigProjectChats = Array.from({ length: 60 }, (_, i) => ({
           id: `root-zenith-${i}`,
           title: `Zenith session ${i}`,
           kind: "root" as const,
@@ -1012,7 +1075,7 @@ describe("ChatSidebar", () => {
             systemPromptId: "general_assistant",
             baseSystemPrompt: "You are helpful.",
             lastUsedEnhancedPrompt: null,
-            workspacePath: "/Users/alice/zenith",
+            projectId: "proj-zenith",
           },
           currentInteraction: null,
           updatedAt: new Date("2025-03-01T12:00:00Z").toISOString(),
@@ -1020,9 +1083,9 @@ describe("ChatSidebar", () => {
 
         useAppStore.setState((state) => ({
           ...state,
-          chats: [...state.chats, ...bigWorkspaceChats],
-          // Sessions within a workspace group sort newest-`createdAt` first
-          // (see groupChatsByWorkspace) — "root-zenith-59" has the highest
+          chats: [...state.chats, ...bigProjectChats],
+          // Sessions within a project group sort newest-`createdAt` first
+          // (see groupChatsByProject) — "root-zenith-59" has the highest
           // createdAt of the batch, so it lands at index 0 and is visible
           // in the virtualizer's initial (unscrolled) viewport.
           currentSessionId: "root-zenith-59",
@@ -1035,7 +1098,6 @@ describe("ChatSidebar", () => {
         );
 
         await screen.findByPlaceholderText("Search sessions");
-        switchToWorkspaceMode();
 
         await waitFor(() => {
           expect(screen.getByTestId(VIRTUAL_LIST_TESTID)).toBeInTheDocument();
