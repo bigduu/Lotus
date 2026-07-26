@@ -135,6 +135,37 @@ describe("loadChatHistory replace-mode staleness guard (#164)", () => {
     expect(store.getState().chats).toHaveLength(0);
   });
 
+  it("uses total_message_count (not the capped tail length) for sync position (#152)", async () => {
+    // A >2000-message session's cold fetch is capped to the newest 2000
+    // messages; the pre-cap count is the authoritative sync position.
+    // Writing the capped length would wedge the session into a permanent
+    // need_sync loop.
+    const store = createTestStore(makeChat([userMessage("local-1", "first")]));
+    mockGetHistory.mockResolvedValue({
+      ...historyOf(["h1", "h2"]),
+      truncated: true,
+      total_message_count: 2218,
+    });
+
+    await store.getState().loadChatHistory("s1", { mode: "replace" });
+
+    const chat = store.getState().chats[0];
+    expect(chat.messages).toHaveLength(2); // the capped tail only
+    expect(chat.messageCount).toBe(2218);
+    expect(chat.config.syncCursor?.messageCount).toBe(2218);
+  });
+
+  it("falls back to messages.length when total_message_count is absent", async () => {
+    const store = createTestStore(makeChat([userMessage("local-1", "first")]));
+    mockGetHistory.mockResolvedValue(historyOf(["h1", "h2"]));
+
+    await store.getState().loadChatHistory("s1", { mode: "replace" });
+
+    const chat = store.getState().chats[0];
+    expect(chat.messageCount).toBe(2);
+    expect(chat.config.syncCursor?.messageCount).toBe(2);
+  });
+
   it("re-marks per attempt: an advance during attempt 0 does not block a settled retry", async () => {
     const store = createTestStore(makeChat([userMessage("local-1", "first")]));
 

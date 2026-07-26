@@ -720,10 +720,18 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         const preFetchLastId = chat.messages[chat.messages.length - 1]?.id ?? null;
 
         const history = await agentClient.getHistory(sessionId);
+        // Authoritative full-session message count (#152): a cold fetch
+        // capped at the history limit returns `truncated: true` plus the
+        // pre-cap count. Writing the capped `messages.length` into
+        // messageCount/syncCursor would downgrade the client's sync
+        // position and wedge long sessions into a permanent need_sync loop.
+        const serverMessageCount = history.total_message_count ?? history.messages.length;
         debugLog("[ChatSlice]", "loadChatHistory.response", {
           sessionId,
           attempt,
           historyMessageCount: history.messages.length,
+          serverMessageCount,
+          truncated: history.truncated ?? false,
           localMessageCount: chat.messages.length,
           localStoredMessageCount: chat.messageCount ?? null,
           lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
@@ -785,13 +793,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
           if (!shouldReplace) {
             get().updateSession(sessionId, {
-              messageCount: Math.max(chat.messageCount ?? 0, history.messages.length),
+              messageCount: Math.max(chat.messageCount ?? 0, serverMessageCount),
             });
             debugLog("[ChatSlice]", "loadChatHistory.monotonicSkip", {
               sessionId,
               attempt,
               localMessageCount: chat.messages.length,
-              serverMessageCount: history.messages.length,
+              serverMessageCount,
             });
             return;
           }
@@ -828,7 +836,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
         get().updateSession(sessionId, {
           messages: nextMessages,
-          messageCount: history.messages.length,
+          messageCount: serverMessageCount,
           config: {
             ...(chat.config || {}),
             ...(history.gold_config != null ? { goldConfig: history.gold_config } : {}),
@@ -840,7 +848,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
               segmentsRemoved: event.segments_removed,
             })),
             syncCursor: {
-              messageCount: history.messages.length,
+              messageCount: serverMessageCount,
               lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
               hasPendingQuestion: Boolean(
                 get().executionBySession?.[sessionId]?.interaction.pendingQuestion,
@@ -855,7 +863,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           sessionId,
           attempt,
           mode,
-          messageCount: history.messages.length,
+          messageCount: serverMessageCount,
           lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
         });
         return;
