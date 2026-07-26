@@ -27,11 +27,13 @@ type AgentAvailabilitySlice = {
   setAgentAvailability: (available: boolean | null) => void;
   checkAgentAvailability: () => Promise<boolean>;
   startAgentHealthCheck: () => void;
+  stopAgentHealthCheck: () => void;
 };
 
 type SessionIndexSyncSlice = {
   refreshSessionsIndex: () => Promise<void>;
   startSessionsIndexSync: () => void;
+  stopSessionsIndexSync: () => void;
 };
 
 const agentClient = AgentClient.getInstance();
@@ -102,6 +104,13 @@ export const useAppStore = create<AppState>()(
         }, AGENT_HEALTH_CHECK_INTERVAL_MS);
       },
 
+      stopAgentHealthCheck: () => {
+        if (agentHealthCheckTimer) {
+          clearInterval(agentHealthCheckTimer);
+          agentHealthCheckTimer = null;
+        }
+      },
+
       refreshSessionsIndex: async () => {
         if (sessionsIndexRefreshInFlight) {
           return sessionsIndexRefreshInFlight;
@@ -134,10 +143,27 @@ export const useAppStore = create<AppState>()(
           void get().refreshSessionsIndex();
         }, SESSION_INDEX_SYNC_INTERVAL_MS);
       },
+
+      stopSessionsIndexSync: () => {
+        if (sessionsIndexSyncTimer) {
+          clearInterval(sessionsIndexSyncTimer);
+          sessionsIndexSyncTimer = null;
+        }
+      },
     })),
     { name: "AppStore" },
   ),
 );
+
+// HMR cleanup: stop the background intervals when this module is replaced
+// during development, otherwise the old interval keeps firing and causes
+// duplicate network calls / state updates.
+if (import.meta.hot) {
+  import.meta.hot.dispose(() => {
+    useAppStore.getState().stopAgentHealthCheck();
+    useAppStore.getState().stopSessionsIndexSync();
+  });
+}
 
 const getChatLookup = (chats: ReadonlyArray<ChatItem>): Map<string, ChatItem> => {
   const cached = chatLookupCache.get(chats);
@@ -216,14 +242,16 @@ const bootstrapProxyAuthGate = async (): Promise<boolean> => {
       return false;
     }
 
-    useAppStore.setState((state) => ({
-      ...state,
+    // Zustand's setState does a shallow merge, so we must NOT spread `...state`
+    // here — doing so clobbers any concurrent update to other keys and races
+    // against fetchModels/loadSystemPrompts which write the same model keys.
+    useAppStore.setState({
       models: [],
       selectedModel: undefined,
       modelsError:
         "Proxy auth mode is set to required. Please configure proxy username/password and apply it.",
       isLoadingModels: false,
-    }));
+    });
 
     return true;
   } catch (error) {
@@ -247,6 +275,13 @@ const bootstrapCritical = async (force: boolean = false): Promise<void> => {
   if (isInitialized && !force) {
     return;
   }
+  // A forced re-bootstrap must reset the deferred stage too, otherwise
+  // bootstrapDeferred short-circuits on the stale promise and the stale
+  // isCriticalDone gate, racing the new critical path.
+  if (force) {
+    isCriticalDone = false;
+    deferredBootstrapPromise = null;
+  }
   isInitialized = true;
 
   if (import.meta.env.MODE !== "test") {
@@ -269,23 +304,31 @@ const bootstrapCritical = async (force: boolean = false): Promise<void> => {
   const isVitestRuntime =
     typeof globalThis !== "undefined" &&
     "__vitest_worker__" in (globalThis as Record<string, unknown>);
-  if (!isVitestRuntime) {
-    try {
-      await useProviderStore.getState().loadProviderInstances();
-      if (!useProviderStore.getState().isInstancesLoaded) {
-        await useProviderStore.getState().loadProviderConfig();
+  try {
+    if (!isVitestRuntime) {
+      try {
+        await useProviderStore.getState().loadProviderInstances();
+        if (!useProviderStore.getState().isInstancesLoaded) {
+          await useProviderStore.getState().loadProviderConfig();
+        }
+      } catch (error) {
+        console.error("[AppStore] Failed to bootstrap provider state:", error);
       }
-    } catch (error) {
-      console.error("[AppStore] Failed to bootstrap provider state:", error);
     }
+
+    // Load chats as early as possible so the UI always has an active chat.
+    // This prevents the controlled message input from appearing "read-only"
+    // in fresh sessions (e.g., Playwright E2E with empty localStorage).
+    await useAppStore.getState().loadChats();
+
+    isCriticalDone = true;
+  } catch (error) {
+    // A transient backend outage (e.g. backend still starting) must not leave
+    // the app permanently half-booted. Reset the guard so a later retry can
+    // re-enter instead of no-opping forever until a full page reload.
+    isInitialized = false;
+    throw error;
   }
-
-  // Load chats as early as possible so the UI always has an active chat.
-  // This prevents the controlled message input from appearing "read-only"
-  // in fresh sessions (e.g., Playwright E2E with empty localStorage).
-  await useAppStore.getState().loadChats();
-
-  isCriticalDone = true;
 };
 
 /**

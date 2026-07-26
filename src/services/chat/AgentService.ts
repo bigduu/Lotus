@@ -1590,7 +1590,12 @@ export class AgentClient {
           settleResolve();
           return;
         }
-        settleReject(new Error(`EventSource connection failed for session ${sessionId}`));
+        // Transient disconnect (wifi flicker, tab throttle, server restart):
+        // the browser's native EventSource will auto-reconnect and resend
+        // Last-Event-ID, so the backend replays only what was missed. Do NOT
+        // reject here — that would abort the whole run on the first blip and
+        // leave it stuck with no live updates. Mirrors the account feed's
+        // transient-error handling in `subscribeAccountStreamSse`.
       };
     });
   }
@@ -1996,9 +2001,12 @@ export class AgentClient {
     // Delta mode: when a cursor is supplied, the backend returns only messages
     // appended after it (`is_delta: true`), so a client that already has most
     // of the history only transfers the tail.
+    // Encode the session id in the path segment — without this, an id containing
+    // `/`, `?` or `#` would silently break the route or hit the wrong endpoint.
+    const encodedSessionId = encodeURIComponent(sessionId);
     const path = sinceMessageId
-      ? `history/${sessionId}?since_message_id=${encodeURIComponent(sinceMessageId)}`
-      : `history/${sessionId}`;
+      ? `history/${encodedSessionId}?since_message_id=${encodeURIComponent(sinceMessageId)}`
+      : `history/${encodedSessionId}`;
     const response = await agentApiClient.get<HistoryResponse>(path);
     debugLog("[AgentClient]", "history.response", summarizeHistoryResponse(response));
     return response;
