@@ -635,6 +635,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           debugLog("[ChatSlice]", "loadChatHistory.skipMissingChat", { sessionId, attempt });
           return;
         }
+        // Marker for the replace-mode staleness guard (#164): captured
+        // BEFORE the fetch so an in-flight advance (optimistic send,
+        // streaming append) is detected once the snapshot arrives.
+        const preFetchLength = chat.messages.length;
+        const preFetchLastId = chat.messages[chat.messages.length - 1]?.id ?? null;
 
         const history = await agentClient.getHistory(sessionId);
         debugLog("[ChatSlice]", "loadChatHistory.response", {
@@ -710,6 +715,35 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
               localMessageCount: chat.messages.length,
               serverMessageCount: history.messages.length,
             });
+            return;
+          }
+        } else {
+          // replace-mode staleness guard (#164): if the session advanced
+          // while the history fetch was in flight (optimistic send,
+          // streaming append, or the session was deleted), the fetched
+          // snapshot is OLDER than local state — applying it would wipe
+          // newer messages. Legitimate intentional shrinks (retry truncate,
+          // /goal resync) do not advance local state between the marker and
+          // the apply, so they still pass through.
+          const latestChat = get().chats.find((c) => c.id === sessionId);
+          const latestMessages = latestChat?.messages ?? [];
+          const latestLastId = latestMessages[latestMessages.length - 1]?.id ?? null;
+          const advancedInFlight =
+            !latestChat ||
+            latestMessages.length !== preFetchLength ||
+            latestLastId !== preFetchLastId;
+
+          debugLog("[ChatSlice]", "loadChatHistory.replaceDecision", {
+            sessionId,
+            attempt,
+            preFetchLength,
+            preFetchLastId,
+            latestLength: latestMessages.length,
+            latestLastId,
+            advancedInFlight,
+          });
+
+          if (advancedInFlight) {
             return;
           }
         }
