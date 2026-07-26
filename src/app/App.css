@@ -1143,6 +1143,14 @@ body[data-vdi-safe="true"] .lotus-sidebar-actions-dropdown .ant-dropdown-menu-it
   border-radius: 8px;
 }
 
+/* Ledger item title button (#167) — a bare <button> with `all: unset`,
+   so it needs its own focus ring. */
+.lotus-ledger-item-title-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--lotus-focus-ring) !important;
+  border-radius: 4px;
+}
+
 .lotus-message-input-shell .ant-input:focus-visible,
 .lotus-message-input-shell .ant-input:focus,
 .lotus-message-input-shell .ant-input-focused,

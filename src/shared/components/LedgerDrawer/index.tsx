@@ -120,6 +120,7 @@ const LedgerItemRow: React.FC<{ item: LedgerListItem; actions: RowActions }> = (
             action buttons inside/beside it (#167). */}
         <button
           type="button"
+          className="lotus-ledger-item-title-button"
           aria-label={`${t("ledger.actions.edit")}: ${item.title}`}
           onClick={() => actions.onEdit(item)}
           style={{

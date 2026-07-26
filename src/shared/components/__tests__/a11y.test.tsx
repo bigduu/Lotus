@@ -153,6 +153,12 @@ describe("a11y collection (#167)", () => {
   });
 
   describe("html lang sync", () => {
+    it("syncs <html lang> with the locale resolved at startup (init path)", async () => {
+      const { default: i18n, i18nReady } = await import("@shared/i18n");
+      await i18nReady;
+      expect(document.documentElement.lang).toBe(i18n.language);
+    });
+
     it("changeLocale updates document.documentElement.lang", async () => {
       const original = document.documentElement.lang;
       try {

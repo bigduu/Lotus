@@ -4562,15 +4562,17 @@ export const i18nReady = (async () => {
       },
       returnNull: false,
     });
-    return;
+  } else {
+    await ensureLocaleResource(initialLocale);
+    if (i18n.language !== initialLocale) {
+      await i18n.changeLanguage(initialLocale);
+    }
   }
-
-  await ensureLocaleResource(initialLocale);
-  if (i18n.language !== initialLocale) {
-    await i18n.changeLanguage(initialLocale);
+  // Sync <html lang> with the resolved locale at startup (#167) — on BOTH
+  // the first-init and the re-entrant paths.
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = initialLocale;
   }
-  // Sync <html lang> with the resolved locale at startup (#167).
-  document.documentElement.lang = initialLocale;
 })();
 
 /**
@@ -4583,7 +4585,9 @@ export const changeLocale = async (locale: AppLocale) => {
   const result = await i18n.changeLanguage(locale);
   // Keep <html lang> in sync (#167): screen readers, font fallback and
   // line-breaking heuristics all key off this attribute.
-  document.documentElement.lang = locale;
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = locale;
+  }
   return result;
 };
 

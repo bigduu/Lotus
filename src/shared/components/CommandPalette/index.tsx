@@ -716,7 +716,12 @@ export const CommandPalette: React.FC = () => {
             aria-controls="lotus-command-palette-listbox"
             aria-activedescendant={
               filteredActions.length > 0
-                ? `lotus-command-palette-option-${filteredActions[selectedIndex]?.id}`
+                ? `lotus-command-palette-option-${
+                    // Clamp at render time (#167): the effect-based clamp
+                    // runs after paint, leaving one frame with a dangling
+                    // "…-undefined" IDREF when filtering shrinks the list.
+                    filteredActions[Math.min(selectedIndex, filteredActions.length - 1)]?.id
+                  }`
                 : undefined
             }
             suffix={
