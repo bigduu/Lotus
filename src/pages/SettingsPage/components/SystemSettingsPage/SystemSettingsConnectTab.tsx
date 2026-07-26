@@ -1,12 +1,25 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Divider, Flex, Input, Select, Switch, Typography, theme } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Divider,
+  Flex,
+  Input,
+  Select,
+  Switch,
+  Tag,
+  Typography,
+  theme,
+} from "antd";
 import { useTranslation } from "react-i18next";
 import { getErrorMessage } from "@services/api";
 import {
-  configSectionsService,
   type ConnectSection,
   type ConnectSectionDraftPlatform,
   type ConnectSectionPlatform,
+  type ConfigSectionEnvelope,
+  type CredentialStatus,
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
@@ -45,6 +58,12 @@ function draftFromConfig(connect: ConnectSection | undefined): ConnectDraft {
   };
 }
 
+const secretFreeDraft = (draft: ConnectDraft) => ({
+  ...draft,
+  telegramToken: draft.telegramToken ? "[replace requested]" : "",
+  feishuAppSecret: draft.feishuAppSecret ? "[replace requested]" : "",
+});
+
 /**
  * Connect / IM-bridge settings: drive Bamboo sessions from Telegram or
  * Feishu/Lark (bamboo epic #447, closes Lotus #49).
@@ -80,10 +99,33 @@ const SystemSettingsConnectTab: React.FC = () => {
   const [dirty, setDirty] = useState(false);
   const [clearTelegramToken, setClearTelegramToken] = useState(false);
   const [clearFeishuSecret, setClearFeishuSecret] = useState(false);
+  const [credentialStatuses, setCredentialStatuses] = useState<CredentialStatus[]>([]);
+  const [showComparison, setShowComparison] = useState(false);
   const baseDraftRef = useRef<ConnectDraft | null>(null);
   const snapshot = useConfigSectionStore((state) => state.sections.connect);
+  const credentialsSnapshot = useConfigSectionStore((state) => state.sections.credentials);
   const loadSection = useConfigSectionStore((state) => state.loadSection);
   const saveConnect = useConfigSectionStore((state) => state.saveConnect);
+
+  const adoptSnapshots = useCallback(
+    (
+      envelope: ConfigSectionEnvelope<ConnectSection>,
+      credentials: ConfigSectionEnvelope<CredentialStatus[]>,
+    ) => {
+      setConnect(envelope.data);
+      const nextDraft = draftFromConfig(envelope.data);
+      setDraft(nextDraft);
+      baseDraftRef.current = structuredClone(nextDraft);
+      setCredentialStatuses(credentials.data);
+      setCredentialRevision(credentials.revision);
+      setBaseSectionRevision(envelope.revision);
+      setDirty(false);
+      setClearTelegramToken(false);
+      setClearFeishuSecret(false);
+      setShowComparison(false);
+    },
+    [],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,27 +133,44 @@ const SystemSettingsConnectTab: React.FC = () => {
     try {
       const [envelope, credentials] = await Promise.all([
         loadSection("connect", { force: true }),
-        configSectionsService.listCredentials(),
+        loadSection("credentials", { force: true }),
       ]);
-      setConnect(envelope.data);
-      const nextDraft = draftFromConfig(envelope.data);
-      setDraft(nextDraft);
-      baseDraftRef.current = structuredClone(nextDraft);
-      setCredentialRevision(credentials.revision);
-      setBaseSectionRevision(envelope.revision);
-      setDirty(false);
-      setClearTelegramToken(false);
-      setClearFeishuSecret(false);
+      adoptSnapshots(envelope, credentials);
     } catch (error) {
       setLoadError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [loadSection]);
+  }, [adoptSnapshots, loadSection]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const envelope = snapshot.envelope;
+    const credentials = credentialsSnapshot.envelope;
+    if (
+      !envelope ||
+      !credentials ||
+      baseSectionRevision === null ||
+      credentialRevision === null ||
+      dirty ||
+      envelope.revision < baseSectionRevision ||
+      credentials.revision < credentialRevision ||
+      (envelope.revision === baseSectionRevision && credentials.revision === credentialRevision)
+    ) {
+      return;
+    }
+    adoptSnapshots(envelope, credentials);
+  }, [
+    adoptSnapshots,
+    baseSectionRevision,
+    credentialRevision,
+    credentialsSnapshot.envelope,
+    dirty,
+    snapshot.envelope,
+  ]);
 
   const patch = (p: Partial<ConnectDraft>) => {
     setDraft((d) => ({ ...d, ...p }));
@@ -192,6 +251,18 @@ const SystemSettingsConnectTab: React.FC = () => {
       setDirty(false);
       setClearTelegramToken(false);
       setClearFeishuSecret(false);
+      setShowComparison(false);
+      try {
+        const credentials = await loadSection("credentials", { force: true });
+        if (credentials.revision >= result.credentialRevision) {
+          setCredentialStatuses(credentials.data);
+          setCredentialRevision(credentials.revision);
+        }
+      } catch (statusError) {
+        setLoadError(
+          `Connect settings were saved, but credential status could not be refreshed: ${getErrorMessage(statusError)}`,
+        );
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (error) {
@@ -203,10 +274,97 @@ const SystemSettingsConnectTab: React.FC = () => {
 
   const telegramDenyAll = draft.telegramEnabled && draft.telegramAllowFrom.length === 0;
   const feishuDenyAll = draft.feishuEnabled && draft.feishuAllowFrom.length === 0;
-  const externalRevision =
-    dirty && snapshot.envelope && snapshot.envelope.revision !== baseSectionRevision
+  const externalSectionRevision =
+    dirty &&
+    snapshot.envelope &&
+    baseSectionRevision !== null &&
+    snapshot.envelope.revision > baseSectionRevision
       ? snapshot.envelope.revision
       : null;
+  const externalCredentialRevision =
+    dirty &&
+    credentialsSnapshot.envelope &&
+    credentialRevision !== null &&
+    credentialsSnapshot.envelope.revision > credentialRevision
+      ? credentialsSnapshot.envelope.revision
+      : null;
+  const hasExternalRevision =
+    externalSectionRevision !== null || externalCredentialRevision !== null;
+  const comparison =
+    showComparison &&
+    hasExternalRevision &&
+    snapshot.envelope &&
+    credentialsSnapshot.envelope &&
+    baseDraftRef.current
+      ? JSON.stringify(
+          {
+            baseSectionRevision,
+            latestSectionRevision: snapshot.envelope.revision,
+            baseCredentialRevision: credentialRevision,
+            latestCredentialRevision: credentialsSnapshot.envelope.revision,
+            base: secretFreeDraft(baseDraftRef.current),
+            draft: {
+              ...secretFreeDraft(draft),
+              clearTelegramToken,
+              clearFeishuSecret,
+            },
+            latest: secretFreeDraft(draftFromConfig(snapshot.envelope.data)),
+            credentialStatus: credentialsSnapshot.envelope.data,
+          },
+          null,
+          2,
+        )
+      : null;
+
+  const credentialStatus = (credentialRef: string | null | undefined, configured: boolean) => {
+    const status = credentialStatuses.find(
+      (candidate) => candidate.credential_ref === credentialRef,
+    );
+    const hasError = Boolean(credentialsSnapshot.error);
+    const fromEnvironment =
+      status?.configured && (status.source === "environment" || status.source === "env");
+    const label = hasError
+      ? "Error"
+      : fromEnvironment
+        ? "From env"
+        : (status?.configured ?? configured)
+          ? "Configured"
+          : "Missing";
+    return (
+      <Flex align="center" gap={8} wrap="wrap">
+        <Tag color={hasError ? "error" : status?.configured || configured ? "success" : "warning"}>
+          {label}
+        </Tag>
+        {fromEnvironment ? (
+          <Text type="secondary">
+            The environment value is read-only; only an explicit replacement is persisted.
+          </Text>
+        ) : null}
+      </Flex>
+    );
+  };
+
+  const reapplyLatest = async () => {
+    if (!baseDraftRef.current) return;
+    setLoadError(null);
+    try {
+      const [envelope, credentials] = await Promise.all([
+        loadSection("connect", { force: true }),
+        loadSection("credentials", { force: true }),
+      ]);
+      const latest = draftFromConfig(envelope.data);
+      setDraft(reapplyConfigChanges(baseDraftRef.current, draft, latest));
+      setConnect(envelope.data);
+      baseDraftRef.current = structuredClone(latest);
+      setCredentialStatuses(credentials.data);
+      setCredentialRevision(credentials.revision);
+      setBaseSectionRevision(envelope.revision);
+      setDirty(true);
+      setShowComparison(false);
+    } catch (error) {
+      setLoadError(getErrorMessage(error));
+    }
+  };
 
   return (
     <Card size="small" className="lotus-settings-card" loading={loading}>
@@ -232,36 +390,35 @@ const SystemSettingsConnectTab: React.FC = () => {
           />
         ) : null}
 
-        {externalRevision !== null ? (
+        {hasExternalRevision ? (
           <Alert
             type="warning"
             showIcon
-            message={`Connect configuration changed on disk (r${baseSectionRevision} → r${externalRevision})`}
+            message="Connect configuration or credentials changed externally"
+            description={`Section r${baseSectionRevision} → r${snapshot.envelope?.revision ?? "?"}; credentials r${credentialRevision} → r${credentialsSnapshot.envelope?.revision ?? "?"}. Your draft was preserved.`}
             action={
               <Flex gap={8}>
                 <Button size="small" onClick={() => void load()}>
                   Reload
                 </Button>
-                <Button
-                  size="small"
-                  onClick={() =>
-                    void (async () => {
-                      if (!snapshot.envelope || !baseDraftRef.current) return;
-                      const credentials = await configSectionsService.listCredentials();
-                      const latest = draftFromConfig(snapshot.envelope.data);
-                      setDraft(reapplyConfigChanges(baseDraftRef.current, draft, latest));
-                      setConnect(snapshot.envelope.data);
-                      baseDraftRef.current = structuredClone(latest);
-                      setCredentialRevision(credentials.revision);
-                      setBaseSectionRevision(snapshot.envelope.revision);
-                    })()
-                  }
-                >
+                <Button size="small" onClick={() => setShowComparison((current) => !current)}>
+                  Compare
+                </Button>
+                <Button size="small" onClick={() => void reapplyLatest()}>
                   Reapply
                 </Button>
               </Flex>
             }
           />
+        ) : null}
+
+        {comparison ? (
+          <pre
+            data-testid="connect-revision-comparison"
+            style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}
+          >
+            {comparison}
+          </pre>
         ) : null}
 
         {!loading && !loadError && (
@@ -285,7 +442,10 @@ const SystemSettingsConnectTab: React.FC = () => {
                 <Input.Password
                   data-testid="connect-telegram-token"
                   value={draft.telegramToken}
-                  onChange={(e) => patch({ telegramToken: e.target.value })}
+                  onChange={(e) => {
+                    setClearTelegramToken(false);
+                    patch({ telegramToken: e.target.value });
+                  }}
                   placeholder={
                     hasStoredTelegramToken
                       ? t(
@@ -299,12 +459,14 @@ const SystemSettingsConnectTab: React.FC = () => {
                   }
                 />
               </label>
+              {credentialStatus(storedTelegram?.token_credential_ref, hasStoredTelegramToken)}
               {hasStoredTelegramToken ? (
                 <Button
                   size="small"
                   danger={clearTelegramToken}
                   onClick={() => {
                     setClearTelegramToken((current) => !current);
+                    setDraft((current) => ({ ...current, telegramToken: "" }));
                     setDirty(true);
                   }}
                 >
@@ -368,6 +530,7 @@ const SystemSettingsConnectTab: React.FC = () => {
                   danger={clearFeishuSecret}
                   onClick={() => {
                     setClearFeishuSecret((current) => !current);
+                    setDraft((current) => ({ ...current, feishuAppSecret: "" }));
                     setDirty(true);
                   }}
                 >
@@ -381,7 +544,10 @@ const SystemSettingsConnectTab: React.FC = () => {
                 <Input.Password
                   data-testid="connect-feishu-app-secret"
                   value={draft.feishuAppSecret}
-                  onChange={(e) => patch({ feishuAppSecret: e.target.value })}
+                  onChange={(e) => {
+                    setClearFeishuSecret(false);
+                    patch({ feishuAppSecret: e.target.value });
+                  }}
                   placeholder={
                     hasStoredFeishuSecret
                       ? t(
@@ -395,6 +561,7 @@ const SystemSettingsConnectTab: React.FC = () => {
                   }
                 />
               </label>
+              {credentialStatus(storedFeishu?.app_secret_credential_ref, hasStoredFeishuSecret)}
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                   {t("settings.connectTab.feishu.domain", "Domain")}

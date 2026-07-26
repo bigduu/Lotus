@@ -1,8 +1,24 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Alert, Button, Card, Divider, Flex, Input, Select, Switch, Typography, theme } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Divider,
+  Flex,
+  Input,
+  Select,
+  Switch,
+  Tag,
+  Typography,
+  theme,
+} from "antd";
 import { useTranslation } from "react-i18next";
 import { agentApiClient, getErrorMessage } from "@services/api";
-import type { NotificationSection } from "@services/config/configSections";
+import type {
+  ConfigSectionEnvelope,
+  NotificationCredentialStatus,
+  NotificationSection,
+} from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
 
@@ -39,6 +55,12 @@ function draftFromConfig(notifications: NotificationSection | undefined): Channe
   };
 }
 
+const secretFreeDraft = (draft: ChannelsDraft) => ({
+  ...draft,
+  ntfyToken: draft.ntfyToken ? "[replace requested]" : "",
+  barkDeviceKey: draft.barkDeviceKey ? "[replace requested]" : "",
+});
+
 /**
  * Notification delivery channels: native desktop plus ntfy/Bark push relays.
  *
@@ -61,32 +83,48 @@ const NotificationChannelsSection: React.FC = () => {
   const [attempted, setAttempted] = useState<string[] | null>(null);
   const [baseRevision, setBaseRevision] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
+  const [clearNtfyToken, setClearNtfyToken] = useState(false);
+  const [clearBarkKey, setClearBarkKey] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
   const baseDraftRef = useRef<ChannelsDraft | null>(null);
   const snapshot = useConfigSectionStore((state) => state.sections.notifications);
   const loadSection = useConfigSectionStore((state) => state.loadSection);
   const saveNotifications = useConfigSectionStore((state) => state.saveNotifications);
+
+  const adoptEnvelope = useCallback((envelope: ConfigSectionEnvelope<NotificationSection>) => {
+    setNotifications(envelope.data);
+    const nextDraft = draftFromConfig(envelope.data);
+    setDraft(nextDraft);
+    baseDraftRef.current = structuredClone(nextDraft);
+    setBaseRevision(envelope.revision);
+    setDirty(false);
+    setClearNtfyToken(false);
+    setClearBarkKey(false);
+    setShowComparison(false);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
       const envelope = await loadSection("notifications", { force: true });
-      setNotifications(envelope.data);
-      const nextDraft = draftFromConfig(envelope.data);
-      setDraft(nextDraft);
-      baseDraftRef.current = structuredClone(nextDraft);
-      setBaseRevision(envelope.revision);
-      setDirty(false);
+      adoptEnvelope(envelope);
     } catch (error) {
       setLoadError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
-  }, [loadSection]);
+  }, [adoptEnvelope, loadSection]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    const envelope = snapshot.envelope;
+    if (!envelope || baseRevision === null || envelope.revision === baseRevision || dirty) return;
+    adoptEnvelope(envelope);
+  }, [adoptEnvelope, baseRevision, dirty, snapshot.envelope]);
 
   const patch = (p: Partial<ChannelsDraft>) => {
     setDraft((d) => ({ ...d, ...p }));
@@ -119,61 +157,23 @@ const NotificationChannelsSection: React.FC = () => {
             enabled: draft.ntfyEnabled,
             base_url: draft.ntfyBaseUrl.trim() || DEFAULT_NTFY_BASE_URL,
             topic: draft.ntfyTopic.trim(),
-            ...(ntfyToken ? { token: ntfyToken } : {}),
+            ...(clearNtfyToken ? { token: null } : ntfyToken ? { token: ntfyToken } : {}),
           },
           bark: {
             enabled: draft.barkEnabled,
             base_url: draft.barkBaseUrl.trim() || DEFAULT_BARK_BASE_URL,
-            ...(barkDeviceKey ? { device_key: barkDeviceKey } : {}),
+            ...(clearBarkKey
+              ? { device_key: null }
+              : barkDeviceKey
+                ? { device_key: barkDeviceKey }
+                : {}),
           },
         },
         baseRevision,
       );
-      setNotifications(savedEnvelope.data);
-      const nextDraft = draftFromConfig(savedEnvelope.data);
-      setDraft(nextDraft);
-      baseDraftRef.current = structuredClone(nextDraft);
-      setBaseRevision(savedEnvelope.revision);
-      setDirty(false);
+      adoptEnvelope(savedEnvelope);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
-    } catch (error) {
-      setSaveError(getErrorMessage(error));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const clearCredential = async (channel: "ntfy" | "bark") => {
-    if (baseRevision === null) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const savedEnvelope = await saveNotifications(
-        {
-          desktop: {
-            enabled: draft.desktopMode === "auto" ? null : draft.desktopMode === "on",
-          },
-          ntfy: {
-            enabled: draft.ntfyEnabled,
-            base_url: draft.ntfyBaseUrl.trim() || DEFAULT_NTFY_BASE_URL,
-            topic: draft.ntfyTopic.trim(),
-            ...(channel === "ntfy" ? { token: null } : {}),
-          },
-          bark: {
-            enabled: draft.barkEnabled,
-            base_url: draft.barkBaseUrl.trim() || DEFAULT_BARK_BASE_URL,
-            ...(channel === "bark" ? { device_key: null } : {}),
-          },
-        },
-        baseRevision,
-      );
-      setNotifications(savedEnvelope.data);
-      const nextDraft = draftFromConfig(savedEnvelope.data);
-      setDraft(nextDraft);
-      baseDraftRef.current = structuredClone(nextDraft);
-      setBaseRevision(savedEnvelope.revision);
-      setDirty(false);
     } catch (error) {
       setSaveError(getErrorMessage(error));
     } finally {
@@ -193,6 +193,41 @@ const NotificationChannelsSection: React.FC = () => {
     } finally {
       setTesting(false);
     }
+  };
+
+  const comparison =
+    showComparison && externalRevision !== null && snapshot.envelope && baseDraftRef.current
+      ? JSON.stringify(
+          {
+            baseRevision,
+            latestRevision: snapshot.envelope.revision,
+            base: secretFreeDraft(baseDraftRef.current),
+            draft: {
+              ...secretFreeDraft(draft),
+              clearNtfyToken,
+              clearBarkKey,
+            },
+            latest: secretFreeDraft(draftFromConfig(snapshot.envelope.data)),
+          },
+          null,
+          2,
+        )
+      : null;
+
+  const credentialStatus = (status: NotificationCredentialStatus) => {
+    const fromEnvironment =
+      status.configured && (status.source === "environment" || status.source === "env");
+    const label = fromEnvironment ? "From env" : status.configured ? "Configured" : "Missing";
+    return (
+      <Flex align="center" gap={8} wrap="wrap">
+        <Tag color={status.configured ? "success" : "warning"}>{label}</Tag>
+        {fromEnvironment ? (
+          <Text type="secondary">
+            The environment value is read-only; only an explicit replacement is persisted.
+          </Text>
+        ) : null}
+      </Flex>
+    );
   };
 
   return (
@@ -230,6 +265,9 @@ const NotificationChannelsSection: React.FC = () => {
                 <Button size="small" onClick={() => void load()}>
                   Reload
                 </Button>
+                <Button size="small" onClick={() => setShowComparison((current) => !current)}>
+                  Compare
+                </Button>
                 <Button
                   size="small"
                   onClick={() => {
@@ -239,6 +277,7 @@ const NotificationChannelsSection: React.FC = () => {
                     setNotifications(snapshot.envelope.data);
                     baseDraftRef.current = structuredClone(latest);
                     setBaseRevision(snapshot.envelope.revision);
+                    setShowComparison(false);
                   }}
                 >
                   Reapply
@@ -246,6 +285,15 @@ const NotificationChannelsSection: React.FC = () => {
               </Flex>
             }
           />
+        ) : null}
+
+        {comparison ? (
+          <pre
+            data-testid="notification-revision-comparison"
+            style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}
+          >
+            {comparison}
+          </pre>
         ) : null}
 
         {!loading && !loadError && (
@@ -322,7 +370,10 @@ const NotificationChannelsSection: React.FC = () => {
                 <Input.Password
                   data-testid="channel-ntfy-token"
                   value={draft.ntfyToken}
-                  onChange={(e) => patch({ ntfyToken: e.target.value })}
+                  onChange={(e) => {
+                    setClearNtfyToken(false);
+                    patch({ ntfyToken: e.target.value });
+                  }}
                   placeholder={
                     hasStoredNtfyToken
                       ? t(
@@ -336,9 +387,18 @@ const NotificationChannelsSection: React.FC = () => {
                   }
                 />
               </label>
+              {notifications ? credentialStatus(notifications.ntfy.credential) : null}
               {hasStoredNtfyToken ? (
-                <Button size="small" danger onClick={() => void clearCredential("ntfy")}>
-                  Clear configured token
+                <Button
+                  size="small"
+                  danger={clearNtfyToken}
+                  onClick={() => {
+                    setClearNtfyToken((current) => !current);
+                    setDraft((current) => ({ ...current, ntfyToken: "" }));
+                    setDirty(true);
+                  }}
+                >
+                  {clearNtfyToken ? "Token will be cleared on save" : "Clear configured token"}
                 </Button>
               ) : null}
             </Flex>
@@ -367,8 +427,18 @@ const NotificationChannelsSection: React.FC = () => {
                 />
               </label>
               {hasStoredBarkKey ? (
-                <Button size="small" danger onClick={() => void clearCredential("bark")}>
-                  Clear configured device key
+                <Button
+                  size="small"
+                  danger={clearBarkKey}
+                  onClick={() => {
+                    setClearBarkKey((current) => !current);
+                    setDraft((current) => ({ ...current, barkDeviceKey: "" }));
+                    setDirty(true);
+                  }}
+                >
+                  {clearBarkKey
+                    ? "Device key will be cleared on save"
+                    : "Clear configured device key"}
                 </Button>
               ) : null}
               <label>
@@ -378,7 +448,10 @@ const NotificationChannelsSection: React.FC = () => {
                 <Input.Password
                   data-testid="channel-bark-device-key"
                   value={draft.barkDeviceKey}
-                  onChange={(e) => patch({ barkDeviceKey: e.target.value })}
+                  onChange={(e) => {
+                    setClearBarkKey(false);
+                    patch({ barkDeviceKey: e.target.value });
+                  }}
                   placeholder={
                     hasStoredBarkKey
                       ? t(
@@ -392,6 +465,7 @@ const NotificationChannelsSection: React.FC = () => {
                   }
                 />
               </label>
+              {notifications ? credentialStatus(notifications.bark.credential) : null}
             </Flex>
 
             {saveError ? <Alert type="error" showIcon message={saveError} /> : null}

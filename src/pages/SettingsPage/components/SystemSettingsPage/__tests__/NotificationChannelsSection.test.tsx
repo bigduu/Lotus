@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { configSectionsService } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
@@ -155,5 +155,122 @@ describe("NotificationChannelsSection", () => {
     fireEvent.click(screen.getByTestId("channel-test-button"));
 
     expect(await screen.findByText("network down")).toBeInTheDocument();
+  });
+
+  it("adopts a newer notification snapshot while the form is clean", async () => {
+    render(<NotificationChannelsSection />);
+    const topic = (await screen.findByTestId("channel-ntfy-topic")) as HTMLInputElement;
+
+    act(() => {
+      useConfigSectionStore.setState((state) => ({
+        sections: {
+          ...state.sections,
+          notifications: {
+            ...state.sections.notifications,
+            envelope: notificationsEnvelope(
+              {
+                ...CONFIGURED_NOTIFICATIONS,
+                ntfy: { ...CONFIGURED_NOTIFICATIONS.ntfy, topic: "remote-topic" },
+              },
+              10,
+            ),
+          },
+        },
+      }));
+    });
+
+    await waitFor(() => expect(topic).toHaveValue("remote-topic"));
+    expect(screen.queryByText(/changed on disk/i)).not.toBeInTheDocument();
+  });
+
+  it("preserves a dirty draft and compares revisions without showing replacement secrets", async () => {
+    render(<NotificationChannelsSection />);
+    const topic = (await screen.findByTestId("channel-ntfy-topic")) as HTMLInputElement;
+    const token = screen.getByTestId("channel-ntfy-token");
+    fireEvent.change(topic, { target: { value: "local-topic" } });
+    fireEvent.change(token, { target: { value: "do-not-display" } });
+
+    act(() => {
+      useConfigSectionStore.setState((state) => ({
+        sections: {
+          ...state.sections,
+          notifications: {
+            ...state.sections.notifications,
+            envelope: notificationsEnvelope(
+              {
+                ...CONFIGURED_NOTIFICATIONS,
+                ntfy: { ...CONFIGURED_NOTIFICATIONS.ntfy, topic: "remote-topic" },
+              },
+              10,
+            ),
+          },
+        },
+      }));
+    });
+
+    expect(await screen.findByText(/changed on disk/i)).toBeInTheDocument();
+    expect(topic).toHaveValue("local-topic");
+    fireEvent.click(screen.getByRole("button", { name: "Compare" }));
+    const comparison = screen.getByTestId("notification-revision-comparison");
+    expect(comparison).toHaveTextContent("local-topic");
+    expect(comparison).toHaveTextContent("remote-topic");
+    expect(comparison).toHaveTextContent("[replace requested]");
+    expect(comparison).not.toHaveTextContent("do-not-display");
+
+    fireEvent.click(screen.getByTestId("channel-save-button"));
+    await waitFor(() => expect(configSectionsService.putNotifications).toHaveBeenCalled());
+    expect(vi.mocked(configSectionsService.putNotifications).mock.calls[0]?.[0]).toBe(9);
+  });
+
+  it("reapplies a dirty draft onto the latest revision before saving", async () => {
+    render(<NotificationChannelsSection />);
+    const topic = (await screen.findByTestId("channel-ntfy-topic")) as HTMLInputElement;
+    fireEvent.change(topic, { target: { value: "local-topic" } });
+
+    act(() => {
+      useConfigSectionStore.setState((state) => ({
+        sections: {
+          ...state.sections,
+          notifications: {
+            ...state.sections.notifications,
+            envelope: notificationsEnvelope(
+              {
+                ...CONFIGURED_NOTIFICATIONS,
+                ntfy: {
+                  ...CONFIGURED_NOTIFICATIONS.ntfy,
+                  base_url: "https://remote.example",
+                  topic: "remote-topic",
+                },
+              },
+              10,
+            ),
+          },
+        },
+      }));
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reapply" }));
+    expect(topic).toHaveValue("local-topic");
+    expect(screen.getByTestId("channel-ntfy-base-url")).toHaveValue("https://remote.example");
+    fireEvent.click(screen.getByTestId("channel-save-button"));
+
+    await waitFor(() => expect(configSectionsService.putNotifications).toHaveBeenCalled());
+    expect(vi.mocked(configSectionsService.putNotifications).mock.calls[0]?.[0]).toBe(10);
+  });
+
+  it("queues an explicit clear without discarding another unsaved secret replacement", async () => {
+    render(<NotificationChannelsSection />);
+    const barkKey = await screen.findByTestId("channel-bark-device-key");
+    fireEvent.change(barkKey, { target: { value: "new-bark-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Clear configured token" }));
+
+    expect(configSectionsService.putNotifications).not.toHaveBeenCalled();
+    expect(barkKey).toHaveValue("new-bark-secret");
+    fireEvent.click(screen.getByTestId("channel-save-button"));
+
+    await waitFor(() => expect(configSectionsService.putNotifications).toHaveBeenCalled());
+    const [, patch] = vi.mocked(configSectionsService.putNotifications).mock.calls[0]!;
+    expect(patch.ntfy.token).toBeNull();
+    expect(patch.bark.device_key).toBe("new-bark-secret");
   });
 });
