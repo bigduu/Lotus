@@ -398,6 +398,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               }
               status={rootStatus}
               statusErrorMessage={rootErrorMessage}
+              workspacePath={chat.config.workspacePath}
             />
           </div>
         </Flex>
@@ -444,6 +445,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       }
                       status={childStatus}
                       statusErrorMessage={childErrorMessage}
+                      workspacePath={child.config.workspacePath}
                     />
                   </div>
                 );
