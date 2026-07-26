@@ -9,6 +9,7 @@ import {
   CheckOutlined,
   CloseOutlined,
   BulbOutlined,
+  FolderOutlined,
   LoadingOutlined,
   MoreOutlined,
   CloudSyncOutlined,
@@ -17,6 +18,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { SidebarChatListItem } from "@shared/types/sidebarChat";
+import { getWorkspaceBaseName } from "../../utils/chatUtils";
 
 import "./index.css";
 
@@ -42,6 +44,12 @@ interface ChatItemProps {
   status?: ChatItemStatus;
   /** Tooltip/aria detail shown for `status === "error"`. */
   statusErrorMessage?: string | null;
+  /**
+   * Current execution directory of the session (#134): rendered as a small
+   * basename badge, with the full path on hover. Workspace is a session
+   * attribute, not a grouping identity.
+   */
+  workspacePath?: string | null;
 }
 
 const ChatItemComponent: React.FC<ChatItemProps> = ({
@@ -61,6 +69,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   titleGenerationError,
   status = "idle",
   statusErrorMessage,
+  workspacePath,
 }) => {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -404,6 +413,26 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                 {t("chat.planMode.badge", "Plan")}
               </span>
             ) : null}
+            {workspacePath ? (
+              <Tooltip title={workspacePath} placement="top">
+                <span
+                  style={{
+                    color: token.colorTextTertiary,
+                    fontSize: compact ? 10 : 11,
+                    lineHeight: 1.2,
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 3,
+                  }}
+                  data-testid="chat-item-workspace"
+                >
+                  <FolderOutlined />
+                  {getWorkspaceBaseName(workspacePath)}
+                </span>
+              </Tooltip>
+            ) : null}
           </div>
         )}
       </div>
@@ -424,7 +453,8 @@ const arePropsEqual = (prevProps: ChatItemProps, nextProps: ChatItemProps): bool
     prevProps.isRunningProjectDream === nextProps.isRunningProjectDream &&
     prevProps.titleGenerationError === nextProps.titleGenerationError &&
     (prevProps.status ?? "idle") === (nextProps.status ?? "idle") &&
-    prevProps.statusErrorMessage === nextProps.statusErrorMessage
+    prevProps.statusErrorMessage === nextProps.statusErrorMessage &&
+    prevProps.workspacePath === nextProps.workspacePath
   );
 };
 

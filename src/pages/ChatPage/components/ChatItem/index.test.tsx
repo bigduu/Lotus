@@ -48,6 +48,27 @@ async function startEditing() {
   fireEvent.click(editItem);
 }
 
+describe("ChatItem workspace badge (#134)", () => {
+  it("shows the workspace basename with the full path as tooltip", () => {
+    renderChatItem({ workspacePath: "/Users/alice/Workspace/zenith" });
+
+    const badge = screen.getByTestId("chat-item-workspace");
+    expect(badge).toHaveTextContent("zenith");
+  });
+
+  it("renders no badge when the session has no workspace", () => {
+    renderChatItem({ workspacePath: null });
+
+    expect(screen.queryByTestId("chat-item-workspace")).not.toBeInTheDocument();
+  });
+
+  it("renders no badge when workspacePath is omitted (legacy callers)", () => {
+    renderChatItem();
+
+    expect(screen.queryByTestId("chat-item-workspace")).not.toBeInTheDocument();
+  });
+});
+
 describe("ChatItem inline title edit", () => {
   it("Escape cancels the edit, restores the original title, and does not save (#19)", async () => {
     const onEdit = vi.fn();
