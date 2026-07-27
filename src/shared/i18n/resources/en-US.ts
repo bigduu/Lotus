@@ -1755,8 +1755,14 @@ export const enUsTranslation = {
         notSet: "(not set)",
         empty: "(empty)",
         credentialConfigured: "Configured",
+        credentialFromEnv: "From env",
+        credentialFromEnvHelp:
+          "The active value comes from the environment. It remains read-only unless you explicitly enter a replacement or clear the persisted binding.",
         credentialMissing: "Missing",
         credentialError: "Error",
+        revisionConflict: "Environment revision conflict",
+        revisionConflictDescription:
+          "Your draft expected revision {{expected}}; the server is at revision {{current}}. The draft was preserved.",
         changedExternally: "Environment variables changed externally",
         changedExternallyDescription:
           "Your draft was preserved. Reload to discard it, compare revisions, or reapply it over the latest configuration.",

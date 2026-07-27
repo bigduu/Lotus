@@ -289,11 +289,36 @@ export interface ClusterMutationResult {
   preflight?: string;
 }
 
+export interface EnvSectionEntry {
+  name: string;
+  /** Plaintext exists only for non-secret entries. Secret section data keeps this empty/omitted. */
+  value?: string;
+  secret: boolean;
+  credential_ref?: string | null;
+  configured: boolean;
+  description?: string;
+}
+
+export type EnvSection = EnvSectionEntry[];
+
+export interface EnvVarMutation {
+  name: string;
+  /** Missing keeps an existing value; an empty string explicitly clears it. */
+  value?: string;
+  secret: boolean;
+  description?: string;
+}
+
 export interface CredentialStatus {
   credential_ref: string;
   configured: boolean;
   source: "user" | "environment" | "migrated" | string;
   updated_at: string | null;
+}
+
+export interface EnvMutationResult {
+  envelope: ConfigSectionEnvelope<EnvSection>;
+  credentials: ConfigSectionEnvelope<CredentialStatus[]>;
 }
 
 export interface NotificationCredentialStatus {
@@ -363,7 +388,7 @@ export interface ConfigSectionDataMap {
   notifications: NotificationSection;
   connect: ConnectSection;
   "cluster-fabric": ClusterFabricSection;
-  env: unknown[];
+  env: EnvSection;
   "access-control": Record<string, unknown> | null;
   hooks: HooksSection;
   "model-policy": ModelPolicySection;
@@ -491,6 +516,11 @@ type ClusterMutationWireResponse = ConfigSectionEnvelope<ClusterFabricSection> &
   preflight?: string;
 };
 
+interface EnvMutationWireResponse {
+  revision: number;
+  entries: unknown[];
+}
+
 const normalizeClusterMutation = (
   response: ClusterMutationWireResponse,
 ): ClusterMutationResult => ({
@@ -520,6 +550,74 @@ const normalizeCredentialEnvelope = (
 });
 
 class ConfigSectionsService {
+  private async readEnvMutationState(): Promise<EnvMutationResult> {
+    const [envelope, credentialResponse] = await Promise.all([
+      this.getSection("env"),
+      this.listCredentials(),
+    ]);
+    return {
+      envelope,
+      credentials: normalizeCredentialEnvelope(credentialResponse),
+    };
+  }
+
+  private async commitEnvMutation(
+    expectedSectionRevision: number,
+    mutate: (credentialRevision: number) => Promise<unknown>,
+  ): Promise<EnvMutationResult> {
+    let current = await this.readEnvMutationState();
+    if (current.envelope.revision !== expectedSectionRevision) {
+      throw new ConfigConflictError({
+        expectedRevision: expectedSectionRevision,
+        currentRevision: current.envelope.revision,
+        message: "The environment configuration changed on disk.",
+      });
+    }
+
+    let credentialRevision = current.credentials.revision;
+    try {
+      await mutate(credentialRevision);
+    } catch (error) {
+      if (!isApiError(error) || error.status !== 409) throw error;
+
+      // Bamboo currently exposes the credential document revision on the
+      // dedicated Env endpoint. Rebase one unrelated credential race, but
+      // always re-check the form's owned section revision before retrying.
+      current = await this.readEnvMutationState();
+      if (current.envelope.revision !== expectedSectionRevision) {
+        throw new ConfigConflictError({
+          expectedRevision: expectedSectionRevision,
+          currentRevision: current.envelope.revision,
+          message: "The environment configuration changed on disk.",
+        });
+      }
+      if (current.credentials.revision === credentialRevision) {
+        throw new ConfigConflictError({
+          expectedRevision: expectedSectionRevision,
+          currentRevision: current.envelope.revision,
+          message: error.message || "The environment configuration changed on disk.",
+        });
+      }
+
+      credentialRevision = current.credentials.revision;
+      try {
+        await mutate(credentialRevision);
+      } catch (retryError) {
+        if (!isApiError(retryError) || retryError.status !== 409) throw retryError;
+        const latest = await this.readEnvMutationState();
+        throw new ConfigConflictError({
+          expectedRevision: expectedSectionRevision,
+          currentRevision: latest.envelope.revision,
+          message: retryError.message || "The environment configuration changed on disk.",
+        });
+      }
+    }
+
+    // Never adopt the dedicated response entries: legacy Bamboo responses mask
+    // secret values. Re-read the typed section and credential status envelopes.
+    return this.readEnvMutationState();
+  }
+
   async getNotificationSection(): Promise<NotificationSectionEnvelope> {
     const [section, credentials] = await Promise.all([
       apiClient.get<ConfigSectionEnvelope<unknown>>("/bamboo/config/sections/notifications"),
@@ -559,7 +657,12 @@ class ConfigSectionsService {
     );
   }
 
-  async putSection<K extends Exclude<WritableConfigSectionId, "notifications" | "providers">>(
+  async putSection<
+    K extends Exclude<
+      WritableConfigSectionId,
+      "notifications" | "providers" | "mcp" | "connect" | "cluster-fabric" | "env"
+    >,
+  >(
     section: K,
     expectedRevision: number,
     data: ConfigSectionDataMap[K],
@@ -720,6 +823,26 @@ class ConfigSectionsService {
     } catch (error) {
       return mapConflict(error, expectedRevision);
     }
+  }
+
+  async upsertEnvVar(
+    expectedSectionRevision: number,
+    data: EnvVarMutation,
+  ): Promise<EnvMutationResult> {
+    return this.commitEnvMutation(expectedSectionRevision, (credentialRevision) =>
+      apiClient.post<EnvMutationWireResponse>("/bamboo/env-vars", {
+        expected_revision: credentialRevision,
+        ...data,
+      }),
+    );
+  }
+
+  async deleteEnvVar(name: string, expectedSectionRevision: number): Promise<EnvMutationResult> {
+    return this.commitEnvMutation(expectedSectionRevision, (credentialRevision) =>
+      apiClient.delete<EnvMutationWireResponse>(
+        `/bamboo/env-vars/${encodeURIComponent(name)}?expected_revision=${credentialRevision}`,
+      ),
+    );
   }
 
   async createClusterNode(

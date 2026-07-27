@@ -26,36 +26,6 @@ export interface FetchModelsResponse {
   fetched: ProviderFetchResult[];
 }
 
-// ── Env Vars types ──────────────────────────────────────────────
-
-export interface EnvVarResponse {
-  name: string;
-  /** Masked for secrets; plaintext for non-secrets. */
-  value: string;
-  secret: boolean;
-  /** Whether a real value is configured (useful for secrets where value is masked). */
-  has_value: boolean;
-  configured: boolean;
-  description?: string;
-}
-
-export interface EnvVarsListResponse {
-  revision: number;
-  entries: EnvVarResponse[];
-}
-
-export interface UpsertEnvVarRequest {
-  name: string;
-  /** Missing keeps an existing value; an empty string explicitly clears it. */
-  value?: string;
-  secret: boolean;
-  description?: string;
-}
-
-export interface ReplaceEnvVarsRequest {
-  entries: UpsertEnvVarRequest[];
-}
-
 /**
  * Copilot authentication status
  */
@@ -241,50 +211,6 @@ export class SettingsService {
   async setDefaultProviderInstance(instanceId: string): Promise<void> {
     return apiClient.post<void>("/bamboo/settings/provider-instances/default", {
       default_provider_instance_id: instanceId,
-    });
-  }
-
-  // ── Env Vars ────────────────────────────────────────────────────
-
-  /**
-   * List all environment variables (secrets are masked).
-   */
-  async getEnvVars(): Promise<EnvVarsListResponse> {
-    return apiClient.get<EnvVarsListResponse>("/bamboo/env-vars");
-  }
-
-  /**
-   * Create or update a single environment variable.
-   */
-  async upsertEnvVar(
-    entry: UpsertEnvVarRequest,
-    expectedRevision: number,
-  ): Promise<EnvVarsListResponse> {
-    return apiClient.post<EnvVarsListResponse>("/bamboo/env-vars", {
-      expected_revision: expectedRevision,
-      ...entry,
-    });
-  }
-
-  /**
-   * Delete an environment variable by name.
-   */
-  async deleteEnvVar(name: string, expectedRevision: number): Promise<EnvVarsListResponse> {
-    return apiClient.delete<EnvVarsListResponse>(
-      `/bamboo/env-vars/${encodeURIComponent(name)}?expected_revision=${expectedRevision}`,
-    );
-  }
-
-  /**
-   * Replace the entire env vars list (bulk save).
-   */
-  async replaceEnvVars(
-    entries: UpsertEnvVarRequest[],
-    expectedRevision: number,
-  ): Promise<EnvVarsListResponse> {
-    return apiClient.put<EnvVarsListResponse>("/bamboo/env-vars", {
-      expected_revision: expectedRevision,
-      entries,
     });
   }
 }

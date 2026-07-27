@@ -17,12 +17,14 @@ import {
 import { DeleteOutlined, EditOutlined, LockOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import {
-  settingsService,
-  EnvVarResponse,
-  EnvVarsListResponse,
-  UpsertEnvVarRequest,
-} from "@services/config/SettingsService";
-import { isApiError } from "@services/api/client";
+  ConfigConflictError,
+  type ConfigRevisionConflict,
+  type ConfigSectionEnvelope,
+  type CredentialStatus,
+  type EnvSection,
+  type EnvSectionEntry,
+  type EnvVarMutation,
+} from "@services/config/configSections";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { redactConfigError } from "./ConfigSectionStatus";
@@ -42,9 +44,13 @@ interface EnvVarMetadata {
   name: string;
   secret: boolean;
   configured: boolean;
-  has_value: boolean;
+  credential_ref?: string | null;
   description?: string;
 }
+
+type EnvCredentialState = "configured" | "from_env" | "missing" | "error";
+
+const EMPTY_ENV_ENTRIES: EnvSection = [];
 
 const emptyDraft = (name = ""): EnvVarDraft => ({
   name,
@@ -53,20 +59,20 @@ const emptyDraft = (name = ""): EnvVarDraft => ({
   description: "",
 });
 
-const draftFromEntry = (entry: EnvVarResponse): EnvVarDraft => ({
+const draftFromEntry = (entry: EnvSectionEntry): EnvVarDraft => ({
   name: entry.name,
-  value: "",
+  value: entry.secret ? "" : (entry.value ?? ""),
   secret: entry.secret,
   description: entry.description ?? "",
 });
 
-const metadataFromEntry = (entry: EnvVarResponse | undefined): EnvVarMetadata | null =>
+const metadataFromEntry = (entry: EnvSectionEntry | undefined): EnvVarMetadata | null =>
   entry
     ? {
         name: entry.name,
         secret: entry.secret,
         configured: entry.configured,
-        has_value: entry.has_value,
+        credential_ref: entry.credential_ref,
         description: entry.description,
       }
     : null;
@@ -79,10 +85,17 @@ const redactDraftForComparison = (draft: EnvVarDraft, clearRequested: boolean) =
   clear_requested: clearRequested,
 });
 
-const withoutSecretMasks = (response: EnvVarsListResponse): EnvVarsListResponse => ({
-  ...response,
-  entries: response.entries.map((entry) => (entry.secret ? { ...entry, value: "" } : entry)),
-});
+const envCredentialState = (
+  entry: EnvSectionEntry,
+  status: CredentialStatus | undefined,
+  credentialHealthError: boolean,
+): EnvCredentialState => {
+  if (credentialHealthError) return "error";
+  if (status?.source === "environment") return "from_env";
+  if (status?.configured) return "configured";
+  if (entry.credential_ref && entry.configured && !status) return "error";
+  return entry.configured ? "configured" : "missing";
+};
 
 /**
  * Environment Variables management tab in System Settings.
@@ -94,69 +107,45 @@ const withoutSecretMasks = (response: EnvVarsListResponse): EnvVarsListResponse 
 const SystemSettingsEnvVarsTab: React.FC = () => {
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
-  const [entries, setEntries] = useState<EnvVarResponse[]>([]);
-  const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingName, setEditingName] = useState<string | null>(null);
-  const [revision, setRevision] = useState<number | null>(null);
   const [modalBaseRevision, setModalBaseRevision] = useState<number | null>(null);
   const [modalDirty, setModalDirty] = useState(false);
   const [clearRequested, setClearRequested] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
+  const [saveConflict, setSaveConflict] = useState<ConfigRevisionConflict | null>(null);
   const [form] = Form.useForm();
-  const latestResponseRef = useRef<EnvVarsListResponse | null>(null);
+  const latestEnvelopeRef = useRef<ConfigSectionEnvelope<EnvSection> | null>(null);
   const baseDraftRef = useRef<EnvVarDraft | null>(null);
   const baseMetadataRef = useRef<EnvVarMetadata | null>(null);
-  const pendingLoadsRef = useRef(0);
-  const lastEnvSignalRevisionRef = useRef<number | null>(null);
   const envSnapshot = useConfigSectionStore((state) => state.sections.env);
+  const credentialsSnapshot = useConfigSectionStore((state) => state.sections.credentials);
   const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveEnvVar = useConfigSectionStore((state) => state.saveEnvVar);
+  const deleteEnvVar = useConfigSectionStore((state) => state.deleteEnvVar);
+  const entries = envSnapshot.envelope?.data ?? EMPTY_ENV_ENTRIES;
+  const revision = envSnapshot.envelope?.revision ?? null;
+  const loading = envSnapshot.loading || credentialsSnapshot.loading;
+  const credentialStatuses = new Map(
+    (credentialsSnapshot.envelope?.data ?? []).map((status) => [status.credential_ref, status]),
+  );
+  const credentialHealthError =
+    Boolean(credentialsSnapshot.error) ||
+    (credentialsSnapshot.envelope !== null && credentialsSnapshot.envelope.status !== "healthy");
 
   // ── Data fetching ───────────────────────────────────────────────
 
-  const applyResponse = useCallback((response: EnvVarsListResponse) => {
-    const sanitized = withoutSecretMasks(response);
-    const latest = latestResponseRef.current;
-    if (latest && sanitized.revision < latest.revision) return latest;
+  useEffect(() => {
+    void Promise.all([loadSection("env"), loadSection("credentials")]).catch(() => undefined);
+  }, [loadSection]);
 
-    latestResponseRef.current = sanitized;
-    setEntries(sanitized.entries);
-    setRevision(sanitized.revision);
-    return sanitized;
-  }, []);
-
-  const fetchEntries = useCallback(async (): Promise<EnvVarsListResponse | null> => {
-    pendingLoadsRef.current += 1;
-    setLoading(true);
-    try {
-      const res = await settingsService.getEnvVars();
-      return applyResponse(res);
-    } catch {
-      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
-      return null;
-    } finally {
-      pendingLoadsRef.current -= 1;
-      if (pendingLoadsRef.current === 0) setLoading(false);
+  useEffect(() => {
+    const envelope = envSnapshot.envelope;
+    if (!envelope) return;
+    if ((latestEnvelopeRef.current?.revision ?? -1) <= envelope.revision) {
+      latestEnvelopeRef.current = envelope;
     }
-  }, [applyResponse, message, t]);
-
-  useEffect(() => {
-    void fetchEntries();
-    void loadSection("env").catch(() => undefined);
-  }, [fetchEntries, loadSection]);
-
-  useEffect(() => {
-    const signalRevision = envSnapshot.envelope?.revision ?? null;
-    if (signalRevision === null) return;
-
-    const previous = lastEnvSignalRevisionRef.current;
-    lastEnvSignalRevisionRef.current = signalRevision;
-    if (previous !== null && signalRevision <= previous) return;
-
-    void fetchEntries();
-    // The typed section revision and credential transaction revision are
-    // distinct counters; a new section envelope is only a refresh signal.
-  }, [envSnapshot.envelope?.revision, fetchEntries]);
+  }, [envSnapshot.envelope]);
 
   // ── Modal helpers ───────────────────────────────────────────────
 
@@ -164,6 +153,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     setClearRequested(false);
     setShowComparison(false);
     setModalDirty(false);
+    setSaveConflict(null);
     setModalBaseRevision(null);
     setModalOpen(false);
     setEditingName(null);
@@ -191,6 +181,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     setClearRequested(false);
     setShowComparison(false);
     setModalDirty(false);
+    setSaveConflict(null);
     setEditingName(null);
     setModalBaseRevision(revision);
     baseDraftRef.current = structuredClone(values);
@@ -199,7 +190,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     setModalOpen(true);
   };
 
-  const openEditModal = (entry: EnvVarResponse) => {
+  const openEditModal = (entry: EnvSectionEntry) => {
     if (revision === null) {
       message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
       return;
@@ -209,6 +200,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     setClearRequested(false);
     setShowComparison(false);
     setModalDirty(false);
+    setSaveConflict(null);
     setEditingName(entry.name);
     setModalBaseRevision(revision);
     baseDraftRef.current = structuredClone(values);
@@ -217,12 +209,12 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     setModalOpen(true);
   };
 
-  const adoptModalResponse = useCallback(
-    (response: EnvVarsListResponse, keepDraft: boolean) => {
+  const adoptModalEnvelope = useCallback(
+    (envelope: ConfigSectionEnvelope<EnvSection>, keepDraft: boolean) => {
       if (!modalOpen) return;
 
       const latestEntry = editingName
-        ? response.entries.find((entry) => entry.name === editingName)
+        ? envelope.data.find((entry) => entry.name === editingName)
         : undefined;
       if (editingName && !latestEntry && !keepDraft) {
         message.warning(
@@ -247,10 +239,11 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       replaceFormValues(nextValues);
       baseDraftRef.current = structuredClone(latestValues);
       baseMetadataRef.current = metadataFromEntry(latestEntry);
-      setModalBaseRevision(response.revision);
+      setModalBaseRevision(envelope.revision);
       setModalDirty(keepDraft);
       if (!keepDraft) setClearRequested(false);
       setShowComparison(false);
+      setSaveConflict(null);
     },
     [closeModal, editingName, form, message, modalOpen, replaceFormValues, t],
   );
@@ -261,19 +254,26 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       : null;
 
   useEffect(() => {
-    if (externalRevision === null || modalDirty || !latestResponseRef.current) return;
-    adoptModalResponse(latestResponseRef.current, false);
-  }, [adoptModalResponse, externalRevision, modalDirty]);
+    if (externalRevision === null || modalDirty || !latestEnvelopeRef.current) return;
+    adoptModalEnvelope(latestEnvelopeRef.current, false);
+  }, [adoptModalEnvelope, externalRevision, modalDirty]);
 
   const reloadModal = useCallback(async () => {
-    const latest = await fetchEntries();
-    if (latest) adoptModalResponse(latest, false);
-  }, [adoptModalResponse, fetchEntries]);
+    try {
+      const [latest] = await Promise.all([
+        loadSection("env", { force: true }),
+        loadSection("credentials", { force: true }),
+      ]);
+      adoptModalEnvelope(latest, false);
+    } catch {
+      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
+    }
+  }, [adoptModalEnvelope, loadSection, message, t]);
 
   const reapplyModal = useCallback(() => {
-    if (!latestResponseRef.current) return;
-    adoptModalResponse(latestResponseRef.current, true);
-  }, [adoptModalResponse]);
+    if (!latestEnvelopeRef.current) return;
+    adoptModalEnvelope(latestEnvelopeRef.current, true);
+  }, [adoptModalEnvelope]);
 
   const comparison =
     showComparison && externalRevision !== null
@@ -290,7 +290,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             ),
             latest: metadataFromEntry(
               editingName
-                ? latestResponseRef.current?.entries.find((entry) => entry.name === editingName)
+                ? latestEnvelopeRef.current?.data.find((entry) => entry.name === editingName)
                 : undefined,
             ),
           },
@@ -311,7 +311,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
       return;
     }
-    const req: UpsertEnvVarRequest = {
+    const req: EnvVarMutation = {
       name: values.name.trim(),
       ...(!editingName || values.value || clearRequested ? { value: values.value } : {}),
       secret: values.secret ?? false,
@@ -319,8 +319,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     };
 
     try {
-      const res = await settingsService.upsertEnvVar(req, modalBaseRevision);
-      applyResponse(res);
+      await saveEnvVar(req, modalBaseRevision);
       message.success(
         editingName
           ? t("settings.envVars.updated", "Variable updated")
@@ -328,9 +327,13 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       );
       closeModal();
     } catch (err: unknown) {
-      if (isApiError(err) && err.status === 409) {
+      if (err instanceof ConfigConflictError) {
         setModalDirty(true);
-        await fetchEntries();
+        setSaveConflict(err.conflict);
+        await Promise.all([
+          loadSection("env", { force: true }),
+          loadSection("credentials", { force: true }),
+        ]).catch(() => undefined);
       }
       message.error(
         (err instanceof Error ? err.message : undefined) ||
@@ -342,17 +345,35 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
   const handleDelete = async (name: string) => {
     if (revision === null) return;
     try {
-      const res = await settingsService.deleteEnvVar(name, revision);
-      applyResponse(res);
+      await deleteEnvVar(name, revision);
       message.success(t("settings.envVars.deleted", "Variable deleted"));
     } catch (err: unknown) {
-      if (isApiError(err) && err.status === 409) await fetchEntries();
+      if (err instanceof ConfigConflictError) {
+        await Promise.all([
+          loadSection("env", { force: true }),
+          loadSection("credentials", { force: true }),
+        ]).catch(() => undefined);
+      }
       message.error(
         (err instanceof Error ? err.message : undefined) ||
           t("settings.envVars.deleteError", "Failed to delete variable"),
       );
     }
   };
+
+  const editingEntry = editingName
+    ? entries.find((entry) => entry.name === editingName)
+    : undefined;
+  const editingCredentialState =
+    editingEntry && editingEntry.secret
+      ? envCredentialState(
+          editingEntry,
+          editingEntry.credential_ref
+            ? credentialStatuses.get(editingEntry.credential_ref)
+            : undefined,
+          credentialHealthError,
+        )
+      : null;
 
   // ── Table columns ───────────────────────────────────────────────
 
@@ -367,27 +388,48 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       title: t("settings.envVars.value", "Value"),
       dataIndex: "value",
       key: "value",
-      render: (value: string, record: EnvVarResponse) =>
-        record.secret ? (
-          <Tag color={envSnapshot.error ? "error" : record.configured ? "success" : "warning"}>
+      render: (value: string | undefined, record: EnvSectionEntry) => {
+        if (!record.secret) {
+          return (
+            <Text>
+              {value || <Text type="secondary">{t("settings.envVars.empty", "(empty)")}</Text>}
+            </Text>
+          );
+        }
+        const state = envCredentialState(
+          record,
+          record.credential_ref ? credentialStatuses.get(record.credential_ref) : undefined,
+          credentialHealthError,
+        );
+        const labels: Record<EnvCredentialState, string> = {
+          configured: t("settings.envVars.credentialConfigured", "Configured"),
+          from_env: t("settings.envVars.credentialFromEnv", "From env"),
+          missing: t("settings.envVars.credentialMissing", "Missing"),
+          error: t("settings.envVars.credentialError", "Error"),
+        };
+        return (
+          <Tag
+            color={
+              state === "error"
+                ? "error"
+                : state === "missing"
+                  ? "warning"
+                  : state === "from_env"
+                    ? "processing"
+                    : "success"
+            }
+          >
             <LockOutlined style={{ marginRight: 4 }} />
-            {envSnapshot.error
-              ? t("settings.envVars.credentialError", "Error")
-              : record.configured
-                ? t("settings.envVars.credentialConfigured", "Configured")
-                : t("settings.envVars.credentialMissing", "Missing")}
+            {labels[state]}
           </Tag>
-        ) : (
-          <Text>
-            {value || <Text type="secondary">{t("settings.envVars.empty", "(empty)")}</Text>}
-          </Text>
-        ),
+        );
+      },
     },
     {
       title: t("settings.envVars.type", "Type"),
       key: "secret",
       width: 100,
-      render: (_: unknown, record: EnvVarResponse) =>
+      render: (_: unknown, record: EnvSectionEntry) =>
         record.secret ? (
           <Tag color="warning" icon={<LockOutlined />}>
             {t("settings.envVars.secret", "Secret")}
@@ -414,7 +456,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       title: t("settings.envVars.actions", "Actions"),
       key: "actions",
       width: 120,
-      render: (_: unknown, record: EnvVarResponse) => (
+      render: (_: unknown, record: EnvSectionEntry) => (
         <Space size="small">
           <Button
             type="text"
@@ -503,18 +545,33 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         cancelText={t("settings.envVars.cancel", "Cancel")}
         destroyOnClose
       >
-        {externalRevision !== null ? (
+        {externalRevision !== null || saveConflict ? (
           <Alert
             type="warning"
             showIcon
-            message={t(
-              "settings.envVars.changedExternally",
-              "Environment variables changed externally",
-            )}
-            description={t(
-              "settings.envVars.changedExternallyDescription",
-              "Your draft was preserved. Reload to discard it, compare revisions, or reapply it over the latest configuration.",
-            )}
+            message={
+              saveConflict
+                ? t("settings.envVars.revisionConflict", "Environment revision conflict")
+                : t(
+                    "settings.envVars.changedExternally",
+                    "Environment variables changed externally",
+                  )
+            }
+            description={
+              saveConflict
+                ? t(
+                    "settings.envVars.revisionConflictDescription",
+                    "Your draft expected revision {{expected}}; the server is at revision {{current}}. The draft was preserved.",
+                    {
+                      expected: saveConflict.expectedRevision,
+                      current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
+                    },
+                  )
+                : t(
+                    "settings.envVars.changedExternallyDescription",
+                    "Your draft was preserved. Reload to discard it, compare revisions, or reapply it over the latest configuration.",
+                  )
+            }
             action={
               <Space wrap>
                 <Button size="small" onClick={() => void reloadModal()}>
@@ -539,6 +596,19 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           >
             {comparison}
           </pre>
+        ) : null}
+
+        {editingCredentialState === "from_env" ? (
+          <Alert
+            type="info"
+            showIcon
+            message={t("settings.envVars.credentialFromEnv", "From env")}
+            description={t(
+              "settings.envVars.credentialFromEnvHelp",
+              "The active value comes from the environment. It remains read-only unless you explicitly enter a replacement or clear the persisted binding.",
+            )}
+            style={{ marginBottom: 16 }}
+          />
         ) : null}
 
         <Form

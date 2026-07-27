@@ -7,6 +7,9 @@ import {
   type ConnectSection,
   type ConfigSectionEnvelope,
   type CoreSection,
+  type CredentialStatus,
+  type EnvMutationResult,
+  type EnvSection,
   type McpSection,
   type NotificationSectionEnvelope,
   type ProviderSection,
@@ -99,6 +102,45 @@ const clusterMutation: ClusterNodeMutation = {
   },
   membership: { cluster_names: [] },
 };
+
+const envEnvelope = (revision: number): ConfigSectionEnvelope<EnvSection> => ({
+  data: [
+    {
+      name: "SECRET_TOKEN",
+      secret: true,
+      credential_ref: "env.SECRET_TOKEN.value",
+      configured: true,
+    },
+  ],
+  revision,
+  loaded_at: "2026-07-27T00:00:00Z",
+  source_path: "/tmp/env.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+});
+
+const credentialsEnvelope = (revision: number): ConfigSectionEnvelope<CredentialStatus[]> => ({
+  data: [
+    {
+      credential_ref: "env.SECRET_TOKEN.value",
+      configured: true,
+      source: "user",
+      updated_at: null,
+    },
+  ],
+  revision,
+  loaded_at: "2026-07-27T00:00:00Z",
+  source_path: "/tmp/credentials.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+});
+
+const envMutationResult = (envRevision: number, credentialRevision: number): EnvMutationResult => ({
+  envelope: envEnvelope(envRevision),
+  credentials: credentialsEnvelope(credentialRevision),
+});
 
 const notificationEnvelope = (
   sectionRevision: number,
@@ -465,6 +507,111 @@ describe("useConfigSectionStore", () => {
     expect(
       useConfigSectionStore.getState().sections["cluster-fabric"].conflict?.currentRevision,
     ).toBe(5);
+  });
+
+  it("adopts Env and credential envelopes together without storing a mutation secret", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        env: { ...state.sections.env, envelope: envEnvelope(4) },
+        credentials: {
+          ...state.sections.credentials,
+          envelope: credentialsEnvelope(10),
+        },
+      },
+    }));
+    const save = vi
+      .spyOn(configSectionsService, "upsertEnvVar")
+      .mockResolvedValueOnce(envMutationResult(5, 11));
+
+    await useConfigSectionStore.getState().saveEnvVar(
+      {
+        name: "SECRET_TOKEN",
+        value: "replacement-secret",
+        secret: true,
+      },
+      4,
+    );
+
+    expect(save).toHaveBeenCalledWith(4, {
+      name: "SECRET_TOKEN",
+      value: "replacement-secret",
+      secret: true,
+    });
+    expect(useConfigSectionStore.getState().sections.env.envelope).toEqual(envEnvelope(5));
+    expect(useConfigSectionStore.getState().sections.credentials.envelope).toEqual(
+      credentialsEnvelope(11),
+    );
+    expect(JSON.stringify(useConfigSectionStore.getState().sections)).not.toContain(
+      "replacement-secret",
+    );
+  });
+
+  it("does not regress Env or credential state behind newer event snapshots", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        env: { ...state.sections.env, envelope: envEnvelope(4) },
+        credentials: {
+          ...state.sections.credentials,
+          envelope: credentialsEnvelope(10),
+        },
+      },
+    }));
+    let resolveSave!: (value: EnvMutationResult) => void;
+    vi.spyOn(configSectionsService, "upsertEnvVar").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    const pending = useConfigSectionStore.getState().saveEnvVar(
+      {
+        name: "SECRET_TOKEN",
+        secret: true,
+      },
+      4,
+    );
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        env: { ...state.sections.env, envelope: envEnvelope(6) },
+        credentials: {
+          ...state.sections.credentials,
+          envelope: credentialsEnvelope(12),
+        },
+      },
+    }));
+    resolveSave(envMutationResult(5, 11));
+
+    await expect(pending).resolves.toEqual(envMutationResult(6, 12));
+    expect(useConfigSectionStore.getState().sections.env.envelope).toEqual(envEnvelope(6));
+    expect(useConfigSectionStore.getState().sections.credentials.envelope).toEqual(
+      credentialsEnvelope(12),
+    );
+  });
+
+  it("keeps the Env LKG and records a canonical stale mutation conflict", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        env: { ...state.sections.env, envelope: envEnvelope(4) },
+      },
+    }));
+    vi.spyOn(configSectionsService, "deleteEnvVar").mockRejectedValueOnce(
+      new ConfigConflictError({
+        expectedRevision: 4,
+        currentRevision: 5,
+        message: "revision conflict",
+      }),
+    );
+
+    await expect(useConfigSectionStore.getState().deleteEnvVar("SECRET_TOKEN", 4)).rejects.toThrow(
+      "revision conflict",
+    );
+    expect(useConfigSectionStore.getState().sections.env.envelope).toEqual(envEnvelope(4));
+    expect(useConfigSectionStore.getState().sections.env.conflict?.currentRevision).toBe(5);
   });
 
   it("retains notification credential metadata alongside the typed section revision", async () => {

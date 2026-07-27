@@ -1,30 +1,16 @@
-import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SystemSettingsEnvVarsTab from "../SystemSettingsEnvVarsTab";
-import { configSectionsService } from "@services/config/configSections";
-import { useConfigSectionStore } from "@shared/store/configSectionStore";
-import { ApiError } from "@services/api/client";
 import {
-  settingsService,
-  EnvVarsListResponse,
-  EnvVarResponse,
-} from "@services/config/SettingsService";
+  ConfigConflictError,
+  configSectionsService,
+  type ConfigSectionEnvelope,
+  type CredentialStatus,
+  type EnvMutationResult,
+  type EnvSection,
+} from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
-// Mock settingsService
-vi.mock("@services/config/SettingsService", async () => {
-  const actual = await vi.importActual("@services/config/SettingsService");
-  return {
-    ...actual,
-    settingsService: {
-      getEnvVars: vi.fn(),
-      upsertEnvVar: vi.fn(),
-      deleteEnvVar: vi.fn(),
-      replaceEnvVars: vi.fn(),
-    },
-  };
-});
-
-// Mock antd message
 vi.mock("antd", async () => {
   const actual = await vi.importActual<typeof import("antd")>("antd");
   const message = {
@@ -34,484 +20,361 @@ vi.mock("antd", async () => {
     info: vi.fn(),
     loading: vi.fn(),
   };
-  const notification = {
-    success: vi.fn(),
-    error: vi.fn(),
-    warning: vi.fn(),
-    info: vi.fn(),
-  };
-  const modal = {
-    confirm: vi.fn(),
-    info: vi.fn(),
-    success: vi.fn(),
-    error: vi.fn(),
-    warning: vi.fn(),
-  };
+  const modal = { confirm: vi.fn() };
   return {
     ...actual,
     message,
-    notification,
     App: Object.assign(actual.App, {
-      useApp: () => ({ message, notification, modal }),
+      useApp: () => ({ message, notification: message, modal }),
     }),
   };
 });
 
-const mockGetEnvVars = vi.mocked(settingsService.getEnvVars);
-const mockUpsertEnvVar = vi.mocked(settingsService.upsertEnvVar);
-const mockDeleteEnvVar = vi.mocked(settingsService.deleteEnvVar);
-
-// ── Fixtures ────────────────────────────────────────────────
-
-const emptyList: EnvVarsListResponse = { revision: 3, entries: [] };
-
-const sampleEntries: EnvVarResponse[] = [
+const entries: EnvSection = [
   {
     name: "NODE_ENV",
     value: "production",
     secret: false,
-    has_value: true,
     configured: true,
     description: "Node environment",
   },
   {
     name: "GITHUB_TOKEN",
-    value: "****...****",
     secret: true,
-    has_value: true,
+    credential_ref: "env.GITHUB_TOKEN.value",
     configured: true,
     description: "GitHub PAT",
   },
   {
-    name: "EMPTY_SECRET",
-    value: "****...****",
+    name: "FROM_ENV",
     secret: true,
-    has_value: false,
+    credential_ref: "env.FROM_ENV.value",
+    configured: true,
+    description: "Environment-owned token",
+  },
+  {
+    name: "EMPTY_SECRET",
+    secret: true,
     configured: false,
-    description: undefined,
   },
 ];
 
-const sampleList: EnvVarsListResponse = { revision: 3, entries: sampleEntries };
+const credentialStatuses: CredentialStatus[] = [
+  {
+    credential_ref: "env.GITHUB_TOKEN.value",
+    configured: true,
+    source: "user",
+    updated_at: null,
+  },
+  {
+    credential_ref: "env.FROM_ENV.value",
+    configured: true,
+    source: "environment",
+    updated_at: null,
+  },
+];
 
-const envListAt = (
+const envEnvelope = (
   revision: number,
-  changes: Partial<Record<string, Partial<EnvVarResponse>>> = {},
-): EnvVarsListResponse => ({
+  data: EnvSection = entries,
+): ConfigSectionEnvelope<EnvSection> => ({
+  data,
   revision,
-  entries: sampleEntries.map((entry) => ({ ...entry, ...changes[entry.name] })),
+  loaded_at: `2026-07-26T00:00:0${revision}Z`,
+  source_path: "/tmp/env.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
 });
 
-const publishEnvSignal = (revision: number) => {
-  const snapshot = useConfigSectionStore.getState().sections.env;
-  if (!snapshot.envelope) throw new Error("env section must be loaded before publishing an event");
+const credentialsEnvelope = (
+  revision: number,
+  data: CredentialStatus[] = credentialStatuses,
+): ConfigSectionEnvelope<CredentialStatus[]> => ({
+  data,
+  revision,
+  loaded_at: `2026-07-26T00:01:0${revision}Z`,
+  source_path: "/tmp/credentials.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+});
 
-  useConfigSectionStore.setState((state) => ({
-    sections: {
-      ...state.sections,
-      env: {
-        ...state.sections.env,
-        envelope: {
-          ...state.sections.env.envelope!,
-          revision,
-        },
-      },
-    },
-  }));
-};
+const mutationResult = (
+  envelope: ConfigSectionEnvelope<EnvSection>,
+  credentialRevision = 11,
+): EnvMutationResult => ({
+  envelope,
+  credentials: credentialsEnvelope(credentialRevision),
+});
 
 const openEditModal = async (name: string) => {
-  await screen.findByText(name);
-  const row = screen.getByText(name).closest("tr");
+  const row = (await screen.findByText(name)).closest("tr");
   if (!row) throw new Error(`row for ${name} was not found`);
   fireEvent.click(row.querySelector<HTMLButtonElement>('button[aria-label="Edit"]')!);
   await screen.findByText("Edit Variable");
 };
 
-const waitForInitialSignals = async () => {
-  await waitFor(() => {
-    expect(useConfigSectionStore.getState().sections.env.envelope?.revision).toBe(5);
-    expect(mockGetEnvVars.mock.calls.length).toBeGreaterThanOrEqual(2);
+const publishEnvEnvelope = (envelope: ConfigSectionEnvelope<EnvSection>) => {
+  act(() => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        env: {
+          ...state.sections.env,
+          envelope,
+        },
+      },
+    }));
   });
 };
 
-// ── Tests ───────────────────────────────────────────────────
-
 describe("SystemSettingsEnvVarsTab", () => {
+  let currentEnv: ConfigSectionEnvelope<EnvSection>;
+  let currentCredentials: ConfigSectionEnvelope<CredentialStatus[]>;
+
   beforeEach(() => {
     vi.clearAllMocks();
     useConfigSectionStore.getState().reset();
-    vi.spyOn(configSectionsService, "getSection").mockResolvedValue({
-      data: [],
-      revision: 5,
-      loaded_at: "2026-07-23T00:00:00.000Z",
-      source_path: "/tmp/env.json",
-      source_kind: "file",
-      status: "healthy",
-      last_error: null,
-    } as never);
-    mockGetEnvVars.mockResolvedValue(emptyList);
-    mockUpsertEnvVar.mockResolvedValue(emptyList);
-    mockDeleteEnvVar.mockResolvedValue(emptyList);
+    currentEnv = envEnvelope(5);
+    currentCredentials = credentialsEnvelope(10);
+    vi.spyOn(configSectionsService, "getSection").mockImplementation(async (section) => {
+      if (section === "env") return currentEnv as never;
+      if (section === "credentials") return currentCredentials as never;
+      throw new Error(`Unexpected section ${section}`);
+    });
+    vi.spyOn(configSectionsService, "upsertEnvVar").mockResolvedValue(
+      mutationResult(envEnvelope(6)),
+    );
+    vi.spyOn(configSectionsService, "deleteEnvVar").mockResolvedValue(
+      mutationResult(
+        envEnvelope(
+          6,
+          entries.filter((entry) => entry.name !== "NODE_ENV"),
+        ),
+      ),
+    );
   });
 
   afterEach(() => vi.restoreAllMocks());
 
-  // ── Loading & Display ────────────────────────────────────
+  it("renders the typed Env and credential envelopes without retaining a mask", async () => {
+    render(<SystemSettingsEnvVarsTab />);
 
-  describe("loading and display", () => {
-    it("should render empty state when no env vars configured", async () => {
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("No environment variables configured")).toBeInTheDocument();
-      });
-    });
-
-    it("should display existing entries on mount", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("NODE_ENV")).toBeInTheDocument();
-        expect(screen.getByText("GITHUB_TOKEN")).toBeInTheDocument();
-        expect(screen.getByText("EMPTY_SECRET")).toBeInTheDocument();
-      });
-    });
-
-    it("should show plain value for non-secret entries", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("production")).toBeInTheDocument();
-      });
-    });
-
-    it("should show configured status without retaining a secret mask", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Configured")).toBeInTheDocument();
-      });
-      expect(screen.queryByText("••••••••")).not.toBeInTheDocument();
-      expect(screen.queryByText("****...****")).not.toBeInTheDocument();
-    });
-
-    it("should show missing status for secret entries without a value", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Missing")).toBeInTheDocument();
-      });
-    });
-
-    it("should show Secret tag for secret entries", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        const secretTags = screen.getAllByText("Secret");
-        expect(secretTags.length).toBe(2); // GITHUB_TOKEN and EMPTY_SECRET
-      });
-    });
-
-    it("should show Plain tag for non-secret entries", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Plain")).toBeInTheDocument();
-      });
-    });
-
-    it("should show description when present", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Node environment")).toBeInTheDocument();
-        expect(screen.getByText("GitHub PAT")).toBeInTheDocument();
-      });
-    });
-
-    it("should show error when loading fails", async () => {
-      const { message } = await import("antd");
-      mockGetEnvVars.mockRejectedValue(new Error("Network error"));
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(message.error).toHaveBeenCalled();
-      });
-    });
+    expect(await screen.findByText("NODE_ENV")).toBeInTheDocument();
+    expect(screen.getByText("production")).toBeInTheDocument();
+    expect(screen.getByText("Configured")).toBeInTheDocument();
+    expect(screen.getByText("From env")).toBeInTheDocument();
+    expect(screen.getByText("Missing")).toBeInTheDocument();
+    expect(screen.queryByText("****...****")).not.toBeInTheDocument();
+    expect(configSectionsService.getSection).toHaveBeenCalledWith("env");
+    expect(configSectionsService.getSection).toHaveBeenCalledWith("credentials");
   });
 
-  // ── Add Variable ─────────────────────────────────────────
+  it("creates a variable through the store with the captured section revision", async () => {
+    const save = vi.mocked(configSectionsService.upsertEnvVar);
+    render(<SystemSettingsEnvVarsTab />);
+    await screen.findByText("NODE_ENV");
 
-  describe("adding variables", () => {
-    it("should open add modal when Add Variable button is clicked", async () => {
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("Add Variable")).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByText("Add Variable"));
-
-      await waitFor(() => {
-        expect(screen.getByText("Add Environment Variable")).toBeInTheDocument();
-      });
+    fireEvent.click(screen.getByText("Add Variable"));
+    fireEvent.change(screen.getByPlaceholderText("GITHUB_TOKEN"), {
+      target: { value: "NEW_SECRET" },
     });
-
-    it("should call upsertEnvVar on form submit", async () => {
-      const newEntries: EnvVarsListResponse = {
-        revision: 4,
-        entries: [
-          {
-            name: "NEW_VAR",
-            value: "new_val",
-            secret: false,
-            has_value: true,
-            configured: true,
-          },
-        ],
-      };
-      mockUpsertEnvVar.mockResolvedValue(newEntries);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      // Wait for initial load
-      await waitFor(() => {
-        expect(mockGetEnvVars).toHaveBeenCalled();
-      });
-
-      // Open add modal
-      fireEvent.click(screen.getByText("Add Variable"));
-
-      await waitFor(() => {
-        expect(screen.getByText("Add Environment Variable")).toBeInTheDocument();
-      });
+    fireEvent.change(screen.getByPlaceholderText("Enter value"), {
+      target: { value: "new-secret-value" },
     });
-  });
+    fireEvent.click(screen.getByRole("switch"));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-  // ── Delete Variable ──────────────────────────────────────
-
-  describe("deleting variables", () => {
-    it("should call deleteEnvVar on confirm", async () => {
-      const afterDelete: EnvVarsListResponse = {
-        revision: 4,
-        entries: [sampleEntries[1], sampleEntries[2]], // NODE_ENV removed
-      };
-      mockGetEnvVars.mockResolvedValue(sampleList);
-      mockDeleteEnvVar.mockResolvedValue(afterDelete);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("NODE_ENV")).toBeInTheDocument();
-      });
-
-      const row = screen.getByText("NODE_ENV").closest("tr");
-      fireEvent.click(row!.querySelector<HTMLButtonElement>('button[aria-label="Delete"]')!);
-      fireEvent.click(await screen.findByRole("button", { name: "Yes" }));
-
-      await waitFor(() => expect(mockDeleteEnvVar).toHaveBeenCalledWith("NODE_ENV", 3));
-    });
-  });
-
-  // ── Edit Variable ────────────────────────────────────────
-
-  describe("editing variables", () => {
-    it("should show edit modal with pre-filled data when edit clicked", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("NODE_ENV")).toBeInTheDocument();
-      });
-    });
-  });
-
-  // ── Error Handling ───────────────────────────────────────
-
-  describe("error handling", () => {
-    it("should show error message on upsert failure", async () => {
-      mockUpsertEnvVar.mockRejectedValue(new Error("Validation failed"));
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(mockGetEnvVars).toHaveBeenCalled();
-      });
-    });
-
-    it("should show error message on delete failure", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-      mockDeleteEnvVar.mockRejectedValue(new Error("Not found"));
-
-      render(<SystemSettingsEnvVarsTab />);
-
-      await waitFor(() => {
-        expect(screen.getByText("NODE_ENV")).toBeInTheDocument();
-      });
-    });
-  });
-
-  describe("versioned modal drafts", () => {
-    it("auto-adopts a newer credential snapshot while the edit form is clean", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-      render(<SystemSettingsEnvVarsTab />);
-
-      await openEditModal("NODE_ENV");
-      expect(screen.getByPlaceholderText("Optional description")).toHaveValue("Node environment");
-      await waitForInitialSignals();
-
-      mockGetEnvVars.mockResolvedValueOnce(
-        envListAt(4, {
-          NODE_ENV: {
-            value: "external-value-never-shown-in-comparison",
-            description: "External metadata",
-          },
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({
+          name: "NEW_SECRET",
+          value: "new-secret-value",
+          secret: true,
         }),
-      );
-      act(() => publishEnvSignal(6));
+      ),
+    );
+    expect(JSON.stringify(useConfigSectionStore.getState().sections.env.envelope)).not.toContain(
+      "new-secret-value",
+    );
+  });
 
-      await waitFor(() =>
-        expect(screen.getByPlaceholderText("Optional description")).toHaveValue(
-          "External metadata",
+  it("omits an untouched stored secret instead of sending a mask or empty keep value", async () => {
+    const save = vi.mocked(configSectionsService.upsertEnvVar);
+    render(<SystemSettingsEnvVarsTab />);
+    await openEditModal("GITHUB_TOKEN");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(save.mock.calls[0]?.[0]).toBe(5);
+    expect(save.mock.calls[0]?.[1]).toEqual({
+      name: "GITHUB_TOKEN",
+      secret: true,
+      description: "GitHub PAT",
+    });
+  });
+
+  it("uses an explicit empty value when clearing a stored secret", async () => {
+    const save = vi.mocked(configSectionsService.upsertEnvVar);
+    render(<SystemSettingsEnvVarsTab />);
+    await openEditModal("GITHUB_TOKEN");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear stored value" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ name: "GITHUB_TOKEN", value: "" }),
+      ),
+    );
+  });
+
+  it("shows an environment-owned secret as read-only until an explicit replacement", async () => {
+    const save = vi.mocked(configSectionsService.upsertEnvVar);
+    render(<SystemSettingsEnvVarsTab />);
+    await openEditModal("FROM_ENV");
+
+    expect(screen.getAllByText("From env").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText(/active value comes from the environment/i)).toBeInTheDocument();
+    fireEvent.change(screen.getByPlaceholderText("Enter new value or leave empty"), {
+      target: { value: "explicit-replacement" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        5,
+        expect.objectContaining({ name: "FROM_ENV", value: "explicit-replacement" }),
+      ),
+    );
+  });
+
+  it("auto-adopts a newer clean typed snapshot", async () => {
+    render(<SystemSettingsEnvVarsTab />);
+    await openEditModal("NODE_ENV");
+
+    publishEnvEnvelope(
+      envEnvelope(
+        6,
+        entries.map((entry) =>
+          entry.name === "NODE_ENV"
+            ? { ...entry, value: "staging", description: "External metadata" }
+            : entry,
         ),
-      );
-      expect(
-        screen.queryByText("Environment variables changed externally"),
-      ).not.toBeInTheDocument();
+      ),
+    );
 
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-      await waitFor(() => expect(mockUpsertEnvVar).toHaveBeenCalled());
-      expect(mockUpsertEnvVar.mock.calls.at(-1)?.[1]).toBe(4);
+    expect(await screen.findByDisplayValue("staging")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Optional description")).toHaveValue("External metadata");
+    expect(screen.queryByText("Environment variables changed externally")).not.toBeInTheDocument();
+  });
+
+  it("preserves, redacts, compares, and reapplies a dirty secret draft", async () => {
+    const save = vi.mocked(configSectionsService.upsertEnvVar);
+    render(<SystemSettingsEnvVarsTab />);
+    await openEditModal("GITHUB_TOKEN");
+    fireEvent.change(screen.getByPlaceholderText("Enter new value or leave empty"), {
+      target: { value: "local-secret-replacement" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Optional description"), {
+      target: { value: "Local metadata" },
     });
 
-    it("preserves and reapplies a dirty draft with a secret-free comparison", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-      render(<SystemSettingsEnvVarsTab />);
+    const external = envEnvelope(
+      6,
+      entries.map((entry) =>
+        entry.name === "GITHUB_TOKEN" ? { ...entry, description: "External metadata" } : entry,
+      ),
+    );
+    publishEnvEnvelope(external);
 
-      await openEditModal("GITHUB_TOKEN");
-      await waitForInitialSignals();
+    expect(await screen.findByText("Environment variables changed externally")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter new value or leave empty")).toHaveValue(
+      "local-secret-replacement",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Compare" }));
+    const comparison = screen.getByTestId("env-var-revision-comparison").textContent ?? "";
+    expect(comparison).toContain("[replace requested]");
+    expect(comparison).toContain("External metadata");
+    expect(comparison).not.toContain("local-secret-replacement");
+    expect(comparison).not.toContain("****...****");
 
-      fireEvent.change(screen.getByPlaceholderText("Enter new value or leave empty"), {
-        target: { value: "local-secret-replacement" },
-      });
-      fireEvent.change(screen.getByPlaceholderText("Optional description"), {
-        target: { value: "Local metadata" },
-      });
+    fireEvent.click(screen.getByRole("button", { name: "Reapply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(save).toHaveBeenCalledWith(
+        6,
+        expect.objectContaining({
+          value: "local-secret-replacement",
+          description: "Local metadata",
+        }),
+      ),
+    );
+  });
 
-      const externalList = envListAt(4, {
-        GITHUB_TOKEN: {
-          value: "server-mask-must-not-leak",
-          description: "External metadata",
+  it("keeps a stale draft open and exposes the current section revision after 409", async () => {
+    vi.mocked(configSectionsService.upsertEnvVar).mockRejectedValueOnce(
+      new ConfigConflictError({
+        expectedRevision: 5,
+        currentRevision: 6,
+        message: "revision conflict",
+      }),
+    );
+    render(<SystemSettingsEnvVarsTab />);
+    await openEditModal("GITHUB_TOKEN");
+    fireEvent.change(screen.getByPlaceholderText("Enter new value or leave empty"), {
+      target: { value: "preserved-local-secret" },
+    });
+    currentEnv = envEnvelope(
+      6,
+      entries.map((entry) =>
+        entry.name === "GITHUB_TOKEN" ? { ...entry, description: "External metadata" } : entry,
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByText("Environment revision conflict")).toBeInTheDocument();
+    expect(screen.getByText(/server is at revision 6/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Enter new value or leave empty")).toHaveValue(
+      "preserved-local-secret",
+    );
+    expect(useConfigSectionStore.getState().sections.env.envelope?.revision).toBe(6);
+  });
+
+  it("deletes through the store with the current section revision", async () => {
+    const remove = vi.mocked(configSectionsService.deleteEnvVar);
+    render(<SystemSettingsEnvVarsTab />);
+    const row = (await screen.findByText("NODE_ENV")).closest("tr");
+    fireEvent.click(row!.querySelector<HTMLButtonElement>('button[aria-label="Delete"]')!);
+    fireEvent.click(await screen.findByRole("button", { name: "Yes" }));
+
+    await waitFor(() => expect(remove).toHaveBeenCalledWith("NODE_ENV", 5));
+  });
+
+  it("keeps last-known-good entries visible when a later section load fails", async () => {
+    act(() => {
+      useConfigSectionStore.setState((state) => ({
+        sections: {
+          ...state.sections,
+          env: {
+            ...state.sections.env,
+            envelope: envEnvelope(5),
+            error: "redacted env refresh failure",
+          },
+          credentials: {
+            ...state.sections.credentials,
+            envelope: credentialsEnvelope(10),
+          },
         },
-      });
-      mockGetEnvVars.mockResolvedValueOnce(externalList);
-      act(() => publishEnvSignal(6));
-
-      expect(
-        await screen.findByText("Environment variables changed externally"),
-      ).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("Enter new value or leave empty")).toHaveValue(
-        "local-secret-replacement",
-      );
-      expect(screen.getByPlaceholderText("Optional description")).toHaveValue("Local metadata");
-
-      fireEvent.click(screen.getByRole("button", { name: "Compare" }));
-      const comparison = screen.getByTestId("env-var-revision-comparison").textContent ?? "";
-      expect(comparison).toContain("[replace requested]");
-      expect(comparison).toContain("External metadata");
-      expect(comparison).not.toContain("local-secret-replacement");
-      expect(comparison).not.toContain("server-mask-must-not-leak");
-      expect(comparison).not.toContain("****...****");
-
-      fireEvent.click(screen.getByRole("button", { name: "Reapply" }));
-      expect(
-        screen.queryByText("Environment variables changed externally"),
-      ).not.toBeInTheDocument();
-      expect(screen.getByPlaceholderText("Enter new value or leave empty")).toHaveValue(
-        "local-secret-replacement",
-      );
-      expect(screen.getByPlaceholderText("Optional description")).toHaveValue("Local metadata");
-
-      mockUpsertEnvVar.mockResolvedValueOnce({ ...externalList, revision: 5 });
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-      await waitFor(() =>
-        expect(mockUpsertEnvVar).toHaveBeenCalledWith(
-          expect.objectContaining({
-            name: "GITHUB_TOKEN",
-            value: "local-secret-replacement",
-            description: "Local metadata",
-          }),
-          4,
-        ),
-      );
-      await waitFor(() => expect(screen.queryByText("Edit Variable")).not.toBeInTheDocument());
-      await openEditModal("GITHUB_TOKEN");
-      expect(screen.getByPlaceholderText("Enter new value or leave empty")).toHaveValue("");
+      }));
     });
+    render(<SystemSettingsEnvVarsTab />);
 
-    it("submits the captured revision and keeps plaintext after a stale 409", async () => {
-      const externalList = envListAt(4, {
-        GITHUB_TOKEN: {
-          value: "server-mask-must-not-leak",
-          description: "External metadata",
-        },
-      });
-      mockGetEnvVars.mockResolvedValue(sampleList);
-      mockUpsertEnvVar.mockRejectedValueOnce(new ApiError("revision conflict", 409, "Conflict"));
-      render(<SystemSettingsEnvVarsTab />);
-
-      await openEditModal("GITHUB_TOKEN");
-      await waitForInitialSignals();
-      mockGetEnvVars.mockResolvedValueOnce(externalList);
-      fireEvent.change(screen.getByPlaceholderText("Enter new value or leave empty"), {
-        target: { value: "preserved-local-secret" },
-      });
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-      await waitFor(() => expect(mockUpsertEnvVar).toHaveBeenCalled());
-      expect(mockUpsertEnvVar.mock.calls.at(-1)?.[1]).toBe(3);
-      expect(
-        await screen.findByText("Environment variables changed externally"),
-      ).toBeInTheDocument();
-      expect(screen.getByPlaceholderText("Enter new value or leave empty")).toHaveValue(
-        "preserved-local-secret",
-      );
-      expect(screen.getByText("Edit Variable")).toBeInTheDocument();
-    });
-
-    it("uses an explicit empty replacement when clearing a stored value", async () => {
-      mockGetEnvVars.mockResolvedValue(sampleList);
-      mockUpsertEnvVar.mockResolvedValueOnce(envListAt(4));
-      render(<SystemSettingsEnvVarsTab />);
-
-      await openEditModal("GITHUB_TOKEN");
-      fireEvent.click(screen.getByRole("button", { name: "Clear stored value" }));
-      expect(screen.getByRole("button", { name: "Value will be cleared" })).toBeInTheDocument();
-      fireEvent.click(screen.getByRole("button", { name: "Save" }));
-
-      await waitFor(() =>
-        expect(mockUpsertEnvVar).toHaveBeenCalledWith(
-          expect.objectContaining({ name: "GITHUB_TOKEN", value: "" }),
-          3,
-        ),
-      );
-    });
+    expect(await screen.findByText("NODE_ENV")).toBeInTheDocument();
+    expect(screen.getByText("redacted env refresh failure")).toBeInTheDocument();
   });
 });

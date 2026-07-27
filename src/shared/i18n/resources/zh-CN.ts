@@ -1695,8 +1695,14 @@ export const zhCnTranslation = {
         notSet: "（未设置）",
         empty: "（空）",
         credentialConfigured: "已配置",
+        credentialFromEnv: "来自环境变量",
+        credentialFromEnvHelp:
+          "当前值来自环境变量。除非你明确输入替换值或清除持久化绑定，否则该值保持只读。",
         credentialMissing: "缺失",
         credentialError: "错误",
+        revisionConflict: "环境变量版本冲突",
+        revisionConflictDescription:
+          "你的草稿基于版本 {{expected}}；服务器当前为版本 {{current}}。草稿已保留。",
         changedExternally: "环境变量已在外部更新",
         changedExternallyDescription:
           "你的草稿已保留。可重新加载以放弃草稿、比较版本，或将草稿重新应用到最新配置。",

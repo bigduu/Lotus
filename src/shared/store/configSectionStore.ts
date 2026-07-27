@@ -12,6 +12,8 @@ import {
   type ConfigSectionId,
   type ConfigSectionStatus,
   type ConnectSectionDraft,
+  type EnvMutationResult,
+  type EnvVarMutation,
   type McpCredentialChanges,
   type McpSection,
   type NotificationSectionEnvelope,
@@ -43,7 +45,12 @@ interface ConfigSectionStoreState {
     section: K,
     options?: { force?: boolean },
   ) => Promise<ConfigSectionEnvelope<ConfigSectionDataMap[K]>>;
-  saveSection: <K extends Exclude<WritableConfigSectionId, "notifications" | "providers" | "mcp">>(
+  saveSection: <
+    K extends Exclude<
+      WritableConfigSectionId,
+      "notifications" | "providers" | "mcp" | "connect" | "cluster-fabric" | "env"
+    >,
+  >(
     section: K,
     data: ConfigSectionDataMap[K],
     expectedRevision?: number,
@@ -69,6 +76,8 @@ interface ConfigSectionStoreState {
     envelope: ConfigSectionEnvelope<ConfigSectionDataMap["connect"]>;
     credentialRevision: number;
   }>;
+  saveEnvVar: (data: EnvVarMutation, expectedRevision?: number) => Promise<EnvMutationResult>;
+  deleteEnvVar: (name: string, expectedRevision?: number) => Promise<EnvMutationResult>;
   saveClusterNode: (
     nodeId: string | null,
     data: ClusterNodeMutation,
@@ -228,6 +237,71 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
         ...result,
         envelope:
           adopted && adopted.revision > result.envelope.revision ? adopted : result.envelope,
+      };
+    } catch (error) {
+      const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+      if (!isLatestMutation(section, mutationSequence)) throw error;
+      set((state) => ({
+        sections: {
+          ...state.sections,
+          [section]: {
+            ...state.sections[section],
+            error: errorMessage(error),
+            conflict,
+          },
+        },
+      }));
+      throw error;
+    }
+  }
+
+  async function commitEnvMutation(
+    expectedRevision: number | undefined,
+    mutate: (revision: number) => Promise<EnvMutationResult>,
+  ): Promise<EnvMutationResult> {
+    const section = "env" as const;
+    const snapshot = get().sections[section];
+    const revision = expectedRevision ?? snapshot.envelope?.revision;
+    if (revision === undefined) throw new Error("Load env before changing it.");
+    const mutationSequence = beginMutation(section);
+
+    try {
+      const result = await mutate(revision);
+      set((state) => {
+        const current = state.sections[section];
+        const currentCredentials = state.sections.credentials;
+        const adoptedEnvelope =
+          (current.envelope?.revision ?? -1) > result.envelope.revision
+            ? current.envelope
+            : result.envelope;
+        const adoptCredentials =
+          (currentCredentials.envelope?.revision ?? -1) <= result.credentials.revision;
+        const latestMutation = isLatestMutation(section, mutationSequence);
+        return {
+          sections: {
+            ...state.sections,
+            [section]: {
+              ...current,
+              envelope: adoptedEnvelope,
+              loading: false,
+              error: latestMutation ? null : current.error,
+              conflict: latestMutation ? null : current.conflict,
+            },
+            credentials: adoptCredentials
+              ? {
+                  ...currentCredentials,
+                  envelope: result.credentials,
+                  loading: false,
+                  error: null,
+                  conflict: null,
+                }
+              : currentCredentials,
+          },
+        };
+      });
+      return {
+        envelope: get().sections.env.envelope ?? result.envelope,
+        credentials: get().sections.credentials.envelope ?? result.credentials,
       };
     } catch (error) {
       const conflict = error instanceof ConfigConflictError ? error.conflict : null;
@@ -553,6 +627,16 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
         throw error;
       }
     },
+
+    saveEnvVar: (data, expectedRevision) =>
+      commitEnvMutation(expectedRevision, (revision) =>
+        configSectionsService.upsertEnvVar(revision, data),
+      ),
+
+    deleteEnvVar: (name, expectedRevision) =>
+      commitEnvMutation(expectedRevision, (revision) =>
+        configSectionsService.deleteEnvVar(name, revision),
+      ),
 
     saveClusterNode: (nodeId, data, expectedRevision) =>
       commitClusterMutation(expectedRevision, (revision) =>

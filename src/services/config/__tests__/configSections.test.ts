@@ -5,10 +5,65 @@ import {
   configSectionsService,
   type ClusterFabricSection,
   type ClusterNodeMutation,
+  type CredentialStatus,
+  type EnvSection,
   type McpSection,
   type NotificationSection,
   type ProviderSection,
 } from "../configSections";
+
+const envSectionResponse = (
+  revision: number,
+  data: EnvSection = [
+    {
+      name: "SECRET_TOKEN",
+      secret: true,
+      credential_ref: "env.SECRET_TOKEN.value",
+      configured: true,
+    },
+  ],
+) => ({
+  data,
+  revision,
+  loaded_at: `2026-07-26T00:00:0${revision}Z`,
+  source_path: "/tmp/env.json",
+  source_kind: "file" as const,
+  status: "healthy" as const,
+  last_error: null,
+});
+
+const credentialResponse = (revision: number) => ({
+  data: [
+    {
+      credential_ref: "env.SECRET_TOKEN.value",
+      configured: true,
+      source: "user",
+      updated_at: null,
+    },
+  ] satisfies CredentialStatus[],
+  revision,
+  status: "healthy" as const,
+  source: "file",
+  last_error: null,
+});
+
+const mockEnvReads = (sectionRevisions: number[], credentialRevisions: number[]) => {
+  const sections = [...sectionRevisions];
+  const credentials = [...credentialRevisions];
+  return vi.spyOn(apiClient, "get").mockImplementation(async (path: string) => {
+    if (path === "/bamboo/config/sections/env") {
+      const revision = sections.shift();
+      if (revision === undefined) throw new Error("Unexpected Env section read");
+      return envSectionResponse(revision) as never;
+    }
+    if (path === "/bamboo/config/credentials") {
+      const revision = credentials.shift();
+      if (revision === undefined) throw new Error("Unexpected credential read");
+      return credentialResponse(revision) as never;
+    }
+    throw new Error(`Unexpected GET ${path}`);
+  });
+};
 
 const notificationResponse = (credentialRevision: number) => ({
   revision: credentialRevision,
@@ -489,6 +544,105 @@ describe("configSectionsService", () => {
       44,
     );
     expect(result.data.ntfy.credential.configured).toBe(true);
+  });
+
+  it("writes Env through the captured section revision and never adopts a mask response", async () => {
+    mockEnvReads([5, 6], [10, 11]);
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({
+      revision: 11,
+      entries: [
+        {
+          name: "SECRET_TOKEN",
+          value: "****...****",
+          secret: true,
+          configured: true,
+        },
+      ],
+    });
+
+    const result = await configSectionsService.upsertEnvVar(5, {
+      name: "SECRET_TOKEN",
+      value: "replacement",
+      secret: true,
+    });
+
+    expect(post).toHaveBeenCalledWith("/bamboo/env-vars", {
+      expected_revision: 10,
+      name: "SECRET_TOKEN",
+      value: "replacement",
+      secret: true,
+    });
+    expect(result.envelope.revision).toBe(6);
+    expect(result.credentials.revision).toBe(11);
+    expect(JSON.stringify(result)).not.toContain("****...****");
+    expect(JSON.stringify(result)).not.toContain("replacement");
+  });
+
+  it("rejects a stale Env section before touching the credential endpoint", async () => {
+    mockEnvReads([6], [10]);
+    const post = vi.spyOn(apiClient, "post");
+
+    await expect(
+      configSectionsService.upsertEnvVar(5, {
+        name: "VISIBLE",
+        value: "value",
+        secret: false,
+      }),
+    ).rejects.toMatchObject<ConfigConflictError>({
+      conflict: {
+        expectedRevision: 5,
+        currentRevision: 6,
+      },
+    });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("rebases one unrelated credential race only after rechecking the Env section", async () => {
+    mockEnvReads([5, 5, 6], [10, 11, 12]);
+    const post = vi
+      .spyOn(apiClient, "post")
+      .mockRejectedValueOnce(new ApiError("credential race", 409, "Conflict"))
+      .mockResolvedValueOnce({ revision: 12, entries: [] });
+
+    await expect(
+      configSectionsService.upsertEnvVar(5, {
+        name: "VISIBLE",
+        value: "value",
+        secret: false,
+      }),
+    ).resolves.toMatchObject({
+      envelope: { revision: 6 },
+      credentials: { revision: 12 },
+    });
+    expect(post.mock.calls.map((call) => call[1])).toEqual([
+      expect.objectContaining({ expected_revision: 10 }),
+      expect.objectContaining({ expected_revision: 11 }),
+    ]);
+  });
+
+  it("maps a repeated Env credential race back to the latest owned section revision", async () => {
+    mockEnvReads([5, 5, 6], [10, 11, 12]);
+    vi.spyOn(apiClient, "delete")
+      .mockRejectedValueOnce(new ApiError("credential race", 409, "Conflict"))
+      .mockRejectedValueOnce(new ApiError("stale Env writer", 409, "Conflict"));
+
+    await expect(
+      configSectionsService.deleteEnvVar("SECRET/TOKEN", 5),
+    ).rejects.toMatchObject<ConfigConflictError>({
+      conflict: {
+        expectedRevision: 5,
+        currentRevision: 6,
+        message: "stale Env writer",
+      },
+    });
+    expect(apiClient.delete).toHaveBeenNthCalledWith(
+      1,
+      "/bamboo/env-vars/SECRET%2FTOKEN?expected_revision=10",
+    );
+    expect(apiClient.delete).toHaveBeenNthCalledWith(
+      2,
+      "/bamboo/env-vars/SECRET%2FTOKEN?expected_revision=11",
+    );
   });
 
   it("replaces proxy credentials with the credential revision and no mask round-trip", async () => {

@@ -35,7 +35,6 @@ import {
   settingsService,
   type CopilotAuthStatus,
   type DeviceCodeInfo,
-  type EnvVarResponse,
 } from "@services/config/SettingsService";
 import type {
   ProviderConfig,
@@ -64,6 +63,7 @@ import type {
   ProviderCredentialStatus,
   ProviderInstanceSettings,
   ProviderSection,
+  EnvSectionEntry,
 } from "@services/config/configSections";
 import { providerSectionToInstances } from "@services/config/providerSettings";
 import { v4 as uuid } from "uuid";
@@ -122,6 +122,7 @@ const MODEL_PROVIDERS = [
 ] as const satisfies readonly ModelProvider[];
 
 const EMPTY_PROVIDER_CREDENTIAL_STATUS: Record<string, ProviderCredentialStatus> = {};
+const EMPTY_ENV_ENTRIES: EnvSectionEntry[] = [];
 
 const ProviderModelRefField: React.FC<{
   value?: ProviderModelRef;
@@ -279,7 +280,6 @@ export const ProviderSettings: React.FC = () => {
   const [completingAuth, setCompletingAuth] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number>(0);
   const [copiedUserCode, setCopiedUserCode] = useState(false);
-  const [envVarEntries, setEnvVarEntries] = useState<EnvVarResponse[]>([]);
   const [fetchingAllModels, setFetchingAllModels] = useState(false);
 
   // ── Multi-instance state ──────────────────────────────────────
@@ -419,6 +419,9 @@ export const ProviderSettings: React.FC = () => {
       EMPTY_PROVIDER_CREDENTIAL_STATUS,
   );
   const providerEnvelope = useConfigSectionStore((state) => state.sections.providers.envelope);
+  const envVarEntries = useConfigSectionStore(
+    (state) => state.sections.env.envelope?.data ?? EMPTY_ENV_ENTRIES,
+  );
 
   const getProviderDisplayLabel = useCallback(
     (providerOrInstanceId?: string) => {
@@ -466,6 +469,7 @@ export const ProviderSettings: React.FC = () => {
       const [providers, memory] = await Promise.all([
         loadSection("providers", { force: true }),
         loadSection("memory"),
+        loadSection("env"),
       ]);
       debugLog("[Provider]", "Loaded provider section:", redactSensitive(providers.data));
       syncProviderState(providers.data, memory.data, providers.revision);
@@ -476,15 +480,6 @@ export const ProviderSettings: React.FC = () => {
       setLoading(false);
     }
   }, [loadSection, message, syncProviderState, t]);
-
-  const loadEnvVars = useCallback(async () => {
-    try {
-      const response = await settingsService.getEnvVars();
-      setEnvVarEntries(response.entries || []);
-    } catch (error) {
-      console.warn("Failed to load env vars for provider overrides:", error);
-    }
-  }, []);
 
   const commitProviderMutation = useCallback(
     async (
@@ -665,11 +660,10 @@ export const ProviderSettings: React.FC = () => {
   }, [t]);
 
   useEffect(() => {
-    void loadEnvVars();
     void useProviderStore.getState().loadCatalog();
     void checkCopilotAuthStatus();
     void loadConfig();
-  }, [loadConfig, loadEnvVars, checkCopilotAuthStatus]);
+  }, [loadConfig, checkCopilotAuthStatus]);
 
   useEffect(() => {
     if (!configLoaded || !providerEnvelope || providerEnvelope.revision === baseRevision || dirty) {
