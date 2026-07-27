@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   App as AntApp,
   Button,
   Card,
+  Flex,
   Form,
   Input,
   InputNumber,
@@ -19,21 +21,29 @@ import {
 import { CloudServerOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import {
-  settingsService,
-  FabricNode,
-  FabricCluster,
-  NodePlacement,
-  NodeStatus,
-  NodeUpsertRequest,
-  SshAuth,
-} from "@services/config/SettingsService";
+  ConfigConflictError,
+  configSectionsService,
+  type ClusterCredentialAction,
+  type ClusterCredentialFieldStatus,
+  type ClusterFabricCluster,
+  type ClusterFabricNode,
+  type ClusterNodeMutation,
+  type ClusterNodePlacement,
+  type ClusterNodeStatus,
+  type ConfigRevisionConflict,
+  type ConfigSectionEnvelope,
+} from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text, Paragraph } = Typography;
 
-const SECRET_MASK = "****...****";
+const EMPTY_CLUSTER_NODES: ClusterFabricNode[] = [];
+const EMPTY_CLUSTER_DEFINITIONS: ClusterFabricCluster[] = [];
 
 /** Status → antd Tag color. */
-const STATUS_COLOR: Record<NodeStatus, string> = {
+const STATUS_COLOR: Record<ClusterNodeStatus, string> = {
   not_deployed: "default",
   deploying: "processing",
   running: "success",
@@ -56,8 +66,6 @@ const sinceLabel = (iso?: string): string => {
   return `${Math.floor(hrs / 24)}d ago`;
 };
 
-const STATUS_POLL_MS = 30_000;
-
 interface NodeFormValues {
   label: string;
   placement_type: "local" | "ssh";
@@ -77,6 +85,62 @@ interface NodeFormValues {
   enabled: boolean;
 }
 
+const emptyNodeDraft = (): NodeFormValues => ({
+  label: "",
+  placement_type: "ssh",
+  port: 22,
+  auth_method: "password",
+  password: "",
+  private_key: "",
+  passphrase: "",
+  cluster_name: [],
+  auto_recover: false,
+  enabled: true,
+});
+
+const draftFromNode = (node: ClusterFabricNode, clusterName?: string): NodeFormValues => {
+  const ssh =
+    node.placement.type === "ssh"
+      ? (node.placement as Extract<ClusterNodePlacement, { type: "ssh" }>)
+      : undefined;
+  return {
+    label: node.label,
+    placement_type: node.placement.type,
+    host: ssh?.host,
+    port: ssh?.port ?? 22,
+    username: ssh?.username,
+    auth_method: ssh?.auth.method ?? "password",
+    password: "",
+    private_key: "",
+    private_key_path: ssh?.auth.method === "private_key" ? ssh.auth.private_key_path : undefined,
+    passphrase: "",
+    artifact_path: node.deploy?.artifact_path,
+    default_role: node.deploy?.default_role,
+    auto_recover: node.deploy?.auto_recover ?? false,
+    cluster_name: clusterName ? [clusterName] : [],
+    enabled: node.enabled,
+  };
+};
+
+const redactNodeDraft = (draft: NodeFormValues, clearPassphrase: boolean) => ({
+  ...draft,
+  password: draft.password ? "[replace requested]" : "",
+  private_key: draft.private_key ? "[replace requested]" : "",
+  passphrase: draft.passphrase ? "[replace requested]" : "",
+  clearPassphrase,
+});
+
+const selectedClusterNames = (value: string | string[] | undefined): string[] => {
+  const raw = Array.isArray(value) ? value : value ? [value] : [];
+  return raw
+    .map((name) => name.trim())
+    .filter(Boolean)
+    .slice(0, 1);
+};
+
+const keepCredential: ClusterCredentialAction = { action: "keep" };
+const clearCredential: ClusterCredentialAction = { action: "clear" };
+
 /**
  * Remote Cluster Fabric management tab.
  *
@@ -89,65 +153,39 @@ const SystemSettingsClustersTab: React.FC = () => {
   const { t } = useTranslation();
   const { message } = AntApp.useApp();
 
-  const [nodes, setNodes] = useState<FabricNode[]>([]);
-  const [clusters, setClusters] = useState<FabricCluster[]>([]);
-  const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [modalBaseRevision, setModalBaseRevision] = useState<number | null>(null);
+  const [modalDirty, setModalDirty] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const [clearPassphrase, setClearPassphrase] = useState(false);
+  const [saveConflict, setSaveConflict] = useState<ConfigRevisionConflict | null>(null);
   const [form] = Form.useForm<NodeFormValues>();
   const [logsOpen, setLogsOpen] = useState(false);
-  const [logsNode, setLogsNode] = useState<FabricNode | null>(null);
+  const [logsNode, setLogsNode] = useState<ClusterFabricNode | null>(null);
   const [logsText, setLogsText] = useState("");
   const [logsLoading, setLogsLoading] = useState(false);
+  const baseDraftRef = useRef<NodeFormValues | null>(null);
+  const clusterSnapshot = useConfigSectionStore((state) => state.sections["cluster-fabric"]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveClusterNode = useConfigSectionStore((state) => state.saveClusterNode);
+  const deleteClusterNode = useConfigSectionStore((state) => state.deleteClusterNode);
+  const runClusterNodeAction = useConfigSectionStore((state) => state.runClusterNodeAction);
+  const envelope = clusterSnapshot.envelope;
+  const nodes = envelope?.data.nodes ?? EMPTY_CLUSTER_NODES;
+  const clusters = envelope?.data.clusters ?? EMPTY_CLUSTER_DEFINITIONS;
+  const loading = clusterSnapshot.loading && !envelope;
 
   const placementType = Form.useWatch("placement_type", form);
   const authMethod = Form.useWatch("auth_method", form);
 
   // ── Data ─────────────────────────────────────────────────────────
 
-  // Monotonic id so an out-of-order fetch (a slow poll resolving after a newer
-  // load/poll) can't overwrite fresher data.
-  const fetchSeq = useRef(0);
-
-  const fetchAll = useCallback(
-    async (silent = false) => {
-      const seq = ++fetchSeq.current;
-      if (!silent) setLoading(true);
-      try {
-        const res = await settingsService.listNodes();
-        if (seq !== fetchSeq.current) return; // superseded by a newer fetch
-        setNodes(res.nodes);
-        setClusters(res.clusters);
-      } catch {
-        // A background poll shouldn't spam errors; only surface an explicit load.
-        if (!silent) message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
-      } finally {
-        if (!silent) setLoading(false);
-      }
-    },
-    [message, t],
-  );
-
   useEffect(() => {
-    fetchAll();
-  }, [fetchAll]);
-
-  // Live status: silently re-poll while the tab is visible and no modal is open
-  // (editing/logs), so health flips (running↔unreachable) + "last seen" refresh
-  // without a manual reload. Also refreshes immediately on regaining visibility.
-  useEffect(() => {
-    const tick = () => {
-      if (document.visibilityState === "visible" && !modalOpen && !logsOpen) {
-        fetchAll(true);
-      }
-    };
-    const timer = window.setInterval(tick, STATUS_POLL_MS);
-    document.addEventListener("visibilitychange", tick);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", tick);
-    };
-  }, [fetchAll, modalOpen, logsOpen]);
+    void loadSection("cluster-fabric").catch(() => {
+      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+    });
+  }, [loadSection, message, t]);
 
   // Map node id → its cluster name (first membership wins) for the table.
   const nodeClusterName = useMemo(() => {
@@ -162,228 +200,311 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   // ── Modal ────────────────────────────────────────────────────────
 
-  const openAddModal = () => {
-    setEditingId(null);
-    form.resetFields();
-    form.setFieldsValue({
-      placement_type: "ssh",
-      port: 22,
-      auth_method: "password",
-      enabled: true,
-    });
-    setModalOpen(true);
-  };
+  const replaceFormValues = useCallback(
+    (values: NodeFormValues) => {
+      form.resetFields();
+      form.setFieldsValue(values);
+    },
+    [form],
+  );
 
-  const openEditModal = (node: FabricNode) => {
-    setEditingId(node.id);
-    const isSsh = node.placement.type === "ssh";
-    const ssh = isSsh ? (node.placement as Extract<NodePlacement, { type: "ssh" }>) : undefined;
-    form.setFieldsValue({
-      label: node.label,
-      placement_type: node.placement.type,
-      host: ssh?.host,
-      port: ssh?.port ?? 22,
-      username: ssh?.username,
-      auth_method: ssh?.auth.method ?? "password",
-      // Secrets come back masked; leave blank so the user re-enters only to change.
-      password: "",
-      private_key: "",
-      private_key_path: ssh?.auth.method === "private_key" ? ssh.auth.private_key_path : undefined,
-      passphrase: "",
-      artifact_path: node.deploy?.artifact_path,
-      default_role: node.deploy?.default_role,
-      auto_recover: node.deploy?.auto_recover ?? false,
-      cluster_name: (() => {
-        const n = nodeClusterName.get(node.id);
-        return n ? [n] : [];
-      })(),
-      enabled: node.enabled,
-    });
-    setModalOpen(true);
-  };
-
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setModalOpen(false);
     setEditingId(null);
+    setModalBaseRevision(null);
+    setModalDirty(false);
+    setShowComparison(false);
+    setClearPassphrase(false);
+    setSaveConflict(null);
+    baseDraftRef.current = null;
     form.resetFields();
+  }, [form]);
+
+  const openAddModal = () => {
+    if (!envelope) {
+      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      return;
+    }
+    const values = emptyNodeDraft();
+    setEditingId(null);
+    setModalBaseRevision(envelope.revision);
+    setModalDirty(false);
+    setShowComparison(false);
+    setClearPassphrase(false);
+    setSaveConflict(null);
+    baseDraftRef.current = structuredClone(values);
+    replaceFormValues(values);
+    setModalOpen(true);
   };
 
-  const buildPlacement = (v: NodeFormValues): NodePlacement => {
-    if (v.placement_type === "local") return { type: "local" };
-    // Secrets come back masked; only mask-preserve one the edited node ACTUALLY
-    // had, so switching auth methods (password→key) or clearing an inline key on
-    // a path-based node never stores the mask string as a bogus secret.
-    const original = editingId ? nodes.find((n) => n.id === editingId) : undefined;
-    const originalAuth =
-      original?.placement.type === "ssh"
-        ? (original.placement as Extract<NodePlacement, { type: "ssh" }>).auth
-        : undefined;
-    const preserve = (existing: string | undefined, entered: string | undefined) =>
-      Boolean(existing) && !entered;
-    let auth: SshAuth;
-    if (v.auth_method === "system_ssh_config") {
-      auth = { method: "system_ssh_config" };
-    } else if (v.auth_method === "private_key") {
-      const existingKey =
-        originalAuth?.method === "private_key" ? originalAuth.private_key : undefined;
-      const existingPass =
-        originalAuth?.method === "private_key" ? originalAuth.passphrase : undefined;
-      auth = {
-        method: "private_key",
-        private_key: preserve(existingKey, v.private_key)
-          ? SECRET_MASK
-          : v.private_key || undefined,
-        private_key_path: v.private_key_path || undefined,
-        passphrase: preserve(existingPass, v.passphrase) ? SECRET_MASK : v.passphrase || undefined,
-      };
-    } else {
-      const existingPw = originalAuth?.method === "password" ? originalAuth.password : undefined;
-      auth = {
-        method: "password",
-        password: preserve(existingPw, v.password) ? SECRET_MASK : v.password,
-      };
+  const openEditModal = (node: ClusterFabricNode) => {
+    if (!envelope) {
+      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      return;
     }
+    const values = draftFromNode(node, nodeClusterName.get(node.id));
+    setEditingId(node.id);
+    setModalBaseRevision(envelope.revision);
+    setModalDirty(false);
+    setShowComparison(false);
+    setClearPassphrase(false);
+    setSaveConflict(null);
+    baseDraftRef.current = structuredClone(values);
+    replaceFormValues(values);
+    setModalOpen(true);
+  };
+
+  const adoptModalEnvelope = useCallback(
+    (
+      latestEnvelope: ConfigSectionEnvelope<NonNullable<typeof envelope>["data"]>,
+      keepDraft: boolean,
+    ) => {
+      if (!modalOpen) return;
+      const latestNode = editingId
+        ? latestEnvelope.data.nodes.find((node) => node.id === editingId)
+        : null;
+      if (editingId && !latestNode) {
+        message.warning(
+          t(
+            "settings.clusters.removedExternally",
+            "This cluster node no longer exists in the latest configuration.",
+          ),
+        );
+        closeModal();
+        return;
+      }
+      const latestClusterName = editingId
+        ? latestEnvelope.data.clusters.find((cluster) => cluster.node_ids.includes(editingId))?.name
+        : undefined;
+      const latestDraft = latestNode
+        ? draftFromNode(latestNode, latestClusterName)
+        : emptyNodeDraft();
+      const currentDraft = form.getFieldsValue(true) as NodeFormValues;
+      const nextDraft =
+        keepDraft && baseDraftRef.current
+          ? reapplyConfigChanges(baseDraftRef.current, currentDraft, latestDraft)
+          : latestDraft;
+
+      replaceFormValues(nextDraft);
+      baseDraftRef.current = structuredClone(latestDraft);
+      setModalBaseRevision(latestEnvelope.revision);
+      setModalDirty(keepDraft);
+      if (!keepDraft) setClearPassphrase(false);
+      setShowComparison(false);
+      setSaveConflict(null);
+    },
+    [closeModal, editingId, form, message, modalOpen, replaceFormValues, t],
+  );
+
+  useEffect(() => {
+    if (
+      !modalOpen ||
+      modalDirty ||
+      !envelope ||
+      modalBaseRevision === null ||
+      envelope.revision <= modalBaseRevision
+    ) {
+      return;
+    }
+    adoptModalEnvelope(envelope, false);
+  }, [adoptModalEnvelope, envelope, modalBaseRevision, modalDirty, modalOpen]);
+
+  const externalRevision =
+    modalOpen && envelope && modalBaseRevision !== null && envelope.revision > modalBaseRevision
+      ? envelope.revision
+      : null;
+
+  const reloadModal = useCallback(async () => {
+    try {
+      const latest = await loadSection("cluster-fabric", { force: true });
+      adoptModalEnvelope(latest, false);
+    } catch (error) {
+      message.error(
+        configErrorMessage(error, t("settings.clusters.fetchError", "Failed to load clusters")),
+      );
+    }
+  }, [adoptModalEnvelope, loadSection, message, t]);
+
+  const reapplyModal = useCallback(async () => {
+    try {
+      const latest = await loadSection("cluster-fabric", { force: true });
+      adoptModalEnvelope(latest, true);
+    } catch (error) {
+      message.error(
+        configErrorMessage(error, t("settings.clusters.fetchError", "Failed to load clusters")),
+      );
+    }
+  }, [adoptModalEnvelope, loadSection, message, t]);
+
+  const comparison =
+    showComparison && externalRevision !== null && envelope && baseDraftRef.current
+      ? JSON.stringify(
+          {
+            revisions: { base: modalBaseRevision, latest: envelope.revision },
+            base: redactNodeDraft(baseDraftRef.current, false),
+            draft: redactNodeDraft(form.getFieldsValue(true) as NodeFormValues, clearPassphrase),
+            latest: editingId
+              ? (() => {
+                  const latest = envelope.data.nodes.find((node) => node.id === editingId);
+                  const clusterName = envelope.data.clusters.find((cluster) =>
+                    cluster.node_ids.includes(editingId),
+                  )?.name;
+                  return latest ? redactNodeDraft(draftFromNode(latest, clusterName), false) : null;
+                })()
+              : redactNodeDraft(emptyNodeDraft(), false),
+          },
+          null,
+          2,
+        )
+      : null;
+
+  const buildPlacement = (values: NodeFormValues): ClusterNodePlacement => {
+    if (values.placement_type === "local") return { type: "local" };
+    const existingPlacement = editingId
+      ? nodes.find((node) => node.id === editingId)?.placement
+      : undefined;
+    const auth =
+      values.auth_method === "system_ssh_config"
+        ? ({ method: "system_ssh_config" } as const)
+        : values.auth_method === "private_key"
+          ? ({
+              method: "private_key",
+              ...(values.private_key_path?.trim()
+                ? { private_key_path: values.private_key_path.trim() }
+                : {}),
+            } as const)
+          : ({ method: "password" } as const);
     return {
       type: "ssh",
-      host: v.host?.trim() ?? "",
-      port: v.port ?? 22,
-      username: v.username?.trim() ?? "",
+      host: values.host?.trim() ?? "",
+      port: values.port ?? 22,
+      username: values.username?.trim() ?? "",
       auth,
+      ...(existingPlacement?.type === "ssh" && existingPlacement.host_key_fingerprint
+        ? { host_key_fingerprint: existingPlacement.host_key_fingerprint }
+        : {}),
     };
   };
 
-  const handleSave = async (v: NodeFormValues) => {
-    const req: NodeUpsertRequest = {
-      label: v.label.trim(),
-      placement: buildPlacement(v),
-      enabled: v.enabled ?? true,
+  const buildCredentialChanges = (
+    values: NodeFormValues,
+  ): ClusterNodeMutation["credential_changes"] => {
+    if (values.placement_type === "local" || values.auth_method === "system_ssh_config") {
+      return {
+        password: clearCredential,
+        private_key: clearCredential,
+        passphrase: clearCredential,
+      };
+    }
+    if (values.auth_method === "private_key") {
+      const privateKey = values.private_key?.trim();
+      const passphrase = values.passphrase?.trim();
+      return {
+        password: clearCredential,
+        private_key: values.private_key_path?.trim()
+          ? clearCredential
+          : privateKey
+            ? { action: "replace", value: privateKey }
+            : keepCredential,
+        passphrase: clearPassphrase
+          ? clearCredential
+          : passphrase
+            ? { action: "replace", value: passphrase }
+            : keepCredential,
+      };
+    }
+    const password = values.password?.trim();
+    return {
+      password: password ? { action: "replace", value: password } : keepCredential,
+      private_key: clearCredential,
+      passphrase: clearCredential,
+    };
+  };
+
+  const handleSave = async (values: NodeFormValues) => {
+    if (modalBaseRevision === null) {
+      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      return;
+    }
+    const request: ClusterNodeMutation = {
+      label: values.label.trim(),
+      placement: buildPlacement(values),
+      trust_level: nodes.find((node) => node.id === editingId)?.trust_level ?? "trusted",
+      enabled: values.enabled ?? true,
       deploy: {
-        artifact_path: v.artifact_path?.trim() || undefined,
-        default_role: v.default_role?.trim() || undefined,
-        auto_recover: v.auto_recover ?? false,
+        ...(nodes.find((node) => node.id === editingId)?.deploy ?? {}),
+        artifact_path: values.artifact_path?.trim() || undefined,
+        default_role: values.default_role?.trim() || undefined,
+        auto_recover: values.auto_recover ?? false,
       },
+      credential_changes: buildCredentialChanges(values),
+      membership: { cluster_names: selectedClusterNames(values.cluster_name) },
     };
 
     try {
-      const saved = editingId
-        ? await settingsService.updateNode(editingId, req)
-        : await settingsService.createNode(req);
-
-      // The cluster Select uses tags-mode → value is an array; take the first.
-      const clusterName = Array.isArray(v.cluster_name) ? v.cluster_name[0] : v.cluster_name;
-      // The node is now persisted. Cluster membership is a SEPARATE set of writes;
-      // a failure there must not be reported as a node-save failure (the save
-      // succeeded), and we still refetch so the UI reflects what actually persisted.
-      try {
-        await applyClusterMembership(saved.id, clusterName);
-      } catch (memErr: unknown) {
-        message.warning(
-          (memErr instanceof Error ? memErr.message : undefined) ||
-            t(
-              "settings.clusters.membershipError",
-              "Node saved, but updating cluster membership failed",
-            ),
-        );
-        closeModal();
-        fetchAll();
-        return;
-      }
-
+      await saveClusterNode(editingId, request, modalBaseRevision);
       message.success(
         editingId
           ? t("settings.clusters.updated", "Node updated")
           : t("settings.clusters.created", "Node created"),
       );
       closeModal();
-      fetchAll();
-    } catch (err: unknown) {
+    } catch (error: unknown) {
+      if (error instanceof ConfigConflictError) {
+        setModalDirty(true);
+        setSaveConflict(error.conflict);
+        try {
+          await loadSection("cluster-fabric", { force: true });
+        } catch {
+          // Keep the original conflict visible when the diagnostic refresh fails.
+        }
+      }
       message.error(
-        (err instanceof Error ? err.message : undefined) ||
-          t("settings.clusters.saveError", "Failed to save node"),
+        configErrorMessage(error, t("settings.clusters.saveError", "Failed to save node")),
       );
-    }
-  };
-
-  /** Ensure `nodeId` belongs to `clusterName` (creating the cluster if needed),
-   *  and remove it from any other cluster. No-op when clusterName is empty. */
-  const applyClusterMembership = async (nodeId: string, clusterName?: string) => {
-    const target = clusterName?.trim();
-    for (const c of clusters) {
-      const isTarget = c.name === target;
-      const has = c.node_ids.includes(nodeId);
-      if (!isTarget && has) {
-        await settingsService.updateCluster(c.name, {
-          name: c.name,
-          description: c.description,
-          node_ids: c.node_ids.filter((id) => id !== nodeId),
-        });
-      }
-    }
-    if (!target) return;
-    const existing = clusters.find((c) => c.name === target);
-    if (existing) {
-      if (!existing.node_ids.includes(nodeId)) {
-        await settingsService.updateCluster(target, {
-          name: target,
-          description: existing.description,
-          node_ids: [...existing.node_ids, nodeId],
-        });
-      }
-    } else {
-      await settingsService.createCluster({ name: target, node_ids: [nodeId] });
     }
   };
 
   // ── Row actions ──────────────────────────────────────────────────
 
   const handleDelete = async (id: string) => {
+    if (!envelope) return;
     try {
-      await settingsService.deleteNode(id);
+      await deleteClusterNode(id, envelope.revision);
       message.success(t("settings.clusters.deleted", "Node deleted"));
-      fetchAll();
     } catch (err: unknown) {
       message.error(
-        (err instanceof Error ? err.message : undefined) ||
-          t("settings.clusters.deleteError", "Failed to delete node"),
+        configErrorMessage(err, t("settings.clusters.deleteError", "Failed to delete node")),
       );
     }
   };
 
   const handleAction = async (id: string, action: "test" | "deploy" | "stop") => {
+    if (!envelope) return;
     try {
-      const res = await settingsService.nodeAction(id, action);
+      const res = await runClusterNodeAction(id, action, envelope.revision);
       // `test` returns a preflight string (e.g. remote uname); surface it.
-      const preflight =
-        action === "test" && res && typeof res === "object" && "preflight" in res
-          ? String((res as { preflight?: unknown }).preflight ?? "")
-          : "";
+      const preflight = action === "test" ? (res.preflight ?? "") : "";
       message.success(
         preflight
           ? t("settings.clusters.testOk", "Reachable: {{info}}", { info: preflight })
           : t("settings.clusters.actionOk", "Action triggered"),
       );
-      fetchAll();
     } catch (err: unknown) {
-      message.error(
-        (err instanceof Error ? err.message : undefined) ||
-          t("settings.clusters.actionFailed", "Action failed"),
-      );
+      message.error(configErrorMessage(err, t("settings.clusters.actionFailed", "Action failed")));
     }
   };
 
-  const showLogs = async (node: FabricNode) => {
+  const showLogs = async (node: ClusterFabricNode) => {
     setLogsNode(node);
     setLogsOpen(true);
     setLogsLoading(true);
     setLogsText("");
     try {
-      const res = await settingsService.nodeLogs(node.id, 200);
+      const res = await configSectionsService.getClusterNodeLogs(node.id, 200);
       setLogsText(res.logs || t("settings.clusters.logsEmpty", "(no log output yet)"));
     } catch (err: unknown) {
-      setLogsText(
-        (err instanceof Error ? err.message : undefined) ||
-          t("settings.clusters.logsError", "Failed to read logs"),
-      );
+      setLogsText(configErrorMessage(err, t("settings.clusters.logsError", "Failed to read logs")));
     } finally {
       setLogsLoading(false);
     }
@@ -391,12 +512,51 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   // ── Columns ──────────────────────────────────────────────────────
 
+  const editingNode = editingId ? nodes.find((node) => node.id === editingId) : undefined;
+  const editingCredentialStatus = editingId
+    ? envelope?.data.credential_status[editingId]
+    : undefined;
+  const isConfiguredCredential = (status: ClusterCredentialFieldStatus | undefined): boolean =>
+    status?.state === "configured" || status?.state === "from_env";
+  const credentialStatusBadge = (
+    label: string,
+    status: ClusterCredentialFieldStatus | undefined,
+  ) => {
+    if (!status) return null;
+    const stateLabel = {
+      configured: t("settings.clusters.credentialConfigured", "Configured"),
+      from_env: t("settings.clusters.credentialFromEnv", "From env"),
+      missing: t("settings.clusters.credentialMissing", "Missing"),
+      error: t("settings.clusters.credentialError", "Error"),
+    }[status.state];
+    const color = {
+      configured: "success",
+      from_env: "processing",
+      missing: "warning",
+      error: "error",
+    }[status.state];
+    return (
+      <Flex gap={8} align="center" wrap="wrap">
+        <Text type="secondary">{label}</Text>
+        <Tag color={color}>{stateLabel}</Tag>
+        {status.state === "from_env" ? (
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            {t(
+              "settings.clusters.environmentCredentialHint",
+              "The environment value is read-only; only an explicit replacement is persisted.",
+            )}
+          </Text>
+        ) : null}
+      </Flex>
+    );
+  };
+
   const columns = [
     {
       title: t("settings.clusters.label", "Label"),
       dataIndex: "label",
       key: "label",
-      render: (label: string, node: FabricNode) => (
+      render: (label: string, node: ClusterFabricNode) => (
         <Space>
           <CloudServerOutlined />
           <Text strong>{label}</Text>
@@ -407,7 +567,7 @@ const SystemSettingsClustersTab: React.FC = () => {
     {
       title: t("settings.clusters.target", "Target"),
       key: "target",
-      render: (_: unknown, node: FabricNode) =>
+      render: (_: unknown, node: ClusterFabricNode) =>
         node.placement.type === "ssh" ? (
           <Text code>
             {node.placement.username}@{node.placement.host}:{node.placement.port}
@@ -419,7 +579,7 @@ const SystemSettingsClustersTab: React.FC = () => {
     {
       title: t("settings.clusters.cluster", "Cluster"),
       key: "cluster",
-      render: (_: unknown, node: FabricNode) => {
+      render: (_: unknown, node: ClusterFabricNode) => {
         const name = nodeClusterName.get(node.id);
         return name ? <Tag>{name}</Tag> : <Text type="secondary">—</Text>;
       },
@@ -427,7 +587,7 @@ const SystemSettingsClustersTab: React.FC = () => {
     {
       title: t("settings.clusters.status", "Status"),
       key: "status",
-      render: (_: unknown, node: FabricNode) => {
+      render: (_: unknown, node: ClusterFabricNode) => {
         const status = node.state?.status ?? "not_deployed";
         const lastError = node.state?.last_error;
         const lastSeen = sinceLabel(node.state?.last_health);
@@ -452,7 +612,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       title: t("settings.clusters.actions", "Actions"),
       key: "actions",
       width: 320,
-      render: (_: unknown, node: FabricNode) => (
+      render: (_: unknown, node: ClusterFabricNode) => (
         <Space size="small" wrap>
           <Button size="small" onClick={() => handleAction(node.id, "test")}>
             {t("settings.clusters.test", "Test")}
@@ -493,7 +653,6 @@ const SystemSettingsClustersTab: React.FC = () => {
   ];
 
   const isSshForm = placementType !== "local";
-  const editingNode = editingId ? nodes.find((n) => n.id === editingId) : undefined;
 
   // ── Render ───────────────────────────────────────────────────────
 
@@ -540,7 +699,66 @@ const SystemSettingsClustersTab: React.FC = () => {
         width={560}
         destroyOnClose
       >
-        <Form form={form} layout="vertical" onFinish={handleSave}>
+        {externalRevision !== null || saveConflict ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={
+              saveConflict
+                ? t("settings.clusters.revisionConflict", "Cluster revision conflict")
+                : t(
+                    "settings.clusters.changedExternally",
+                    "Cluster configuration changed externally",
+                  )
+            }
+            description={
+              saveConflict
+                ? t(
+                    "settings.clusters.revisionConflictDescription",
+                    "Your draft expected revision {{expected}}; the server is at revision {{current}}. The draft was preserved.",
+                    {
+                      expected: saveConflict.expectedRevision,
+                      current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
+                    },
+                  )
+                : t(
+                    "settings.clusters.changedExternallyDescription",
+                    "Revision {{base}} changed to {{latest}}. Your unsaved node draft was preserved.",
+                    { base: modalBaseRevision, latest: externalRevision },
+                  )
+            }
+            action={
+              <Flex gap={8} wrap="wrap">
+                <Button size="small" onClick={() => void reloadModal()}>
+                  {t("settings.clusters.reload", "Reload")}
+                </Button>
+                <Button size="small" onClick={() => setShowComparison((current) => !current)}>
+                  {t("settings.clusters.compare", "Compare")}
+                </Button>
+                <Button size="small" type="primary" onClick={() => void reapplyModal()}>
+                  {t("settings.clusters.reapply", "Reapply")}
+                </Button>
+              </Flex>
+            }
+          />
+        ) : null}
+
+        {comparison ? (
+          <pre
+            data-testid="cluster-revision-comparison"
+            style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}
+          >
+            {comparison}
+          </pre>
+        ) : null}
+
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSave}
+          onValuesChange={() => setModalDirty(true)}
+        >
           <Form.Item
             name="label"
             label={t("settings.clusters.label", "Label")}
@@ -625,16 +843,24 @@ const SystemSettingsClustersTab: React.FC = () => {
                   name="password"
                   label={t("settings.clusters.password", "Password")}
                   extra={
-                    editingNode
-                      ? t(
-                          "settings.clusters.secretEditHint",
-                          "Leave empty to keep the existing secret",
-                        )
-                      : undefined
+                    editingNode ? (
+                      <Space direction="vertical" size={4}>
+                        {credentialStatusBadge(
+                          t("settings.clusters.password", "Password"),
+                          editingCredentialStatus?.password,
+                        )}
+                        <Text type="secondary">
+                          {t(
+                            "settings.clusters.secretEditHint",
+                            "Leave empty to keep the existing secret",
+                          )}
+                        </Text>
+                      </Space>
+                    ) : undefined
                   }
                   rules={[
                     {
-                      required: !editingNode,
+                      required: !isConfiguredCredential(editingCredentialStatus?.password),
                       message: t("settings.clusters.passwordRequired", "Password is required"),
                     },
                   ]}
@@ -666,12 +892,20 @@ const SystemSettingsClustersTab: React.FC = () => {
                     label={t("settings.clusters.privateKeyInline", "…or paste key (PEM)")}
                     dependencies={["private_key_path"]}
                     extra={
-                      editingNode
-                        ? t(
-                            "settings.clusters.secretEditHint",
-                            "Leave empty to keep the existing secret",
-                          )
-                        : undefined
+                      editingNode ? (
+                        <Space direction="vertical" size={4}>
+                          {credentialStatusBadge(
+                            t("settings.clusters.privateKey", "Private key"),
+                            editingCredentialStatus?.private_key,
+                          )}
+                          <Text type="secondary">
+                            {t(
+                              "settings.clusters.secretEditHint",
+                              "Leave empty to keep the existing secret",
+                            )}
+                          </Text>
+                        </Space>
+                      ) : undefined
                     }
                     rules={[
                       {
@@ -683,18 +917,7 @@ const SystemSettingsClustersTab: React.FC = () => {
                             form.getFieldValue("private_key") as string | undefined
                           )?.trim();
                           if (path || inline) return;
-                          // Editing a key-auth node with a stored secret → preserved on save.
-                          const existing =
-                            editingNode?.placement.type === "ssh"
-                              ? (editingNode.placement as Extract<NodePlacement, { type: "ssh" }>)
-                                  .auth
-                              : undefined;
-                          if (
-                            existing?.method === "private_key" &&
-                            (existing.private_key || existing.private_key_path)
-                          ) {
-                            return;
-                          }
+                          if (isConfiguredCredential(editingCredentialStatus?.private_key)) return;
                           throw new Error(
                             t(
                               "settings.clusters.privateKeyRequired",
@@ -710,8 +933,42 @@ const SystemSettingsClustersTab: React.FC = () => {
                   <Form.Item
                     name="passphrase"
                     label={t("settings.clusters.passphrase", "Passphrase")}
+                    extra={
+                      editingNode ? (
+                        <Space direction="vertical" size={4}>
+                          {credentialStatusBadge(
+                            t("settings.clusters.passphrase", "Passphrase"),
+                            editingCredentialStatus?.passphrase,
+                          )}
+                          {isConfiguredCredential(editingCredentialStatus?.passphrase) ? (
+                            <Button
+                              size="small"
+                              danger={clearPassphrase}
+                              onClick={() => {
+                                setClearPassphrase((current) => !current);
+                                form.setFieldValue("passphrase", "");
+                                setModalDirty(true);
+                              }}
+                            >
+                              {clearPassphrase
+                                ? t(
+                                    "settings.clusters.passphraseWillClear",
+                                    "Passphrase will be cleared",
+                                  )
+                                : t("settings.clusters.clearPassphrase", "Clear stored passphrase")}
+                            </Button>
+                          ) : null}
+                        </Space>
+                      ) : undefined
+                    }
                   >
-                    <Input.Password visibilityToggle />
+                    <Input.Password
+                      visibilityToggle
+                      disabled={clearPassphrase}
+                      onChange={() => {
+                        if (clearPassphrase) setClearPassphrase(false);
+                      }}
+                    />
                   </Form.Item>
                 </>
               )}

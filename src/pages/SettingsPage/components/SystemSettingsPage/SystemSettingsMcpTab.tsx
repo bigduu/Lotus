@@ -15,12 +15,14 @@ import {
 } from "antd";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ServerStatus, mcpService, type McpServer, type McpImportResponse } from "@services/mcp";
+import { ServerStatus, type McpImportResponse, type McpServer } from "@services/mcp";
 import { useMcpSettings } from "./hooks/useMcpSettings";
 import { McpServerTable } from "./mcp/McpServerTable";
 import { McpServerFormModal } from "./mcp/McpServerFormModal";
 import { McpToolList } from "./mcp/McpToolList";
+import { toMainstreamMcpServersChunk } from "./mcp/mcpConfigInterop";
 import { copyText } from "@shared/utils/clipboard";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -44,57 +46,8 @@ const makeStatusCounters = (): Record<ServerStatus, number> => ({
   [ServerStatus.Error]: 0,
 });
 
-const getErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-  return fallback;
-};
-
-type MainstreamMcpServersChunk = {
-  mcpServers: Record<string, unknown>;
-};
-
-const toMainstreamMcpServersChunk = (servers: McpServer[]): MainstreamMcpServersChunk => {
-  const mcpServers: Record<string, unknown> = {};
-
-  for (const server of servers) {
-    const id = server.id?.trim();
-    if (!id) continue;
-
-    const enabled = server.enabled ?? server.config.enabled;
-    const disabled = !enabled;
-
-    const transport = server.config.transport;
-    if (transport.type === "sse") {
-      const headers: Record<string, string> = {};
-      for (const h of transport.headers ?? []) {
-        const name = h.name?.trim();
-        if (!name) continue;
-        headers[name] = h.value ?? "";
-      }
-
-      const entry: Record<string, unknown> = {
-        url: transport.url,
-      };
-      if (disabled) entry.disabled = true;
-      if (Object.keys(headers).length) entry.headers = headers;
-      mcpServers[id] = entry;
-      continue;
-    }
-
-    const entry: Record<string, unknown> = {
-      command: transport.command,
-    };
-    if (disabled) entry.disabled = true;
-    if (transport.args?.length) entry.args = transport.args;
-    if (transport.cwd) entry.cwd = transport.cwd;
-    if (transport.env && Object.keys(transport.env).length) entry.env = transport.env;
-    mcpServers[id] = entry;
-  }
-
-  return { mcpServers };
-};
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  configErrorMessage(error, fallback);
 
 const SystemSettingsMcpTab: React.FC = () => {
   const { t } = useTranslation();
@@ -102,6 +55,8 @@ const SystemSettingsMcpTab: React.FC = () => {
   const [msgApi, contextHolder] = message.useMessage();
   const {
     servers,
+    credentialStatusByServer,
+    configRevision,
     selectedServerId,
     selectedServerTools,
     isLoadingServers,
@@ -113,6 +68,7 @@ const SystemSettingsMcpTab: React.FC = () => {
     addServer,
     updateServer,
     deleteServer,
+    importServers,
     connectServer,
     disconnectServer,
     refreshServerTools,
@@ -157,6 +113,12 @@ const SystemSettingsMcpTab: React.FC = () => {
     }
     return servers.find((server) => server.id === selectedServerId) ?? null;
   }, [selectedServerId, servers]);
+
+  const latestEditingServer = useMemo(
+    () =>
+      editingServer ? (servers.find((server) => server.id === editingServer.id) ?? null) : null,
+    [editingServer, servers],
+  );
 
   const statusSummary = useMemo(() => {
     const byStatus = makeStatusCounters();
@@ -242,14 +204,17 @@ const SystemSettingsMcpTab: React.FC = () => {
     setIsServerModalOpen(true);
   };
 
-  const handleSubmitServer = async (config: McpServer["config"]) => {
+  const handleSubmitServer = async (config: McpServer["config"], expectedRevision?: number) => {
     try {
       if (serverModalMode === "edit") {
         if (!editingServer) {
           msgApi.error(t("settings.mcpTab.noServerForEditing"));
           return;
         }
-        await updateServer(editingServer.id, config);
+        if (expectedRevision === undefined) {
+          throw new Error(t("settings.mcpTab.missingEditRevision"));
+        }
+        await updateServer(editingServer.id, config, expectedRevision);
         msgApi.success(
           t("settings.mcpTab.savedServer", {
             name: editingServer.name || editingServer.id,
@@ -263,6 +228,7 @@ const SystemSettingsMcpTab: React.FC = () => {
       setEditingServer(null);
     } catch (e) {
       msgApi.error(getErrorMessage(e, t("settings.mcpTab.saveServerFailed")));
+      throw e;
     }
   };
 
@@ -320,10 +286,10 @@ const SystemSettingsMcpTab: React.FC = () => {
 
     setIsImporting(true);
     try {
-      const response: McpImportResponse = await mcpService.importServers({
-        mcpServers,
-        mode: importMode,
-      });
+      const response: McpImportResponse = await importServers(
+        mcpServers as Record<string, unknown>,
+        importMode,
+      );
 
       const startFailures = response.start_errors?.length ?? 0;
       msgApi.success(
@@ -341,7 +307,6 @@ const SystemSettingsMcpTab: React.FC = () => {
 
       setIsImportOpen(false);
       setImportJson("");
-      await handleRefreshAll();
     } catch (error) {
       setImportError(getErrorMessage(error, t("settings.mcpTab.importFailed")));
       // Keep textarea content so the user can fix and retry.
@@ -450,13 +415,19 @@ const SystemSettingsMcpTab: React.FC = () => {
         open={isServerModalOpen}
         mode={serverModalMode}
         initialConfig={editingServer?.config ?? null}
+        latestConfig={latestEditingServer?.config ?? null}
+        currentRevision={configRevision}
+        credentialStatus={editingServer ? credentialStatusByServer[editingServer.id] : undefined}
+        latestCredentialStatus={
+          latestEditingServer ? credentialStatusByServer[latestEditingServer.id] : undefined
+        }
         confirmLoading={isMutatingConfig}
         onCancel={() => {
           if (isMutatingConfig) return;
           setIsServerModalOpen(false);
           setEditingServer(null);
         }}
-        onSubmit={(config) => void handleSubmitServer(config)}
+        onSubmit={handleSubmitServer}
       />
 
       <Modal

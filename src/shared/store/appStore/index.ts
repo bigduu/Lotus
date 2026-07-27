@@ -12,9 +12,9 @@ import { ExecutionStateSlice, createExecutionStateSlice } from "./slices/executi
 import { ProjectSlice, createProjectSlice } from "./slices/projectSlice";
 import { AgentClient } from "@services/chat/AgentService";
 import { startAccountFeed } from "@services/chat/accountFeed";
-import { serviceFactory } from "@services/common/ServiceFactory";
-import { readStoredProxyAuth } from "@shared/utils/proxyAuth";
+import { clearStoredProxyAuth, readStoredProxyAuth } from "@shared/utils/proxyAuth";
 import { useBambooConfigStore } from "@shared/store/bambooConfigStore";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { useProviderStore } from "./slices/providerSlice";
 import type { ChatItem, Message } from "@shared/types/chat";
 
@@ -207,7 +207,11 @@ const applyStoredProxyAuth = async (): Promise<boolean> => {
   }
 
   try {
-    await serviceFactory.setProxyAuth(storedAuth);
+    await useConfigSectionStore.getState().replaceProxyAuth(storedAuth);
+    // One-way migration for pre-versioned Lotus installs. The backend now
+    // owns the encrypted credential; never retain the plaintext browser copy
+    // after the credential transaction succeeds.
+    clearStoredProxyAuth();
     return true;
   } catch (error) {
     console.error("Failed to apply stored proxy auth during startup:", error);
@@ -230,8 +234,9 @@ const bootstrapProxyAuthGate = async (): Promise<boolean> => {
 
     // If the backend already has proxy auth configured (e.g. loaded from encrypted
     // config on disk), do not gate startup on localStorage.
-    const status = await useBambooConfigStore.getState().loadProxyAuthStatus({ force: true });
+    const status = await useConfigSectionStore.getState().loadProxyAuthStatus({ force: true });
     if (status?.configured) {
+      clearStoredProxyAuth();
       return false;
     }
 

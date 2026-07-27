@@ -55,7 +55,7 @@ const normalizeTransport = (value: unknown, fallback: TransportConfig): Transpor
   }
 
   const transport = value as Record<string, unknown>;
-  if (transport.type === "sse") {
+  if (transport.type === "sse" || transport.type === "streamable_http") {
     const headers = Array.isArray(transport.headers)
       ? transport.headers
           .map((item) => {
@@ -72,12 +72,14 @@ const normalizeTransport = (value: unknown, fallback: TransportConfig): Transpor
           .filter((item): item is { name: string; value: string } => Boolean(item))
       : [];
 
-    return {
-      type: "sse",
+    const httpTransport = {
       url: typeof transport.url === "string" ? transport.url : "",
       headers,
       connect_timeout_ms: toNumber(transport.connect_timeout_ms, DEFAULT_SSE_CONNECT_TIMEOUT_MS),
     };
+    return transport.type === "streamable_http"
+      ? { type: "streamable_http", ...httpTransport }
+      : { type: "sse", ...httpTransport };
   }
 
   const args = Array.isArray(transport.args)

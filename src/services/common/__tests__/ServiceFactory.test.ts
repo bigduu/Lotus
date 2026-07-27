@@ -85,16 +85,11 @@ describe("ServiceFactory", () => {
         expect(apiClient.get).toHaveBeenCalledWith("bamboo/config");
       });
 
-      it("should return empty object on error", async () => {
+      it("should propagate errors instead of manufacturing an empty config", async () => {
         vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Network error"));
 
-        const result = await serviceFactory.getBambooConfig();
-
-        expect(result).toEqual({});
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Failed to fetch Bamboo config:",
-          expect.any(Error),
-        );
+        await expect(serviceFactory.getBambooConfig()).rejects.toThrow("Network error");
+        expect(consoleErrorSpy).not.toHaveBeenCalled();
       });
     });
 
@@ -155,19 +150,6 @@ describe("ServiceFactory", () => {
       });
     });
 
-    describe("setBambooConfig", () => {
-      it("should post config successfully", async () => {
-        const inputConfig = { model: "new-model" };
-        const responseConfig = { model: "new-model", api_key: "saved" };
-        vi.mocked(apiClient.post).mockResolvedValueOnce(responseConfig);
-
-        const result = await serviceFactory.setBambooConfig(inputConfig);
-
-        expect(result).toEqual(responseConfig);
-        expect(apiClient.post).toHaveBeenCalledWith("bamboo/config", inputConfig);
-      });
-    });
-
     describe("validateBambooConfigPatch", () => {
       it("should validate config patch", async () => {
         const patch = { api_key: "test" };
@@ -203,72 +185,6 @@ describe("ServiceFactory", () => {
 
         expect(result).toEqual(mockResponse);
         expect(apiClient.post).toHaveBeenCalledWith("bamboo/hooks/test", payload);
-      });
-    });
-
-    describe("resetBambooConfig", () => {
-      it("should reset config", async () => {
-        const mockResponse = { success: true };
-        vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
-
-        const result = await serviceFactory.resetBambooConfig();
-
-        expect(result).toEqual(mockResponse);
-        expect(apiClient.post).toHaveBeenCalledWith("bamboo/config/reset", {});
-      });
-    });
-  });
-
-  describe("Proxy Auth", () => {
-    describe("setProxyAuth", () => {
-      it("should set proxy auth credentials", async () => {
-        const auth = { username: "user", password: "pass" };
-        const mockResponse = { success: true };
-        vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
-
-        const result = await serviceFactory.setProxyAuth(auth);
-
-        expect(result).toEqual(mockResponse);
-        expect(apiClient.post).toHaveBeenCalledWith("bamboo/proxy-auth", auth);
-      });
-    });
-
-    describe("getProxyAuthStatus", () => {
-      it("should fetch proxy auth status", async () => {
-        const mockStatus = { configured: true, username: "user" };
-        vi.mocked(apiClient.get).mockResolvedValueOnce(mockStatus);
-
-        const result = await serviceFactory.getProxyAuthStatus();
-
-        expect(result).toEqual(mockStatus);
-        expect(apiClient.get).toHaveBeenCalledWith("bamboo/proxy-auth/status");
-      });
-
-      it("should return default status on error", async () => {
-        vi.mocked(apiClient.get).mockRejectedValueOnce(new Error("Auth error"));
-
-        const result = await serviceFactory.getProxyAuthStatus();
-
-        expect(result).toEqual({ configured: false, username: null });
-        expect(consoleErrorSpy).toHaveBeenCalledWith(
-          "Failed to fetch proxy auth status:",
-          expect.any(Error),
-        );
-      });
-    });
-
-    describe("clearProxyAuth", () => {
-      it("should clear proxy auth", async () => {
-        const mockResponse = { success: true };
-        vi.mocked(apiClient.post).mockResolvedValueOnce(mockResponse);
-
-        const result = await serviceFactory.clearProxyAuth();
-
-        expect(result).toEqual(mockResponse);
-        expect(apiClient.post).toHaveBeenCalledWith("bamboo/proxy-auth", {
-          username: "",
-          password: "",
-        });
       });
     });
   });
@@ -439,13 +355,8 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("getBambooConfig");
       expect(utility).toHaveProperty("getBambooTools");
       expect(utility).toHaveProperty("getModelLimitDefaults");
-      expect(utility).toHaveProperty("setBambooConfig");
       expect(utility).toHaveProperty("validateBambooConfigPatch");
       expect(utility).toHaveProperty("testLifecycleHook");
-      expect(utility).toHaveProperty("setProxyAuth");
-      expect(utility).toHaveProperty("getProxyAuthStatus");
-      expect(utility).toHaveProperty("clearProxyAuth");
-      expect(utility).toHaveProperty("resetBambooConfig");
       expect(utility).toHaveProperty("resetSetupStatus");
       expect(utility).toHaveProperty("saveWorkflow");
       expect(utility).toHaveProperty("deleteWorkflow");
@@ -456,7 +367,6 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("markSetupComplete");
       expect(utility).toHaveProperty("getAccessStatus");
       expect(utility).toHaveProperty("verifyAccessPassword");
-      expect(utility).toHaveProperty("updateAccessPassword");
     });
 
     it("should call underlying HttpUtilityService methods", async () => {
@@ -486,12 +396,6 @@ describe("ServiceFactory", () => {
 
       await serviceFactory.getModelLimitDefaults();
       expect(apiClient.get).toHaveBeenCalledWith("bamboo/model-limits/defaults");
-
-      await serviceFactory.setBambooConfig({});
-      expect(apiClient.post).toHaveBeenCalled();
-
-      await serviceFactory.setProxyAuth({ username: "u", password: "p" });
-      expect(apiClient.post).toHaveBeenCalled();
 
       await serviceFactory.saveWorkflow("name", "content");
       expect(apiClient.post).toHaveBeenCalled();

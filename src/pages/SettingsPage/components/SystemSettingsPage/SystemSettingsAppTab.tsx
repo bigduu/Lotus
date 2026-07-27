@@ -1,5 +1,16 @@
 import React from "react";
-import { Button, Card, Flex, Popconfirm, Space, Switch, Typography, theme, Divider } from "antd";
+import {
+  Alert,
+  Button,
+  Card,
+  Divider,
+  Flex,
+  Popconfirm,
+  Space,
+  Switch,
+  Typography,
+  theme,
+} from "antd";
 import { useTranslation } from "react-i18next";
 import {
   DeleteOutlined,
@@ -9,9 +20,16 @@ import {
 } from "@ant-design/icons";
 import { APP_VERSION } from "@shared/constants/appVersion";
 import { resetOnboarding } from "@shared/components/FeatureGuide";
+import { CONFIG_SECTION_IDS, type ConfigSectionId } from "@services/config/configSections";
 
 const { Text } = Typography;
 const { useToken } = theme;
+
+export interface ResetSectionResult {
+  section: ConfigSectionId;
+  status: "success" | "failed";
+  error?: string;
+}
 
 interface SystemSettingsAppTabProps {
   themeMode: "light" | "dark";
@@ -21,6 +39,7 @@ interface SystemSettingsAppTabProps {
   onClearLocalStorage: () => void;
   onResetApp: () => void;
   isResetting: boolean;
+  resetSectionResults: ResetSectionResult[];
   darkModeKey: string;
 }
 
@@ -32,6 +51,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
   onClearLocalStorage,
   onResetApp,
   isResetting,
+  resetSectionResults,
   darkModeKey,
 }) => {
   const { t } = useTranslation();
@@ -121,7 +141,19 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
               <ul style={{ margin: 0, paddingLeft: 16 }}>
                 <li>{t("settings.appTab.resetStepDeleteAllSessions")}</li>
                 <li>{t("settings.appTab.resetStepClearStorage")}</li>
-                <li>{t("settings.appTab.resetStepResetConfig")}</li>
+                <li>
+                  {t(
+                    "settings.appTab.resetStepResetConfig",
+                    "Reset these typed configuration sections and their owned credentials:",
+                  )}
+                  <ul style={{ margin: 0, paddingLeft: 16 }}>
+                    {CONFIG_SECTION_IDS.map((section) => (
+                      <li key={section}>
+                        <code>{section}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
                 <li>{t("settings.appTab.resetStepSetupFlow")}</li>
                 <li>{t("settings.appTab.resetStepReload")}</li>
               </ul>
@@ -144,6 +176,31 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
             {t("settings.appTab.resetButton")}
           </Button>
         </Popconfirm>
+        {resetSectionResults.length > 0 && (
+          <Alert
+            data-testid="reset-section-results"
+            type={
+              resetSectionResults.some((result) => result.status === "failed") ? "error" : "info"
+            }
+            showIcon
+            message={t("settings.appTab.resetSectionResults", "Configuration reset progress")}
+            description={
+              <ul style={{ margin: 0, paddingLeft: 16 }}>
+                {resetSectionResults.map((result) => (
+                  <li key={result.section}>
+                    <Text
+                      type={result.status === "failed" ? "danger" : "success"}
+                      data-testid={`reset-result-${result.section}`}
+                    >
+                      <code>{result.section}</code>: {result.status}
+                      {result.error ? ` — ${result.error}` : ""}
+                    </Text>
+                  </li>
+                ))}
+              </ul>
+            }
+          />
+        )}
       </Space>
     </Card>
   );

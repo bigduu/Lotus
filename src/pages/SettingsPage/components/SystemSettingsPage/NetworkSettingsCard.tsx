@@ -1,7 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { Button, Card, Input, Space, Typography, Alert, theme } from "antd";
+import React, { useCallback, useEffect, useState } from "react";
+import { Alert, Button, Card, Input, Space, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
-import { useBambooConfigStore } from "@shared/store/bambooConfigStore";
+import type { ProxyAuthStatus } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -27,53 +29,118 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const proxyAuthStatus = useBambooConfigStore((state) => state.proxyAuthStatus);
-  const isLoadingProxyAuthStatus = useBambooConfigStore((state) => state.isLoadingProxyAuthStatus);
-  const loadProxyAuthStatus = useBambooConfigStore((state) => state.loadProxyAuthStatus);
-  const applyProxyAuth = useBambooConfigStore((state) => state.applyProxyAuth);
-  const clearProxyAuth = useBambooConfigStore((state) => state.clearProxyAuth);
+  const proxyAuthStatus = useConfigSectionStore((state) => state.proxyAuthStatus);
+  const isLoadingProxyAuthStatus = useConfigSectionStore((state) => state.proxyAuthLoading);
+  const proxyAuthError = useConfigSectionStore((state) => state.proxyAuthError);
+  const loadProxyAuthStatus = useConfigSectionStore((state) => state.loadProxyAuthStatus);
+  const replaceProxyAuth = useConfigSectionStore((state) => state.replaceProxyAuth);
+  const clearProxyAuth = useConfigSectionStore((state) => state.clearProxyAuth);
 
   const [proxyAuthForm, setProxyAuthForm] = useState({
     username: "",
     password: "",
   });
   const [isApplyingProxyAuth, setIsApplyingProxyAuth] = useState(false);
+  const [baseProxyAuthStatus, setBaseProxyAuthStatus] = useState<ProxyAuthStatus | null>(null);
+  const [proxyAuthDirty, setProxyAuthDirty] = useState(false);
+  const [showProxyAuthComparison, setShowProxyAuthComparison] = useState(false);
+
+  const adoptProxyAuthStatus = useCallback((status: ProxyAuthStatus) => {
+    setBaseProxyAuthStatus(status);
+    setProxyAuthForm({ username: "", password: "" });
+    setProxyAuthDirty(false);
+    setShowProxyAuthComparison(false);
+  }, []);
 
   // Load proxy auth status (and allow manual refresh via Save/Reload buttons).
   useEffect(() => {
     void loadProxyAuthStatus();
   }, [loadProxyAuthStatus]);
 
+  useEffect(() => {
+    if (!proxyAuthStatus) return;
+    if (!baseProxyAuthStatus) {
+      adoptProxyAuthStatus(proxyAuthStatus);
+      return;
+    }
+    if (proxyAuthStatus.revision <= baseProxyAuthStatus.revision || proxyAuthDirty) {
+      return;
+    }
+    adoptProxyAuthStatus(proxyAuthStatus);
+  }, [adoptProxyAuthStatus, baseProxyAuthStatus, proxyAuthDirty, proxyAuthStatus]);
+
   const handleApplyProxyAuth = async () => {
     const username = proxyAuthForm.username.trim();
-    if (!username) {
+    if (!username || !baseProxyAuthStatus) {
       return;
     }
 
     setIsApplyingProxyAuth(true);
     try {
-      await applyProxyAuth({
-        username,
-        password: proxyAuthForm.password,
-      });
-      setProxyAuthForm({ username: "", password: "" });
+      const status = await replaceProxyAuth(
+        {
+          username,
+          password: proxyAuthForm.password,
+        },
+        baseProxyAuthStatus.revision,
+      );
+      adoptProxyAuthStatus(status);
     } catch (error) {
-      console.error("Failed to apply proxy auth:", error);
+      console.error(
+        "Failed to apply proxy auth:",
+        configErrorMessage(error, "Failed to apply proxy authentication"),
+      );
     } finally {
       setIsApplyingProxyAuth(false);
     }
   };
 
   const handleClearProxyAuth = async () => {
+    if (!baseProxyAuthStatus) return;
     setIsApplyingProxyAuth(true);
     try {
-      await clearProxyAuth();
+      const status = await clearProxyAuth(baseProxyAuthStatus.revision);
+      adoptProxyAuthStatus(status);
     } catch (error) {
-      console.error("Failed to clear proxy auth:", error);
+      console.error(
+        "Failed to clear proxy auth:",
+        configErrorMessage(error, "Failed to clear proxy authentication"),
+      );
     } finally {
       setIsApplyingProxyAuth(false);
     }
   };
+
+  const handleReloadProxyAuth = async () => {
+    try {
+      const status = await loadProxyAuthStatus({ force: true });
+      adoptProxyAuthStatus(status);
+    } catch (error) {
+      console.error(
+        "Failed to reload proxy auth:",
+        configErrorMessage(error, "Failed to reload proxy authentication"),
+      );
+    }
+  };
+
+  const externalProxyAuthStatus =
+    proxyAuthDirty &&
+    proxyAuthStatus &&
+    baseProxyAuthStatus &&
+    proxyAuthStatus.revision > baseProxyAuthStatus.revision
+      ? proxyAuthStatus
+      : null;
+  const configured = baseProxyAuthStatus?.configured ?? false;
+  const fromEnvironment =
+    configured &&
+    (baseProxyAuthStatus?.source === "environment" || baseProxyAuthStatus?.source === "env");
+  const proxyAuthLabel = proxyAuthError
+    ? "Error"
+    : fromEnvironment
+      ? "From env"
+      : configured
+        ? "Configured"
+        : "Missing";
 
   return (
     <Card
@@ -83,6 +150,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
     >
       <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
         <Alert message={t("settings.networkCard.guideTip")} type="info" showIcon />
+        {proxyAuthError && <Alert message={proxyAuthError} type="error" showIcon />}
         {/* HTTP Proxy */}
         <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.networkCard.httpProxy")}</Text>
@@ -100,6 +168,7 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
         <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
           <Text type="secondary">{t("settings.networkCard.httpsProxy")}</Text>
           <Input
+            data-testid="https-proxy-url"
             style={{ width: "100%" }}
             value={httpsProxy}
             onChange={(e) => onHttpsProxyChange(e.target.value)}
@@ -115,55 +184,115 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
           className="lotus-settings-card"
           style={{ marginTop: token.marginSM }}
         >
-          {proxyAuthStatus?.configured ? (
-            <Space direction="vertical" style={{ width: "100%" }}>
-              <Alert
-                type="success"
-                message={t("settings.networkCard.proxyConfiguredForUser", {
-                  username: proxyAuthStatus.username ?? "",
-                })}
-                showIcon
-              />
-              <Button
-                onClick={handleClearProxyAuth}
-                loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
-                danger
-              >
-                {t("settings.networkCard.clearCredentials")}
-              </Button>
+          <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
+            <Space wrap>
+              <Tag color={proxyAuthError ? "error" : configured ? "success" : "warning"}>
+                {proxyAuthLabel}
+              </Tag>
+              {fromEnvironment ? (
+                <Text type="secondary">
+                  The environment value is read-only; only an explicit replacement is persisted.
+                </Text>
+              ) : null}
             </Space>
-          ) : (
-            <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
-              <Input
-                placeholder={t("settings.networkCard.username")}
-                value={proxyAuthForm.username}
-                onChange={(e) =>
-                  setProxyAuthForm((prev) => ({
-                    ...prev,
-                    username: e.target.value,
-                  }))
+
+            {externalProxyAuthStatus ? (
+              <Alert
+                type="warning"
+                showIcon
+                message={`Proxy credentials changed externally (r${baseProxyAuthStatus?.revision} → r${externalProxyAuthStatus.revision})`}
+                description="Your replacement draft was preserved. Reload to discard it, compare status, or reapply it to the latest revision."
+                action={
+                  <Space wrap>
+                    <Button size="small" onClick={() => void handleReloadProxyAuth()}>
+                      Reload
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() => setShowProxyAuthComparison((current) => !current)}
+                    >
+                      Compare
+                    </Button>
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        setBaseProxyAuthStatus(externalProxyAuthStatus);
+                        setShowProxyAuthComparison(false);
+                      }}
+                    >
+                      Reapply
+                    </Button>
+                  </Space>
                 }
               />
-              <Input.Password
-                placeholder={t("settings.networkCard.password")}
-                value={proxyAuthForm.password}
-                onChange={(e) =>
-                  setProxyAuthForm((prev) => ({
-                    ...prev,
-                    password: e.target.value,
-                  }))
-                }
-              />
+            ) : null}
+
+            {showProxyAuthComparison && externalProxyAuthStatus ? (
+              <pre
+                data-testid="proxy-auth-revision-comparison"
+                style={{ maxHeight: 220, overflow: "auto", whiteSpace: "pre-wrap" }}
+              >
+                {JSON.stringify(
+                  {
+                    base: baseProxyAuthStatus,
+                    draft: {
+                      username: proxyAuthForm.username,
+                      password: proxyAuthForm.password ? "[replace requested]" : "",
+                    },
+                    latest: externalProxyAuthStatus,
+                  },
+                  null,
+                  2,
+                )}
+              </pre>
+            ) : null}
+
+            <Input
+              data-testid="proxy-auth-username"
+              placeholder={t("settings.networkCard.username")}
+              value={proxyAuthForm.username}
+              onChange={(e) => {
+                setProxyAuthDirty(true);
+                setProxyAuthForm((prev) => ({
+                  ...prev,
+                  username: e.target.value,
+                }));
+              }}
+            />
+            <Input.Password
+              data-testid="proxy-auth-password"
+              placeholder={t("settings.networkCard.password")}
+              value={proxyAuthForm.password}
+              onChange={(e) => {
+                setProxyAuthDirty(true);
+                setProxyAuthForm((prev) => ({
+                  ...prev,
+                  password: e.target.value,
+                }));
+              }}
+            />
+            <Space wrap>
               <Button
+                data-testid="proxy-auth-apply"
                 type="primary"
                 onClick={handleApplyProxyAuth}
                 loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
-                disabled={!proxyAuthForm.username.trim()}
+                disabled={!proxyAuthForm.username.trim() || !baseProxyAuthStatus}
               >
-                {t("settings.networkCard.apply")}
+                {configured ? "Replace credentials" : t("settings.networkCard.apply")}
               </Button>
+              {configured ? (
+                <Button
+                  data-testid="proxy-auth-clear"
+                  onClick={handleClearProxyAuth}
+                  loading={isApplyingProxyAuth || isLoadingProxyAuthStatus}
+                  danger
+                >
+                  {t("settings.networkCard.clearCredentials")}
+                </Button>
+              ) : null}
             </Space>
-          )}
+          </Space>
         </Card>
 
         {/* Info */}

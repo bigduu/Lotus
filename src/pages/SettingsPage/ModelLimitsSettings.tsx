@@ -12,20 +12,18 @@ import {
   Tooltip,
   Empty,
   message,
+  Alert,
 } from "antd";
 import type { ColumnsType } from "antd/es/table";
 import { SaveOutlined, ReloadOutlined, PlusOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import {
-  serviceFactory,
-  type BambooConfig,
-  type ModelLimitDefault,
-} from "../../services/common/ServiceFactory";
+import { serviceFactory, type ModelLimitDefault } from "../../services/common/ServiceFactory";
 import { getUsedModels, removeUsedModel } from "../ChatPage/utils/usedModels";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import type { ConfigSectionEnvelope, ModelLimitsSection } from "@services/config/configSections";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Title, Text, Paragraph } = Typography;
-
-const MODEL_LIMITS_KEY = "model_limits";
 
 /** Global default mirrored from the backend; used until a model is customized. */
 interface GlobalDefault {
@@ -110,15 +108,39 @@ function normalizeOverride(value: unknown): OverrideConfig | null {
   };
 }
 
-function parseOverrides(config: BambooConfig): OverrideConfig[] {
-  const raw = config?.[MODEL_LIMITS_KEY];
-  if (!Array.isArray(raw)) {
-    return [];
-  }
+function parseOverrides(raw: unknown[]): OverrideConfig[] {
   return raw
     .map((row) => normalizeOverride(row))
     .filter((row): row is OverrideConfig => row !== null);
 }
+
+const rowsToOverrides = (rows: LimitRow[]): OverrideConfig[] =>
+  rows
+    .filter((row) => row.customized)
+    .map((row) => ({
+      model_pattern: row.model_pattern.trim(),
+      max_context_tokens: row.max_context_tokens,
+      max_output_tokens: row.max_output_tokens,
+      ...(typeof row.safety_margin === "number" ? { safety_margin: row.safety_margin } : {}),
+    }));
+
+const reapplyOverrideChanges = (
+  base: OverrideConfig[],
+  draft: OverrideConfig[],
+  latest: OverrideConfig[],
+): OverrideConfig[] => {
+  const baseMap = new Map(base.map((entry) => [entry.model_pattern, entry]));
+  const draftMap = new Map(draft.map((entry) => [entry.model_pattern, entry]));
+  const result = new Map(latest.map((entry) => [entry.model_pattern, entry]));
+  for (const pattern of new Set([...baseMap.keys(), ...draftMap.keys()])) {
+    const before = baseMap.get(pattern);
+    const after = draftMap.get(pattern);
+    if (JSON.stringify(before) === JSON.stringify(after)) continue;
+    if (after) result.set(pattern, after);
+    else result.delete(pattern);
+  }
+  return [...result.values()];
+};
 
 /** Build display rows = persisted overrides ∪ models the user has used. */
 function buildRows(
@@ -292,26 +314,52 @@ export const ModelLimitsSettings: React.FC = () => {
   const [msgApi, contextHolder] = message.useMessage();
   const didLoad = useRef(false);
   const customCounter = useRef(0);
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [showComparison, setShowComparison] = useState(false);
+  const baseOverridesRef = useRef<OverrideConfig[]>([]);
+  const snapshot = useConfigSectionStore((state) => state.sections["model-limits"]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveSection = useConfigSectionStore((state) => state.saveSection);
+
+  const adoptEnvelope = useCallback(
+    (
+      envelope: ConfigSectionEnvelope<ModelLimitsSection>,
+      defaults = globalDefault,
+      usedModels = getUsedModels(),
+    ) => {
+      const overrides = parseOverrides(envelope.data);
+      setRows(buildRows(defaults, overrides, usedModels));
+      baseOverridesRef.current = structuredClone(overrides);
+      setBaseRevision(envelope.revision);
+      setDirty(false);
+      setShowComparison(false);
+    },
+    [globalDefault],
+  );
 
   const loadSettings = useCallback(async () => {
     setLoading(true);
     try {
-      const [config, defaultsResponse] = await Promise.all([
-        serviceFactory.getBambooConfig(),
+      const [envelope, defaultsResponse] = await Promise.all([
+        loadSection("model-limits", { force: true }),
         serviceFactory.getModelLimitDefaults(),
       ]);
       const def = parseGlobalDefault(defaultsResponse);
       setGlobalDefault(def);
-      setRows(buildRows(def, parseOverrides(config), getUsedModels()));
+      adoptEnvelope(envelope, def);
     } catch (error) {
-      console.error("Failed to load model limits settings:", error);
+      console.error(
+        "Failed to load model limits settings:",
+        configErrorMessage(error, t("settings.modelLimits.loadFailed")),
+      );
       msgApi.error(t("settings.modelLimits.loadFailed"));
       setGlobalDefault(FALLBACK_DEFAULT);
       setRows(buildRows(FALLBACK_DEFAULT, [], getUsedModels()));
     } finally {
       setLoading(false);
     }
-  }, [msgApi, t]);
+  }, [adoptEnvelope, loadSection, msgApi, t]);
 
   // Load exactly once on mount. A ran-once guard prevents the effect from
   // re-firing (and reloading from the backend) mid-edit.
@@ -323,16 +371,25 @@ export const ModelLimitsSettings: React.FC = () => {
     void loadSettings();
   }, [loadSettings]);
 
+  useEffect(() => {
+    const envelope = snapshot.envelope;
+    if (!envelope || baseRevision === null || envelope.revision === baseRevision || dirty) return;
+    adoptEnvelope(envelope);
+  }, [adoptEnvelope, baseRevision, dirty, snapshot.envelope]);
+
   const updateRow = useCallback((id: string, patch: Partial<LimitRow>) => {
+    setDirty(true);
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
   }, []);
 
   const customizeRow = useCallback((id: string) => {
+    setDirty(true);
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, customized: true } : row)));
   }, []);
 
   const revertRow = useCallback(
     (id: string) => {
+      setDirty(true);
       setRows((prev) => {
         const target = prev.find((row) => row.id === id);
         if (target?.isCustom) {
@@ -356,6 +413,7 @@ export const ModelLimitsSettings: React.FC = () => {
   );
 
   const removeRow = useCallback((id: string) => {
+    setDirty(true);
     setRows((prev) => {
       const target = prev.find((row) => row.id === id);
       // Discovered (non-custom) rows live in the usedModels registry; drop it
@@ -368,6 +426,7 @@ export const ModelLimitsSettings: React.FC = () => {
   }, []);
 
   const addCustomRow = useCallback(() => {
+    setDirty(true);
     setRows((prev) => [
       ...prev,
       {
@@ -383,14 +442,7 @@ export const ModelLimitsSettings: React.FC = () => {
   }, [globalDefault]);
 
   const saveSettings = async () => {
-    const overrides: OverrideConfig[] = rows
-      .filter((row) => row.customized)
-      .map((row) => ({
-        model_pattern: row.model_pattern.trim(),
-        max_context_tokens: row.max_context_tokens,
-        max_output_tokens: row.max_output_tokens,
-        ...(typeof row.safety_margin === "number" ? { safety_margin: row.safety_margin } : {}),
-      }));
+    const overrides = rowsToOverrides(rows);
 
     const validationError = validateOverrides(overrides, t);
     if (validationError) {
@@ -400,10 +452,15 @@ export const ModelLimitsSettings: React.FC = () => {
 
     setLoading(true);
     try {
-      await serviceFactory.setBambooConfig({ [MODEL_LIMITS_KEY]: overrides });
+      if (baseRevision === null) throw new Error("Model limits are not loaded.");
+      const saved = await saveSection("model-limits", overrides, baseRevision);
+      adoptEnvelope(saved);
       msgApi.success(t("settings.modelLimits.saveSuccess"));
     } catch (error) {
-      console.error("Failed to save model limits settings:", error);
+      console.error(
+        "Failed to save model limits settings:",
+        configErrorMessage(error, t("settings.modelLimits.saveFailed")),
+      );
       msgApi.error(t("settings.modelLimits.saveFailed"));
     } finally {
       setLoading(false);
@@ -413,21 +470,19 @@ export const ModelLimitsSettings: React.FC = () => {
   const resetToDefaults = async () => {
     setLoading(true);
     try {
-      await serviceFactory.setBambooConfig({ [MODEL_LIMITS_KEY]: [] });
-      setRows((prev) =>
-        prev
-          .filter((row) => !row.isCustom)
-          .map((row) => ({
-            ...row,
-            customized: false,
-            max_context_tokens: globalDefault.max_context_tokens,
-            max_output_tokens: globalDefault.max_output_tokens,
-            safety_margin: undefined,
-          })),
-      );
+      if (baseRevision === null) throw new Error("Model limits are not loaded.");
+      const saved = await saveSection("model-limits", [], baseRevision);
+      const visibleModels = rows
+        .filter((row) => !row.isCustom)
+        .map((row) => row.model_pattern)
+        .filter(Boolean);
+      adoptEnvelope(saved, globalDefault, [...getUsedModels(), ...visibleModels]);
       msgApi.success(t("settings.modelLimits.resetSuccess"));
     } catch (error) {
-      console.error("Failed to reset model limits settings:", error);
+      console.error(
+        "Failed to reset model limits settings:",
+        configErrorMessage(error, t("settings.modelLimits.resetFailed")),
+      );
       msgApi.error(t("settings.modelLimits.resetFailed"));
     } finally {
       setLoading(false);
@@ -543,10 +598,72 @@ export const ModelLimitsSettings: React.FC = () => {
     [t, globalDefault.safety_margin, updateRow, customizeRow, revertRow, removeRow],
   );
 
+  const externalRevision =
+    dirty && snapshot.envelope && snapshot.envelope.revision !== baseRevision
+      ? snapshot.envelope.revision
+      : null;
+  const comparison =
+    showComparison && externalRevision !== null && snapshot.envelope
+      ? JSON.stringify(
+          {
+            baseRevision,
+            latestRevision: snapshot.envelope.revision,
+            base: baseOverridesRef.current,
+            draft: rowsToOverrides(rows),
+            latest: parseOverrides(snapshot.envelope.data),
+          },
+          null,
+          2,
+        )
+      : null;
+
   return (
     <div className="model-limits-settings">
       {contextHolder}
       <Card>
+        {externalRevision !== null ? (
+          <Alert
+            type="warning"
+            showIcon
+            message={`Model limits changed on disk (r${baseRevision} → r${externalRevision})`}
+            action={
+              <Space>
+                <Button size="small" onClick={() => void loadSettings()}>
+                  Reload
+                </Button>
+                <Button size="small" onClick={() => setShowComparison((current) => !current)}>
+                  Compare
+                </Button>
+                <Button
+                  size="small"
+                  onClick={() => {
+                    if (!snapshot.envelope) return;
+                    const latest = parseOverrides(snapshot.envelope.data);
+                    const rebased = reapplyOverrideChanges(
+                      baseOverridesRef.current,
+                      rowsToOverrides(rows),
+                      latest,
+                    );
+                    setRows(buildRows(globalDefault, rebased, getUsedModels()));
+                    baseOverridesRef.current = structuredClone(latest);
+                    setBaseRevision(snapshot.envelope.revision);
+                    setShowComparison(false);
+                  }}
+                >
+                  Reapply
+                </Button>
+              </Space>
+            }
+          />
+        ) : null}
+        {comparison ? (
+          <pre
+            data-testid="model-limits-revision-comparison"
+            style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}
+          >
+            {comparison}
+          </pre>
+        ) : null}
         <Title level={4}>{t("settings.modelLimits.title")}</Title>
         <Paragraph type="secondary">
           {t("settings.modelLimits.descriptionPrefix")}{" "}

@@ -1,7 +1,53 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { McpServerCredentialStatus } from "@services/config/configSections";
+import type { McpServerConfig } from "@services/mcp";
 import { McpServerFormModal } from "../McpServerFormModal";
+
+const editConfig = (
+  name: string,
+  env: Record<string, string> = { TOKEN: "" },
+): McpServerConfig => ({
+  id: "filesystem",
+  name,
+  enabled: true,
+  transport: {
+    type: "stdio",
+    command: "npx",
+    args: ["server"],
+    env,
+  },
+  request_timeout_ms: 60_000,
+  healthcheck_interval_ms: 30_000,
+  allowed_tools: [],
+  denied_tools: [],
+});
+
+const streamableHttpConfig = (): McpServerConfig => ({
+  id: "remote-http",
+  name: "Remote HTTP",
+  enabled: true,
+  transport: {
+    type: "streamable_http",
+    url: "https://mcp.example.test/mcp",
+    headers: [{ name: "Authorization", value: "" }],
+    connect_timeout_ms: 24_000,
+  },
+  request_timeout_ms: 60_000,
+  healthcheck_interval_ms: 30_000,
+  allowed_tools: [],
+  denied_tools: [],
+});
+
+const credentialStatus = (
+  entries: Record<string, { configured: boolean; source: string | null }>,
+): McpServerCredentialStatus => ({
+  env: Object.fromEntries(
+    Object.entries(entries).map(([name, status]) => [name, { ...status, updated_at: null }]),
+  ),
+  headers: {},
+});
 
 describe("McpServerFormModal", () => {
   let unhandledRejectionHandler: ((event: PromiseRejectionEvent) => void) | null;
@@ -169,6 +215,55 @@ describe("McpServerFormModal", () => {
     });
   });
 
+  it("round-trips Streamable HTTP from Form to JSON without dropping its URL or timeout", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const config = streamableHttpConfig();
+
+    render(
+      <McpServerFormModal
+        open
+        mode="edit"
+        initialConfig={config}
+        latestConfig={config}
+        currentRevision={7}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(
+      (await screen.findByPlaceholderText("http://localhost:4000/mcp")) as HTMLInputElement,
+    ).toHaveValue("https://mcp.example.test/mcp");
+
+    fireEvent.click(screen.getByRole("radio", { name: /json/i }));
+    const jsonEditor = document.querySelector("textarea") as HTMLTextAreaElement;
+    const jsonConfig = JSON.parse(jsonEditor.value) as McpServerConfig;
+    expect(jsonConfig.transport).toEqual({
+      type: "streamable_http",
+      url: "https://mcp.example.test/mcp",
+      headers: [{ name: "Authorization", value: "" }],
+      connect_timeout_ms: 24_000,
+    });
+
+    fireEvent.click(screen.getByRole("radio", { name: /form/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "remote-http",
+          transport: {
+            type: "streamable_http",
+            url: "https://mcp.example.test/mcp",
+            headers: [{ name: "Authorization", value: "" }],
+            connect_timeout_ms: 24_000,
+          },
+        }),
+        7,
+      ),
+    );
+  });
+
   it("shows error for invalid JSON", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
 
@@ -195,5 +290,159 @@ describe("McpServerFormModal", () => {
 
     // Should not call onSubmit
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("shows credential status and explicit keep, replace, and clear semantics without masks", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const status = credentialStatus({
+      USER_TOKEN: { configured: true, source: "user" },
+      ENV_TOKEN: { configured: true, source: "environment" },
+      MISSING_TOKEN: { configured: false, source: null },
+    });
+
+    render(
+      <McpServerFormModal
+        open
+        mode="edit"
+        initialConfig={editConfig("Filesystem", {
+          USER_TOKEN: "****...****",
+          ENV_TOKEN: "********",
+          MISSING_TOKEN: "",
+        })}
+        latestConfig={editConfig("Filesystem")}
+        currentRevision={7}
+        credentialStatus={status}
+        latestCredentialStatus={status}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(await screen.findByText("Configured")).toBeInTheDocument();
+    expect(screen.getByText("From env")).toBeInTheDocument();
+    expect(screen.getByText("Missing")).toBeInTheDocument();
+    expect(screen.getAllByText("Leave blank to keep the configured value.")).toHaveLength(2);
+    expect(screen.queryByText("****...****")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: /json/i }));
+    const jsonEditor = document.querySelector("textarea") as HTMLTextAreaElement;
+    expect(jsonEditor.value).toContain('"USER_TOKEN": ""');
+    expect(jsonEditor.value).not.toContain("****");
+    expect(screen.getByText("Credential values are not displayed")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", { name: /form/i }));
+    const secretInputs = screen.getAllByPlaceholderText(
+      "Blank keeps current; enter a value to replace",
+    );
+    fireEvent.change(secretInputs[0]!, { target: { value: "replacement" } });
+    expect(
+      await screen.findByText("Non-empty value will replace the credential on save."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear credential USER_TOKEN" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0]?.[0].transport).toMatchObject({
+      type: "stdio",
+      env: {
+        ENV_TOKEN: "",
+        MISSING_TOKEN: "",
+      },
+    });
+    expect(onSubmit.mock.calls[0]?.[1]).toBe(7);
+  });
+
+  it("reapplies a local draft over the latest revision and keeps the draft visible", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const base = editConfig("Base server", { TOKEN: "****...****" });
+    const latest = editConfig("Remote server", { TOKEN: "" });
+    const status = credentialStatus({
+      TOKEN: { configured: true, source: "user" },
+    });
+    const view = render(
+      <McpServerFormModal
+        open
+        mode="edit"
+        initialConfig={base}
+        latestConfig={base}
+        currentRevision={7}
+        credentialStatus={status}
+        latestCredentialStatus={status}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const nameInput = (await screen.findByPlaceholderText("Filesystem MCP")) as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Local draft" } });
+    view.rerender(
+      <McpServerFormModal
+        open
+        mode="edit"
+        initialConfig={base}
+        latestConfig={latest}
+        currentRevision={8}
+        credentialStatus={status}
+        latestCredentialStatus={status}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(await screen.findByText("MCP settings changed externally")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Compare changes" }));
+    const comparison = screen.getByTestId("mcp-server-revision-comparison");
+    expect(comparison).toHaveTextContent('"baseRevision": 7');
+    expect(comparison).toHaveTextContent("Local draft");
+    expect(comparison).toHaveTextContent("Remote server");
+    expect(comparison).not.toHaveTextContent("****");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reapply draft" }));
+    expect(nameInput).toHaveValue("Local draft");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "Local draft" }), 8),
+    );
+  });
+
+  it("reloads the latest server and advances the edit base revision", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const base = editConfig("Base server");
+    const latest = editConfig("Remote server");
+    const view = render(
+      <McpServerFormModal
+        open
+        mode="edit"
+        initialConfig={base}
+        latestConfig={base}
+        currentRevision={7}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const nameInput = (await screen.findByPlaceholderText("Filesystem MCP")) as HTMLInputElement;
+    fireEvent.change(nameInput, { target: { value: "Discard me" } });
+    view.rerender(
+      <McpServerFormModal
+        open
+        mode="edit"
+        initialConfig={base}
+        latestConfig={latest}
+        currentRevision={8}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reload latest" }));
+    expect(nameInput).toHaveValue("Remote server");
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: "Remote server" }), 8),
+    );
   });
 });

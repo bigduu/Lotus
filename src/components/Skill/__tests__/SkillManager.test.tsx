@@ -1,10 +1,11 @@
 import React from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SkillManager } from "../SkillManager";
 import { skillService } from "@services/skill/SkillService";
-import { useBambooConfigStore } from "@shared/store/bambooConfigStore";
+import { configSectionsService } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 vi.mock("@services/skill/SkillService", () => ({
   skillService: {
@@ -47,20 +48,28 @@ vi.mock("antd", async () => {
 describe("SkillManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    useBambooConfigStore.setState({
-      config: { skills: { disabled: ["pdf"] } } as any,
-      proxyAuthStatus: null,
-      isLoadingConfig: false,
-      isLoadingProxyAuthStatus: false,
-      lastLoadedAt: null,
-      error: null,
-      loadConfig: vi.fn().mockResolvedValue({ skills: { disabled: ["pdf"] } }),
-      saveConfig: vi.fn().mockResolvedValue({ skills: { disabled: ["pdf", "pptx"] } }),
-      patchConfig: vi.fn(),
-      loadProxyAuthStatus: vi.fn(),
-      applyProxyAuth: vi.fn(),
-      clearProxyAuth: vi.fn(),
-    });
+    useConfigSectionStore.getState().reset();
+    vi.spyOn(configSectionsService, "getSection").mockResolvedValue({
+      data: { skills: { disabled: ["pdf"] } },
+      revision: 6,
+      loaded_at: "2026-07-23T00:00:00.000Z",
+      source_path: "/tmp/tools-skills.json",
+      source_kind: "file",
+      status: "healthy",
+      last_error: null,
+    } as never);
+    vi.spyOn(configSectionsService, "putSection").mockImplementation(
+      async (_section, _revision, data) =>
+        ({
+          data,
+          revision: 7,
+          loaded_at: "2026-07-23T00:00:01.000Z",
+          source_path: "/tmp/tools-skills.json",
+          source_kind: "file",
+          status: "healthy",
+          last_error: null,
+        }) as never,
+    );
 
     vi.mocked(skillService.listSkills).mockResolvedValue({
       total: 2,
@@ -83,6 +92,8 @@ describe("SkillManager", () => {
     });
   });
 
+  afterEach(() => vi.restoreAllMocks());
+
   it("loads full skills with includeDisabled and shows disabled markers", async () => {
     render(<SkillManager />);
 
@@ -104,7 +115,9 @@ describe("SkillManager", () => {
     fireEvent.click(switches[1]);
 
     await waitFor(() => {
-      expect(useBambooConfigStore.getState().saveConfig).toHaveBeenCalledWith(
+      expect(configSectionsService.putSection).toHaveBeenCalledWith(
+        "tools-skills",
+        6,
         expect.objectContaining({
           skills: {
             disabled: ["pdf", "pptx"],

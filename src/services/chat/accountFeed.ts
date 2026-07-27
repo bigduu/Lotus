@@ -16,6 +16,7 @@
  */
 import { AgentClient, type ChangeEvent, type FeedSubscription } from "./AgentService";
 import { useAppStore, selectShouldObserve } from "@shared/store/appStore";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
 import {
   acceptChildApprovalVersion,
@@ -25,6 +26,8 @@ import {
 
 const CURSOR_STORAGE_KEY = "lotus_account_feed_cursor_v1";
 const REFRESH_DEBOUNCE_MS = 400;
+const CONFIG_RESYNC_RETRY_MS = 1_000;
+const CONFIG_RESYNC_MAX_ATTEMPTS = 3;
 
 // The feed transport is either a browser `EventSource` (legacy SSE, default) or
 // the opt-in v2 WebSocket handle; both expose `close()`, so we only depend on
@@ -35,6 +38,8 @@ let feedEpoch = 0;
 let hydrationEpoch = 0;
 let bufferingChanges = false;
 let bufferedChanges: ChangeEvent[] = [];
+let configResyncGeneration = 0;
+let configResyncRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 const readCursor = (): number => {
   try {
@@ -60,6 +65,37 @@ const clearCursor = (): void => {
   } catch {
     /* ignore */
   }
+};
+
+const requestConfigResync = (epoch: number, reason: "transport open" | "feed reset"): void => {
+  const generation = ++configResyncGeneration;
+  if (configResyncRetryTimer) {
+    clearTimeout(configResyncRetryTimer);
+    configResyncRetryTimer = null;
+  }
+
+  const attempt = (attemptNumber: number): void => {
+    if (epoch !== feedEpoch || generation !== configResyncGeneration) return;
+    void useConfigSectionStore
+      .getState()
+      .resyncLoadedSections()
+      .catch(() => {
+        if (epoch !== feedEpoch || generation !== configResyncGeneration) return;
+        const willRetry = attemptNumber < CONFIG_RESYNC_MAX_ATTEMPTS;
+        console.warn(
+          willRetry
+            ? `Configuration resync failed after ${reason}; retrying (${attemptNumber}/${CONFIG_RESYNC_MAX_ATTEMPTS}).`
+            : `Configuration resync failed after ${reason}; retry limit reached.`,
+        );
+        if (!willRetry) return;
+        configResyncRetryTimer = setTimeout(() => {
+          configResyncRetryTimer = null;
+          attempt(attemptNumber + 1);
+        }, CONFIG_RESYNC_RETRY_MS);
+      });
+  };
+
+  attempt(1);
 };
 
 const scheduleRefresh = (): void => {
@@ -234,6 +270,15 @@ const applyChange = (change: ChangeEvent): void => {
       }
       scheduleRefresh();
       break;
+    case "config.changed":
+    case "config.invalid":
+    case "config.recovered":
+      if (event.section && typeof event.revision === "number") {
+        useConfigSectionStore
+          .getState()
+          .handleConfigEvent(event.section, event.revision, event.type);
+      }
+      break;
     case "project_created":
     case "project_updated":
     case "project_archived": {
@@ -367,6 +412,7 @@ export const startAccountFeed = (): void => {
     {
       onOpen: () => {
         useAppStore.getState().setAgentAvailability(true);
+        requestConfigResync(epoch, "transport open");
         if (openedOnce) {
           void hydrateSubagentState(client, epoch);
         }
@@ -381,6 +427,7 @@ export const startAccountFeed = (): void => {
         // current head; replace state at a fresh snapshot watermark before
         // accepting the new live tail.
         clearCursor();
+        requestConfigResync(epoch, "feed reset");
         void hydrateSubagentState(client, epoch);
       },
       onChange: (change) => {
@@ -400,8 +447,13 @@ export const startAccountFeed = (): void => {
 export const stopAccountFeed = (): void => {
   feedEpoch += 1;
   hydrationEpoch += 1;
+  configResyncGeneration += 1;
   bufferingChanges = false;
   bufferedChanges = [];
+  if (configResyncRetryTimer) {
+    clearTimeout(configResyncRetryTimer);
+    configResyncRetryTimer = null;
+  }
   if (refreshTimer) {
     clearTimeout(refreshTimer);
     refreshTimer = null;

@@ -1,7 +1,23 @@
 import { CodeOutlined, FormOutlined, MinusCircleOutlined, PlusOutlined } from "@ant-design/icons";
-import { Alert, Button, Form, Input, Modal, Radio, Select, Space, Switch, Typography } from "antd";
-import { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  Button,
+  Form,
+  Input,
+  Modal,
+  Radio,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+} from "antd";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type {
+  McpCredentialStatus,
+  McpServerCredentialStatus,
+} from "@services/config/configSections";
 import {
   createDefaultMcpServerConfig,
   DEFAULT_HEALTHCHECK_INTERVAL_MS,
@@ -12,8 +28,10 @@ import {
   type McpServerConfig,
   type SseTransportConfig,
   type StdioTransportConfig,
+  type StreamableHttpTransportConfig,
   type TransportConfig,
 } from "@services/mcp";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -51,10 +69,40 @@ interface McpServerFormModalProps {
   open: boolean;
   mode: ModalMode;
   initialConfig?: McpServerConfig | null;
+  latestConfig?: McpServerConfig | null;
+  currentRevision?: number | null;
+  credentialStatus?: McpServerCredentialStatus;
+  latestCredentialStatus?: McpServerCredentialStatus;
   confirmLoading?: boolean;
   onCancel: () => void;
-  onSubmit: (config: McpServerConfig) => Promise<void> | void;
+  onSubmit: (config: McpServerConfig, expectedRevision?: number) => Promise<void> | void;
 }
+
+const emptyCredentialStatus = (): McpServerCredentialStatus => ({ env: {}, headers: {} });
+
+const secretFreeConfig = (config: McpServerConfig | null | undefined): McpServerConfig | null => {
+  if (!config) return null;
+  return {
+    ...config,
+    transport:
+      config.transport.type === "stdio"
+        ? {
+            ...config.transport,
+            args: [...config.transport.args],
+            env: Object.fromEntries(Object.keys(config.transport.env).map((name) => [name, ""])),
+          }
+        : {
+            ...config.transport,
+            headers: config.transport.headers.map((header) => ({
+              ...header,
+              value: "",
+            })),
+          },
+    reconnect: config.reconnect ? { ...config.reconnect } : undefined,
+    allowed_tools: [...config.allowed_tools],
+    denied_tools: [...config.denied_tools],
+  };
+};
 
 const toFormValues = (initialConfig: McpServerConfig | null | undefined): McpServerFormValues => {
   const config = initialConfig ?? createDefaultMcpServerConfig("");
@@ -69,7 +117,7 @@ const toFormValues = (initialConfig: McpServerConfig | null | undefined): McpSer
       : [];
 
   const headerEntries =
-    transport.type === "sse"
+    transport.type !== "stdio"
       ? transport.headers.map((header) => ({
           name: header.name,
           value: header.value,
@@ -84,7 +132,7 @@ const toFormValues = (initialConfig: McpServerConfig | null | undefined): McpSer
     command: transport.type === "stdio" ? transport.command : undefined,
     args: transport.type === "stdio" ? transport.args : [],
     envEntries,
-    url: transport.type === "sse" ? transport.url : undefined,
+    url: transport.type !== "stdio" ? transport.url : undefined,
     headerEntries,
     requestTimeoutMs: config.request_timeout_ms || DEFAULT_REQUEST_TIMEOUT_MS,
     healthcheckIntervalMs: config.healthcheck_interval_ms || DEFAULT_HEALTHCHECK_INTERVAL_MS,
@@ -142,28 +190,40 @@ const toServerConfig = (
     ? values.deniedTools
     : (initialConfig?.denied_tools ?? []);
 
-  const transport: TransportConfig =
-    values.transportType === "sse"
-      ? ({
-          type: "sse",
-          url: values.url?.trim() || "",
-          headers: entriesToHeaders(values.headerEntries || []),
-          connect_timeout_ms:
-            initialConfig?.transport.type === "sse"
-              ? (initialConfig.transport.connect_timeout_ms ?? DEFAULT_SSE_CONNECT_TIMEOUT_MS)
-              : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
-        } satisfies SseTransportConfig)
-      : ({
-          type: "stdio",
-          command: values.command?.trim() || "",
-          args: values.args || [],
-          env: entriesToRecord(values.envEntries || []),
-          cwd: initialConfig?.transport.type === "stdio" ? initialConfig.transport.cwd : undefined,
-          startup_timeout_ms:
-            initialConfig?.transport.type === "stdio"
-              ? (initialConfig.transport.startup_timeout_ms ?? DEFAULT_STDIO_STARTUP_TIMEOUT_MS)
-              : DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
-        } satisfies StdioTransportConfig);
+  let transport: TransportConfig;
+  if (values.transportType === "sse") {
+    transport = {
+      type: "sse",
+      url: values.url?.trim() || "",
+      headers: entriesToHeaders(values.headerEntries || []),
+      connect_timeout_ms:
+        initialConfig?.transport.type === "sse"
+          ? (initialConfig.transport.connect_timeout_ms ?? DEFAULT_SSE_CONNECT_TIMEOUT_MS)
+          : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
+    } satisfies SseTransportConfig;
+  } else if (values.transportType === "streamable_http") {
+    transport = {
+      type: "streamable_http",
+      url: values.url?.trim() || "",
+      headers: entriesToHeaders(values.headerEntries || []),
+      connect_timeout_ms:
+        initialConfig?.transport.type === "streamable_http"
+          ? (initialConfig.transport.connect_timeout_ms ?? DEFAULT_SSE_CONNECT_TIMEOUT_MS)
+          : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
+    } satisfies StreamableHttpTransportConfig;
+  } else {
+    transport = {
+      type: "stdio",
+      command: values.command?.trim() || "",
+      args: values.args || [],
+      env: entriesToRecord(values.envEntries || []),
+      cwd: initialConfig?.transport.type === "stdio" ? initialConfig.transport.cwd : undefined,
+      startup_timeout_ms:
+        initialConfig?.transport.type === "stdio"
+          ? (initialConfig.transport.startup_timeout_ms ?? DEFAULT_STDIO_STARTUP_TIMEOUT_MS)
+          : DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
+    } satisfies StdioTransportConfig;
+  }
 
   return {
     id: serverId,
@@ -182,7 +242,7 @@ const formatJson = (config: McpServerConfig | null | undefined): string => {
   if (!config) {
     return JSON.stringify(createDefaultMcpServerConfig(""), null, 2);
   }
-  return JSON.stringify(config, null, 2);
+  return JSON.stringify(secretFreeConfig(config), null, 2);
 };
 
 const validateJson = (
@@ -281,6 +341,10 @@ const validateJson = (
         typeof record.connect_timeout_ms === "number"
           ? record.connect_timeout_ms
           : DEFAULT_SSE_CONNECT_TIMEOUT_MS;
+      const transportType =
+        record.transport_kind === "streamable_http" || record.type === "streamable_http"
+          ? "streamable_http"
+          : "sse";
 
       return {
         valid: true,
@@ -288,12 +352,20 @@ const validateJson = (
           id,
           name,
           enabled,
-          transport: {
-            type: "sse",
-            url: record.url,
-            headers,
-            connect_timeout_ms,
-          },
+          transport:
+            transportType === "streamable_http"
+              ? {
+                  type: "streamable_http",
+                  url: record.url,
+                  headers,
+                  connect_timeout_ms,
+                }
+              : {
+                  type: "sse",
+                  url: record.url,
+                  headers,
+                  connect_timeout_ms,
+                },
           request_timeout_ms,
           healthcheck_interval_ms,
           allowed_tools,
@@ -368,6 +440,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   open,
   mode,
   initialConfig,
+  latestConfig,
+  currentRevision = null,
+  credentialStatus,
+  latestCredentialStatus,
   confirmLoading = false,
   onCancel,
   onSubmit,
@@ -377,25 +453,76 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   const [editorMode, setEditorMode] = useState<EditorMode>("form");
   const [jsonValue, setJsonValue] = useState<string>("");
   const [jsonError, setJsonError] = useState<string | null>(null);
-
-  const initialFormValues = useMemo(() => toFormValues(initialConfig), [initialConfig]);
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [baseConfig, setBaseConfig] = useState<McpServerConfig | null>(null);
+  const [activeCredentialStatus, setActiveCredentialStatus] =
+    useState<McpServerCredentialStatus>(emptyCredentialStatus);
+  const [showComparison, setShowComparison] = useState(false);
+  const wasOpenRef = useRef(false);
 
   const transportType = Form.useWatch("transportType", form) ?? "stdio";
+  const envEntries = Form.useWatch("envEntries", form) ?? [];
+  const headerEntries = Form.useWatch("headerEntries", form) ?? [];
 
   useEffect(() => {
     if (!open) {
+      wasOpenRef.current = false;
       return;
     }
-    form.setFieldsValue(initialFormValues);
-    setJsonValue(formatJson(initialConfig));
+    if (wasOpenRef.current) return;
+    wasOpenRef.current = true;
+
+    const capturedConfig = secretFreeConfig(initialConfig);
+    setBaseConfig(capturedConfig);
+    setBaseRevision(mode === "edit" ? currentRevision : null);
+    setActiveCredentialStatus(credentialStatus ?? emptyCredentialStatus());
+    form.setFieldsValue(toFormValues(capturedConfig));
+    setJsonValue(formatJson(capturedConfig));
     setJsonError(null);
     setEditorMode("form");
-  }, [form, initialFormValues, initialConfig, open]);
+    setShowComparison(false);
+  }, [credentialStatus, currentRevision, form, initialConfig, mode, open]);
+
+  const hasExternalRevision =
+    mode === "edit" &&
+    baseRevision !== null &&
+    currentRevision !== null &&
+    currentRevision > baseRevision;
+
+  const getDraftConfig = (): McpServerConfig | null => {
+    if (editorMode === "json") {
+      const result = validateJson(jsonValue, t);
+      return result.valid ? result.config : null;
+    }
+    return toServerConfig(form.getFieldsValue(true), mode, baseConfig);
+  };
+
+  const handleReloadLatest = () => {
+    const nextConfig = secretFreeConfig(latestConfig);
+    if (!nextConfig || currentRevision === null) return;
+    setBaseConfig(nextConfig);
+    setBaseRevision(currentRevision);
+    setActiveCredentialStatus(latestCredentialStatus ?? emptyCredentialStatus());
+    form.setFieldsValue(toFormValues(nextConfig));
+    setJsonValue(formatJson(nextConfig));
+    setJsonError(null);
+    setShowComparison(false);
+  };
+
+  const handleReapplyDraft = () => {
+    const nextConfig = secretFreeConfig(latestConfig);
+    if (!nextConfig || currentRevision === null) return;
+    setBaseConfig(nextConfig);
+    setBaseRevision(currentRevision);
+    setActiveCredentialStatus(latestCredentialStatus ?? emptyCredentialStatus());
+    setShowComparison(false);
+  };
 
   const handleCancel = () => {
     form.resetFields();
     setJsonValue("");
     setJsonError(null);
+    setShowComparison(false);
     onCancel();
   };
 
@@ -408,21 +535,35 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       }
       setJsonError(null);
       try {
-        await onSubmit(result.config);
+        if (mode === "edit") {
+          await onSubmit(result.config, baseRevision ?? undefined);
+        } else {
+          await onSubmit(result.config);
+        }
         setJsonValue("");
       } catch (error) {
-        console.error("MCP server JSON submission error:", error);
+        console.error(
+          "MCP server JSON submission error:",
+          configErrorMessage(error, "MCP server submission failed"),
+        );
       }
       return;
     }
 
     try {
       const values = await form.validateFields();
-      const config = toServerConfig(values, mode, initialConfig);
-      await onSubmit(config);
+      const config = toServerConfig(values, mode, baseConfig);
+      if (mode === "edit") {
+        await onSubmit(config, baseRevision ?? undefined);
+      } else {
+        await onSubmit(config);
+      }
       form.resetFields();
     } catch (error) {
-      console.error("MCP server form submission error:", error);
+      console.error(
+        "MCP server form submission error:",
+        configErrorMessage(error, "MCP server submission failed"),
+      );
     }
   };
 
@@ -441,10 +582,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       // Sync form values to JSON
       try {
         const values = form.getFieldsValue();
-        const config = toServerConfig(values, mode, initialConfig);
+        const config = toServerConfig(values, mode, baseConfig);
         setJsonValue(JSON.stringify(config, null, 2));
       } catch {
-        setJsonValue(formatJson(initialConfig));
+        setJsonValue(formatJson(baseConfig));
       }
     } else {
       // Sync JSON to form (if valid)
@@ -456,6 +597,60 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
     setEditorMode(newMode);
     setJsonError(null);
   };
+
+  const credentialDetails = (
+    status: McpCredentialStatus | undefined,
+    candidateValue: string | undefined,
+  ) => {
+    const fromEnvironment =
+      status?.configured && (status.source === "environment" || status.source === "env");
+    const statusLabel = fromEnvironment
+      ? t("settings.mcpServerForm.credentialFromEnv")
+      : status?.configured
+        ? t("settings.mcpServerForm.credentialConfigured")
+        : t("settings.mcpServerForm.credentialMissing");
+    const actionLabel = candidateValue
+      ? t("settings.mcpServerForm.credentialReplace")
+      : status?.configured
+        ? t("settings.mcpServerForm.credentialKeep")
+        : t("settings.mcpServerForm.credentialMissingHelp");
+
+    return (
+      <Space size="small" wrap>
+        <Tag color={status?.configured ? "success" : "warning"}>{statusLabel}</Tag>
+        <Text type="secondary">{actionLabel}</Text>
+      </Space>
+    );
+  };
+
+  const credentialStatusLines = [
+    ...Object.entries(activeCredentialStatus.env).map(([name, status]) => ({
+      key: `env.${name}`,
+      status,
+    })),
+    ...Object.entries(activeCredentialStatus.headers).map(([name, status]) => ({
+      key: `headers.${name}`,
+      status,
+    })),
+  ];
+
+  const comparison = showComparison
+    ? JSON.stringify(
+        {
+          baseRevision,
+          latestRevision: currentRevision,
+          base: secretFreeConfig(baseConfig),
+          draft: secretFreeConfig(getDraftConfig()),
+          latest: secretFreeConfig(latestConfig),
+          credentialStatus: {
+            base: activeCredentialStatus,
+            latest: latestCredentialStatus ?? emptyCredentialStatus(),
+          },
+        },
+        null,
+        2,
+      )
+    : "";
 
   return (
     <Modal
@@ -475,6 +670,41 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       confirmLoading={confirmLoading}
       width={720}
     >
+      {hasExternalRevision ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={t("settings.mcpServerForm.externalRevisionTitle")}
+          description={t("settings.mcpServerForm.externalRevisionDescription", {
+            loaded: baseRevision,
+            latest: currentRevision,
+          })}
+          action={
+            <Space wrap>
+              <Button size="small" onClick={handleReloadLatest} disabled={!latestConfig}>
+                {t("settings.mcpServerForm.reloadLatest")}
+              </Button>
+              <Button size="small" onClick={() => setShowComparison((visible) => !visible)}>
+                {t("settings.mcpServerForm.compareChanges")}
+              </Button>
+              <Button size="small" onClick={handleReapplyDraft} disabled={!latestConfig}>
+                {t("settings.mcpServerForm.reapplyDraft")}
+              </Button>
+            </Space>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      ) : null}
+
+      {showComparison ? (
+        <pre
+          data-testid="mcp-server-revision-comparison"
+          style={{ maxHeight: 240, overflow: "auto", whiteSpace: "pre-wrap" }}
+        >
+          {comparison}
+        </pre>
+      ) : null}
+
       <div style={{ marginBottom: 16 }}>
         <Radio.Group
           value={editorMode}
@@ -504,20 +734,37 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       )}
 
       {editorMode === "json" ? (
-        <TextArea
-          value={jsonValue}
-          onChange={(e) => handleJsonChange(e.target.value)}
-          rows={20}
-          style={{ fontFamily: "monospace", fontSize: 13 }}
-          placeholder={JSON.stringify(createDefaultMcpServerConfig("example-server"), null, 2)}
-        />
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Alert
+            type="info"
+            showIcon
+            message={t("settings.mcpServerForm.jsonCredentialTitle")}
+            description={
+              <Space direction="vertical" size={2}>
+                <Text>{t("settings.mcpServerForm.jsonCredentialGuidance")}</Text>
+                {credentialStatusLines.map(({ key, status }) => (
+                  <Text key={key} code>
+                    {key}:{" "}
+                    {status.configured
+                      ? status.source === "environment" || status.source === "env"
+                        ? t("settings.mcpServerForm.credentialFromEnv")
+                        : t("settings.mcpServerForm.credentialConfigured")
+                      : t("settings.mcpServerForm.credentialMissing")}
+                  </Text>
+                ))}
+              </Space>
+            }
+          />
+          <TextArea
+            value={jsonValue}
+            onChange={(e) => handleJsonChange(e.target.value)}
+            rows={20}
+            style={{ fontFamily: "monospace", fontSize: 13 }}
+            placeholder={JSON.stringify(createDefaultMcpServerConfig("example-server"), null, 2)}
+          />
+        </Space>
       ) : (
-        <Form<McpServerFormValues>
-          layout="vertical"
-          form={form}
-          preserve
-          initialValues={initialFormValues}
-        >
+        <Form<McpServerFormValues> layout="vertical" form={form} preserve>
           <Form.Item
             name="id"
             label={t("settings.mcpServerForm.serverId")}
@@ -568,6 +815,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                   label: t("settings.mcpServerForm.transportOptions.sse"),
                   value: "sse",
                 },
+                {
+                  label: t("settings.mcpServerForm.transportOptions.streamableHttp"),
+                  value: "streamable_http",
+                },
               ]}
             />
           </Form.Item>
@@ -613,35 +864,49 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       </Button>
                     </Space>
 
-                    {fields.map((field) => (
-                      <Space key={field.key} align="baseline" style={{ display: "flex" }}>
-                        <Form.Item
-                          {...field}
-                          name={[field.name, "key"]}
-                          rules={[
-                            {
-                              required: true,
-                              message: t("settings.mcpServerForm.keyRequired"),
-                            },
-                          ]}
-                        >
-                          <Input placeholder="MCP_ROOT" autoComplete="off" />
-                        </Form.Item>
-                        <Form.Item {...field} name={[field.name, "value"]}>
-                          <Input placeholder="/Users/me/workspace" autoComplete="off" />
-                        </Form.Item>
-                        <Button
-                          danger
-                          type="text"
-                          icon={<MinusCircleOutlined />}
-                          onClick={() => remove(field.name)}
-                          aria-label={t(
-                            "settings.mcpServerForm.removeEnv",
-                            "Remove environment variable",
-                          )}
-                        />
-                      </Space>
-                    ))}
+                    {fields.map(({ key: fieldKey, ...field }) => {
+                      const entry = envEntries[field.name];
+                      const name = entry?.key?.trim() ?? "";
+                      const status = activeCredentialStatus.env[name];
+                      return (
+                        <Space key={fieldKey} align="start" style={{ display: "flex" }}>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "key"]}
+                            rules={[
+                              {
+                                required: true,
+                                message: t("settings.mcpServerForm.keyRequired"),
+                              },
+                            ]}
+                          >
+                            <Input placeholder="MCP_ROOT" autoComplete="off" />
+                          </Form.Item>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "value"]}
+                            extra={credentialDetails(status, entry?.value)}
+                          >
+                            <Input.Password
+                              placeholder={t("settings.mcpServerForm.secretValuePlaceholder")}
+                              autoComplete="new-password"
+                              visibilityToggle={false}
+                            />
+                          </Form.Item>
+                          <Button
+                            danger
+                            type="default"
+                            icon={<MinusCircleOutlined />}
+                            onClick={() => remove(field.name)}
+                            aria-label={t("settings.mcpServerForm.clearCredentialAria", {
+                              name: name || t("settings.mcpServerForm.unnamedCredential"),
+                            })}
+                          >
+                            {t("settings.mcpServerForm.clearCredential")}
+                          </Button>
+                        </Space>
+                      );
+                    })}
                   </Space>
                 )}
               </Form.List>
@@ -650,11 +915,18 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
             <>
               <Form.Item
                 name="url"
-                label={t("settings.mcpServerForm.sseUrl")}
+                label={
+                  transportType === "streamable_http"
+                    ? t("settings.mcpServerForm.streamableHttpUrl")
+                    : t("settings.mcpServerForm.sseUrl")
+                }
                 rules={[
                   {
                     required: true,
-                    message: t("settings.mcpServerForm.sseUrlRequired"),
+                    message:
+                      transportType === "streamable_http"
+                        ? t("settings.mcpServerForm.streamableHttpUrlRequired")
+                        : t("settings.mcpServerForm.sseUrlRequired"),
                   },
                   {
                     validator: async (_, value: string | undefined) => {
@@ -670,7 +942,14 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                   },
                 ]}
               >
-                <Input placeholder="http://localhost:4000/sse" autoComplete="off" />
+                <Input
+                  placeholder={
+                    transportType === "streamable_http"
+                      ? "http://localhost:4000/mcp"
+                      : "http://localhost:4000/sse"
+                  }
+                  autoComplete="off"
+                />
               </Form.Item>
 
               <Form.List name="headerEntries">
@@ -690,32 +969,49 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                       </Button>
                     </Space>
 
-                    {fields.map((field) => (
-                      <Space key={field.key} align="baseline" style={{ display: "flex" }}>
-                        <Form.Item
-                          {...field}
-                          name={[field.name, "name"]}
-                          rules={[
-                            {
-                              required: true,
-                              message: t("settings.mcpServerForm.headerNameRequired"),
-                            },
-                          ]}
-                        >
-                          <Input placeholder="Authorization" autoComplete="off" />
-                        </Form.Item>
-                        <Form.Item {...field} name={[field.name, "value"]}>
-                          <Input placeholder="Bearer token" autoComplete="off" />
-                        </Form.Item>
-                        <Button
-                          danger
-                          type="text"
-                          icon={<MinusCircleOutlined />}
-                          onClick={() => remove(field.name)}
-                          aria-label={t("settings.mcpServerForm.removeHeader", "Remove header")}
-                        />
-                      </Space>
-                    ))}
+                    {fields.map(({ key: fieldKey, ...field }) => {
+                      const entry = headerEntries[field.name];
+                      const name = entry?.name?.trim() ?? "";
+                      const status = activeCredentialStatus.headers[name];
+                      return (
+                        <Space key={fieldKey} align="start" style={{ display: "flex" }}>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "name"]}
+                            rules={[
+                              {
+                                required: true,
+                                message: t("settings.mcpServerForm.headerNameRequired"),
+                              },
+                            ]}
+                          >
+                            <Input placeholder="Authorization" autoComplete="off" />
+                          </Form.Item>
+                          <Form.Item
+                            {...field}
+                            name={[field.name, "value"]}
+                            extra={credentialDetails(status, entry?.value)}
+                          >
+                            <Input.Password
+                              placeholder={t("settings.mcpServerForm.secretValuePlaceholder")}
+                              autoComplete="new-password"
+                              visibilityToggle={false}
+                            />
+                          </Form.Item>
+                          <Button
+                            danger
+                            type="default"
+                            icon={<MinusCircleOutlined />}
+                            onClick={() => remove(field.name)}
+                            aria-label={t("settings.mcpServerForm.clearCredentialAria", {
+                              name: name || t("settings.mcpServerForm.unnamedCredential"),
+                            })}
+                          >
+                            {t("settings.mcpServerForm.clearCredential")}
+                          </Button>
+                        </Space>
+                      );
+                    })}
                   </Space>
                 )}
               </Form.List>

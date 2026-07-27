@@ -1,5 +1,6 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   App as AntApp,
   Form,
   Select,
@@ -25,15 +26,16 @@ import {
   StarFilled,
   LoginOutlined,
 } from "@ant-design/icons";
-import { isApiError } from "@services/api/client";
 import { settingsService } from "@services/config/SettingsService";
 import { isAntdFormError } from "@shared/utils/formError";
+import { configErrorMessage } from "@shared/utils/configErrors";
 import type {
   ProviderType,
   ProviderInstance,
   CreateProviderInstanceRequest,
   UpdateProviderInstanceRequest,
 } from "@shared/types/providerConfig";
+import type { ProviderCredentialStatus } from "@services/config/configSections";
 import { PROVIDER_LABELS } from "@shared/types/providerConfig";
 import { PROVIDER_VENDOR_PRESETS } from "@shared/constants/providerPresets";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
@@ -41,10 +43,13 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { DeviceCodeModal } from "./DeviceCodeModal";
-import { isMaskedSecretValue, sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
+import { sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
 import { copyText } from "@shared/utils/clipboard";
 import type { DeviceCodeInfo } from "./DeviceCodeModal";
 import { theme } from "antd";
+import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { ProviderCredentialStatusTag } from "./ProviderCredentialStatusTag";
+import { isEnvironmentCredential } from "./providerCredentialStatus";
 
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
@@ -107,6 +112,16 @@ const normalizeResponsesOnlyModels = (value: unknown): string[] => {
   return value
     .map((item) => (typeof item === "string" ? item.trim() : ""))
     .filter((item): item is string => Boolean(item));
+};
+
+const withoutInstanceCredential = (
+  values: Record<string, unknown> | null,
+): Record<string, unknown> | null => {
+  if (!values) return null;
+  const safe = structuredClone(values);
+  delete safe.api_key;
+  delete safe.api_key_encrypted;
+  return safe;
 };
 
 const REQUEST_OVERRIDES_PLACEHOLDER = `{
@@ -394,11 +409,36 @@ const InstanceConfigFields: React.FC<{
  */
 export const ProviderInstanceManager: React.FC<{
   instances: ProviderInstance[];
+  latestInstances: ProviderInstance[];
   defaultInstanceId: string | null;
-  onInstancesChanged: () => Promise<void>;
-}> = ({ instances, defaultInstanceId, onInstancesChanged }) => {
+  currentRevision: number | null;
+  credentialStatusById: Record<string, ProviderCredentialStatus>;
+  onCreateInstance: (
+    request: CreateProviderInstanceRequest,
+    expectedRevision: number,
+  ) => Promise<void>;
+  onUpdateInstance: (
+    instanceId: string,
+    request: UpdateProviderInstanceRequest,
+    expectedRevision: number,
+  ) => Promise<void>;
+  onDeleteInstance: (instanceId: string, expectedRevision: number) => Promise<void>;
+  onSetDefaultInstance: (instanceId: string, expectedRevision: number) => Promise<void>;
+  onClearInstanceCredential: (instanceId: string, expectedRevision: number) => Promise<void>;
+}> = ({
+  instances,
+  latestInstances,
+  defaultInstanceId,
+  currentRevision,
+  credentialStatusById,
+  onCreateInstance,
+  onUpdateInstance,
+  onDeleteInstance,
+  onSetDefaultInstance,
+  onClearInstanceCredential,
+}) => {
   const { t } = useTranslation();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const { token } = theme.useToken();
   const [instanceForm] = Form.useForm();
 
@@ -408,6 +448,9 @@ export const ProviderInstanceManager: React.FC<{
   const [deletingInstanceId, setDeletingInstanceId] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<ProviderType | undefined>(undefined);
   const [selectedPresetId, setSelectedPresetId] = useState<string | undefined>(undefined);
+  const [modalBaseRevision, setModalBaseRevision] = useState<number | null>(null);
+  const [modalDirty, setModalDirty] = useState(false);
+  const baseInstanceFormRef = useRef<Record<string, unknown> | null>(null);
 
   // ── Copilot auth state ─────────────────────────────────
   const [deviceCodeInfo, setDeviceCodeInfo] = useState<DeviceCodeInfo | null>(null);
@@ -427,9 +470,11 @@ export const ProviderInstanceManager: React.FC<{
     // `renderInstanceRequestOverridesField`), never as the raw object —
     // leaving the raw key in the form values would let a stale copy of it
     // survive into the save payload even after the textarea is cleared.
-    const { request_overrides, ...config } = sanitizeInstanceConfigForForm(
-      instance.config as Record<string, unknown> | undefined,
-    );
+    const {
+      request_overrides,
+      api_key: _apiKey,
+      ...config
+    } = sanitizeInstanceConfigForForm(instance.config as Record<string, unknown> | undefined);
     const values: Record<string, unknown> = {
       type: instance.type,
       label: instance.label,
@@ -446,8 +491,11 @@ export const ProviderInstanceManager: React.FC<{
     setEditingInstance(null);
     setSelectedType(undefined);
     setSelectedPresetId(undefined);
+    setModalBaseRevision(currentRevision);
+    setModalDirty(false);
+    baseInstanceFormRef.current = { enabled: true };
     setInstanceModalOpen(true);
-  }, []);
+  }, [currentRevision]);
 
   /**
    * Applies a vendor preset to the form: pre-fills provider type + base URL
@@ -460,6 +508,7 @@ export const ProviderInstanceManager: React.FC<{
       if (!presetId) return;
       const preset = PROVIDER_VENDOR_PRESETS.find((item) => item.id === presetId);
       if (!preset) return;
+      setModalDirty(true);
 
       const patch: Record<string, unknown> = { base_url: preset.base_url };
       // The provider type is immutable while editing an existing instance
@@ -490,7 +539,10 @@ export const ProviderInstanceManager: React.FC<{
       message.error(
         t("settings.providerTab.startCopilotAuthFailed", "Failed to start Copilot authentication"),
       );
-      console.error("Failed to start Copilot authentication:", error);
+      console.error(
+        "Failed to start Copilot authentication:",
+        configErrorMessage(error, "Failed to start Copilot authentication"),
+      );
     } finally {
       setAuthenticatingCopilot(false);
     }
@@ -515,7 +567,10 @@ export const ProviderInstanceManager: React.FC<{
       message.error(
         t("settings.providerTab.completeAuthFailed", "Authentication completion failed"),
       );
-      console.error("Authentication completion failed:", error);
+      console.error(
+        "Authentication completion failed:",
+        configErrorMessage(error, "Authentication completion failed"),
+      );
     } finally {
       setCompletingAuth(false);
     }
@@ -540,7 +595,10 @@ export const ProviderInstanceManager: React.FC<{
       const status = await settingsService.getCopilotAuthStatus();
       setCopilotAuthStatus(status.authenticated ? "authenticated" : "not_authenticated");
     } catch (error) {
-      console.error("Failed to check Copilot auth status:", error);
+      console.error(
+        "Failed to check Copilot auth status:",
+        configErrorMessage(error, "Failed to check Copilot authentication status"),
+      );
       setCopilotAuthStatus("unknown");
     } finally {
       setCheckingCopilotAuth(false);
@@ -557,16 +615,23 @@ export const ProviderInstanceManager: React.FC<{
     (open: boolean) => {
       if (!open) {
         instanceForm.resetFields();
+        setModalDirty(false);
+        setModalBaseRevision(null);
+        baseInstanceFormRef.current = null;
         return;
       }
 
       if (editingInstance) {
-        instanceForm.setFieldsValue(buildInstanceFormValues(editingInstance));
+        const values = buildInstanceFormValues(editingInstance);
+        instanceForm.setFieldsValue(values);
+        baseInstanceFormRef.current = structuredClone(values);
         setSelectedType(editingInstance.type);
         return;
       }
 
-      instanceForm.setFieldsValue({ enabled: true });
+      const values = { enabled: true };
+      instanceForm.setFieldsValue(values);
+      baseInstanceFormRef.current = structuredClone(values);
     },
     [buildInstanceFormValues, editingInstance, instanceForm],
   );
@@ -619,16 +684,149 @@ export const ProviderInstanceManager: React.FC<{
     </Card>
   );
 
-  const handleOpenEdit = useCallback((instance: ProviderInstance) => {
-    setEditingInstance(instance);
-    setSelectedType(instance.type);
-    setSelectedPresetId(undefined);
-    setInstanceModalOpen(true);
-  }, []);
+  const handleOpenEdit = useCallback(
+    (instance: ProviderInstance) => {
+      setEditingInstance(instance);
+      setSelectedType(instance.type);
+      setSelectedPresetId(undefined);
+      setModalBaseRevision(currentRevision);
+      setModalDirty(false);
+      baseInstanceFormRef.current = structuredClone(buildInstanceFormValues(instance));
+      setInstanceModalOpen(true);
+    },
+    [buildInstanceFormValues, currentRevision],
+  );
+
+  const latestEditingInstance = editingInstance
+    ? (latestInstances.find((instance) => instance.id === editingInstance.id) ?? null)
+    : null;
+  const externalRevision =
+    instanceModalOpen &&
+    modalBaseRevision !== null &&
+    currentRevision !== null &&
+    currentRevision !== modalBaseRevision
+      ? currentRevision
+      : null;
+
+  const adoptLatestInstanceForm = useCallback(
+    (keepDraft: boolean) => {
+      if (currentRevision === null) return false;
+
+      const latestValues = editingInstance
+        ? latestEditingInstance
+          ? buildInstanceFormValues(latestEditingInstance)
+          : null
+        : { enabled: true };
+      if (!latestValues) {
+        message.warning(
+          t(
+            "settings.providerTab.instanceRemovedExternally",
+            "This provider instance no longer exists in the latest configuration.",
+          ),
+        );
+        return false;
+      }
+
+      const currentDraft = instanceForm.getFieldsValue(true) as Record<string, unknown>;
+      const nextValues =
+        keepDraft && baseInstanceFormRef.current
+          ? reapplyConfigChanges(baseInstanceFormRef.current, currentDraft, latestValues)
+          : latestValues;
+
+      instanceForm.setFieldsValue(
+        Object.fromEntries(Object.keys(currentDraft).map((key) => [key, undefined])),
+      );
+      instanceForm.setFieldsValue(nextValues);
+      setSelectedType(nextValues.type as ProviderType | undefined);
+      if (latestEditingInstance) setEditingInstance(latestEditingInstance);
+      baseInstanceFormRef.current = structuredClone(latestValues);
+      setModalBaseRevision(currentRevision);
+      setModalDirty(keepDraft);
+      return true;
+    },
+    [
+      buildInstanceFormValues,
+      currentRevision,
+      editingInstance,
+      instanceForm,
+      latestEditingInstance,
+      message,
+      t,
+    ],
+  );
+
+  useEffect(() => {
+    if (externalRevision === null || modalDirty) return;
+    adoptLatestInstanceForm(false);
+  }, [adoptLatestInstanceForm, externalRevision, modalDirty]);
+
+  const compareInstanceDraft = useCallback(() => {
+    if (
+      externalRevision === null ||
+      modalBaseRevision === null ||
+      baseInstanceFormRef.current === null
+    ) {
+      return;
+    }
+
+    const latestValues = editingInstance
+      ? latestEditingInstance
+        ? buildInstanceFormValues(latestEditingInstance)
+        : null
+      : { enabled: true };
+    modal.info({
+      title: t("settings.providerTab.compareChanges", "Compare changes"),
+      width: 720,
+      content: (
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          <Text>
+            {t("settings.providerTab.compareRevision", {
+              loaded: modalBaseRevision,
+              latest: externalRevision,
+            })}
+          </Text>
+          <pre style={{ maxHeight: 320, overflow: "auto", whiteSpace: "pre-wrap" }}>
+            {JSON.stringify(
+              {
+                base: withoutInstanceCredential(baseInstanceFormRef.current),
+                draft: withoutInstanceCredential(
+                  instanceForm.getFieldsValue(true) as Record<string, unknown>,
+                ),
+                latest: withoutInstanceCredential(latestValues),
+                credential: editingInstance
+                  ? (credentialStatusById[editingInstance.id] ?? null)
+                  : null,
+              },
+              null,
+              2,
+            )}
+          </pre>
+        </Space>
+      ),
+    });
+  }, [
+    buildInstanceFormValues,
+    credentialStatusById,
+    editingInstance,
+    externalRevision,
+    instanceForm,
+    latestEditingInstance,
+    modal,
+    modalBaseRevision,
+    t,
+  ]);
 
   const handleSaveInstance = useCallback(async () => {
     try {
       const values = await instanceForm.validateFields();
+      if (modalBaseRevision === null) {
+        throw new Error(
+          t(
+            "settings.providerTab.providerRevisionMissing",
+            "Provider revision is not loaded. Reload the configuration and try again.",
+          ),
+        );
+      }
       setSavingInstance(true);
 
       const { type, label, enabled, request_overrides_json, ...configFields } = values;
@@ -660,7 +858,7 @@ export const ProviderInstanceManager: React.FC<{
 
       if (editingInstance) {
         const updateReq: UpdateProviderInstanceRequest = { label, enabled, config };
-        await settingsService.updateProviderInstance(editingInstance.id, updateReq);
+        await onUpdateInstance(editingInstance.id, updateReq, modalBaseRevision);
         message.success(t("settings.providerTab.instanceUpdated", "Provider instance updated"));
       } else {
         const createReq: CreateProviderInstanceRequest = {
@@ -669,74 +867,118 @@ export const ProviderInstanceManager: React.FC<{
           enabled: enabled ?? true,
           config,
         };
-        await settingsService.createProviderInstance(createReq);
+        await onCreateInstance(createReq, modalBaseRevision);
         message.success(t("settings.providerTab.instanceCreated", "Provider instance created"));
       }
 
       setInstanceModalOpen(false);
-      await onInstancesChanged();
       await useProviderStore.getState().loadProviderInstances();
     } catch (error) {
-      if (isApiError(error)) {
-        message.error(error.message);
-      } else if (error instanceof Error && !isAntdFormError(error)) {
-        message.error(error.message);
+      if (!isAntdFormError(error)) {
+        message.error(
+          configErrorMessage(
+            error,
+            t("settings.providerTab.saveConfigFailed", "Failed to save provider instance"),
+          ),
+        );
       }
     } finally {
       setSavingInstance(false);
     }
-  }, [editingInstance, instanceForm, message, onInstancesChanged, t]);
+  }, [
+    editingInstance,
+    instanceForm,
+    message,
+    modalBaseRevision,
+    onCreateInstance,
+    onUpdateInstance,
+    t,
+  ]);
 
   const handleDeleteInstance = useCallback(
     async (instanceId: string) => {
       try {
+        if (currentRevision === null) {
+          throw new Error(
+            t(
+              "settings.providerTab.providerRevisionMissing",
+              "Provider revision is not loaded. Reload the configuration and try again.",
+            ),
+          );
+        }
         setDeletingInstanceId(instanceId);
-        await settingsService.deleteProviderInstance(instanceId);
+        await onDeleteInstance(instanceId, currentRevision);
         message.success(t("settings.providerTab.instanceDeleted", "Provider instance deleted"));
-        await onInstancesChanged();
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
-          isApiError(error)
-            ? error.message
-            : t("settings.providerTab.instanceDeleteFailed", "Failed to delete instance"),
+          configErrorMessage(
+            error,
+            t("settings.providerTab.instanceDeleteFailed", "Failed to delete instance"),
+          ),
         );
       } finally {
         setDeletingInstanceId(null);
       }
     },
-    [onInstancesChanged, message, t],
+    [currentRevision, onDeleteInstance, message, t],
   );
 
   const handleSetDefaultInstance = useCallback(
     async (instanceId: string) => {
       try {
-        await settingsService.setDefaultProviderInstance(instanceId);
+        if (currentRevision === null) {
+          throw new Error(
+            t(
+              "settings.providerTab.providerRevisionMissing",
+              "Provider revision is not loaded. Reload the configuration and try again.",
+            ),
+          );
+        }
+        await onSetDefaultInstance(instanceId, currentRevision);
         message.success(t("settings.providerTab.defaultInstanceSet", "Default provider updated"));
-        await onInstancesChanged();
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
-          isApiError(error)
-            ? error.message
-            : t("settings.providerTab.defaultInstanceFailed", "Failed to set default"),
+          configErrorMessage(
+            error,
+            t("settings.providerTab.defaultInstanceFailed", "Failed to set default"),
+          ),
         );
       }
     },
-    [onInstancesChanged, message, t],
+    [currentRevision, onSetDefaultInstance, message, t],
   );
 
+  const handleClearInstanceCredential = useCallback(async () => {
+    if (!editingInstance) return;
+    try {
+      if (modalBaseRevision === null) {
+        throw new Error(
+          t(
+            "settings.providerTab.providerRevisionMissing",
+            "Provider revision is not loaded. Reload the configuration and try again.",
+          ),
+        );
+      }
+      setSavingInstance(true);
+      await onClearInstanceCredential(editingInstance.id, modalBaseRevision);
+      message.success(t("settings.providerTab.credentialCleared", "Provider credential cleared"));
+      setInstanceModalOpen(false);
+      await useProviderStore.getState().loadProviderInstances();
+    } catch (error) {
+      message.error(
+        configErrorMessage(
+          error,
+          t("settings.providerTab.credentialClearFailed", "Failed to clear credential"),
+        ),
+      );
+    } finally {
+      setSavingInstance(false);
+    }
+  }, [editingInstance, message, modalBaseRevision, onClearInstanceCredential, t]);
+
   const selectedPreset = PROVIDER_VENDOR_PRESETS.find((item) => item.id === selectedPresetId);
-
-  const loadInstances = useCallback(async () => {
-    await onInstancesChanged();
-  }, [onInstancesChanged]);
-
-  // Re-load on mount - only once
-  useEffect(() => {
-    void loadInstances();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <div style={{ marginBottom: 16 }}>
@@ -773,6 +1015,7 @@ export const ProviderInstanceManager: React.FC<{
         items={instances.map((instance) => {
           const isDefault = instance.id === defaultInstanceId;
           const typeLabel = PROVIDER_LABELS[instance.type] || instance.type;
+          const credentialStatus = credentialStatusById[instance.id];
           return {
             key: instance.id,
             label: (
@@ -781,6 +1024,9 @@ export const ProviderInstanceManager: React.FC<{
                 <Tag color="processing" style={{ fontSize: 11 }}>
                   {typeLabel}
                 </Tag>
+                {instance.type !== "copilot" ? (
+                  <ProviderCredentialStatusTag status={credentialStatus} />
+                ) : null}
                 {isDefault && (
                   <Tag color="gold" style={{ fontSize: 11 }}>
                     <StarFilled /> {t("settings.providerTab.default", "Default")}
@@ -839,14 +1085,12 @@ export const ProviderInstanceManager: React.FC<{
                 {instance.config && Object.keys(instance.config).length > 0 && (
                   <Card size="small" style={{ marginBottom: 8 }}>
                     {Object.entries(instance.config).map(([key, value]) => {
-                      if (key === "api_key") {
-                        return (
-                          <div key={key} style={{ marginBottom: 4 }}>
-                            <Text type="secondary">{key}: </Text>
-                            <Text>••••••••</Text>
-                          </div>
-                        );
-                      }
+                      if (
+                        key === "api_key" ||
+                        key === "api_key_encrypted" ||
+                        key === "credential_ref"
+                      )
+                        return null;
                       return (
                         <div key={key} style={{ marginBottom: 4 }}>
                           <Text type="secondary">{key}: </Text>
@@ -881,7 +1125,53 @@ export const ProviderInstanceManager: React.FC<{
         forceRender
         destroyOnClose
       >
-        <Form form={instanceForm} layout="vertical" preserve={false}>
+        {externalRevision !== null && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={t(
+              "settings.providerTab.externalRevisionTitle",
+              "Provider settings changed externally",
+            )}
+            description={t("settings.providerTab.externalRevisionDescription", {
+              loaded: modalBaseRevision,
+              latest: externalRevision,
+            })}
+            action={
+              <Space wrap>
+                <Button size="small" onClick={() => adoptLatestInstanceForm(false)}>
+                  {t("settings.providerTab.reloadLatest", "Reload latest")}
+                </Button>
+                <Button size="small" onClick={compareInstanceDraft}>
+                  {t("settings.providerTab.compareChanges", "Compare changes")}
+                </Button>
+                <Button
+                  size="small"
+                  type="primary"
+                  onClick={() => {
+                    if (adoptLatestInstanceForm(true)) {
+                      message.info(
+                        t(
+                          "settings.providerTab.draftReapplied",
+                          "Local draft reapplied to the latest revision",
+                        ),
+                      );
+                    }
+                  }}
+                >
+                  {t("settings.providerTab.reapplyDraft", "Reapply local draft")}
+                </Button>
+              </Space>
+            }
+          />
+        )}
+        <Form
+          form={instanceForm}
+          layout="vertical"
+          preserve={false}
+          onValuesChange={() => setModalDirty(true)}
+        >
           <Form.Item
             label={t("settings.providerTab.vendorPreset", "Vendor Preset")}
             tooltip={t(
@@ -965,20 +1255,50 @@ export const ProviderInstanceManager: React.FC<{
 
           <Divider>{t("settings.providerTab.instanceConfig", "Configuration")}</Divider>
 
+          {editingInstance && editingInstance.type !== "copilot" ? (
+            <Space direction="vertical" size={4} style={{ marginBottom: 12 }}>
+              <ProviderCredentialStatusTag status={credentialStatusById[editingInstance.id]} />
+              {isEnvironmentCredential(credentialStatusById[editingInstance.id]) ? (
+                <Text type="secondary">
+                  {t(
+                    "settings.providerTab.environmentCredentialHint",
+                    "This credential comes from the environment. It remains read-only unless you explicitly replace it.",
+                  )}
+                </Text>
+              ) : null}
+            </Space>
+          ) : null}
+
           <Form.Item noStyle shouldUpdate>
             {() => (
               <InstanceConfigFields
                 form={instanceForm}
                 type={selectedType}
                 hasStoredApiKey={Boolean(
-                  editingInstance &&
-                    isMaskedSecretValue(
-                      (editingInstance.config as Record<string, unknown> | undefined)?.api_key,
-                    ),
+                  editingInstance && credentialStatusById[editingInstance.id]?.configured,
                 )}
               />
             )}
           </Form.Item>
+
+          {editingInstance &&
+            editingInstance.type !== "copilot" &&
+            credentialStatusById[editingInstance.id]?.configured &&
+            !isEnvironmentCredential(credentialStatusById[editingInstance.id]) && (
+              <Popconfirm
+                title={t(
+                  "settings.providerTab.confirmClearCredential",
+                  "Clear the stored credential for this provider?",
+                )}
+                onConfirm={() => void handleClearInstanceCredential()}
+                okText={t("settings.providerTab.clear", "Clear")}
+                cancelText={t("settings.providerTab.cancel", "Cancel")}
+              >
+                <Button danger>
+                  {t("settings.providerTab.clearCredential", "Clear stored credential")}
+                </Button>
+              </Popconfirm>
+            )}
 
           {selectedType === "copilot" && renderCopilotAuthCard("middle")}
         </Form>

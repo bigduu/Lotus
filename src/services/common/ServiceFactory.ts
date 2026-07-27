@@ -171,10 +171,8 @@ export interface BambooSubagentsConfig {
  * Notification delivery channels: native desktop plus ntfy/Bark push relays
  * (mirrors the backend's `notifications` config sub-tree).
  *
- * Secrets (`ntfy.token`, `bark.device_key`) are never returned in plaintext by
- * `GET bamboo/config` — either absent (nothing configured) or redacted to the
- * `****...****` placeholder (configured). See `@shared/utils/secrets`'
- * `isMaskedSecret` for the client-side handling contract.
+ * Legacy effective-config reads may contain masked secret placeholders. New
+ * settings code uses typed section metadata plus explicit credential writes.
  */
 export interface NotificationsChannelConfig {
   desktop?: {
@@ -207,17 +205,15 @@ export interface NotificationsChannelConfig {
  * platform rather than an arbitrary list.
  *
  * `token` (Telegram bot token) and `app_secret` (Feishu app secret) are
- * secrets: `GET bamboo/config` redacts a configured value to `****...****`
- * (see `@shared/utils/secrets`' `isMaskedSecret`) and never emits plaintext.
- * Unlike the single-object `notifications.ntfy`/`notifications.bark`
- * sub-trees, `connect.platforms` is an ARRAY — the backend's
- * `preserve_masked_connect_secrets` resolves a masked placeholder
- * POSITIONALLY (patch index against `current.connect.platforms[index]`,
- * cross-checked against `type`), so an untouched secret must be echoed back
- * as the literal `****...****` placeholder (not simply omitted) for the
- * server to keep the stored value.
+ * write-only in the typed settings flow. Their configured state is exposed as
+ * metadata, while unchanged secrets are omitted and clear uses an explicit
+ * credential action.
  */
 export interface ConnectPlatformConfig {
+  /** Stable server-managed identity used to preserve credential ownership. */
+  id?: string;
+  /** First-class Project assigned to sessions created by this connector. */
+  project_id?: string;
   /** Platform adapter selector: `"telegram"` | `"feishu"`. */
   type: string;
   /** Telegram bot token. Secret — see the masked-secret contract above. */
@@ -238,6 +234,8 @@ export interface ConnectPlatformConfig {
    * stricter than other allow-list precedents in this app.
    */
   allow_from?: string[];
+  /** Platform-scoped user/open ids allowed to run privileged commands. */
+  admin_from?: string[];
 }
 
 export interface ConnectConfig {
@@ -387,16 +385,6 @@ export interface AccessStatusResponse {
   requires_password: boolean;
 }
 
-export interface UpdateAccessPasswordRequest {
-  current_password?: string;
-  new_password: string;
-}
-
-export interface UpdateAccessPasswordResponse {
-  success: boolean;
-  password_enabled: boolean;
-}
-
 /**
  * Device pairing / management (API v2 per-device tokens — bamboo #181,
  * handlers in `crates/app/bamboo-server/src/handlers/settings/access_control.rs`;
@@ -464,11 +452,6 @@ export interface UtilityService {
   getModelLimitDefaults(): Promise<{ model_limits: ModelLimitDefault[] }>;
 
   /**
-   * Set Bamboo config
-   */
-  setBambooConfig(config: BambooConfig): Promise<BambooConfig>;
-
-  /**
    * Validate a Bamboo config patch without saving.
    */
   validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse>;
@@ -478,29 +461,6 @@ export interface UtilityService {
 
   /** Execute one lifecycle hook against Bamboo's synthetic dry-run payload. */
   testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse>;
-
-  /**
-   * Set proxy auth credentials
-   */
-  setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse>;
-
-  /**
-   * Get proxy auth status (returns whether proxy auth is configured, without password)
-   */
-  getProxyAuthStatus(): Promise<{
-    configured: boolean;
-    username: string | null;
-  }>;
-
-  /**
-   * Clear proxy auth credentials
-   */
-  clearProxyAuth(): Promise<ApiSuccessResponse>;
-
-  /**
-   * Reset Bamboo config (delete config.json)
-   */
-  resetBambooConfig(): Promise<ApiSuccessResponse>;
 
   /**
    * Check whether `config.json` was recovered from corruption at load and is
@@ -562,7 +522,6 @@ export interface UtilityService {
    */
   getAccessStatus(): Promise<AccessStatusResponse>;
   verifyAccessPassword(password: string): Promise<ApiSuccessResponse>;
-  updateAccessPassword(payload: UpdateAccessPasswordRequest): Promise<UpdateAccessPasswordResponse>;
 
   /**
    * Device pairing / management (API v2, epic #26 phase 1 — wire plumbing
@@ -582,12 +541,7 @@ class HttpUtilityService implements UtilityService {
   }
 
   async getBambooConfig(): Promise<BambooConfig> {
-    try {
-      return await apiClient.get<BambooConfig>("bamboo/config");
-    } catch (error) {
-      console.error("Failed to fetch Bamboo config:", error);
-      return {};
-    }
+    return apiClient.get<BambooConfig>("bamboo/config");
   }
 
   async getBambooTools(): Promise<{ tools: string[] }> {
@@ -610,10 +564,6 @@ class HttpUtilityService implements UtilityService {
     }
   }
 
-  async setBambooConfig(config: BambooConfig): Promise<BambooConfig> {
-    return apiClient.post<BambooConfig>("bamboo/config", config);
-  }
-
   async validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse> {
     return apiClient.post<ValidateBambooConfigResponse>("bamboo/config/validate", patch);
   }
@@ -630,36 +580,6 @@ class HttpUtilityService implements UtilityService {
 
   async testLifecycleHook(payload: LifecycleHookTestRequest): Promise<LifecycleHookTestResponse> {
     return apiClient.post<LifecycleHookTestResponse>("bamboo/hooks/test", payload);
-  }
-
-  async setProxyAuth(auth: { username: string; password: string }): Promise<ApiSuccessResponse> {
-    return apiClient.post<ApiSuccessResponse>("bamboo/proxy-auth", auth);
-  }
-
-  async getProxyAuthStatus(): Promise<{
-    configured: boolean;
-    username: string | null;
-  }> {
-    try {
-      return await apiClient.get<{
-        configured: boolean;
-        username: string | null;
-      }>("bamboo/proxy-auth/status");
-    } catch (error) {
-      console.error("Failed to fetch proxy auth status:", error);
-      return { configured: false, username: null };
-    }
-  }
-
-  async clearProxyAuth(): Promise<ApiSuccessResponse> {
-    return apiClient.post<ApiSuccessResponse>("bamboo/proxy-auth", {
-      username: "",
-      password: "",
-    });
-  }
-
-  async resetBambooConfig(): Promise<ApiSuccessResponse> {
-    return apiClient.post<ApiSuccessResponse>("bamboo/config/reset", {});
   }
 
   async getConfigRecoveryStatus(): Promise<ConfigRecoveryStatusResponse> {
@@ -752,12 +672,6 @@ class HttpUtilityService implements UtilityService {
 
   async verifyAccessPassword(password: string): Promise<ApiSuccessResponse> {
     return apiClient.post<ApiSuccessResponse>("bamboo/access/verify", { password });
-  }
-
-  async updateAccessPassword(
-    payload: UpdateAccessPasswordRequest,
-  ): Promise<UpdateAccessPasswordResponse> {
-    return apiClient.post<UpdateAccessPasswordResponse>("bamboo/access/password", payload);
   }
 
   // ── v2-P2 device pairing / management (epic #26 phase 1) ─────────────────

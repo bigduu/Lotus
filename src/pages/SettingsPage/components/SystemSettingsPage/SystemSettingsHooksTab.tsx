@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
+  App as AntApp,
   Button,
   Card,
   Flex,
@@ -22,6 +23,9 @@ import {
   type LifecycleHookTestResponse,
 } from "@services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
+import type { HooksSection } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Paragraph, Text } = Typography;
 const { useToken } = theme;
@@ -57,9 +61,8 @@ const MAX_TIMEOUT_MS = 600_000;
 let nextEntryId = 0;
 const newEntryId = () => `lifecycle-hook-${++nextEntryId}`;
 
-const getImageFallbackMode = (config: Record<string, unknown>): ImageFallbackMode => {
-  const hooks = config?.hooks as Record<string, unknown> | undefined;
-  const imageFallback = hooks?.image_fallback as Record<string, unknown> | undefined;
+const getImageFallbackMode = (config: HooksSection): ImageFallbackMode => {
+  const imageFallback = config.image_fallback;
   const mode = String(imageFallback?.mode || "placeholder")
     .trim()
     .toLowerCase();
@@ -67,14 +70,15 @@ const getImageFallbackMode = (config: Record<string, unknown>): ImageFallbackMod
   return "placeholder";
 };
 
-const getImageFallbackEnabled = (config: Record<string, unknown>): boolean => {
-  const hooks = config?.hooks as Record<string, unknown> | undefined;
-  const imageFallback = hooks?.image_fallback as Record<string, unknown> | undefined;
+const getImageFallbackEnabled = (config: HooksSection): boolean => {
+  const imageFallback = config.image_fallback;
   const value = imageFallback?.enabled;
   return typeof value === "boolean" ? value : false;
 };
 
-const readLifecycleEntries = (config: BambooConfig): LifecycleHookEditorEntry[] => {
+const readLifecycleEntries = (
+  config: Pick<BambooConfig, "lifecycle_hooks">,
+): LifecycleHookEditorEntry[] => {
   const lifecycle = config.lifecycle_hooks;
   if (!lifecycle) return [];
   const entries: LifecycleHookEditorEntry[] = [];
@@ -119,9 +123,71 @@ const buildLifecycleConfig = (
   return lifecycle;
 };
 
+type LifecycleDraft = {
+  enabled: boolean;
+  entries: LifecycleHookEditorEntry[];
+};
+
+const lifecycleEntryEqual = (
+  left: LifecycleHookEditorEntry | undefined,
+  right: LifecycleHookEditorEntry | undefined,
+): boolean =>
+  Boolean(
+    left &&
+      right &&
+      left.event === right.event &&
+      left.enabled === right.enabled &&
+      left.matcher === right.matcher &&
+      left.command === right.command &&
+      left.timeoutMs === right.timeoutMs,
+  );
+
+export const reapplyLifecycleEntries = (
+  base: LifecycleHookEditorEntry[],
+  draft: LifecycleHookEditorEntry[],
+  latest: LifecycleHookEditorEntry[],
+): LifecycleHookEditorEntry[] => {
+  const result: LifecycleHookEditorEntry[] = [];
+  for (const event of LIFECYCLE_EVENTS) {
+    const baseEntries = base.filter((entry) => entry.event === event);
+    const draftEntries = draft.filter((entry) => entry.event === event);
+    const latestEntries = latest
+      .filter((entry) => entry.event === event)
+      .map((entry) => ({ ...entry }));
+
+    for (let index = baseEntries.length - 1; index >= 0; index -= 1) {
+      if (draftEntries[index] !== undefined) continue;
+      const latestIndex = latestEntries.findIndex((entry) =>
+        lifecycleEntryEqual(entry, baseEntries[index]),
+      );
+      if (latestIndex >= 0) latestEntries.splice(latestIndex, 1);
+    }
+
+    for (let index = 0; index < baseEntries.length; index += 1) {
+      if (!draftEntries[index] || lifecycleEntryEqual(baseEntries[index], draftEntries[index])) {
+        continue;
+      }
+      const latestIndex = latestEntries.findIndex((entry) =>
+        lifecycleEntryEqual(entry, baseEntries[index]),
+      );
+      const targetIndex = latestIndex >= 0 ? latestIndex : Math.min(index, latestEntries.length);
+      if (targetIndex < latestEntries.length)
+        latestEntries[targetIndex] = { ...draftEntries[index] };
+      else latestEntries.push({ ...draftEntries[index] });
+    }
+
+    for (const entry of draftEntries.slice(baseEntries.length)) {
+      latestEntries.push({ ...entry });
+    }
+    result.push(...latestEntries);
+  }
+  return result;
+};
+
 const SystemSettingsHooksTab: React.FC = () => {
   const { t } = useTranslation();
   const { token } = useToken();
+  const { modal } = AntApp.useApp();
   const [msgApi, contextHolder] = message.useMessage();
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -131,6 +197,13 @@ const SystemSettingsHooksTab: React.FC = () => {
   const [lifecycleEnabled, setLifecycleEnabled] = useState(false);
   const [entries, setEntries] = useState<LifecycleHookEditorEntry[]>([]);
   const [validationSummary, setValidationSummary] = useState<string | null>(null);
+  const [baseRevision, setBaseRevision] = useState<number | null>(null);
+  const [lifecycleDirty, setLifecycleDirty] = useState(false);
+  const [externalRevision, setExternalRevision] = useState<number | null>(null);
+  const baseLifecycleRef = React.useRef<LifecycleDraft>({ enabled: false, entries: [] });
+  const snapshot = useConfigSectionStore((state) => state.sections.hooks);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
+  const saveSection = useConfigSectionStore((state) => state.saveSection);
 
   const modeOptions = useMemo(
     () => [
@@ -155,23 +228,43 @@ const SystemSettingsHooksTab: React.FC = () => {
     setIsLoading(true);
     setValidationSummary(null);
     try {
-      const config = await serviceFactory.getBambooConfig();
+      const envelope = await loadSection("hooks", { force: true });
+      const config = envelope.data;
       setImageEnabled(getImageFallbackEnabled(config));
       setImageMode(getImageFallbackMode(config));
       setLifecycleEnabled(config.lifecycle_hooks?.enabled ?? false);
-      setEntries(readLifecycleEntries(config));
+      const nextEntries = readLifecycleEntries(config);
+      setEntries(nextEntries);
+      baseLifecycleRef.current = {
+        enabled: config.lifecycle_hooks?.enabled ?? false,
+        entries: nextEntries.map((entry) => ({ ...entry })),
+      };
+      setBaseRevision(envelope.revision);
+      setLifecycleDirty(false);
+      setExternalRevision(null);
     } catch (error) {
-      msgApi.error(error instanceof Error ? error.message : t("settings.hooksTab.loadFailed"));
+      msgApi.error(configErrorMessage(error, t("settings.hooksTab.loadFailed")));
     } finally {
       setIsLoading(false);
     }
-  }, [msgApi, t]);
+  }, [loadSection, msgApi, t]);
 
-  const patchImageHook = useCallback(async (nextEnabled: boolean, nextMode: ImageFallbackMode) => {
-    await serviceFactory.setBambooConfig({
-      hooks: { image_fallback: { enabled: nextEnabled, mode: nextMode } },
-    });
-  }, []);
+  const patchImageHook = useCallback(
+    async (nextEnabled: boolean, nextMode: ImageFallbackMode) => {
+      if (baseRevision === null) throw new Error("Hooks configuration is not loaded.");
+      const saved = await saveSection(
+        "hooks",
+        {
+          ...(snapshot.envelope?.data ?? {}),
+          image_fallback: { enabled: nextEnabled, mode: nextMode },
+        },
+        baseRevision,
+      );
+      setBaseRevision(saved.revision);
+      setExternalRevision(null);
+    },
+    [baseRevision, saveSection, snapshot.envelope],
+  );
 
   const handleImageEnabledChange = useCallback(
     async (checked: boolean) => {
@@ -180,7 +273,7 @@ const SystemSettingsHooksTab: React.FC = () => {
         setImageEnabled(checked);
         msgApi.success(checked ? t("settings.hooksTab.enabled") : t("settings.hooksTab.disabled"));
       } catch (error) {
-        msgApi.error(error instanceof Error ? error.message : t("settings.hooksTab.updateFailed"));
+        msgApi.error(configErrorMessage(error, t("settings.hooksTab.updateFailed")));
       }
     },
     [imageMode, msgApi, patchImageHook, t],
@@ -197,9 +290,7 @@ const SystemSettingsHooksTab: React.FC = () => {
           }),
         );
       } catch (error) {
-        msgApi.error(
-          error instanceof Error ? error.message : t("settings.hooksTab.modeUpdateFailed"),
-        );
+        msgApi.error(configErrorMessage(error, t("settings.hooksTab.modeUpdateFailed")));
       }
     },
     [imageEnabled, modeOptions, msgApi, patchImageHook, t],
@@ -214,6 +305,7 @@ const SystemSettingsHooksTab: React.FC = () => {
       ),
     );
     setValidationSummary(null);
+    setLifecycleDirty(true);
   }, []);
 
   const validateEntry = useCallback(
@@ -286,18 +378,41 @@ const SystemSettingsHooksTab: React.FC = () => {
         applyServerIssues(validation.errors.lifecycle_hooks ?? []);
         return;
       }
-      const saved = await serviceFactory.setBambooConfig({ lifecycle_hooks: lifecycleHooks });
-      setLifecycleEnabled(saved.lifecycle_hooks?.enabled ?? lifecycleEnabled);
-      setEntries(readLifecycleEntries(saved));
+      if (baseRevision === null) throw new Error("Hooks configuration is not loaded.");
+      const savedEnvelope = await saveSection(
+        "hooks",
+        { ...(snapshot.envelope?.data ?? {}), lifecycle_hooks: lifecycleHooks },
+        baseRevision,
+      );
+      const saved = savedEnvelope.data;
+      setBaseRevision(savedEnvelope.revision);
+      const nextEnabled = saved.lifecycle_hooks?.enabled ?? lifecycleEnabled;
+      const nextEntries = readLifecycleEntries(saved);
+      setLifecycleEnabled(nextEnabled);
+      setEntries(nextEntries);
+      baseLifecycleRef.current = {
+        enabled: nextEnabled,
+        entries: nextEntries.map((entry) => ({ ...entry })),
+      };
+      setLifecycleDirty(false);
+      setExternalRevision(null);
       msgApi.success(t("settings.hooksTab.lifecycle.saved"));
     } catch (error) {
-      msgApi.error(
-        error instanceof Error ? error.message : t("settings.hooksTab.lifecycle.saveFailed"),
-      );
+      msgApi.error(configErrorMessage(error, t("settings.hooksTab.lifecycle.saveFailed")));
     } finally {
       setIsSaving(false);
     }
-  }, [applyServerIssues, entries, lifecycleEnabled, msgApi, t, validateAllEntries]);
+  }, [
+    applyServerIssues,
+    baseRevision,
+    entries,
+    lifecycleEnabled,
+    msgApi,
+    saveSection,
+    snapshot.envelope,
+    t,
+    validateAllEntries,
+  ]);
 
   const handleTest = useCallback(
     async (id: string) => {
@@ -322,9 +437,7 @@ const SystemSettingsHooksTab: React.FC = () => {
           ),
         );
       } catch (error) {
-        msgApi.error(
-          error instanceof Error ? error.message : t("settings.hooksTab.lifecycle.testFailed"),
-        );
+        msgApi.error(configErrorMessage(error, t("settings.hooksTab.lifecycle.testFailed")));
       } finally {
         setTestingId(null);
       }
@@ -336,9 +449,101 @@ const SystemSettingsHooksTab: React.FC = () => {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const envelope = snapshot.envelope;
+    if (!envelope || baseRevision === null || envelope.revision === baseRevision) return;
+    if (lifecycleDirty) {
+      setExternalRevision(envelope.revision);
+      return;
+    }
+    const nextEntries = readLifecycleEntries(envelope.data);
+    const nextEnabled = envelope.data.lifecycle_hooks?.enabled ?? false;
+    setImageEnabled(getImageFallbackEnabled(envelope.data));
+    setImageMode(getImageFallbackMode(envelope.data));
+    setLifecycleEnabled(nextEnabled);
+    setEntries(nextEntries);
+    baseLifecycleRef.current = {
+      enabled: nextEnabled,
+      entries: nextEntries.map((entry) => ({ ...entry })),
+    };
+    setBaseRevision(envelope.revision);
+    setExternalRevision(null);
+  }, [baseRevision, lifecycleDirty, snapshot.envelope]);
+
+  const reapplyExternalChanges = () => {
+    const envelope = snapshot.envelope;
+    if (!envelope || externalRevision === null) return;
+    const latestEntries = readLifecycleEntries(envelope.data);
+    const latestEnabled = envelope.data.lifecycle_hooks?.enabled ?? false;
+    const base = baseLifecycleRef.current;
+    setEntries(reapplyLifecycleEntries(base.entries, entries, latestEntries));
+    setLifecycleEnabled(base.enabled === lifecycleEnabled ? latestEnabled : lifecycleEnabled);
+    setImageEnabled(getImageFallbackEnabled(envelope.data));
+    setImageMode(getImageFallbackMode(envelope.data));
+    baseLifecycleRef.current = {
+      enabled: latestEnabled,
+      entries: latestEntries.map((entry) => ({ ...entry })),
+    };
+    setBaseRevision(envelope.revision);
+    setExternalRevision(null);
+    setLifecycleDirty(true);
+  };
+
+  const compareExternalChanges = () => {
+    const envelope = snapshot.envelope;
+    if (!envelope) return;
+    modal.info({
+      title: "Compare hook revisions",
+      width: 800,
+      content: (
+        <pre style={{ maxHeight: 460, overflow: "auto", whiteSpace: "pre-wrap" }}>
+          {JSON.stringify(
+            {
+              base: {
+                enabled: baseLifecycleRef.current.enabled,
+                lifecycle_hooks: buildLifecycleConfig(
+                  baseLifecycleRef.current.enabled,
+                  baseLifecycleRef.current.entries,
+                ),
+              },
+              draft: {
+                enabled: lifecycleEnabled,
+                lifecycle_hooks: buildLifecycleConfig(lifecycleEnabled, entries),
+              },
+              latest: envelope.data,
+            },
+            null,
+            2,
+          )}
+        </pre>
+      ),
+    });
+  };
+
   return (
     <Flex vertical gap={token.marginLG}>
       {contextHolder}
+      {externalRevision !== null ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={`Hooks configuration changed on disk (r${baseRevision} → r${externalRevision})`}
+          description="Your unsaved lifecycle-hook edits were kept. Reload to discard them, compare revisions, or reapply them on the latest snapshot."
+          action={
+            <Flex gap={8} wrap="wrap">
+              <Button size="small" onClick={() => void load()}>
+                Reload
+              </Button>
+              <Button size="small" onClick={compareExternalChanges}>
+                Compare
+              </Button>
+              <Button size="small" type="primary" onClick={reapplyExternalChanges}>
+                Reapply
+              </Button>
+            </Flex>
+          }
+        />
+      ) : null}
       <Card
         size="small"
         loading={isLoading}
@@ -349,7 +554,10 @@ const SystemSettingsHooksTab: React.FC = () => {
             <Switch
               aria-label={t("settings.hooksTab.lifecycle.globalEnabled")}
               checked={lifecycleEnabled}
-              onChange={setLifecycleEnabled}
+              onChange={(checked) => {
+                setLifecycleEnabled(checked);
+                setLifecycleDirty(true);
+              }}
             />
           </Flex>
         }
@@ -457,7 +665,10 @@ const SystemSettingsHooksTab: React.FC = () => {
                       danger
                       icon={<DeleteOutlined />}
                       onClick={() =>
-                        setEntries((current) => current.filter(({ id }) => id !== entry.id))
+                        setEntries((current) => {
+                          setLifecycleDirty(true);
+                          return current.filter(({ id }) => id !== entry.id);
+                        })
                       }
                     >
                       {t("settings.hooksTab.lifecycle.remove")}
@@ -498,18 +709,21 @@ const SystemSettingsHooksTab: React.FC = () => {
               aria-label={t("settings.hooksTab.lifecycle.add")}
               icon={<PlusOutlined />}
               onClick={() =>
-                setEntries((current) => [
-                  ...current,
-                  {
-                    id: newEntryId(),
-                    event: "PreToolUse",
-                    enabled: true,
-                    matcher: "",
-                    command: "",
-                    timeoutMs: DEFAULT_TIMEOUT_MS,
-                    errors: {},
-                  },
-                ])
+                setEntries((current) => {
+                  setLifecycleDirty(true);
+                  return [
+                    ...current,
+                    {
+                      id: newEntryId(),
+                      event: "PreToolUse",
+                      enabled: true,
+                      matcher: "",
+                      command: "",
+                      timeoutMs: DEFAULT_TIMEOUT_MS,
+                      errors: {},
+                    },
+                  ];
+                })
               }
             >
               {t("settings.hooksTab.lifecycle.add")}

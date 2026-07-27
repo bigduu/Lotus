@@ -7,9 +7,7 @@ describe("useBambooConfigStore", () => {
     vi.restoreAllMocks();
     useBambooConfigStore.setState({
       config: null,
-      proxyAuthStatus: null,
       isLoadingConfig: false,
-      isLoadingProxyAuthStatus: false,
       lastLoadedAt: null,
       error: null,
     });
@@ -45,47 +43,15 @@ describe("useBambooConfigStore", () => {
     expect(spy).toHaveBeenCalledTimes(2);
   });
 
-  it("saveConfig updates store with saved response", async () => {
-    vi.spyOn(serviceFactory, "setBambooConfig").mockResolvedValue({
-      provider: "gemini",
-      http_proxy: "http://proxy:8080",
-    } as any);
+  it("retains the last config snapshot when a forced diagnostic reload fails", async () => {
+    useBambooConfigStore.setState({ config: { provider: "gemini" } as any });
+    vi.spyOn(serviceFactory, "getBambooConfig").mockRejectedValue(new Error("offline"));
 
-    const store = useBambooConfigStore.getState();
-    const saved = await store.saveConfig({ provider: "gemini" } as any);
+    await expect(useBambooConfigStore.getState().loadConfig({ force: true })).rejects.toThrow(
+      "offline",
+    );
 
-    expect(saved.provider).toBe("gemini");
-    expect(useBambooConfigStore.getState().config?.http_proxy).toBe("http://proxy:8080");
-  });
-
-  it("dedupes concurrent loadProxyAuthStatus calls", async () => {
-    const spy = vi.spyOn(serviceFactory, "getProxyAuthStatus").mockImplementation(async () => {
-      await new Promise((r) => setTimeout(r, 10));
-      return { configured: true, username: "alice" };
-    });
-
-    const store = useBambooConfigStore.getState();
-    const [a, b] = await Promise.all([store.loadProxyAuthStatus(), store.loadProxyAuthStatus()]);
-
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(a.configured).toBe(true);
-    expect(b.username).toBe("alice");
-    expect(useBambooConfigStore.getState().proxyAuthStatus?.username).toBe("alice");
-  });
-
-  it("applyProxyAuth refreshes proxy auth status", async () => {
-    const setSpy = vi
-      .spyOn(serviceFactory, "setProxyAuth")
-      .mockResolvedValue({ success: true } as any);
-    const statusSpy = vi
-      .spyOn(serviceFactory, "getProxyAuthStatus")
-      .mockResolvedValue({ configured: true, username: "bob" });
-
-    const store = useBambooConfigStore.getState();
-    await store.applyProxyAuth({ username: "bob", password: "secret" });
-
-    expect(setSpy).toHaveBeenCalledTimes(1);
-    expect(statusSpy).toHaveBeenCalledTimes(1);
-    expect(useBambooConfigStore.getState().proxyAuthStatus?.username).toBe("bob");
+    expect(useBambooConfigStore.getState().config?.provider).toBe("gemini");
+    expect(useBambooConfigStore.getState().error).toBe("offline");
   });
 });

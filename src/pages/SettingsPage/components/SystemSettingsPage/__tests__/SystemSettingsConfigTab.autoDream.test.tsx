@@ -1,27 +1,46 @@
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { App as AntdApp } from "antd";
 
 import SystemSettingsConfigTab from "../SystemSettingsConfigTab";
 import { serviceFactory } from "@services/common/ServiceFactory";
+import { configSectionsService, type ConfigSectionId } from "@services/config/configSections";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 vi.mock("@services/common/ServiceFactory", () => ({
   serviceFactory: {
-    getBambooConfig: vi.fn(),
     getBambooTools: vi.fn(),
     validateBambooConfigPatch: vi.fn(),
-    setBambooConfig: vi.fn(),
-    getProxyAuthStatus: vi.fn(),
-    setProxyAuth: vi.fn(),
-    clearProxyAuth: vi.fn(),
   },
 }));
 
-const mockGetBambooConfig = vi.mocked(serviceFactory.getBambooConfig);
 const mockGetBambooTools = vi.mocked(serviceFactory.getBambooTools);
 const mockValidateBambooConfigPatch = vi.mocked(serviceFactory.validateBambooConfigPatch);
-const mockSetBambooConfig = vi.mocked(serviceFactory.setBambooConfig);
-const mockGetProxyAuthStatus = vi.mocked(serviceFactory.getProxyAuthStatus);
+
+const sectionEnvelope = (
+  section: ConfigSectionId,
+  memoryData: unknown = {
+    auto_dream_enabled: true,
+    background_model: "gpt-4.1-mini",
+  },
+) => ({
+  data:
+    section === "core"
+      ? { http_proxy: "", https_proxy: "" }
+      : section === "memory"
+        ? memoryData
+        : section === "subagents"
+          ? { max_concurrent: 8 }
+          : section === "tools-skills"
+            ? { tools: { disabled: [] } }
+            : {},
+  revision: section === "memory" ? 4 : 2,
+  loaded_at: "2026-07-23T00:00:00.000Z",
+  source_path: `/tmp/${section}.json`,
+  source_kind: "file" as const,
+  status: "healthy" as const,
+  last_error: null,
+});
 
 describe("SystemSettingsConfigTab auto dream settings", () => {
   const msgApi = {
@@ -31,19 +50,34 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetBambooConfig.mockResolvedValue({
-      http_proxy: "",
-      https_proxy: "",
-      memory: {
-        auto_dream_enabled: true,
-        background_model: "gpt-4.1-mini",
-      },
+    useConfigSectionStore.getState().reset();
+    vi.spyOn(configSectionsService, "getSection").mockImplementation(
+      async (section) => sectionEnvelope(section) as never,
+    );
+    vi.spyOn(configSectionsService, "putSection").mockImplementation(
+      async (section, _revision, data) =>
+        ({
+          ...sectionEnvelope(section),
+          data,
+          revision: 5,
+        }) as never,
+    );
+    vi.spyOn(configSectionsService, "getProxyAuthStatus").mockResolvedValue({
+      configured: false,
+      credential_ref: null,
+      source: null,
+      updated_at: null,
+      revision: 1,
+      status: "healthy",
+      source_kind: "file",
+      last_error: null,
+      section: sectionEnvelope("core"),
     });
     mockGetBambooTools.mockResolvedValue({ tools: [] });
-    mockGetProxyAuthStatus.mockResolvedValue({ configured: false, username: null });
     mockValidateBambooConfigPatch.mockResolvedValue({ valid: true, errors: {} });
-    mockSetBambooConfig.mockResolvedValue({});
   });
+
+  afterEach(() => vi.restoreAllMocks());
 
   it("loads and saves auto dream settings", async () => {
     render(
@@ -60,26 +94,47 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
     fireEvent.click(screen.getByTestId("save-memory-settings"));
 
     await waitFor(() => {
-      // The Memory save is a section-scoped patch (handleSaveConfig("memory")),
-      // so it carries only the memory block — not the network/proxy fields.
       expect(mockValidateBambooConfigPatch).toHaveBeenCalledWith({
         memory: {
           auto_dream_enabled: false,
         },
       });
-      expect(mockSetBambooConfig).toHaveBeenCalledWith({
-        memory: {
-          auto_dream_enabled: false,
-        },
+      expect(configSectionsService.putSection).toHaveBeenCalledWith("memory", 4, {
+        background_model: "gpt-4.1-mini",
+        auto_dream_enabled: false,
       });
     });
   });
 
+  it("adopts the canonical memory snapshot returned by the server", async () => {
+    vi.mocked(configSectionsService.putSection).mockImplementationOnce(
+      async (section, _revision, data) =>
+        ({
+          ...sectionEnvelope(section),
+          data: { ...(data as object), auto_dream_enabled: true },
+          revision: 5,
+        }) as never,
+    );
+
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const toggle = await screen.findByTestId("auto-dream-toggle");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByTestId("save-memory-settings"));
+
+    await waitFor(() => expect(toggle).toHaveAttribute("aria-checked", "true"));
+    expect(useConfigSectionStore.getState().sections.memory.envelope?.revision).toBe(5);
+  });
+
   it("falls back to disabled auto dream when memory config is missing", async () => {
-    mockGetBambooConfig.mockResolvedValueOnce({
-      http_proxy: "",
-      https_proxy: "",
-    });
+    vi.mocked(configSectionsService.getSection).mockImplementation(
+      async (section) => sectionEnvelope(section, null) as never,
+    );
 
     render(
       <AntdApp>
@@ -90,6 +145,26 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
     const toggle = await screen.findByTestId("auto-dream-toggle");
 
     expect(toggle.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("saves network settings directly through Core CAS without legacy root validation", async () => {
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const httpProxy = await screen.findByTestId("proxy-url");
+    fireEvent.change(httpProxy, { target: { value: "http://127.0.0.1:8111" } });
+    fireEvent.click(screen.getByTestId("save-proxy-settings"));
+
+    await waitFor(() => {
+      expect(configSectionsService.putSection).toHaveBeenCalledWith("core", 2, {
+        http_proxy: "http://127.0.0.1:8111",
+        https_proxy: "",
+      });
+    });
+    expect(mockValidateBambooConfigPatch).not.toHaveBeenCalled();
   });
 
   it("does not save when validation fails", async () => {
@@ -111,7 +186,7 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
 
     await waitFor(() => {
       expect(msgApi.error).toHaveBeenCalled();
-      expect(mockSetBambooConfig).not.toHaveBeenCalled();
+      expect(configSectionsService.putSection).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AccountStreamHandlers, ChangeEvent, SubagentSnapshotResponse } from "./AgentService";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
 // Capture the handlers passed to subscribeToAccountStream so the test can drive
 // the feed without a real EventSource.
@@ -80,6 +81,7 @@ const startAndHydrate = async (): Promise<void> => {
 
 describe("accountFeed runner", () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     // The runner guards on a browser EventSource; provide a stub global.
     (globalThis as Record<string, unknown>).EventSource = class {};
     captured = null;
@@ -98,6 +100,7 @@ describe("accountFeed runner", () => {
     storeActions.refreshSessionsIndex.mockResolvedValue(undefined);
     storeActions.refreshChatsNow.mockResolvedValue(undefined);
     localStorage.clear();
+    useConfigSectionStore.getState().reset();
   });
 
   afterEach(() => {
@@ -308,6 +311,53 @@ describe("accountFeed runner", () => {
 
     expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBe("7");
     expect(storeActions.setAgentAvailability).toHaveBeenCalledWith(true);
+  });
+
+  it("routes config events only to the changed section store", async () => {
+    const handler = vi.spyOn(useConfigSectionStore.getState(), "handleConfigEvent");
+    await startAndHydrate();
+
+    captured!.onChange(change(8, { type: "config.invalid", section: "hooks", revision: 12 }));
+
+    expect(handler).toHaveBeenCalledWith("hooks", 12, "config.invalid");
+    expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
+  });
+
+  it("resyncs loaded config sections when the transport reconnects", async () => {
+    const resync = vi
+      .spyOn(useConfigSectionStore.getState(), "resyncLoadedSections")
+      .mockResolvedValue(undefined);
+    await startAndHydrate();
+
+    captured!.onOpen?.();
+    captured!.onError?.();
+    captured!.onOpen?.();
+
+    expect(resync).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([
+    ["transport reconnect", () => captured!.onOpen?.()],
+    ["feed reset", () => captured!.onReset?.()],
+  ])("retries an observable config resync failure after %s", async (_reason, trigger) => {
+    await startAndHydrate();
+    vi.useFakeTimers();
+    const resync = vi
+      .spyOn(useConfigSectionStore.getState(), "resyncLoadedSections")
+      .mockRejectedValueOnce(new Error("partial section refresh failure"))
+      .mockResolvedValue(undefined);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    trigger();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(resync).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Configuration resync failed"));
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(resync).toHaveBeenCalledTimes(2);
+    expect(closeSpy).not.toHaveBeenCalled();
   });
 
   it("replaces from an advanced-cursor snapshot then replays only events above its watermark", async () => {

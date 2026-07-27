@@ -1,9 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { App as AntApp, message } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProviderSettings } from "./index";
+import type { ProviderSection } from "@services/config/configSections";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { useAppStore } from "@shared/store/appStore";
+import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { copyText } from "@shared/utils/clipboard";
 
 // Mock fetch globally for HTTP API calls.
@@ -58,21 +61,67 @@ function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
+function providerSectionFromLegacy(config: Record<string, unknown>): ProviderSection {
+  const legacyProviders =
+    (config.providers as Record<string, Record<string, unknown>> | undefined) ?? {};
+  const providers: Record<string, Record<string, unknown>> = {};
+  const credentialProviders: ProviderSection["credential_status"]["providers"] = {};
+
+  for (const [provider, rawConfig] of Object.entries(legacyProviders)) {
+    const { api_key: apiKey, api_key_encrypted: encryptedKey, ...metadata } = rawConfig;
+    providers[provider] = metadata;
+    credentialProviders[provider as keyof typeof credentialProviders] = {
+      credential_ref: `provider.${provider}.api_key`,
+      configured: Boolean(apiKey || encryptedKey),
+      source: apiKey || encryptedKey ? "user" : null,
+      updated_at: null,
+    };
+  }
+
+  return {
+    provider: String(config.provider ?? "openai"),
+    providers: providers as ProviderSection["providers"],
+    defaults: (config.defaults as ProviderSection["defaults"] | undefined) ?? null,
+    features: (config.features as ProviderSection["features"] | undefined) ?? {},
+    provider_instances: {},
+    default_provider_instance_id: null,
+    available_providers: Object.keys(legacyProviders) as ProviderSection["available_providers"],
+    credential_status: {
+      providers: credentialProviders,
+      provider_instances: {},
+    },
+  };
+}
+
+function sectionEnvelope<T>(data: T, revision: number) {
+  return {
+    data,
+    revision,
+    loaded_at: "2026-07-24T00:00:00Z",
+    source_path: "bamboo.yaml",
+    source_kind: "file",
+    status: "healthy",
+    last_error: null,
+  };
+}
+
 function setupProviderSettingsFetch(
   initialConfig: Record<string, unknown>,
   options?: {
     catalog?: Record<string, unknown>;
     bambooConfig?: Record<string, unknown>;
+    rejectProviderSave?: { status?: number; body: Record<string, unknown> };
   },
 ) {
   const postedBodies: Array<Record<string, unknown>> = [];
-  let currentConfig = deepClone(initialConfig);
+  const credentialChangeBodies: Array<Record<string, unknown>> = [];
+  const putRequests: Array<Record<string, unknown>> = [];
+  let revision = 1;
+  let currentSection = providerSectionFromLegacy(deepClone(initialConfig));
   const catalog =
     options?.catalog ??
-    ({
-      providers: [],
-      models: [],
-    } satisfies Record<string, unknown>);
+    (useProviderStore.getState().catalog as unknown as Record<string, unknown> | null) ??
+    ({ providers: [], models: [] } satisfies Record<string, unknown>);
   const bambooConfig = options?.bambooConfig ?? {};
 
   useProviderStore.setState({ catalog: catalog as any, isCatalogFetching: false });
@@ -80,20 +129,18 @@ function setupProviderSettingsFetch(
   (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
     const method = (init?.method || "GET").toUpperCase();
     const path = url.toString();
-    const isLegacyProviderEndpoint =
-      path.includes("/bamboo/settings/provider") &&
-      !path.includes("/bamboo/settings/provider-instances");
+    const isProviderSectionEndpoint = path.includes("/bamboo/config/provider-settings");
 
     if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
       return jsonResponse({ authenticated: false });
     }
 
-    if (method === "GET" && isLegacyProviderEndpoint) {
-      return jsonResponse(currentConfig);
+    if (method === "GET" && isProviderSectionEndpoint) {
+      return jsonResponse(sectionEnvelope(currentSection, revision));
     }
 
-    if (method === "GET" && path.includes("/bamboo/config")) {
-      return jsonResponse(bambooConfig);
+    if (method === "GET" && path.includes("/bamboo/config/sections/memory")) {
+      return jsonResponse(sectionEnvelope((bambooConfig as any).memory ?? null, 1));
     }
 
     if (method === "GET" && path.includes("/bamboo/provider-catalog")) {
@@ -104,27 +151,23 @@ function setupProviderSettingsFetch(
       return jsonResponse({ entries: [] });
     }
 
-    if (method === "POST" && path.includes("/bamboo/config/validate")) {
-      return jsonResponse({ valid: true, errors: {} });
-    }
-
-    if (method === "POST" && isLegacyProviderEndpoint) {
+    if (method === "PUT" && isProviderSectionEndpoint) {
       const body = JSON.parse(String(init?.body || "{}")) as Record<string, unknown>;
-      postedBodies.push(body);
-      currentConfig = {
-        ...currentConfig,
-        ...body,
-        defaults: (body.defaults as Record<string, unknown> | undefined) ?? currentConfig.defaults,
-        providers: {
-          ...(currentConfig.providers as Record<string, unknown> | undefined),
-          ...(body.providers as Record<string, unknown> | undefined),
-        },
-        features: {
-          ...(currentConfig.features as Record<string, unknown> | undefined),
-          ...(body.features as Record<string, unknown> | undefined),
-        },
-      };
-      return jsonResponse({ success: true, provider: currentConfig.provider });
+      putRequests.push(deepClone(body));
+      if (options?.rejectProviderSave) {
+        return jsonResponse(options.rejectProviderSave.body, {
+          ok: false,
+          status: options.rejectProviderSave.status ?? 400,
+        });
+      }
+      const data = deepClone(body.data as Record<string, unknown>);
+      const credentialChanges =
+        (body.credential_changes as Record<string, unknown> | undefined) ?? {};
+      postedBodies.push(data);
+      credentialChangeBodies.push(deepClone(credentialChanges));
+      currentSection = data as unknown as ProviderSection;
+      revision += 1;
+      return jsonResponse(sectionEnvelope(currentSection, revision));
     }
 
     return jsonResponse({});
@@ -132,7 +175,22 @@ function setupProviderSettingsFetch(
 
   return {
     postedBodies,
-    getCurrentConfig: () => currentConfig,
+    credentialChangeBodies,
+    putRequests,
+    getCurrentConfig: () => currentSection,
+    publishExternal: (nextSection: ProviderSection) => {
+      currentSection = deepClone(nextSection);
+      revision += 1;
+      useConfigSectionStore.setState((state) => ({
+        sections: {
+          ...state.sections,
+          providers: {
+            ...state.sections.providers,
+            envelope: sectionEnvelope(currentSection, revision),
+          },
+        },
+      }));
+    },
   };
 }
 
@@ -173,7 +231,7 @@ async function waitForModelPreferenceValue(field: string, title: string) {
   });
 }
 
-async function waitForOpenAIApiKeyValue(value: string) {
+async function waitForOpenAIApiKeyValue(value = "") {
   await waitFor(() => {
     const field = screen.getByTestId("api-key-input") as HTMLElement;
     const input =
@@ -185,9 +243,17 @@ async function waitForOpenAIApiKeyValue(value: string) {
   });
 }
 
+function getInputWithin(testId: string): HTMLInputElement {
+  const field = screen.getByTestId(testId);
+  const input = field instanceof HTMLInputElement ? field : field.querySelector("input");
+  if (!input) throw new Error(`No <input> found within testid "${testId}"`);
+  return input;
+}
+
 describe("ProviderSettings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useConfigSectionStore.getState().reset();
     window.localStorage.setItem("lotus_ui_locale_v1", "en-US");
     const mockCatalog = {
       models: [
@@ -302,69 +368,32 @@ describe("ProviderSettings", () => {
     await waitFor(() =>
       expect(copyText).toHaveBeenCalledWith("https://bamboo.example.com/proxy/openai/v1"),
     );
-  });
+  }, 40000);
 
   it("includes defaults in save payload so model preferences persist", async () => {
-    const postedBodies: any[] = [];
-    let providerGetCount = 0;
-    (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = (init?.method || "GET").toUpperCase();
-      const path = url.toString();
-      const isLegacyProviderEndpoint =
-        path.includes("/bamboo/settings/provider") &&
-        !path.includes("/bamboo/settings/provider-instances");
-
-      if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
-        return jsonResponse({ authenticated: false });
-      }
-
-      if (method === "GET" && isLegacyProviderEndpoint) {
-        providerGetCount += 1;
-        return jsonResponse({
-          provider: "openai",
-          defaults: {
-            chat: { provider: "openai", model: "gpt-4o" },
-            fast: { provider: "openai", model: "gpt-4o-mini" },
-            task_summary: { provider: "anthropic", model: "claude-3-7-sonnet" },
-            memory_background: { provider: "openai", model: "gpt-4.1-mini" },
-            sub_agent: { provider: "openai", model: "gpt-4.1-mini" },
-            vision: { provider: "openai", model: "gpt-4.1" },
-          },
-          providers: { openai: { api_key: "sk-masked" } },
-          features: { provider_model_ref: false },
-        });
-      }
-
-      if (method === "POST" && path.includes("bamboo/config/validate")) {
-        return jsonResponse({ valid: true, errors: {} });
-      }
-
-      if (method === "POST" && isLegacyProviderEndpoint) {
-        postedBodies.push(JSON.parse(String(init?.body || "{}")));
-        return jsonResponse({ success: true, provider: "openai" });
-      }
-
-      return jsonResponse({});
+    const { postedBodies } = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-4o" },
+        fast: { provider: "openai", model: "gpt-4o-mini" },
+        task_summary: { provider: "anthropic", model: "claude-3-7-sonnet" },
+        memory_background: { provider: "openai", model: "gpt-4.1-mini" },
+        sub_agent: { provider: "openai", model: "gpt-4.1-mini" },
+        vision: { provider: "openai", model: "gpt-4.1" },
+      },
+      providers: { openai: { api_key: "configured-but-never-returned" } },
+      features: { provider_model_ref: false },
     });
 
     render(<ProviderSettings />);
 
-    // Wait for the config to load and form to populate before clicking save.
-    // The save button is always rendered (not gated by configLoaded), but the
-    // form values are set asynchronously by loadConfig.  On CI the async
-    // effects can be slow enough that clicking immediately races with
-    // loadConfig, causing the save to fail with "Please select a model".
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-4o");
     await waitFor(() => {
-      // loadConfig completes when the GET /bamboo/settings/provider fetch has
-      // been called at least once. Waiting for the real legacy endpoint avoids
-      // falsely matching /bamboo/settings/provider-instances.
       expect(
         (fetch as any).mock.calls.some(
           (call: any[]) =>
-            call[0].includes("/bamboo/settings/provider") &&
-            !call[0].includes("/bamboo/settings/provider-instances") &&
+            call[0].includes("/bamboo/config/provider-settings") &&
             ((call[1]?.method || "GET") as string).toUpperCase() === "GET",
         ),
       ).toBe(true);
@@ -382,13 +411,6 @@ describe("ProviderSettings", () => {
       },
       { timeout: 5000 },
     );
-    await waitFor(
-      () => {
-        expect(providerGetCount).toBeGreaterThanOrEqual(2);
-      },
-      { timeout: 5000 },
-    );
-
     expect(postedBodies[0]?.defaults?.chat).toEqual({ provider: "openai", model: "gpt-4o" });
     expect(postedBodies[0]?.defaults?.fast).toEqual({
       provider: "openai",
@@ -436,7 +458,7 @@ describe("ProviderSettings", () => {
 
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-4o");
-    await waitForOpenAIApiKeyValue("sk-masked");
+    await waitForOpenAIApiKeyValue();
     await waitFor(() => {
       expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
     });
@@ -459,8 +481,6 @@ describe("ProviderSettings", () => {
   }, 20000);
 
   it("clears selectedModelRef and syncs current session when defaults change", async () => {
-    let providerGetCount = 0;
-
     useProviderStore.setState({
       currentProvider: "openai",
       selectedModelRef: { provider: "openai", model: "gpt-old" },
@@ -493,67 +513,21 @@ describe("ProviderSettings", () => {
       ],
     } as any);
 
-    (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = (init?.method || "GET").toUpperCase();
-      const path = url.toString();
-      const isLegacyProviderEndpoint =
-        path.includes("/bamboo/settings/provider") &&
-        !path.includes("/bamboo/settings/provider-instances");
-
-      if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
-        return jsonResponse({ authenticated: false });
-      }
-
-      if (method === "GET" && path.includes("/bamboo/provider-catalog")) {
-        return jsonResponse({ models: useProviderStore.getState().catalog?.models ?? [] });
-      }
-
-      if (method === "GET" && path.includes("/bamboo/config")) {
-        return jsonResponse({});
-      }
-
-      if (method === "GET" && isLegacyProviderEndpoint) {
-        providerGetCount += 1;
-        return jsonResponse({
-          provider: "openai",
-          defaults:
-            providerGetCount === 1
-              ? {
-                  chat: { provider: "openai", model: "gpt-old" },
-                }
-              : {
-                  chat: { provider: "openai", model: "gpt-new" },
-                },
-          providers: { openai: { api_key: "sk-masked" } },
-        });
-      }
-
-      if (method === "POST" && path.includes("/bamboo/config/validate")) {
-        return jsonResponse({ valid: true, errors: {} });
-      }
-
-      if (method === "POST" && isLegacyProviderEndpoint) {
-        return jsonResponse({ success: true, provider: "openai" });
-      }
-
-      return jsonResponse({});
+    setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-old" },
+      },
+      providers: { openai: { api_key: "configured-but-never-returned" } },
     });
 
     render(<ProviderSettings />);
 
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-old");
-    await waitForOpenAIApiKeyValue("sk-masked");
-    await waitFor(() => {
-      expect(
-        (fetch as any).mock.calls.some(
-          (call: any[]) =>
-            call[0].includes("/bamboo/settings/provider") &&
-            !call[0].includes("/bamboo/settings/provider-instances") &&
-            ((call[1]?.method || "GET") as string).toUpperCase() === "GET",
-        ),
-      ).toBe(true);
-    });
+    await waitForOpenAIApiKeyValue();
+    await selectModelPreferenceOption("chat", "gpt-new");
+    await waitForModelPreferenceValue("chat", "openai/gpt-new");
     await waitFor(() => {
       expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
     });
@@ -572,71 +546,72 @@ describe("ProviderSettings", () => {
     );
   }, 20000);
 
-  it("runs server-side validate before saving and blocks save when invalid", async () => {
-    (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = (init?.method || "GET").toUpperCase();
-      const path = url.toString();
-      const isLegacyProviderEndpoint =
-        path.includes("/bamboo/settings/provider") &&
-        !path.includes("/bamboo/settings/provider-instances");
+  it("keeps the server snapshot and surfaces canonical save validation errors", async () => {
+    setupProviderSettingsFetch(
+      {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "openai", model: "gpt-4o" },
+        },
+        providers: {
+          openai: { api_key: "configured-but-never-returned", model: "gpt-4o" },
+        },
+      },
+      {
+        rejectProviderSave: {
+          body: { error: "OpenAI API key is required" },
+        },
+      },
+    );
 
-      if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
-        return jsonResponse({ authenticated: false });
-      }
+    render(<ProviderSettings />);
 
-      if (method === "GET" && path.includes("/bamboo/provider-catalog")) {
-        return jsonResponse({ models: useProviderStore.getState().catalog?.models ?? [] });
-      }
+    await screen.findByTestId("save-api-settings");
+    await waitForModelPreferenceValue("chat", "openai/gpt-4o");
+    await waitFor(() => {
+      expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("save-api-settings"));
+    });
 
-      if (method === "GET" && path.includes("/bamboo/config")) {
-        return jsonResponse({});
-      }
+    await waitFor(
+      () => {
+        expect(
+          (fetch as any).mock.calls.some(
+            (call: any[]) =>
+              call[0].includes("/bamboo/config/provider-settings") &&
+              ((call[1]?.method || "GET") as string).toUpperCase() === "PUT",
+          ),
+        ).toBe(true);
+      },
+      { timeout: 10000 },
+    );
 
-      if (method === "GET" && isLegacyProviderEndpoint) {
-        return jsonResponse({
-          provider: "openai",
-          defaults: {
-            chat: { provider: "openai", model: "gpt-4o" },
-          },
-          providers: { openai: { api_key: "sk-masked", model: "gpt-4o" } },
-        });
-      }
+    expect(useConfigSectionStore.getState().sections.providers.envelope?.revision).toBe(1);
+    expect(message.error).toHaveBeenCalledWith(
+      expect.stringContaining("OpenAI API key is required"),
+    );
+  }, 20000);
 
-      if (method === "POST" && path.includes("bamboo/config/validate")) {
-        return jsonResponse({
-          valid: false,
-          errors: {
-            provider: [
-              {
-                path: "providers.openai.api_key",
-                message: "OpenAI API key is required",
-              },
-            ],
-          },
-        });
-      }
-
-      if (method === "POST" && isLegacyProviderEndpoint) {
-        throw new Error("saveProviderConfig must not be called when validation fails");
-      }
-
-      return jsonResponse({});
+  it("saves through the canonical CAS route and applies the adopted snapshot", async () => {
+    const api = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-4o" },
+      },
+      providers: {
+        openai: { api_key: "configured-but-never-returned", model: "gpt-4o" },
+      },
     });
 
     render(<ProviderSettings />);
 
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-4o");
-    await waitForOpenAIApiKeyValue("sk-masked");
-    await waitFor(() => {
-      expect(
-        (fetch as any).mock.calls.some(
-          (call: any[]) =>
-            call[0].includes("/bamboo/settings/provider") &&
-            !call[0].includes("/bamboo/settings/provider-instances") &&
-            ((call[1]?.method || "GET") as string).toUpperCase() === "GET",
-        ),
-      ).toBe(true);
+    await waitForOpenAIApiKeyValue();
+    fireEvent.change(getInputWithin("api-key-input"), {
+      target: { value: "sk-new-value" },
     });
     await waitFor(() => {
       expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
@@ -650,162 +625,185 @@ describe("ProviderSettings", () => {
         expect(
           (fetch as any).mock.calls.some(
             (call: any[]) =>
-              call[0].includes("bamboo/config/validate") &&
-              ((call[1]?.method || "GET") as string).toUpperCase() === "POST",
+              call[0].includes("/bamboo/config/provider-settings") &&
+              ((call[1]?.method || "GET") as string).toUpperCase() === "PUT",
           ),
         ).toBe(true);
       },
       { timeout: 10000 },
     );
 
-    expect(
-      (fetch as any).mock.calls.some(
-        (call: any[]) =>
-          call[0].includes("/bamboo/settings/provider") &&
-          !call[0].includes("/bamboo/settings/provider-instances") &&
-          ((call[1]?.method || "GET") as string).toUpperCase() === "POST",
-      ),
-    ).toBe(false);
-
-    expect(
-      await screen.findByText("OpenAI API key is required", {}, { timeout: 10000 }),
-    ).toBeInTheDocument();
+    expect(useProviderStore.getState().providerConfig.defaults?.chat).toEqual({
+      provider: "openai",
+      model: "gpt-4o",
+    });
+    expect(useConfigSectionStore.getState().sections.providers.envelope?.revision).toBe(2);
+    expect((api.postedBodies.at(-1)?.providers as any)?.openai).not.toHaveProperty("api_key");
+    expect(api.credentialChangeBodies.at(-1)).toMatchObject({
+      providers: {
+        openai: { action: "replace", value: "sk-new-value" },
+      },
+    });
+    await waitForOpenAIApiKeyValue();
   }, 20000);
 
-  it("saves when validation passes (and refreshes provider config during apply)", async () => {
-    let providerGetCount = 0;
-    (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = (init?.method || "GET").toUpperCase();
-      const path = url.toString();
-      const isLegacyProviderEndpoint =
-        path.includes("/bamboo/settings/provider") &&
-        !path.includes("/bamboo/settings/provider-instances");
-
-      if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
-        return jsonResponse({ authenticated: false });
-      }
-
-      if (method === "GET" && path.includes("/bamboo/provider-catalog")) {
-        return jsonResponse({ models: useProviderStore.getState().catalog?.models ?? [] });
-      }
-
-      if (method === "GET" && path.includes("/bamboo/config")) {
-        return jsonResponse({});
-      }
-
-      if (method === "GET" && isLegacyProviderEndpoint) {
-        providerGetCount += 1;
-        return jsonResponse({
-          provider: "openai",
-          defaults: {
-            chat: { provider: "openai", model: "gpt-4o" },
-          },
-          providers: { openai: { api_key: "sk-masked", model: "gpt-4o" } },
-        });
-      }
-
-      if (method === "POST" && path.includes("bamboo/config/validate")) {
-        return jsonResponse({ valid: true, errors: {} });
-      }
-
-      if (method === "POST" && isLegacyProviderEndpoint) {
-        return jsonResponse({ success: true, provider: "openai" });
-      }
-
-      return jsonResponse({});
+  it("reapplies only local provider edits over an external revision", async () => {
+    const api = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-old" },
+        fast: { provider: "openai", model: "gpt-4o-mini" },
+      },
+      providers: {
+        openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
+      },
     });
 
     render(<ProviderSettings />);
+    await waitForModelPreferenceValue("chat", "openai/gpt-old");
+    fireEvent.change(screen.getByPlaceholderText("https://api.openai.com/v1"), {
+      target: { value: "https://local.example/v1" },
+    });
 
-    await screen.findByTestId("save-api-settings");
-    await waitForModelPreferenceValue("chat", "openai/gpt-4o");
-    await waitForOpenAIApiKeyValue("sk-masked");
-    await waitFor(() => {
-      expect(
-        (fetch as any).mock.calls.some(
-          (call: any[]) =>
-            call[0].includes("/bamboo/settings/provider") &&
-            !call[0].includes("/bamboo/settings/provider-instances") &&
-            ((call[1]?.method || "GET") as string).toUpperCase() === "GET",
-        ),
-      ).toBe(true);
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
-    });
+    const external = deepClone(api.getCurrentConfig());
+    external.defaults = {
+      ...external.defaults,
+      fast: { provider: "openai", model: "gpt-4.1-mini" },
+    };
+    act(() => api.publishExternal(external));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reapply local draft" }));
     await act(async () => {
       fireEvent.click(screen.getByTestId("save-api-settings"));
     });
 
-    await waitFor(
-      () => {
-        expect(
-          (fetch as any).mock.calls.some(
-            (call: any[]) =>
-              call[0].includes("bamboo/config/validate") &&
-              ((call[1]?.method || "GET") as string).toUpperCase() === "POST",
-          ),
-        ).toBe(true);
-
-        expect(
-          (fetch as any).mock.calls.some(
-            (call: any[]) =>
-              call[0].includes("/bamboo/settings/provider") &&
-              !call[0].includes("/bamboo/settings/provider-instances") &&
-              ((call[1]?.method || "GET") as string).toUpperCase() === "POST",
-          ),
-        ).toBe(true);
-      },
-      { timeout: 10000 },
-    );
-
-    // One GET during initial loadConfig + one GET during apply (provider store refresh).
-    await waitFor(
-      () => {
-        expect(providerGetCount).toBeGreaterThanOrEqual(2);
-      },
-      { timeout: 10000 },
-    );
+    await waitFor(() => expect(api.postedBodies.length).toBeGreaterThan(0));
+    expect(api.postedBodies.at(-1)?.defaults).toMatchObject({
+      chat: { provider: "openai", model: "gpt-old" },
+      fast: { provider: "openai", model: "gpt-4.1-mini" },
+    });
+    expect(api.postedBodies.at(-1)?.providers).toMatchObject({
+      openai: { base_url: "https://local.example/v1" },
+    });
+    expect(api.putRequests.at(-1)?.expected_revision).toBe(2);
   }, 20000);
+
+  it("adopts a newer provider snapshot while the form is clean", async () => {
+    const api = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-old" },
+        fast: { provider: "openai", model: "gpt-4o-mini" },
+      },
+      providers: {
+        openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
+      },
+    });
+
+    render(<ProviderSettings />);
+    await waitForModelPreferenceValue("fast", "openai/gpt-4o-mini");
+
+    const external = deepClone(api.getCurrentConfig());
+    external.defaults = {
+      ...external.defaults,
+      fast: { provider: "openai", model: "gpt-4.1-mini" },
+    };
+    act(() => api.publishExternal(external));
+
+    await waitForModelPreferenceValue("fast", "openai/gpt-4.1-mini");
+    expect(screen.queryByRole("button", { name: "Reapply local draft" })).not.toBeInTheDocument();
+  }, 20000);
+
+  it("keeps a dirty credential draft secret-free in compare and reloads the latest snapshot", async () => {
+    const api = setupProviderSettingsFetch({
+      provider: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-old" },
+        fast: { provider: "openai", model: "gpt-4o-mini" },
+      },
+      providers: {
+        openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
+      },
+    });
+
+    render(<ProviderSettings />);
+    await waitForOpenAIApiKeyValue();
+    fireEvent.change(getInputWithin("api-key-input"), {
+      target: { value: "sk-local-replacement" },
+    });
+
+    const external = deepClone(api.getCurrentConfig());
+    external.defaults = {
+      ...external.defaults,
+      fast: { provider: "openai", model: "gpt-4.1-mini" },
+    };
+    act(() => api.publishExternal(external));
+
+    expect(await screen.findByText("Reapply local draft")).toBeInTheDocument();
+    await waitForOpenAIApiKeyValue("sk-local-replacement");
+
+    fireEvent.click(screen.getByText("Compare changes"));
+    const modalInfo = vi.mocked(AntApp.useApp().modal.info);
+    expect(modalInfo).toHaveBeenCalled();
+    const comparisonText = (modalInfo.mock.calls.at(-1)?.[0] as any).content.props.children[1].props
+      .children;
+    expect(comparisonText).not.toContain("sk-local-replacement");
+
+    fireEvent.click(screen.getByText("Reload latest"));
+    await waitForOpenAIApiKeyValue();
+    await waitForModelPreferenceValue("fast", "openai/gpt-4.1-mini");
+    expect(screen.queryByText("Reapply local draft")).not.toBeInTheDocument();
+  }, 20000);
+
+  it("submits the captured revision and preserves the draft when a stale save is rejected", async () => {
+    const api = setupProviderSettingsFetch(
+      {
+        provider: "openai",
+        defaults: {
+          chat: { provider: "openai", model: "gpt-old" },
+        },
+        providers: {
+          openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
+        },
+      },
+      {
+        rejectProviderSave: {
+          status: 409,
+          body: {
+            error: "revision conflict",
+            expected_revision: 1,
+            actual_revision: 2,
+          },
+        },
+      },
+    );
+
+    render(<ProviderSettings />);
+    await waitForModelPreferenceValue("chat", "openai/gpt-old");
+    fireEvent.change(screen.getByPlaceholderText("https://api.openai.com/v1"), {
+      target: { value: "https://local.example/v1" },
+    });
+
+    const external = deepClone(api.getCurrentConfig());
+    external.features = { ...external.features, provider_model_ref: true };
+    act(() => api.publishExternal(external));
+    expect(await screen.findByRole("button", { name: "Reapply local draft" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("save-api-settings"));
+
+    await waitFor(() => expect(api.putRequests.length).toBeGreaterThan(0));
+    expect(api.putRequests.at(-1)?.expected_revision).toBe(1);
+    expect(useConfigSectionStore.getState().sections.providers.envelope?.revision).toBe(2);
+    expect(screen.getByPlaceholderText("https://api.openai.com/v1")).toHaveValue(
+      "https://local.example/v1",
+    );
+    expect(screen.getByRole("button", { name: "Reapply local draft" })).toBeInTheDocument();
+  }, 40000);
 
   it("blocks save when defaults.chat is missing (client-side required)", async () => {
-    (fetch as any).mockImplementation(async (url: string, init?: RequestInit) => {
-      const method = (init?.method || "GET").toUpperCase();
-      const path = url.toString();
-
-      if (method === "POST" && path.includes("/bamboo/copilot/auth/status")) {
-        return jsonResponse({ authenticated: false });
-      }
-
-      if (method === "GET" && path.includes("/bamboo/provider-catalog")) {
-        return jsonResponse({ models: useProviderStore.getState().catalog?.models ?? [] });
-      }
-
-      if (method === "GET" && path.includes("/bamboo/config")) {
-        return jsonResponse({});
-      }
-
-      const isLegacyProviderEndpoint =
-        path.includes("/bamboo/settings/provider") &&
-        !path.includes("/bamboo/settings/provider-instances");
-
-      // No defaults.chat → should be blocked by client-side validation
-      if (method === "GET" && isLegacyProviderEndpoint) {
-        return jsonResponse({
-          provider: "openai",
-          providers: { openai: { api_key: "sk-masked" } },
-        });
-      }
-
-      if (method === "POST" && path.includes("/bamboo/config/validate")) {
-        throw new Error("validate must not be called when defaults.chat is missing");
-      }
-
-      if (method === "POST" && isLegacyProviderEndpoint) {
-        throw new Error("saveProviderConfig must not be called when defaults.chat is missing");
-      }
-
-      return jsonResponse({});
+    setupProviderSettingsFetch({
+      provider: "openai",
+      providers: { openai: { api_key: "configured-but-never-returned" } },
     });
 
     render(<ProviderSettings />);
@@ -815,7 +813,7 @@ describe("ProviderSettings", () => {
       expect(
         (fetch as any).mock.calls.some(
           (call: any[]) =>
-            call[0].includes("/bamboo/settings/provider") &&
+            call[0].includes("/bamboo/config/provider-settings") &&
             ((call[1]?.method || "GET") as string).toUpperCase() === "GET",
         ),
       ).toBe(true);
@@ -828,8 +826,8 @@ describe("ProviderSettings", () => {
       expect(
         (fetch as any).mock.calls.some(
           (call: any[]) =>
-            call[0].includes("/bamboo/settings/provider") &&
-            ((call[1]?.method || "GET") as string).toUpperCase() === "POST",
+            call[0].includes("/bamboo/config/provider-settings") &&
+            ((call[1]?.method || "GET") as string).toUpperCase() === "PUT",
         ),
       ).toBe(false);
     });

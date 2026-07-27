@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from "react";
 import { Alert, Select, Space } from "antd";
 import { useTranslation } from "react-i18next";
 import { useAppStore } from "@shared/store/appStore";
-import { useBambooConfigStore } from "../../shared/store/bambooConfigStore";
+import { useConfigSectionStore } from "../../shared/store/configSectionStore";
 
 interface SkillSelectorProps {
   selectedSkillIds: string[];
@@ -15,20 +15,24 @@ export const SkillSelector: React.FC<SkillSelectorProps> = ({ selectedSkillIds, 
   const skills = useAppStore((state) => state.skills);
   const isLoadingSkills = useAppStore((state) => state.isLoadingSkills);
   const loadSkills = useAppStore((state) => state.loadSkills);
-  const bambooConfig = useBambooConfigStore((state) => state.config);
-  const loadConfig = useBambooConfigStore((state) => state.loadConfig);
+  const toolsSkills = useConfigSectionStore((state) => state.sections["tools-skills"]);
+  const loadSection = useConfigSectionStore((state) => state.loadSection);
 
   useEffect(() => {
     if (skills.length === 0) {
       loadSkills();
     }
-    void loadConfig();
-  }, [skills.length, loadSkills, loadConfig]);
+    void loadSection("tools-skills").catch(() => undefined);
+  }, [skills.length, loadSkills, loadSection]);
 
   const disabledSkillIds = useMemo(
     () =>
-      new Set((bambooConfig?.skills?.disabled ?? []).map((value) => value.trim()).filter(Boolean)),
-    [bambooConfig],
+      new Set(
+        (toolsSkills.envelope?.data.skills?.disabled ?? [])
+          .map((value) => value.trim())
+          .filter(Boolean),
+      ),
+    [toolsSkills.envelope],
   );
 
   const disabledSelectedSkillIds = useMemo(

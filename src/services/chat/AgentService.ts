@@ -50,6 +50,9 @@ export type AgentEventType =
   | "plan_file_updated"
   | "need_clarification"
   | "notification"
+  | "config.changed"
+  | "config.invalid"
+  | "config.recovered"
   | "execution_started"
   | "runner_progress"
   | "goal_status_changed"
@@ -263,6 +266,9 @@ export interface AgentEvent {
   title_version?: number;
   source?: "auto" | "manual" | "fallback";
   updated_at?: string;
+  // Live config and project lifecycle events share a numeric revision field.
+  section?: string;
+  revision?: number;
   // SessionPinnedUpdated event
   pinned?: boolean;
   // MessageAppended / SessionCreated events
@@ -290,7 +296,6 @@ export interface AgentEvent {
   exit_code?: number;
   // Project lifecycle events (project_created, project_updated, project_archived)
   project_id?: string;
-  revision?: number;
   resource_revision?: number;
   // SessionProjectUpdated event: explicit null means Unassigned.
   metadata_version?: number;

@@ -15,6 +15,7 @@ export type {
   TransportConfig,
   SseTransportConfig,
   StdioTransportConfig,
+  StreamableHttpTransportConfig,
 } from "./types";
 export {
   createDefaultMcpServerConfig,

@@ -55,6 +55,36 @@ describe("mcpService", () => {
     expect(servers[0].runtime?.tool_count).toBe(3);
   });
 
+  it("normalizes Streamable HTTP runtime config without coercing it to stdio", async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      mockFetchResponse({
+        servers: [
+          {
+            id: "remote-http",
+            enabled: true,
+            config: {
+              transport: {
+                type: "streamable_http",
+                url: "https://mcp.example.test/mcp",
+                headers: [{ name: "Authorization", value: "****...****" }],
+                connect_timeout_ms: 24_000,
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    const servers = await mcpService.getServers();
+
+    expect(servers[0]?.config.transport).toEqual({
+      type: "streamable_http",
+      url: "https://mcp.example.test/mcp",
+      headers: [{ name: "Authorization", value: "****...****" }],
+      connect_timeout_ms: 24_000,
+    });
+  });
+
   it("adds and updates servers with the MCP config payload", async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(
