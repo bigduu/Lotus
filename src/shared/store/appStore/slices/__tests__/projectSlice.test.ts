@@ -29,10 +29,13 @@ const makeManifest = (id: string, overrides: Partial<ProjectManifest> = {}): Pro
   status: "active",
   revision: 1,
   resource_revision: 1,
+  project_path: `/repo/${id}`,
+  project_path_status: "configured",
+  workspace_count: 2,
   created_at: "2025-03-01T00:00:00Z",
   updated_at: "2025-03-01T00:00:00Z",
   schema_version: 1,
-  workspace_bindings: [{ path: `/repo/${id}`, label: null, git_common_dir: null }],
+  workspace_bindings: [{ path: `/repo/${id}-worktree`, label: null, git_common_dir: null }],
   legacy_project_keys: [],
   ...overrides,
 });
@@ -45,6 +48,9 @@ const makeSummary = (id: string, overrides: Partial<ProjectSummary> = {}): Proje
   status: "active",
   revision: 1,
   resource_revision: 1,
+  project_path: `/repo/${id}`,
+  project_path_status: "configured",
+  workspace_count: 1,
   created_at: "2025-03-01T00:00:00Z",
   updated_at: "2025-03-01T00:00:00Z",
   ...overrides,
@@ -103,7 +109,7 @@ describe("projectSlice", () => {
       const project = harness.getState().projects["p1"];
       expect(project?.name).toBe("Renamed");
       expect(project?.workspace_bindings).toEqual([
-        { path: "/repo/p1", label: null, git_common_dir: null },
+        { path: "/repo/p1-worktree", label: null, git_common_dir: null },
       ]);
       expect((project as { detail_loaded?: boolean }).detail_loaded).toBe(true);
     });

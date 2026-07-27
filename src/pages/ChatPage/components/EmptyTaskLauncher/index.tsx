@@ -194,19 +194,19 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const setInputContent = useAppStore((state) => state.setInputContent);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
-  // Lotus #134 — the default context for a new session may only come from
-  // the current session or the active Project's default workspace. Falling
-  // back to an arbitrary first chat would leak a workspace across Projects.
-  const activeProjectDefaultWorkspace = useAppStore((state) => {
+  // Lotus #134 / Bamboo #692 — the default context for a new session may
+  // only come from the current session or the active Project's authoritative
+  // primary path. Never infer it from workspace binding order or another chat.
+  const activeProjectPath = useAppStore((state) => {
     const projectId = state.activeProjectId;
     if (!projectId) return null;
-    return state.projects[projectId]?.default_workspace_path ?? null;
+    const project = state.projects[projectId];
+    return project?.project_path_status === "configured" ? project.project_path : null;
   });
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const workspacePath =
-    currentChat?.config.workspacePath ?? activeProjectDefaultWorkspace ?? undefined;
+  const workspacePath = currentChat?.config.workspacePath ?? activeProjectPath ?? undefined;
 
   /* ---- templates ---- */
 

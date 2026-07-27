@@ -32,11 +32,11 @@ type ProjectManagerModalProps = {
 
 /**
  * Project manager (#154): create / rename / archive Projects and manage
- * their workspace bindings + read-only shared-resource summary.
+ * their authoritative Project path, additional workspace bindings, and
+ * read-only shared-resource summary.
  *
  * Deliberately out of scope until the backend lands:
  * - restore/unarchive (Bamboo-agent#725),
- * - default workspace selection (Bamboo-agent#692),
  * - session counts in the list (Bamboo-agent#727).
  */
 const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
@@ -97,11 +97,12 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   // Create form
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
-  const [newWorkspace, setNewWorkspace] = useState("");
+  const [newProjectPath, setNewProjectPath] = useState("");
 
   // Detail form
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editProjectPath, setEditProjectPath] = useState("");
   const [bindingPath, setBindingPath] = useState("");
 
   const selected: ProjectManifest | null = selectedId ? (projects[selectedId] ?? null) : null;
@@ -131,6 +132,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   useEffect(() => {
     setEditName(selected?.name ?? "");
     setEditDescription(selected?.description ?? "");
+    setEditProjectPath(selected?.project_path ?? "");
     setBindingPath("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
@@ -147,6 +149,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             if (fresh) {
               setEditName(fresh.name);
               setEditDescription(fresh.description ?? "");
+              setEditProjectPath(fresh.project_path ?? "");
             }
           })
           .catch(() => {});
@@ -170,19 +173,22 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
       message.error(t("chat.project.nameRequired"));
       return;
     }
+    const projectPath = newProjectPath.trim();
+    if (!projectPath) {
+      message.error(t("chat.project.pathRequired"));
+      return;
+    }
     setBusy(true);
     try {
       const manifest = await createProject({
         name,
         description: newDescription.trim() || null,
-        workspace_bindings: newWorkspace.trim()
-          ? [{ path: newWorkspace.trim(), label: null, git_common_dir: null }]
-          : [],
+        project_path: projectPath,
       });
       setCreating(false);
       setNewName("");
       setNewDescription("");
-      setNewWorkspace("");
+      setNewProjectPath("");
       setSelectedId(manifest.id);
     } catch (error) {
       message.error(error instanceof Error ? error.message : t("chat.project.createFailed"));
@@ -198,11 +204,17 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
       message.error(t("chat.project.nameRequired"));
       return;
     }
+    const projectPath = editProjectPath.trim();
+    if (!projectPath) {
+      message.error(t("chat.project.pathRequired"));
+      return;
+    }
     setBusy(true);
     try {
       await updateProject(selected.id, selected.revision, {
         name,
         description: editDescription.trim() || null,
+        ...(projectPath !== selected.project_path ? { project_path: projectPath } : {}),
       });
     } catch (error) {
       handleMutationError(error, selected.id, "chat.project.saveFailed");
@@ -356,16 +368,17 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 />
               </div>
               <div>
-                <Text type="secondary">
-                  {t("chat.project.initialWorkspaceLabel", "Initial workspace (optional)")}
-                </Text>
+                <Text type="secondary">{t("chat.project.pathLabel", "Project folder")}</Text>
                 <Input
-                  value={newWorkspace}
-                  onChange={(event) => setNewWorkspace(event.target.value)}
+                  value={newProjectPath}
+                  onChange={(event) => setNewProjectPath(event.target.value)}
                   placeholder={t("chat.workspace.placeholder")}
                   prefix={<FolderOutlined />}
-                  data-testid="project-create-workspace"
+                  data-testid="project-create-path"
                 />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {t("chat.project.pathDescription")}
+                </Text>
               </div>
               <Flex gap={8}>
                 <Button
@@ -408,6 +421,29 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   disabled={selected.status === "archived"}
                 />
               </div>
+              <div>
+                <Flex gap={6} align="center">
+                  <Text type="secondary">{t("chat.project.pathLabel", "Project folder")}</Text>
+                  {selected.project_path_status !== "configured" ? (
+                    <Tag color="warning" style={{ marginInlineEnd: 0 }}>
+                      {selected.project_path_status === "needs_selection"
+                        ? t("chat.project.pathNeedsSelection")
+                        : t("chat.project.pathNeedsConfiguration")}
+                    </Tag>
+                  ) : null}
+                </Flex>
+                <Input
+                  value={editProjectPath}
+                  onChange={(event) => setEditProjectPath(event.target.value)}
+                  placeholder={t("chat.workspace.placeholder")}
+                  prefix={<FolderOutlined />}
+                  disabled={selected.status === "archived"}
+                  data-testid="project-detail-path"
+                />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {t("chat.project.pathDescription")}
+                </Text>
+              </div>
               {selected.status === "active" ? (
                 <Button
                   size="small"
@@ -421,7 +457,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
               ) : null}
 
               <Divider style={{ margin: "4px 0" }} />
-              <Text strong>{t("chat.project.workspacesTitle", "Bound workspaces")}</Text>
+              <Text strong>{t("chat.project.workspacesTitle", "Additional workspaces")}</Text>
               {selected.workspace_bindings.length === 0 ? (
                 <Text type="secondary">{t("chat.project.emptyWorkspaces")}</Text>
               ) : (

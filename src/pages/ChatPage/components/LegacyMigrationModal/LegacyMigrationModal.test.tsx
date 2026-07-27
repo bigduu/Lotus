@@ -70,6 +70,9 @@ const ZENITH: ProjectManifest = {
   status: "active",
   revision: 3,
   resource_revision: 3,
+  project_path: "/repo/zenith",
+  project_path_status: "configured",
+  workspace_count: 1,
   created_at: "2025-03-01T00:00:00Z",
   updated_at: "2025-03-01T00:00:00Z",
   schema_version: 1,
@@ -214,6 +217,9 @@ describe("LegacyMigrationModal (#156)", () => {
     fireEvent.change(screen.getByPlaceholderText("New project name"), {
       target: { value: "nova" },
     });
+    fireEvent.change(screen.getByPlaceholderText("Project folder (confirm explicitly)"), {
+      target: { value: "/repo/nova" },
+    });
 
     fireEvent.click(screen.getByTestId("migration-apply"));
 
@@ -221,7 +227,7 @@ describe("LegacyMigrationModal (#156)", () => {
       expect(mockCreateProject).toHaveBeenCalledWith({
         name: "nova",
         description: null,
-        workspace_bindings: [],
+        project_path: "/repo/nova",
       }),
     );
     await waitFor(() =>
@@ -246,6 +252,23 @@ describe("LegacyMigrationModal (#156)", () => {
     fireEvent.click(screen.getByTestId("migration-apply"));
 
     expect(await screen.findByText("Please enter a project name")).toBeInTheDocument();
+    expect(mockCreateProject).not.toHaveBeenCalled();
+  });
+
+  it("requires explicit Project path confirmation before creating a migrated Project", async () => {
+    renderModal();
+    await screen.findByText("Suggestions (1)");
+
+    fireEvent.mouseDown(
+      screen
+        .getByTestId("migration-target-git_common_dir:s2,s3")
+        .querySelector(".ant-select-selector") as HTMLElement,
+    );
+    fireEvent.click(await screen.findByText("Create new project…"));
+
+    fireEvent.click(screen.getByTestId("migration-apply"));
+
+    expect(await screen.findByText("Please select a Project folder")).toBeInTheDocument();
     expect(mockCreateProject).not.toHaveBeenCalled();
   });
 
