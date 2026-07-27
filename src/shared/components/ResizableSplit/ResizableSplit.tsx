@@ -326,6 +326,43 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
     [finishDrag],
   );
 
+  // Keyboard operation for the separator (ARIA window-splitter pattern,
+  // #167): Arrow keys nudge the split ±10px (Shift ±50px) and commit
+  // immediately, the same outcome as a finished pointer drag.
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      if (disabled) return;
+      const isHorizontal = layout === "horizontal";
+      const isAdjustKey =
+        (isHorizontal && (e.key === "ArrowLeft" || e.key === "ArrowRight")) ||
+        (!isHorizontal && (e.key === "ArrowUp" || e.key === "ArrowDown"));
+      if (!isAdjustKey) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const el = containerRef.current;
+      if (!el) return;
+      const size = getAxisSize(el, layout);
+      if (size <= 0) return;
+
+      const nextBounds = computeBounds(size);
+      const step = e.shiftKey ? 50 : 10;
+      const sign = e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 1;
+      const current = clamp(
+        effectiveFirstPx || Math.round(size * fallbackRatio),
+        nextBounds.minFirst,
+        nextBounds.maxFirst,
+      );
+      const clampedFirst = clamp(current + sign * step, nextBounds.minFirst, nextBounds.maxFirst);
+      const secondPx = Math.max(0, size - clampedFirst);
+
+      setComputedSplitRatio(clamp(clampedFirst / size, 0, 1));
+      onResizeEnd?.([clampedFirst, secondPx]);
+    },
+    [computeBounds, disabled, effectiveFirstPx, fallbackRatio, layout, onResizeEnd],
+  );
+
   const isRow = layout === "horizontal";
   const handleCursor = disabled ? "default" : isRow ? "col-resize" : "row-resize";
   const handleThickness = Math.max(0, Math.round(handleSizePx));
@@ -397,10 +434,15 @@ export const ResizableSplit: React.FC<ResizableSplitProps> = ({
         <div
           role="separator"
           aria-orientation={isRow ? "vertical" : "horizontal"}
+          aria-valuenow={Math.round(effectiveFirstPx)}
+          aria-valuemin={Math.round(bounds.minFirst)}
+          aria-valuemax={Math.round(bounds.maxFirst)}
+          tabIndex={disabled ? undefined : 0}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerCancel}
+          onKeyDown={handleKeyDown}
           style={{
             position: "absolute",
             top: isRow ? 0 : `${effectiveFirstPx - handleThickness / 2}px`,

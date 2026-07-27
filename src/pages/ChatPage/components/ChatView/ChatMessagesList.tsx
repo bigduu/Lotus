@@ -1,4 +1,4 @@
-import React, { useCallback, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Checkbox, Flex, Layout, Tag, Typography } from "antd";
 import { InboxOutlined } from "@ant-design/icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -15,6 +15,8 @@ const { Content } = Layout;
 const { Text } = Typography;
 
 const DEFAULT_ENTRY_ESTIMATE_PX = 120;
+// Must match the `messageSlideIn` duration in styles.css (#170).
+const ENTRANCE_ANIMATION_MS = 300;
 const USER_MESSAGE_ESTIMATE_PX = 140;
 const ASSISTANT_MESSAGE_ESTIMATE_PX = 220;
 const SYSTEM_MESSAGE_ESTIMATE_PX = 140;
@@ -136,6 +138,22 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
   // so the getItemKey callback doesn't trigger virtualizer resets.
   const messagesRef = useRef(renderableMessages);
   messagesRef.current = renderableMessages;
+
+  // Entrance animations (#170): the virtualizer unmounts rows outside the
+  // overscan, and class-based CSS animations replay on every remount —
+  // making old messages "slide in" again on each scroll. Each entry gets
+  // the animation class only until its first animation completes; after
+  // that the key is recorded in `animatedEntryKeysRef` and later mounts
+  // (scroll out/in) render without it.
+  const animatedEntryKeysRef = useRef<Set<string>>(new Set());
+  const animatedSessionRef = useRef<string | null>(null);
+  if (animatedSessionRef.current !== currentSessionId) {
+    animatedSessionRef.current = currentSessionId ?? null;
+    animatedEntryKeysRef.current = new Set();
+  }
+  // Bumping this re-renders rows once their animation window has elapsed,
+  // stripping the class after it has played.
+  const [animationTick, setAnimationTick] = useState(0);
 
   const getItemKey = useCallback(
     (index: number) => {
@@ -289,6 +307,41 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
 
   const hasMessages = (showMessagesView || hasSystemPrompt) && renderableMessages.length > 0;
   const virtualItems = virtualizer.getVirtualItems();
+  // Stable signature of the currently visible entry keys — lets the
+  // animation-marking effect above re-run when scrolling reveals new rows.
+  const visibleKeysSignature = virtualItems
+    .map((item) => {
+      const entry = messagesRef.current[item.index];
+      return entry ? entryKey(entry) : "";
+    })
+    .join(" ");
+
+  // Mark currently-rendered entries as animated once their animation
+  // window has elapsed (#170) — see the comment above animatedEntryKeysRef.
+  useEffect(() => {
+    const pending: string[] = [];
+    for (const item of virtualizer.getVirtualItems()) {
+      const entry = messagesRef.current[item.index];
+      if (entry) {
+        const key = entryKey(entry);
+        if (!animatedEntryKeysRef.current.has(key)) {
+          pending.push(key);
+        }
+      }
+    }
+    if (pending.length === 0) return;
+    const timer = setTimeout(() => {
+      for (const key of pending) {
+        animatedEntryKeysRef.current.add(key);
+      }
+      setAnimationTick((tick: number) => tick + 1);
+    }, ENTRANCE_ANIMATION_MS + 100);
+    return () => clearTimeout(timer);
+    // visibleKeysSignature covers rows revealed by scrolling (#170):
+    // `renderableMessages` identity doesn't change on scroll, so without
+    // the visible-set dependency a row first mounted by scrolling would
+    // never be marked and would replay the animation on every revisit.
+  }, [renderableMessages, visibleKeysSignature, animationTick, virtualizer]);
 
   return (
     <Content
@@ -330,6 +383,7 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
               if (!entry) return null;
 
               const key = entryKey(entry);
+              const shouldAnimate = !animatedEntryKeysRef.current.has(key);
 
               return (
                 <div
@@ -345,7 +399,9 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
                     transform: `translateY(${virtualItem.start}px)`,
                   }}
                 >
-                  <div className="messageEnter">{renderEntry(entry, virtualItem.index)}</div>
+                  <div className={shouldAnimate ? "messageEnter" : undefined}>
+                    {renderEntry(entry, virtualItem.index)}
+                  </div>
                 </div>
               );
             })}

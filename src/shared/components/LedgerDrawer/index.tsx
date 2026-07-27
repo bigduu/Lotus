@@ -114,24 +114,27 @@ const LedgerItemRow: React.FC<{ item: LedgerListItem; actions: RowActions }> = (
         border: "1px solid var(--ant-color-border-secondary, rgba(0,0,0,0.06))",
       }}
     >
-      <Flex
-        vertical
-        gap={4}
-        role="button"
-        tabIndex={0}
-        aria-label={`${t("ledger.actions.edit")}: ${item.title}`}
-        style={{ minWidth: 0, flex: 1, cursor: "pointer" }}
-        onClick={() => actions.onEdit(item)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            actions.onEdit(item);
-          }
-        }}
-      >
-        <Text strong ellipsis delete={terminal} style={{ fontSize: 13 }}>
-          {item.title}
-        </Text>
+      <Flex vertical gap={4} style={{ minWidth: 0, flex: 1 }}>
+        {/* The title itself is the edit trigger — a real <button>, instead
+            of making the whole row a role=button container with nested
+            action buttons inside/beside it (#167). */}
+        <button
+          type="button"
+          className="lotus-ledger-item-title-button"
+          aria-label={`${t("ledger.actions.edit")}: ${item.title}`}
+          onClick={() => actions.onEdit(item)}
+          style={{
+            all: "unset",
+            cursor: "pointer",
+            alignSelf: "flex-start",
+            maxWidth: "100%",
+            borderRadius: 4,
+          }}
+        >
+          <Text strong ellipsis delete={terminal} style={{ fontSize: 13 }}>
+            {item.title}
+          </Text>
+        </button>
         <Flex gap={4} align="center" wrap="wrap">
           <Tag
             icon={kindIcon(item.kind)}

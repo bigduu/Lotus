@@ -2,6 +2,7 @@ export const zhCnTranslation = {
   translation: {
     app: {
       loading: "加载中...",
+      loadingSlow: "正在连接后端，最长可能需要约 20 秒…",
       retry: "重试",
       backendNotReachable: "无法连接后端 {{baseUrl}}（最近错误：{{message}}）",
       errorBoundary: {
@@ -216,6 +217,7 @@ export const zhCnTranslation = {
     common: {
       cancel: "取消",
       ok: "确定",
+      continue: "继续",
       apply: "应用",
       save: "保存",
       delete: "删除",
@@ -253,6 +255,7 @@ export const zhCnTranslation = {
       complete: {
         title: "一切就绪！",
         restartMessage: "正在重新加载应用...",
+        restartButton: "立即重启",
       },
       error: {
         completeFailed: "完成设置失败，请重试。",
@@ -328,6 +331,8 @@ export const zhCnTranslation = {
           title: "删除会话",
           confirm: "确定要删除这个会话吗？",
         },
+        deleteFailed: "删除会话失败",
+        deleteSomeFailed: "{{count}} 个会话删除失败",
         deleteByDate: {
           title: "删除 {{date}} 的会话",
           confirm: "确定要删除 {{date}} 的 {{count}} 个会话吗？",
@@ -498,6 +503,7 @@ export const zhCnTranslation = {
         retryFailed: "重试失败的请求",
         retryOptions: "重试选项",
         cancelRequest: "取消请求",
+        cancelUnavailable: "当前状态无法取消",
         sendMessage: "发送消息",
         copyMessage: "复制消息",
         referenceMessage: "引用消息",
@@ -818,6 +824,8 @@ export const zhCnTranslation = {
         badges: {
           workspace: "工作区",
         },
+        replaceDraftTitle: "在新会话中打开模板？",
+        replaceDraftContent: "模板将在新会话中打开，当前草稿会保留在原来的会话中。",
         noResults: "没有匹配的模板。请尝试其他关键词，或直接开始一个空白会话。",
       },
       multiPane: {
@@ -849,6 +857,8 @@ export const zhCnTranslation = {
         restoreChat: "仅恢复会话",
         restoreFilesAndChat: "恢复文件和会话",
         deleteMessage: "删除消息",
+        deleteConfirmTitle: "删除这条消息？",
+        deleteConfirmContent: "将从会话历史中删除这条消息，操作不可撤销。",
         deleteFailed: "删除消息失败",
         deleteNotFound: "后端中找不到该消息，请刷新后重试",
         deleteConflict: "会话正在运行，请先停止后再删除",
@@ -3076,6 +3086,9 @@ export const zhCnTranslation = {
         exportSvg: "导出 SVG",
         exportFailed: "导出图表失败",
         downloadChartAriaLabel: "下载图表",
+        zoomInAriaLabel: "放大",
+        zoomOutAriaLabel: "缩小",
+        resetZoomAriaLabel: "重置缩放",
       },
     },
     validation: {

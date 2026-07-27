@@ -43,6 +43,7 @@ describe("TodoList header keyboard accessibility", () => {
       ...state,
       taskLists: { ...state.taskLists, [SESSION_ID]: makeTaskList() },
       activeItems: { ...state.activeItems, [SESSION_ID]: null },
+      todoListUiStates: {},
     }));
   });
 
@@ -97,5 +98,32 @@ describe("TodoList header keyboard accessibility", () => {
     fireEvent.keyDown(chevron, { key: "Escape" });
 
     expect(screen.queryByText("Do the accessible thing")).toBeNull();
+  });
+
+  it("keeps pin/collapse state across unmount and remount (#170)", () => {
+    // The virtualized message list unmounts rows that scroll out of
+    // overscan — pin state must survive that cycle.
+    const first = renderTodoList();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Pin" }), { key: " " });
+    expect(screen.getByText("Do the accessible thing")).toBeInTheDocument();
+
+    first.unmount();
+
+    renderTodoList();
+    expect(screen.getByRole("button", { name: "Unpin" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("Do the accessible thing")).toBeInTheDocument();
+  });
+
+  it("keeps manual collapse state across unmount and remount (#170)", () => {
+    const first = renderTodoList();
+    fireEvent.keyDown(screen.getByRole("button", { name: "Expand task list" }), {
+      key: "Enter",
+    });
+    expect(screen.getByText("Do the accessible thing")).toBeInTheDocument();
+
+    first.unmount();
+
+    renderTodoList();
+    expect(screen.getByText("Do the accessible thing")).toBeInTheDocument();
   });
 });

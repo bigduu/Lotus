@@ -54,7 +54,13 @@ describe("App setup flow", () => {
 
     render(<App />);
 
-    expect(await screen.findByText("SetupPage")).toBeInTheDocument();
+    // findByText can resolve to a node that a settling re-render then
+    // detaches (the loading → setup state transition remounts once) — wrap
+    // the whole assertion in waitFor so a transient detach retries instead
+    // of failing with a stale element.
+    await waitFor(() => {
+      expect(screen.getByText("SetupPage")).toBeInTheDocument();
+    });
     expect(screen.queryByText("MainLayout")).toBeNull();
     expect(mockBootstrapCritical).not.toHaveBeenCalled();
   });

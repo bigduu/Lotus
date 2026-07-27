@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { App as AntdApp, Modal } from "antd";
+import { App as AntdApp } from "antd";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
@@ -170,7 +170,7 @@ const matchesStatusFilter = (
 
 export const useChatSidebarState = () => {
   const { t } = useTranslation();
-  const { message } = AntdApp.useApp();
+  const { message, modal } = AntdApp.useApp();
   const {
     chats,
     currentSessionId,
@@ -740,15 +740,23 @@ export const useChatSidebarState = () => {
   );
 
   const handleDelete = (sessionId: string) => {
-    Modal.confirm({
+    modal.confirm({
       title: t("chat.sidebar.delete.title"),
       content: t("chat.sidebar.delete.confirm"),
       okText: t("common.delete"),
       okType: "danger",
       cancelText: t("common.cancel"),
-      onOk: () => {
-        clearSessionFromAllLeaves(sessionId);
-        deleteSession(sessionId);
+      onOk: async () => {
+        try {
+          await deleteSession(sessionId);
+          clearSessionFromAllLeaves(sessionId);
+        } catch (error) {
+          // The backend delete failed — local state was left untouched
+          // (#163), so the session is still here; tell the user instead of
+          // pretending it was deleted. Technical details go to the console.
+          console.error("[ChatSidebar] Failed to delete session:", error);
+          message.error(t("chat.sidebar.deleteFailed"));
+        }
       },
     });
   };
@@ -896,7 +904,7 @@ export const useChatSidebarState = () => {
         ? t("chat.sidebar.unassigned", "Unassigned")
         : (projectGroupLabels[groupKey] ?? groupKey);
 
-    Modal.confirm({
+    modal.confirm({
       title: t("chat.sidebar.deleteByProject.title", { project: projectLabel }),
       content: t("chat.sidebar.deleteByProject.confirm", {
         count: chatCount,
@@ -905,9 +913,13 @@ export const useChatSidebarState = () => {
       okText: t("common.delete"),
       okType: "danger",
       cancelText: t("common.cancel"),
-      onOk: () => {
-        sessionIds.forEach((id) => clearSessionFromAllLeaves(id));
-        deleteSessions(sessionIds);
+      onOk: async () => {
+        const { failedIds } = await deleteSessions(sessionIds);
+        const succeededIds = sessionIds.filter((id) => !failedIds.includes(id));
+        succeededIds.forEach((id) => clearSessionFromAllLeaves(id));
+        if (failedIds.length > 0) {
+          message.warning(t("chat.sidebar.deleteSomeFailed", { count: failedIds.length }));
+        }
       },
     });
   };
@@ -932,7 +944,7 @@ export const useChatSidebarState = () => {
       setIsNewChatSelectorOpen(false);
     } catch (error) {
       console.error("Failed to create chat:", error);
-      Modal.error({
+      modal.error({
         title: t("chat.sidebar.createFailedTitle"),
         content: error instanceof Error ? error.message : t("chat.sidebar.createFailedUnknown"),
       });

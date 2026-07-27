@@ -5,6 +5,7 @@ import { AgentClient } from "@services/chat/AgentService";
 import { streamingMessageBus } from "../../utils/streamingMessageBus";
 import {
   clearAssistantStreamingState,
+  flushAssistantStreamingChunks,
   getAssistantStreamingState,
 } from "../../streaming/assistantStreamingAtoms";
 import {
@@ -2248,6 +2249,8 @@ describe("useAgentEventSubscription", () => {
       tokenHandler?.("World");
       reasoningTokenHandler?.("because ");
       reasoningTokenHandler?.("reasons");
+      // Chunk writes are batched (#166); land them before reading the draft.
+      flushAssistantStreamingChunks();
     });
 
     expect(mockState.markStreamStarted).toHaveBeenCalledTimes(1);

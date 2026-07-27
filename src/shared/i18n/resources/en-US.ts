@@ -2,6 +2,7 @@ export const enUsTranslation = {
   translation: {
     app: {
       loading: "Loading...",
+      loadingSlow: "Connecting to the backend — this can take up to ~20 seconds…",
       retry: "Retry",
       backendNotReachable: "Backend not reachable at {{baseUrl}} (last error: {{message}})",
       errorBoundary: {
@@ -219,6 +220,7 @@ export const enUsTranslation = {
     common: {
       cancel: "Cancel",
       ok: "OK",
+      continue: "Continue",
       apply: "Apply",
       save: "Save",
       delete: "Delete",
@@ -258,6 +260,7 @@ export const enUsTranslation = {
       complete: {
         title: "All Set!",
         restartMessage: "Reloading the application...",
+        restartButton: "Restart now",
       },
       error: {
         completeFailed: "Failed to complete setup. Please try again.",
@@ -336,6 +339,8 @@ export const enUsTranslation = {
           title: "Delete Session",
           confirm: "Are you sure you want to delete this session?",
         },
+        deleteFailed: "Failed to delete the session",
+        deleteSomeFailed: "{{count}} sessions could not be deleted",
         deleteByDate: {
           title: "Delete sessions from {{date}}",
           confirm: "Are you sure you want to delete {{count}} sessions from {{date}}?",
@@ -510,6 +515,7 @@ export const enUsTranslation = {
         retryFailed: "Retry failed request",
         retryOptions: "Retry options",
         cancelRequest: "Cancel request",
+        cancelUnavailable: "Cannot cancel in the current state",
         sendMessage: "Send message",
         copyMessage: "Copy message",
         referenceMessage: "Reference message",
@@ -841,6 +847,9 @@ export const enUsTranslation = {
         badges: {
           workspace: "workspace",
         },
+        replaceDraftTitle: "Open template in a new session?",
+        replaceDraftContent:
+          "The template opens in a new session. Your current draft stays in the old session.",
         noResults:
           "No templates match your search. Try a different keyword or start a blank session.",
       },
@@ -873,6 +882,9 @@ export const enUsTranslation = {
         restoreChat: "Restore chat only",
         restoreFilesAndChat: "Restore files and chat",
         deleteMessage: "Delete message",
+        deleteConfirmTitle: "Delete this message?",
+        deleteConfirmContent:
+          "This deletes the message from the session history. It cannot be undone.",
         deleteFailed: "Failed to delete message",
         deleteNotFound: "Message no longer exists on backend. Reload and retry.",
         deleteConflict: "Session is running. Stop it and try deleting again.",
@@ -3162,6 +3174,9 @@ export const enUsTranslation = {
         exportSvg: "Export SVG",
         exportFailed: "Failed to export diagram",
         downloadChartAriaLabel: "Download chart",
+        zoomInAriaLabel: "Zoom in",
+        zoomOutAriaLabel: "Zoom out",
+        resetZoomAriaLabel: "Reset zoom",
       },
     },
     validation: {

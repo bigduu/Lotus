@@ -417,6 +417,99 @@ describe("useMessageInputHandlers", () => {
       expect(onSubmit).toHaveBeenCalled();
     });
 
+    it("should not submit when the native event reports IME composition (#161)", () => {
+      const onSubmit = vi.fn();
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "nihao",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange: vi.fn(),
+          onSubmit,
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+        }),
+      );
+
+      const event = {
+        key: "Enter",
+        shiftKey: false,
+        preventDefault: vi.fn(),
+        nativeEvent: { isComposing: true },
+      } as any;
+
+      act(() => {
+        result.current.handleKeyDown(event);
+      });
+
+      // Enter belongs to the IME candidate confirmation, not to "send".
+      expect(event.preventDefault).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+    });
+
+    it("should block the candidate-confirming Enter on the Safari event sequence (#161)", async () => {
+      const onSubmit = vi.fn();
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "test",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange: vi.fn(),
+          onSubmit,
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+        }),
+      );
+
+      const enterEvent = () =>
+        ({
+          key: "Enter",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          nativeEvent: { isComposing: false },
+        }) as any;
+
+      // Real WebKit sequence: compositionend fires BEFORE the keydown of
+      // the candidate-confirming Enter, synchronously in the same task, so
+      // both the native flag and a naively-cleared ref read false here.
+      act(() => {
+        result.current.compositionProps.onCompositionStart();
+      });
+      act(() => {
+        result.current.compositionProps.onCompositionEnd();
+      });
+      const confirmEnter = enterEvent();
+      act(() => {
+        result.current.handleKeyDown(confirmEnter);
+      });
+      expect(confirmEnter.preventDefault).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+
+      // The flag clears asynchronously, so the user's NEXT deliberate Enter
+      // (always a later task) sends normally.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const deliberateEnter = enterEvent();
+      act(() => {
+        result.current.handleKeyDown(deliberateEnter);
+      });
+      expect(deliberateEnter.preventDefault).toHaveBeenCalled();
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    });
+
     it("should not submit on Shift+Enter", () => {
       const onSubmit = vi.fn();
       const messageApi = { error: vi.fn() };
@@ -533,6 +626,90 @@ describe("useMessageInputHandlers", () => {
       expect(event.preventDefault).toHaveBeenCalled();
       expect(onChange).toHaveBeenCalledWith("previous value");
       expect(mockTextArea.setSelectionRange).toHaveBeenCalledWith(14, 14);
+    });
+
+    it("does not hijack ArrowUp/ArrowDown in the middle of a multiline draft (#169)", () => {
+      const onChange = vi.fn();
+      const onHistoryNavigate = vi.fn().mockReturnValue("previous value");
+      const messageApi = { error: vi.fn() };
+      const textAreaRef = { current: null };
+
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "line one\nline two\nline three",
+          images: [],
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange,
+          onSubmit: vi.fn(),
+          isOverCharLimit: false,
+          messageApi,
+          clearImages: vi.fn(),
+          textAreaRef,
+          onHistoryNavigate,
+        }),
+      );
+
+      // Caret on the middle line: both arrows belong to caret movement.
+      const middleCaret = { selectionStart: 12 };
+      for (const key of ["ArrowUp", "ArrowDown"]) {
+        act(() => {
+          result.current.handleKeyDown({
+            key,
+            shiftKey: false,
+            preventDefault: vi.fn(),
+            currentTarget: middleCaret,
+          } as any);
+        });
+      }
+      expect(onHistoryNavigate).not.toHaveBeenCalled();
+      expect(onChange).not.toHaveBeenCalled();
+
+      // Caret on the first line: ArrowUp navigates; ArrowDown does not.
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowUp",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 3 },
+        } as any);
+      });
+      expect(onHistoryNavigate).toHaveBeenCalledWith("previous", "line one\nline two\nline three");
+
+      onHistoryNavigate.mockClear();
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowDown",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 3 },
+        } as any);
+      });
+      expect(onHistoryNavigate).not.toHaveBeenCalled();
+
+      // Caret on the last line: ArrowDown navigates; ArrowUp does not.
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowDown",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 28 },
+        } as any);
+      });
+      expect(onHistoryNavigate).toHaveBeenCalledWith("next", "line one\nline two\nline three");
+
+      onHistoryNavigate.mockClear();
+      act(() => {
+        result.current.handleKeyDown({
+          key: "ArrowUp",
+          shiftKey: false,
+          preventDefault: vi.fn(),
+          currentTarget: { selectionStart: 28 },
+        } as any);
+      });
+      // ArrowUp on the last line moves the caret up a line — no navigation.
+      expect(onHistoryNavigate).not.toHaveBeenCalled();
     });
 
     it("should navigate history with ArrowDown", () => {

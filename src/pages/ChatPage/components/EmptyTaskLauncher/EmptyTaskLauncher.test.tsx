@@ -245,4 +245,102 @@ describe("EmptyTaskLauncher", () => {
       expect(createdSession?.config.workspacePath).toBe("/repo/zenith");
     });
   });
+
+  it("reuses the bound empty session and keeps the existing draft (#169)", async () => {
+    // The pane is bound to an empty session with a draft. A prompt-less
+    // template must not silently switch to a brand-new session and leave
+    // the draft behind.
+    useAppStore.setState((state: any) => ({
+      ...state,
+      inputStates: {
+        "empty-session": {
+          content: "my existing draft",
+          referenceText: null,
+          attachments: [],
+          reasoningEffort: "medium",
+        },
+      },
+    }));
+    const chatsBefore = useAppStore.getState().chats.length;
+
+    render(
+      <AntdApp>
+        <EmptyTaskLauncher sessionId="empty-session" />
+      </AntdApp>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Blank session" }));
+
+    await waitFor(() => {
+      expect(useAppStore.getState().inputStates["empty-session"]?.content).toBe(
+        "my existing draft",
+      );
+    });
+    // No new session was created.
+    expect(useAppStore.getState().chats.length).toBe(chatsBefore);
+    expect(useAppStore.getState().currentSessionId).toBe("empty-session");
+  });
+
+  it("confirms before opening a prompt-bearing template when a draft exists (#169)", async () => {
+    useAppStore.setState((state: any) => ({
+      ...state,
+      inputStates: {
+        "empty-session": {
+          content: "my existing draft",
+          referenceText: null,
+          attachments: [],
+          reasoningEffort: "medium",
+        },
+      },
+    }));
+    const chatsBefore = useAppStore.getState().chats.length;
+
+    render(
+      <AntdApp>
+        <EmptyTaskLauncher sessionId="empty-session" />
+      </AntdApp>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Code review" }));
+
+    // Confirmation first — nothing happens until the user approves.
+    expect(await screen.findByText("Open template in a new session?")).toBeInTheDocument();
+    expect(useAppStore.getState().chats.length).toBe(chatsBefore);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => {
+      expect(
+        useAppStore.getState().chats.some((chat: any) => chat.id === "session-code-review"),
+      ).toBe(true);
+    });
+    // The draft in the bound session is untouched.
+    expect(useAppStore.getState().inputStates["empty-session"]?.content).toBe("my existing draft");
+  });
+
+  it("does not create a session when the draft confirmation is cancelled (#169)", async () => {
+    useAppStore.setState((state: any) => ({
+      ...state,
+      inputStates: {
+        "empty-session": {
+          content: "my existing draft",
+          referenceText: null,
+          attachments: [],
+          reasoningEffort: "medium",
+        },
+      },
+    }));
+    const chatsBefore = useAppStore.getState().chats.length;
+
+    render(
+      <AntdApp>
+        <EmptyTaskLauncher sessionId="empty-session" />
+      </AntdApp>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Code review" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+
+    expect(useAppStore.getState().chats.length).toBe(chatsBefore);
+    expect(useAppStore.getState().inputStates["empty-session"]?.content).toBe("my existing draft");
+  });
 });

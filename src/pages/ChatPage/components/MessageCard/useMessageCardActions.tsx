@@ -33,7 +33,7 @@ export const useMessageCardActions = ({
   onRestoreFilesAndChat,
   cardRef,
 }: UseMessageCardActionsProps) => {
-  const { message: appMessage } = AntApp.useApp();
+  const { message: appMessage, modal } = AntApp.useApp();
   const { t } = useTranslation();
   const [selectedText, setSelectedText] = useState<string>("");
 
@@ -164,7 +164,18 @@ export const useMessageCardActions = ({
         key: "delete",
         label: t("chat.messageActions.deleteMessage"),
         icon: <DeleteOutlined />,
-        onClick: () => onDelete(messageId),
+        onClick: () => {
+          // Destructive + synced to the backend — confirm first (#165),
+          // same interaction pattern as deleting a session in the sidebar.
+          modal.confirm({
+            title: t("chat.messageActions.deleteConfirmTitle"),
+            content: t("chat.messageActions.deleteConfirmContent"),
+            okText: t("common.delete"),
+            okType: "danger",
+            cancelText: t("common.cancel"),
+            onOk: () => onDelete(messageId),
+          });
+        },
         danger: true,
       });
     }
@@ -175,6 +186,7 @@ export const useMessageCardActions = ({
     exportContent,
     messageId,
     messageText,
+    modal,
     onDelete,
     onRestoreChat,
     onRestoreFilesAndChat,

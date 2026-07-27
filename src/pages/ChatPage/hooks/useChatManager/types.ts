@@ -14,7 +14,7 @@ export interface UseChatState {
   deleteMessage: (sessionId: string, messageId: string) => Promise<DeleteMessageResult>;
   selectSession: (sessionId: string | null) => void;
   deleteSession: (sessionId: string) => Promise<void>;
-  deleteSessions: (sessionIds: string[]) => Promise<void>;
+  deleteSessions: (sessionIds: string[]) => Promise<{ failedIds: string[] }>;
   pinSession: (sessionId: string) => void;
   unpinSession: (sessionId: string) => void;
   updateSession: (sessionId: string, updates: Partial<ChatItem>) => void;
