@@ -8,17 +8,16 @@
  */
 import { describe, expect, it } from "vitest";
 import { mapHistoryMessagesToUi } from "../chatSessionSlice";
-import type { AssistantToolCallMessage, AssistantToolResultMessage } from "@shared/types/chatMessages";
+import type {
+  AssistantToolCallMessage,
+  AssistantToolResultMessage,
+} from "@shared/types/chatMessages";
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
 const ts = "2025-01-01T00:00:00Z";
 
-function makeAssistantToolCallMsg(
-  id: string,
-  toolCallId: string,
-  toolName: string,
-) {
+function makeAssistantToolCallMsg(id: string, toolCallId: string, toolName: string) {
   return {
     id,
     role: "assistant" as const,

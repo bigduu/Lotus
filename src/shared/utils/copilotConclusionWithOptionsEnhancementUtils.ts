@@ -1,4 +1,5 @@
-const COPILOT_CONCLUSION_WITH_OPTIONS_ENHANCEMENT_KEY = "copilot_conclusion_with_options_enhancement_enabled";
+const COPILOT_CONCLUSION_WITH_OPTIONS_ENHANCEMENT_KEY =
+  "copilot_conclusion_with_options_enhancement_enabled";
 
 export const isCopilotConclusionWithOptionsEnhancementEnabled = (): boolean => {
   return localStorage.getItem(COPILOT_CONCLUSION_WITH_OPTIONS_ENHANCEMENT_KEY) === "true";
@@ -30,7 +31,6 @@ Requirements:
 - A response that ends the task without \`conclusion_with_options\` is invalid and must be corrected before finishing.
 `;
 };
-
 
 export const getCopilotConclusionWithOptionsEnhancementUserFacingText = (): string => {
   return [

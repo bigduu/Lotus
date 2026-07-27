@@ -74,10 +74,7 @@ describe("rasterizeSvgToPng", () => {
   });
 
   it("returns null when the svg has no measurable width/height", async () => {
-    const result = await rasterizeSvgToPng(
-      `<svg xmlns="http://www.w3.org/2000/svg"></svg>`,
-      2,
-    );
+    const result = await rasterizeSvgToPng(`<svg xmlns="http://www.w3.org/2000/svg"></svg>`, 2);
 
     expect(result).toBeNull();
   });
