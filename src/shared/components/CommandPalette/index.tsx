@@ -18,6 +18,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
+import { getActiveLocaleTag } from "@shared/i18n/dateFnsLocale";
 import { useAppStore } from "@shared/store/appStore";
 import { isBusyPhase } from "@shared/store/appStore/slices/executionStateSlice";
 import { openSession } from "@shared/utils/openSession";
@@ -277,7 +278,8 @@ const getSessionSubtitle = (
   }
   if (chat.updatedAt) {
     try {
-      segments.push(new Date(chat.updatedAt).toLocaleString());
+      // Follow the app's chosen language, not the browser default (#168).
+      segments.push(new Date(chat.updatedAt).toLocaleString(getActiveLocaleTag()));
     } catch {
       segments.push(chat.updatedAt);
     }
