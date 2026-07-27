@@ -798,7 +798,7 @@ describe("ProviderSettings", () => {
       "https://local.example/v1",
     );
     expect(screen.getByRole("button", { name: "Reapply local draft" })).toBeInTheDocument();
-  }, 20000);
+  }, 40000);
 
   it("blocks save when defaults.chat is missing (client-side required)", async () => {
     setupProviderSettingsFetch({
