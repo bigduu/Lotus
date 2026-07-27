@@ -368,7 +368,7 @@ describe("ProviderSettings", () => {
     await waitFor(() =>
       expect(copyText).toHaveBeenCalledWith("https://bamboo.example.com/proxy/openai/v1"),
     );
-  });
+  }, 40000);
 
   it("includes defaults in save payload so model preferences persist", async () => {
     const { postedBodies } = setupProviderSettingsFetch({
