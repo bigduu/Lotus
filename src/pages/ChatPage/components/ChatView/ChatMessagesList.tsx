@@ -224,7 +224,7 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
           <Flex align="center" justify="space-between" gap={8} wrap>
             <Flex align="center" gap={8} wrap>
               <Tag color="gold" icon={<InboxOutlined />}>
-                {t("chat.compression.tag", "Context compressed")}
+                {t("chat.compression.tag")}
               </Tag>
               <Text strong style={{ fontSize: 12 }}>
                 {convertedEntry.label}

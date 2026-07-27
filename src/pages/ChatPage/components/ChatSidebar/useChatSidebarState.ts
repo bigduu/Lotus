@@ -581,7 +581,7 @@ export const useChatSidebarState = () => {
     const labels: Record<string, string> = {};
     for (const key of Object.keys(groupedChatsByProject)) {
       if (key === NO_PROJECT_GROUP_KEY) continue;
-      labels[key] = projects[key]?.name ?? t("chat.sidebar.missingProject", "Missing project");
+      labels[key] = projects[key]?.name ?? t("chat.sidebar.missingProject");
     }
     return labels;
   }, [groupedChatsByProject, projects, sidebarCollapsed, emptyLabelMap, t]);
@@ -901,7 +901,7 @@ export const useChatSidebarState = () => {
 
     const projectLabel =
       groupKey === NO_PROJECT_GROUP_KEY
-        ? t("chat.sidebar.unassigned", "Unassigned")
+        ? t("chat.sidebar.unassigned")
         : (projectGroupLabels[groupKey] ?? groupKey);
 
     modal.confirm({

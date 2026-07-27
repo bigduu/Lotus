@@ -35,7 +35,7 @@ export const ProjectSwitcher: React.FC = () => {
       .filter((project) => project.status === "active")
       .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
       .map((project) => ({ value: project.id, label: project.name }));
-    return [{ value: "", label: t("chat.project.noProject", "No project") }, ...active];
+    return [{ value: "", label: t("chat.project.noProject") }, ...active];
   }, [projects, t]);
 
   // null = unknown yet (first load in flight) — render the selector so the
@@ -52,16 +52,16 @@ export const ProjectSwitcher: React.FC = () => {
         value={activeProjectId ?? ""}
         options={options}
         onChange={(value) => setActiveProjectId(value === "" ? null : value)}
-        aria-label={t("chat.project.selectorLabel", "Project")}
+        aria-label={t("chat.project.selectorLabel")}
         data-testid="project-switcher"
       />
-      <Tooltip title={t("chat.project.manage", "Manage projects")} placement="top">
+      <Tooltip title={t("chat.project.manage")} placement="top">
         <Button
           type="text"
           size="small"
           icon={<AppstoreOutlined />}
           onClick={() => setManagerOpen(true)}
-          aria-label={t("chat.project.manage", "Manage projects")}
+          aria-label={t("chat.project.manage")}
           data-testid="open-project-manager"
           className="lotus-toolbar-icon"
           style={{ borderRadius: token.borderRadiusLG, flexShrink: 0 }}

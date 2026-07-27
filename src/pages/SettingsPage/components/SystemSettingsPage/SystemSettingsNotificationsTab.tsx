@@ -42,9 +42,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
         }
       } catch {
         if (!cancelled) {
-          message.error(
-            t("settings.notificationsTab.loadError", "Failed to load notification preferences"),
-          );
+          message.error(t("settings.notificationsTab.loadError"));
         }
       } finally {
         if (!cancelled) {
@@ -71,9 +69,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
       })
       .catch(() => {
         setPrefsState(previous);
-        message.error(
-          t("settings.notificationsTab.saveError", "Failed to save notification preferences"),
-        );
+        message.error(t("settings.notificationsTab.saveError"));
       });
   };
 
@@ -83,32 +79,22 @@ const SystemSettingsNotificationsTab: React.FC = () => {
     <Card size="small" className="lotus-settings-card">
       <Flex vertical gap={token.marginMD}>
         {!isTauri && (
-          <Alert
-            type="info"
-            showIcon
-            message={t(
-              "settings.notificationsTab.desktopOnly",
-              "Desktop notifications are only available in the Bodhi desktop app.",
-            )}
-          />
+          <Alert type="info" showIcon message={t("settings.notificationsTab.desktopOnly")} />
         )}
 
         <Flex align="center" gap={token.marginSM}>
           <BellOutlined />
-          <Text strong>{t("settings.notificationsTab.title", "Desktop Notifications")}</Text>
+          <Text strong>{t("settings.notificationsTab.title")}</Text>
         </Flex>
 
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {t(
-            "settings.notificationsTab.description",
-            "Receive OS-level notifications when the app is in the background and user action is required.",
-          )}
+          {t("settings.notificationsTab.description")}
         </Text>
 
         <Divider style={{ margin: `${token.marginXS}px 0` }} />
 
         <Flex align="center" justify="space-between" gap={token.marginSM}>
-          <Text>{t("settings.notificationsTab.enabled", "Enable desktop notifications")}</Text>
+          <Text>{t("settings.notificationsTab.enabled")}</Text>
           <Switch
             data-testid="notification-enabled-toggle"
             checked={prefs.enabled}
@@ -120,7 +106,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
         <Divider style={{ margin: `${token.marginXS}px 0` }} />
 
         <Text strong style={{ fontSize: token.fontSizeSM, opacity: prefs.enabled ? 1 : 0.5 }}>
-          {t("settings.notificationsTab.events", "Notify when:")}
+          {t("settings.notificationsTab.events")}
         </Text>
 
         <Flex
@@ -132,9 +118,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
           }}
         >
           <Flex align="center" justify="space-between" gap={token.marginSM}>
-            <Text>
-              {t("settings.notificationsTab.onClarification", "Agent needs clarification")}
-            </Text>
+            <Text>{t("settings.notificationsTab.onClarification")}</Text>
             <Switch
               data-testid="notification-clarification-toggle"
               checked={prefs.onClarification}
@@ -144,9 +128,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
           </Flex>
 
           <Flex align="center" justify="space-between" gap={token.marginSM}>
-            <Text>
-              {t("settings.notificationsTab.onToolApproval", "Tool execution needs approval")}
-            </Text>
+            <Text>{t("settings.notificationsTab.onToolApproval")}</Text>
             <Switch
               data-testid="notification-tool-approval-toggle"
               checked={prefs.onToolApproval}
@@ -156,12 +138,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
           </Flex>
 
           <Flex align="center" justify="space-between" gap={token.marginSM}>
-            <Text>
-              {t(
-                "settings.notificationsTab.onContextPressure",
-                "Context window is critically full",
-              )}
-            </Text>
+            <Text>{t("settings.notificationsTab.onContextPressure")}</Text>
             <Switch
               data-testid="notification-context-pressure-toggle"
               checked={prefs.onContextPressure}
@@ -171,9 +148,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
           </Flex>
 
           <Flex align="center" justify="space-between" gap={token.marginSM}>
-            <Text>
-              {t("settings.notificationsTab.onSubAgentComplete", "Background task completes")}
-            </Text>
+            <Text>{t("settings.notificationsTab.onSubAgentComplete")}</Text>
             <Switch
               data-testid="notification-subagent-complete-toggle"
               checked={prefs.onSubAgentComplete}
@@ -183,12 +158,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
           </Flex>
 
           <Flex align="center" justify="space-between" gap={token.marginSM}>
-            <Text>
-              {t(
-                "settings.notificationsTab.onBackgroundTaskComplete",
-                "Background command finishes",
-              )}
-            </Text>
+            <Text>{t("settings.notificationsTab.onBackgroundTaskComplete")}</Text>
             <Switch
               data-testid="notification-background-task-complete-toggle"
               checked={prefs.onBackgroundTaskComplete}
@@ -198,9 +168,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
           </Flex>
 
           <Flex align="center" justify="space-between" gap={token.marginSM}>
-            <Text>
-              {t("settings.notificationsTab.onRunComplete", "A run finishes successfully")}
-            </Text>
+            <Text>{t("settings.notificationsTab.onRunComplete")}</Text>
             <Switch
               data-testid="notification-run-complete-toggle"
               checked={prefs.onRunComplete}
@@ -210,7 +178,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
           </Flex>
 
           <Flex align="center" justify="space-between" gap={token.marginSM}>
-            <Text>{t("settings.notificationsTab.onRunFailed", "A run fails")}</Text>
+            <Text>{t("settings.notificationsTab.onRunFailed")}</Text>
             <Switch
               data-testid="notification-run-failed-toggle"
               checked={prefs.onRunFailed}
@@ -225,10 +193,7 @@ const SystemSettingsNotificationsTab: React.FC = () => {
         <Flex align="center" gap={token.marginSM}>
           <DesktopOutlined style={{ color: token.colorPrimary }} />
           <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-            {t(
-              "settings.notificationsTab.osNote",
-              "OS notification permissions may also be required. You can manage them in your system settings.",
-            )}
+            {t("settings.notificationsTab.osNote")}
           </Text>
         </Flex>
       </Flex>

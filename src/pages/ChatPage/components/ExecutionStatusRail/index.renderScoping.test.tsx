@@ -124,9 +124,22 @@ vi.mock("@shared/store/appStore", async () => {
   return { useAppStore, selectRailModel };
 });
 
-vi.mock("react-i18next", () => ({
-  useTranslation: vi.fn(() => ({ t: (_key: string, fallback?: string) => fallback ?? _key })),
-}));
+vi.mock("react-i18next", async () => {
+  // Resolve against the real en-US resource: components no longer pass inline
+  // fallbacks, so the mock must translate keys itself (#168).
+  const { enUsTranslation } = await import("@shared/i18n/resources/en-US");
+  const lookup = (key: string): string | undefined => {
+    let node: unknown = enUsTranslation.translation;
+    for (const part of key.split(".")) {
+      if (node == null || typeof node !== "object") return undefined;
+      node = (node as Record<string, unknown>)[part];
+    }
+    return typeof node === "string" ? node : undefined;
+  };
+  return {
+    useTranslation: vi.fn(() => ({ t: (key: string) => lookup(key) ?? key })),
+  };
+});
 
 import { useAppStore } from "@shared/store/appStore";
 import { useTranslation } from "react-i18next";

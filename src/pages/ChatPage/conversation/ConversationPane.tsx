@@ -565,7 +565,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   return (
     <Layout
       role="region"
-      aria-label={t("chat.view.chatRegion", "Chat conversation")}
+      aria-label={t("chat.view.chatRegion")}
       style={{
         flex: 1,
         minHeight: 0,

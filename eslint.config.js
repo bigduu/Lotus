@@ -56,6 +56,19 @@ export default [
       "no-debugger": "error",
       "prefer-const": "warn",
       eqeqeq: ["error", "always", { null: "ignore" }],
+
+      // ── i18n ──
+      // Inline English fallbacks drift from en-US.ts (the single source of
+      // truth) and mask missing keys (#168).
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.name='t'][arguments.0.type='Literal'][arguments.1.type='Literal']",
+          message:
+            "Do not pass an inline string fallback to t(); put the default text in src/shared/i18n/resources/en-US.ts instead.",
+        },
+      ],
     },
   },
 

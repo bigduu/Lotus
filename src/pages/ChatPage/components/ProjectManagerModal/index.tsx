@@ -258,7 +258,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   return (
     <Modal
       open={open}
-      title={t("chat.project.managerTitle", "Projects")}
+      title={t("chat.project.managerTitle")}
       footer={null}
       onCancel={onClose}
       width={760}
@@ -274,7 +274,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
             style={{ marginBottom: 8 }}
             data-testid="project-create-open"
           >
-            {t("chat.project.newProject", "New project")}
+            {t("chat.project.newProject")}
           </Button>
           {unassignedRootCount > 0 ? (
             <Button
@@ -320,9 +320,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                     {project.name}
                   </Text>
                   {project.status === "archived" ? (
-                    <Tag style={{ marginInlineEnd: 0 }}>
-                      {t("chat.project.archivedTag", "Archived")}
-                    </Tag>
+                    <Tag style={{ marginInlineEnd: 0 }}>{t("chat.project.archivedTag")}</Tag>
                   ) : null}
                 </Flex>
               </List.Item>
@@ -336,9 +334,9 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
         <div style={{ flex: 1, minWidth: 0 }}>
           {creating ? (
             <Flex vertical gap={12}>
-              <Text strong>{t("chat.project.newProject", "New project")}</Text>
+              <Text strong>{t("chat.project.newProject")}</Text>
               <div>
-                <Text type="secondary">{t("chat.project.nameLabel", "Name")}</Text>
+                <Text type="secondary">{t("chat.project.nameLabel")}</Text>
                 <Input
                   value={newName}
                   onChange={(event) => setNewName(event.target.value)}
@@ -347,7 +345,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 />
               </div>
               <div>
-                <Text type="secondary">{t("chat.project.descriptionLabel", "Description")}</Text>
+                <Text type="secondary">{t("chat.project.descriptionLabel")}</Text>
                 <Input.TextArea
                   value={newDescription}
                   onChange={(event) => setNewDescription(event.target.value)}
@@ -356,9 +354,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 />
               </div>
               <div>
-                <Text type="secondary">
-                  {t("chat.project.initialWorkspaceLabel", "Initial workspace (optional)")}
-                </Text>
+                <Text type="secondary">{t("chat.project.initialWorkspaceLabel")}</Text>
                 <Input
                   value={newWorkspace}
                   onChange={(event) => setNewWorkspace(event.target.value)}
@@ -374,7 +370,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   onClick={handleCreate}
                   data-testid="project-create-submit"
                 >
-                  {t("chat.project.create", "Create")}
+                  {t("chat.project.create")}
                 </Button>
                 <Button onClick={() => setCreating(false)}>{t("common.cancel")}</Button>
               </Flex>
@@ -385,13 +381,11 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 <Text strong style={{ fontSize: 15 }}>
                   {selected.name}
                 </Text>
-                {selected.status === "archived" ? (
-                  <Tag>{t("chat.project.archivedTag", "Archived")}</Tag>
-                ) : null}
+                {selected.status === "archived" ? <Tag>{t("chat.project.archivedTag")}</Tag> : null}
               </Flex>
 
               <div>
-                <Text type="secondary">{t("chat.project.nameLabel", "Name")}</Text>
+                <Text type="secondary">{t("chat.project.nameLabel")}</Text>
                 <Input
                   value={editName}
                   onChange={(event) => setEditName(event.target.value)}
@@ -400,7 +394,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 />
               </div>
               <div>
-                <Text type="secondary">{t("chat.project.descriptionLabel", "Description")}</Text>
+                <Text type="secondary">{t("chat.project.descriptionLabel")}</Text>
                 <Input.TextArea
                   value={editDescription}
                   onChange={(event) => setEditDescription(event.target.value)}
@@ -416,12 +410,12 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   style={{ alignSelf: "flex-start" }}
                   data-testid="project-detail-save"
                 >
-                  {t("chat.project.save", "Save")}
+                  {t("chat.project.save")}
                 </Button>
               ) : null}
 
               <Divider style={{ margin: "4px 0" }} />
-              <Text strong>{t("chat.project.workspacesTitle", "Bound workspaces")}</Text>
+              <Text strong>{t("chat.project.workspacesTitle")}</Text>
               {selected.workspace_bindings.length === 0 ? (
                 <Text type="secondary">{t("chat.project.emptyWorkspaces")}</Text>
               ) : (
@@ -471,13 +465,13 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                     disabled={!bindingPath.trim()}
                     data-testid="project-bind-submit"
                   >
-                    {t("chat.project.addWorkspace", "Bind")}
+                    {t("chat.project.addWorkspace")}
                   </Button>
                 </Flex>
               ) : null}
 
               <Divider style={{ margin: "4px 0" }} />
-              <Text strong>{t("chat.project.resourcesTitle", "Shared resources")}</Text>
+              <Text strong>{t("chat.project.resourcesTitle")}</Text>
               {resourcesError ? (
                 <Text type="danger">{t("chat.project.resourcesFailed")}</Text>
               ) : !resources || resources.resources.every((kind) => !kind.present) ? (
@@ -505,7 +499,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   <Popconfirm
                     title={t("chat.project.archiveConfirmTitle", { name: selected.name })}
                     description={t("chat.project.archiveConfirmContent")}
-                    okText={t("chat.project.archive", "Archive")}
+                    okText={t("chat.project.archive")}
                     okButtonProps={{ danger: true }}
                     cancelText={t("common.cancel")}
                     onConfirm={handleArchive}
@@ -517,7 +511,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                       style={{ alignSelf: "flex-start" }}
                       data-testid="project-archive"
                     >
-                      {t("chat.project.archive", "Archive")}
+                      {t("chat.project.archive")}
                     </Button>
                   </Popconfirm>
                 </>
@@ -528,7 +522,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
               )}
             </Flex>
           ) : (
-            <Empty description={t("chat.project.selectProject", "Select a project to manage")} />
+            <Empty description={t("chat.project.selectProject")} />
           )}
         </div>
       </Flex>

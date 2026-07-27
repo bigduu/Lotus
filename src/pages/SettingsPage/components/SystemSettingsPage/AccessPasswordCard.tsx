@@ -51,7 +51,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
       const message =
         error instanceof Error
           ? error.message
-          : t("settings.configTab.accessPassword.loadStatusFailed", "Failed to load access status");
+          : t("settings.configTab.accessPassword.loadStatusFailed");
       setLoadError(message);
     } finally {
       setIsLoading(false);
@@ -86,7 +86,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
       const message =
         error instanceof Error
           ? error.message
-          : t("settings.configTab.accessPassword.updateFailed", "Failed to update access password");
+          : t("settings.configTab.accessPassword.updateFailed");
       msgApi.error(message);
     } finally {
       setIsSaving(false);

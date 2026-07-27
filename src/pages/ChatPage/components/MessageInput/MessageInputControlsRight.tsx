@@ -109,7 +109,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
           effectiveCanCancel
             ? onCancel
               ? t("chat.actions.cancelRequest")
-              : t("chat.actions.cancelUnavailable", "Cannot cancel in the current state")
+              : t("chat.actions.cancelUnavailable")
             : resolvedSubmitLabel
         }
       >
@@ -158,7 +158,7 @@ const MessageInputControlsRight: React.FC<MessageInputControlsRightProps> = ({
               effectiveCanCancel
                 ? onCancel
                   ? t("chat.actions.cancelRequest")
-                  : t("chat.actions.cancelUnavailable", "Cannot cancel in the current state")
+                  : t("chat.actions.cancelUnavailable")
                 : resolvedSubmitLabel
             }
           />

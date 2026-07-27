@@ -764,9 +764,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         ? t("components.questionDialog.selectOptionWarning")
         : basePlaceholder;
 
-  const submitButtonLabel = isRespondMode
-    ? t("chat.respond.submitToolResult", "Submit tool result")
-    : undefined;
+  const submitButtonLabel = isRespondMode ? t("chat.respond.submitToolResult") : undefined;
 
   const reasoningEffortLabelMap = useMemo<Record<ReasoningEffort, string>>(
     () => ({

@@ -178,9 +178,7 @@ const InstanceConfigFields: React.FC<{
   const apiKeyRules = (requiredMessage: string) =>
     hasStoredApiKey ? [] : [{ required: true, message: requiredMessage }];
   const apiKeyPlaceholder = (defaultPlaceholder: string) =>
-    hasStoredApiKey
-      ? t("settings.providerTab.apiKeyKeepPlaceholder", "Configured — leave empty to keep")
-      : defaultPlaceholder;
+    hasStoredApiKey ? t("settings.providerTab.apiKeyKeepPlaceholder") : defaultPlaceholder;
 
   switch (type) {
     case "openai":
@@ -192,9 +190,7 @@ const InstanceConfigFields: React.FC<{
             rules={apiKeyRules(t("settings.providerTab.openaiApiKeyRequired"))}
           >
             <Input.Password
-              placeholder={apiKeyPlaceholder(
-                t("settings.providerTab.openaiApiKeyPlaceholder", "sk-..."),
-              )}
+              placeholder={apiKeyPlaceholder(t("settings.providerTab.openaiApiKeyPlaceholder"))}
               prefix={<KeyOutlined />}
               data-testid="instance-api-key-input"
             />
@@ -204,12 +200,7 @@ const InstanceConfigFields: React.FC<{
             label={t("settings.providerTab.baseUrlOptional")}
             extra={t("settings.providerTab.openaiBaseUrlHelp")}
           >
-            <Input
-              placeholder={t(
-                "settings.providerTab.openaiBaseUrlPlaceholder",
-                "https://api.openai.com/v1",
-              )}
-            />
+            <Input placeholder={t("settings.providerTab.openaiBaseUrlPlaceholder")} />
           </Form.Item>
           <Form.Item
             name="reasoning_effort"
@@ -231,9 +222,7 @@ const InstanceConfigFields: React.FC<{
             rules={apiKeyRules(t("settings.providerTab.anthropicApiKeyRequired"))}
           >
             <Password
-              placeholder={apiKeyPlaceholder(
-                t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-..."),
-              )}
+              placeholder={apiKeyPlaceholder(t("settings.providerTab.anthropicApiKeyPlaceholder"))}
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -242,12 +231,7 @@ const InstanceConfigFields: React.FC<{
             label={t("settings.providerTab.baseUrlOptional")}
             extra={t("settings.providerTab.anthropicBaseUrlHelp")}
           >
-            <Input
-              placeholder={t(
-                "settings.providerTab.anthropicBaseUrlPlaceholder",
-                "https://api.anthropic.com/v1",
-              )}
-            />
+            <Input placeholder={t("settings.providerTab.anthropicBaseUrlPlaceholder")} />
           </Form.Item>
           <Form.Item
             name="max_tokens"
@@ -256,7 +240,7 @@ const InstanceConfigFields: React.FC<{
           >
             <Input
               type="number"
-              placeholder={t("settings.providerTab.maxTokensPlaceholder", "4096")}
+              placeholder={t("settings.providerTab.maxTokensPlaceholder")}
               min={1}
               max={100000}
             />
@@ -280,9 +264,7 @@ const InstanceConfigFields: React.FC<{
             rules={apiKeyRules(t("settings.providerTab.geminiApiKeyRequired"))}
           >
             <Password
-              placeholder={apiKeyPlaceholder(
-                t("settings.providerTab.geminiApiKeyPlaceholder", "AIza..."),
-              )}
+              placeholder={apiKeyPlaceholder(t("settings.providerTab.geminiApiKeyPlaceholder"))}
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -291,12 +273,7 @@ const InstanceConfigFields: React.FC<{
             label={t("settings.providerTab.baseUrlOptional")}
             extra={t("settings.providerTab.geminiBaseUrlHelp")}
           >
-            <Input
-              placeholder={t(
-                "settings.providerTab.geminiBaseUrlPlaceholder",
-                "https://generativelanguage.googleapis.com/v1beta",
-              )}
-            />
+            <Input placeholder={t("settings.providerTab.geminiBaseUrlPlaceholder")} />
           </Form.Item>
           <Form.Item
             name="reasoning_effort"
@@ -339,9 +316,7 @@ const InstanceConfigFields: React.FC<{
             rules={apiKeyRules(t("settings.providerTab.apiKeyRequired"))}
           >
             <Input.Password
-              placeholder={apiKeyPlaceholder(
-                t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_..."),
-              )}
+              placeholder={apiKeyPlaceholder(t("settings.providerTab.bodhiApiKeyPlaceholder"))}
               prefix={<KeyOutlined />}
             />
           </Form.Item>
@@ -350,22 +325,14 @@ const InstanceConfigFields: React.FC<{
             label={t("settings.providerTab.bodhiBaseUrl")}
             extra={t("settings.providerTab.bodhiBaseUrlExtra")}
           >
-            <Input
-              placeholder={t(
-                "settings.providerTab.bodhiBaseUrlPlaceholder",
-                "http://localhost:8080",
-              )}
-            />
+            <Input placeholder={t("settings.providerTab.bodhiBaseUrlPlaceholder")} />
           </Form.Item>
           <Form.Item
             name="target_provider"
             label={t("settings.providerTab.targetProvider")}
             extra={t("settings.providerTab.targetProviderExtra")}
           >
-            <Select
-              placeholder={t("settings.providerTab.targetProviderPlaceholder", "openai")}
-              allowClear
-            >
+            <Select placeholder={t("settings.providerTab.targetProviderPlaceholder")} allowClear>
               <Select.Option value="openai">OpenAI</Select.Option>
               <Select.Option value="anthropic">Anthropic</Select.Option>
               <Select.Option value="gemini">Gemini</Select.Option>
@@ -487,9 +454,7 @@ export const ProviderInstanceManager: React.FC<{
       setIsDeviceCodeModalVisible(true);
       setTimeRemaining(deviceCode.expires_in);
     } catch (error) {
-      message.error(
-        t("settings.providerTab.startCopilotAuthFailed", "Failed to start Copilot authentication"),
-      );
+      message.error(t("settings.providerTab.startCopilotAuthFailed"));
       console.error("Failed to start Copilot authentication:", error);
     } finally {
       setAuthenticatingCopilot(false);
@@ -505,16 +470,12 @@ export const ProviderInstanceManager: React.FC<{
         interval: deviceCodeInfo.interval || 5,
         expires_in: deviceCodeInfo.expires_in,
       });
-      message.success(
-        t("settings.providerTab.copilotAuthSuccess", "Copilot authentication successful!"),
-      );
+      message.success(t("settings.providerTab.copilotAuthSuccess"));
       setIsDeviceCodeModalVisible(false);
       setDeviceCodeInfo(null);
       await checkCopilotAuthStatus();
     } catch (error) {
-      message.error(
-        t("settings.providerTab.completeAuthFailed", "Authentication completion failed"),
-      );
+      message.error(t("settings.providerTab.completeAuthFailed"));
       console.error("Authentication completion failed:", error);
     } finally {
       setCompletingAuth(false);
@@ -526,10 +487,10 @@ export const ProviderInstanceManager: React.FC<{
       try {
         await copyText(deviceCodeInfo.user_code);
         setCopiedUserCode(true);
-        message.success(t("settings.providerTab.userCodeCopied", "User code copied!"));
+        message.success(t("settings.providerTab.userCodeCopied"));
         setTimeout(() => setCopiedUserCode(false), 2000);
       } catch {
-        message.error(t("settings.providerTab.copyCodeFailed", "Failed to copy code"));
+        message.error(t("settings.providerTab.copyCodeFailed"));
       }
     }
   };
@@ -572,22 +533,16 @@ export const ProviderInstanceManager: React.FC<{
   );
 
   const renderCopilotAuthCard = (buttonSize: "small" | "middle" | "large" = "small") => (
-    <Card
-      size="small"
-      title={t("settings.providerTab.copilotAuth", "GitHub Copilot Authentication")}
-      style={{ marginTop: 8 }}
-    >
+    <Card size="small" title={t("settings.providerTab.copilotAuth")} style={{ marginTop: 8 }}>
       <Space direction="vertical" style={{ width: "100%" }}>
         <Space>
-          <Text strong>{t("settings.providerTab.authStatus", "Status:")}</Text>
+          <Text strong>{t("settings.providerTab.authStatus")}</Text>
           {copilotAuthStatus === "authenticated" ? (
-            <Tag color="success">{t("settings.providerTab.authenticated", "Authenticated")}</Tag>
+            <Tag color="success">{t("settings.providerTab.authenticated")}</Tag>
           ) : copilotAuthStatus === "not_authenticated" ? (
-            <Tag color="warning">
-              {t("settings.providerTab.notAuthenticated", "Not Authenticated")}
-            </Tag>
+            <Tag color="warning">{t("settings.providerTab.notAuthenticated")}</Tag>
           ) : (
-            <Tag>{t("settings.providerTab.unknown", "Unknown")}</Tag>
+            <Tag>{t("settings.providerTab.unknown")}</Tag>
           )}
           <Button
             type="text"
@@ -595,15 +550,12 @@ export const ProviderInstanceManager: React.FC<{
             onClick={() => void checkCopilotAuthStatus()}
             loading={checkingCopilotAuth}
           >
-            {t("settings.providerTab.refreshStatus", "Refresh")}
+            {t("settings.providerTab.refreshStatus")}
           </Button>
         </Space>
 
         <Paragraph type="secondary" style={{ marginBottom: 8 }}>
-          {t(
-            "settings.providerTab.copilotAuthHelp",
-            "Copilot requires OAuth authentication. Click the button below to start the Device Code Flow.",
-          )}
+          {t("settings.providerTab.copilotAuthHelp")}
         </Paragraph>
 
         <Button
@@ -613,7 +565,7 @@ export const ProviderInstanceManager: React.FC<{
           loading={authenticatingCopilot}
           size={buttonSize}
         >
-          {t("settings.providerTab.authenticateCopilot", "Authenticate Copilot")}
+          {t("settings.providerTab.authenticateCopilot")}
         </Button>
       </Space>
     </Card>
@@ -661,7 +613,7 @@ export const ProviderInstanceManager: React.FC<{
       if (editingInstance) {
         const updateReq: UpdateProviderInstanceRequest = { label, enabled, config };
         await settingsService.updateProviderInstance(editingInstance.id, updateReq);
-        message.success(t("settings.providerTab.instanceUpdated", "Provider instance updated"));
+        message.success(t("settings.providerTab.instanceUpdated"));
       } else {
         const createReq: CreateProviderInstanceRequest = {
           type,
@@ -670,7 +622,7 @@ export const ProviderInstanceManager: React.FC<{
           config,
         };
         await settingsService.createProviderInstance(createReq);
-        message.success(t("settings.providerTab.instanceCreated", "Provider instance created"));
+        message.success(t("settings.providerTab.instanceCreated"));
       }
 
       setInstanceModalOpen(false);
@@ -692,14 +644,12 @@ export const ProviderInstanceManager: React.FC<{
       try {
         setDeletingInstanceId(instanceId);
         await settingsService.deleteProviderInstance(instanceId);
-        message.success(t("settings.providerTab.instanceDeleted", "Provider instance deleted"));
+        message.success(t("settings.providerTab.instanceDeleted"));
         await onInstancesChanged();
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
-          isApiError(error)
-            ? error.message
-            : t("settings.providerTab.instanceDeleteFailed", "Failed to delete instance"),
+          isApiError(error) ? error.message : t("settings.providerTab.instanceDeleteFailed"),
         );
       } finally {
         setDeletingInstanceId(null);
@@ -712,14 +662,12 @@ export const ProviderInstanceManager: React.FC<{
     async (instanceId: string) => {
       try {
         await settingsService.setDefaultProviderInstance(instanceId);
-        message.success(t("settings.providerTab.defaultInstanceSet", "Default provider updated"));
+        message.success(t("settings.providerTab.defaultInstanceSet"));
         await onInstancesChanged();
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
-          isApiError(error)
-            ? error.message
-            : t("settings.providerTab.defaultInstanceFailed", "Failed to set default"),
+          isApiError(error) ? error.message : t("settings.providerTab.defaultInstanceFailed"),
         );
       }
     },
@@ -748,24 +696,19 @@ export const ProviderInstanceManager: React.FC<{
           alignItems: "center",
         }}
       >
-        <Text strong>{t("settings.providerTab.providerInstances", "Provider Instances")}</Text>
+        <Text strong>{t("settings.providerTab.providerInstances")}</Text>
         <Button
           type="dashed"
           icon={<PlusOutlined />}
           onClick={handleOpenCreate}
           data-testid="add-provider-instance"
         >
-          {t("settings.providerTab.addInstance", "Add Provider")}
+          {t("settings.providerTab.addInstance")}
         </Button>
       </div>
 
       {instances.length === 0 && (
-        <Paragraph type="secondary">
-          {t(
-            "settings.providerTab.noInstances",
-            'No provider instances configured. Click "Add Provider" to create one.',
-          )}
-        </Paragraph>
+        <Paragraph type="secondary">{t("settings.providerTab.noInstances")}</Paragraph>
       )}
 
       <Collapse
@@ -783,12 +726,12 @@ export const ProviderInstanceManager: React.FC<{
                 </Tag>
                 {isDefault && (
                   <Tag color="gold" style={{ fontSize: 11 }}>
-                    <StarFilled /> {t("settings.providerTab.default", "Default")}
+                    <StarFilled /> {t("settings.providerTab.default")}
                   </Tag>
                 )}
                 {!instance.enabled && (
                   <Tag color="default" style={{ fontSize: 11 }}>
-                    {t("settings.providerTab.disabled", "Disabled")}
+                    {t("settings.providerTab.disabled")}
                   </Tag>
                 )}
               </Space>
@@ -796,7 +739,7 @@ export const ProviderInstanceManager: React.FC<{
             extra: (
               <Space size={4} onClick={(e) => e.stopPropagation()}>
                 {!isDefault && (
-                  <Tooltip title={t("settings.providerTab.setDefault", "Set as default")}>
+                  <Tooltip title={t("settings.providerTab.setDefault")}>
                     <Button
                       type="text"
                       size="small"
@@ -813,13 +756,10 @@ export const ProviderInstanceManager: React.FC<{
                   data-testid={`edit-provider-instance-${instance.id}`}
                 />
                 <Popconfirm
-                  title={t(
-                    "settings.providerTab.confirmDeleteInstance",
-                    "Delete this provider instance?",
-                  )}
+                  title={t("settings.providerTab.confirmDeleteInstance")}
                   onConfirm={() => void handleDeleteInstance(instance.id)}
-                  okText={t("settings.providerTab.delete", "Delete")}
-                  cancelText={t("settings.providerTab.cancel", "Cancel")}
+                  okText={t("settings.providerTab.delete")}
+                  cancelText={t("settings.providerTab.cancel")}
                 >
                   <Button
                     type="text"
@@ -870,8 +810,8 @@ export const ProviderInstanceManager: React.FC<{
         open={instanceModalOpen}
         title={
           editingInstance
-            ? t("settings.providerTab.editInstance", "Edit Provider Instance")
-            : t("settings.providerTab.createInstance", "Create Provider Instance")
+            ? t("settings.providerTab.editInstance")
+            : t("settings.providerTab.createInstance")
         }
         onCancel={() => setInstanceModalOpen(false)}
         onOk={() => void handleSaveInstance()}
@@ -883,11 +823,8 @@ export const ProviderInstanceManager: React.FC<{
       >
         <Form form={instanceForm} layout="vertical" preserve={false}>
           <Form.Item
-            label={t("settings.providerTab.vendorPreset", "Vendor Preset")}
-            tooltip={t(
-              "settings.providerTab.vendorPresetTooltip",
-              "Prefills the provider type and base URL; the preset itself is not saved.",
-            )}
+            label={t("settings.providerTab.vendorPreset")}
+            tooltip={t("settings.providerTab.vendorPresetTooltip")}
             extra={
               selectedPreset && (
                 <>
@@ -908,10 +845,7 @@ export const ProviderInstanceManager: React.FC<{
               allowClear
               showSearch
               optionFilterProp="label"
-              placeholder={t(
-                "settings.providerTab.vendorPresetPlaceholder",
-                "Select a vendor to prefill type and base URL",
-              )}
+              placeholder={t("settings.providerTab.vendorPresetPlaceholder")}
               value={selectedPresetId}
               onChange={handleVendorPresetChange}
               options={PROVIDER_VENDOR_PRESETS.map((preset) => ({
@@ -924,17 +858,17 @@ export const ProviderInstanceManager: React.FC<{
 
           <Form.Item
             name="type"
-            label={t("settings.providerTab.providerType", "Provider Type")}
+            label={t("settings.providerTab.providerType")}
             rules={[
               {
                 required: true,
-                message: t("settings.providerTab.typeRequired", "Please select a provider type"),
+                message: t("settings.providerTab.typeRequired"),
               },
             ]}
           >
             <Select
               disabled={!!editingInstance}
-              placeholder={t("settings.providerTab.selectType", "Select provider type")}
+              placeholder={t("settings.providerTab.selectType")}
               onChange={(value: ProviderType) => setSelectedType(value)}
               data-testid="instance-type-select"
             >
@@ -948,22 +882,22 @@ export const ProviderInstanceManager: React.FC<{
 
           <Form.Item
             name="label"
-            label={t("settings.providerTab.instanceLabel", "Label")}
-            extra={t("settings.providerTab.labelHelp", "A display name for this provider instance")}
+            label={t("settings.providerTab.instanceLabel")}
+            extra={t("settings.providerTab.labelHelp")}
           >
-            <Input placeholder={t("settings.providerTab.labelPlaceholder", "My OpenAI Instance")} />
+            <Input placeholder={t("settings.providerTab.labelPlaceholder")} />
           </Form.Item>
 
           <Form.Item
             name="enabled"
-            label={t("settings.providerTab.enabled", "Enabled")}
+            label={t("settings.providerTab.enabled")}
             valuePropName="checked"
             initialValue={true}
           >
             <Switch />
           </Form.Item>
 
-          <Divider>{t("settings.providerTab.instanceConfig", "Configuration")}</Divider>
+          <Divider>{t("settings.providerTab.instanceConfig")}</Divider>
 
           <Form.Item noStyle shouldUpdate>
             {() => (

@@ -41,16 +41,13 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
     <Card size="small" className="lotus-settings-card">
       <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
         <Flex align="center" justify="space-between" gap={token.marginSM}>
-          <Text strong>{t("settings.appTab.runningVersion", "Running version")}</Text>
+          <Text strong>{t("settings.appTab.runningVersion")}</Text>
           <Text code data-testid="settings-app-version">
             v{APP_VERSION}
           </Text>
         </Flex>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {t(
-            "settings.appTab.runningVersionDesc",
-            "This is the currently running Lotus frontend version.",
-          )}
+          {t("settings.appTab.runningVersionDesc")}
         </Text>
         <Flex align="center" gap={token.marginSM}>
           <Text strong>{t("settings.appTab.darkMode")}</Text>
@@ -65,7 +62,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
           />
         </Flex>
         <Flex align="center" gap={token.marginSM}>
-          <Text strong>{t("settings.appTab.vdiSafeMode", "Graphics compatibility mode")}</Text>
+          <Text strong>{t("settings.appTab.vdiSafeMode")}</Text>
           <Switch
             data-testid="vdi-safe-mode-toggle"
             checked={vdiSafeMode}
@@ -73,10 +70,7 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
           />
         </Flex>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {t(
-            "settings.appTab.vdiSafeModeDesc",
-            "Disables blur and glass effects that can break dropdowns and hover overlays in some virtual desktop, remote, or graphics-constrained environments.",
-          )}
+          {t("settings.appTab.vdiSafeModeDesc")}
         </Text>
         <Button
           block

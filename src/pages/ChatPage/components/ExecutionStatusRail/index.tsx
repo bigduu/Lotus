@@ -166,7 +166,7 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
             bordered={false}
             className="lotus-execution-rail__status-tag"
           >
-            {t("chat.statusRail.evaluatingTasks", "Evaluating task progress…")}
+            {t("chat.statusRail.evaluatingTasks")}
           </Tag>
         )}
 

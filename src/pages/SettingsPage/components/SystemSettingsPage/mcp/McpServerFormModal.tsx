@@ -635,10 +635,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                           type="text"
                           icon={<MinusCircleOutlined />}
                           onClick={() => remove(field.name)}
-                          aria-label={t(
-                            "settings.mcpServerForm.removeEnv",
-                            "Remove environment variable",
-                          )}
+                          aria-label={t("settings.mcpServerForm.removeEnv")}
                         />
                       </Space>
                     ))}
@@ -712,7 +709,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                           type="text"
                           icon={<MinusCircleOutlined />}
                           onClick={() => remove(field.name)}
-                          aria-label={t("settings.mcpServerForm.removeHeader", "Remove header")}
+                          aria-label={t("settings.mcpServerForm.removeHeader")}
                         />
                       </Space>
                     ))}

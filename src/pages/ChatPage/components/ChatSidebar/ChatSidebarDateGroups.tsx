@@ -181,15 +181,15 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   const resolveGroupLabel = (groupKey: string): string => {
     if (isProjectMode) {
       if (groupKey === NO_PROJECT_GROUP_KEY) {
-        return t("chat.sidebar.unassigned", "Unassigned");
+        return t("chat.sidebar.unassigned");
       }
-      return groupLabels?.[groupKey] ?? t("chat.sidebar.missingProject", "Missing project");
+      return groupLabels?.[groupKey] ?? t("chat.sidebar.missingProject");
     }
     if (!isWorkspaceMode) {
       return translateDateKey(groupKey, t);
     }
     if (groupKey === NO_WORKSPACE_GROUP_KEY) {
-      return t("chat.sidebar.noWorkspace", "No workspace");
+      return t("chat.sidebar.noWorkspace");
     }
     return groupLabels?.[groupKey] ?? groupKey;
   };
@@ -280,17 +280,15 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
           <Space direction="vertical" size={4} align="center">
             <span style={{ color: token.colorTextSecondary }}>
               {hasActiveFilters
-                ? t("chat.sidebar.empty.noMatches", "No matching sessions")
+                ? t("chat.sidebar.empty.noMatches")
                 : t("chat.sidebar.empty.noSessions")}
             </span>
             <span style={{ color: token.colorTextSecondary, fontSize: 12 }}>
-              {hasActiveFilters
-                ? t("chat.sidebar.empty.filterHint", "Try adjusting your search or filters")
-                : t("chat.sidebar.empty.hint")}
+              {hasActiveFilters ? t("chat.sidebar.empty.filterHint") : t("chat.sidebar.empty.hint")}
             </span>
             {hasActiveFilters && (
               <Button size="small" type="link" onClick={onClearFilters}>
-                {t("chat.sidebar.empty.clearFilters", "Clear filters")}
+                {t("chat.sidebar.empty.clearFilters")}
               </Button>
             )}
           </Space>
@@ -323,13 +321,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
             // (which owns the plain ▶/▼ chevron affordance). Turns green
             // and pulses when a child is currently running/awaiting (#94),
             // so a collapsed root still surfaces that activity.
-            <Tooltip
-              title={
-                hasRunningChild
-                  ? t("chat.chatItem.status.childRunning", "A sub-agent is running")
-                  : undefined
-              }
-            >
+            <Tooltip title={hasRunningChild ? t("chat.chatItem.status.childRunning") : undefined}>
               <Button
                 size="small"
                 type="text"
@@ -596,7 +588,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       flexShrink: 0,
                     }}
                   >
-                    {t("chat.sidebar.archived", "Archived")}
+                    {t("chat.sidebar.archived")}
                   </span>
                 ) : null}
               </Flex>

@@ -90,24 +90,24 @@ export const MessageFeedback: React.FC<{
   return (
     <div className={classes} data-message-id={messageId}>
       {/* Like */}
-      <Tooltip title={t("feedback.helpful", "Helpful")}>
+      <Tooltip title={t("feedback.helpful")}>
         <button
           type="button"
           className={`lotus-msg-feedback-btn ${rating === "like" ? "is-liked" : ""}`}
           onClick={handleLike}
-          aria-label={t("feedback.helpful", "Helpful")}
+          aria-label={t("feedback.helpful")}
         >
           {rating === "like" ? <LikeFilled /> : <LikeOutlined />}
         </button>
       </Tooltip>
 
       {/* Dislike */}
-      <Tooltip title={t("feedback.notHelpful", "Not helpful")}>
+      <Tooltip title={t("feedback.notHelpful")}>
         <button
           type="button"
           className={`lotus-msg-feedback-btn ${rating === "dislike" ? "is-disliked" : ""}`}
           onClick={handleDislike}
-          aria-label={t("feedback.notHelpful", "Not helpful")}
+          aria-label={t("feedback.notHelpful")}
         >
           {rating === "dislike" ? <DislikeFilled /> : <DislikeOutlined />}
         </button>

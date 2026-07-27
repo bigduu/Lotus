@@ -43,11 +43,24 @@ vi.mock("@ant-design/icons", () => ({
   WarningOutlined: () => <span data-testid="icon-warning" />,
 }));
 
-vi.mock("react-i18next", () => ({
-  useTranslation: () => ({
-    t: (_key: string, fallback?: string) => fallback ?? _key,
-  }),
-}));
+vi.mock("react-i18next", async () => {
+  // Resolve against the real en-US resource: components no longer pass inline
+  // fallbacks, so the mock must translate keys itself (#168).
+  const { enUsTranslation } = await import("@shared/i18n/resources/en-US");
+  const lookup = (key: string): string | undefined => {
+    let node: unknown = enUsTranslation.translation;
+    for (const part of key.split(".")) {
+      if (node == null || typeof node !== "object") return undefined;
+      node = (node as Record<string, unknown>)[part];
+    }
+    return typeof node === "string" ? node : undefined;
+  };
+  return {
+    useTranslation: () => ({
+      t: (key: string) => lookup(key) ?? key,
+    }),
+  };
+});
 
 vi.mock("../../../../shared/components/InlineMetaText", () => ({
   default: ({ items }: { items: string[] }) => (

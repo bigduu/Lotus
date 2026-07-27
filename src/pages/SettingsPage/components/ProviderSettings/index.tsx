@@ -1238,9 +1238,7 @@ export const ProviderSettings: React.FC = () => {
     const apiKeyRules = (requiredMessage: string) =>
       hasStoredKey ? [] : [{ required: true, message: requiredMessage }];
     const apiKeyPlaceholder = (defaultPlaceholder: string) =>
-      hasStoredKey
-        ? t("settings.providerTab.apiKeyKeepPlaceholder", "Configured — leave empty to keep")
-        : defaultPlaceholder;
+      hasStoredKey ? t("settings.providerTab.apiKeyKeepPlaceholder") : defaultPlaceholder;
 
     switch (provider) {
       case "openai":
@@ -1253,9 +1251,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input.Password
                 data-testid="api-key-input"
-                placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.openaiApiKeyPlaceholder", "sk-..."),
-                )}
+                placeholder={apiKeyPlaceholder(t("settings.providerTab.openaiApiKeyPlaceholder"))}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1264,12 +1260,7 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.openaiBaseUrlHelp")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.openaiBaseUrlPlaceholder",
-                  "https://api.openai.com/v1",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.openaiBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "openai", "reasoning_effort"]}
@@ -1285,10 +1276,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Select
                 mode="tags"
-                placeholder={t(
-                  "settings.providerTab.responsesOnlyModelsPlaceholder",
-                  'e.g. "gpt-5.3-codex", "gpt-5*"',
-                )}
+                placeholder={t("settings.providerTab.responsesOnlyModelsPlaceholder")}
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
@@ -1307,7 +1295,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Password
                 placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-..."),
+                  t("settings.providerTab.anthropicApiKeyPlaceholder"),
                 )}
                 prefix={<KeyOutlined />}
               />
@@ -1317,12 +1305,7 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.anthropicBaseUrlHelp")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.anthropicBaseUrlPlaceholder",
-                  "https://api.anthropic.com/v1",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.anthropicBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "max_tokens"]}
@@ -1331,7 +1314,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input
                 type="number"
-                placeholder={t("settings.providerTab.maxTokensPlaceholder", "4096")}
+                placeholder={t("settings.providerTab.maxTokensPlaceholder")}
                 min={1}
                 max={100000}
               />
@@ -1357,9 +1340,7 @@ export const ProviderSettings: React.FC = () => {
               rules={apiKeyRules(t("settings.providerTab.geminiApiKeyRequired"))}
             >
               <Password
-                placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.geminiApiKeyPlaceholder", "AIza..."),
-                )}
+                placeholder={apiKeyPlaceholder(t("settings.providerTab.geminiApiKeyPlaceholder"))}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1368,12 +1349,7 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.geminiBaseUrlHelp")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.geminiBaseUrlPlaceholder",
-                  "https://generativelanguage.googleapis.com/v1beta",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.geminiBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "gemini", "reasoning_effort"]}
@@ -1463,10 +1439,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Select
                 mode="tags"
-                placeholder={t(
-                  "settings.providerTab.responsesOnlyModelsPlaceholder",
-                  'e.g. "gpt-5.3-codex", "gpt-5*"',
-                )}
+                placeholder={t("settings.providerTab.responsesOnlyModelsPlaceholder")}
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
@@ -1496,9 +1469,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input.Password
                 data-testid="bodhi-api-key-input"
-                placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_..."),
-                )}
+                placeholder={apiKeyPlaceholder(t("settings.providerTab.bodhiApiKeyPlaceholder"))}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1507,22 +1478,14 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.bodhiBaseUrl")}
               extra={t("settings.providerTab.bodhiBaseUrlExtra")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.bodhiBaseUrlPlaceholder",
-                  "http://localhost:8080",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.bodhiBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "bodhi", "target_provider"]}
               label={t("settings.providerTab.targetProvider")}
               extra={t("settings.providerTab.targetProviderExtra")}
             >
-              <Select
-                placeholder={t("settings.providerTab.targetProviderPlaceholder", "openai")}
-                allowClear
-              >
+              <Select placeholder={t("settings.providerTab.targetProviderPlaceholder")} allowClear>
                 <Select.Option value="openai">OpenAI</Select.Option>
                 <Select.Option value="anthropic">Anthropic</Select.Option>
                 <Select.Option value="gemini">Gemini</Select.Option>

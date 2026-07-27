@@ -216,28 +216,19 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "blank",
         icon: <PlusOutlined />,
-        title: t("chat.emptyLauncher.actions.blank.title", "Blank session"),
-        description: t(
-          "chat.emptyLauncher.actions.blank.description",
-          "Start from scratch with the default assistant and an empty composer.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.blank.sessionTitle", "New Session"),
-        prefill: t("chat.emptyLauncher.actions.blank.prefill", ""),
+        title: t("chat.emptyLauncher.actions.blank.title"),
+        description: t("chat.emptyLauncher.actions.blank.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.blank.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.blank.prefill"),
         category: "development",
       },
       {
         id: "codeReview",
         icon: <CodeOutlined />,
-        title: t("chat.emptyLauncher.actions.codeReview.title", "Code review"),
-        description: t(
-          "chat.emptyLauncher.actions.codeReview.description",
-          "Open a review-focused session with an editable review brief.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.codeReview.sessionTitle", "Code Review"),
-        prefill: t(
-          "chat.emptyLauncher.actions.codeReview.prefill",
-          "Review the relevant code changes in this workspace or repository. Start with the overall scope, then list risks, notable diffs, and the most important fixes.",
-        ),
+        title: t("chat.emptyLauncher.actions.codeReview.title"),
+        description: t("chat.emptyLauncher.actions.codeReview.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.codeReview.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.codeReview.prefill"),
         baseSystemPrompt: CODE_REVIEW_SYSTEM_PROMPT,
         category: "development",
         recommendWorkspace: true,
@@ -245,19 +236,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "implementFeature",
         icon: <ToolOutlined />,
-        title: t("chat.emptyLauncher.actions.implementFeature.title", "Implement feature"),
-        description: t(
-          "chat.emptyLauncher.actions.implementFeature.description",
-          "Plan and build a feature step by step following existing code conventions.",
-        ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.implementFeature.sessionTitle",
-          "Implement Feature",
-        ),
-        prefill: t(
-          "chat.emptyLauncher.actions.implementFeature.prefill",
-          "Help me implement a new feature in this workspace. Start by understanding the codebase structure, then propose an implementation plan before writing code.",
-        ),
+        title: t("chat.emptyLauncher.actions.implementFeature.title"),
+        description: t("chat.emptyLauncher.actions.implementFeature.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.implementFeature.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.implementFeature.prefill"),
         baseSystemPrompt: IMPLEMENT_FEATURE_SYSTEM_PROMPT,
         category: "development",
         recommendWorkspace: true,
@@ -265,16 +247,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "refactor",
         icon: <DiffOutlined />,
-        title: t("chat.emptyLauncher.actions.refactor.title", "Refactor code"),
-        description: t(
-          "chat.emptyLauncher.actions.refactor.description",
-          "Get targeted suggestions for improving code quality and maintainability.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.refactor.sessionTitle", "Refactor Suggestion"),
-        prefill: t(
-          "chat.emptyLauncher.actions.refactor.prefill",
-          "Suggest refactoring improvements for the code in this workspace. Focus on readability, maintainability, and performance. Propose incremental changes with clear rationale.",
-        ),
+        title: t("chat.emptyLauncher.actions.refactor.title"),
+        description: t("chat.emptyLauncher.actions.refactor.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.refactor.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.refactor.prefill"),
         baseSystemPrompt: REFACTOR_SYSTEM_PROMPT,
         category: "development",
         recommendWorkspace: true,
@@ -284,19 +260,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "bugInvestigation",
         icon: <BugOutlined />,
-        title: t("chat.emptyLauncher.actions.bugInvestigation.title", "Bug investigation"),
-        description: t(
-          "chat.emptyLauncher.actions.bugInvestigation.description",
-          "Diagnose issues by analyzing code, logs, and runtime behavior.",
-        ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.bugInvestigation.sessionTitle",
-          "Bug Investigation",
-        ),
-        prefill: t(
-          "chat.emptyLauncher.actions.bugInvestigation.prefill",
-          "Help me investigate a bug. I'll describe the symptoms and share relevant code or logs. Trace the root cause and suggest targeted fixes.",
-        ),
+        title: t("chat.emptyLauncher.actions.bugInvestigation.title"),
+        description: t("chat.emptyLauncher.actions.bugInvestigation.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.bugInvestigation.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.bugInvestigation.prefill"),
         baseSystemPrompt: BUG_INVESTIGATION_SYSTEM_PROMPT,
         category: "debugging",
         recommendWorkspace: true,
@@ -304,35 +271,20 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "explainError",
         icon: <QuestionCircleOutlined />,
-        title: t("chat.emptyLauncher.actions.explainError.title", "Explain error"),
-        description: t(
-          "chat.emptyLauncher.actions.explainError.description",
-          "Understand what went wrong from an error message or stack trace.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.explainError.sessionTitle", "Explain Error"),
-        prefill: t(
-          "chat.emptyLauncher.actions.explainError.prefill",
-          "Help me understand the following error. Explain the root cause, suggest fixes, and share prevention tips.",
-        ),
+        title: t("chat.emptyLauncher.actions.explainError.title"),
+        description: t("chat.emptyLauncher.actions.explainError.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.explainError.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.explainError.prefill"),
         baseSystemPrompt: EXPLAIN_ERROR_SYSTEM_PROMPT,
         category: "debugging",
       },
       {
         id: "tokenUsage",
         icon: <BarChartOutlined />,
-        title: t("chat.emptyLauncher.actions.tokenUsage.title", "Token usage investigation"),
-        description: t(
-          "chat.emptyLauncher.actions.tokenUsage.description",
-          "Diagnose context growth, truncation risk, and token budget pressure.",
-        ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.tokenUsage.sessionTitle",
-          "Token Usage Investigation",
-        ),
-        prefill: t(
-          "chat.emptyLauncher.actions.tokenUsage.prefill",
-          "Help me investigate token usage, context growth, and truncation risk for this session or workflow. Summarize the likely drivers and recommend concrete next fixes.",
-        ),
+        title: t("chat.emptyLauncher.actions.tokenUsage.title"),
+        description: t("chat.emptyLauncher.actions.tokenUsage.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.tokenUsage.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.tokenUsage.prefill"),
         baseSystemPrompt: TOKEN_USAGE_SYSTEM_PROMPT,
         category: "debugging",
       },
@@ -341,19 +293,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "architectureReview",
         icon: <ApartmentOutlined />,
-        title: t("chat.emptyLauncher.actions.architectureReview.title", "Read repo architecture"),
-        description: t(
-          "chat.emptyLauncher.actions.architectureReview.description",
-          "Analyze repository structure, modules, and architectural patterns.",
-        ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.architectureReview.sessionTitle",
-          "Architecture Review",
-        ),
-        prefill: t(
-          "chat.emptyLauncher.actions.architectureReview.prefill",
-          "Analyze the architecture of this repository. Map the key modules, data flow, abstractions, and dependency patterns. Identify strengths and potential improvements.",
-        ),
+        title: t("chat.emptyLauncher.actions.architectureReview.title"),
+        description: t("chat.emptyLauncher.actions.architectureReview.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.architectureReview.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.architectureReview.prefill"),
         baseSystemPrompt: ARCHITECTURE_REVIEW_SYSTEM_PROMPT,
         category: "analysis",
         recommendWorkspace: true,
@@ -361,16 +304,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "compareFiles",
         icon: <FolderViewOutlined />,
-        title: t("chat.emptyLauncher.actions.compareFiles.title", "Compare files"),
-        description: t(
-          "chat.emptyLauncher.actions.compareFiles.description",
-          "Diff and understand differences between files or code sections.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.compareFiles.sessionTitle", "Compare Files"),
-        prefill: t(
-          "chat.emptyLauncher.actions.compareFiles.prefill",
-          "Compare the following files or code sections. Highlight key differences, their implications, and any potential risks.",
-        ),
+        title: t("chat.emptyLauncher.actions.compareFiles.title"),
+        description: t("chat.emptyLauncher.actions.compareFiles.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.compareFiles.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.compareFiles.prefill"),
         baseSystemPrompt: COMPARE_FILES_SYSTEM_PROMPT,
         category: "analysis",
         recommendWorkspace: true,
@@ -380,16 +317,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "releaseNotes",
         icon: <FileTextOutlined />,
-        title: t("chat.emptyLauncher.actions.releaseNotes.title", "Generate release notes"),
-        description: t(
-          "chat.emptyLauncher.actions.releaseNotes.description",
-          "Create structured release notes from git history and code changes.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.releaseNotes.sessionTitle", "Release Notes"),
-        prefill: t(
-          "chat.emptyLauncher.actions.releaseNotes.prefill",
-          "Generate release notes for the latest changes in this workspace. Categorize into features, fixes, improvements, and breaking changes.",
-        ),
+        title: t("chat.emptyLauncher.actions.releaseNotes.title"),
+        description: t("chat.emptyLauncher.actions.releaseNotes.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.releaseNotes.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.releaseNotes.prefill"),
         baseSystemPrompt: RELEASE_NOTES_SYSTEM_PROMPT,
         category: "documentation",
         recommendWorkspace: true,
@@ -397,32 +328,20 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "summarizeWork",
         icon: <ReadOutlined />,
-        title: t("chat.emptyLauncher.actions.summarizeWork.title", "Summarize work"),
-        description: t(
-          "chat.emptyLauncher.actions.summarizeWork.description",
-          "Create a work summary for standups or weekly status reports.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.summarizeWork.sessionTitle", "Work Summary"),
-        prefill: t(
-          "chat.emptyLauncher.actions.summarizeWork.prefill",
-          "Help me summarize my recent work for a status update. Pull key accomplishments, blockers, and next steps.",
-        ),
+        title: t("chat.emptyLauncher.actions.summarizeWork.title"),
+        description: t("chat.emptyLauncher.actions.summarizeWork.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.summarizeWork.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.summarizeWork.prefill"),
         baseSystemPrompt: SUMMARIZE_WORK_SYSTEM_PROMPT,
         category: "documentation",
       },
       {
         id: "writeDocs",
         icon: <FileTextOutlined />,
-        title: t("chat.emptyLauncher.actions.writeDocs.title", "Write documentation"),
-        description: t(
-          "chat.emptyLauncher.actions.writeDocs.description",
-          "Create or improve technical documentation from code and context.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.writeDocs.sessionTitle", "Write Documentation"),
-        prefill: t(
-          "chat.emptyLauncher.actions.writeDocs.prefill",
-          "Help me write technical documentation for this project. Analyze the code and produce clear, well-structured Markdown documentation.",
-        ),
+        title: t("chat.emptyLauncher.actions.writeDocs.title"),
+        description: t("chat.emptyLauncher.actions.writeDocs.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.writeDocs.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.writeDocs.prefill"),
         baseSystemPrompt: WRITE_DOCS_SYSTEM_PROMPT,
         category: "documentation",
         recommendWorkspace: true,
@@ -432,35 +351,20 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {
         id: "createSchedule",
         icon: <ClockCircleOutlined />,
-        title: t("chat.emptyLauncher.actions.createSchedule.title", "Create scheduled task"),
-        description: t(
-          "chat.emptyLauncher.actions.createSchedule.description",
-          "Set up a recurring task that runs automatically on a schedule.",
-        ),
-        sessionTitle: t(
-          "chat.emptyLauncher.actions.createSchedule.sessionTitle",
-          "Create Schedule",
-        ),
-        prefill: t(
-          "chat.emptyLauncher.actions.createSchedule.prefill",
-          "Help me set up a recurring scheduled task. I'll describe what I want it to do, and you guide me through the configuration.",
-        ),
+        title: t("chat.emptyLauncher.actions.createSchedule.title"),
+        description: t("chat.emptyLauncher.actions.createSchedule.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.createSchedule.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.createSchedule.prefill"),
         baseSystemPrompt: SCHEDULED_TASK_SYSTEM_PROMPT,
         category: "operations",
       },
       {
         id: "sessionReview",
         icon: <SearchOutlined />,
-        title: t("chat.emptyLauncher.actions.sessionReview.title", "Review session history"),
-        description: t(
-          "chat.emptyLauncher.actions.sessionReview.description",
-          "Inspect and analyze past sessions for patterns and insights.",
-        ),
-        sessionTitle: t("chat.emptyLauncher.actions.sessionReview.sessionTitle", "Session Review"),
-        prefill: t(
-          "chat.emptyLauncher.actions.sessionReview.prefill",
-          "Help me review my recent session history. Summarize key decisions, outcomes, and areas that need follow-up.",
-        ),
+        title: t("chat.emptyLauncher.actions.sessionReview.title"),
+        description: t("chat.emptyLauncher.actions.sessionReview.description"),
+        sessionTitle: t("chat.emptyLauncher.actions.sessionReview.sessionTitle"),
+        prefill: t("chat.emptyLauncher.actions.sessionReview.prefill"),
         baseSystemPrompt: SESSION_REVIEW_SYSTEM_PROMPT,
         category: "operations",
       },
@@ -573,12 +477,9 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
         // clear the draft stays in the old session. pendingTaskId stays
         // set while the dialog is open so cards can't be double-launched.
         modal.confirm({
-          title: t("chat.emptyLauncher.replaceDraftTitle", "Open template in a new session?"),
-          content: t(
-            "chat.emptyLauncher.replaceDraftContent",
-            "The template opens in a new session. Your current draft stays in the old session.",
-          ),
-          okText: t("common.continue", "Continue"),
+          title: t("chat.emptyLauncher.replaceDraftTitle"),
+          content: t("chat.emptyLauncher.replaceDraftContent"),
+          okText: t("common.continue"),
           cancelText: t("common.cancel"),
           onOk: () =>
             launchTemplate()
@@ -587,7 +488,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
                 message.error(
                   error instanceof Error
                     ? error.message
-                    : t("chat.emptyLauncher.errors.createFailed", "Failed to create session"),
+                    : t("chat.emptyLauncher.errors.createFailed"),
                 );
               })
               .finally(() => {
@@ -603,9 +504,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       } catch (error) {
         console.error("[EmptyTaskLauncher] Failed to create session", error);
         message.error(
-          error instanceof Error
-            ? error.message
-            : t("chat.emptyLauncher.errors.createFailed", "Failed to create session"),
+          error instanceof Error ? error.message : t("chat.emptyLauncher.errors.createFailed"),
         );
       } finally {
         setPendingTaskId(null);
@@ -659,19 +558,13 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {!hideHeader && (
         <div className="lotus-empty-task-launcher__header">
           <Typography.Title level={embedded ? 4 : 3} style={{ margin: 0 }}>
-            {t("chat.emptyLauncher.title", "Start with a task")}
+            {t("chat.emptyLauncher.title")}
           </Typography.Title>
           <Typography.Paragraph type="secondary" className="lotus-empty-task-launcher__subtitle">
-            {t(
-              "chat.emptyLauncher.subtitle",
-              "Create a focused session in this pane and prefill the first message before you send it.",
-            )}
+            {t("chat.emptyLauncher.subtitle")}
           </Typography.Paragraph>
           <Typography.Text type="secondary" className="lotus-empty-task-launcher__hint">
-            {t(
-              "chat.emptyLauncher.hint",
-              "Nothing is sent automatically — you can edit the prompt first.",
-            )}
+            {t("chat.emptyLauncher.hint")}
           </Typography.Text>
         </div>
       )}
@@ -679,7 +572,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       {/* Search bar */}
       <div className="lotus-empty-task-launcher__search">
         <Input
-          placeholder={t("chat.emptyLauncher.searchPlaceholder", "Search templates...")}
+          placeholder={t("chat.emptyLauncher.searchPlaceholder")}
           prefix={<SearchOutlined style={{ color: token.colorTextQuaternary }} />}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -734,7 +627,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
                         {showWorkspaceBadge && (
                           <div className="lotus-empty-task-card__badges">
                             <span className="lotus-empty-task-card__badge" title={workspacePath}>
-                              📂 {t("chat.emptyLauncher.badges.workspace", "workspace")}
+                              📂 {t("chat.emptyLauncher.badges.workspace")}
                             </span>
                           </div>
                         )}
@@ -749,12 +642,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
 
         {filteredTemplates.length === 0 && (
           <div className="lotus-empty-task-launcher__no-results">
-            <Typography.Text type="secondary">
-              {t(
-                "chat.emptyLauncher.noResults",
-                "No templates match your search. Try a different keyword or start a blank session.",
-              )}
-            </Typography.Text>
+            <Typography.Text type="secondary">{t("chat.emptyLauncher.noResults")}</Typography.Text>
           </div>
         )}
       </div>

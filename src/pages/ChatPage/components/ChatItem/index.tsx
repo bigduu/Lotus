@@ -101,16 +101,16 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   // Live status label (#94) — a11y text doubles as the visual tooltip.
   const statusLabel =
     status === "running"
-      ? t("chat.chatItem.status.running", "Running")
+      ? t("chat.chatItem.status.running")
       : status === "awaiting"
-        ? t("chat.chatItem.status.awaiting", "Awaiting your response")
+        ? t("chat.chatItem.status.awaiting")
         : status === "error"
           ? statusErrorMessage
             ? t("chat.chatItem.status.errorWithDetail", {
                 defaultValue: "Last run failed: {{error}}",
                 error: statusErrorMessage,
               })
-            : t("chat.chatItem.status.error", "Last run failed")
+            : t("chat.chatItem.status.error")
           : null;
 
   // Build dropdown menu items
@@ -269,7 +269,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
               type="text"
               size="small"
               icon={<MoreOutlined />}
-              aria-label={t("common.moreActions", "More actions")}
+              aria-label={t("common.moreActions")}
               onClick={(e) => e.stopPropagation()}
               style={{
                 color: token.colorTextSecondary,
@@ -410,7 +410,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                 }}
               >
                 <CompassOutlined />
-                {t("chat.planMode.badge", "Plan")}
+                {t("chat.planMode.badge")}
               </span>
             ) : null}
             {workspacePath ? (

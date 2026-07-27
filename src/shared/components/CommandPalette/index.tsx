@@ -413,11 +413,11 @@ export const CommandPalette: React.FC = () => {
       {
         id: "new-session",
         kind: "action",
-        title: t("commandPalette.actions.newSession", "Create New Session"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+        title: t("commandPalette.actions.newSession"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["new", "create", "session", "chat", "conversation"],
         icon: <PlusOutlined />,
-        badge: t("commandPalette.badges.quickAction", "Action"),
+        badge: t("commandPalette.badges.quickAction"),
         onSelect: async () => {
           await createNewSession();
         },
@@ -427,9 +427,9 @@ export const CommandPalette: React.FC = () => {
         kind: "action",
         title:
           themeMode === "dark"
-            ? t("commandPalette.actions.switchToLight", "Switch to Light Mode")
-            : t("commandPalette.actions.switchToDark", "Switch to Dark Mode"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+            ? t("commandPalette.actions.switchToLight")
+            : t("commandPalette.actions.switchToDark"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["theme", "dark", "light", "mode", "appearance", "toggle", "color"],
         icon: <BgColorsOutlined />,
         badge: themeMode === "dark" ? "☀️" : "🌙",
@@ -441,9 +441,9 @@ export const CommandPalette: React.FC = () => {
         id: "toggle-sidebar",
         kind: "action",
         title: sidebarCollapsed
-          ? t("commandPalette.actions.showSidebar", "Show Sidebar")
-          : t("commandPalette.actions.hideSidebar", "Hide Sidebar"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+          ? t("commandPalette.actions.showSidebar")
+          : t("commandPalette.actions.hideSidebar"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["sidebar", "toggle", "hide", "show", "panel", "menu"],
         icon: sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />,
         badge: "Layout",
@@ -454,11 +454,11 @@ export const CommandPalette: React.FC = () => {
       {
         id: "open-agenda",
         kind: "action",
-        title: t("commandPalette.actions.openAgenda", "Open Agenda"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+        title: t("commandPalette.actions.openAgenda"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["agenda", "ledger", "todo", "task", "reminder", "event", "habit", "due"],
         icon: <CalendarOutlined />,
-        badge: t("commandPalette.badges.quickAction", "Action"),
+        badge: t("commandPalette.badges.quickAction"),
         onSelect: () => {
           useLedgerViewStore.getState().open();
         },
@@ -466,8 +466,8 @@ export const CommandPalette: React.FC = () => {
       {
         id: "split-pane",
         kind: "action",
-        title: t("commandPalette.actions.splitPane", "Split Pane"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+        title: t("commandPalette.actions.splitPane"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["split", "pane", "multi", "dual", "side", "layout"],
         icon: <LayoutOutlined />,
         badge: "Layout",
@@ -485,9 +485,9 @@ export const CommandPalette: React.FC = () => {
         kind: "action",
         title:
           experienceMode === "simple"
-            ? t("commandPalette.actions.switchToAdvanced", "Switch to Advanced Mode")
-            : t("commandPalette.actions.switchToSimple", "Switch to Simple Mode"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+            ? t("commandPalette.actions.switchToAdvanced")
+            : t("commandPalette.actions.switchToSimple"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["mode", "simple", "advanced", "beginner", "expert", "experience", "complexity"],
         icon: <ExperimentOutlined />,
         badge: experienceMode === "simple" ? "Simple" : "Advanced",
@@ -521,17 +521,17 @@ export const CommandPalette: React.FC = () => {
         title: chat.title,
         subtitle: getSessionSubtitle(
           chat,
-          t("commandPalette.badges.childSession", "Child session"),
-          t("commandPalette.badges.rootSession", "Session"),
+          t("commandPalette.badges.childSession"),
+          t("commandPalette.badges.rootSession"),
         ),
         keywords: buildSessionKeywords(chat, isRunning),
         icon: <MessageOutlined />,
         badge: chat.pinned
-          ? t("commandPalette.badges.pinned", "Pinned")
+          ? t("commandPalette.badges.pinned")
           : isRunning
-            ? t("commandPalette.badges.running", "Running")
+            ? t("commandPalette.badges.running")
             : chat.kind === "child"
-              ? t("commandPalette.badges.child", "Child")
+              ? t("commandPalette.badges.child")
               : undefined,
         onSelect: () => {
           openSession(chat.id);
@@ -620,9 +620,7 @@ export const CommandPalette: React.FC = () => {
           } catch (error) {
             console.error("[CommandPalette] action failed", error);
             message.error(
-              error instanceof Error
-                ? error.message
-                : t("commandPalette.errors.actionFailed", "Command failed"),
+              error instanceof Error ? error.message : t("commandPalette.errors.actionFailed"),
             );
           }
         })();
@@ -705,14 +703,8 @@ export const CommandPalette: React.FC = () => {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             variant="borderless"
-            placeholder={t(
-              "commandPalette.searchPlaceholder",
-              "Search sessions, settings, and actions",
-            )}
-            aria-label={t(
-              "commandPalette.searchPlaceholder",
-              "Search sessions, settings, and actions",
-            )}
+            placeholder={t("commandPalette.searchPlaceholder")}
+            aria-label={t("commandPalette.searchPlaceholder")}
             role="combobox"
             aria-expanded={true}
             aria-controls="lotus-command-palette-listbox"
@@ -736,12 +728,7 @@ export const CommandPalette: React.FC = () => {
 
         <div className="lotus-command-palette-hint">
           <ClockCircleOutlined />
-          <span>
-            {t(
-              "commandPalette.navigationHint",
-              "Use ↑↓ to navigate, Enter to open, and Esc to close.",
-            )}
-          </span>
+          <span>{t("commandPalette.navigationHint")}</span>
         </div>
 
         <div
@@ -753,7 +740,7 @@ export const CommandPalette: React.FC = () => {
           {filteredActions.length === 0 ? (
             <div className="lotus-command-palette-empty">
               <AppstoreOutlined />
-              <span>{t("commandPalette.empty", "No matching commands")}</span>
+              <span>{t("commandPalette.empty")}</span>
             </div>
           ) : (
             filteredActions.map((action, index) => {
@@ -779,7 +766,7 @@ export const CommandPalette: React.FC = () => {
                         message.error(
                           error instanceof Error
                             ? error.message
-                            : t("commandPalette.errors.actionFailed", "Command failed"),
+                            : t("commandPalette.errors.actionFailed"),
                         );
                       }
                     })();
