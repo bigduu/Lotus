@@ -15,6 +15,7 @@ import type {
   McpServerCredentialStatus,
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 export type McpServerAction = "connect" | "disconnect" | "refresh" | "delete";
 
@@ -68,12 +69,8 @@ interface PreparedMcpMutation {
   credentialChanges: McpCredentialChanges;
 }
 
-const toErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-  return fallback;
-};
+const toErrorMessage = (error: unknown, fallback: string): string =>
+  configErrorMessage(error, fallback);
 
 const getActionKey = (serverId: string, action: McpServerAction): string => `${serverId}:${action}`;
 

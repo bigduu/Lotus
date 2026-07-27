@@ -25,6 +25,7 @@ const CONFIGURED_NOTIFICATIONS = {
     credential: {
       credential_ref: "notifications:ntfy",
       configured: true,
+      state: "configured" as const,
       source: "user",
       updated_at: "2026-07-23T00:00:00.000Z",
     },
@@ -35,6 +36,7 @@ const CONFIGURED_NOTIFICATIONS = {
     credential: {
       credential_ref: "notifications:bark",
       configured: true,
+      state: "configured" as const,
       source: "user",
       updated_at: "2026-07-23T00:00:00.000Z",
     },
@@ -96,6 +98,8 @@ describe("NotificationChannelsSection", () => {
     expect(revision).toBe(9);
     expect(patch.ntfy).not.toHaveProperty("token");
     expect(patch.bark).not.toHaveProperty("device_key");
+    expect(patch.ntfy).not.toHaveProperty("credential_change");
+    expect(patch.bark).not.toHaveProperty("credential_change");
   });
 
   it("sends the new plaintext value when a secret is edited", async () => {
@@ -107,7 +111,10 @@ describe("NotificationChannelsSection", () => {
 
     await waitFor(() => expect(configSectionsService.putNotifications).toHaveBeenCalledTimes(1));
     const [, patch] = vi.mocked(configSectionsService.putNotifications).mock.calls[0];
-    expect(patch.ntfy.token).toBe("tk-new-secret");
+    expect(patch.ntfy.credential_change).toEqual({
+      action: "replace",
+      value: "tk-new-secret",
+    });
   });
 
   it("round-trips the desktop tri-state 'auto' as null when left untouched", async () => {
@@ -270,7 +277,10 @@ describe("NotificationChannelsSection", () => {
 
     await waitFor(() => expect(configSectionsService.putNotifications).toHaveBeenCalled());
     const [, patch] = vi.mocked(configSectionsService.putNotifications).mock.calls[0]!;
-    expect(patch.ntfy.token).toBeNull();
-    expect(patch.bark.device_key).toBe("new-bark-secret");
+    expect(patch.ntfy.credential_change).toEqual({ action: "clear" });
+    expect(patch.bark.credential_change).toEqual({
+      action: "replace",
+      value: "new-bark-secret",
+    });
   });
 });

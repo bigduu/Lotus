@@ -59,11 +59,12 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
       async (section) => sectionEnvelope(section) as never,
     );
     vi.spyOn(configSectionsService, "putSection").mockImplementation(
-      async (section, _revision, data) => ({
-        ...sectionEnvelope(section),
-        data,
-        revision: 15,
-      }) as never,
+      async (section, _revision, data) =>
+        ({
+          ...sectionEnvelope(section),
+          data,
+          revision: 15,
+        }) as never,
     );
     vi.spyOn(configSectionsService, "getProxyAuthStatus").mockResolvedValue({
       configured: false,
@@ -74,6 +75,7 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
       status: "healthy",
       source_kind: "file",
       last_error: null,
+      section: sectionEnvelope("core"),
     });
     mockGetBambooTools.mockResolvedValue({ tools: [] });
     mockValidateBambooConfigPatch.mockResolvedValue({ valid: true, errors: {} });
@@ -123,31 +125,27 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      expect(configSectionsService.putSection).toHaveBeenCalledWith(
-        "subagents",
-        14,
-        {
-          max_concurrent: 8,
-          executor: "claude_code",
-          claude_code_binary: "/usr/local/bin/claude",
-          claude_code_model: "claude-sonnet-4-5",
-          claude_code_permission_mode: undefined,
-          claude_code_inherit_user_config: true,
-          claude_code_forward_env: ["ANTHROPIC_API_KEY"],
-          codex_binary: undefined,
-          codex_model: undefined,
-          codex_mode: undefined,
-          codex_auth_mode: undefined,
-          codex_base_url: undefined,
-          codex_wire_api: undefined,
-          codex_provider_key_ref: undefined,
-          codex_forward_env: undefined,
-          codex_sandbox: undefined,
-          codex_approval_policy: undefined,
-          codex_network_access: undefined,
-          codex_allow_danger_bypass: undefined,
-        },
-      );
+      expect(configSectionsService.putSection).toHaveBeenCalledWith("subagents", 14, {
+        max_concurrent: 8,
+        executor: "claude_code",
+        claude_code_binary: "/usr/local/bin/claude",
+        claude_code_model: "claude-sonnet-4-5",
+        claude_code_permission_mode: undefined,
+        claude_code_inherit_user_config: true,
+        claude_code_forward_env: ["ANTHROPIC_API_KEY"],
+        codex_binary: undefined,
+        codex_model: undefined,
+        codex_mode: undefined,
+        codex_auth_mode: undefined,
+        codex_base_url: undefined,
+        codex_wire_api: undefined,
+        codex_provider_key_ref: undefined,
+        codex_forward_env: undefined,
+        codex_sandbox: undefined,
+        codex_approval_policy: undefined,
+        codex_network_access: undefined,
+        codex_allow_danger_bypass: undefined,
+      });
     });
   });
 
@@ -184,31 +182,27 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      expect(configSectionsService.putSection).toHaveBeenCalledWith(
-        "subagents",
-        14,
-        {
-          max_concurrent: 8,
-          executor: undefined,
-          claude_code_binary: undefined,
-          claude_code_model: undefined,
-          claude_code_permission_mode: undefined,
-          claude_code_inherit_user_config: undefined,
-          claude_code_forward_env: undefined,
-          codex_binary: undefined,
-          codex_model: undefined,
-          codex_mode: undefined,
-          codex_auth_mode: undefined,
-          codex_base_url: undefined,
-          codex_wire_api: undefined,
-          codex_provider_key_ref: undefined,
-          codex_forward_env: undefined,
-          codex_sandbox: undefined,
-          codex_approval_policy: undefined,
-          codex_network_access: undefined,
-          codex_allow_danger_bypass: undefined,
-        },
-      );
+      expect(configSectionsService.putSection).toHaveBeenCalledWith("subagents", 14, {
+        max_concurrent: 8,
+        executor: undefined,
+        claude_code_binary: undefined,
+        claude_code_model: undefined,
+        claude_code_permission_mode: undefined,
+        claude_code_inherit_user_config: undefined,
+        claude_code_forward_env: undefined,
+        codex_binary: undefined,
+        codex_model: undefined,
+        codex_mode: undefined,
+        codex_auth_mode: undefined,
+        codex_base_url: undefined,
+        codex_wire_api: undefined,
+        codex_provider_key_ref: undefined,
+        codex_forward_env: undefined,
+        codex_sandbox: undefined,
+        codex_approval_policy: undefined,
+        codex_network_access: undefined,
+        codex_allow_danger_bypass: undefined,
+      });
     });
   });
 
@@ -235,31 +229,27 @@ describe("SystemSettingsConfigTab sub-agent executor settings", () => {
     fireEvent.click(screen.getByTestId("save-subagent-settings"));
 
     await waitFor(() => {
-      expect(configSectionsService.putSection).toHaveBeenCalledWith(
-        "subagents",
-        14,
-        {
-          max_concurrent: 8,
-          executor: "codex",
-          claude_code_binary: undefined,
-          claude_code_model: undefined,
-          claude_code_permission_mode: undefined,
-          claude_code_inherit_user_config: undefined,
-          claude_code_forward_env: undefined,
-          codex_binary: "/opt/homebrew/bin/codex",
-          codex_model: "gpt-5.4",
-          codex_mode: "exec",
-          codex_auth_mode: "bamboo",
-          codex_base_url: null,
-          codex_wire_api: null,
-          codex_provider_key_ref: null,
-          codex_forward_env: [],
-          codex_sandbox: null,
-          codex_approval_policy: null,
-          codex_network_access: false,
-          codex_allow_danger_bypass: false,
-        },
-      );
+      expect(configSectionsService.putSection).toHaveBeenCalledWith("subagents", 14, {
+        max_concurrent: 8,
+        executor: "codex",
+        claude_code_binary: undefined,
+        claude_code_model: undefined,
+        claude_code_permission_mode: undefined,
+        claude_code_inherit_user_config: undefined,
+        claude_code_forward_env: undefined,
+        codex_binary: "/opt/homebrew/bin/codex",
+        codex_model: "gpt-5.4",
+        codex_mode: "exec",
+        codex_auth_mode: "bamboo",
+        codex_base_url: null,
+        codex_wire_api: null,
+        codex_provider_key_ref: null,
+        codex_forward_env: [],
+        codex_sandbox: null,
+        codex_approval_policy: null,
+        codex_network_access: false,
+        codex_allow_danger_bypass: false,
+      });
     });
   });
 

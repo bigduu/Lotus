@@ -6,20 +6,22 @@ import {
   type AccessControlSection,
   type ClusterFabricSection,
   type ClusterNodeMutation,
-  type CredentialStatus,
   type EnvSection,
   type McpSection,
   type NotificationSection,
   type ProviderSection,
 } from "../configSections";
 
-const envSectionResponse = (
+const envSectionEnvelope = (
   revision: number,
   data: EnvSection = [
     {
       name: "SECRET_TOKEN",
       secret: true,
+      credential_state: "configured",
       credential_ref: "env.SECRET_TOKEN.value",
+      source: "user",
+      updated_at: null,
       configured: true,
     },
   ],
@@ -33,40 +35,14 @@ const envSectionResponse = (
   last_error: null,
 });
 
-const credentialResponse = (revision: number) => ({
-  data: [
-    {
-      credential_ref: "env.SECRET_TOKEN.value",
-      configured: true,
-      source: "user",
-      updated_at: null,
-    },
-  ] satisfies CredentialStatus[],
+const envResponse = (revision: number, entries?: EnvSection) => ({
   revision,
-  status: "healthy" as const,
-  source: "file",
-  last_error: null,
+  entries: entries ?? envSectionEnvelope(revision).data,
+  section: envSectionEnvelope(revision, entries),
+  credential_health: { revision: 99, status: "healthy" },
 });
 
-const mockEnvReads = (sectionRevisions: number[], credentialRevisions: number[]) => {
-  const sections = [...sectionRevisions];
-  const credentials = [...credentialRevisions];
-  return vi.spyOn(apiClient, "get").mockImplementation(async (path: string) => {
-    if (path === "/bamboo/config/sections/env") {
-      const revision = sections.shift();
-      if (revision === undefined) throw new Error("Unexpected Env section read");
-      return envSectionResponse(revision) as never;
-    }
-    if (path === "/bamboo/config/credentials") {
-      const revision = credentials.shift();
-      if (revision === undefined) throw new Error("Unexpected credential read");
-      return credentialResponse(revision) as never;
-    }
-    throw new Error(`Unexpected GET ${path}`);
-  });
-};
-
-const accessSectionResponse = (
+const accessSectionEnvelope = (
   revision: number,
   data: AccessControlSection = {
     password_enabled: true,
@@ -85,51 +61,53 @@ const accessSectionResponse = (
   last_error: null,
 });
 
-const accessCredentialResponse = (revision: number) => ({
-  data: [
-    {
-      credential_ref: "access.root.password",
-      configured: true,
-      source: "user",
-      updated_at: null,
-    },
-  ] satisfies CredentialStatus[],
+const accessMutationResponse = (revision: number, configured = true) => ({
+  success: true,
+  password_enabled: configured,
+  revision,
+  section: accessSectionEnvelope(
+    revision,
+    configured
+      ? undefined
+      : {
+          password_enabled: false,
+          password_credential_ref: null,
+          password_configured: false,
+          updated_at: null,
+          devices: [],
+        },
+  ),
+  credential: {
+    credential_ref: configured ? "access.root.password" : null,
+    configured,
+    state: configured ? ("configured" as const) : ("missing" as const),
+    source: configured ? "user" : null,
+    updated_at: null,
+  },
+  credential_health: { revision: 42, status: "healthy" },
+});
+
+const notificationSectionEnvelope = (
+  revision: number,
+  status: "healthy" | "missing" | "degraded" | "invalid" = "healthy",
+) => ({
+  data: { notifications: {} },
+  revision,
+  loaded_at: `2026-07-24T00:00:${revision}Z`,
+  source_path: "/tmp/notifications.json",
+  source_kind: "file" as const,
+  status,
+  last_error: status === "healthy" ? null : "redacted section diagnostic",
+});
+
+const notificationResponse = (revision: number) => ({
   revision,
   status: "healthy" as const,
-  source: "file",
-  last_error: null,
-});
-
-const accessRuntimeResponse = (passwordEnabled = true) => ({
-  password_enabled: passwordEnabled,
-  local_bypass: true,
-  requires_password: false,
-});
-
-const mockAccessReads = (sectionRevisions: number[], credentialRevisions: number[]) => {
-  const sections = [...sectionRevisions];
-  const credentials = [...credentialRevisions];
-  return vi.spyOn(apiClient, "get").mockImplementation(async (path: string) => {
-    if (path === "/bamboo/config/sections/access-control") {
-      const revision = sections.shift();
-      if (revision === undefined) throw new Error("Unexpected access-control section read");
-      return accessSectionResponse(revision) as never;
-    }
-    if (path === "/bamboo/config/credentials") {
-      const revision = credentials.shift();
-      if (revision === undefined) throw new Error("Unexpected credential read");
-      return accessCredentialResponse(revision) as never;
-    }
-    if (path === "/bamboo/access/status") return accessRuntimeResponse() as never;
-    throw new Error(`Unexpected GET ${path}`);
-  });
-};
-
-const notificationResponse = (credentialRevision: number) => ({
-  revision: credentialRevision,
-  status: "healthy" as const,
   source: "file" as const,
+  source_path: "/tmp/notifications.json",
+  loaded_at: `2026-07-24T00:00:${revision}Z`,
   last_error: null,
+  section: notificationSectionEnvelope(revision),
   data: {
     desktop: { enabled: true },
     ntfy: {
@@ -139,6 +117,7 @@ const notificationResponse = (credentialRevision: number) => ({
       credential: {
         credential_ref: "notification.ntfy.token",
         configured: true,
+        state: "configured" as const,
         source: "user",
         updated_at: null,
       },
@@ -149,43 +128,13 @@ const notificationResponse = (credentialRevision: number) => ({
       credential: {
         credential_ref: null,
         configured: false,
+        state: "missing" as const,
         source: null,
         updated_at: null,
       },
     },
   } satisfies NotificationSection,
 });
-
-const notificationSectionResponse = (
-  sectionRevision: number,
-  status: "healthy" | "missing" | "degraded" | "invalid" = "healthy",
-) => ({
-  data: { notifications: {} },
-  revision: sectionRevision,
-  loaded_at: `2026-07-24T00:00:${sectionRevision}Z`,
-  source_path: "/tmp/notifications.json",
-  source_kind: "file" as const,
-  status,
-  last_error: status === "healthy" ? null : "redacted section diagnostic",
-});
-
-const mockNotificationReads = (sectionRevisions: number[], credentialRevisions: number[]) => {
-  const sections = [...sectionRevisions];
-  const credentials = [...credentialRevisions];
-  return vi.spyOn(apiClient, "get").mockImplementation(async (path: string) => {
-    if (path === "/bamboo/config/sections/notifications") {
-      const revision = sections.shift();
-      if (revision === undefined) throw new Error("Unexpected typed notification read");
-      return notificationSectionResponse(revision) as never;
-    }
-    if (path === "/bamboo/config/notifications") {
-      const revision = credentials.shift();
-      if (revision === undefined) throw new Error("Unexpected credential notification read");
-      return notificationResponse(revision) as never;
-    }
-    throw new Error(`Unexpected GET ${path}`);
-  });
-};
 
 const providerResponse = (revision: number) => ({
   data: {
@@ -330,54 +279,63 @@ describe("configSectionsService", () => {
     expect(JSON.stringify(response.data)).not.toContain("****");
   });
 
-  it("merges typed notification metadata with a deliberately different credential revision", async () => {
-    const get = mockNotificationReads([7], [70]);
+  it("reads the exact notification projection in one request", async () => {
+    const response = notificationResponse(7);
+    const get = vi.spyOn(apiClient, "get").mockResolvedValue(response);
 
     const result = await configSectionsService.getSection("notifications");
 
     expect(result).toMatchObject({
       revision: 7,
       source_path: "/tmp/notifications.json",
-      data: notificationResponse(70).data,
-      credential_revision: 70,
-      credential_status: "healthy",
-      credential_source: "file",
+      data: response.data,
     });
-    expect(get).toHaveBeenCalledWith("/bamboo/config/sections/notifications");
     expect(get).toHaveBeenCalledWith("/bamboo/config/notifications");
+    expect(get).toHaveBeenCalledTimes(1);
   });
 
-  it("freshly reads both notification revisions before every save and omits untouched secrets", async () => {
-    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
-    const get = mockNotificationReads([7, 7, 8], [70, 71, 72]);
-
-    // Prime a prior read to prove the save does not reuse its credential
-    // revision. The preflight must adopt credential revision 71, not 70.
-    await configSectionsService.getSection("notifications");
+  it("writes notifications through the owned section CAS with explicit keep actions", async () => {
+    const response = notificationResponse(8);
+    const put = vi.spyOn(apiClient, "put").mockResolvedValue(response);
 
     const result = await configSectionsService.putNotifications(7, {
       desktop: { enabled: true },
-      ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
-      bark: { enabled: false, base_url: "https://api.day.app" },
-    });
-
-    expect(post).toHaveBeenCalledWith("/bamboo/config", {
-      expected_revision: 71,
-      notifications: {
-        desktop: { enabled: true },
-        ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
-        bark: { enabled: false, base_url: "https://api.day.app" },
+      ntfy: {
+        enabled: true,
+        base_url: "https://ntfy.sh",
+        topic: "topic",
+        credential_change: { action: "keep" },
+      },
+      bark: {
+        enabled: false,
+        base_url: "https://api.day.app",
+        credential_change: { action: "keep" },
       },
     });
-    expect(JSON.stringify(post.mock.calls[0])).not.toContain("****");
+
+    expect(put).toHaveBeenCalledWith("/bamboo/config/notifications", {
+      expected_revision: 7,
+      data: {
+        desktop: { enabled: true },
+        ntfy: {
+          enabled: true,
+          base_url: "https://ntfy.sh",
+          topic: "topic",
+          credential_change: { action: "keep" },
+        },
+        bark: {
+          enabled: false,
+          base_url: "https://api.day.app",
+          credential_change: { action: "keep" },
+        },
+      },
+    });
+    expect(JSON.stringify(put.mock.calls[0])).not.toContain("****");
     expect(result.revision).toBe(8);
-    expect(result.credential_revision).toBe(72);
-    expect(get).toHaveBeenCalledTimes(6);
   });
 
-  it("sends null only for an explicit credential clear", async () => {
-    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
-    mockNotificationReads([20, 21], [90, 91]);
+  it("sends an explicit action for notification credential clear", async () => {
+    const put = vi.spyOn(apiClient, "put").mockResolvedValue(notificationResponse(21));
 
     await configSectionsService.putNotifications(20, {
       desktop: { enabled: true },
@@ -385,65 +343,52 @@ describe("configSectionsService", () => {
         enabled: true,
         base_url: "https://ntfy.sh",
         topic: "topic",
-        token: null,
+        credential_change: { action: "clear" },
       },
-      bark: { enabled: false, base_url: "https://api.day.app" },
+      bark: {
+        enabled: false,
+        base_url: "https://api.day.app",
+        credential_change: { action: "keep" },
+      },
     });
 
-    expect(post.mock.calls[0]?.[1]).toMatchObject({
-      notifications: { ntfy: { token: null } },
+    expect(put.mock.calls[0]?.[1]).toMatchObject({
+      expected_revision: 20,
+      data: { ntfy: { credential_change: { action: "clear" } } },
     });
+    expect(JSON.stringify(put.mock.calls[0])).not.toContain('"token"');
   });
 
-  it("rejects a stale typed notification base before the credential transaction", async () => {
-    const post = vi.spyOn(apiClient, "post").mockResolvedValue({});
-    mockNotificationReads([8], [71]);
+  it("maps the backend notification section conflict without a client preflight", async () => {
+    const put = vi
+      .spyOn(apiClient, "put")
+      .mockRejectedValue(
+        new ApiError("Configuration revision conflict: expected 7, actual 8", 409, "Conflict"),
+      );
 
     await expect(
       configSectionsService.putNotifications(7, {
         desktop: { enabled: true },
-        ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
-        bark: { enabled: false, base_url: "https://api.day.app" },
+        ntfy: {
+          enabled: true,
+          base_url: "https://ntfy.sh",
+          topic: "topic",
+          credential_change: { action: "keep" },
+        },
+        bark: {
+          enabled: false,
+          base_url: "https://api.day.app",
+          credential_change: { action: "keep" },
+        },
       }),
     ).rejects.toMatchObject<ConfigConflictError>({
       conflict: {
         expectedRevision: 7,
         currentRevision: 8,
-        message: "The notification configuration changed on disk.",
+        message: "Configuration revision conflict: expected 7, actual 8",
       },
     });
-    expect(post).not.toHaveBeenCalled();
-  });
-
-  it("reports the typed notification revision after a credential-transaction race", async () => {
-    mockNotificationReads([7, 8], [70, 71]);
-    vi.spyOn(apiClient, "post").mockRejectedValue(
-      new ApiError(
-        "Configuration revision conflict: expected 70, actual 71",
-        409,
-        "Conflict",
-        JSON.stringify({
-          error: {
-            message: "Configuration revision conflict: expected 70, actual 71",
-            type: "api_error",
-            code: "config_revision_conflict",
-          },
-        }),
-      ),
-    );
-
-    await expect(
-      configSectionsService.putNotifications(7, {
-        desktop: { enabled: true },
-        ntfy: { enabled: true, base_url: "https://ntfy.sh", topic: "topic" },
-        bark: { enabled: false, base_url: "https://api.day.app" },
-      }),
-    ).rejects.toMatchObject<ConfigConflictError>({
-      conflict: {
-        expectedRevision: 7,
-        currentRevision: 8,
-      },
-    });
+    expect(put).toHaveBeenCalledTimes(1);
   });
 
   it("uses the canonical MCP settings route for reads", async () => {
@@ -590,79 +535,44 @@ describe("configSectionsService", () => {
       revision: 4,
       status: "healthy",
     });
-    const get = mockNotificationReads([4], [44]);
+    const get = vi.spyOn(apiClient, "get").mockResolvedValue(notificationResponse(4));
 
     const result = await configSectionsService.resetSection("notifications", 3);
 
     expect(post).toHaveBeenCalledWith("/bamboo/config/sections/notifications/reset", {
       expected_revision: 3,
     });
-    expect(get).toHaveBeenCalledWith("/bamboo/config/sections/notifications");
     expect(get).toHaveBeenCalledWith("/bamboo/config/notifications");
     expect(result.revision).toBe(4);
-    expect((result as typeof result & { credential_revision: number }).credential_revision).toBe(
-      44,
-    );
     expect(result.data.ntfy.credential.configured).toBe(true);
   });
 
-  it("writes Env through the captured section revision and never adopts a mask response", async () => {
-    mockEnvReads([5, 6], [10, 11]);
-    const post = vi.spyOn(apiClient, "post").mockResolvedValue({
-      revision: 11,
-      entries: [
-        {
-          name: "SECRET_TOKEN",
-          value: "****...****",
-          secret: true,
-          configured: true,
-        },
-      ],
-    });
+  it("writes Env through the owned section revision and adopts the exact secret-free response", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue(envResponse(6));
 
     const result = await configSectionsService.upsertEnvVar(5, {
       name: "SECRET_TOKEN",
-      value: "replacement",
+      credential_change: { action: "replace", value: "replacement" },
       secret: true,
     });
 
     expect(post).toHaveBeenCalledWith("/bamboo/env-vars", {
-      expected_revision: 10,
+      expected_revision: 5,
       name: "SECRET_TOKEN",
-      value: "replacement",
+      credential_change: { action: "replace", value: "replacement" },
       secret: true,
     });
     expect(result.envelope.revision).toBe(6);
-    expect(result.credentials.revision).toBe(11);
     expect(JSON.stringify(result)).not.toContain("****...****");
     expect(JSON.stringify(result)).not.toContain("replacement");
   });
 
-  it("rejects a stale Env section before touching the credential endpoint", async () => {
-    mockEnvReads([6], [10]);
-    const post = vi.spyOn(apiClient, "post");
-
-    await expect(
-      configSectionsService.upsertEnvVar(5, {
-        name: "VISIBLE",
-        value: "value",
-        secret: false,
-      }),
-    ).rejects.toMatchObject<ConfigConflictError>({
-      conflict: {
-        expectedRevision: 5,
-        currentRevision: 6,
-      },
-    });
-    expect(post).not.toHaveBeenCalled();
-  });
-
-  it("rebases one unrelated credential race only after rechecking the Env section", async () => {
-    mockEnvReads([5, 5, 6], [10, 11, 12]);
+  it("maps a stale Env section response without preflight or retry", async () => {
     const post = vi
       .spyOn(apiClient, "post")
-      .mockRejectedValueOnce(new ApiError("credential race", 409, "Conflict"))
-      .mockResolvedValueOnce({ revision: 12, entries: [] });
+      .mockRejectedValue(
+        new ApiError("Configuration revision conflict: expected 5, actual 6", 409, "Conflict"),
+      );
 
     await expect(
       configSectionsService.upsertEnvVar(5, {
@@ -670,74 +580,92 @@ describe("configSectionsService", () => {
         value: "value",
         secret: false,
       }),
-    ).resolves.toMatchObject({
-      envelope: { revision: 6 },
-      credentials: { revision: 12 },
-    });
-    expect(post.mock.calls.map((call) => call[1])).toEqual([
-      expect.objectContaining({ expected_revision: 10 }),
-      expect.objectContaining({ expected_revision: 11 }),
-    ]);
-  });
-
-  it("maps a repeated Env credential race back to the latest owned section revision", async () => {
-    mockEnvReads([5, 5, 6], [10, 11, 12]);
-    vi.spyOn(apiClient, "delete")
-      .mockRejectedValueOnce(new ApiError("credential race", 409, "Conflict"))
-      .mockRejectedValueOnce(new ApiError("stale Env writer", 409, "Conflict"));
-
-    await expect(
-      configSectionsService.deleteEnvVar("SECRET/TOKEN", 5),
     ).rejects.toMatchObject<ConfigConflictError>({
       conflict: {
         expectedRevision: 5,
         currentRevision: 6,
-        message: "stale Env writer",
       },
+    });
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads Env status and section metadata from the exact dedicated endpoint", async () => {
+    const response = envResponse(5);
+    const get = vi.spyOn(apiClient, "get").mockResolvedValue(response);
+
+    await expect(configSectionsService.getSection("env")).resolves.toEqual(envSectionEnvelope(5));
+    expect(get).toHaveBeenCalledWith("/bamboo/env-vars");
+    expect(get).toHaveBeenCalledTimes(1);
+  });
+
+  it("binds Env deletion to the owned section revision", async () => {
+    vi.spyOn(apiClient, "delete").mockResolvedValue(envResponse(6, []));
+
+    await expect(configSectionsService.deleteEnvVar("SECRET/TOKEN", 5)).resolves.toMatchObject({
+      envelope: { revision: 6, data: [] },
     });
     expect(apiClient.delete).toHaveBeenNthCalledWith(
       1,
-      "/bamboo/env-vars/SECRET%2FTOKEN?expected_revision=10",
-    );
-    expect(apiClient.delete).toHaveBeenNthCalledWith(
-      2,
-      "/bamboo/env-vars/SECRET%2FTOKEN?expected_revision=11",
+      "/bamboo/env-vars/SECRET%2FTOKEN?expected_revision=5",
     );
   });
 
-  it("preflights Access password replacement with the owned section revision", async () => {
-    mockAccessReads([4, 5], [20, 21]);
-    const post = vi.spyOn(apiClient, "post").mockResolvedValue({
-      success: true,
-      password_enabled: true,
-    });
+  it("reads the exact flattened Access status envelope", async () => {
+    const status = {
+      password_enabled: false,
+      local_bypass: true,
+      requires_password: false,
+      revision: 4,
+      status: "healthy" as const,
+      source_kind: "file" as const,
+      loaded_at: "2026-07-27T00:00:00Z",
+      last_error: null,
+      password_configured: false,
+      credential_state: "missing" as const,
+      credential_ref: null,
+      credential_source: null,
+      credential_updated_at: null,
+    };
+    const get = vi.spyOn(apiClient, "get").mockResolvedValue(status);
+
+    await expect(configSectionsService.getAccessRuntimeStatus()).resolves.toEqual(status);
+    expect(get).toHaveBeenCalledWith("/bamboo/access/status");
+  });
+
+  it("replaces Access password through the owned section CAS and adopts the exact response", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue(accessMutationResponse(5));
 
     const result = await configSectionsService.replaceAccessPassword(4, {
       current_password: "current-secret",
-      new_password: "replacement-secret",
+      value: "replacement-secret",
     });
 
     expect(post).toHaveBeenCalledWith("/bamboo/access/password", {
+      expected_revision: 4,
+      action: "replace",
       current_password: "current-secret",
-      new_password: "replacement-secret",
+      value: "replacement-secret",
     });
     expect(result).toMatchObject({
       envelope: { revision: 5 },
-      credentials: { revision: 21 },
-      runtime: { password_enabled: true, local_bypass: true },
+      credential: { state: "configured", configured: true },
     });
     expect(JSON.stringify(result)).not.toContain("current-secret");
     expect(JSON.stringify(result)).not.toContain("replacement-secret");
   });
 
-  it("rejects a stale Access password draft before sending either password", async () => {
-    mockAccessReads([5], [20]);
-    const post = vi.spyOn(apiClient, "post");
+  it("maps a stale Access password response without a client preflight", async () => {
+    const post = vi
+      .spyOn(apiClient, "post")
+      .mockRejectedValue(
+        new ApiError("Configuration revision conflict: expected 4, actual 5", 409, "Conflict"),
+      );
+    const get = vi.spyOn(apiClient, "get");
 
     await expect(
       configSectionsService.replaceAccessPassword(4, {
         current_password: "current-secret",
-        new_password: "replacement-secret",
+        value: "replacement-secret",
       }),
     ).rejects.toMatchObject<ConfigConflictError>({
       conflict: {
@@ -745,46 +673,60 @@ describe("configSectionsService", () => {
         currentRevision: 5,
       },
     });
-    expect(post).not.toHaveBeenCalled();
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(get).not.toHaveBeenCalled();
   });
 
-  it("maps an Access credential race to the latest owned section revision", async () => {
-    mockAccessReads([4, 6], [20, 22]);
-    vi.spyOn(apiClient, "post").mockRejectedValueOnce(
-      new ApiError("access credential race", 409, "Conflict"),
-    );
+  it("clears Access password explicitly and preserves the returned section generation", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue(accessMutationResponse(5, false));
 
     await expect(
-      configSectionsService.replaceAccessPassword(4, {
-        new_password: "replacement-secret",
+      configSectionsService.clearAccessPassword(4, {
+        current_password: "current-secret",
       }),
-    ).rejects.toMatchObject<ConfigConflictError>({
-      conflict: {
-        expectedRevision: 4,
-        currentRevision: 6,
-        message: "access credential race",
-      },
+    ).resolves.toMatchObject({
+      envelope: { revision: 5, data: { password_enabled: false } },
+      credential: { state: "missing", configured: false },
+    });
+    expect(post).toHaveBeenCalledWith("/bamboo/access/password", {
+      expected_revision: 4,
+      action: "clear",
+      current_password: "current-secret",
     });
   });
 
-  it("replaces proxy credentials with the credential revision and no mask round-trip", async () => {
+  it("replaces proxy credentials with the Core section revision and explicit action", async () => {
+    const section = {
+      data: { proxy_auth_credential_ref: "proxy.default.auth" },
+      revision: 7,
+      loaded_at: "2026-07-23T00:00:00Z",
+      source_path: "/tmp/core.json",
+      source_kind: "file" as const,
+      status: "healthy" as const,
+      last_error: null,
+    };
     const response = {
+      section,
+      state: "configured" as const,
       configured: true,
       credential_ref: "proxy.default.auth",
       source: "user",
       updated_at: "2026-07-23T00:00:00Z",
       revision: 7,
-      status: "healthy" as const,
-      source_kind: "file",
-      last_error: null,
     };
     const post = vi.spyOn(apiClient, "post").mockResolvedValue(response);
 
     await expect(
       configSectionsService.replaceProxyAuth(6, { username: "alice", password: "secret" }),
-    ).resolves.toEqual(response);
+    ).resolves.toMatchObject({
+      ...response,
+      status: "healthy",
+      source_kind: "file",
+      source_path: "/tmp/core.json",
+    });
     expect(post).toHaveBeenCalledWith("/bamboo/proxy-auth", {
       expected_revision: 6,
+      action: "replace",
       username: "alice",
       password: "secret",
     });

@@ -1326,7 +1326,9 @@ export const enUsTranslation = {
           loadStatusFailed: "Failed to load access status",
           updated: "Access password updated",
           enabled: "Access password set",
+          cleared: "Access password cleared",
           updateFailed: "Failed to update access password",
+          clearFailed: "Failed to clear access password",
           statusEnabled: "Access password enabled",
           statusDisabled: "Access password not enabled",
           currentPasswordLabel: "Current Password",
@@ -1335,6 +1337,10 @@ export const enUsTranslation = {
           confirmPasswordLabel: "Confirm Password",
           updateAction: "Update Access Password",
           enableAction: "Enable Access Password",
+          clearConfirm: "Clear the access password?",
+          clearConfirmDescription:
+            "Remote access will no longer require this password. This action does not change environment-provided credentials.",
+          clearAction: "Clear password",
           credentialConfigured: "Configured",
           credentialFromEnv: "From env",
           credentialMissing: "Missing",
@@ -1753,6 +1759,10 @@ export const enUsTranslation = {
           "Must start with a letter or underscore, followed by letters, digits, or underscores",
         value: "Value",
         valueRequired: "Value is required for new variables",
+        secretReplacementRequired:
+          "Enter a replacement value before changing this variable to a secret.",
+        plainReplacementRequired:
+          "Enter a replacement value before changing this variable to plain text.",
         valueEditHint: "Leave empty to keep the existing value",
         valuePlaceholder: "Enter value",
         valuePlaceholderEdit: "Enter new value or leave empty",
@@ -2264,6 +2274,11 @@ export const enUsTranslation = {
         saveConfigErrorPrefix: "Failed to save configuration",
         credentialCleared: "Credential cleared",
         credentialClearFailed: "Failed to clear credential",
+        credentialConfigured: "Configured",
+        credentialFromEnv: "From env",
+        credentialMissing: "Missing",
+        environmentCredentialHint:
+          "This credential comes from the environment. It remains read-only unless you explicitly replace it.",
         confirmClearCredential:
           "Clear this credential? The provider will no longer be able to authenticate with it.",
         clear: "Clear",
@@ -2851,6 +2866,7 @@ export const enUsTranslation = {
       },
       clusters: {
         fetchError: "Failed to load clusters",
+        removedExternally: "This node no longer exists in the latest configuration.",
         membershipError: "Node saved, but updating cluster membership failed",
         updated: "Node updated",
         created: "Node created",
@@ -2902,12 +2918,20 @@ export const enUsTranslation = {
         privateKey: "Private key",
         systemSsh: "Use host's SSH config",
         secretEditHint: "Leave empty to keep the existing secret",
+        credentialConfigured: "Configured",
+        credentialFromEnv: "From env",
+        credentialMissing: "Missing",
+        credentialError: "Error",
+        environmentCredentialHint:
+          "This credential comes from the environment and remains read-only unless you explicitly replace it.",
         passwordRequired: "Password is required",
         keepSecret: "Enter new password or leave empty",
         privateKeyPath: "Private key file path (on this host)",
         privateKeyInline: "…or paste key (PEM)",
         privateKeyRequired: "Provide a key file path or paste a private key",
         passphrase: "Passphrase",
+        passphraseWillClear: "Passphrase will be cleared",
+        clearPassphrase: "Clear stored passphrase",
         artifactPath: "Artifact path (binary to upload)",
         artifactHint:
           "Path on this host to the correct-arch bamboo binary; used at deploy time (P2).",
@@ -2917,6 +2941,15 @@ export const enUsTranslation = {
           "Redeploy this node automatically if the health monitor finds its worker gone.",
         clusterPlaceholder: "Pick or type a cluster name",
         enabled: "Enabled",
+        revisionConflict: "Cluster revision conflict",
+        changedExternally: "Cluster configuration changed externally",
+        revisionConflictDescription:
+          "Your draft expected revision {{expected}}; the server is at revision {{current}}. The draft was preserved.",
+        changedExternallyDescription:
+          "Your draft was preserved. Reload to discard it, compare revisions, or reapply it over the latest configuration.",
+        reload: "Reload",
+        compare: "Compare",
+        reapply: "Reapply",
         logsTitle: "Logs — {{label}}",
         refresh: "Refresh",
         close: "Close",

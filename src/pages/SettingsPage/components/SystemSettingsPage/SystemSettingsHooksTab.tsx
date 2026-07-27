@@ -25,6 +25,7 @@ import {
 import { useTranslation } from "react-i18next";
 import type { HooksSection } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Paragraph, Text } = Typography;
 const { useToken } = theme;
@@ -242,7 +243,7 @@ const SystemSettingsHooksTab: React.FC = () => {
       setLifecycleDirty(false);
       setExternalRevision(null);
     } catch (error) {
-      msgApi.error(error instanceof Error ? error.message : t("settings.hooksTab.loadFailed"));
+      msgApi.error(configErrorMessage(error, t("settings.hooksTab.loadFailed")));
     } finally {
       setIsLoading(false);
     }
@@ -272,7 +273,7 @@ const SystemSettingsHooksTab: React.FC = () => {
         setImageEnabled(checked);
         msgApi.success(checked ? t("settings.hooksTab.enabled") : t("settings.hooksTab.disabled"));
       } catch (error) {
-        msgApi.error(error instanceof Error ? error.message : t("settings.hooksTab.updateFailed"));
+        msgApi.error(configErrorMessage(error, t("settings.hooksTab.updateFailed")));
       }
     },
     [imageMode, msgApi, patchImageHook, t],
@@ -289,9 +290,7 @@ const SystemSettingsHooksTab: React.FC = () => {
           }),
         );
       } catch (error) {
-        msgApi.error(
-          error instanceof Error ? error.message : t("settings.hooksTab.modeUpdateFailed"),
-        );
+        msgApi.error(configErrorMessage(error, t("settings.hooksTab.modeUpdateFailed")));
       }
     },
     [imageEnabled, modeOptions, msgApi, patchImageHook, t],
@@ -399,9 +398,7 @@ const SystemSettingsHooksTab: React.FC = () => {
       setExternalRevision(null);
       msgApi.success(t("settings.hooksTab.lifecycle.saved"));
     } catch (error) {
-      msgApi.error(
-        error instanceof Error ? error.message : t("settings.hooksTab.lifecycle.saveFailed"),
-      );
+      msgApi.error(configErrorMessage(error, t("settings.hooksTab.lifecycle.saveFailed")));
     } finally {
       setIsSaving(false);
     }
@@ -440,9 +437,7 @@ const SystemSettingsHooksTab: React.FC = () => {
           ),
         );
       } catch (error) {
-        msgApi.error(
-          error instanceof Error ? error.message : t("settings.hooksTab.lifecycle.testFailed"),
-        );
+        msgApi.error(configErrorMessage(error, t("settings.hooksTab.lifecycle.testFailed")));
       } finally {
         setTestingId(null);
       }

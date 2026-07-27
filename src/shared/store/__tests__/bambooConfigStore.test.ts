@@ -47,12 +47,11 @@ describe("useBambooConfigStore", () => {
     useBambooConfigStore.setState({ config: { provider: "gemini" } as any });
     vi.spyOn(serviceFactory, "getBambooConfig").mockRejectedValue(new Error("offline"));
 
-    await expect(
-      useBambooConfigStore.getState().loadConfig({ force: true }),
-    ).rejects.toThrow("offline");
+    await expect(useBambooConfigStore.getState().loadConfig({ force: true })).rejects.toThrow(
+      "offline",
+    );
 
     expect(useBambooConfigStore.getState().config?.provider).toBe("gemini");
     expect(useBambooConfigStore.getState().error).toBe("offline");
   });
-
 });

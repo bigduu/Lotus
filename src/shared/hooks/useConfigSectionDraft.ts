@@ -35,7 +35,8 @@ const isDeepEqual = (left: unknown, right: unknown): boolean => {
   return (
     leftKeys.length === rightKeys.length &&
     leftKeys.every(
-      (key) => Object.prototype.hasOwnProperty.call(right, key) && isDeepEqual(left[key], right[key]),
+      (key) =>
+        Object.prototype.hasOwnProperty.call(right, key) && isDeepEqual(left[key], right[key]),
     )
   );
 };
@@ -55,7 +56,7 @@ const reapplyChanges = (base: unknown, draft: unknown, latest: unknown): unknown
   return result;
 };
 
-export const reapplyConfigChanges = <T,>(base: T, draft: T, latest: T): T =>
+export const reapplyConfigChanges = <T>(base: T, draft: T, latest: T): T =>
   reapplyChanges(base, draft, latest) as T;
 
 export interface UseConfigSectionDraftResult<K extends ConfigSectionId> {

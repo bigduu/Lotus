@@ -20,10 +20,7 @@ import {
 } from "@ant-design/icons";
 import { APP_VERSION } from "@shared/constants/appVersion";
 import { resetOnboarding } from "@shared/components/FeatureGuide";
-import {
-  CONFIG_SECTION_IDS,
-  type ConfigSectionId,
-} from "@services/config/configSections";
+import { CONFIG_SECTION_IDS, type ConfigSectionId } from "@services/config/configSections";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -182,7 +179,9 @@ const SystemSettingsAppTab: React.FC<SystemSettingsAppTabProps> = ({
         {resetSectionResults.length > 0 && (
           <Alert
             data-testid="reset-section-results"
-            type={resetSectionResults.some((result) => result.status === "failed") ? "error" : "info"}
+            type={
+              resetSectionResults.some((result) => result.status === "failed") ? "error" : "info"
+            }
             showIcon
             message={t("settings.appTab.resetSectionResults", "Configuration reset progress")}
             description={

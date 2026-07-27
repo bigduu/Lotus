@@ -26,9 +26,9 @@ import {
   StarFilled,
   LoginOutlined,
 } from "@ant-design/icons";
-import { isApiError } from "@services/api/client";
 import { settingsService } from "@services/config/SettingsService";
 import { isAntdFormError } from "@shared/utils/formError";
+import { configErrorMessage } from "@shared/utils/configErrors";
 import type {
   ProviderType,
   ProviderInstance,
@@ -48,6 +48,8 @@ import { copyText } from "@shared/utils/clipboard";
 import type { DeviceCodeInfo } from "./DeviceCodeModal";
 import { theme } from "antd";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { ProviderCredentialStatusTag } from "./ProviderCredentialStatusTag";
+import { isEnvironmentCredential } from "./providerCredentialStatus";
 
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
@@ -537,7 +539,10 @@ export const ProviderInstanceManager: React.FC<{
       message.error(
         t("settings.providerTab.startCopilotAuthFailed", "Failed to start Copilot authentication"),
       );
-      console.error("Failed to start Copilot authentication:", error);
+      console.error(
+        "Failed to start Copilot authentication:",
+        configErrorMessage(error, "Failed to start Copilot authentication"),
+      );
     } finally {
       setAuthenticatingCopilot(false);
     }
@@ -562,7 +567,10 @@ export const ProviderInstanceManager: React.FC<{
       message.error(
         t("settings.providerTab.completeAuthFailed", "Authentication completion failed"),
       );
-      console.error("Authentication completion failed:", error);
+      console.error(
+        "Authentication completion failed:",
+        configErrorMessage(error, "Authentication completion failed"),
+      );
     } finally {
       setCompletingAuth(false);
     }
@@ -587,7 +595,10 @@ export const ProviderInstanceManager: React.FC<{
       const status = await settingsService.getCopilotAuthStatus();
       setCopilotAuthStatus(status.authenticated ? "authenticated" : "not_authenticated");
     } catch (error) {
-      console.error("Failed to check Copilot auth status:", error);
+      console.error(
+        "Failed to check Copilot auth status:",
+        configErrorMessage(error, "Failed to check Copilot authentication status"),
+      );
       setCopilotAuthStatus("unknown");
     } finally {
       setCheckingCopilotAuth(false);
@@ -863,10 +874,13 @@ export const ProviderInstanceManager: React.FC<{
       setInstanceModalOpen(false);
       await useProviderStore.getState().loadProviderInstances();
     } catch (error) {
-      if (isApiError(error)) {
-        message.error(error.message);
-      } else if (error instanceof Error && !isAntdFormError(error)) {
-        message.error(error.message);
+      if (!isAntdFormError(error)) {
+        message.error(
+          configErrorMessage(
+            error,
+            t("settings.providerTab.saveConfigFailed", "Failed to save provider instance"),
+          ),
+        );
       }
     } finally {
       setSavingInstance(false);
@@ -898,9 +912,10 @@ export const ProviderInstanceManager: React.FC<{
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
-          isApiError(error)
-            ? error.message
-            : t("settings.providerTab.instanceDeleteFailed", "Failed to delete instance"),
+          configErrorMessage(
+            error,
+            t("settings.providerTab.instanceDeleteFailed", "Failed to delete instance"),
+          ),
         );
       } finally {
         setDeletingInstanceId(null);
@@ -925,9 +940,10 @@ export const ProviderInstanceManager: React.FC<{
         await useProviderStore.getState().loadProviderInstances();
       } catch (error) {
         message.error(
-          isApiError(error)
-            ? error.message
-            : t("settings.providerTab.defaultInstanceFailed", "Failed to set default"),
+          configErrorMessage(
+            error,
+            t("settings.providerTab.defaultInstanceFailed", "Failed to set default"),
+          ),
         );
       }
     },
@@ -952,9 +968,10 @@ export const ProviderInstanceManager: React.FC<{
       await useProviderStore.getState().loadProviderInstances();
     } catch (error) {
       message.error(
-        isApiError(error)
-          ? error.message
-          : t("settings.providerTab.credentialClearFailed", "Failed to clear credential"),
+        configErrorMessage(
+          error,
+          t("settings.providerTab.credentialClearFailed", "Failed to clear credential"),
+        ),
       );
     } finally {
       setSavingInstance(false);
@@ -998,6 +1015,7 @@ export const ProviderInstanceManager: React.FC<{
         items={instances.map((instance) => {
           const isDefault = instance.id === defaultInstanceId;
           const typeLabel = PROVIDER_LABELS[instance.type] || instance.type;
+          const credentialStatus = credentialStatusById[instance.id];
           return {
             key: instance.id,
             label: (
@@ -1006,6 +1024,9 @@ export const ProviderInstanceManager: React.FC<{
                 <Tag color="processing" style={{ fontSize: 11 }}>
                   {typeLabel}
                 </Tag>
+                {instance.type !== "copilot" ? (
+                  <ProviderCredentialStatusTag status={credentialStatus} />
+                ) : null}
                 {isDefault && (
                   <Tag color="gold" style={{ fontSize: 11 }}>
                     <StarFilled /> {t("settings.providerTab.default", "Default")}
@@ -1064,14 +1085,12 @@ export const ProviderInstanceManager: React.FC<{
                 {instance.config && Object.keys(instance.config).length > 0 && (
                   <Card size="small" style={{ marginBottom: 8 }}>
                     {Object.entries(instance.config).map(([key, value]) => {
-                      if (key === "api_key") {
-                        return (
-                          <div key={key} style={{ marginBottom: 4 }}>
-                            <Text type="secondary">{key}: </Text>
-                            <Text>••••••••</Text>
-                          </div>
-                        );
-                      }
+                      if (
+                        key === "api_key" ||
+                        key === "api_key_encrypted" ||
+                        key === "credential_ref"
+                      )
+                        return null;
                       return (
                         <div key={key} style={{ marginBottom: 4 }}>
                           <Text type="secondary">{key}: </Text>
@@ -1236,6 +1255,20 @@ export const ProviderInstanceManager: React.FC<{
 
           <Divider>{t("settings.providerTab.instanceConfig", "Configuration")}</Divider>
 
+          {editingInstance && editingInstance.type !== "copilot" ? (
+            <Space direction="vertical" size={4} style={{ marginBottom: 12 }}>
+              <ProviderCredentialStatusTag status={credentialStatusById[editingInstance.id]} />
+              {isEnvironmentCredential(credentialStatusById[editingInstance.id]) ? (
+                <Text type="secondary">
+                  {t(
+                    "settings.providerTab.environmentCredentialHint",
+                    "This credential comes from the environment. It remains read-only unless you explicitly replace it.",
+                  )}
+                </Text>
+              ) : null}
+            </Space>
+          ) : null}
+
           <Form.Item noStyle shouldUpdate>
             {() => (
               <InstanceConfigFields
@@ -1250,7 +1283,8 @@ export const ProviderInstanceManager: React.FC<{
 
           {editingInstance &&
             editingInstance.type !== "copilot" &&
-            credentialStatusById[editingInstance.id]?.configured && (
+            credentialStatusById[editingInstance.id]?.configured &&
+            !isEnvironmentCredential(credentialStatusById[editingInstance.id]) && (
               <Popconfirm
                 title={t(
                   "settings.providerTab.confirmClearCredential",

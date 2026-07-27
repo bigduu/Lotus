@@ -17,10 +17,13 @@ vi.mock("@services/common/ServiceFactory", () => ({
 const mockGetBambooTools = vi.mocked(serviceFactory.getBambooTools);
 const mockValidateBambooConfigPatch = vi.mocked(serviceFactory.validateBambooConfigPatch);
 
-const sectionEnvelope = (section: ConfigSectionId, memoryData: unknown = {
-  auto_dream_enabled: true,
-  background_model: "gpt-4.1-mini",
-}) => ({
+const sectionEnvelope = (
+  section: ConfigSectionId,
+  memoryData: unknown = {
+    auto_dream_enabled: true,
+    background_model: "gpt-4.1-mini",
+  },
+) => ({
   data:
     section === "core"
       ? { http_proxy: "", https_proxy: "" }
@@ -52,11 +55,12 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
       async (section) => sectionEnvelope(section) as never,
     );
     vi.spyOn(configSectionsService, "putSection").mockImplementation(
-      async (section, _revision, data) => ({
-        ...sectionEnvelope(section),
-        data,
-        revision: 5,
-      }) as never,
+      async (section, _revision, data) =>
+        ({
+          ...sectionEnvelope(section),
+          data,
+          revision: 5,
+        }) as never,
     );
     vi.spyOn(configSectionsService, "getProxyAuthStatus").mockResolvedValue({
       configured: false,
@@ -67,6 +71,7 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
       status: "healthy",
       source_kind: "file",
       last_error: null,
+      section: sectionEnvelope("core"),
     });
     mockGetBambooTools.mockResolvedValue({ tools: [] });
     mockValidateBambooConfigPatch.mockResolvedValue({ valid: true, errors: {} });
@@ -94,14 +99,10 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
           auto_dream_enabled: false,
         },
       });
-      expect(configSectionsService.putSection).toHaveBeenCalledWith(
-        "memory",
-        4,
-        {
-          background_model: "gpt-4.1-mini",
-          auto_dream_enabled: false,
-        },
-      );
+      expect(configSectionsService.putSection).toHaveBeenCalledWith("memory", 4, {
+        background_model: "gpt-4.1-mini",
+        auto_dream_enabled: false,
+      });
     });
   });
 
@@ -144,6 +145,26 @@ describe("SystemSettingsConfigTab auto dream settings", () => {
     const toggle = await screen.findByTestId("auto-dream-toggle");
 
     expect(toggle.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("saves network settings directly through Core CAS without legacy root validation", async () => {
+    render(
+      <AntdApp>
+        <SystemSettingsConfigTab msgApi={msgApi} locale="en-US" onLocaleChange={() => undefined} />
+      </AntdApp>,
+    );
+
+    const httpProxy = await screen.findByTestId("proxy-url");
+    fireEvent.change(httpProxy, { target: { value: "http://127.0.0.1:8111" } });
+    fireEvent.click(screen.getByTestId("save-proxy-settings"));
+
+    await waitFor(() => {
+      expect(configSectionsService.putSection).toHaveBeenCalledWith("core", 2, {
+        http_proxy: "http://127.0.0.1:8111",
+        https_proxy: "",
+      });
+    });
+    expect(mockValidateBambooConfigPatch).not.toHaveBeenCalled();
   });
 
   it("does not save when validation fails", async () => {

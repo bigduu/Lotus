@@ -21,6 +21,7 @@ import type {
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { redactConfigError } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -110,7 +111,7 @@ const NotificationChannelsSection: React.FC = () => {
       const envelope = await loadSection("notifications", { force: true });
       adoptEnvelope(envelope);
     } catch (error) {
-      setLoadError(getErrorMessage(error));
+      setLoadError(redactConfigError(getErrorMessage(error)));
     } finally {
       setLoading(false);
     }
@@ -157,15 +158,29 @@ const NotificationChannelsSection: React.FC = () => {
             enabled: draft.ntfyEnabled,
             base_url: draft.ntfyBaseUrl.trim() || DEFAULT_NTFY_BASE_URL,
             topic: draft.ntfyTopic.trim(),
-            ...(clearNtfyToken ? { token: null } : ntfyToken ? { token: ntfyToken } : {}),
+            ...(clearNtfyToken
+              ? { credential_change: { action: "clear" as const } }
+              : ntfyToken
+                ? {
+                    credential_change: {
+                      action: "replace" as const,
+                      value: ntfyToken,
+                    },
+                  }
+                : {}),
           },
           bark: {
             enabled: draft.barkEnabled,
             base_url: draft.barkBaseUrl.trim() || DEFAULT_BARK_BASE_URL,
             ...(clearBarkKey
-              ? { device_key: null }
+              ? { credential_change: { action: "clear" as const } }
               : barkDeviceKey
-                ? { device_key: barkDeviceKey }
+                ? {
+                    credential_change: {
+                      action: "replace" as const,
+                      value: barkDeviceKey,
+                    },
+                  }
                 : {}),
           },
         },
@@ -175,7 +190,7 @@ const NotificationChannelsSection: React.FC = () => {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (error) {
-      setSaveError(getErrorMessage(error));
+      setSaveError(redactConfigError(getErrorMessage(error)));
     } finally {
       setSaving(false);
     }
@@ -189,7 +204,7 @@ const NotificationChannelsSection: React.FC = () => {
       const res = await agentApiClient.post<{ attempted: string[] }>("notifications/test");
       setAttempted(res.attempted);
     } catch (error) {
-      setTestError(getErrorMessage(error));
+      setTestError(redactConfigError(getErrorMessage(error)));
     } finally {
       setTesting(false);
     }
@@ -216,11 +231,21 @@ const NotificationChannelsSection: React.FC = () => {
 
   const credentialStatus = (status: NotificationCredentialStatus) => {
     const fromEnvironment =
-      status.configured && (status.source === "environment" || status.source === "env");
-    const label = fromEnvironment ? "From env" : status.configured ? "Configured" : "Missing";
+      status.state === "from_env" ||
+      (status.configured && (status.source === "environment" || status.source === "env"));
+    const label =
+      status.state === "error"
+        ? "Error"
+        : fromEnvironment
+          ? "From env"
+          : status.configured
+            ? "Configured"
+            : "Missing";
     return (
       <Flex align="center" gap={8} wrap="wrap">
-        <Tag color={status.configured ? "success" : "warning"}>{label}</Tag>
+        <Tag color={status.state === "error" ? "error" : status.configured ? "success" : "warning"}>
+          {label}
+        </Tag>
         {fromEnvironment ? (
           <Text type="secondary">
             The environment value is read-only; only an explicit replacement is persisted.

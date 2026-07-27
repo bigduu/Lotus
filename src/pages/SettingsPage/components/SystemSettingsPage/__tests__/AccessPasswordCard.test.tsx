@@ -7,7 +7,6 @@ import {
   type AccessControlSection,
   type AccessMutationResult,
   type ConfigSectionEnvelope,
-  type CredentialStatus,
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 
@@ -30,40 +29,31 @@ const accessEnvelope = (
   last_error: null,
 });
 
-const credentialsEnvelope = (
-  revision: number,
-  source: CredentialStatus["source"] = "user",
-): ConfigSectionEnvelope<CredentialStatus[]> => ({
-  data: [
-    {
-      credential_ref: "access.root.password",
-      configured: true,
-      source,
-      updated_at: null,
-    },
-  ],
-  revision,
-  loaded_at: "2026-07-26T00:01:00Z",
-  source_path: "/tmp/credentials.json",
-  source_kind: "file",
-  status: "healthy",
-  last_error: null,
-});
-
-const runtimeStatus = (localBypass: boolean) => ({
+const runtimeStatus = (localBypass: boolean, source: string | null = "user", revision = 4) => ({
   password_enabled: true,
   local_bypass: localBypass,
   requires_password: !localBypass,
+  revision,
+  status: "healthy" as const,
+  source_kind: "file" as const,
+  loaded_at: "2026-07-26T00:01:00Z",
+  last_error: null,
+  password_configured: true,
+  credential_state: source === "environment" ? ("from_env" as const) : ("configured" as const),
+  credential_ref: "access.root.password",
+  credential_source: source,
+  credential_updated_at: null,
 });
 
-const mutationResult = (
-  sectionRevision: number,
-  credentialRevision: number,
-  localBypass = true,
-): AccessMutationResult => ({
+const mutationResult = (sectionRevision: number): AccessMutationResult => ({
   envelope: accessEnvelope(sectionRevision),
-  credentials: credentialsEnvelope(credentialRevision),
-  runtime: runtimeStatus(localBypass),
+  credential: {
+    credential_ref: "access.root.password",
+    configured: true,
+    state: "configured",
+    source: "user",
+    updated_at: null,
+  },
 });
 
 const fillPassword = (label: string, value: string) => {
@@ -76,31 +66,42 @@ describe("AccessPasswordCard", () => {
     error: vi.fn(),
   };
   let currentAccess: ConfigSectionEnvelope<AccessControlSection>;
-  let currentCredentials: ConfigSectionEnvelope<CredentialStatus[]>;
   let currentRuntime: ReturnType<typeof runtimeStatus>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     useConfigSectionStore.getState().reset();
     currentAccess = accessEnvelope(4);
-    currentCredentials = credentialsEnvelope(20);
     currentRuntime = runtimeStatus(true);
     vi.spyOn(configSectionsService, "getSection").mockImplementation(async (section) => {
       if (section === "access-control") return currentAccess as never;
-      if (section === "credentials") return currentCredentials as never;
       throw new Error(`Unexpected section ${section}`);
     });
     vi.spyOn(configSectionsService, "getAccessRuntimeStatus").mockImplementation(
       async () => currentRuntime,
     );
-    vi.spyOn(configSectionsService, "replaceAccessPassword").mockResolvedValue(
-      mutationResult(5, 21),
-    );
+    vi.spyOn(configSectionsService, "replaceAccessPassword").mockResolvedValue(mutationResult(5));
+    vi.spyOn(configSectionsService, "clearAccessPassword").mockResolvedValue({
+      envelope: accessEnvelope(5, {
+        password_enabled: false,
+        password_credential_ref: null,
+        password_configured: false,
+        updated_at: null,
+        devices: [],
+      }),
+      credential: {
+        credential_ref: null,
+        configured: false,
+        state: "missing",
+        source: null,
+        updated_at: null,
+      },
+    });
   });
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("uses the typed Access and credential snapshots as settings truth", async () => {
+  it("uses the typed Access section and exact status projection as settings truth", async () => {
     render(<AccessPasswordCard msgApi={msgApi} />);
 
     expect(await screen.findByText("Access password enabled")).toBeInTheDocument();
@@ -108,7 +109,6 @@ describe("AccessPasswordCard", () => {
     expect(screen.getByText(/local connection/i)).toBeInTheDocument();
     expect(screen.queryByLabelText("Current Password")).not.toBeInTheDocument();
     expect(configSectionsService.getSection).toHaveBeenCalledWith("access-control");
-    expect(configSectionsService.getSection).toHaveBeenCalledWith("credentials");
   });
 
   it("replaces a remote password through the store with the captured section revision", async () => {
@@ -125,7 +125,7 @@ describe("AccessPasswordCard", () => {
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith(4, {
         current_password: "current-secret",
-        new_password: "replacement-secret",
+        value: "replacement-secret",
       }),
     );
     expect(msgApi.success).toHaveBeenCalled();
@@ -133,8 +133,20 @@ describe("AccessPasswordCard", () => {
     expect(JSON.stringify(useConfigSectionStore.getState())).not.toContain("replacement-secret");
   });
 
+  it("clears the password through an explicit Access section mutation", async () => {
+    const clear = vi.mocked(configSectionsService.clearAccessPassword);
+    render(<AccessPasswordCard msgApi={msgApi} />);
+    await screen.findByLabelText("New Password");
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear password" }));
+    fireEvent.click(await screen.findByRole("button", { name: "OK" }));
+
+    await waitFor(() => expect(clear).toHaveBeenCalledWith(4, {}));
+    expect(msgApi.success).toHaveBeenCalledWith("Access password cleared");
+  });
+
   it("shows an environment-owned verifier as read-only until explicit replacement", async () => {
-    currentCredentials = credentialsEnvelope(20, "environment");
+    currentRuntime = runtimeStatus(true, "environment");
     render(<AccessPasswordCard msgApi={msgApi} />);
 
     expect(await screen.findByText("From env")).toBeInTheDocument();
@@ -179,7 +191,7 @@ describe("AccessPasswordCard", () => {
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith(
         5,
-        expect.objectContaining({ new_password: "replacement-secret" }),
+        expect.objectContaining({ value: "replacement-secret" }),
       ),
     );
   });
@@ -214,10 +226,6 @@ describe("AccessPasswordCard", () => {
             ...state.sections["access-control"],
             envelope: accessEnvelope(4),
             error: "redacted access refresh failure",
-          },
-          credentials: {
-            ...state.sections.credentials,
-            envelope: credentialsEnvelope(20),
           },
         },
         accessRuntimeStatus: runtimeStatus(true),

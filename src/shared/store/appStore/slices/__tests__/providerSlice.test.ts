@@ -2,10 +2,7 @@ import { act } from "@testing-library/react";
 import { useProviderStore } from "../providerSlice";
 import type { ProviderConfig } from "@shared/types/providerConfig";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
-import type {
-  ConfigSectionEnvelope,
-  ProviderSection,
-} from "@services/config/configSections";
+import type { ConfigSectionEnvelope, ProviderSection } from "@services/config/configSections";
 
 const { loadSectionMock } = vi.hoisted(() => ({
   loadSectionMock: vi.fn(),
@@ -129,14 +126,7 @@ describe("providerSlice", () => {
 
     it("should set loading state while loading", async () => {
       loadSectionMock.mockImplementationOnce(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(
-              () =>
-                resolve(providerEnvelope()),
-              100,
-            ),
-          ),
+        () => new Promise((resolve) => setTimeout(() => resolve(providerEnvelope()), 100)),
       );
 
       const promise = act(async () => useProviderStore.getState().loadProviderConfig());

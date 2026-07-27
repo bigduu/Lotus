@@ -158,15 +158,13 @@ describe("SystemSettingsClustersTab", () => {
 
   it("creates a node and its membership through one section-revision transaction", async () => {
     vi.spyOn(configSectionsService, "getSection").mockResolvedValue(clusterEnvelope(8) as never);
-    const create = vi
-      .spyOn(configSectionsService, "createClusterNode")
-      .mockResolvedValue(
-        mutationResult(
-          clusterEnvelope(9, [sshNode], [{ name: "gpu", node_ids: ["n1"] }], {
-            n1: credentialStatus("configured"),
-          }),
-        ),
-      );
+    const create = vi.spyOn(configSectionsService, "createClusterNode").mockResolvedValue(
+      mutationResult(
+        clusterEnvelope(9, [sshNode], [{ name: "gpu", node_ids: ["n1"] }], {
+          n1: credentialStatus("configured"),
+        }),
+      ),
+    );
 
     render(<SystemSettingsClustersTab />);
     await screen.findByText("No nodes registered");

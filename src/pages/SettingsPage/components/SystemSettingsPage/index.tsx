@@ -54,6 +54,7 @@ import ConfigSectionStatus from "./ConfigSectionStatus";
 import { CONFIG_SECTION_IDS, type ConfigSectionId } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type { ResetSectionResult } from "./SystemSettingsAppTab";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -154,7 +155,7 @@ const SystemSettingsPage = ({
           results.push({
             section,
             status: "failed",
-            error: error instanceof Error ? error.message : String(error),
+            error: configErrorMessage(error, "Configuration section reset failed"),
           });
         }
         setResetSectionResults([...results]);
@@ -187,10 +188,9 @@ const SystemSettingsPage = ({
         window.location.reload();
       }, 1500);
     } catch (error) {
-      console.error("Failed to reset application:", error);
-      msgApi.error(
-        error instanceof Error ? error.message : t("settings.notifications.resetFailed"),
-      );
+      const message = configErrorMessage(error, t("settings.notifications.resetFailed"));
+      console.error("Failed to reset application:", message);
+      msgApi.error(message);
       setIsResetting(false);
     }
   };

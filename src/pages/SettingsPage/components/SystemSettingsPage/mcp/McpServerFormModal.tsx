@@ -30,6 +30,7 @@ import {
   type StdioTransportConfig,
   type TransportConfig,
 } from "@services/mcp";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { TextArea } = Input;
@@ -516,7 +517,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
         }
         setJsonValue("");
       } catch (error) {
-        console.error("MCP server JSON submission error:", error);
+        console.error(
+          "MCP server JSON submission error:",
+          configErrorMessage(error, "MCP server submission failed"),
+        );
       }
       return;
     }
@@ -531,7 +535,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       }
       form.resetFields();
     } catch (error) {
-      console.error("MCP server form submission error:", error);
+      console.error(
+        "MCP server form submission error:",
+        configErrorMessage(error, "MCP server submission failed"),
+      );
     }
   };
 

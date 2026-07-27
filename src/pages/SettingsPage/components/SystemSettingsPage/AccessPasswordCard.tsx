@@ -1,15 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Card, Form, Input, Space, Tag, Typography, theme } from "antd";
+import { Alert, Button, Card, Form, Input, Popconfirm, Space, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import {
   ConfigConflictError,
   type AccessControlSection,
   type ConfigRevisionConflict,
-  type CredentialStatus,
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { configErrorMessage, redactConfigError } from "@shared/utils/configErrors";
 import { isAntdFormError } from "@shared/utils/formError";
-import { redactConfigError } from "./ConfigSectionStatus";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -35,21 +34,13 @@ interface AccessMetadata {
 
 type AccessCredentialState = "configured" | "from_env" | "missing" | "error";
 
-const credentialForAccess = (
-  access: AccessControlSection,
-  statuses: CredentialStatus[],
-): CredentialStatus | undefined =>
-  access?.password_credential_ref
-    ? statuses.find((status) => status.credential_ref === access.password_credential_ref)
-    : undefined;
-
 const accessMetadata = (
   access: AccessControlSection,
-  status: CredentialStatus | undefined,
+  source: string | null | undefined,
 ): AccessMetadata => ({
   password_enabled: access?.password_enabled ?? false,
   password_configured: access?.password_configured ?? false,
-  source: status?.source ?? null,
+  source: source ?? null,
 });
 
 export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }) => {
@@ -64,42 +55,34 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
   const baseMetadataRef = useRef<AccessMetadata | null>(null);
 
   const accessSnapshot = useConfigSectionStore((state) => state.sections["access-control"]);
-  const credentialsSnapshot = useConfigSectionStore((state) => state.sections.credentials);
   const runtimeStatus = useConfigSectionStore((state) => state.accessRuntimeStatus);
   const runtimeLoading = useConfigSectionStore((state) => state.accessRuntimeLoading);
   const runtimeError = useConfigSectionStore((state) => state.accessRuntimeError);
   const loadSection = useConfigSectionStore((state) => state.loadSection);
   const loadRuntimeStatus = useConfigSectionStore((state) => state.loadAccessRuntimeStatus);
   const replaceAccessPassword = useConfigSectionStore((state) => state.replaceAccessPassword);
+  const clearAccessPassword = useConfigSectionStore((state) => state.clearAccessPassword);
 
   const envelope = accessSnapshot.envelope;
   const access = envelope?.data ?? null;
-  const credentialStatus = credentialForAccess(access, credentialsSnapshot.envelope?.data ?? []);
-  const credentialHealthError =
-    Boolean(credentialsSnapshot.error) ||
-    (credentialsSnapshot.envelope !== null && credentialsSnapshot.envelope.status !== "healthy");
-  const credentialState: AccessCredentialState = credentialHealthError
-    ? "error"
-    : credentialStatus?.source === "environment"
-      ? "from_env"
-      : credentialStatus?.configured
+  const credentialState: AccessCredentialState =
+    runtimeStatus?.credential_state ??
+    (access?.password_credential_ref && access.password_configured
+      ? "error"
+      : access?.password_configured
         ? "configured"
-        : access?.password_credential_ref && access.password_configured
-          ? "error"
-          : access?.password_configured
-            ? "configured"
-            : "missing";
+        : "missing");
   const currentMetadata = useMemo(
-    () => accessMetadata(access, credentialStatus),
-    [access, credentialStatus],
+    () => accessMetadata(access, runtimeStatus?.credential_source),
+    [access, runtimeStatus?.credential_source],
   );
   const passwordEnabled = envelope
     ? Boolean(access?.password_enabled && access.password_configured)
     : (runtimeStatus?.password_enabled ?? false);
   const localBypass = runtimeStatus?.local_bypass ?? false;
   const requiresCurrentPassword = passwordEnabled && !localBypass;
-  const isLoading = accessSnapshot.loading || credentialsSnapshot.loading || runtimeLoading;
-  const loadError = accessSnapshot.error ?? credentialsSnapshot.error ?? runtimeError;
+  const isLoading = accessSnapshot.loading || runtimeLoading;
+  const loadError = accessSnapshot.error ?? runtimeError;
   const sectionRevision = envelope?.revision ?? null;
 
   const helperText = useMemo(() => {
@@ -122,7 +105,6 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
     async (force = false) => {
       await Promise.all([
         loadSection("access-control", force ? { force: true } : undefined),
-        loadSection("credentials", force ? { force: true } : undefined),
         loadRuntimeStatus(force ? { force: true } : undefined),
       ]);
     },
@@ -153,11 +135,8 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
       const latest = useConfigSectionStore.getState().sections["access-control"].envelope;
       if (!latest) return;
       if (!keepDraft) form.resetFields();
-      const statuses = useConfigSectionStore.getState().sections.credentials.envelope?.data ?? [];
-      baseMetadataRef.current = accessMetadata(
-        latest.data,
-        credentialForAccess(latest.data, statuses),
-      );
+      const status = useConfigSectionStore.getState().accessRuntimeStatus;
+      baseMetadataRef.current = accessMetadata(latest.data, status?.credential_source);
       setBaseRevision(latest.revision);
       setDirty(keepDraft);
       setSaveConflict(null);
@@ -172,9 +151,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
       adoptLatest(false);
     } catch (error) {
       msgApi.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.configTab.accessPassword.loadStatusFailed"),
+        configErrorMessage(error, t("settings.configTab.accessPassword.loadStatusFailed")),
       );
     }
   }, [adoptLatest, loadStatus, msgApi, t]);
@@ -185,9 +162,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
       adoptLatest(true);
     } catch (error) {
       msgApi.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.configTab.accessPassword.loadStatusFailed"),
+        configErrorMessage(error, t("settings.configTab.accessPassword.loadStatusFailed")),
       );
     }
   }, [adoptLatest, loadStatus, msgApi, t]);
@@ -229,7 +204,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
       const result = await replaceAccessPassword(
         {
           current_password: values.currentPassword?.trim() || undefined,
-          new_password: values.newPassword.trim(),
+          value: values.newPassword.trim(),
         },
         baseRevision,
       );
@@ -240,8 +215,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
           : t("settings.configTab.accessPassword.enabled"),
       );
       form.resetFields();
-      const nextCredential = credentialForAccess(result.envelope.data, result.credentials.data);
-      baseMetadataRef.current = accessMetadata(result.envelope.data, nextCredential);
+      baseMetadataRef.current = accessMetadata(result.envelope.data, result.credential.source);
       setBaseRevision(result.envelope.revision);
       setDirty(false);
       setSaveConflict(null);
@@ -253,10 +227,54 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
         setSaveConflict(error.conflict);
         await loadStatus(true).catch(() => undefined);
       }
+      msgApi.error(configErrorMessage(error, t("settings.configTab.accessPassword.updateFailed")));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleClear = async () => {
+    if (baseRevision === null) {
       msgApi.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.configTab.accessPassword.updateFailed"),
+        t("settings.configTab.accessPassword.loadStatusFailed", "Failed to load access status"),
+      );
+      return;
+    }
+    const currentPassword = form.getFieldValue("currentPassword")?.trim();
+    if (requiresCurrentPassword && !currentPassword) {
+      form.setFields([
+        {
+          name: "currentPassword",
+          errors: [t("settings.configTab.accessPassword.validation.currentPasswordRequired")],
+        },
+      ]);
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const result = await clearAccessPassword(
+        { current_password: currentPassword || undefined },
+        baseRevision,
+      );
+      msgApi.success(t("settings.configTab.accessPassword.cleared", "Access password cleared"));
+      form.resetFields();
+      baseMetadataRef.current = accessMetadata(result.envelope.data, result.credential.source);
+      setBaseRevision(result.envelope.revision);
+      setDirty(false);
+      setSaveConflict(null);
+      setShowComparison(false);
+    } catch (error) {
+      if (error instanceof ConfigConflictError) {
+        setDirty(true);
+        setSaveConflict(error.conflict);
+        await loadStatus(true).catch(() => undefined);
+      }
+      msgApi.error(
+        configErrorMessage(
+          error,
+          t("settings.configTab.accessPassword.clearFailed", "Failed to clear access password"),
+        ),
       );
     } finally {
       setIsSaving(false);
@@ -431,16 +449,42 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
             <Input.Password autoComplete="new-password" />
           </Form.Item>
 
-          <Button
-            type="primary"
-            loading={isSaving}
-            disabled={baseRevision === null || externalRevision !== null || Boolean(saveConflict)}
-            onClick={() => void handleSubmit()}
-          >
-            {passwordEnabled
-              ? t("settings.configTab.accessPassword.updateAction")
-              : t("settings.configTab.accessPassword.enableAction")}
-          </Button>
+          <Space wrap>
+            <Button
+              type="primary"
+              loading={isSaving}
+              disabled={baseRevision === null || externalRevision !== null || Boolean(saveConflict)}
+              onClick={() => void handleSubmit()}
+            >
+              {passwordEnabled
+                ? t("settings.configTab.accessPassword.updateAction")
+                : t("settings.configTab.accessPassword.enableAction")}
+            </Button>
+            {passwordEnabled ? (
+              <Popconfirm
+                title={t(
+                  "settings.configTab.accessPassword.clearConfirm",
+                  "Clear the access password?",
+                )}
+                description={t(
+                  "settings.configTab.accessPassword.clearConfirmDescription",
+                  "Password protection will be disabled. Paired device credentials are preserved.",
+                )}
+                onConfirm={() => handleClear()}
+                okButtonProps={{ danger: true }}
+              >
+                <Button
+                  danger
+                  loading={isSaving}
+                  disabled={
+                    baseRevision === null || externalRevision !== null || Boolean(saveConflict)
+                  }
+                >
+                  {t("settings.configTab.accessPassword.clearAction", "Clear password")}
+                </Button>
+              </Popconfirm>
+            ) : null}
+          </Space>
         </Form>
       </Space>
     </Card>

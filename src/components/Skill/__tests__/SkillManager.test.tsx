@@ -59,15 +59,16 @@ describe("SkillManager", () => {
       last_error: null,
     } as never);
     vi.spyOn(configSectionsService, "putSection").mockImplementation(
-      async (_section, _revision, data) => ({
-        data,
-        revision: 7,
-        loaded_at: "2026-07-23T00:00:01.000Z",
-        source_path: "/tmp/tools-skills.json",
-        source_kind: "file",
-        status: "healthy",
-        last_error: null,
-      }) as never,
+      async (_section, _revision, data) =>
+        ({
+          data,
+          revision: 7,
+          loaded_at: "2026-07-23T00:00:01.000Z",
+          source_path: "/tmp/tools-skills.json",
+          source_kind: "file",
+          status: "healthy",
+          last_error: null,
+        }) as never,
     );
 
     vi.mocked(skillService.listSkills).mockResolvedValue({

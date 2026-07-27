@@ -30,7 +30,6 @@ import {
   CopyOutlined,
 } from "@ant-design/icons";
 import { DeviceCodeModal } from "./DeviceCodeModal";
-import { isApiError } from "@services/api/client";
 import {
   settingsService,
   type CopilotAuthStatus,
@@ -56,6 +55,8 @@ import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelP
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
+import { ProviderCredentialStatusTag } from "./ProviderCredentialStatusTag";
+import { isEnvironmentCredential } from "./providerCredentialStatus";
 import { getBambooCompatibleProviderBaseUrls } from "@shared/utils/backendBaseUrl";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type {
@@ -68,6 +69,7 @@ import type {
 import { providerSectionToInstances } from "@services/config/providerSettings";
 import { v4 as uuid } from "uuid";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Password } = Input;
 const { Text, Paragraph } = Typography;
@@ -269,8 +271,8 @@ export const ProviderSettings: React.FC = () => {
   const [baseRevision, setBaseRevision] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
   const baseFormRef = useRef<ProviderSettingsFormValues | null>(null);
-  // Legacy-mode providers whose api_key is already configured (GET returned the
-  // redaction placeholder). Their key field stays empty; empty = keep stored key.
+  // Credential values never enter the form. The typed section exposes only
+  // status metadata; an empty field therefore means "leave the credential untouched".
   const [providersWithStoredKey, setProvidersWithStoredKey] = useState<Set<string>>(new Set());
   const [copilotAuthStatus, setCopilotAuthStatus] = useState<CopilotAuthStatus | null>(null);
   const [checkingCopilotAuth, setCheckingCopilotAuth] = useState(false);
@@ -475,7 +477,10 @@ export const ProviderSettings: React.FC = () => {
       syncProviderState(providers.data, memory.data, providers.revision);
     } catch (error) {
       message.error(t("settings.providerTab.loadConfigFailed"));
-      console.error("Failed to load provider config:", error);
+      console.error(
+        "Failed to load provider config:",
+        configErrorMessage(error, t("settings.providerTab.loadConfigFailed")),
+      );
     } finally {
       setLoading(false);
     }
@@ -649,7 +654,10 @@ export const ProviderSettings: React.FC = () => {
       const status = await settingsService.getCopilotAuthStatus();
       setCopilotAuthStatus(status);
     } catch (error) {
-      console.error("Failed to check Copilot auth status:", error);
+      console.error(
+        "Failed to check Copilot auth status:",
+        configErrorMessage(error, "Copilot authentication status failed"),
+      );
       setCopilotAuthStatus({
         authenticated: false,
         message: t("settings.providerTab.checkStatusFailed"),
@@ -686,7 +694,10 @@ export const ProviderSettings: React.FC = () => {
       setIsDeviceCodeModalVisible(true);
     } catch (error) {
       message.error(t("settings.providerTab.startCopilotAuthFailed"));
-      console.error("Failed to start Copilot authentication:", error);
+      console.error(
+        "Failed to start Copilot authentication:",
+        configErrorMessage(error, "Failed to start Copilot authentication"),
+      );
     } finally {
       setAuthenticatingCopilot(false);
     }
@@ -707,7 +718,10 @@ export const ProviderSettings: React.FC = () => {
       await checkCopilotAuthStatus();
     } catch (error) {
       message.error(t("settings.providerTab.completeAuthFailed"));
-      console.error("Authentication completion failed:", error);
+      console.error(
+        "Authentication completion failed:",
+        configErrorMessage(error, "Authentication completion failed"),
+      );
     } finally {
       setCompletingAuth(false);
     }
@@ -736,7 +750,7 @@ export const ProviderSettings: React.FC = () => {
       await checkCopilotAuthStatus();
     } catch (error) {
       message.error(t("settings.providerTab.logoutFailed"));
-      console.error("Failed to logout:", error);
+      console.error("Failed to logout:", configErrorMessage(error, "Failed to log out"));
     } finally {
       setAuthenticatingCopilot(false);
     }
@@ -771,9 +785,7 @@ export const ProviderSettings: React.FC = () => {
   // ── Save / Apply helpers ─────────────────────────────
 
   const getErrorMessage = (error: unknown): string => {
-    if (isApiError(error)) return error.message;
-    if (error instanceof Error) return error.message;
-    return t("settings.providerTab.unknownError");
+    return configErrorMessage(error, t("settings.providerTab.unknownError"));
   };
 
   const handleSave = async (
@@ -892,7 +904,7 @@ export const ProviderSettings: React.FC = () => {
             : t("settings.providerTab.saveConfigFailed"),
         );
       }
-      console.error("Failed to save configuration:", error);
+      console.error("Failed to save configuration:", errorMessage);
       if (options?.throwOnError) throw error;
     } finally {
       setLoading(false);
@@ -970,7 +982,7 @@ export const ProviderSettings: React.FC = () => {
             : t("settings.providerTab.applyConfigFailed"),
         );
       }
-      console.error("Failed to apply configuration:", error);
+      console.error("Failed to apply configuration:", errorMessage);
       if (options?.throwOnError) throw error;
     } finally {
       setApplyingConfig(false);
@@ -1326,32 +1338,55 @@ export const ProviderSettings: React.FC = () => {
 
   const renderProviderPanel = (provider: ModelProvider) => {
     const hasStoredKey = providersWithStoredKey.has(provider);
+    const credentialStatus =
+      providerEnvelope?.data.credential_status.providers[provider as ProviderType];
+    const environmentCredential = isEnvironmentCredential(credentialStatus);
+    const pendingReplacement = Boolean(form.getFieldValue(["providers", provider, "api_key"]));
     const apiKeyRules = (requiredMessage: string) =>
       hasStoredKey ? [] : [{ required: true, message: requiredMessage }];
     const apiKeyPlaceholder = (defaultPlaceholder: string) =>
       hasStoredKey
         ? t("settings.providerTab.apiKeyKeepPlaceholder", "Configured — leave empty to keep")
         : defaultPlaceholder;
-    const clearStoredCredential = hasStoredKey && provider !== "copilot" && (
-      <Popconfirm
-        title={t(
-          "settings.providerTab.confirmClearCredential",
-          "Clear the stored credential for this provider?",
-        )}
-        onConfirm={() => void handleClearProviderCredential(provider)}
-        okText={t("settings.providerTab.clear", "Clear")}
-        cancelText={t("settings.providerTab.cancel", "Cancel")}
-      >
-        <Button danger size="small" style={{ marginBottom: 16 }}>
-          {t("settings.providerTab.clearCredential", "Clear stored credential")}
-        </Button>
-      </Popconfirm>
+    const credentialStatusSummary = provider !== "copilot" && (
+      <Space direction="vertical" size={4} style={{ marginBottom: 12 }}>
+        <ProviderCredentialStatusTag
+          status={credentialStatus}
+          pendingReplacement={pendingReplacement}
+        />
+        {environmentCredential ? (
+          <Text type="secondary">
+            {t(
+              "settings.providerTab.environmentCredentialHint",
+              "This credential comes from the environment. It remains read-only unless you explicitly replace it.",
+            )}
+          </Text>
+        ) : null}
+      </Space>
     );
+    const clearStoredCredential = hasStoredKey &&
+      provider !== "copilot" &&
+      !environmentCredential && (
+        <Popconfirm
+          title={t(
+            "settings.providerTab.confirmClearCredential",
+            "Clear the stored credential for this provider?",
+          )}
+          onConfirm={() => void handleClearProviderCredential(provider)}
+          okText={t("settings.providerTab.clear", "Clear")}
+          cancelText={t("settings.providerTab.cancel", "Cancel")}
+        >
+          <Button danger size="small" style={{ marginBottom: 16 }}>
+            {t("settings.providerTab.clearCredential", "Clear stored credential")}
+          </Button>
+        </Popconfirm>
+      );
 
     switch (provider) {
       case "openai":
         return (
           <>
+            {credentialStatusSummary}
             <Form.Item
               name={["providers", "openai", "api_key"]}
               label={t("settings.providerTab.openaiApiKey")}
@@ -1407,6 +1442,7 @@ export const ProviderSettings: React.FC = () => {
       case "anthropic":
         return (
           <>
+            {credentialStatusSummary}
             <Form.Item
               name={["providers", "anthropic", "api_key"]}
               label={t("settings.providerTab.anthropicApiKey")}
@@ -1459,6 +1495,7 @@ export const ProviderSettings: React.FC = () => {
       case "gemini":
         return (
           <>
+            {credentialStatusSummary}
             <Form.Item
               name={["providers", "gemini", "api_key"]}
               label={t("settings.providerTab.geminiApiKey")}
@@ -1598,6 +1635,7 @@ export const ProviderSettings: React.FC = () => {
       case "bodhi":
         return (
           <>
+            {credentialStatusSummary}
             <Form.Item
               name={["providers", "bodhi", "api_key"]}
               label={t("settings.providerTab.bodhiApiKey")}
@@ -1659,18 +1697,28 @@ export const ProviderSettings: React.FC = () => {
 
   const renderPanelHeader = (provider: ModelProvider) => {
     const configured = isProviderConfigured(provider);
+    const credentialStatus =
+      providerEnvelope?.data.credential_status.providers[provider as ProviderType];
+    const pendingReplacement = Boolean(form.getFieldValue(["providers", provider, "api_key"]));
     const label = PROVIDER_LABELS[provider as ProviderType];
     return (
       <Space size="small">
         <span style={{ fontWeight: 500 }}>{label}</span>
-        {configured ? (
-          <Tag color="success" style={{ fontSize: 11 }}>
-            {t("settings.providerTab.authenticated")}
-          </Tag>
+        {provider === "copilot" ? (
+          configured ? (
+            <Tag color="success" style={{ fontSize: 11 }}>
+              {t("settings.providerTab.authenticated")}
+            </Tag>
+          ) : (
+            <Tag color="default" style={{ fontSize: 11 }}>
+              {t("settings.providerTab.providerNotConfigured")}
+            </Tag>
+          )
         ) : (
-          <Tag color="default" style={{ fontSize: 11 }}>
-            {t("settings.providerTab.providerNotConfigured")}
-          </Tag>
+          <ProviderCredentialStatusTag
+            status={credentialStatus}
+            pendingReplacement={pendingReplacement}
+          />
         )}
       </Space>
     );

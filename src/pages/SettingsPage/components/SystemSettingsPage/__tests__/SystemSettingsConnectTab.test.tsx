@@ -11,6 +11,13 @@ const CONFIGURED_CONNECT = {
       type: "telegram",
       token_configured: true,
       token_credential_ref: "connect:telegram-main:token",
+      token_credential: {
+        credential_ref: "connect:telegram-main:token",
+        configured: true,
+        state: "configured" as const,
+        source: "user",
+        updated_at: null,
+      },
       allow_from: ["u1"],
     },
     {
@@ -19,6 +26,13 @@ const CONFIGURED_CONNECT = {
       app_id: "cli_abc123",
       app_secret_configured: true,
       app_secret_credential_ref: "connect:feishu-main:app_secret",
+      app_secret_credential: {
+        credential_ref: "connect:feishu-main:app_secret",
+        configured: true,
+        state: "from_env" as const,
+        source: "environment",
+        updated_at: null,
+      },
       domain: "lark",
       allow_from: ["ou_1"],
     },
@@ -35,43 +49,14 @@ const connectEnvelope = (data = CONFIGURED_CONNECT, revision = 7) => ({
   last_error: null,
 });
 
-const credentialsEnvelope = (
-  revision = 31,
-  data = [
-    {
-      credential_ref: "connect:telegram-main:token",
-      configured: true,
-      source: "user",
-      updated_at: null,
-    },
-    {
-      credential_ref: "connect:feishu-main:app_secret",
-      configured: true,
-      source: "environment",
-      updated_at: null,
-    },
-  ],
-) => ({
-  data,
-  revision,
-  loaded_at: "2026-07-23T00:00:00.000Z",
-  source_path: "/tmp/credentials.json",
-  source_kind: "file" as const,
-  status: "healthy" as const,
-  last_error: null,
-});
-
 describe("SystemSettingsConnectTab", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useConfigSectionStore.getState().reset();
-    vi.spyOn(configSectionsService, "getSection").mockImplementation(async (section) =>
-      section === "credentials" ? (credentialsEnvelope() as never) : (connectEnvelope() as never),
+    vi.spyOn(configSectionsService, "getSection").mockResolvedValue(connectEnvelope() as never);
+    vi.spyOn(configSectionsService, "putConnect").mockImplementation(async (_revision, data) =>
+      connectEnvelope({ platforms: data.platforms } as never, 8),
     );
-    vi.spyOn(configSectionsService, "putConnect").mockImplementation(async (_revision, data) => ({
-      envelope: connectEnvelope({ platforms: data.platforms } as never, 8),
-      credentialRevision: 32,
-    }));
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -112,11 +97,13 @@ describe("SystemSettingsConnectTab", () => {
     const [revision, patch] = vi.mocked(configSectionsService.putConnect).mock.calls[0];
     const telegram = patch.platforms.find((p: { type: string }) => p.type === "telegram");
     const feishu = patch.platforms.find((p: { type: string }) => p.type === "feishu");
-    expect(revision).toBe(31);
+    expect(revision).toBe(7);
     expect(telegram).toMatchObject({ id: "telegram-main", type: "telegram" });
     expect(telegram).not.toHaveProperty("token");
+    expect(telegram).not.toHaveProperty("token_change");
     expect(feishu).toMatchObject({ id: "feishu-main", type: "feishu" });
     expect(feishu).not.toHaveProperty("app_secret");
+    expect(feishu).not.toHaveProperty("app_secret_change");
   });
 
   it("sends the new plaintext value when a secret is edited", async () => {
@@ -129,7 +116,10 @@ describe("SystemSettingsConnectTab", () => {
     await waitFor(() => expect(configSectionsService.putConnect).toHaveBeenCalledTimes(1));
     const [, patch] = vi.mocked(configSectionsService.putConnect).mock.calls[0];
     const telegram = patch.platforms.find((p: { type: string }) => p.type === "telegram");
-    expect(telegram.token).toBe("tg-new-secret");
+    expect(telegram.token_change).toEqual({
+      action: "replace",
+      value: "tg-new-secret",
+    });
   });
 
   it("drops a platform from the saved array when its toggle is switched off", async () => {
@@ -146,10 +136,8 @@ describe("SystemSettingsConnectTab", () => {
   });
 
   it("omits a secret field for a newly enabled platform with no stored value", async () => {
-    vi.mocked(configSectionsService.getSection).mockImplementation(async (section) =>
-      section === "credentials"
-        ? (credentialsEnvelope() as never)
-        : (connectEnvelope({ platforms: [] }) as never),
+    vi.mocked(configSectionsService.getSection).mockResolvedValue(
+      connectEnvelope({ platforms: [] }) as never,
     );
     render(<SystemSettingsConnectTab />);
     const telegramSwitch = await screen.findByTestId("connect-telegram-enabled");
@@ -161,13 +149,12 @@ describe("SystemSettingsConnectTab", () => {
     const [, patch] = vi.mocked(configSectionsService.putConnect).mock.calls[0];
     const telegram = patch.platforms.find((p: { type: string }) => p.type === "telegram");
     expect(telegram).not.toHaveProperty("token");
+    expect(telegram).not.toHaveProperty("token_change");
   });
 
   it("shows a deny-all warning when a platform is enabled with no allowed IDs", async () => {
-    vi.mocked(configSectionsService.getSection).mockImplementation(async (section) =>
-      section === "credentials"
-        ? (credentialsEnvelope() as never)
-        : (connectEnvelope({ platforms: [] }) as never),
+    vi.mocked(configSectionsService.getSection).mockResolvedValue(
+      connectEnvelope({ platforms: [] }) as never,
     );
     render(<SystemSettingsConnectTab />);
     const telegramSwitch = await screen.findByTestId("connect-telegram-enabled");
@@ -177,7 +164,7 @@ describe("SystemSettingsConnectTab", () => {
     expect(await screen.findByText(/every inbound message will be rejected/i)).toBeInTheDocument();
   });
 
-  it("adopts a newer section and credential snapshot while the form is clean", async () => {
+  it("adopts a newer exact section snapshot while the form is clean", async () => {
     render(<SystemSettingsConnectTab />);
     const appId = (await screen.findByTestId("connect-feishu-app-id")) as HTMLInputElement;
 
@@ -191,10 +178,6 @@ describe("SystemSettingsConnectTab", () => {
         sections: {
           ...state.sections,
           connect: { ...state.sections.connect, envelope: connectEnvelope(remote, 8) },
-          credentials: {
-            ...state.sections.credentials,
-            envelope: credentialsEnvelope(32) as never,
-          },
         },
       }));
     });
@@ -220,10 +203,6 @@ describe("SystemSettingsConnectTab", () => {
         sections: {
           ...state.sections,
           connect: { ...state.sections.connect, envelope: connectEnvelope(remote, 8) },
-          credentials: {
-            ...state.sections.credentials,
-            envelope: credentialsEnvelope(32) as never,
-          },
         },
       }));
     });
@@ -239,10 +218,10 @@ describe("SystemSettingsConnectTab", () => {
 
     fireEvent.click(screen.getByTestId("connect-save-button"));
     await waitFor(() => expect(configSectionsService.putConnect).toHaveBeenCalled());
-    expect(vi.mocked(configSectionsService.putConnect).mock.calls[0]?.[0]).toBe(31);
+    expect(vi.mocked(configSectionsService.putConnect).mock.calls[0]?.[0]).toBe(7);
   });
 
-  it("reapplies a dirty draft over the latest snapshots and advances both bases", async () => {
+  it("reapplies a dirty draft over the latest exact section and advances its base", async () => {
     render(<SystemSettingsConnectTab />);
     const appId = (await screen.findByTestId("connect-feishu-app-id")) as HTMLInputElement;
     fireEvent.change(appId, { target: { value: "cli_local" } });
@@ -257,10 +236,6 @@ describe("SystemSettingsConnectTab", () => {
         sections: {
           ...state.sections,
           connect: { ...state.sections.connect, envelope: connectEnvelope(remote, 8) },
-          credentials: {
-            ...state.sections.credentials,
-            envelope: credentialsEnvelope(32) as never,
-          },
         },
       }));
     });
@@ -270,6 +245,6 @@ describe("SystemSettingsConnectTab", () => {
     fireEvent.click(screen.getByTestId("connect-save-button"));
 
     await waitFor(() => expect(configSectionsService.putConnect).toHaveBeenCalled());
-    expect(vi.mocked(configSectionsService.putConnect).mock.calls[0]?.[0]).toBe(32);
+    expect(vi.mocked(configSectionsService.putConnect).mock.calls[0]?.[0]).toBe(8);
   });
 });

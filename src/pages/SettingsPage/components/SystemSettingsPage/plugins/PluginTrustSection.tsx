@@ -24,6 +24,7 @@ import {
 } from "@services/common/ServiceFactory";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { redactConfigError } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -93,7 +94,7 @@ const PluginTrustSection: React.FC = () => {
       const envelope = await loadSection("tools-skills", { force: true });
       adoptEnvelope(envelope);
     } catch (error) {
-      setLoadError(getErrorMessage(error));
+      setLoadError(redactConfigError(getErrorMessage(error)));
     } finally {
       setLoading(false);
     }
@@ -161,7 +162,7 @@ const PluginTrustSection: React.FC = () => {
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (error) {
-      setSaveError(getErrorMessage(error));
+      setSaveError(redactConfigError(getErrorMessage(error)));
     } finally {
       setSaving(false);
     }

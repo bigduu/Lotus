@@ -21,6 +21,7 @@ import { serviceFactory, type ModelLimitDefault } from "../../services/common/Se
 import { getUsedModels, removeUsedModel } from "../ChatPage/utils/usedModels";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type { ConfigSectionEnvelope, ModelLimitsSection } from "@services/config/configSections";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -348,7 +349,10 @@ export const ModelLimitsSettings: React.FC = () => {
       setGlobalDefault(def);
       adoptEnvelope(envelope, def);
     } catch (error) {
-      console.error("Failed to load model limits settings:", error);
+      console.error(
+        "Failed to load model limits settings:",
+        configErrorMessage(error, t("settings.modelLimits.loadFailed")),
+      );
       msgApi.error(t("settings.modelLimits.loadFailed"));
       setGlobalDefault(FALLBACK_DEFAULT);
       setRows(buildRows(FALLBACK_DEFAULT, [], getUsedModels()));
@@ -453,7 +457,10 @@ export const ModelLimitsSettings: React.FC = () => {
       adoptEnvelope(saved);
       msgApi.success(t("settings.modelLimits.saveSuccess"));
     } catch (error) {
-      console.error("Failed to save model limits settings:", error);
+      console.error(
+        "Failed to save model limits settings:",
+        configErrorMessage(error, t("settings.modelLimits.saveFailed")),
+      );
       msgApi.error(t("settings.modelLimits.saveFailed"));
     } finally {
       setLoading(false);
@@ -472,7 +479,10 @@ export const ModelLimitsSettings: React.FC = () => {
       adoptEnvelope(saved, globalDefault, [...getUsedModels(), ...visibleModels]);
       msgApi.success(t("settings.modelLimits.resetSuccess"));
     } catch (error) {
-      console.error("Failed to reset model limits settings:", error);
+      console.error(
+        "Failed to reset model limits settings:",
+        configErrorMessage(error, t("settings.modelLimits.resetFailed")),
+      );
       msgApi.error(t("settings.modelLimits.resetFailed"));
     } finally {
       setLoading(false);

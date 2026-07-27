@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configSectionsService } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
-import ConfigSectionStatus, { redactConfigError } from "../ConfigSectionStatus";
+import { configErrorMessage, redactConfigError } from "@shared/utils/configErrors";
+import ConfigSectionStatus from "../ConfigSectionStatus";
 
 const coreEnvelope = (revision: number) => ({
   data: { http_proxy: "http://localhost:8080" },
@@ -40,6 +41,18 @@ describe("ConfigSectionStatus", () => {
     expect(redacted).not.toContain("supersecret");
     expect(redacted).not.toContain("private-material");
     expect(redacted).toContain("[redacted]");
+  });
+
+  it("redacts errors before component-local catch blocks can display or log them", () => {
+    const message = configErrorMessage(
+      new Error("device_key=private-device-key"),
+      "Configuration failed",
+    );
+
+    expect(message).toBe("device_key=[redacted]");
+    expect(configErrorMessage({ reason: "opaque" }, "Configuration failed")).toBe(
+      "Configuration failed",
+    );
   });
 
   it("renders the exact revision conflict and reloads the latest snapshot", async () => {

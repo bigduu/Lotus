@@ -29,7 +29,7 @@ import type { AppLocale } from "@shared/i18n/types";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type { ToolsSkillsSection } from "@services/config/configSections";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
-import { redactConfigError } from "./ConfigSectionStatus";
+import { configErrorMessage, redactConfigError } from "@shared/utils/configErrors";
 
 interface ConfigFormState {
   http_proxy: string;
@@ -58,9 +58,7 @@ const CLAUDE_CODE_PERMISSION_MODES = [
 const normalizeToolNames = (names: string[]): string[] =>
   [...new Set(names.map((name) => name.trim()).filter((name) => name.length > 0))].sort();
 
-const readDisabledTools = (
-  section: ToolsSkillsSection,
-): string[] => {
+const readDisabledTools = (section: ToolsSkillsSection): string[] => {
   const rawDisabled = section.tools?.disabled;
   if (!Array.isArray(rawDisabled)) {
     return [];
@@ -199,7 +197,10 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       });
       setDirtySections({});
     } catch (error) {
-      console.error("Failed to load config:", error);
+      console.error(
+        "Failed to load config:",
+        configErrorMessage(error, t("settings.configTab.loadConfigFailed")),
+      );
       msgApi.error(t("settings.configTab.loadConfigFailed"));
     } finally {
       setIsLoading(false);
@@ -244,7 +245,8 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
 
   useEffect(() => {
     const envelope = subagentsSnapshot.envelope;
-    if (!envelope || envelope.revision === baseRevisions.subagents || dirtySections.subagents) return;
+    if (!envelope || envelope.revision === baseRevisions.subagents || dirtySections.subagents)
+      return;
     const nextSubagents = normalizeSubagentsForm(envelope.data);
     setConfig((current) => ({ ...current, subagents: nextSubagents }));
     if (baseDraftsRef.current) {
@@ -463,21 +465,24 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
         };
       }
 
-      const validation = await serviceFactory.validateBambooConfigPatch(patch);
-      if (!validation.valid) {
-        const proxyIssue = validation.errors?.proxy?.[0];
-        const issue =
-          proxyIssue ??
-          Object.values(validation.errors || {})
+      // Proxy fields are exclusively owned by the revisioned Core endpoint.
+      // Bamboo intentionally rejects changed proxy fields on the legacy root
+      // validation route, while the typed Core mutation performs canonical
+      // validation under the same CAS transaction.
+      if (section !== "network") {
+        const validation = await serviceFactory.validateBambooConfigPatch(patch);
+        if (!validation.valid) {
+          const issue = Object.values(validation.errors || {})
             .flat()
             .filter(Boolean)[0];
-        if (section === "subagents") {
-          setSubagentValidationIssues(validation.errors?.subagents ?? []);
+          if (section === "subagents") {
+            setSubagentValidationIssues(validation.errors?.subagents ?? []);
+          }
+          msgApi.error(
+            issue ? `${issue.path}: ${issue.message}` : t("settings.configTab.invalidConfig"),
+          );
+          return;
         }
-        msgApi.error(
-          issue ? `${issue.path}: ${issue.message}` : t("settings.configTab.invalidConfig"),
-        );
-        return;
       }
 
       if (section === "network") {
@@ -556,11 +561,8 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       }
       msgApi.success(t("settings.configTab.saveConfigSuccess"));
     } catch (error) {
-      console.error("Failed to save config:", error);
-      const message =
-        error instanceof Error && error.message.trim()
-          ? error.message
-          : t("settings.configTab.saveConfigFailed");
+      const message = configErrorMessage(error, t("settings.configTab.saveConfigFailed"));
+      console.error("Failed to save config:", message);
       msgApi.error(message);
     } finally {
       setIsLoading(false);
@@ -596,7 +598,10 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       setAvailableTools(normalizeToolNames(toolsResponse.tools || []));
       msgApi.success(t("settings.configTab.toolsReloadSuccess"));
     } catch (error) {
-      console.error("Failed to reload tools:", error);
+      console.error(
+        "Failed to reload tools:",
+        configErrorMessage(error, t("settings.configTab.toolsLoadFailed")),
+      );
       msgApi.error(t("settings.configTab.toolsLoadFailed"));
     } finally {
       setIsToolsBusy(false);
@@ -630,7 +635,10 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
       setSavedDisabledTools(canonicalDisabled);
       msgApi.success(t("settings.configTab.toolsSaveSuccess"));
     } catch (error) {
-      console.error("Failed to save tool settings:", error);
+      console.error(
+        "Failed to save tool settings:",
+        configErrorMessage(error, t("settings.configTab.toolsSaveFailed")),
+      );
       msgApi.error(t("settings.configTab.toolsSaveFailed"));
     } finally {
       setIsToolsBusy(false);
@@ -688,21 +696,13 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
     }
     if (externalNames.has("subagents") && subagentsSnapshot.envelope) {
       const latest = normalizeSubagentsForm(subagentsSnapshot.envelope.data);
-      const rebased = reapplyConfigChanges(
-        baseDrafts.subagents,
-        config.subagents,
-        latest,
-      );
+      const rebased = reapplyConfigChanges(baseDrafts.subagents, config.subagents, latest);
       nextConfig = { ...nextConfig, subagents: rebased };
       nextBaseDrafts.subagents = structuredClone(latest);
     }
     if (externalNames.has("tools-skills") && toolsSnapshot.envelope) {
       const latest = readDisabledTools(toolsSnapshot.envelope.data);
-      const rebased = reapplyDisabledTools(
-        baseDrafts.toolsDisabled,
-        disabledTools,
-        latest,
-      );
+      const rebased = reapplyDisabledTools(baseDrafts.toolsDisabled, disabledTools, latest);
       setDisabledTools(rebased);
       nextBaseDrafts.toolsDisabled = [...latest];
     }
@@ -809,349 +809,404 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
           />
         )}
         <Tabs
-        items={[
-          {
-            key: "general",
-            label: t("settings.configTab.tabs.general"),
-            children: (
-              <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-                <NetworkSettingsCard
-                  httpProxy={config.http_proxy}
-                  httpsProxy={config.https_proxy}
-                  onHttpProxyChange={handleHttpProxyChange}
-                  onHttpsProxyChange={handleHttpsProxyChange}
-                  onReload={loadConfig}
-                  onSave={() => handleSaveConfig("network")}
-                  isLoading={isLoading}
-                />
-
-                <Card
-                  size="small"
-                  className="lotus-settings-card"
-                  title={<Text strong>{t("settings.configTab.language")}</Text>}
-                >
-                  <Select
-                    value={locale}
-                    style={{ width: 260 }}
-                    options={[
-                      {
-                        label: t("settings.configTab.languageEnglish"),
-                        value: "en-US",
-                      },
-                      {
-                        label: t("settings.configTab.languageChinese"),
-                        value: "zh-CN",
-                      },
-                      {
-                        label: t("settings.configTab.languageTraditionalChinese"),
-                        value: "zh-TW",
-                      },
-                      {
-                        label: t("settings.configTab.languageFrench"),
-                        value: "fr-FR",
-                      },
-                      {
-                        label: t("settings.configTab.languageJapanese"),
-                        value: "ja-JP",
-                      },
-                      {
-                        label: t("settings.configTab.languageHindi"),
-                        value: "hi-IN",
-                      },
-                    ]}
-                    onChange={(value) => onLocaleChange(value as AppLocale)}
+          items={[
+            {
+              key: "general",
+              label: t("settings.configTab.tabs.general"),
+              children: (
+                <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+                  <NetworkSettingsCard
+                    httpProxy={config.http_proxy}
+                    httpsProxy={config.https_proxy}
+                    onHttpProxyChange={handleHttpProxyChange}
+                    onHttpsProxyChange={handleHttpsProxyChange}
+                    onReload={loadConfig}
+                    onSave={() => handleSaveConfig("network")}
+                    isLoading={isLoading}
                   />
-                </Card>
 
-                <Card
-                  size="small"
-                  className="lotus-settings-card"
-                  title={<Text strong>{t("settings.configTab.memoryTitle")}</Text>}
-                >
-                  <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-                    <Text type="secondary">{t("settings.configTab.memoryDescription")}</Text>
+                  <Card
+                    size="small"
+                    className="lotus-settings-card"
+                    title={<Text strong>{t("settings.configTab.language")}</Text>}
+                  >
+                    <Select
+                      value={locale}
+                      style={{ width: 260 }}
+                      options={[
+                        {
+                          label: t("settings.configTab.languageEnglish"),
+                          value: "en-US",
+                        },
+                        {
+                          label: t("settings.configTab.languageChinese"),
+                          value: "zh-CN",
+                        },
+                        {
+                          label: t("settings.configTab.languageTraditionalChinese"),
+                          value: "zh-TW",
+                        },
+                        {
+                          label: t("settings.configTab.languageFrench"),
+                          value: "fr-FR",
+                        },
+                        {
+                          label: t("settings.configTab.languageJapanese"),
+                          value: "ja-JP",
+                        },
+                        {
+                          label: t("settings.configTab.languageHindi"),
+                          value: "hi-IN",
+                        },
+                      ]}
+                      onChange={(value) => onLocaleChange(value as AppLocale)}
+                    />
+                  </Card>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: token.marginMD,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div>
-                        <Text strong>{t("settings.configTab.autoDreamEnabled")}</Text>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                            {t("settings.configTab.autoDreamEnabledHint")}
-                          </Text>
-                        </div>
-                      </div>
-                      <Switch
-                        data-testid="auto-dream-toggle"
-                        checked={config.memory.auto_dream_enabled}
-                        onChange={handleAutoDreamToggle}
-                      />
-                    </div>
+                  <Card
+                    size="small"
+                    className="lotus-settings-card"
+                    title={<Text strong>{t("settings.configTab.memoryTitle")}</Text>}
+                  >
+                    <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+                      <Text type="secondary">{t("settings.configTab.memoryDescription")}</Text>
 
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <Button
-                        data-testid="save-memory-settings"
-                        type="primary"
-                        onClick={() => handleSaveConfig("memory")}
-                        loading={isLoading}
-                      >
-                        {t("settings.configTab.save")}
-                      </Button>
-                    </div>
-                  </Space>
-                </Card>
-
-                <Card
-                  size="small"
-                  className="lotus-settings-card"
-                  title={<Text strong>{t("settings.configTab.subagentsTitle")}</Text>}
-                >
-                  <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-                    <Text type="secondary">{t("settings.configTab.subagentsDescription")}</Text>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: token.marginMD,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div>
-                        <Text strong>{t("settings.configTab.subagentMaxConcurrent")}</Text>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                            {t("settings.configTab.subagentMaxConcurrentHint")}
-                          </Text>
-                        </div>
-                      </div>
-                      <InputNumber
-                        data-testid="subagent-max-concurrent"
-                        style={{ width: 120 }}
-                        min={1}
-                        step={1}
-                        precision={0}
-                        placeholder="8"
-                        value={config.subagents.max_concurrent ?? null}
-                        onChange={(value) =>
-                          handleSubagentMaxConcurrentChange(
-                            typeof value === "number" ? value : null,
-                          )
-                        }
-                      />
-                    </div>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        gap: token.marginMD,
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <div>
-                        <Text strong>{t("settings.configTab.subagentExecutor")}</Text>
-                        <div>
-                          <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                            {t("settings.configTab.subagentExecutorHint")}
-                          </Text>
-                        </div>
-                      </div>
-                      <Select
-                        data-testid="subagent-executor"
-                        style={{ width: 260 }}
-                        value={config.subagents.executor ?? SUBAGENT_EXECUTOR_BUILT_IN}
-                        onChange={(value) => handleSubagentExecutorChange(value as string)}
-                        options={[
-                          {
-                            label: t("settings.configTab.subagentExecutorBuiltIn"),
-                            value: SUBAGENT_EXECUTOR_BUILT_IN,
-                          },
-                          {
-                            label: t("settings.configTab.subagentExecutorClaudeCode"),
-                            value: SUBAGENT_EXECUTOR_CLAUDE_CODE,
-                          },
-                          {
-                            label: t("settings.configTab.subagentExecutorCodex"),
-                            value: SUBAGENT_EXECUTOR_CODEX,
-                          },
-                        ]}
-                      />
-                    </div>
-
-                    {config.subagents.executor === SUBAGENT_EXECUTOR_CLAUDE_CODE && (
-                      <Space
-                        direction="vertical"
-                        size={token.marginMD}
+                      <div
                         style={{
-                          width: "100%",
-                          padding: token.paddingSM,
-                          borderRadius: token.borderRadiusLG,
-                          background: token.colorFillTertiary,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: token.marginMD,
+                          flexWrap: "wrap",
                         }}
                       >
-                        <Alert
-                          type="info"
-                          showIcon
-                          message={t("settings.configTab.claudeCodeExecutorNotice")}
+                        <div>
+                          <Text strong>{t("settings.configTab.autoDreamEnabled")}</Text>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                              {t("settings.configTab.autoDreamEnabledHint")}
+                            </Text>
+                          </div>
+                        </div>
+                        <Switch
+                          data-testid="auto-dream-toggle"
+                          checked={config.memory.auto_dream_enabled}
+                          onChange={handleAutoDreamToggle}
                         />
+                      </div>
 
-                        <div>
-                          <Text strong>{t("settings.configTab.claudeCodeBinary")}</Text>
-                          <div>
-                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                              {t("settings.configTab.claudeCodeBinaryHint")}
-                            </Text>
-                          </div>
-                          <Input
-                            data-testid="claude-code-binary"
-                            style={{ marginTop: token.marginXXS }}
-                            placeholder={t("settings.configTab.claudeCodeBinaryPlaceholder")}
-                            value={config.subagents.claude_code_binary ?? ""}
-                            onChange={(e) => handleClaudeCodeBinaryChange(e.target.value)}
-                          />
-                        </div>
-
-                        <div>
-                          <Text strong>{t("settings.configTab.claudeCodeModel")}</Text>
-                          <div>
-                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                              {t("settings.configTab.claudeCodeModelHint")}
-                            </Text>
-                          </div>
-                          <Input
-                            data-testid="claude-code-model"
-                            style={{ marginTop: token.marginXXS }}
-                            placeholder={t("settings.configTab.claudeCodeModelPlaceholder")}
-                            value={config.subagents.claude_code_model ?? ""}
-                            onChange={(e) => handleClaudeCodeModelChange(e.target.value)}
-                          />
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: token.marginMD,
-                            flexWrap: "wrap",
-                          }}
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <Button
+                          data-testid="save-memory-settings"
+                          type="primary"
+                          onClick={() => handleSaveConfig("memory")}
+                          loading={isLoading}
                         >
-                          <div>
-                            <Text strong>{t("settings.configTab.claudeCodePermissionMode")}</Text>
-                            <div>
-                              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                                {t("settings.configTab.claudeCodePermissionModeHint")}
-                              </Text>
-                            </div>
-                          </div>
-                          <Select
-                            data-testid="claude-code-permission-mode"
-                            style={{ width: 220 }}
-                            value={config.subagents.claude_code_permission_mode ?? "default"}
-                            onChange={(value) =>
-                              handleClaudeCodePermissionModeChange(value as string)
-                            }
-                            options={CLAUDE_CODE_PERMISSION_MODES.map((mode) => ({
-                              label: t(`settings.configTab.claudeCodePermissionModes.${mode}`),
-                              value: mode,
-                            }))}
-                          />
-                        </div>
-
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "space-between",
-                            gap: token.marginMD,
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <div>
-                            <Text strong>
-                              {t("settings.configTab.claudeCodeInheritUserConfig")}
-                            </Text>
-                            <div>
-                              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                                {t("settings.configTab.claudeCodeInheritUserConfigHint")}
-                              </Text>
-                            </div>
-                          </div>
-                          <Switch
-                            data-testid="claude-code-inherit-user-config"
-                            checked={config.subagents.claude_code_inherit_user_config ?? false}
-                            onChange={handleClaudeCodeInheritUserConfigToggle}
-                          />
-                        </div>
-
-                        <div>
-                          <Text strong>{t("settings.configTab.claudeCodeForwardEnv")}</Text>
-                          <div>
-                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                              {t("settings.configTab.claudeCodeForwardEnvHint")}
-                            </Text>
-                          </div>
-                          <Select<string[]>
-                            data-testid="claude-code-forward-env"
-                            mode="tags"
-                            open={false}
-                            tokenSeparators={[",", " "]}
-                            style={{ width: "100%", marginTop: token.marginXXS }}
-                            value={config.subagents.claude_code_forward_env ?? []}
-                            onChange={(value) => handleClaudeCodeForwardEnvChange(value)}
-                            placeholder={t("settings.configTab.claudeCodeForwardEnvPlaceholder")}
-                          />
-                        </div>
-                      </Space>
-                    )}
-
-                    {config.subagents.executor === SUBAGENT_EXECUTOR_CODEX && (
-                      <CodexExecutorSettings
-                        value={config.subagents}
-                        validationIssues={subagentValidationIssues}
-                        onChange={handleCodexSettingsChange}
-                      />
-                    )}
-
-                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                      <Button
-                        data-testid="save-subagent-settings"
-                        type="primary"
-                        onClick={() => handleSaveConfig("subagents")}
-                        loading={isLoading}
-                      >
-                        {t("settings.configTab.save")}
-                      </Button>
-                    </div>
-                  </Space>
-                </Card>
-
-                <Card
-                  size="small"
-                  title={<Text strong>{t("settings.configTab.backendApiBaseUrlTitle")}</Text>}
-                >
-                  <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                    <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
-                      <Input
-                        style={{ width: "100%" }}
-                        value={backendBaseUrl}
-                        onChange={(e) => setBackendBaseUrl(e.target.value)}
-                        placeholder={t("settings.configTab.backendApiPlaceholder")}
-                      />
+                          {t("settings.configTab.save")}
+                        </Button>
+                      </div>
                     </Space>
-                    <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                      {t("settings.configTab.backendApiHint")}
-                    </Text>
+                  </Card>
+
+                  <Card
+                    size="small"
+                    className="lotus-settings-card"
+                    title={<Text strong>{t("settings.configTab.subagentsTitle")}</Text>}
+                  >
+                    <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+                      <Text type="secondary">{t("settings.configTab.subagentsDescription")}</Text>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: token.marginMD,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <Text strong>{t("settings.configTab.subagentMaxConcurrent")}</Text>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                              {t("settings.configTab.subagentMaxConcurrentHint")}
+                            </Text>
+                          </div>
+                        </div>
+                        <InputNumber
+                          data-testid="subagent-max-concurrent"
+                          style={{ width: 120 }}
+                          min={1}
+                          step={1}
+                          precision={0}
+                          placeholder="8"
+                          value={config.subagents.max_concurrent ?? null}
+                          onChange={(value) =>
+                            handleSubagentMaxConcurrentChange(
+                              typeof value === "number" ? value : null,
+                            )
+                          }
+                        />
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: token.marginMD,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <Text strong>{t("settings.configTab.subagentExecutor")}</Text>
+                          <div>
+                            <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                              {t("settings.configTab.subagentExecutorHint")}
+                            </Text>
+                          </div>
+                        </div>
+                        <Select
+                          data-testid="subagent-executor"
+                          style={{ width: 260 }}
+                          value={config.subagents.executor ?? SUBAGENT_EXECUTOR_BUILT_IN}
+                          onChange={(value) => handleSubagentExecutorChange(value as string)}
+                          options={[
+                            {
+                              label: t("settings.configTab.subagentExecutorBuiltIn"),
+                              value: SUBAGENT_EXECUTOR_BUILT_IN,
+                            },
+                            {
+                              label: t("settings.configTab.subagentExecutorClaudeCode"),
+                              value: SUBAGENT_EXECUTOR_CLAUDE_CODE,
+                            },
+                            {
+                              label: t("settings.configTab.subagentExecutorCodex"),
+                              value: SUBAGENT_EXECUTOR_CODEX,
+                            },
+                          ]}
+                        />
+                      </div>
+
+                      {config.subagents.executor === SUBAGENT_EXECUTOR_CLAUDE_CODE && (
+                        <Space
+                          direction="vertical"
+                          size={token.marginMD}
+                          style={{
+                            width: "100%",
+                            padding: token.paddingSM,
+                            borderRadius: token.borderRadiusLG,
+                            background: token.colorFillTertiary,
+                          }}
+                        >
+                          <Alert
+                            type="info"
+                            showIcon
+                            message={t("settings.configTab.claudeCodeExecutorNotice")}
+                          />
+
+                          <div>
+                            <Text strong>{t("settings.configTab.claudeCodeBinary")}</Text>
+                            <div>
+                              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                                {t("settings.configTab.claudeCodeBinaryHint")}
+                              </Text>
+                            </div>
+                            <Input
+                              data-testid="claude-code-binary"
+                              style={{ marginTop: token.marginXXS }}
+                              placeholder={t("settings.configTab.claudeCodeBinaryPlaceholder")}
+                              value={config.subagents.claude_code_binary ?? ""}
+                              onChange={(e) => handleClaudeCodeBinaryChange(e.target.value)}
+                            />
+                          </div>
+
+                          <div>
+                            <Text strong>{t("settings.configTab.claudeCodeModel")}</Text>
+                            <div>
+                              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                                {t("settings.configTab.claudeCodeModelHint")}
+                              </Text>
+                            </div>
+                            <Input
+                              data-testid="claude-code-model"
+                              style={{ marginTop: token.marginXXS }}
+                              placeholder={t("settings.configTab.claudeCodeModelPlaceholder")}
+                              value={config.subagents.claude_code_model ?? ""}
+                              onChange={(e) => handleClaudeCodeModelChange(e.target.value)}
+                            />
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: token.marginMD,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div>
+                              <Text strong>{t("settings.configTab.claudeCodePermissionMode")}</Text>
+                              <div>
+                                <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                                  {t("settings.configTab.claudeCodePermissionModeHint")}
+                                </Text>
+                              </div>
+                            </div>
+                            <Select
+                              data-testid="claude-code-permission-mode"
+                              style={{ width: 220 }}
+                              value={config.subagents.claude_code_permission_mode ?? "default"}
+                              onChange={(value) =>
+                                handleClaudeCodePermissionModeChange(value as string)
+                              }
+                              options={CLAUDE_CODE_PERMISSION_MODES.map((mode) => ({
+                                label: t(`settings.configTab.claudeCodePermissionModes.${mode}`),
+                                value: mode,
+                              }))}
+                            />
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: token.marginMD,
+                              flexWrap: "wrap",
+                            }}
+                          >
+                            <div>
+                              <Text strong>
+                                {t("settings.configTab.claudeCodeInheritUserConfig")}
+                              </Text>
+                              <div>
+                                <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                                  {t("settings.configTab.claudeCodeInheritUserConfigHint")}
+                                </Text>
+                              </div>
+                            </div>
+                            <Switch
+                              data-testid="claude-code-inherit-user-config"
+                              checked={config.subagents.claude_code_inherit_user_config ?? false}
+                              onChange={handleClaudeCodeInheritUserConfigToggle}
+                            />
+                          </div>
+
+                          <div>
+                            <Text strong>{t("settings.configTab.claudeCodeForwardEnv")}</Text>
+                            <div>
+                              <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                                {t("settings.configTab.claudeCodeForwardEnvHint")}
+                              </Text>
+                            </div>
+                            <Select<string[]>
+                              data-testid="claude-code-forward-env"
+                              mode="tags"
+                              open={false}
+                              tokenSeparators={[",", " "]}
+                              style={{ width: "100%", marginTop: token.marginXXS }}
+                              value={config.subagents.claude_code_forward_env ?? []}
+                              onChange={(value) => handleClaudeCodeForwardEnvChange(value)}
+                              placeholder={t("settings.configTab.claudeCodeForwardEnvPlaceholder")}
+                            />
+                          </div>
+                        </Space>
+                      )}
+
+                      {config.subagents.executor === SUBAGENT_EXECUTOR_CODEX && (
+                        <CodexExecutorSettings
+                          value={config.subagents}
+                          validationIssues={subagentValidationIssues}
+                          onChange={handleCodexSettingsChange}
+                        />
+                      )}
+
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <Button
+                          data-testid="save-subagent-settings"
+                          type="primary"
+                          onClick={() => handleSaveConfig("subagents")}
+                          loading={isLoading}
+                        >
+                          {t("settings.configTab.save")}
+                        </Button>
+                      </div>
+                    </Space>
+                  </Card>
+
+                  <Card
+                    size="small"
+                    title={<Text strong>{t("settings.configTab.backendApiBaseUrlTitle")}</Text>}
+                  >
+                    <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
+                      <Space direction="vertical" size={token.marginXXS} style={{ width: "100%" }}>
+                        <Input
+                          style={{ width: "100%" }}
+                          value={backendBaseUrl}
+                          onChange={(e) => setBackendBaseUrl(e.target.value)}
+                          placeholder={t("settings.configTab.backendApiPlaceholder")}
+                        />
+                      </Space>
+                      <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
+                        {t("settings.configTab.backendApiHint")}
+                      </Text>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "flex-end",
+                          gap: token.marginSM,
+                        }}
+                      >
+                        <Button data-testid="reset-to-defaults" onClick={handleResetBackendUrl}>
+                          {t("settings.configTab.resetToDefault")}
+                        </Button>
+                        <Button
+                          data-testid="save-api-settings"
+                          type="primary"
+                          onClick={handleSaveBackendUrl}
+                        >
+                          {t("settings.configTab.save")}
+                        </Button>
+                      </div>
+                    </Space>
+                  </Card>
+
+                  <AccessPasswordCard msgApi={msgApi} />
+                </Space>
+              ),
+            },
+            {
+              key: "tools",
+              label: t("settings.configTab.tabs.tools"),
+              children: (
+                <Card size="small" title={<Text strong>{t("settings.configTab.toolsTitle")}</Text>}>
+                  <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
+                    <Text type="secondary">{t("settings.configTab.toolsDescription")}</Text>
+
+                    {availableTools.length === 0 ? (
+                      <Alert type="info" showIcon message={t("settings.configTab.toolsEmpty")} />
+                    ) : (
+                      <List
+                        bordered
+                        dataSource={availableTools}
+                        renderItem={(toolName) => (
+                          <List.Item
+                            actions={[
+                              <Switch
+                                key={`${toolName}-switch`}
+                                checked={!disabledToolSet.has(toolName)}
+                                onChange={(enabled) => handleToolEnabledChange(toolName, enabled)}
+                              />,
+                            ]}
+                          >
+                            <Text code>{toolName}</Text>
+                          </List.Item>
+                        )}
+                      />
+                    )}
+
                     <div
                       style={{
                         display: "flex",
@@ -1159,78 +1214,23 @@ export const SystemSettingsConfigTab: React.FC<SystemSettingsConfigTabProps> = (
                         gap: token.marginSM,
                       }}
                     >
-                      <Button data-testid="reset-to-defaults" onClick={handleResetBackendUrl}>
-                        {t("settings.configTab.resetToDefault")}
+                      <Button onClick={handleReloadTools} loading={isToolsBusy}>
+                        {t("settings.configTab.reloadTools")}
                       </Button>
                       <Button
-                        data-testid="save-api-settings"
                         type="primary"
-                        onClick={handleSaveBackendUrl}
+                        onClick={handleSaveTools}
+                        loading={isToolsBusy}
+                        disabled={!hasToolChanges}
                       >
                         {t("settings.configTab.save")}
                       </Button>
                     </div>
                   </Space>
                 </Card>
-
-                <AccessPasswordCard msgApi={msgApi} />
-              </Space>
-            ),
-          },
-          {
-            key: "tools",
-            label: t("settings.configTab.tabs.tools"),
-            children: (
-              <Card size="small" title={<Text strong>{t("settings.configTab.toolsTitle")}</Text>}>
-                <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
-                  <Text type="secondary">{t("settings.configTab.toolsDescription")}</Text>
-
-                  {availableTools.length === 0 ? (
-                    <Alert type="info" showIcon message={t("settings.configTab.toolsEmpty")} />
-                  ) : (
-                    <List
-                      bordered
-                      dataSource={availableTools}
-                      renderItem={(toolName) => (
-                        <List.Item
-                          actions={[
-                            <Switch
-                              key={`${toolName}-switch`}
-                              checked={!disabledToolSet.has(toolName)}
-                              onChange={(enabled) => handleToolEnabledChange(toolName, enabled)}
-                            />,
-                          ]}
-                        >
-                          <Text code>{toolName}</Text>
-                        </List.Item>
-                      )}
-                    />
-                  )}
-
-                  <div
-                    style={{
-                      display: "flex",
-                      justifyContent: "flex-end",
-                      gap: token.marginSM,
-                    }}
-                  >
-                    <Button onClick={handleReloadTools} loading={isToolsBusy}>
-                      {t("settings.configTab.reloadTools")}
-                    </Button>
-                    <Button
-                      type="primary"
-                      onClick={handleSaveTools}
-                      loading={isToolsBusy}
-                      disabled={!hasToolChanges}
-                    >
-                      {t("settings.configTab.save")}
-                    </Button>
-                  </div>
-                </Space>
-              </Card>
-            ),
-          },
-        ]}
+              ),
+            },
+          ]}
         />
       </div>
     </Spin>

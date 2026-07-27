@@ -5,7 +5,6 @@ import {
   ConfigConflictError,
   configSectionsService,
   type ConfigSectionEnvelope,
-  type CredentialStatus,
   type EnvMutationResult,
   type EnvSection,
 } from "@services/config/configSections";
@@ -41,36 +40,28 @@ const entries: EnvSection = [
   {
     name: "GITHUB_TOKEN",
     secret: true,
+    credential_state: "configured",
     credential_ref: "env.GITHUB_TOKEN.value",
+    source: "user",
+    updated_at: null,
     configured: true,
     description: "GitHub PAT",
   },
   {
     name: "FROM_ENV",
     secret: true,
+    credential_state: "from_env",
     credential_ref: "env.FROM_ENV.value",
+    source: "environment",
+    updated_at: null,
     configured: true,
     description: "Environment-owned token",
   },
   {
     name: "EMPTY_SECRET",
     secret: true,
+    credential_state: "missing",
     configured: false,
-  },
-];
-
-const credentialStatuses: CredentialStatus[] = [
-  {
-    credential_ref: "env.GITHUB_TOKEN.value",
-    configured: true,
-    source: "user",
-    updated_at: null,
-  },
-  {
-    credential_ref: "env.FROM_ENV.value",
-    configured: true,
-    source: "environment",
-    updated_at: null,
   },
 ];
 
@@ -87,25 +78,8 @@ const envEnvelope = (
   last_error: null,
 });
 
-const credentialsEnvelope = (
-  revision: number,
-  data: CredentialStatus[] = credentialStatuses,
-): ConfigSectionEnvelope<CredentialStatus[]> => ({
-  data,
-  revision,
-  loaded_at: `2026-07-26T00:01:0${revision}Z`,
-  source_path: "/tmp/credentials.json",
-  source_kind: "file",
-  status: "healthy",
-  last_error: null,
-});
-
-const mutationResult = (
-  envelope: ConfigSectionEnvelope<EnvSection>,
-  credentialRevision = 11,
-): EnvMutationResult => ({
+const mutationResult = (envelope: ConfigSectionEnvelope<EnvSection>): EnvMutationResult => ({
   envelope,
-  credentials: credentialsEnvelope(credentialRevision),
 });
 
 const openEditModal = async (name: string) => {
@@ -131,16 +105,13 @@ const publishEnvEnvelope = (envelope: ConfigSectionEnvelope<EnvSection>) => {
 
 describe("SystemSettingsEnvVarsTab", () => {
   let currentEnv: ConfigSectionEnvelope<EnvSection>;
-  let currentCredentials: ConfigSectionEnvelope<CredentialStatus[]>;
 
   beforeEach(() => {
     vi.clearAllMocks();
     useConfigSectionStore.getState().reset();
     currentEnv = envEnvelope(5);
-    currentCredentials = credentialsEnvelope(10);
     vi.spyOn(configSectionsService, "getSection").mockImplementation(async (section) => {
       if (section === "env") return currentEnv as never;
-      if (section === "credentials") return currentCredentials as never;
       throw new Error(`Unexpected section ${section}`);
     });
     vi.spyOn(configSectionsService, "upsertEnvVar").mockResolvedValue(
@@ -158,7 +129,7 @@ describe("SystemSettingsEnvVarsTab", () => {
 
   afterEach(() => vi.restoreAllMocks());
 
-  it("renders the typed Env and credential envelopes without retaining a mask", async () => {
+  it("renders the exact typed Env projection without retaining a mask", async () => {
     render(<SystemSettingsEnvVarsTab />);
 
     expect(await screen.findByText("NODE_ENV")).toBeInTheDocument();
@@ -168,7 +139,6 @@ describe("SystemSettingsEnvVarsTab", () => {
     expect(screen.getByText("Missing")).toBeInTheDocument();
     expect(screen.queryByText("****...****")).not.toBeInTheDocument();
     expect(configSectionsService.getSection).toHaveBeenCalledWith("env");
-    expect(configSectionsService.getSection).toHaveBeenCalledWith("credentials");
   });
 
   it("creates a variable through the store with the captured section revision", async () => {
@@ -191,7 +161,7 @@ describe("SystemSettingsEnvVarsTab", () => {
         5,
         expect.objectContaining({
           name: "NEW_SECRET",
-          value: "new-secret-value",
+          credential_change: { action: "replace", value: "new-secret-value" },
           secret: true,
         }),
       ),
@@ -228,7 +198,10 @@ describe("SystemSettingsEnvVarsTab", () => {
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith(
         5,
-        expect.objectContaining({ name: "GITHUB_TOKEN", value: "" }),
+        expect.objectContaining({
+          name: "GITHUB_TOKEN",
+          credential_change: { action: "clear" },
+        }),
       ),
     );
   });
@@ -248,7 +221,10 @@ describe("SystemSettingsEnvVarsTab", () => {
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith(
         5,
-        expect.objectContaining({ name: "FROM_ENV", value: "explicit-replacement" }),
+        expect.objectContaining({
+          name: "FROM_ENV",
+          credential_change: { action: "replace", value: "explicit-replacement" },
+        }),
       ),
     );
   });
@@ -309,7 +285,10 @@ describe("SystemSettingsEnvVarsTab", () => {
       expect(save).toHaveBeenCalledWith(
         6,
         expect.objectContaining({
-          value: "local-secret-replacement",
+          credential_change: {
+            action: "replace",
+            value: "local-secret-replacement",
+          },
           description: "Local metadata",
         }),
       ),
@@ -364,10 +343,6 @@ describe("SystemSettingsEnvVarsTab", () => {
             ...state.sections.env,
             envelope: envEnvelope(5),
             error: "redacted env refresh failure",
-          },
-          credentials: {
-            ...state.sections.credentials,
-            envelope: credentialsEnvelope(10),
           },
         },
       }));

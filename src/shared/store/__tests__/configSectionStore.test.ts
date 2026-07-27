@@ -110,7 +110,10 @@ const envEnvelope = (revision: number): ConfigSectionEnvelope<EnvSection> => ({
     {
       name: "SECRET_TOKEN",
       secret: true,
+      credential_state: "configured",
       credential_ref: "env.SECRET_TOKEN.value",
+      source: "user",
+      updated_at: null,
       configured: true,
     },
   ],
@@ -139,9 +142,8 @@ const credentialsEnvelope = (revision: number): ConfigSectionEnvelope<Credential
   last_error: null,
 });
 
-const envMutationResult = (envRevision: number, credentialRevision: number): EnvMutationResult => ({
+const envMutationResult = (envRevision: number): EnvMutationResult => ({
   envelope: envEnvelope(envRevision),
-  credentials: credentialsEnvelope(credentialRevision),
 });
 
 const accessEnvelope = (revision: number): ConfigSectionEnvelope<AccessControlSection> => ({
@@ -160,33 +162,34 @@ const accessEnvelope = (revision: number): ConfigSectionEnvelope<AccessControlSe
   last_error: null,
 });
 
-const accessMutationResult = (
-  sectionRevision: number,
-  credentialRevision: number,
-): AccessMutationResult => ({
+const accessRuntimeStatus = (revision: number, passwordEnabled = true) => ({
+  password_enabled: passwordEnabled,
+  local_bypass: true,
+  requires_password: false,
+  revision,
+  status: "healthy" as const,
+  source_kind: "file" as const,
+  loaded_at: "2026-07-27T00:00:00Z",
+  last_error: null,
+  password_configured: passwordEnabled,
+  credential_state: passwordEnabled ? ("configured" as const) : ("missing" as const),
+  credential_ref: passwordEnabled ? "access.root.password" : null,
+  credential_source: passwordEnabled ? "user" : null,
+  credential_updated_at: null,
+});
+
+const accessMutationResult = (sectionRevision: number): AccessMutationResult => ({
   envelope: accessEnvelope(sectionRevision),
-  credentials: {
-    ...credentialsEnvelope(credentialRevision),
-    data: [
-      {
-        credential_ref: "access.root.password",
-        configured: true,
-        source: "user",
-        updated_at: null,
-      },
-    ],
-  },
-  runtime: {
-    password_enabled: true,
-    local_bypass: true,
-    requires_password: false,
+  credential: {
+    credential_ref: "access.root.password",
+    configured: true,
+    state: "configured",
+    source: "user",
+    updated_at: null,
   },
 });
 
-const notificationEnvelope = (
-  sectionRevision: number,
-  credentialRevision: number,
-): NotificationSectionEnvelope => ({
+const notificationEnvelope = (sectionRevision: number): NotificationSectionEnvelope => ({
   data: {
     desktop: { enabled: true },
     ntfy: {
@@ -196,6 +199,7 @@ const notificationEnvelope = (
       credential: {
         credential_ref: null,
         configured: false,
+        state: "missing",
         source: null,
         updated_at: null,
       },
@@ -206,6 +210,7 @@ const notificationEnvelope = (
       credential: {
         credential_ref: null,
         configured: false,
+        state: "missing",
         source: null,
         updated_at: null,
       },
@@ -217,10 +222,6 @@ const notificationEnvelope = (
   source_kind: "file",
   status: "healthy",
   last_error: null,
-  credential_revision: credentialRevision,
-  credential_status: "healthy",
-  credential_source: "file",
-  credential_last_error: null,
 });
 
 describe("useConfigSectionStore", () => {
@@ -243,6 +244,20 @@ describe("useConfigSectionStore", () => {
     const snapshot = useConfigSectionStore.getState().sections.core;
     expect(snapshot.envelope).toEqual(envelope(1));
     expect(snapshot.error).toBe("redacted parse failure");
+  });
+
+  it("redacts credential-shaped values before an error enters store state", async () => {
+    vi.spyOn(configSectionsService, "getSection").mockRejectedValueOnce(
+      new Error("invalid config: device_key=bark-live-secret"),
+    );
+
+    await expect(
+      useConfigSectionStore.getState().loadSection("notifications", { force: true }),
+    ).rejects.toThrow();
+
+    const error = useConfigSectionStore.getState().sections.notifications.error;
+    expect(error).toContain("device_key=[redacted]");
+    expect(error).not.toContain("bark-live-secret");
   });
 
   it("does not let an older load response overwrite a newer save", async () => {
@@ -550,7 +565,7 @@ describe("useConfigSectionStore", () => {
     ).toBe(5);
   });
 
-  it("adopts Env and credential envelopes together without storing a mutation secret", async () => {
+  it("adopts the exact Env envelope without mutating global credential state", async () => {
     useConfigSectionStore.setState((state) => ({
       sections: {
         ...state.sections,
@@ -563,12 +578,12 @@ describe("useConfigSectionStore", () => {
     }));
     const save = vi
       .spyOn(configSectionsService, "upsertEnvVar")
-      .mockResolvedValueOnce(envMutationResult(5, 11));
+      .mockResolvedValueOnce(envMutationResult(5));
 
     await useConfigSectionStore.getState().saveEnvVar(
       {
         name: "SECRET_TOKEN",
-        value: "replacement-secret",
+        credential_change: { action: "replace", value: "replacement-secret" },
         secret: true,
       },
       4,
@@ -576,19 +591,19 @@ describe("useConfigSectionStore", () => {
 
     expect(save).toHaveBeenCalledWith(4, {
       name: "SECRET_TOKEN",
-      value: "replacement-secret",
+      credential_change: { action: "replace", value: "replacement-secret" },
       secret: true,
     });
     expect(useConfigSectionStore.getState().sections.env.envelope).toEqual(envEnvelope(5));
     expect(useConfigSectionStore.getState().sections.credentials.envelope).toEqual(
-      credentialsEnvelope(11),
+      credentialsEnvelope(10),
     );
     expect(JSON.stringify(useConfigSectionStore.getState().sections)).not.toContain(
       "replacement-secret",
     );
   });
 
-  it("does not regress Env or credential state behind newer event snapshots", async () => {
+  it("does not regress Env behind a newer event snapshot", async () => {
     useConfigSectionStore.setState((state) => ({
       sections: {
         ...state.sections,
@@ -624,9 +639,9 @@ describe("useConfigSectionStore", () => {
         },
       },
     }));
-    resolveSave(envMutationResult(5, 11));
+    resolveSave(envMutationResult(5));
 
-    await expect(pending).resolves.toEqual(envMutationResult(6, 12));
+    await expect(pending).resolves.toEqual(envMutationResult(6));
     expect(useConfigSectionStore.getState().sections.env.envelope).toEqual(envEnvelope(6));
     expect(useConfigSectionStore.getState().sections.credentials.envelope).toEqual(
       credentialsEnvelope(12),
@@ -655,8 +670,9 @@ describe("useConfigSectionStore", () => {
     expect(useConfigSectionStore.getState().sections.env.conflict?.currentRevision).toBe(5);
   });
 
-  it("adopts Access, credential, and runtime status together without storing passwords", async () => {
+  it("adopts exact Access and runtime status without mutating global credentials", async () => {
     useConfigSectionStore.setState((state) => ({
+      accessRuntimeStatus: accessRuntimeStatus(4),
       sections: {
         ...state.sections,
         "access-control": {
@@ -671,37 +687,31 @@ describe("useConfigSectionStore", () => {
     }));
     const replace = vi
       .spyOn(configSectionsService, "replaceAccessPassword")
-      .mockResolvedValueOnce(accessMutationResult(5, 21));
+      .mockResolvedValueOnce(accessMutationResult(5));
 
     await useConfigSectionStore.getState().replaceAccessPassword(
       {
         current_password: "current-secret",
-        new_password: "replacement-secret",
+        value: "replacement-secret",
       },
       4,
     );
 
     expect(replace).toHaveBeenCalledWith(4, {
       current_password: "current-secret",
-      new_password: "replacement-secret",
+      value: "replacement-secret",
     });
     expect(useConfigSectionStore.getState().sections["access-control"].envelope).toEqual(
       accessEnvelope(5),
     );
-    expect(useConfigSectionStore.getState().sections.credentials.envelope?.revision).toBe(21);
-    expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(
-      accessMutationResult(5, 21).runtime,
-    );
+    expect(useConfigSectionStore.getState().sections.credentials.envelope?.revision).toBe(20);
+    expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(accessRuntimeStatus(5));
     expect(JSON.stringify(useConfigSectionStore.getState())).not.toContain("current-secret");
     expect(JSON.stringify(useConfigSectionStore.getState())).not.toContain("replacement-secret");
   });
 
   it("does not let an older Access runtime load regress a password mutation", async () => {
-    let resolveRuntime!: (value: {
-      password_enabled: boolean;
-      local_bypass: boolean;
-      requires_password: boolean;
-    }) => void;
+    let resolveRuntime!: (value: ReturnType<typeof accessRuntimeStatus>) => void;
     vi.spyOn(configSectionsService, "getAccessRuntimeStatus").mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -709,6 +719,7 @@ describe("useConfigSectionStore", () => {
         }),
     );
     useConfigSectionStore.setState((state) => ({
+      accessRuntimeStatus: accessRuntimeStatus(4),
       sections: {
         ...state.sections,
         "access-control": {
@@ -718,7 +729,7 @@ describe("useConfigSectionStore", () => {
       },
     }));
     vi.spyOn(configSectionsService, "replaceAccessPassword").mockResolvedValueOnce(
-      accessMutationResult(5, 21),
+      accessMutationResult(5),
     );
 
     const pendingRuntime = useConfigSectionStore.getState().loadAccessRuntimeStatus({
@@ -726,16 +737,58 @@ describe("useConfigSectionStore", () => {
     });
     await useConfigSectionStore
       .getState()
-      .replaceAccessPassword({ new_password: "replacement-secret" }, 4);
+      .replaceAccessPassword({ value: "replacement-secret" }, 4);
     resolveRuntime({
+      ...accessRuntimeStatus(3),
       password_enabled: false,
       local_bypass: false,
       requires_password: false,
     });
 
-    await expect(pendingRuntime).resolves.toEqual(accessMutationResult(5, 21).runtime);
+    await expect(pendingRuntime).resolves.toEqual(accessRuntimeStatus(5));
+    expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(accessRuntimeStatus(5));
+  });
+
+  it("keeps an Access mutation response pair intact behind a newer event snapshot", async () => {
+    let resolveMutation!: (value: AccessMutationResult) => void;
+    vi.spyOn(configSectionsService, "replaceAccessPassword").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveMutation = resolve;
+        }),
+    );
+    useConfigSectionStore.setState((state) => ({
+      accessRuntimeStatus: accessRuntimeStatus(4),
+      sections: {
+        ...state.sections,
+        "access-control": {
+          ...state.sections["access-control"],
+          envelope: accessEnvelope(4),
+        },
+      },
+    }));
+
+    const pending = useConfigSectionStore
+      .getState()
+      .replaceAccessPassword({ value: "replacement-secret" }, 4);
+    useConfigSectionStore.setState((state) => ({
+      accessRuntimeStatus: accessRuntimeStatus(6, false),
+      sections: {
+        ...state.sections,
+        "access-control": {
+          ...state.sections["access-control"],
+          envelope: accessEnvelope(6),
+        },
+      },
+    }));
+    resolveMutation(accessMutationResult(5));
+
+    await expect(pending).resolves.toEqual(accessMutationResult(5));
+    expect(useConfigSectionStore.getState().sections["access-control"].envelope).toEqual(
+      accessEnvelope(6),
+    );
     expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(
-      accessMutationResult(5, 21).runtime,
+      accessRuntimeStatus(6, false),
     );
   });
 
@@ -758,9 +811,7 @@ describe("useConfigSectionStore", () => {
     );
 
     await expect(
-      useConfigSectionStore
-        .getState()
-        .replaceAccessPassword({ new_password: "replacement-secret" }, 4),
+      useConfigSectionStore.getState().replaceAccessPassword({ value: "replacement-secret" }, 4),
     ).rejects.toThrow("revision conflict");
     expect(useConfigSectionStore.getState().sections["access-control"].envelope).toEqual(
       accessEnvelope(4),
@@ -770,18 +821,16 @@ describe("useConfigSectionStore", () => {
     ).toBe(5);
   });
 
-  it("retains notification credential metadata alongside the typed section revision", async () => {
-    vi.spyOn(configSectionsService, "getSection").mockResolvedValueOnce(
-      notificationEnvelope(7, 70),
-    );
+  it("retains notification credential status inside the exact typed projection", async () => {
+    vi.spyOn(configSectionsService, "getSection").mockResolvedValueOnce(notificationEnvelope(7));
 
     await useConfigSectionStore.getState().loadSection("notifications");
 
     expect(useConfigSectionStore.getState().sections.notifications.envelope).toMatchObject({
       revision: 7,
-      credential_revision: 70,
-      credential_status: "healthy",
-      credential_source: "file",
+      data: {
+        ntfy: { credential: { state: "missing", configured: false } },
+      },
     });
   });
 
@@ -791,16 +840,13 @@ describe("useConfigSectionStore", () => {
         ...state.sections,
         notifications: {
           ...state.sections.notifications,
-          envelope: notificationEnvelope(7, 70),
+          envelope: notificationEnvelope(7),
         },
         connect: { ...state.sections.connect, envelope: connectEnvelope(7) },
       },
     }));
     let resolveNotifications!: (value: NotificationSectionEnvelope) => void;
-    let resolveConnect!: (value: {
-      envelope: ConfigSectionEnvelope<ConnectSection>;
-      credentialRevision: number;
-    }) => void;
+    let resolveConnect!: (value: ConfigSectionEnvelope<ConnectSection>) => void;
     vi.spyOn(configSectionsService, "putNotifications").mockImplementationOnce(
       () =>
         new Promise((resolve) => {
@@ -816,28 +862,25 @@ describe("useConfigSectionStore", () => {
 
     const notificationSave = useConfigSectionStore
       .getState()
-      .saveNotifications(notificationEnvelope(7, 70).data, 7);
-    const connectSave = useConfigSectionStore.getState().saveConnect({ platforms: [] }, 70);
+      .saveNotifications(notificationEnvelope(7).data, 7);
+    const connectSave = useConfigSectionStore.getState().saveConnect({ platforms: [] }, 7);
     useConfigSectionStore.setState((state) => ({
       sections: {
         ...state.sections,
         notifications: {
           ...state.sections.notifications,
-          envelope: notificationEnvelope(9, 90),
+          envelope: notificationEnvelope(9),
         },
         connect: { ...state.sections.connect, envelope: connectEnvelope(9) },
       },
     }));
-    resolveNotifications(notificationEnvelope(8, 80));
-    resolveConnect({ envelope: connectEnvelope(8), credentialRevision: 80 });
+    resolveNotifications(notificationEnvelope(8));
+    resolveConnect(connectEnvelope(8));
 
-    await expect(notificationSave).resolves.toEqual(notificationEnvelope(9, 90));
-    await expect(connectSave).resolves.toEqual({
-      envelope: connectEnvelope(9),
-      credentialRevision: 80,
-    });
+    await expect(notificationSave).resolves.toEqual(notificationEnvelope(9));
+    await expect(connectSave).resolves.toEqual(connectEnvelope(9));
     expect(useConfigSectionStore.getState().sections.notifications.envelope).toEqual(
-      notificationEnvelope(9, 90),
+      notificationEnvelope(9),
     );
     expect(useConfigSectionStore.getState().sections.connect.envelope).toEqual(connectEnvelope(9));
   });
@@ -919,17 +962,23 @@ describe("useConfigSectionStore", () => {
 
   it("dedupes proxy credential status and uses its revision for replacement", async () => {
     const missing = {
+      section: envelope(3, {}),
+      state: "missing" as const,
       configured: false,
       credential_ref: null,
       source: null,
       updated_at: null,
       revision: 3,
       status: "healthy" as const,
-      source_kind: "file",
+      source_kind: "file" as const,
+      source_path: "/tmp/core.json",
+      loaded_at: "2026-07-23T00:00:03Z",
       last_error: null,
     };
     const configured = {
       ...missing,
+      section: envelope(4, { proxy_auth_credential_ref: "proxy.default.auth" }),
+      state: "configured" as const,
       configured: true,
       credential_ref: "proxy.default.auth",
       source: "user",
@@ -956,13 +1005,20 @@ describe("useConfigSectionStore", () => {
 
   it("does not let a stale proxy status load regress a newer credential mutation", async () => {
     const status = (revision: number, configured: boolean) => ({
+      section: envelope(
+        revision,
+        configured ? { proxy_auth_credential_ref: "proxy.default.auth" } : {},
+      ),
+      state: configured ? ("configured" as const) : ("missing" as const),
       configured,
       credential_ref: configured ? "proxy.default.auth" : null,
       source: configured ? "user" : null,
       updated_at: null,
       revision,
       status: "healthy" as const,
-      source_kind: "file",
+      source_kind: "file" as const,
+      source_path: "/tmp/core.json",
+      loaded_at: `2026-07-23T00:00:0${revision}Z`,
       last_error: null,
     });
     let resolveLoad!: (value: ReturnType<typeof status>) => void;

@@ -21,6 +21,7 @@ import { McpServerTable } from "./mcp/McpServerTable";
 import { McpServerFormModal } from "./mcp/McpServerFormModal";
 import { McpToolList } from "./mcp/McpToolList";
 import { copyText } from "@shared/utils/clipboard";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -44,12 +45,8 @@ const makeStatusCounters = (): Record<ServerStatus, number> => ({
   [ServerStatus.Error]: 0,
 });
 
-const getErrorMessage = (error: unknown, fallback: string): string => {
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
-  return fallback;
-};
+const getErrorMessage = (error: unknown, fallback: string): string =>
+  configErrorMessage(error, fallback);
 
 type MainstreamMcpServersChunk = {
   mcpServers: Record<string, unknown>;

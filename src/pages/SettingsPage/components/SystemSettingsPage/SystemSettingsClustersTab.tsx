@@ -35,6 +35,7 @@ import {
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text, Paragraph } = Typography;
 
@@ -319,9 +320,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       adoptModalEnvelope(latest, false);
     } catch (error) {
       message.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.clusters.fetchError", "Failed to load clusters"),
+        configErrorMessage(error, t("settings.clusters.fetchError", "Failed to load clusters")),
       );
     }
   }, [adoptModalEnvelope, loadSection, message, t]);
@@ -332,9 +331,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       adoptModalEnvelope(latest, true);
     } catch (error) {
       message.error(
-        error instanceof Error
-          ? error.message
-          : t("settings.clusters.fetchError", "Failed to load clusters"),
+        configErrorMessage(error, t("settings.clusters.fetchError", "Failed to load clusters")),
       );
     }
   }, [adoptModalEnvelope, loadSection, message, t]);
@@ -463,8 +460,7 @@ const SystemSettingsClustersTab: React.FC = () => {
         }
       }
       message.error(
-        (error instanceof Error ? error.message : undefined) ||
-          t("settings.clusters.saveError", "Failed to save node"),
+        configErrorMessage(error, t("settings.clusters.saveError", "Failed to save node")),
       );
     }
   };
@@ -478,8 +474,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       message.success(t("settings.clusters.deleted", "Node deleted"));
     } catch (err: unknown) {
       message.error(
-        (err instanceof Error ? err.message : undefined) ||
-          t("settings.clusters.deleteError", "Failed to delete node"),
+        configErrorMessage(err, t("settings.clusters.deleteError", "Failed to delete node")),
       );
     }
   };
@@ -496,10 +491,7 @@ const SystemSettingsClustersTab: React.FC = () => {
           : t("settings.clusters.actionOk", "Action triggered"),
       );
     } catch (err: unknown) {
-      message.error(
-        (err instanceof Error ? err.message : undefined) ||
-          t("settings.clusters.actionFailed", "Action failed"),
-      );
+      message.error(configErrorMessage(err, t("settings.clusters.actionFailed", "Action failed")));
     }
   };
 
@@ -512,10 +504,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       const res = await configSectionsService.getClusterNodeLogs(node.id, 200);
       setLogsText(res.logs || t("settings.clusters.logsEmpty", "(no log output yet)"));
     } catch (err: unknown) {
-      setLogsText(
-        (err instanceof Error ? err.message : undefined) ||
-          t("settings.clusters.logsError", "Failed to read logs"),
-      );
+      setLogsText(configErrorMessage(err, t("settings.clusters.logsError", "Failed to read logs")));
     } finally {
       setLogsLoading(false);
     }

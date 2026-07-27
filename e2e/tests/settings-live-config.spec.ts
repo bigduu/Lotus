@@ -114,14 +114,15 @@ test.describe.serial("Live versioned settings", () => {
 
       await fs.writeFile(target, "{ invalid json\n");
 
-      await expect(page.getByText("model-policy configuration invalid")).toBeVisible({
+      const unhealthyStatus = page.getByText(/model-policy configuration (invalid|degraded)/);
+      await expect(unhealthyStatus).toBeVisible({
         timeout: 15_000,
       });
       await expect(page.locator('[data-testid="add-keyword"]')).toBeVisible();
 
       await restoreSection("model-policy", original);
       await expect(page.getByText(/model-policy: healthy/)).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByText("model-policy configuration invalid")).toBeHidden();
+      await expect(unhealthyStatus).toBeHidden();
     } finally {
       await restoreSection("model-policy", original);
     }

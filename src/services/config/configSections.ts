@@ -159,8 +159,10 @@ export type SubagentsSection = BambooSubagentsConfig;
 export interface ConnectSectionPlatform extends ConnectPlatformConfig {
   token_configured?: boolean;
   token_credential_ref?: string | null;
+  token_credential?: CredentialStatusView;
   app_secret_configured?: boolean;
   app_secret_credential_ref?: string | null;
+  app_secret_credential?: CredentialStatusView;
 }
 
 export interface ConnectSection {
@@ -168,8 +170,8 @@ export interface ConnectSection {
 }
 
 export type ConnectSectionDraftPlatform = Omit<ConnectPlatformConfig, "token" | "app_secret"> & {
-  token?: string | null;
-  app_secret?: string | null;
+  token_change?: CredentialAction;
+  app_secret_change?: CredentialAction;
 };
 
 export interface ConnectSectionDraft {
@@ -294,7 +296,11 @@ export interface EnvSectionEntry {
   /** Plaintext exists only for non-secret entries. Secret section data keeps this empty/omitted. */
   value?: string;
   secret: boolean;
+  has_value?: boolean;
+  credential_state?: CredentialState;
   credential_ref?: string | null;
+  source?: CredentialStatus["source"] | null;
+  updated_at?: string | null;
   configured: boolean;
   description?: string;
 }
@@ -303,8 +309,9 @@ export type EnvSection = EnvSectionEntry[];
 
 export interface EnvVarMutation {
   name: string;
-  /** Missing keeps an existing value; an empty string explicitly clears it. */
+  /** Plain values only. Secret values use credential_change. */
   value?: string;
+  credential_change?: CredentialAction;
   secret: boolean;
   description?: string;
 }
@@ -316,9 +323,23 @@ export interface CredentialStatus {
   updated_at: string | null;
 }
 
+export type CredentialState = "configured" | "from_env" | "missing" | "error";
+
+export interface CredentialStatusView {
+  credential_ref: string | null;
+  configured: boolean;
+  state: CredentialState;
+  source: CredentialStatus["source"] | null;
+  updated_at: string | null;
+}
+
+export type CredentialAction =
+  | { action: "keep" }
+  | { action: "replace"; value: string }
+  | { action: "clear" };
+
 export interface EnvMutationResult {
   envelope: ConfigSectionEnvelope<EnvSection>;
-  credentials: ConfigSectionEnvelope<CredentialStatus[]>;
 }
 
 export interface AccessControlDevice {
@@ -345,25 +366,33 @@ export interface AccessRuntimeStatus {
   password_enabled: boolean;
   local_bypass: boolean;
   requires_password: boolean;
+  revision: number;
+  status: ConfigSectionStatus;
+  source_kind: ConfigSectionSourceKind;
+  loaded_at: string;
+  last_error: string | null;
+  password_configured: boolean;
+  credential_state: CredentialState;
+  credential_ref: string | null;
+  credential_source: CredentialStatus["source"] | null;
+  credential_updated_at: string | null;
 }
 
 export interface AccessPasswordMutation {
   current_password?: string;
-  new_password: string;
+  value: string;
+}
+
+export interface AccessPasswordClearMutation {
+  current_password?: string;
 }
 
 export interface AccessMutationResult {
   envelope: ConfigSectionEnvelope<AccessControlSection>;
-  credentials: ConfigSectionEnvelope<CredentialStatus[]>;
-  runtime: AccessRuntimeStatus;
+  credential: CredentialStatusView;
 }
 
-export interface NotificationCredentialStatus {
-  credential_ref: string | null;
-  configured: boolean;
-  source: CredentialStatus["source"] | null;
-  updated_at: string | null;
-}
+export type NotificationCredentialStatus = CredentialStatusView;
 
 export interface NotificationSection {
   desktop: { enabled: boolean | null };
@@ -380,12 +409,7 @@ export interface NotificationSection {
   };
 }
 
-export interface NotificationSectionEnvelope extends ConfigSectionEnvelope<NotificationSection> {
-  credential_revision: number;
-  credential_status: ConfigSectionStatus;
-  credential_source: ConfigSectionSourceKind | null;
-  credential_last_error: string | null;
-}
+export type NotificationSectionEnvelope = ConfigSectionEnvelope<NotificationSection>;
 
 export interface HooksSection {
   image_fallback?: { enabled?: boolean; mode?: string };
@@ -502,30 +526,28 @@ interface NotificationConfigResponse {
   revision: number;
   status: ConfigSectionStatus;
   source: ConfigSectionSourceKind | null;
+  source_path: string;
+  loaded_at: string;
   last_error: string | null;
+  section: ConfigSectionEnvelope<unknown>;
 }
 
-const mergeNotificationEnvelope = (
-  section: ConfigSectionEnvelope<unknown>,
-  credentials: NotificationConfigResponse,
+const normalizeNotificationEnvelope = (
+  response: NotificationConfigResponse,
 ): NotificationSectionEnvelope => ({
-  data: credentials.data,
-  revision: section.revision,
-  loaded_at: section.loaded_at,
-  source_path: section.source_path,
-  source_kind: section.source_kind,
-  status: section.status,
-  last_error: section.last_error,
-  credential_revision: credentials.revision,
-  credential_status: credentials.status,
-  credential_source: credentials.source,
-  credential_last_error: credentials.last_error,
+  ...response.section,
+  data: response.data,
 });
 
 export interface NotificationSectionDraft {
   desktop: { enabled: boolean | null };
-  ntfy: { enabled: boolean; base_url: string; topic: string; token?: string | null };
-  bark: { enabled: boolean; base_url: string; device_key?: string | null };
+  ntfy: {
+    enabled: boolean;
+    base_url: string;
+    topic: string;
+    credential_change?: CredentialAction;
+  };
+  bark: { enabled: boolean; base_url: string; credential_change?: CredentialAction };
 }
 
 export interface CredentialEnvelope {
@@ -538,13 +560,17 @@ export interface CredentialEnvelope {
 
 export interface ProxyAuthStatus {
   success?: boolean;
+  section: ConfigSectionEnvelope<CoreSection>;
   credential_ref: string | null;
+  state: CredentialState;
   configured: boolean;
   source: string | null;
   updated_at: string | null;
   revision: number;
   status: ConfigSectionStatus;
-  source_kind: string | null;
+  source_kind: ConfigSectionSourceKind;
+  source_path: string;
+  loaded_at: string;
   last_error: string | null;
 }
 
@@ -553,9 +579,44 @@ type ClusterMutationWireResponse = ConfigSectionEnvelope<ClusterFabricSection> &
   preflight?: string;
 };
 
+interface ConnectConfigResponse {
+  revision: number;
+  section: ConfigSectionEnvelope<ConnectSection>;
+  credential_status: Record<
+    string,
+    {
+      token: CredentialStatusView;
+      app_secret: CredentialStatusView;
+    }
+  >;
+}
+
 interface EnvMutationWireResponse {
   revision: number;
-  entries: unknown[];
+  entries: EnvSectionEntry[];
+  section: ConfigSectionEnvelope<unknown>;
+}
+
+interface AccessMutationWireResponse {
+  revision: number;
+  section: ConfigSectionEnvelope<AccessControlSection>;
+  credential: CredentialStatusView;
+}
+
+interface ProxyAuthWireResponse
+  extends Partial<
+    Omit<
+      ProxyAuthStatus,
+      "section" | "credential_ref" | "state" | "configured" | "source" | "updated_at" | "revision"
+    >
+  > {
+  section: ConfigSectionEnvelope<CoreSection>;
+  credential_ref: string | null;
+  state: CredentialState;
+  configured: boolean;
+  source: string | null;
+  updated_at: string | null;
+  revision: number;
 }
 
 const normalizeClusterMutation = (
@@ -586,94 +647,55 @@ const normalizeCredentialEnvelope = (
   last_error: response.last_error,
 });
 
+const normalizeConnectEnvelope = (
+  response: ConnectConfigResponse,
+): ConfigSectionEnvelope<ConnectSection> => ({
+  ...response.section,
+  data: {
+    ...response.section.data,
+    platforms: (response.section.data.platforms ?? []).map((platform, index) => {
+      const status = response.credential_status[platform.id ?? `index-${index}`];
+      return {
+        ...platform,
+        ...(status?.token ? { token_credential: status.token } : {}),
+        ...(status?.app_secret ? { app_secret_credential: status.app_secret } : {}),
+      };
+    }),
+  },
+});
+
+const normalizeEnvEnvelope = (
+  response: EnvMutationWireResponse,
+): ConfigSectionEnvelope<EnvSection> => ({
+  ...response.section,
+  data: response.entries,
+});
+
+const normalizeProxyAuthStatus = (response: ProxyAuthWireResponse): ProxyAuthStatus => ({
+  ...response,
+  status: response.section.status,
+  source_kind: response.section.source_kind,
+  source_path: response.section.source_path,
+  loaded_at: response.section.loaded_at,
+  last_error: response.section.last_error,
+});
+
 class ConfigSectionsService {
-  private async readEnvMutationState(): Promise<EnvMutationResult> {
-    const [envelope, credentialResponse] = await Promise.all([
-      this.getSection("env"),
-      this.listCredentials(),
-    ]);
-    return {
-      envelope,
-      credentials: normalizeCredentialEnvelope(credentialResponse),
-    };
-  }
-
-  private async commitEnvMutation(
-    expectedSectionRevision: number,
-    mutate: (credentialRevision: number) => Promise<unknown>,
-  ): Promise<EnvMutationResult> {
-    let current = await this.readEnvMutationState();
-    if (current.envelope.revision !== expectedSectionRevision) {
-      throw new ConfigConflictError({
-        expectedRevision: expectedSectionRevision,
-        currentRevision: current.envelope.revision,
-        message: "The environment configuration changed on disk.",
-      });
-    }
-
-    let credentialRevision = current.credentials.revision;
-    try {
-      await mutate(credentialRevision);
-    } catch (error) {
-      if (!isApiError(error) || error.status !== 409) throw error;
-
-      // Bamboo currently exposes the credential document revision on the
-      // dedicated Env endpoint. Rebase one unrelated credential race, but
-      // always re-check the form's owned section revision before retrying.
-      current = await this.readEnvMutationState();
-      if (current.envelope.revision !== expectedSectionRevision) {
-        throw new ConfigConflictError({
-          expectedRevision: expectedSectionRevision,
-          currentRevision: current.envelope.revision,
-          message: "The environment configuration changed on disk.",
-        });
-      }
-      if (current.credentials.revision === credentialRevision) {
-        throw new ConfigConflictError({
-          expectedRevision: expectedSectionRevision,
-          currentRevision: current.envelope.revision,
-          message: error.message || "The environment configuration changed on disk.",
-        });
-      }
-
-      credentialRevision = current.credentials.revision;
-      try {
-        await mutate(credentialRevision);
-      } catch (retryError) {
-        if (!isApiError(retryError) || retryError.status !== 409) throw retryError;
-        const latest = await this.readEnvMutationState();
-        throw new ConfigConflictError({
-          expectedRevision: expectedSectionRevision,
-          currentRevision: latest.envelope.revision,
-          message: retryError.message || "The environment configuration changed on disk.",
-        });
-      }
-    }
-
-    // Never adopt the dedicated response entries: legacy Bamboo responses mask
-    // secret values. Re-read the typed section and credential status envelopes.
-    return this.readEnvMutationState();
-  }
-
-  private async readAccessMutationState(): Promise<AccessMutationResult> {
-    const [envelope, credentialResponse, runtime] = await Promise.all([
-      this.getSection("access-control"),
-      this.listCredentials(),
-      this.getAccessRuntimeStatus(),
-    ]);
-    return {
-      envelope,
-      credentials: normalizeCredentialEnvelope(credentialResponse),
-      runtime,
-    };
-  }
-
   async getNotificationSection(): Promise<NotificationSectionEnvelope> {
-    const [section, credentials] = await Promise.all([
-      apiClient.get<ConfigSectionEnvelope<unknown>>("/bamboo/config/sections/notifications"),
-      apiClient.get<NotificationConfigResponse>("/bamboo/config/notifications"),
-    ]);
-    return mergeNotificationEnvelope(section, credentials);
+    const response = await apiClient.get<NotificationConfigResponse>(
+      "/bamboo/config/notifications",
+    );
+    return normalizeNotificationEnvelope(response);
+  }
+
+  async getConnectSection(): Promise<ConfigSectionEnvelope<ConnectSection>> {
+    const response = await apiClient.get<ConnectConfigResponse>("/bamboo/config/connect");
+    return normalizeConnectEnvelope(response);
+  }
+
+  async getEnvSection(): Promise<ConfigSectionEnvelope<EnvSection>> {
+    const response = await apiClient.get<EnvMutationWireResponse>("/bamboo/env-vars");
+    return normalizeEnvEnvelope(response);
   }
 
   async getMcpSettings(): Promise<ConfigSectionEnvelope<McpSection>> {
@@ -699,6 +721,12 @@ class ConfigSectionsService {
       return this.getNotificationSection() as unknown as Promise<
         ConfigSectionEnvelope<ConfigSectionDataMap[K]>
       >;
+    }
+    if (section === "connect") {
+      return this.getConnectSection() as Promise<ConfigSectionEnvelope<ConfigSectionDataMap[K]>>;
+    }
+    if (section === "env") {
+      return this.getEnvSection() as Promise<ConfigSectionEnvelope<ConfigSectionDataMap[K]>>;
     }
     if (section === "credentials") {
       const response = await this.listCredentials();
@@ -792,10 +820,12 @@ class ConfigSectionsService {
         { expected_revision: expectedRevision },
       );
 
-      // Notifications use a credential-aware diagnostic projection for normal
-      // reads, while the typed reset endpoint returns the persisted section.
-      // Re-read it so the store never loses configured/source credential status.
-      if (section === "notifications") return this.getSection(section);
+      // Dedicated credential-backed reads add secret-free status projections to
+      // the canonical typed envelope. Re-read after reset so the store keeps
+      // those statuses without ever loading the global credential document.
+      if (section === "notifications" || section === "connect" || section === "env") {
+        return this.getSection(section);
+      }
       return response;
     } catch (error) {
       return mapConflict(error, expectedRevision);
@@ -806,80 +836,30 @@ class ConfigSectionsService {
     expectedSectionRevision: number,
     data: NotificationSectionDraft,
   ): Promise<NotificationSectionEnvelope> {
-    // Notification metadata is revisioned by its typed section, while the
-    // compatibility transaction that owns ntfy/Bark credentials uses the
-    // credential-store revision. Always refresh both immediately before the
-    // write: a cached credential revision can conflict with an unrelated
-    // credential update, and a stale typed draft must never overwrite newer
-    // notification metadata merely because the credential CAS still matches.
-    const current = await this.getNotificationSection();
-    if (current.revision !== expectedSectionRevision) {
-      throw new ConfigConflictError({
-        expectedRevision: expectedSectionRevision,
-        currentRevision: current.revision,
-        message: "The notification configuration changed on disk.",
-      });
-    }
-
-    const notifications = {
-      desktop: data.desktop,
-      ntfy: {
-        enabled: data.ntfy.enabled,
-        base_url: data.ntfy.base_url,
-        topic: data.ntfy.topic,
-        ...(Object.prototype.hasOwnProperty.call(data.ntfy, "token")
-          ? { token: data.ntfy.token }
-          : {}),
-      },
-      bark: {
-        enabled: data.bark.enabled,
-        base_url: data.bark.base_url,
-        ...(Object.prototype.hasOwnProperty.call(data.bark, "device_key")
-          ? { device_key: data.bark.device_key }
-          : {}),
-      },
-    };
     try {
-      await apiClient.post("/bamboo/config", {
-        expected_revision: current.credential_revision,
-        notifications,
-      });
-      return this.getNotificationSection();
+      const response = await apiClient.put<NotificationConfigResponse>(
+        "/bamboo/config/notifications",
+        {
+          expected_revision: expectedSectionRevision,
+          data,
+        },
+      );
+      return normalizeNotificationEnvelope(response);
     } catch (error) {
-      if (isApiError(error) && error.status === 409) {
-        let currentRevision: number | null = null;
-        try {
-          currentRevision = (await this.getNotificationSection()).revision;
-        } catch {
-          // Preserve the original conflict when the diagnostic refresh also fails.
-        }
-        throw new ConfigConflictError({
-          expectedRevision: expectedSectionRevision,
-          currentRevision,
-          message: error.message || "The notification configuration changed on disk.",
-        });
-      }
-      throw error;
+      return mapConflict(error, expectedSectionRevision);
     }
   }
 
   async putConnect(
     expectedRevision: number,
     data: ConnectSectionDraft,
-  ): Promise<{
-    envelope: ConfigSectionEnvelope<ConnectSection>;
-    credentialRevision: number;
-  }> {
+  ): Promise<ConfigSectionEnvelope<ConnectSection>> {
     try {
-      await apiClient.post("/bamboo/config", {
+      const response = await apiClient.put<ConnectConfigResponse>("/bamboo/config/connect", {
         expected_revision: expectedRevision,
-        connect: data,
+        data,
       });
-      const [envelope, credentials] = await Promise.all([
-        this.getSection("connect"),
-        this.listCredentials(),
-      ]);
-      return { envelope, credentialRevision: credentials.revision };
+      return normalizeConnectEnvelope(response);
     } catch (error) {
       return mapConflict(error, expectedRevision);
     }
@@ -889,47 +869,65 @@ class ConfigSectionsService {
     expectedSectionRevision: number,
     data: EnvVarMutation,
   ): Promise<EnvMutationResult> {
-    return this.commitEnvMutation(expectedSectionRevision, (credentialRevision) =>
-      apiClient.post<EnvMutationWireResponse>("/bamboo/env-vars", {
-        expected_revision: credentialRevision,
+    try {
+      const response = await apiClient.post<EnvMutationWireResponse>("/bamboo/env-vars", {
+        expected_revision: expectedSectionRevision,
         ...data,
-      }),
-    );
+      });
+      return { envelope: normalizeEnvEnvelope(response) };
+    } catch (error) {
+      return mapConflict(error, expectedSectionRevision);
+    }
   }
 
   async deleteEnvVar(name: string, expectedSectionRevision: number): Promise<EnvMutationResult> {
-    return this.commitEnvMutation(expectedSectionRevision, (credentialRevision) =>
-      apiClient.delete<EnvMutationWireResponse>(
-        `/bamboo/env-vars/${encodeURIComponent(name)}?expected_revision=${credentialRevision}`,
-      ),
-    );
+    try {
+      const response = await apiClient.delete<EnvMutationWireResponse>(
+        `/bamboo/env-vars/${encodeURIComponent(name)}?expected_revision=${expectedSectionRevision}`,
+      );
+      return { envelope: normalizeEnvEnvelope(response) };
+    } catch (error) {
+      return mapConflict(error, expectedSectionRevision);
+    }
   }
 
   async replaceAccessPassword(
     expectedSectionRevision: number,
     data: AccessPasswordMutation,
   ): Promise<AccessMutationResult> {
-    const current = await this.readAccessMutationState();
-    if (current.envelope.revision !== expectedSectionRevision) {
-      throw new ConfigConflictError({
-        expectedRevision: expectedSectionRevision,
-        currentRevision: current.envelope.revision,
-        message: "The access-control configuration changed on disk.",
-      });
-    }
-
     try {
-      await apiClient.post("/bamboo/access/password", data);
-    } catch (error) {
-      if (!isApiError(error) || error.status !== 409) throw error;
-      const latest = await this.readAccessMutationState();
-      throw new ConfigConflictError({
-        expectedRevision: expectedSectionRevision,
-        currentRevision: latest.envelope.revision,
-        message: error.message || "The access-control configuration changed on disk.",
+      const response = await apiClient.post<AccessMutationWireResponse>("/bamboo/access/password", {
+        expected_revision: expectedSectionRevision,
+        action: "replace",
+        current_password: data.current_password,
+        value: data.value,
       });
+      return {
+        envelope: response.section,
+        credential: response.credential,
+      };
+    } catch (error) {
+      return mapConflict(error, expectedSectionRevision);
     }
-    return this.readAccessMutationState();
+  }
+
+  async clearAccessPassword(
+    expectedSectionRevision: number,
+    data: AccessPasswordClearMutation,
+  ): Promise<AccessMutationResult> {
+    try {
+      const response = await apiClient.post<AccessMutationWireResponse>("/bamboo/access/password", {
+        expected_revision: expectedSectionRevision,
+        action: "clear",
+        current_password: data.current_password,
+      });
+      return {
+        envelope: response.section,
+        credential: response.credential,
+      };
+    } catch (error) {
+      return mapConflict(error, expectedSectionRevision);
+    }
   }
 
   async createClusterNode(
@@ -1061,7 +1059,8 @@ class ConfigSectionsService {
   }
 
   async getProxyAuthStatus(): Promise<ProxyAuthStatus> {
-    return apiClient.get<ProxyAuthStatus>("/bamboo/proxy-auth/status");
+    const response = await apiClient.get<ProxyAuthWireResponse>("/bamboo/proxy-auth/status");
+    return normalizeProxyAuthStatus(response);
   }
 
   async replaceProxyAuth(
@@ -1069,10 +1068,12 @@ class ConfigSectionsService {
     auth: { username: string; password: string },
   ): Promise<ProxyAuthStatus> {
     try {
-      return await apiClient.post<ProxyAuthStatus>("/bamboo/proxy-auth", {
+      const response = await apiClient.post<ProxyAuthWireResponse>("/bamboo/proxy-auth", {
         expected_revision: expectedRevision,
+        action: "replace",
         ...auth,
       });
+      return normalizeProxyAuthStatus(response);
     } catch (error) {
       return mapConflict(error, expectedRevision);
     }
@@ -1080,39 +1081,11 @@ class ConfigSectionsService {
 
   async clearProxyAuth(expectedRevision: number): Promise<ProxyAuthStatus> {
     try {
-      return await apiClient.post<ProxyAuthStatus>("/bamboo/proxy-auth", {
+      const response = await apiClient.post<ProxyAuthWireResponse>("/bamboo/proxy-auth", {
         expected_revision: expectedRevision,
-        username: "",
+        action: "clear",
       });
-    } catch (error) {
-      return mapConflict(error, expectedRevision);
-    }
-  }
-
-  async replaceCredential(
-    credentialRef: string,
-    expectedRevision: number,
-    value: string,
-  ): Promise<CredentialEnvelope> {
-    try {
-      return await apiClient.put<CredentialEnvelope>(
-        `/bamboo/config/credentials/${encodeURIComponent(credentialRef)}`,
-        { expected_revision: expectedRevision, value },
-      );
-    } catch (error) {
-      return mapConflict(error, expectedRevision);
-    }
-  }
-
-  async clearCredential(
-    credentialRef: string,
-    expectedRevision: number,
-  ): Promise<CredentialEnvelope> {
-    try {
-      return await apiClient.post<CredentialEnvelope>(
-        `/bamboo/config/credentials/${encodeURIComponent(credentialRef)}/clear`,
-        { expected_revision: expectedRevision },
-      );
+      return normalizeProxyAuthStatus(response);
     } catch (error) {
       return mapConflict(error, expectedRevision);
     }

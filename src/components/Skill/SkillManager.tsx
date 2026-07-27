@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { skillService } from "../../services/skill/SkillService";
 import type { SkillDefinition } from "@shared/types/skill";
 import { useConfigSectionStore } from "../../shared/store/configSectionStore";
+import { configErrorMessage } from "../../shared/utils/configErrors";
 import { SkillCard } from "./SkillCard";
 
 // Refresh interval in milliseconds (30 seconds)
@@ -50,8 +51,7 @@ export const SkillManager = () => {
         setSkills(skillResponse.skills);
         setLastRefresh(new Date());
       } catch (error) {
-        const messageText =
-          error instanceof Error ? error.message : t("components.skillManager.loadFailed");
+        const messageText = configErrorMessage(error, t("components.skillManager.loadFailed"));
         setSkillsError(messageText);
       } finally {
         setIsLoadingSkills(false);
@@ -114,18 +114,20 @@ export const SkillManager = () => {
           ),
         ).sort();
 
-        await saveSection("tools-skills", {
-          ...latest.data,
-          skills: {
-            ...(latest.data.skills ?? {}),
-            disabled: nextDisabledList,
+        await saveSection(
+          "tools-skills",
+          {
+            ...latest.data,
+            skills: {
+              ...(latest.data.skills ?? {}),
+              disabled: nextDisabledList,
+            },
           },
-        }, latest.revision);
+          latest.revision,
+        );
         message.success(t("components.skillManager.skillStateSaved"));
       } catch (error) {
-        message.error(
-          error instanceof Error ? error.message : t("components.skillManager.saveFailed"),
-        );
+        message.error(configErrorMessage(error, t("components.skillManager.saveFailed")));
       } finally {
         setSavingSkillId(null);
       }

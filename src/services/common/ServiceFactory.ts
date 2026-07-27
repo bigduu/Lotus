@@ -206,7 +206,8 @@ export interface NotificationsChannelConfig {
  *
  * `token` (Telegram bot token) and `app_secret` (Feishu app secret) are
  * write-only in the typed settings flow. Their configured state is exposed as
- * metadata, while unchanged secrets are omitted and clear uses explicit null.
+ * metadata, while unchanged secrets are omitted and clear uses an explicit
+ * credential action.
  */
 export interface ConnectPlatformConfig {
   /** Stable server-managed identity used to preserve credential ownership. */
@@ -447,11 +448,6 @@ export interface UtilityService {
   getModelLimitDefaults(): Promise<{ model_limits: ModelLimitDefault[] }>;
 
   /**
-   * Set Bamboo config
-   */
-  setBambooConfig(config: BambooConfig): Promise<BambooConfig>;
-
-  /**
    * Validate a Bamboo config patch without saving.
    */
   validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse>;
@@ -562,10 +558,6 @@ class HttpUtilityService implements UtilityService {
       console.error("Failed to fetch model limit defaults:", error);
       return { model_limits: [] };
     }
-  }
-
-  async setBambooConfig(config: BambooConfig): Promise<BambooConfig> {
-    return apiClient.post<BambooConfig>("bamboo/config", config);
   }
 
   async validateBambooConfigPatch(patch: BambooConfig): Promise<ValidateBambooConfigResponse> {

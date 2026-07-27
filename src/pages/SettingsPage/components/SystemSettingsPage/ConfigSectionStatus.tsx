@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { Alert, Button, Flex, Space, Tag, Typography } from "antd";
 import type { ConfigSectionId } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { redactConfigError } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 
@@ -11,26 +12,6 @@ const STATUS_COLOR = {
   degraded: "warning",
   invalid: "error",
 } as const;
-
-export const redactConfigError = (value: string): string => {
-  const redacted = value
-    .replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/gi, "[redacted private key]")
-    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^/\s:@]+:[^/\s@]+@/gi, "$1[redacted]@")
-    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9+/._~=-]+/gi, "$1 [redacted]")
-    .replace(
-      /("(?:token|password|secret|api[_-]?key|authorization|private[_-]?key|passphrase)"\s*:\s*)"[^"]*"/gi,
-      '$1"[redacted]"',
-    )
-    .replace(
-      /(\b(?:token|password|secret|api[_-]?key|authorization|private[_-]?key|passphrase)\b\s*[:=]\s*)('[^']*'|"[^"]*"|[^\s,;}\]]+)/gi,
-      "$1[redacted]",
-    )
-    .replace(
-      /([?&](?:token|password|secret|api[_-]?key|authorization|passphrase)=)[^&#\s]*/gi,
-      "$1[redacted]",
-    );
-  return redacted.length > 2_000 ? `${redacted.slice(0, 2_000)}… [truncated]` : redacted;
-};
 
 export const ConfigSectionStatus = ({ sections }: { sections: ConfigSectionId[] }) => {
   const allSections = useConfigSectionStore((state) => state.sections);

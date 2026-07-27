@@ -4,6 +4,7 @@ import {
   ConfigConflictError,
   configSectionsService,
   type AccessMutationResult,
+  type AccessPasswordClearMutation,
   type AccessPasswordMutation,
   type AccessRuntimeStatus,
   type ClusterDefinitionMutation,
@@ -26,6 +27,7 @@ import {
   type ProxyAuthStatus,
   type WritableConfigSectionId,
 } from "@services/config/configSections";
+import { redactConfigError } from "@shared/utils/configErrors";
 
 export interface ConfigSectionSnapshot<K extends ConfigSectionId = ConfigSectionId> {
   envelope: ConfigSectionEnvelope<ConfigSectionDataMap[K]> | null;
@@ -83,16 +85,17 @@ interface ConfigSectionStoreState {
   ) => Promise<NotificationSectionEnvelope>;
   saveConnect: (
     data: ConnectSectionDraft,
-    expectedCredentialRevision: number,
-  ) => Promise<{
-    envelope: ConfigSectionEnvelope<ConfigSectionDataMap["connect"]>;
-    credentialRevision: number;
-  }>;
+    expectedRevision?: number,
+  ) => Promise<ConfigSectionEnvelope<ConfigSectionDataMap["connect"]>>;
   saveEnvVar: (data: EnvVarMutation, expectedRevision?: number) => Promise<EnvMutationResult>;
   deleteEnvVar: (name: string, expectedRevision?: number) => Promise<EnvMutationResult>;
   loadAccessRuntimeStatus: (options?: { force?: boolean }) => Promise<AccessRuntimeStatus>;
   replaceAccessPassword: (
     data: AccessPasswordMutation,
+    expectedRevision?: number,
+  ) => Promise<AccessMutationResult>;
+  clearAccessPassword: (
+    data: AccessPasswordClearMutation,
     expectedRevision?: number,
   ) => Promise<AccessMutationResult>;
   saveClusterNode: (
@@ -156,7 +159,7 @@ const CONFIG_EVENT_DEBOUNCE_MS = 80;
 const CONFIG_EVENT_RETRY_MS = 1_000;
 
 const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : "Unable to load configuration";
+  redactConfigError(error instanceof Error ? error.message : "Unable to load configuration");
 
 const isSectionId = (value: string): value is ConfigSectionId =>
   (CONFIG_SECTION_IDS as readonly string[]).includes(value);
@@ -288,13 +291,10 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const result = await mutate(revision);
       set((state) => {
         const current = state.sections[section];
-        const currentCredentials = state.sections.credentials;
         const adoptedEnvelope =
           (current.envelope?.revision ?? -1) > result.envelope.revision
             ? current.envelope
             : result.envelope;
-        const adoptCredentials =
-          (currentCredentials.envelope?.revision ?? -1) <= result.credentials.revision;
         const latestMutation = isLatestMutation(section, mutationSequence);
         return {
           sections: {
@@ -306,21 +306,11 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
               error: latestMutation ? null : current.error,
               conflict: latestMutation ? null : current.conflict,
             },
-            credentials: adoptCredentials
-              ? {
-                  ...currentCredentials,
-                  envelope: result.credentials,
-                  loading: false,
-                  error: null,
-                  conflict: null,
-                }
-              : currentCredentials,
           },
         };
       });
       return {
         envelope: get().sections.env.envelope ?? result.envelope,
-        credentials: get().sections.credentials.envelope ?? result.credentials,
       };
     } catch (error) {
       const conflict = error instanceof ConfigConflictError ? error.conflict : null;
@@ -348,25 +338,46 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
     const revision = expectedRevision ?? snapshot.envelope?.revision;
     if (revision === undefined) throw new Error("Load access-control before changing it.");
     const mutationSequence = beginMutation(section);
-    const runtimeSequence = ++accessRuntimeRequestSequence;
 
     try {
       const result = await mutate(revision);
+      accessRuntimeRequestSequence += 1;
       set((state) => {
         const current = state.sections[section];
-        const currentCredentials = state.sections.credentials;
         const adoptedEnvelope =
           (current.envelope?.revision ?? -1) > result.envelope.revision
             ? current.envelope
             : result.envelope;
-        const adoptCredentials =
-          (currentCredentials.envelope?.revision ?? -1) <= result.credentials.revision;
         const latestMutation = isLatestMutation(section, mutationSequence);
-        const adoptRuntime = runtimeSequence === accessRuntimeRequestSequence;
+        const currentRuntime = state.accessRuntimeStatus;
+        const adoptRuntime =
+          currentRuntime !== null && currentRuntime.revision <= result.envelope.revision;
+        const access = result.envelope.data;
+        const adoptedRuntime = adoptRuntime
+          ? {
+              ...currentRuntime,
+              revision: result.envelope.revision,
+              status: result.envelope.status,
+              source_kind: result.envelope.source_kind,
+              loaded_at: result.envelope.loaded_at,
+              last_error: result.envelope.last_error,
+              password_configured: result.credential.configured,
+              credential_state: result.credential.state,
+              credential_ref: result.credential.credential_ref,
+              credential_source: result.credential.source,
+              credential_updated_at: result.credential.updated_at,
+              password_enabled: Boolean(access?.password_enabled && result.credential.configured),
+              requires_password: Boolean(
+                access?.password_enabled &&
+                  result.credential.configured &&
+                  !currentRuntime.local_bypass,
+              ),
+            }
+          : currentRuntime;
         return {
-          accessRuntimeStatus: adoptRuntime ? result.runtime : state.accessRuntimeStatus,
-          accessRuntimeLoading: adoptRuntime ? false : state.accessRuntimeLoading,
-          accessRuntimeError: adoptRuntime && latestMutation ? null : state.accessRuntimeError,
+          accessRuntimeStatus: adoptedRuntime,
+          accessRuntimeLoading: false,
+          accessRuntimeError: latestMutation ? null : state.accessRuntimeError,
           sections: {
             ...state.sections,
             [section]: {
@@ -376,31 +387,25 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
               error: latestMutation ? null : current.error,
               conflict: latestMutation ? null : current.conflict,
             },
-            credentials: adoptCredentials
-              ? {
-                  ...currentCredentials,
-                  envelope: result.credentials,
-                  loading: false,
-                  error: null,
-                  conflict: null,
-                }
-              : currentCredentials,
           },
         };
       });
-      return {
-        envelope: get().sections[section].envelope ?? result.envelope,
-        credentials: get().sections.credentials.envelope ?? result.credentials,
-        runtime: get().accessRuntimeStatus ?? result.runtime,
-      };
+      const adopted = get().sections[section].envelope;
+      // The credential projection and section envelope are one canonical
+      // response pair. If another event already installed a newer section,
+      // keep that newer snapshot in the store but return this mutation's
+      // original pair so a form cannot bind stale credential metadata to the
+      // newer revision and accidentally hide the external update.
+      return adopted && adopted.revision > result.envelope.revision
+        ? result
+        : {
+            envelope: adopted ?? result.envelope,
+            credential: result.credential,
+          };
     } catch (error) {
       const conflict = error instanceof ConfigConflictError ? error.conflict : null;
       if (!isLatestMutation(section, mutationSequence)) throw error;
       set((state) => ({
-        accessRuntimeError:
-          runtimeSequence === accessRuntimeRequestSequence
-            ? errorMessage(error)
-            : state.accessRuntimeError,
         sections: {
           ...state.sections,
           [section]: {
@@ -681,17 +686,18 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       }
     },
 
-    saveConnect: async (data, expectedCredentialRevision) => {
+    saveConnect: async (data, expectedRevision) => {
       const section = "connect" as const;
+      const snapshot = get().sections[section];
+      const revision = expectedRevision ?? snapshot.envelope?.revision;
+      if (revision === undefined) throw new Error("Load connect before saving it.");
       const mutationSequence = beginMutation(section);
       try {
-        const result = await configSectionsService.putConnect(expectedCredentialRevision, data);
+        const envelope = await configSectionsService.putConnect(revision, data);
         set((state) => {
           const current = state.sections[section];
           const adoptedEnvelope =
-            (current.envelope?.revision ?? -1) > result.envelope.revision
-              ? current.envelope
-              : result.envelope;
+            (current.envelope?.revision ?? -1) > envelope.revision ? current.envelope : envelope;
           const latestMutation = isLatestMutation(section, mutationSequence);
           return {
             sections: {
@@ -707,11 +713,7 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
           };
         });
         const adopted = get().sections[section].envelope;
-        return {
-          ...result,
-          envelope:
-            adopted && adopted.revision > result.envelope.revision ? adopted : result.envelope,
-        };
+        return adopted && adopted.revision > envelope.revision ? adopted : envelope;
       } catch (error) {
         const conflict = error instanceof ConfigConflictError ? error.conflict : null;
         if (!isLatestMutation(section, mutationSequence)) throw error;
@@ -767,6 +769,11 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
     replaceAccessPassword: (data, expectedRevision) =>
       commitAccessMutation(expectedRevision, (revision) =>
         configSectionsService.replaceAccessPassword(revision, data),
+      ),
+
+    clearAccessPassword: (data, expectedRevision) =>
+      commitAccessMutation(expectedRevision, (revision) =>
+        configSectionsService.clearAccessPassword(revision, data),
       ),
 
     saveClusterNode: (nodeId, data, expectedRevision) =>
@@ -865,7 +872,20 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
             (state.proxyAuthStatus?.revision ?? -1) > status.revision
               ? state.proxyAuthStatus
               : status;
-          return { proxyAuthStatus: adopted, proxyAuthLoading: false, proxyAuthError: null };
+          const core = state.sections.core;
+          const adoptedCore =
+            (core.envelope?.revision ?? -1) > status.section.revision
+              ? core.envelope
+              : status.section;
+          return {
+            proxyAuthStatus: adopted,
+            proxyAuthLoading: false,
+            proxyAuthError: null,
+            sections: {
+              ...state.sections,
+              core: { ...core, envelope: adoptedCore, error: null },
+            },
+          };
         });
         const adopted = get().proxyAuthStatus;
         return adopted && adopted.revision > status.revision ? adopted : status;
@@ -879,22 +899,35 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
 
     replaceProxyAuth: async (auth, expectedRevision) => {
       const revision = expectedRevision ?? (await get().loadProxyAuthStatus()).revision;
-      const mutationSequence = beginMutation("credentials");
+      const mutationSequence = beginMutation("core");
       try {
         const status = await configSectionsService.replaceProxyAuth(revision, auth);
-        set((state) => ({
-          proxyAuthStatus:
-            (state.proxyAuthStatus?.revision ?? -1) > status.revision
-              ? state.proxyAuthStatus
-              : status,
-          proxyAuthError: isLatestMutation("credentials", mutationSequence)
-            ? null
-            : state.proxyAuthError,
-        }));
+        set((state) => {
+          const core = state.sections.core;
+          return {
+            proxyAuthStatus:
+              (state.proxyAuthStatus?.revision ?? -1) > status.revision
+                ? state.proxyAuthStatus
+                : status,
+            proxyAuthError: isLatestMutation("core", mutationSequence)
+              ? null
+              : state.proxyAuthError,
+            sections: {
+              ...state.sections,
+              core: {
+                ...core,
+                envelope:
+                  (core.envelope?.revision ?? -1) > status.section.revision
+                    ? core.envelope
+                    : status.section,
+              },
+            },
+          };
+        });
         const adopted = get().proxyAuthStatus;
         return adopted && adopted.revision > status.revision ? adopted : status;
       } catch (error) {
-        if (!isLatestMutation("credentials", mutationSequence)) throw error;
+        if (!isLatestMutation("core", mutationSequence)) throw error;
         set({ proxyAuthError: errorMessage(error) });
         throw error;
       }
@@ -902,22 +935,35 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
 
     clearProxyAuth: async (expectedRevision) => {
       const revision = expectedRevision ?? (await get().loadProxyAuthStatus()).revision;
-      const mutationSequence = beginMutation("credentials");
+      const mutationSequence = beginMutation("core");
       try {
         const status = await configSectionsService.clearProxyAuth(revision);
-        set((state) => ({
-          proxyAuthStatus:
-            (state.proxyAuthStatus?.revision ?? -1) > status.revision
-              ? state.proxyAuthStatus
-              : status,
-          proxyAuthError: isLatestMutation("credentials", mutationSequence)
-            ? null
-            : state.proxyAuthError,
-        }));
+        set((state) => {
+          const core = state.sections.core;
+          return {
+            proxyAuthStatus:
+              (state.proxyAuthStatus?.revision ?? -1) > status.revision
+                ? state.proxyAuthStatus
+                : status,
+            proxyAuthError: isLatestMutation("core", mutationSequence)
+              ? null
+              : state.proxyAuthError,
+            sections: {
+              ...state.sections,
+              core: {
+                ...core,
+                envelope:
+                  (core.envelope?.revision ?? -1) > status.section.revision
+                    ? core.envelope
+                    : status.section,
+              },
+            },
+          };
+        });
         const adopted = get().proxyAuthStatus;
         return adopted && adopted.revision > status.revision ? adopted : status;
       } catch (error) {
-        if (!isLatestMutation("credentials", mutationSequence)) throw error;
+        if (!isLatestMutation("core", mutationSequence)) throw error;
         set({ proxyAuthError: errorMessage(error) });
         throw error;
       }

@@ -10,13 +10,25 @@ const proxyStatus = (
   configured: boolean,
   source: string | null = configured ? "user" : null,
 ): ProxyAuthStatus => ({
+  section: {
+    data: configured ? { proxy_auth_credential_ref: "proxy.default.auth" } : {},
+    revision,
+    loaded_at: "2026-07-27T00:00:00Z",
+    source_path: "/tmp/core.json",
+    source_kind: "file",
+    status: "healthy",
+    last_error: null,
+  },
   credential_ref: configured ? "proxy.default.auth" : null,
+  state: source === "environment" ? "from_env" : configured ? "configured" : "missing",
   configured,
   source,
   updated_at: null,
   revision,
   status: "healthy",
   source_kind: "file",
+  source_path: "/tmp/core.json",
+  loaded_at: "2026-07-27T00:00:00Z",
   last_error: null,
 });
 

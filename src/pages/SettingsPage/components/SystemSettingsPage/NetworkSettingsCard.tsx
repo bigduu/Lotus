@@ -3,6 +3,7 @@ import { Alert, Button, Card, Input, Space, Tag, Typography, theme } from "antd"
 import { useTranslation } from "react-i18next";
 import type { ProxyAuthStatus } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -85,7 +86,10 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
       );
       adoptProxyAuthStatus(status);
     } catch (error) {
-      console.error("Failed to apply proxy auth:", error);
+      console.error(
+        "Failed to apply proxy auth:",
+        configErrorMessage(error, "Failed to apply proxy authentication"),
+      );
     } finally {
       setIsApplyingProxyAuth(false);
     }
@@ -98,7 +102,10 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
       const status = await clearProxyAuth(baseProxyAuthStatus.revision);
       adoptProxyAuthStatus(status);
     } catch (error) {
-      console.error("Failed to clear proxy auth:", error);
+      console.error(
+        "Failed to clear proxy auth:",
+        configErrorMessage(error, "Failed to clear proxy authentication"),
+      );
     } finally {
       setIsApplyingProxyAuth(false);
     }
@@ -109,7 +116,10 @@ export const NetworkSettingsCard: React.FC<NetworkSettingsCardProps> = ({
       const status = await loadProxyAuthStatus({ force: true });
       adoptProxyAuthStatus(status);
     } catch (error) {
-      console.error("Failed to reload proxy auth:", error);
+      console.error(
+        "Failed to reload proxy auth:",
+        configErrorMessage(error, "Failed to reload proxy authentication"),
+      );
     }
   };
 

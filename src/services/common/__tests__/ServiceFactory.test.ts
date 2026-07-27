@@ -150,19 +150,6 @@ describe("ServiceFactory", () => {
       });
     });
 
-    describe("setBambooConfig", () => {
-      it("should post config successfully", async () => {
-        const inputConfig = { model: "new-model" };
-        const responseConfig = { model: "new-model", api_key: "saved" };
-        vi.mocked(apiClient.post).mockResolvedValueOnce(responseConfig);
-
-        const result = await serviceFactory.setBambooConfig(inputConfig);
-
-        expect(result).toEqual(responseConfig);
-        expect(apiClient.post).toHaveBeenCalledWith("bamboo/config", inputConfig);
-      });
-    });
-
     describe("validateBambooConfigPatch", () => {
       it("should validate config patch", async () => {
         const patch = { api_key: "test" };
@@ -368,7 +355,6 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("getBambooConfig");
       expect(utility).toHaveProperty("getBambooTools");
       expect(utility).toHaveProperty("getModelLimitDefaults");
-      expect(utility).toHaveProperty("setBambooConfig");
       expect(utility).toHaveProperty("validateBambooConfigPatch");
       expect(utility).toHaveProperty("testLifecycleHook");
       expect(utility).toHaveProperty("resetSetupStatus");
@@ -410,11 +396,6 @@ describe("ServiceFactory", () => {
 
       await serviceFactory.getModelLimitDefaults();
       expect(apiClient.get).toHaveBeenCalledWith("bamboo/model-limits/defaults");
-
-      await serviceFactory.setBambooConfig({});
-      expect(apiClient.post).toHaveBeenCalled();
-
-      expect(apiClient.post).toHaveBeenCalled();
 
       await serviceFactory.saveWorkflow("name", "content");
       expect(apiClient.post).toHaveBeenCalled();

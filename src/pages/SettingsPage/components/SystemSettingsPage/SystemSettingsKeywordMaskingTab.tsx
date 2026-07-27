@@ -18,6 +18,7 @@ import { ServiceFactory } from "@services/common/ServiceFactory";
 import { useTranslation } from "react-i18next";
 import i18n from "@shared/i18n";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { configErrorMessage } from "@shared/utils/configErrors";
 
 const { Text } = Typography;
 const { useToken } = theme;
@@ -158,7 +159,10 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       setExternalRevision(null);
     } catch (error) {
       message.error(t("settings.keywordMaskingTab.loadFailed"));
-      console.error(error);
+      console.error(
+        "Failed to load keyword masking configuration:",
+        configErrorMessage(error, t("settings.keywordMaskingTab.loadFailed")),
+      );
     } finally {
       setLoading(false);
     }
@@ -217,9 +221,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
       message.success(t("settings.keywordMaskingTab.saveSuccess"));
       return true;
     } catch (error) {
-      message.error(
-        error instanceof Error ? error.message : t("settings.keywordMaskingTab.saveFailed"),
-      );
+      message.error(configErrorMessage(error, t("settings.keywordMaskingTab.saveFailed")));
       return false;
     }
   };
