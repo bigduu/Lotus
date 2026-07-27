@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ConfigConflictError,
   configSectionsService,
+  type ClusterFabricSection,
+  type ClusterNodeMutation,
   type ConnectSection,
   type ConfigSectionEnvelope,
   type CoreSection,
@@ -76,6 +78,27 @@ const connectEnvelope = (revision: number): ConfigSectionEnvelope<ConnectSection
   status: "healthy",
   last_error: null,
 });
+
+const clusterEnvelope = (revision: number): ConfigSectionEnvelope<ClusterFabricSection> => ({
+  data: { nodes: [], clusters: [], credential_status: {} },
+  revision,
+  loaded_at: "2026-07-27T00:00:00Z",
+  source_path: "/tmp/cluster-fabric.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+});
+
+const clusterMutation: ClusterNodeMutation = {
+  label: "worker-1",
+  placement: { type: "local" },
+  credential_changes: {
+    password: { action: "clear" },
+    private_key: { action: "clear" },
+    passphrase: { action: "clear" },
+  },
+  membership: { cluster_names: [] },
+};
 
 const notificationEnvelope = (
   sectionRevision: number,
@@ -376,6 +399,72 @@ describe("useConfigSectionStore", () => {
     ).rejects.toThrow("revision conflict");
     expect(useConfigSectionStore.getState().sections.mcp.envelope).toEqual(mcpEnvelope(4));
     expect(useConfigSectionStore.getState().sections.mcp.conflict?.currentRevision).toBe(5);
+  });
+
+  it("adopts cluster mutation envelopes monotonically through the section store", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        "cluster-fabric": {
+          ...state.sections["cluster-fabric"],
+          envelope: clusterEnvelope(4),
+        },
+      },
+    }));
+    let resolveSave!: (value: { envelope: ConfigSectionEnvelope<ClusterFabricSection> }) => void;
+    const save = vi.spyOn(configSectionsService, "createClusterNode").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+
+    const pending = useConfigSectionStore.getState().saveClusterNode(null, clusterMutation, 4);
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        "cluster-fabric": {
+          ...state.sections["cluster-fabric"],
+          envelope: clusterEnvelope(6),
+        },
+      },
+    }));
+    resolveSave({ envelope: clusterEnvelope(5) });
+
+    await expect(pending).resolves.toEqual({ envelope: clusterEnvelope(6) });
+    expect(save).toHaveBeenCalledWith(4, clusterMutation);
+    expect(useConfigSectionStore.getState().sections["cluster-fabric"].envelope).toEqual(
+      clusterEnvelope(6),
+    );
+  });
+
+  it("keeps the cluster LKG and records a canonical stale mutation conflict", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        "cluster-fabric": {
+          ...state.sections["cluster-fabric"],
+          envelope: clusterEnvelope(4),
+        },
+      },
+    }));
+    vi.spyOn(configSectionsService, "updateClusterNode").mockRejectedValueOnce(
+      new ConfigConflictError({
+        expectedRevision: 4,
+        currentRevision: 5,
+        message: "revision conflict",
+      }),
+    );
+
+    await expect(
+      useConfigSectionStore.getState().saveClusterNode("node-1", clusterMutation, 4),
+    ).rejects.toThrow("revision conflict");
+    expect(useConfigSectionStore.getState().sections["cluster-fabric"].envelope).toEqual(
+      clusterEnvelope(4),
+    );
+    expect(
+      useConfigSectionStore.getState().sections["cluster-fabric"].conflict?.currentRevision,
+    ).toBe(5);
   });
 
   it("retains notification credential metadata alongside the typed section revision", async () => {

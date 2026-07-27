@@ -3,6 +3,8 @@ import { apiClient, ApiError } from "@services/api";
 import {
   ConfigConflictError,
   configSectionsService,
+  type ClusterFabricSection,
+  type ClusterNodeMutation,
   type McpSection,
   type NotificationSection,
   type ProviderSection,
@@ -146,6 +148,38 @@ const mcpResponse = (revision: number) => ({
   status: "healthy" as const,
   last_error: null,
 });
+
+const clusterResponse = (revision: number) => ({
+  data: {
+    nodes: [],
+    clusters: [],
+    credential_status: {},
+  } satisfies ClusterFabricSection,
+  revision,
+  loaded_at: "2026-07-27T00:00:00Z",
+  source_path: "/tmp/cluster-fabric.json",
+  source_kind: "file" as const,
+  status: "healthy" as const,
+  last_error: null,
+  node_id: "node-1",
+});
+
+const clusterNodeMutation: ClusterNodeMutation = {
+  label: "worker-1",
+  placement: {
+    type: "ssh",
+    host: "10.0.0.5",
+    port: 22,
+    username: "deploy",
+    auth: { method: "password" },
+  },
+  credential_changes: {
+    password: { action: "replace", value: "cluster-secret" },
+    private_key: { action: "clear" },
+    passphrase: { action: "clear" },
+  },
+  membership: { cluster_names: ["gpu"] },
+};
 
 describe("configSectionsService", () => {
   beforeEach(() => vi.restoreAllMocks());
@@ -329,6 +363,47 @@ describe("configSectionsService", () => {
     });
     expect(JSON.stringify(response.data)).not.toContain("new-mcp-secret");
     expect(JSON.stringify(response.data)).not.toContain("credential_ref");
+  });
+
+  it("uses one cluster section revision for atomic node, credential, and membership changes", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue(clusterResponse(9));
+
+    await expect(configSectionsService.createClusterNode(8, clusterNodeMutation)).resolves.toEqual({
+      envelope: {
+        data: clusterResponse(9).data,
+        revision: 9,
+        loaded_at: "2026-07-27T00:00:00Z",
+        source_path: "/tmp/cluster-fabric.json",
+        source_kind: "file",
+        status: "healthy",
+        last_error: null,
+      },
+      nodeId: "node-1",
+    });
+    expect(post).toHaveBeenCalledWith("/bamboo/settings/nodes", {
+      expected_revision: 8,
+      ...clusterNodeMutation,
+    });
+    expect(JSON.stringify(post.mock.calls[0]?.[1]?.placement)).not.toContain("cluster-secret");
+  });
+
+  it("binds cluster lifecycle actions to the same section revision", async () => {
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({
+      ...clusterResponse(10),
+      preflight: "Linux worker 6.1",
+    });
+
+    await expect(
+      configSectionsService.runClusterNodeAction("node/1", "test", 9),
+    ).resolves.toMatchObject({
+      envelope: { revision: 10 },
+      nodeId: "node-1",
+      preflight: "Linux worker 6.1",
+    });
+    expect(post).toHaveBeenCalledWith(
+      "/bamboo/settings/nodes/node%2F1/test?expected_revision=9",
+      {},
+    );
   });
 
   it.each([

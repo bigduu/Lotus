@@ -3,6 +3,9 @@ import {
   CONFIG_SECTION_IDS,
   ConfigConflictError,
   configSectionsService,
+  type ClusterDefinitionMutation,
+  type ClusterMutationResult,
+  type ClusterNodeMutation,
   type ConfigRevisionConflict,
   type ConfigSectionDataMap,
   type ConfigSectionEnvelope,
@@ -66,6 +69,23 @@ interface ConfigSectionStoreState {
     envelope: ConfigSectionEnvelope<ConfigSectionDataMap["connect"]>;
     credentialRevision: number;
   }>;
+  saveClusterNode: (
+    nodeId: string | null,
+    data: ClusterNodeMutation,
+    expectedRevision?: number,
+  ) => Promise<ClusterMutationResult>;
+  deleteClusterNode: (nodeId: string, expectedRevision?: number) => Promise<ClusterMutationResult>;
+  saveCluster: (
+    currentName: string | null,
+    data: ClusterDefinitionMutation,
+    expectedRevision?: number,
+  ) => Promise<ClusterMutationResult>;
+  deleteCluster: (name: string, expectedRevision?: number) => Promise<ClusterMutationResult>;
+  runClusterNodeAction: (
+    nodeId: string,
+    action: "test" | "deploy" | "stop",
+    expectedRevision?: number,
+  ) => Promise<ClusterMutationResult>;
   resetSection: <K extends ConfigSectionId>(
     section: K,
     expectedRevision?: number,
@@ -169,6 +189,61 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       return;
     }
     scheduleEventConvergence(section, CONFIG_EVENT_RETRY_MS);
+  }
+
+  async function commitClusterMutation(
+    expectedRevision: number | undefined,
+    mutate: (revision: number) => Promise<ClusterMutationResult>,
+  ): Promise<ClusterMutationResult> {
+    const section = "cluster-fabric" as const;
+    const snapshot = get().sections[section];
+    const revision = expectedRevision ?? snapshot.envelope?.revision;
+    if (revision === undefined) throw new Error("Load cluster-fabric before changing it.");
+    const mutationSequence = beginMutation(section);
+
+    try {
+      const result = await mutate(revision);
+      set((state) => {
+        const current = state.sections[section];
+        const adoptedEnvelope =
+          (current.envelope?.revision ?? -1) > result.envelope.revision
+            ? current.envelope
+            : result.envelope;
+        const latestMutation = isLatestMutation(section, mutationSequence);
+        return {
+          sections: {
+            ...state.sections,
+            [section]: {
+              ...current,
+              envelope: adoptedEnvelope,
+              loading: false,
+              error: latestMutation ? null : current.error,
+              conflict: latestMutation ? null : current.conflict,
+            },
+          },
+        };
+      });
+      const adopted = get().sections[section].envelope;
+      return {
+        ...result,
+        envelope:
+          adopted && adopted.revision > result.envelope.revision ? adopted : result.envelope,
+      };
+    } catch (error) {
+      const conflict = error instanceof ConfigConflictError ? error.conflict : null;
+      if (!isLatestMutation(section, mutationSequence)) throw error;
+      set((state) => ({
+        sections: {
+          ...state.sections,
+          [section]: {
+            ...state.sections[section],
+            error: errorMessage(error),
+            conflict,
+          },
+        },
+      }));
+      throw error;
+    }
   }
 
   return {
@@ -478,6 +553,35 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
         throw error;
       }
     },
+
+    saveClusterNode: (nodeId, data, expectedRevision) =>
+      commitClusterMutation(expectedRevision, (revision) =>
+        nodeId
+          ? configSectionsService.updateClusterNode(nodeId, revision, data)
+          : configSectionsService.createClusterNode(revision, data),
+      ),
+
+    deleteClusterNode: (nodeId, expectedRevision) =>
+      commitClusterMutation(expectedRevision, (revision) =>
+        configSectionsService.deleteClusterNode(nodeId, revision),
+      ),
+
+    saveCluster: (currentName, data, expectedRevision) =>
+      commitClusterMutation(expectedRevision, (revision) =>
+        currentName
+          ? configSectionsService.updateCluster(currentName, revision, data)
+          : configSectionsService.createCluster(revision, data),
+      ),
+
+    deleteCluster: (name, expectedRevision) =>
+      commitClusterMutation(expectedRevision, (revision) =>
+        configSectionsService.deleteCluster(name, revision),
+      ),
+
+    runClusterNodeAction: (nodeId, action, expectedRevision) =>
+      commitClusterMutation(expectedRevision, (revision) =>
+        configSectionsService.runClusterNodeAction(nodeId, action, revision),
+      ),
 
     resetSection: async (section, expectedRevision) => {
       const snapshot = get().sections[section];

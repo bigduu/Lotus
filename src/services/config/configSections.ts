@@ -176,6 +176,119 @@ export interface ConnectSectionDraft {
   platforms: ConnectSectionDraftPlatform[];
 }
 
+export type ClusterNodeStatus =
+  | "not_deployed"
+  | "deploying"
+  | "running"
+  | "unreachable"
+  | "stopped"
+  | "failed";
+
+export interface ClusterNodeState {
+  status: ClusterNodeStatus;
+  worker_id?: string;
+  remote_pid?: number;
+  log_path?: string;
+  deployed_at?: string;
+  last_health?: string;
+  last_error?: string;
+}
+
+export interface ClusterDeployProfile {
+  artifact_path?: string;
+  artifact_sha256?: string;
+  remote_dir?: string;
+  default_role?: string;
+  model?: string;
+  workspace?: string;
+  auto_recover?: boolean;
+}
+
+export type ClusterSshAuth =
+  | { method: "system_ssh_config" }
+  | { method: "password" }
+  | { method: "private_key"; private_key_path?: string };
+
+export type ClusterNodePlacement =
+  | { type: "local" }
+  | {
+      type: "ssh";
+      host: string;
+      port: number;
+      username: string;
+      auth: ClusterSshAuth;
+      host_key_fingerprint?: string;
+    };
+
+export interface ClusterFabricNode {
+  id: string;
+  label: string;
+  placement: ClusterNodePlacement;
+  trust_level: "trusted" | "untrusted";
+  deploy: ClusterDeployProfile;
+  state?: ClusterNodeState | null;
+  enabled: boolean;
+}
+
+export interface ClusterFabricCluster {
+  name: string;
+  description?: string;
+  node_ids: string[];
+}
+
+export type ClusterCredentialState = "configured" | "from_env" | "missing" | "error";
+
+export interface ClusterCredentialFieldStatus {
+  state: ClusterCredentialState;
+  source: string | null;
+  updated_at: string | null;
+}
+
+export interface ClusterNodeCredentialStatus {
+  password: ClusterCredentialFieldStatus;
+  private_key: ClusterCredentialFieldStatus;
+  passphrase: ClusterCredentialFieldStatus;
+}
+
+export interface ClusterFabricSection {
+  nodes: ClusterFabricNode[];
+  clusters: ClusterFabricCluster[];
+  credential_status: Record<string, ClusterNodeCredentialStatus>;
+}
+
+export type ClusterCredentialAction =
+  | { action: "keep" }
+  | { action: "replace"; value: string }
+  | { action: "clear" };
+
+export interface ClusterNodeCredentialChanges {
+  password: ClusterCredentialAction;
+  private_key: ClusterCredentialAction;
+  passphrase: ClusterCredentialAction;
+}
+
+export interface ClusterNodeMutation {
+  label: string;
+  placement: ClusterNodePlacement;
+  trust_level?: "trusted" | "untrusted";
+  deploy?: ClusterDeployProfile;
+  enabled?: boolean;
+  credential_changes: ClusterNodeCredentialChanges;
+  membership?: { cluster_names: string[] };
+}
+
+export interface ClusterDefinitionMutation {
+  name: string;
+  description?: string;
+  node_ids: string[];
+}
+
+export interface ClusterMutationResult {
+  envelope: ConfigSectionEnvelope<ClusterFabricSection>;
+  nodeId?: string;
+  preflight?: string;
+}
+
 export interface CredentialStatus {
   credential_ref: string;
   configured: boolean;
@@ -249,7 +362,7 @@ export interface ConfigSectionDataMap {
   subagents: SubagentsSection;
   notifications: NotificationSection;
   connect: ConnectSection;
-  "cluster-fabric": Record<string, unknown>;
+  "cluster-fabric": ClusterFabricSection;
   env: unknown[];
   "access-control": Record<string, unknown> | null;
   hooks: HooksSection;
@@ -372,6 +485,27 @@ export interface ProxyAuthStatus {
   source_kind: string | null;
   last_error: string | null;
 }
+
+type ClusterMutationWireResponse = ConfigSectionEnvelope<ClusterFabricSection> & {
+  node_id?: string;
+  preflight?: string;
+};
+
+const normalizeClusterMutation = (
+  response: ClusterMutationWireResponse,
+): ClusterMutationResult => ({
+  envelope: {
+    data: response.data,
+    revision: response.revision,
+    loaded_at: response.loaded_at,
+    source_path: response.source_path,
+    source_kind: response.source_kind,
+    status: response.status,
+    last_error: response.last_error,
+  },
+  ...(response.node_id ? { nodeId: response.node_id } : {}),
+  ...(response.preflight ? { preflight: response.preflight } : {}),
+});
 
 const normalizeCredentialEnvelope = (
   response: CredentialEnvelope,
@@ -586,6 +720,130 @@ class ConfigSectionsService {
     } catch (error) {
       return mapConflict(error, expectedRevision);
     }
+  }
+
+  async createClusterNode(
+    expectedRevision: number,
+    data: ClusterNodeMutation,
+  ): Promise<ClusterMutationResult> {
+    try {
+      const response = await apiClient.post<ClusterMutationWireResponse>("/bamboo/settings/nodes", {
+        expected_revision: expectedRevision,
+        ...data,
+      });
+      return normalizeClusterMutation(response);
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async updateClusterNode(
+    nodeId: string,
+    expectedRevision: number,
+    data: ClusterNodeMutation,
+  ): Promise<ClusterMutationResult> {
+    try {
+      const response = await apiClient.put<ClusterMutationWireResponse>(
+        `/bamboo/settings/nodes/${encodeURIComponent(nodeId)}`,
+        {
+          expected_revision: expectedRevision,
+          ...data,
+        },
+      );
+      return normalizeClusterMutation(response);
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async deleteClusterNode(
+    nodeId: string,
+    expectedRevision: number,
+  ): Promise<ClusterMutationResult> {
+    try {
+      const response = await apiClient.delete<ClusterMutationWireResponse>(
+        `/bamboo/settings/nodes/${encodeURIComponent(
+          nodeId,
+        )}?expected_revision=${expectedRevision}`,
+      );
+      return normalizeClusterMutation(response);
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async createCluster(
+    expectedRevision: number,
+    data: ClusterDefinitionMutation,
+  ): Promise<ClusterMutationResult> {
+    try {
+      const response = await apiClient.post<ClusterMutationWireResponse>(
+        "/bamboo/settings/clusters",
+        {
+          expected_revision: expectedRevision,
+          ...data,
+        },
+      );
+      return normalizeClusterMutation(response);
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async updateCluster(
+    currentName: string,
+    expectedRevision: number,
+    data: ClusterDefinitionMutation,
+  ): Promise<ClusterMutationResult> {
+    try {
+      const response = await apiClient.put<ClusterMutationWireResponse>(
+        `/bamboo/settings/clusters/${encodeURIComponent(currentName)}`,
+        {
+          expected_revision: expectedRevision,
+          ...data,
+        },
+      );
+      return normalizeClusterMutation(response);
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async deleteCluster(name: string, expectedRevision: number): Promise<ClusterMutationResult> {
+    try {
+      const response = await apiClient.delete<ClusterMutationWireResponse>(
+        `/bamboo/settings/clusters/${encodeURIComponent(
+          name,
+        )}?expected_revision=${expectedRevision}`,
+      );
+      return normalizeClusterMutation(response);
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async runClusterNodeAction(
+    nodeId: string,
+    action: "test" | "deploy" | "stop",
+    expectedRevision: number,
+  ): Promise<ClusterMutationResult> {
+    try {
+      const response = await apiClient.post<ClusterMutationWireResponse>(
+        `/bamboo/settings/nodes/${encodeURIComponent(
+          nodeId,
+        )}/${action}?expected_revision=${expectedRevision}`,
+        {},
+      );
+      return normalizeClusterMutation(response);
+    } catch (error) {
+      return mapConflict(error, expectedRevision);
+    }
+  }
+
+  async getClusterNodeLogs(nodeId: string, lines = 200): Promise<{ id: string; logs: string }> {
+    return apiClient.get(
+      `/bamboo/settings/nodes/${encodeURIComponent(nodeId)}/logs?lines=${lines}`,
+    );
   }
 
   async listCredentials(): Promise<CredentialEnvelope> {

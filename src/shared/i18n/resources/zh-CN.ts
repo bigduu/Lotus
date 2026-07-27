@@ -2138,6 +2138,8 @@ export const zhCnTranslation = {
         selectProviderRequired: "请选择提供商",
         saveAndApply: "保存并应用配置",
         loadConfigFailed: "加载提供商配置失败",
+        instanceRemovedExternally: "最新配置中已不存在此提供商实例。",
+        providerRevisionMissing: "尚未加载提供商修订版本。请重新加载配置后重试。",
         checkStatusFailed: "检查状态失败",
         startCopilotAuthFailed: "启动 Copilot 认证失败",
         copilotAuthSuccess: "Copilot 认证成功！",

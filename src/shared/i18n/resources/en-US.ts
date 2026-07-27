@@ -2205,6 +2205,10 @@ export const enUsTranslation = {
         selectProviderRequired: "Please select a provider",
         saveAndApply: "Save and Apply Configuration",
         loadConfigFailed: "Failed to load provider config",
+        instanceRemovedExternally:
+          "This provider instance no longer exists in the latest configuration.",
+        providerRevisionMissing:
+          "Provider revision is not loaded. Reload the configuration and try again.",
         checkStatusFailed: "Failed to check status",
         startCopilotAuthFailed: "Failed to start Copilot authentication",
         copilotAuthSuccess: "Copilot authentication successful!",
