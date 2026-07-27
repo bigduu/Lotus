@@ -8,6 +8,7 @@ const CONFIGURED_CONNECT = {
   platforms: [
     {
       id: "telegram-main",
+      project_id: "project-telegram",
       type: "telegram",
       token_configured: true,
       token_credential_ref: "connect:telegram-main:token",
@@ -19,9 +20,11 @@ const CONFIGURED_CONNECT = {
         updated_at: null,
       },
       allow_from: ["u1"],
+      admin_from: ["admin-telegram"],
     },
     {
       id: "feishu-main",
+      project_id: "project-feishu",
       type: "feishu",
       app_id: "cli_abc123",
       app_secret_configured: true,
@@ -35,6 +38,7 @@ const CONFIGURED_CONNECT = {
       },
       domain: "lark",
       allow_from: ["ou_1"],
+      admin_from: ["admin-feishu"],
     },
   ],
 };
@@ -87,7 +91,7 @@ describe("SystemSettingsConnectTab", () => {
     expect(feishuSwitch).toHaveAttribute("aria-checked", "true");
   });
 
-  it("omits untouched configured secrets and preserves stable platform ids", async () => {
+  it("omits untouched secrets and preserves ids, projects, and admin allowlists", async () => {
     render(<SystemSettingsConnectTab />);
     await screen.findByTestId("connect-telegram-token");
 
@@ -98,10 +102,20 @@ describe("SystemSettingsConnectTab", () => {
     const telegram = patch.platforms.find((p: { type: string }) => p.type === "telegram");
     const feishu = patch.platforms.find((p: { type: string }) => p.type === "feishu");
     expect(revision).toBe(7);
-    expect(telegram).toMatchObject({ id: "telegram-main", type: "telegram" });
+    expect(telegram).toMatchObject({
+      id: "telegram-main",
+      project_id: "project-telegram",
+      type: "telegram",
+      admin_from: ["admin-telegram"],
+    });
     expect(telegram).not.toHaveProperty("token");
     expect(telegram).not.toHaveProperty("token_change");
-    expect(feishu).toMatchObject({ id: "feishu-main", type: "feishu" });
+    expect(feishu).toMatchObject({
+      id: "feishu-main",
+      project_id: "project-feishu",
+      type: "feishu",
+      admin_from: ["admin-feishu"],
+    });
     expect(feishu).not.toHaveProperty("app_secret");
     expect(feishu).not.toHaveProperty("app_secret_change");
   });

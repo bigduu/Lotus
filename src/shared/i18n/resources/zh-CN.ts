@@ -2446,6 +2446,7 @@ export const zhCnTranslation = {
         transportOptions: {
           sse: "SSE",
           stdio: "Stdio",
+          streamableHttp: "Streamable HTTP",
         },
         deleteTitle: "删除 MCP 服务器",
         deleteDescription: "确认删除服务器“{{name}}”？",
@@ -2493,6 +2494,7 @@ export const zhCnTranslation = {
         transportOptions: {
           stdio: "Stdio",
           sse: "SSE",
+          streamableHttp: "Streamable HTTP",
         },
         command: "命令",
         commandRequired: "命令不能为空",
@@ -2503,6 +2505,8 @@ export const zhCnTranslation = {
         keyRequired: "键不能为空",
         sseUrl: "SSE URL",
         sseUrlRequired: "SSE URL 不能为空",
+        streamableHttpUrl: "Streamable HTTP URL",
+        streamableHttpUrlRequired: "Streamable HTTP URL 不能为空",
         validUrlRequired: "请输入有效 URL",
         headers: "请求头",
         addHeader: "添加请求头",

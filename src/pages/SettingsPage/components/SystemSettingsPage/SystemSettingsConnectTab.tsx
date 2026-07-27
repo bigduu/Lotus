@@ -172,6 +172,9 @@ const SystemSettingsConnectTab: React.FC = () => {
 
       const buildTelegramEntry = (): ConnectSectionDraftPlatform => ({
         ...(storedTelegram?.id ? { id: storedTelegram.id } : {}),
+        ...(storedTelegram?.project_id !== undefined
+          ? { project_id: storedTelegram.project_id }
+          : {}),
         type: "telegram",
         ...(clearTelegramToken
           ? { token_change: { action: "clear" as const } }
@@ -184,10 +187,12 @@ const SystemSettingsConnectTab: React.FC = () => {
               }
             : {}),
         allow_from: draft.telegramAllowFrom,
+        admin_from: storedTelegram?.admin_from ?? [],
       });
 
       const buildFeishuEntry = (): ConnectSectionDraftPlatform => ({
         ...(storedFeishu?.id ? { id: storedFeishu.id } : {}),
+        ...(storedFeishu?.project_id !== undefined ? { project_id: storedFeishu.project_id } : {}),
         type: "feishu",
         ...(draft.feishuAppId.trim() ? { app_id: draft.feishuAppId.trim() } : {}),
         ...(clearFeishuSecret
@@ -202,6 +207,7 @@ const SystemSettingsConnectTab: React.FC = () => {
             : {}),
         ...(draft.feishuDomain.trim() ? { domain: draft.feishuDomain.trim() } : {}),
         allow_from: draft.feishuAllowFrom,
+        admin_from: storedFeishu?.admin_from ?? [],
       });
 
       // Preserve original order and stable ids. Untouched/unknown platform

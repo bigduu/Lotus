@@ -20,6 +20,7 @@ import { useMcpSettings } from "./hooks/useMcpSettings";
 import { McpServerTable } from "./mcp/McpServerTable";
 import { McpServerFormModal } from "./mcp/McpServerFormModal";
 import { McpToolList } from "./mcp/McpToolList";
+import { toMainstreamMcpServersChunk } from "./mcp/mcpConfigInterop";
 import { copyText } from "@shared/utils/clipboard";
 import { configErrorMessage } from "@shared/utils/configErrors";
 
@@ -47,51 +48,6 @@ const makeStatusCounters = (): Record<ServerStatus, number> => ({
 
 const getErrorMessage = (error: unknown, fallback: string): string =>
   configErrorMessage(error, fallback);
-
-type MainstreamMcpServersChunk = {
-  mcpServers: Record<string, unknown>;
-};
-
-const toMainstreamMcpServersChunk = (servers: McpServer[]): MainstreamMcpServersChunk => {
-  const mcpServers: Record<string, unknown> = {};
-
-  for (const server of servers) {
-    const id = server.id?.trim();
-    if (!id) continue;
-
-    const enabled = server.enabled ?? server.config.enabled;
-    const disabled = !enabled;
-
-    const transport = server.config.transport;
-    if (transport.type === "sse") {
-      const headers: Record<string, string> = {};
-      for (const h of transport.headers ?? []) {
-        const name = h.name?.trim();
-        if (!name) continue;
-        headers[name] = h.value ?? "";
-      }
-
-      const entry: Record<string, unknown> = {
-        url: transport.url,
-      };
-      if (disabled) entry.disabled = true;
-      if (Object.keys(headers).length) entry.headers = headers;
-      mcpServers[id] = entry;
-      continue;
-    }
-
-    const entry: Record<string, unknown> = {
-      command: transport.command,
-    };
-    if (disabled) entry.disabled = true;
-    if (transport.args?.length) entry.args = transport.args;
-    if (transport.cwd) entry.cwd = transport.cwd;
-    if (transport.env && Object.keys(transport.env).length) entry.env = transport.env;
-    mcpServers[id] = entry;
-  }
-
-  return { mcpServers };
-};
 
 const SystemSettingsMcpTab: React.FC = () => {
   const { t } = useTranslation();

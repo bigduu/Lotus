@@ -2532,6 +2532,7 @@ export const enUsTranslation = {
         transportOptions: {
           sse: "SSE",
           stdio: "Stdio",
+          streamableHttp: "Streamable HTTP",
         },
         deleteTitle: "Delete MCP server",
         deleteDescription: 'Delete server "{{name}}"?',
@@ -2579,6 +2580,7 @@ export const enUsTranslation = {
         transportOptions: {
           stdio: "Stdio",
           sse: "SSE",
+          streamableHttp: "Streamable HTTP",
         },
         command: "Command",
         commandRequired: "Command is required",
@@ -2589,6 +2591,8 @@ export const enUsTranslation = {
         keyRequired: "Key required",
         sseUrl: "SSE URL",
         sseUrlRequired: "SSE URL is required",
+        streamableHttpUrl: "Streamable HTTP URL",
+        streamableHttpUrlRequired: "Streamable HTTP URL is required",
         validUrlRequired: "Please enter a valid URL",
         headers: "Headers",
         addHeader: "Add Header",

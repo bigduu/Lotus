@@ -34,7 +34,17 @@ export interface SseTransportConfig {
   connect_timeout_ms?: number;
 }
 
-export type TransportConfig = StdioTransportConfig | SseTransportConfig;
+export interface StreamableHttpTransportConfig {
+  type: "streamable_http";
+  url: string;
+  headers: HeaderConfig[];
+  connect_timeout_ms?: number;
+}
+
+export type TransportConfig =
+  | StdioTransportConfig
+  | SseTransportConfig
+  | StreamableHttpTransportConfig;
 
 export interface McpServerConfig {
   id: string;

@@ -24,6 +24,22 @@ const editConfig = (
   denied_tools: [],
 });
 
+const streamableHttpConfig = (): McpServerConfig => ({
+  id: "remote-http",
+  name: "Remote HTTP",
+  enabled: true,
+  transport: {
+    type: "streamable_http",
+    url: "https://mcp.example.test/mcp",
+    headers: [{ name: "Authorization", value: "" }],
+    connect_timeout_ms: 24_000,
+  },
+  request_timeout_ms: 60_000,
+  healthcheck_interval_ms: 30_000,
+  allowed_tools: [],
+  denied_tools: [],
+});
+
 const credentialStatus = (
   entries: Record<string, { configured: boolean; source: string | null }>,
 ): McpServerCredentialStatus => ({
@@ -197,6 +213,55 @@ describe("McpServerFormModal", () => {
         }),
       );
     });
+  });
+
+  it("round-trips Streamable HTTP from Form to JSON without dropping its URL or timeout", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    const config = streamableHttpConfig();
+
+    render(
+      <McpServerFormModal
+        open
+        mode="edit"
+        initialConfig={config}
+        latestConfig={config}
+        currentRevision={7}
+        onCancel={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    expect(
+      (await screen.findByPlaceholderText("http://localhost:4000/mcp")) as HTMLInputElement,
+    ).toHaveValue("https://mcp.example.test/mcp");
+
+    fireEvent.click(screen.getByRole("radio", { name: /json/i }));
+    const jsonEditor = document.querySelector("textarea") as HTMLTextAreaElement;
+    const jsonConfig = JSON.parse(jsonEditor.value) as McpServerConfig;
+    expect(jsonConfig.transport).toEqual({
+      type: "streamable_http",
+      url: "https://mcp.example.test/mcp",
+      headers: [{ name: "Authorization", value: "" }],
+      connect_timeout_ms: 24_000,
+    });
+
+    fireEvent.click(screen.getByRole("radio", { name: /form/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "remote-http",
+          transport: {
+            type: "streamable_http",
+            url: "https://mcp.example.test/mcp",
+            headers: [{ name: "Authorization", value: "" }],
+            connect_timeout_ms: 24_000,
+          },
+        }),
+        7,
+      ),
+    );
   });
 
   it("shows error for invalid JSON", async () => {

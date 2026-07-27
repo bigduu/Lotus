@@ -75,6 +75,25 @@ const sseConfig = (
   denied_tools: [],
 });
 
+const streamableHttpConfig = (
+  id: string,
+  headers: Array<{ name: string; value: string }>,
+): McpServerConfig => ({
+  id,
+  name: id,
+  enabled: true,
+  transport: {
+    type: "streamable_http",
+    url: "https://mcp.example/mcp",
+    headers,
+    connect_timeout_ms: 24_000,
+  },
+  request_timeout_ms: 60_000,
+  healthcheck_interval_ms: 30_000,
+  allowed_tools: [],
+  denied_tools: [],
+});
+
 const sectionEnvelope = (
   servers: McpServerConfig[],
   revision = 7,
@@ -183,6 +202,11 @@ describe("useMcpSettings canonical config controller", () => {
       name: "SSE header",
       config: sseConfig("filesystem", [{ name: "Authorization", value: "" }]),
       status: configuredStatus("headers", "Authorization", "environment"),
+    },
+    {
+      name: "Streamable HTTP header",
+      config: streamableHttpConfig("filesystem", [{ name: "Authorization", value: "" }]),
+      status: configuredStatus("headers", "Authorization"),
     },
   ])(
     "preserves configured $name credentials during metadata-only edits",
@@ -336,6 +360,41 @@ describe("useMcpSettings canonical config controller", () => {
       },
     });
     expect(response).toMatchObject({ added: 1, updated: 0, removed: 1, server_ids: ["remote"] });
+  });
+
+  it("imports mainstream Streamable HTTP without losing transport kind, URL, or timeout", async () => {
+    const canonical = sectionEnvelope([], 7);
+    const { result } = renderWithSection(canonical);
+    await waitFor(() => expect(result.current.configRevision).toBe(7));
+
+    await act(async () => {
+      await result.current.importServers(
+        {
+          remote: {
+            url: "https://mcp.example/mcp",
+            transport_kind: "streamable_http",
+            headers: { Authorization: "import-secret" },
+            connect_timeout_ms: 24_000,
+          },
+        },
+        "replace",
+      );
+    });
+
+    const [data, changes, expectedRevision] = storeMocks.saveMcpSettings.mock.calls[0]!;
+    expect(expectedRevision).toBe(7);
+    expect(data.servers[0]?.transport).toEqual({
+      type: "streamable_http",
+      url: "https://mcp.example/mcp",
+      headers: [{ name: "Authorization", value: "" }],
+      connect_timeout_ms: 24_000,
+    });
+    expect(changes).toEqual({
+      servers: {
+        remote: { headers: { Authorization: "import-secret" } },
+      },
+    });
+    expect(JSON.stringify(data)).not.toContain("import-secret");
   });
 
   it("rejects mask-like values before the store write", async () => {

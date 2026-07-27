@@ -73,10 +73,16 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
       {
         key: "transport",
         title: t("settings.mcpServerTable.columns.transportType"),
-        render: (_, record) =>
-          record.config.transport.type === "sse"
-            ? t("settings.mcpServerTable.transportOptions.sse")
-            : t("settings.mcpServerTable.transportOptions.stdio"),
+        render: (_, record) => {
+          switch (record.config.transport.type) {
+            case "sse":
+              return t("settings.mcpServerTable.transportOptions.sse");
+            case "streamable_http":
+              return t("settings.mcpServerTable.transportOptions.streamableHttp");
+            case "stdio":
+              return t("settings.mcpServerTable.transportOptions.stdio");
+          }
+        },
         width: 140,
       },
       {

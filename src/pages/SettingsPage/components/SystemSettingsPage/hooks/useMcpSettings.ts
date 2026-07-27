@@ -259,11 +259,13 @@ const importedServerConfig = (id: string, value: unknown): McpServerConfig => {
   const type =
     typeof source.type === "string"
       ? source.type
-      : typeof source.command === "string"
-        ? "stdio"
-        : typeof source.url === "string"
-          ? "sse"
-          : "";
+      : typeof source.transport_kind === "string"
+        ? source.transport_kind
+        : typeof source.command === "string"
+          ? "stdio"
+          : typeof source.url === "string"
+            ? "sse"
+            : "";
 
   let transport: McpServerConfig["transport"];
   if (type === "stdio") {
@@ -283,19 +285,26 @@ const importedServerConfig = (id: string, value: unknown): McpServerConfig => {
             ? defaults.transport.startup_timeout_ms
             : undefined,
     };
-  } else if (type === "sse") {
+  } else if (type === "sse" || type === "streamable_http") {
     if (typeof source.url !== "string" || !source.url.trim()) {
-      throw new Error(`MCP server '${id}' requires an SSE URL.`);
+      throw new Error(
+        `MCP server '${id}' requires a ${type === "streamable_http" ? "Streamable HTTP" : "SSE"} URL.`,
+      );
     }
-    transport = {
-      type: "sse",
+    const httpTransport = {
       url: source.url,
       headers: headerList(source.headers),
       connect_timeout_ms:
         typeof source.connect_timeout_ms === "number" ? source.connect_timeout_ms : 10_000,
     };
+    transport =
+      type === "streamable_http"
+        ? { type: "streamable_http", ...httpTransport }
+        : { type: "sse", ...httpTransport };
   } else {
-    throw new Error(`MCP server '${id}' must define a supported stdio or SSE transport.`);
+    throw new Error(
+      `MCP server '${id}' must define a supported stdio, SSE, or Streamable HTTP transport.`,
+    );
   }
 
   return {

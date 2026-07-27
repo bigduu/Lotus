@@ -768,6 +768,34 @@ describe("useConfigSectionStore", () => {
     expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(accessRuntimeStatus(5));
   });
 
+  it("adopts forced Access runtime loads monotonically when responses arrive out of order", async () => {
+    let resolveFirst!: (value: ReturnType<typeof accessRuntimeStatus>) => void;
+    let resolveSecond!: (value: ReturnType<typeof accessRuntimeStatus>) => void;
+    vi.spyOn(configSectionsService, "getAccessRuntimeStatus")
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+
+    const first = useConfigSectionStore.getState().loadAccessRuntimeStatus({ force: true });
+    const second = useConfigSectionStore.getState().loadAccessRuntimeStatus({ force: true });
+
+    resolveSecond(accessRuntimeStatus(4));
+    await expect(second).resolves.toEqual(accessRuntimeStatus(4));
+    resolveFirst(accessRuntimeStatus(5));
+    await expect(first).resolves.toEqual(accessRuntimeStatus(5));
+
+    expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(accessRuntimeStatus(5));
+  });
+
   it("keeps an Access mutation response pair intact behind a newer event snapshot", async () => {
     let resolveMutation!: (value: AccessMutationResult) => void;
     vi.spyOn(configSectionsService, "replaceAccessPassword").mockImplementationOnce(

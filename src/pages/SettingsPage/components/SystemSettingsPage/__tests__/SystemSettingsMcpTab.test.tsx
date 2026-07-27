@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ServerStatus, type McpServer } from "@services/mcp";
 import SystemSettingsMcpTab from "../SystemSettingsMcpTab";
+import { toMainstreamMcpServersChunk } from "../mcp/mcpConfigInterop";
 
 const mocks = vi.hoisted(() => ({
   importServers: vi.fn(),
@@ -168,6 +169,34 @@ describe("SystemSettingsMcpTab canonical MCP writes", () => {
     expect(mocks.importServers).toHaveBeenCalledTimes(1);
     expect(mocks.legacyImportServers).not.toHaveBeenCalled();
     expect(mocks.hookResult.refreshAll).not.toHaveBeenCalled();
+  });
+
+  it("exports Streamable HTTP with its wire discriminator, URL, headers, and timeout", () => {
+    const httpServer: McpServer = {
+      ...server("Remote HTTP"),
+      id: "remote-http",
+      config: {
+        ...server("Remote HTTP").config,
+        id: "remote-http",
+        transport: {
+          type: "streamable_http",
+          url: "https://mcp.example.test/mcp",
+          headers: [{ name: "Authorization", value: "" }],
+          connect_timeout_ms: 24_000,
+        },
+      },
+    };
+
+    expect(toMainstreamMcpServersChunk([httpServer])).toEqual({
+      mcpServers: {
+        "remote-http": {
+          url: "https://mcp.example.test/mcp",
+          transport_kind: "streamable_http",
+          headers: { Authorization: "" },
+          connect_timeout_ms: 24_000,
+        },
+      },
+    });
   });
 
   it("submits an open edit against its captured revision after a newer snapshot arrives", async () => {

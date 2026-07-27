@@ -152,6 +152,7 @@ const inFlightLoads = new Map<ConfigSectionId, Promise<ConfigSectionEnvelope<unk
 let proxyAuthLoad: Promise<ProxyAuthStatus> | null = null;
 let accessRuntimeLoad: Promise<AccessRuntimeStatus> | null = null;
 let accessRuntimeRequestSequence = 0;
+let accessRuntimeGeneration = 0;
 const eventTimers = new Map<ConfigSectionId, ReturnType<typeof setTimeout>>();
 const pendingEventRevisions = new Map<ConfigSectionId, number>();
 const mutationSequences = new Map<ConfigSectionId, number>();
@@ -743,16 +744,23 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       if (accessRuntimeLoad && !options?.force) return accessRuntimeLoad;
 
       const requestSequence = ++accessRuntimeRequestSequence;
+      const requestGeneration = accessRuntimeGeneration;
       set({ accessRuntimeLoading: true, accessRuntimeError: null });
       const request = configSectionsService.getAccessRuntimeStatus();
       accessRuntimeLoad = request;
       try {
         const status = await request;
-        if (requestSequence === accessRuntimeRequestSequence) {
-          set({
-            accessRuntimeStatus: status,
-            accessRuntimeLoading: false,
-            accessRuntimeError: null,
+        if (requestGeneration === accessRuntimeGeneration) {
+          set((state) => {
+            const current = state.accessRuntimeStatus;
+            const accessRuntimeStatus =
+              current === null || status.revision >= current.revision ? status : current;
+            const isLatestRequest = requestSequence === accessRuntimeRequestSequence;
+            return {
+              accessRuntimeStatus,
+              accessRuntimeLoading: isLatestRequest ? false : state.accessRuntimeLoading,
+              accessRuntimeError: isLatestRequest ? null : state.accessRuntimeError,
+            };
           });
         }
         return get().accessRuntimeStatus ?? status;
@@ -1058,6 +1066,7 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       proxyAuthLoad = null;
       accessRuntimeLoad = null;
       accessRuntimeRequestSequence += 1;
+      accessRuntimeGeneration += 1;
       set({
         sections: createInitialSections(),
         proxyAuthStatus: null,

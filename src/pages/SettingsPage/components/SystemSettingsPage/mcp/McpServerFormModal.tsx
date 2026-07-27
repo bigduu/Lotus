@@ -28,6 +28,7 @@ import {
   type McpServerConfig,
   type SseTransportConfig,
   type StdioTransportConfig,
+  type StreamableHttpTransportConfig,
   type TransportConfig,
 } from "@services/mcp";
 import { configErrorMessage } from "@shared/utils/configErrors";
@@ -116,7 +117,7 @@ const toFormValues = (initialConfig: McpServerConfig | null | undefined): McpSer
       : [];
 
   const headerEntries =
-    transport.type === "sse"
+    transport.type !== "stdio"
       ? transport.headers.map((header) => ({
           name: header.name,
           value: header.value,
@@ -131,7 +132,7 @@ const toFormValues = (initialConfig: McpServerConfig | null | undefined): McpSer
     command: transport.type === "stdio" ? transport.command : undefined,
     args: transport.type === "stdio" ? transport.args : [],
     envEntries,
-    url: transport.type === "sse" ? transport.url : undefined,
+    url: transport.type !== "stdio" ? transport.url : undefined,
     headerEntries,
     requestTimeoutMs: config.request_timeout_ms || DEFAULT_REQUEST_TIMEOUT_MS,
     healthcheckIntervalMs: config.healthcheck_interval_ms || DEFAULT_HEALTHCHECK_INTERVAL_MS,
@@ -189,28 +190,40 @@ const toServerConfig = (
     ? values.deniedTools
     : (initialConfig?.denied_tools ?? []);
 
-  const transport: TransportConfig =
-    values.transportType === "sse"
-      ? ({
-          type: "sse",
-          url: values.url?.trim() || "",
-          headers: entriesToHeaders(values.headerEntries || []),
-          connect_timeout_ms:
-            initialConfig?.transport.type === "sse"
-              ? (initialConfig.transport.connect_timeout_ms ?? DEFAULT_SSE_CONNECT_TIMEOUT_MS)
-              : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
-        } satisfies SseTransportConfig)
-      : ({
-          type: "stdio",
-          command: values.command?.trim() || "",
-          args: values.args || [],
-          env: entriesToRecord(values.envEntries || []),
-          cwd: initialConfig?.transport.type === "stdio" ? initialConfig.transport.cwd : undefined,
-          startup_timeout_ms:
-            initialConfig?.transport.type === "stdio"
-              ? (initialConfig.transport.startup_timeout_ms ?? DEFAULT_STDIO_STARTUP_TIMEOUT_MS)
-              : DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
-        } satisfies StdioTransportConfig);
+  let transport: TransportConfig;
+  if (values.transportType === "sse") {
+    transport = {
+      type: "sse",
+      url: values.url?.trim() || "",
+      headers: entriesToHeaders(values.headerEntries || []),
+      connect_timeout_ms:
+        initialConfig?.transport.type === "sse"
+          ? (initialConfig.transport.connect_timeout_ms ?? DEFAULT_SSE_CONNECT_TIMEOUT_MS)
+          : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
+    } satisfies SseTransportConfig;
+  } else if (values.transportType === "streamable_http") {
+    transport = {
+      type: "streamable_http",
+      url: values.url?.trim() || "",
+      headers: entriesToHeaders(values.headerEntries || []),
+      connect_timeout_ms:
+        initialConfig?.transport.type === "streamable_http"
+          ? (initialConfig.transport.connect_timeout_ms ?? DEFAULT_SSE_CONNECT_TIMEOUT_MS)
+          : DEFAULT_SSE_CONNECT_TIMEOUT_MS,
+    } satisfies StreamableHttpTransportConfig;
+  } else {
+    transport = {
+      type: "stdio",
+      command: values.command?.trim() || "",
+      args: values.args || [],
+      env: entriesToRecord(values.envEntries || []),
+      cwd: initialConfig?.transport.type === "stdio" ? initialConfig.transport.cwd : undefined,
+      startup_timeout_ms:
+        initialConfig?.transport.type === "stdio"
+          ? (initialConfig.transport.startup_timeout_ms ?? DEFAULT_STDIO_STARTUP_TIMEOUT_MS)
+          : DEFAULT_STDIO_STARTUP_TIMEOUT_MS,
+    } satisfies StdioTransportConfig;
+  }
 
   return {
     id: serverId,
@@ -328,6 +341,10 @@ const validateJson = (
         typeof record.connect_timeout_ms === "number"
           ? record.connect_timeout_ms
           : DEFAULT_SSE_CONNECT_TIMEOUT_MS;
+      const transportType =
+        record.transport_kind === "streamable_http" || record.type === "streamable_http"
+          ? "streamable_http"
+          : "sse";
 
       return {
         valid: true,
@@ -335,12 +352,20 @@ const validateJson = (
           id,
           name,
           enabled,
-          transport: {
-            type: "sse",
-            url: record.url,
-            headers,
-            connect_timeout_ms,
-          },
+          transport:
+            transportType === "streamable_http"
+              ? {
+                  type: "streamable_http",
+                  url: record.url,
+                  headers,
+                  connect_timeout_ms,
+                }
+              : {
+                  type: "sse",
+                  url: record.url,
+                  headers,
+                  connect_timeout_ms,
+                },
           request_timeout_ms,
           healthcheck_interval_ms,
           allowed_tools,
@@ -790,6 +815,10 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                   label: t("settings.mcpServerForm.transportOptions.sse"),
                   value: "sse",
                 },
+                {
+                  label: t("settings.mcpServerForm.transportOptions.streamableHttp"),
+                  value: "streamable_http",
+                },
               ]}
             />
           </Form.Item>
@@ -886,11 +915,18 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
             <>
               <Form.Item
                 name="url"
-                label={t("settings.mcpServerForm.sseUrl")}
+                label={
+                  transportType === "streamable_http"
+                    ? t("settings.mcpServerForm.streamableHttpUrl")
+                    : t("settings.mcpServerForm.sseUrl")
+                }
                 rules={[
                   {
                     required: true,
-                    message: t("settings.mcpServerForm.sseUrlRequired"),
+                    message:
+                      transportType === "streamable_http"
+                        ? t("settings.mcpServerForm.streamableHttpUrlRequired")
+                        : t("settings.mcpServerForm.sseUrlRequired"),
                   },
                   {
                     validator: async (_, value: string | undefined) => {
@@ -906,7 +942,14 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
                   },
                 ]}
               >
-                <Input placeholder="http://localhost:4000/sse" autoComplete="off" />
+                <Input
+                  placeholder={
+                    transportType === "streamable_http"
+                      ? "http://localhost:4000/mcp"
+                      : "http://localhost:4000/sse"
+                  }
+                  autoComplete="off"
+                />
               </Form.Item>
 
               <Form.List name="headerEntries">

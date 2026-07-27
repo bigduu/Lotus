@@ -212,6 +212,8 @@ export interface NotificationsChannelConfig {
 export interface ConnectPlatformConfig {
   /** Stable server-managed identity used to preserve credential ownership. */
   id?: string;
+  /** First-class Project assigned to sessions created by this connector. */
+  project_id?: string;
   /** Platform adapter selector: `"telegram"` | `"feishu"`. */
   type: string;
   /** Telegram bot token. Secret — see the masked-secret contract above. */
@@ -232,6 +234,8 @@ export interface ConnectPlatformConfig {
    * stricter than other allow-list precedents in this app.
    */
   allow_from?: string[];
+  /** Platform-scoped user/open ids allowed to run privileged commands. */
+  admin_from?: string[];
 }
 
 export interface ConnectConfig {
