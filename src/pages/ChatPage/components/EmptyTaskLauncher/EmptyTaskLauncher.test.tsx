@@ -207,7 +207,7 @@ describe("EmptyTaskLauncher", () => {
     expect(createdSession?.config.workspacePath).toBeUndefined();
   });
 
-  it("falls back to the active Project's default workspace when no session is active (#134)", async () => {
+  it("uses the active Project's authoritative path when no session is active (#134/#692)", async () => {
     useAppStore.setState({
       currentSessionId: null,
       latestActiveSessionId: null,
@@ -220,7 +220,9 @@ describe("EmptyTaskLauncher", () => {
           status: "active",
           revision: 1,
           resource_revision: 1,
-          default_workspace_path: "/repo/zenith",
+          project_path: "/repo/zenith",
+          project_path_status: "configured",
+          workspace_count: 1,
           created_at: "2025-03-01T00:00:00Z",
           updated_at: "2025-03-01T00:00:00Z",
           schema_version: 1,

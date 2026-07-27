@@ -14,6 +14,7 @@ import {
   Tag,
   Typography,
 } from "antd";
+import { FolderOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
@@ -37,7 +38,7 @@ type LegacyMigrationModalProps = {
 type SuggestionTarget =
   | { mode: "skip" }
   | { mode: "existing"; projectId: string }
-  | { mode: "new"; name: string };
+  | { mode: "new"; name: string; projectPath: string };
 
 type ApplyStatus = { status: "pending" | "ok" | "failed"; reason?: string };
 
@@ -237,12 +238,21 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
 
   const handleApply = async () => {
     if (!report) return;
-    // A "create new project" suggestion needs a name before anything runs.
+    // A "create new project" suggestion needs an explicitly-confirmed name
+    // and primary path before anything runs. Never promote a suggested
+    // workspace implicitly (Bamboo #692 migration invariant).
     const missingName = resolvedSuggestionAssignments.some(
       ({ target }) => target.mode === "new" && !target.name.trim(),
     );
     if (missingName) {
       message.error(t("chat.project.nameRequired"));
+      return;
+    }
+    const missingProjectPath = resolvedSuggestionAssignments.some(
+      ({ target }) => target.mode === "new" && !target.projectPath.trim(),
+    );
+    if (missingProjectPath) {
+      message.error(t("chat.project.pathRequired"));
       return;
     }
     setApplying(true);
@@ -257,7 +267,7 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
           const manifest = await createProject({
             name: target.name.trim(),
             description: null,
-            workspace_bindings: [],
+            project_path: target.projectPath.trim(),
           });
           projectIdByKey[key] = manifest.id;
         }
@@ -457,7 +467,11 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
                                   value === SKIP_OPTION
                                     ? { mode: "skip" }
                                     : value === NEW_PROJECT_OPTION
-                                      ? { mode: "new", name: defaultNewProjectName(suggestion) }
+                                      ? {
+                                          mode: "new",
+                                          name: defaultNewProjectName(suggestion),
+                                          projectPath: "",
+                                        }
                                       : { mode: "existing", projectId: value },
                               }));
                             }}
@@ -473,7 +487,23 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
                               onChange={(event) =>
                                 setTargets((prev) => ({
                                   ...prev,
-                                  [key]: { mode: "new", name: event.target.value },
+                                  [key]: { ...target, name: event.target.value },
+                                }))
+                              }
+                            />
+                          ) : null}
+                          {target.mode === "new" ? (
+                            <Input
+                              size="small"
+                              style={{ width: 240 }}
+                              disabled={applying}
+                              value={target.projectPath}
+                              placeholder={t("chat.migration.newProjectPath")}
+                              prefix={<FolderOutlined />}
+                              onChange={(event) =>
+                                setTargets((prev) => ({
+                                  ...prev,
+                                  [key]: { ...target, projectPath: event.target.value },
                                 }))
                               }
                             />

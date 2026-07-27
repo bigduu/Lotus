@@ -7,6 +7,7 @@
  */
 
 export type ProjectStatus = "active" | "archived";
+export type ProjectPathStatus = "configured" | "needs_selection" | "needs_configuration";
 
 export interface WorkspaceBinding {
   path: string;
@@ -21,11 +22,12 @@ export interface ProjectSummary {
   status: ProjectStatus;
   revision: number;
   resource_revision: number;
-  /** Precomputed binding count. Not yet returned by Bamboo (#727) — derive
-   * from `workspace_bindings.length` when absent. */
-  workspace_count?: number;
-  /** Project default workspace, used when creating a session without an explicit pick. */
-  default_workspace_path?: string | null;
+  /** Primary user source/work folder. Distinct from Bamboo's internal project home. */
+  project_path: string | null;
+  /** Migration/configuration state for the authoritative primary path. */
+  project_path_status: ProjectPathStatus;
+  /** Primary path plus additional workspace bindings. */
+  workspace_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -43,12 +45,16 @@ export interface ProjectListResponse {
 export interface CreateProjectRequest {
   name: string;
   description?: string | null;
+  /** Required primary user source/work folder for every newly-created Project. */
+  project_path: string;
   workspace_bindings?: WorkspaceBinding[];
 }
 
 export interface PatchProjectRequest {
   name?: string;
   description?: string | null;
+  /** CAS-updated primary folder; never inferred from workspace binding order. */
+  project_path?: string;
 }
 
 export interface WorkspaceBindingRequest {

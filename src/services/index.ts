@@ -84,6 +84,7 @@ export type {
   PatchProjectRequest,
   ProjectListResponse,
   ProjectManifest,
+  ProjectPathStatus,
   ProjectResourceSummary,
   ProjectStatus,
   ProjectSummary,

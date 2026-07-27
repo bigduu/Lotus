@@ -57,6 +57,9 @@ const makeProject = (
     status: "active",
     revision: 1,
     resource_revision: 1,
+    project_path: `/repo/${id.replace("proj-", "")}`,
+    project_path_status: "configured",
+    workspace_count: 1,
     created_at: "2025-03-01T00:00:00Z",
     updated_at: "2025-03-01T00:00:00Z",
     schema_version: 1,
@@ -67,9 +70,19 @@ const makeProject = (
   }) as ProjectManifest;
 
 const ZENITH = makeProject("proj-zenith", "zenith", {
-  workspace_bindings: [{ path: "/repo/zenith", label: null, git_common_dir: null }],
+  workspace_count: 2,
+  workspace_bindings: [{ path: "/repo/zenith-worktree", label: null, git_common_dir: null }],
 });
 const BAMBOO = makeProject("proj-bamboo", "bamboo");
+const LEGACY = makeProject("proj-legacy", "legacy", {
+  project_path: null,
+  project_path_status: "needs_selection",
+  workspace_count: 2,
+  workspace_bindings: [
+    { path: "/repo/legacy-a", label: null, git_common_dir: null },
+    { path: "/repo/legacy-b", label: null, git_common_dir: null },
+  ],
+});
 const ARCHIVED = makeProject("proj-old", "old-stuff", { status: "archived" });
 
 const renderModal = () =>
@@ -108,6 +121,7 @@ describe("ProjectManagerModal (#154)", () => {
       projects: {
         "proj-zenith": ZENITH,
         "proj-bamboo": BAMBOO,
+        "proj-legacy": LEGACY,
         "proj-old": ARCHIVED,
       },
       activeProjectId: "proj-zenith",
@@ -121,8 +135,9 @@ describe("ProjectManagerModal (#154)", () => {
     expect(await screen.findByTestId("project-list-item-proj-zenith")).toBeInTheDocument();
     expect(screen.getByTestId("project-list-item-proj-old")).toHaveTextContent("Archived");
     expect(screen.getByTestId("project-detail-name")).toHaveValue("zenith");
-    // Workspace binding from the manifest.
-    expect(await screen.findByText("/repo/zenith")).toBeInTheDocument();
+    expect(screen.getByTestId("project-detail-path")).toHaveValue("/repo/zenith");
+    // Additional workspace binding from the manifest.
+    expect(await screen.findByText("/repo/zenith-worktree")).toBeInTheDocument();
     // Resource summary only shows present kinds, with counts and revision.
     expect(await screen.findByText("skills (2)")).toBeInTheDocument();
     expect(screen.getByText("memory (5)")).toBeInTheDocument();
@@ -130,14 +145,17 @@ describe("ProjectManagerModal (#154)", () => {
     expect(screen.getByText("Resource revision: 3")).toBeInTheDocument();
   });
 
-  it("creates a project with an initial workspace binding", async () => {
-    const created = makeProject("proj-new", "nova", { revision: 1 });
+  it("creates a project with an explicit authoritative Project path", async () => {
+    const created = makeProject("proj-new", "nova", {
+      project_path: "/repo/nova",
+      revision: 1,
+    });
     mockCreateProject.mockResolvedValue(created);
     renderModal();
 
     fireEvent.click(screen.getByTestId("project-create-open"));
     fireEvent.change(screen.getByTestId("project-create-name"), { target: { value: "nova" } });
-    fireEvent.change(screen.getByTestId("project-create-workspace"), {
+    fireEvent.change(screen.getByTestId("project-create-path"), {
       target: { value: "/repo/nova" },
     });
     fireEvent.click(screen.getByTestId("project-create-submit"));
@@ -146,7 +164,7 @@ describe("ProjectManagerModal (#154)", () => {
       expect(mockCreateProject).toHaveBeenCalledWith({
         name: "nova",
         description: null,
-        workspace_bindings: [{ path: "/repo/nova", label: null, git_common_dir: null }],
+        project_path: "/repo/nova",
       }),
     );
     // Creating a project makes it the active project (projectSlice behavior).
@@ -160,6 +178,17 @@ describe("ProjectManagerModal (#154)", () => {
     fireEvent.click(screen.getByTestId("project-create-submit"));
 
     expect(await screen.findByText("Please enter a project name")).toBeInTheDocument();
+    expect(mockCreateProject).not.toHaveBeenCalled();
+  });
+
+  it("requires a Project path when creating", async () => {
+    renderModal();
+
+    fireEvent.click(screen.getByTestId("project-create-open"));
+    fireEvent.change(screen.getByTestId("project-create-name"), { target: { value: "nova" } });
+    fireEvent.click(screen.getByTestId("project-create-submit"));
+
+    expect(await screen.findByText("Please select a Project folder")).toBeInTheDocument();
     expect(mockCreateProject).not.toHaveBeenCalled();
   });
 
@@ -178,6 +207,40 @@ describe("ProjectManagerModal (#154)", () => {
         description: null,
       }),
     );
+  });
+
+  it("updates the authoritative Project path through the same CAS patch", async () => {
+    mockPatchProject.mockResolvedValue(
+      makeProject("proj-zenith", "zenith", {
+        project_path: "/repo/zenith-moved",
+        revision: 2,
+      }),
+    );
+    renderModal();
+
+    fireEvent.change(await screen.findByTestId("project-detail-path"), {
+      target: { value: "/repo/zenith-moved" },
+    });
+    fireEvent.click(screen.getByTestId("project-detail-save"));
+
+    await waitFor(() =>
+      expect(mockPatchProject).toHaveBeenCalledWith("proj-zenith", 1, {
+        name: "zenith",
+        description: null,
+        project_path: "/repo/zenith-moved",
+      }),
+    );
+  });
+
+  it("requires explicit selection for legacy Projects with multiple bindings", async () => {
+    renderModal();
+
+    fireEvent.click(await screen.findByTestId("project-list-item-proj-legacy"));
+
+    await waitFor(() => expect(screen.getByTestId("project-detail-path")).toHaveValue(""));
+    expect(screen.getByText("Choose primary folder")).toBeInTheDocument();
+    expect(screen.getByText("/repo/legacy-a")).toBeInTheDocument();
+    expect(screen.getByText("/repo/legacy-b")).toBeInTheDocument();
   });
 
   it("surfaces a revision conflict and reloads the manifest on 412", async () => {
@@ -211,14 +274,19 @@ describe("ProjectManagerModal (#154)", () => {
     mockBindWorkspace.mockResolvedValue(
       makeProject("proj-zenith", "zenith", {
         revision: 2,
+        workspace_count: 3,
         workspace_bindings: [
-          { path: "/repo/zenith", label: null, git_common_dir: null },
+          { path: "/repo/zenith-worktree", label: null, git_common_dir: null },
           { path: "/repo/nova", label: null, git_common_dir: null },
         ],
       }),
     );
     mockUnbindWorkspace.mockResolvedValue(
-      makeProject("proj-zenith", "zenith", { revision: 3, workspace_bindings: [] }),
+      makeProject("proj-zenith", "zenith", {
+        revision: 3,
+        workspace_count: 1,
+        workspace_bindings: [],
+      }),
     );
     renderModal();
 
@@ -239,7 +307,9 @@ describe("ProjectManagerModal (#154)", () => {
     const unbindButtons = await screen.findAllByRole("button", { name: /unbind workspace/i });
     fireEvent.click(unbindButtons[0]);
     await waitFor(() =>
-      expect(mockUnbindWorkspace).toHaveBeenCalledWith("proj-zenith", 2, { path: "/repo/zenith" }),
+      expect(mockUnbindWorkspace).toHaveBeenCalledWith("proj-zenith", 2, {
+        path: "/repo/zenith-worktree",
+      }),
     );
   });
 
@@ -247,8 +317,9 @@ describe("ProjectManagerModal (#154)", () => {
     mockBindWorkspace.mockResolvedValue(
       makeProject("proj-zenith", "zenith", {
         revision: 2,
+        workspace_count: 3,
         workspace_bindings: [
-          { path: "/repo/zenith", label: null, git_common_dir: null },
+          { path: "/repo/zenith-worktree", label: null, git_common_dir: null },
           { path: "/repo/nova", label: null, git_common_dir: null },
         ],
       }),
