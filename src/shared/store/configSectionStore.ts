@@ -1013,14 +1013,31 @@ export const useConfigSectionStore = create<ConfigSectionStoreState>((set, get) 
       const loaded = CONFIG_SECTION_IDS.filter((section) =>
         Boolean(get().sections[section].envelope),
       );
-      const results = await Promise.allSettled(
-        loaded.map((section) => get().loadSection(section, { force: true })),
+      const targets: Array<{ label: string; refresh: () => Promise<unknown> }> = loaded.map(
+        (section) => ({
+          label: section,
+          refresh: () => get().loadSection(section, { force: true }),
+        }),
       );
-      const failedSections = results.flatMap((result, index) =>
-        result.status === "rejected" ? [loaded[index]] : [],
+      if (get().proxyAuthStatus) {
+        targets.push({
+          label: "proxy-auth",
+          refresh: () => get().loadProxyAuthStatus({ force: true }),
+        });
+      }
+      if (get().accessRuntimeStatus) {
+        targets.push({
+          label: "access-runtime",
+          refresh: () => get().loadAccessRuntimeStatus({ force: true }),
+        });
+      }
+
+      const results = await Promise.allSettled(targets.map(({ refresh }) => refresh()));
+      const failedTargets = results.flatMap((result, index) =>
+        result.status === "rejected" ? [targets[index].label] : [],
       );
-      if (failedSections.length > 0) {
-        throw new Error(`Failed to resync configuration sections: ${failedSections.join(", ")}`);
+      if (failedTargets.length > 0) {
+        throw new Error(`Failed to resync configuration state: ${failedTargets.join(", ")}`);
       }
     },
 

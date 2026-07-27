@@ -15,6 +15,7 @@ import {
   type McpSection,
   type NotificationSectionEnvelope,
   type ProviderSection,
+  type ProxyAuthStatus,
 } from "@services/config/configSections";
 import { useConfigSectionStore } from "../configSectionStore";
 
@@ -28,6 +29,24 @@ const envelope = (
   source_path: "/tmp/core.json",
   source_kind: "file",
   status: "healthy",
+  last_error: null,
+});
+
+const proxyAuthStatus = (revision: number, configured = true): ProxyAuthStatus => ({
+  section: envelope(
+    revision,
+    configured ? { proxy_auth_credential_ref: "proxy.default.auth" } : {},
+  ),
+  state: configured ? "configured" : "missing",
+  configured,
+  credential_ref: configured ? "proxy.default.auth" : null,
+  source: configured ? "user" : null,
+  updated_at: null,
+  revision,
+  status: "healthy",
+  source_kind: "file",
+  source_path: "/tmp/core.json",
+  loaded_at: `2026-07-23T00:00:0${revision}Z`,
   last_error: null,
 });
 
@@ -1113,7 +1132,7 @@ describe("useConfigSectionStore", () => {
       });
 
     await expect(useConfigSectionStore.getState().resyncLoadedSections()).rejects.toThrow(
-      "Failed to resync configuration sections: core",
+      "Failed to resync configuration state: core",
     );
     expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(1);
     expect(useConfigSectionStore.getState().sections.core.error).toBe(
@@ -1125,5 +1144,39 @@ describe("useConfigSectionStore", () => {
     await expect(useConfigSectionStore.getState().resyncLoadedSections()).resolves.toBeUndefined();
     expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(3);
     expect(useConfigSectionStore.getState().sections.core.error).toBeNull();
+  });
+
+  it("refreshes loaded credential projections during reconnect resync", async () => {
+    useConfigSectionStore.setState((state) => ({
+      proxyAuthStatus: proxyAuthStatus(1, false),
+      accessRuntimeStatus: accessRuntimeStatus(1, false),
+      sections: {
+        ...state.sections,
+        core: { ...state.sections.core, envelope: envelope(1) },
+        "access-control": {
+          ...state.sections["access-control"],
+          envelope: accessEnvelope(1),
+        },
+      },
+    }));
+    vi.spyOn(configSectionsService, "getSection").mockImplementation(async (section) => {
+      if (section === "access-control") return accessEnvelope(2) as never;
+      return envelope(2) as never;
+    });
+    const getProxyAuthStatus = vi
+      .spyOn(configSectionsService, "getProxyAuthStatus")
+      .mockResolvedValue(proxyAuthStatus(2));
+    const getAccessRuntimeStatus = vi
+      .spyOn(configSectionsService, "getAccessRuntimeStatus")
+      .mockResolvedValue(accessRuntimeStatus(2));
+
+    await useConfigSectionStore.getState().resyncLoadedSections();
+
+    expect(getProxyAuthStatus).toHaveBeenCalledTimes(1);
+    expect(getAccessRuntimeStatus).toHaveBeenCalledTimes(1);
+    expect(useConfigSectionStore.getState().proxyAuthStatus).toEqual(proxyAuthStatus(2));
+    expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(accessRuntimeStatus(2));
+    expect(useConfigSectionStore.getState().sections.core.envelope?.revision).toBe(2);
+    expect(useConfigSectionStore.getState().sections["access-control"].envelope?.revision).toBe(2);
   });
 });
