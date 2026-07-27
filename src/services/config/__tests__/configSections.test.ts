@@ -3,6 +3,7 @@ import { apiClient, ApiError } from "@services/api";
 import {
   ConfigConflictError,
   configSectionsService,
+  type AccessControlSection,
   type ClusterFabricSection,
   type ClusterNodeMutation,
   type CredentialStatus,
@@ -61,6 +62,65 @@ const mockEnvReads = (sectionRevisions: number[], credentialRevisions: number[])
       if (revision === undefined) throw new Error("Unexpected credential read");
       return credentialResponse(revision) as never;
     }
+    throw new Error(`Unexpected GET ${path}`);
+  });
+};
+
+const accessSectionResponse = (
+  revision: number,
+  data: AccessControlSection = {
+    password_enabled: true,
+    password_credential_ref: "access.root.password",
+    password_configured: true,
+    updated_at: null,
+    devices: [],
+  },
+) => ({
+  data,
+  revision,
+  loaded_at: `2026-07-26T00:02:0${revision}Z`,
+  source_path: "/tmp/access-control.json",
+  source_kind: "file" as const,
+  status: "healthy" as const,
+  last_error: null,
+});
+
+const accessCredentialResponse = (revision: number) => ({
+  data: [
+    {
+      credential_ref: "access.root.password",
+      configured: true,
+      source: "user",
+      updated_at: null,
+    },
+  ] satisfies CredentialStatus[],
+  revision,
+  status: "healthy" as const,
+  source: "file",
+  last_error: null,
+});
+
+const accessRuntimeResponse = (passwordEnabled = true) => ({
+  password_enabled: passwordEnabled,
+  local_bypass: true,
+  requires_password: false,
+});
+
+const mockAccessReads = (sectionRevisions: number[], credentialRevisions: number[]) => {
+  const sections = [...sectionRevisions];
+  const credentials = [...credentialRevisions];
+  return vi.spyOn(apiClient, "get").mockImplementation(async (path: string) => {
+    if (path === "/bamboo/config/sections/access-control") {
+      const revision = sections.shift();
+      if (revision === undefined) throw new Error("Unexpected access-control section read");
+      return accessSectionResponse(revision) as never;
+    }
+    if (path === "/bamboo/config/credentials") {
+      const revision = credentials.shift();
+      if (revision === undefined) throw new Error("Unexpected credential read");
+      return accessCredentialResponse(revision) as never;
+    }
+    if (path === "/bamboo/access/status") return accessRuntimeResponse() as never;
     throw new Error(`Unexpected GET ${path}`);
   });
 };
@@ -643,6 +703,68 @@ describe("configSectionsService", () => {
       2,
       "/bamboo/env-vars/SECRET%2FTOKEN?expected_revision=11",
     );
+  });
+
+  it("preflights Access password replacement with the owned section revision", async () => {
+    mockAccessReads([4, 5], [20, 21]);
+    const post = vi.spyOn(apiClient, "post").mockResolvedValue({
+      success: true,
+      password_enabled: true,
+    });
+
+    const result = await configSectionsService.replaceAccessPassword(4, {
+      current_password: "current-secret",
+      new_password: "replacement-secret",
+    });
+
+    expect(post).toHaveBeenCalledWith("/bamboo/access/password", {
+      current_password: "current-secret",
+      new_password: "replacement-secret",
+    });
+    expect(result).toMatchObject({
+      envelope: { revision: 5 },
+      credentials: { revision: 21 },
+      runtime: { password_enabled: true, local_bypass: true },
+    });
+    expect(JSON.stringify(result)).not.toContain("current-secret");
+    expect(JSON.stringify(result)).not.toContain("replacement-secret");
+  });
+
+  it("rejects a stale Access password draft before sending either password", async () => {
+    mockAccessReads([5], [20]);
+    const post = vi.spyOn(apiClient, "post");
+
+    await expect(
+      configSectionsService.replaceAccessPassword(4, {
+        current_password: "current-secret",
+        new_password: "replacement-secret",
+      }),
+    ).rejects.toMatchObject<ConfigConflictError>({
+      conflict: {
+        expectedRevision: 4,
+        currentRevision: 5,
+      },
+    });
+    expect(post).not.toHaveBeenCalled();
+  });
+
+  it("maps an Access credential race to the latest owned section revision", async () => {
+    mockAccessReads([4, 6], [20, 22]);
+    vi.spyOn(apiClient, "post").mockRejectedValueOnce(
+      new ApiError("access credential race", 409, "Conflict"),
+    );
+
+    await expect(
+      configSectionsService.replaceAccessPassword(4, {
+        new_password: "replacement-secret",
+      }),
+    ).rejects.toMatchObject<ConfigConflictError>({
+      conflict: {
+        expectedRevision: 4,
+        currentRevision: 6,
+        message: "access credential race",
+      },
+    });
   });
 
   it("replaces proxy credentials with the credential revision and no mask round-trip", async () => {

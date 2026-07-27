@@ -1321,6 +1321,8 @@ export const enUsTranslation = {
             "You are on a local connection, so you can change the access password without entering the current password.",
           helperRemote:
             "You are on a remote connection. Enter the current password before changing the access password.",
+          helperFromEnv:
+            "The active verifier comes from the environment. It remains read-only unless you explicitly replace it.",
           loadStatusFailed: "Failed to load access status",
           updated: "Access password updated",
           enabled: "Access password set",
@@ -1333,6 +1335,19 @@ export const enUsTranslation = {
           confirmPasswordLabel: "Confirm Password",
           updateAction: "Update Access Password",
           enableAction: "Enable Access Password",
+          credentialConfigured: "Configured",
+          credentialFromEnv: "From env",
+          credentialMissing: "Missing",
+          credentialError: "Error",
+          revisionConflict: "Access-control revision conflict",
+          revisionConflictDescription:
+            "Your draft expected revision {{expected}}; the server is at revision {{current}}. Password fields were preserved.",
+          changedExternally: "Access-control configuration changed externally",
+          changedExternallyDescription:
+            "Revision {{base}} changed to {{latest}}. Password fields were preserved.",
+          reload: "Reload latest",
+          compare: "Compare",
+          reapply: "Reapply",
           validation: {
             currentPasswordRequired: "Please enter the current password",
             newPasswordRequired: "Please enter a new password",

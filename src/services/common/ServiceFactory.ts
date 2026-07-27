@@ -380,16 +380,6 @@ export interface AccessStatusResponse {
   requires_password: boolean;
 }
 
-export interface UpdateAccessPasswordRequest {
-  current_password?: string;
-  new_password: string;
-}
-
-export interface UpdateAccessPasswordResponse {
-  success: boolean;
-  password_enabled: boolean;
-}
-
 /**
  * Device pairing / management (API v2 per-device tokens — bamboo #181,
  * handlers in `crates/app/bamboo-server/src/handlers/settings/access_control.rs`;
@@ -532,7 +522,6 @@ export interface UtilityService {
    */
   getAccessStatus(): Promise<AccessStatusResponse>;
   verifyAccessPassword(password: string): Promise<ApiSuccessResponse>;
-  updateAccessPassword(payload: UpdateAccessPasswordRequest): Promise<UpdateAccessPasswordResponse>;
 
   /**
    * Device pairing / management (API v2, epic #26 phase 1 — wire plumbing
@@ -687,12 +676,6 @@ class HttpUtilityService implements UtilityService {
 
   async verifyAccessPassword(password: string): Promise<ApiSuccessResponse> {
     return apiClient.post<ApiSuccessResponse>("bamboo/access/verify", { password });
-  }
-
-  async updateAccessPassword(
-    payload: UpdateAccessPasswordRequest,
-  ): Promise<UpdateAccessPasswordResponse> {
-    return apiClient.post<UpdateAccessPasswordResponse>("bamboo/access/password", payload);
   }
 
   // ── v2-P2 device pairing / management (epic #26 phase 1) ─────────────────

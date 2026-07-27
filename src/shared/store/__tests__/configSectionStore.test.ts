@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ConfigConflictError,
   configSectionsService,
+  type AccessControlSection,
+  type AccessMutationResult,
   type ClusterFabricSection,
   type ClusterNodeMutation,
   type ConnectSection,
@@ -140,6 +142,45 @@ const credentialsEnvelope = (revision: number): ConfigSectionEnvelope<Credential
 const envMutationResult = (envRevision: number, credentialRevision: number): EnvMutationResult => ({
   envelope: envEnvelope(envRevision),
   credentials: credentialsEnvelope(credentialRevision),
+});
+
+const accessEnvelope = (revision: number): ConfigSectionEnvelope<AccessControlSection> => ({
+  data: {
+    password_enabled: true,
+    password_credential_ref: "access.root.password",
+    password_configured: true,
+    updated_at: null,
+    devices: [],
+  },
+  revision,
+  loaded_at: "2026-07-27T00:00:00Z",
+  source_path: "/tmp/access-control.json",
+  source_kind: "file",
+  status: "healthy",
+  last_error: null,
+});
+
+const accessMutationResult = (
+  sectionRevision: number,
+  credentialRevision: number,
+): AccessMutationResult => ({
+  envelope: accessEnvelope(sectionRevision),
+  credentials: {
+    ...credentialsEnvelope(credentialRevision),
+    data: [
+      {
+        credential_ref: "access.root.password",
+        configured: true,
+        source: "user",
+        updated_at: null,
+      },
+    ],
+  },
+  runtime: {
+    password_enabled: true,
+    local_bypass: true,
+    requires_password: false,
+  },
 });
 
 const notificationEnvelope = (
@@ -612,6 +653,121 @@ describe("useConfigSectionStore", () => {
     );
     expect(useConfigSectionStore.getState().sections.env.envelope).toEqual(envEnvelope(4));
     expect(useConfigSectionStore.getState().sections.env.conflict?.currentRevision).toBe(5);
+  });
+
+  it("adopts Access, credential, and runtime status together without storing passwords", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        "access-control": {
+          ...state.sections["access-control"],
+          envelope: accessEnvelope(4),
+        },
+        credentials: {
+          ...state.sections.credentials,
+          envelope: credentialsEnvelope(20),
+        },
+      },
+    }));
+    const replace = vi
+      .spyOn(configSectionsService, "replaceAccessPassword")
+      .mockResolvedValueOnce(accessMutationResult(5, 21));
+
+    await useConfigSectionStore.getState().replaceAccessPassword(
+      {
+        current_password: "current-secret",
+        new_password: "replacement-secret",
+      },
+      4,
+    );
+
+    expect(replace).toHaveBeenCalledWith(4, {
+      current_password: "current-secret",
+      new_password: "replacement-secret",
+    });
+    expect(useConfigSectionStore.getState().sections["access-control"].envelope).toEqual(
+      accessEnvelope(5),
+    );
+    expect(useConfigSectionStore.getState().sections.credentials.envelope?.revision).toBe(21);
+    expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(
+      accessMutationResult(5, 21).runtime,
+    );
+    expect(JSON.stringify(useConfigSectionStore.getState())).not.toContain("current-secret");
+    expect(JSON.stringify(useConfigSectionStore.getState())).not.toContain("replacement-secret");
+  });
+
+  it("does not let an older Access runtime load regress a password mutation", async () => {
+    let resolveRuntime!: (value: {
+      password_enabled: boolean;
+      local_bypass: boolean;
+      requires_password: boolean;
+    }) => void;
+    vi.spyOn(configSectionsService, "getAccessRuntimeStatus").mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRuntime = resolve;
+        }),
+    );
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        "access-control": {
+          ...state.sections["access-control"],
+          envelope: accessEnvelope(4),
+        },
+      },
+    }));
+    vi.spyOn(configSectionsService, "replaceAccessPassword").mockResolvedValueOnce(
+      accessMutationResult(5, 21),
+    );
+
+    const pendingRuntime = useConfigSectionStore.getState().loadAccessRuntimeStatus({
+      force: true,
+    });
+    await useConfigSectionStore
+      .getState()
+      .replaceAccessPassword({ new_password: "replacement-secret" }, 4);
+    resolveRuntime({
+      password_enabled: false,
+      local_bypass: false,
+      requires_password: false,
+    });
+
+    await expect(pendingRuntime).resolves.toEqual(accessMutationResult(5, 21).runtime);
+    expect(useConfigSectionStore.getState().accessRuntimeStatus).toEqual(
+      accessMutationResult(5, 21).runtime,
+    );
+  });
+
+  it("keeps the Access LKG and records a canonical stale password conflict", async () => {
+    useConfigSectionStore.setState((state) => ({
+      sections: {
+        ...state.sections,
+        "access-control": {
+          ...state.sections["access-control"],
+          envelope: accessEnvelope(4),
+        },
+      },
+    }));
+    vi.spyOn(configSectionsService, "replaceAccessPassword").mockRejectedValueOnce(
+      new ConfigConflictError({
+        expectedRevision: 4,
+        currentRevision: 5,
+        message: "revision conflict",
+      }),
+    );
+
+    await expect(
+      useConfigSectionStore
+        .getState()
+        .replaceAccessPassword({ new_password: "replacement-secret" }, 4),
+    ).rejects.toThrow("revision conflict");
+    expect(useConfigSectionStore.getState().sections["access-control"].envelope).toEqual(
+      accessEnvelope(4),
+    );
+    expect(
+      useConfigSectionStore.getState().sections["access-control"].conflict?.currentRevision,
+    ).toBe(5);
   });
 
   it("retains notification credential metadata alongside the typed section revision", async () => {

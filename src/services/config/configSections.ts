@@ -321,6 +321,43 @@ export interface EnvMutationResult {
   credentials: ConfigSectionEnvelope<CredentialStatus[]>;
 }
 
+export interface AccessControlDevice {
+  device_id: string;
+  label: string;
+  token_credential_ref?: string | null;
+  token_configured: boolean;
+  created_at: string;
+  last_used_at?: string | null;
+  revoked: boolean;
+}
+
+export interface AccessControlConfig {
+  password_enabled: boolean;
+  password_credential_ref?: string | null;
+  password_configured: boolean;
+  updated_at?: string | null;
+  devices: AccessControlDevice[];
+}
+
+export type AccessControlSection = AccessControlConfig | null;
+
+export interface AccessRuntimeStatus {
+  password_enabled: boolean;
+  local_bypass: boolean;
+  requires_password: boolean;
+}
+
+export interface AccessPasswordMutation {
+  current_password?: string;
+  new_password: string;
+}
+
+export interface AccessMutationResult {
+  envelope: ConfigSectionEnvelope<AccessControlSection>;
+  credentials: ConfigSectionEnvelope<CredentialStatus[]>;
+  runtime: AccessRuntimeStatus;
+}
+
 export interface NotificationCredentialStatus {
   credential_ref: string | null;
   configured: boolean;
@@ -389,7 +426,7 @@ export interface ConfigSectionDataMap {
   connect: ConnectSection;
   "cluster-fabric": ClusterFabricSection;
   env: EnvSection;
-  "access-control": Record<string, unknown> | null;
+  "access-control": AccessControlSection;
   hooks: HooksSection;
   "model-policy": ModelPolicySection;
   "model-limits": ModelLimitsSection;
@@ -618,6 +655,19 @@ class ConfigSectionsService {
     return this.readEnvMutationState();
   }
 
+  private async readAccessMutationState(): Promise<AccessMutationResult> {
+    const [envelope, credentialResponse, runtime] = await Promise.all([
+      this.getSection("access-control"),
+      this.listCredentials(),
+      this.getAccessRuntimeStatus(),
+    ]);
+    return {
+      envelope,
+      credentials: normalizeCredentialEnvelope(credentialResponse),
+      runtime,
+    };
+  }
+
   async getNotificationSection(): Promise<NotificationSectionEnvelope> {
     const [section, credentials] = await Promise.all([
       apiClient.get<ConfigSectionEnvelope<unknown>>("/bamboo/config/sections/notifications"),
@@ -628,6 +678,10 @@ class ConfigSectionsService {
 
   async getMcpSettings(): Promise<ConfigSectionEnvelope<McpSection>> {
     return apiClient.get<ConfigSectionEnvelope<McpSection>>("/bamboo/config/sections/mcp");
+  }
+
+  async getAccessRuntimeStatus(): Promise<AccessRuntimeStatus> {
+    return apiClient.get<AccessRuntimeStatus>("/bamboo/access/status");
   }
 
   async getSection<K extends ConfigSectionId>(
@@ -660,7 +714,13 @@ class ConfigSectionsService {
   async putSection<
     K extends Exclude<
       WritableConfigSectionId,
-      "notifications" | "providers" | "mcp" | "connect" | "cluster-fabric" | "env"
+      | "notifications"
+      | "providers"
+      | "mcp"
+      | "connect"
+      | "cluster-fabric"
+      | "env"
+      | "access-control"
     >,
   >(
     section: K,
@@ -843,6 +903,33 @@ class ConfigSectionsService {
         `/bamboo/env-vars/${encodeURIComponent(name)}?expected_revision=${credentialRevision}`,
       ),
     );
+  }
+
+  async replaceAccessPassword(
+    expectedSectionRevision: number,
+    data: AccessPasswordMutation,
+  ): Promise<AccessMutationResult> {
+    const current = await this.readAccessMutationState();
+    if (current.envelope.revision !== expectedSectionRevision) {
+      throw new ConfigConflictError({
+        expectedRevision: expectedSectionRevision,
+        currentRevision: current.envelope.revision,
+        message: "The access-control configuration changed on disk.",
+      });
+    }
+
+    try {
+      await apiClient.post("/bamboo/access/password", data);
+    } catch (error) {
+      if (!isApiError(error) || error.status !== 409) throw error;
+      const latest = await this.readAccessMutationState();
+      throw new ConfigConflictError({
+        expectedRevision: expectedSectionRevision,
+        currentRevision: latest.envelope.revision,
+        message: error.message || "The access-control configuration changed on disk.",
+      });
+    }
+    return this.readAccessMutationState();
   }
 
   async createClusterNode(

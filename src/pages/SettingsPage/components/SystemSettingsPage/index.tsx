@@ -51,10 +51,7 @@ import {
 } from "@shared/store/experienceModeStore";
 import { APP_VERSION } from "@shared/constants/appVersion";
 import ConfigSectionStatus from "./ConfigSectionStatus";
-import {
-  CONFIG_SECTION_IDS,
-  type ConfigSectionId,
-} from "@services/config/configSections";
+import { CONFIG_SECTION_IDS, type ConfigSectionId } from "@services/config/configSections";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type { ResetSectionResult } from "./SystemSettingsAppTab";
 
@@ -398,7 +395,7 @@ const SystemSettingsPage = ({
               key: "config",
               label: tabLabel("config", t("settings.page.tabs.config")),
               children: withConfigStatus(
-                ["core", "memory", "subagents", "tools-skills"],
+                ["core", "memory", "subagents", "tools-skills", "access-control", "credentials"],
                 <SystemSettingsConfigTab
                   msgApi={msgApi}
                   locale={locale}
@@ -425,10 +422,7 @@ const SystemSettingsPage = ({
             {
               key: "connect",
               label: tabLabel("connect", t("settings.page.tabs.connect", "Connect")),
-              children: withConfigStatus(
-                ["connect", "credentials"],
-                <SystemSettingsConnectTab />,
-              ),
+              children: withConfigStatus(["connect", "credentials"], <SystemSettingsConnectTab />),
             },
             {
               key: "app",

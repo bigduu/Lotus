@@ -200,7 +200,6 @@ describe("ServiceFactory", () => {
         expect(apiClient.post).toHaveBeenCalledWith("bamboo/hooks/test", payload);
       });
     });
-
   });
 
   describe("Workflow Management", () => {
@@ -382,7 +381,6 @@ describe("ServiceFactory", () => {
       expect(utility).toHaveProperty("markSetupComplete");
       expect(utility).toHaveProperty("getAccessStatus");
       expect(utility).toHaveProperty("verifyAccessPassword");
-      expect(utility).toHaveProperty("updateAccessPassword");
     });
 
     it("should call underlying HttpUtilityService methods", async () => {
