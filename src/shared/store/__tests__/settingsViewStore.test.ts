@@ -1,9 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { act } from "@testing-library/react";
-import {
-  DEFAULT_SETTINGS_TAB_KEY,
-  useSettingsViewStore,
-} from "../settingsViewStore";
+import { DEFAULT_SETTINGS_TAB_KEY, useSettingsViewStore } from "../settingsViewStore";
 
 describe("settingsViewStore", () => {
   beforeEach(() => {

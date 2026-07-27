@@ -64,11 +64,7 @@ export const setBashCompletedAtom = atom(
 );
 
 /** Record a background shell completion. Called from the `onBashCompleted` handler. */
-export const setBashCompleted = (
-  bashId: string,
-  status: string,
-  exitCode: number | null,
-): void => {
+export const setBashCompleted = (bashId: string, status: string, exitCode: number | null): void => {
   backgroundBashStore.set(setBashCompletedAtom, { bashId, status, exitCode });
 };
 
@@ -106,12 +102,12 @@ export const useBackgroundBashStatus = (
  * Mirrors {@link useToolStreamingStates} so a tool-steps card can subscribe to
  * every background shell it renders in a single hook.
  */
-export const useBackgroundBashStatuses = (
-  bashIds: readonly string[],
-): BackgroundBashStatusMap => {
+export const useBackgroundBashStatuses = (bashIds: readonly string[]): BackgroundBashStatusMap => {
   const normalizedIds = useMemo(
     () =>
-      Array.from(new Set(bashIds.map((id) => normalizeStreamingKeyPart(id)).filter(Boolean))).sort(),
+      Array.from(
+        new Set(bashIds.map((id) => normalizeStreamingKeyPart(id)).filter(Boolean)),
+      ).sort(),
     [bashIds],
   );
 
