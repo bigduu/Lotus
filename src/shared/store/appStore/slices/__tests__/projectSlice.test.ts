@@ -5,9 +5,10 @@ import type { ProjectManifest, ProjectSummary } from "@services/project";
 import { createProjectSlice, type ProjectSlice } from "../projectSlice";
 import { createSliceHarness } from "./sliceHarness";
 
-const { listProjects, getProject } = vi.hoisted(() => ({
+const { listProjects, getProject, unarchiveProject } = vi.hoisted(() => ({
   listProjects: vi.fn(),
   getProject: vi.fn(),
+  unarchiveProject: vi.fn(),
 }));
 
 vi.mock("@services/project", async (importOriginal) => {
@@ -18,6 +19,7 @@ vi.mock("@services/project", async (importOriginal) => {
       ...actual.projectService,
       listProjects,
       getProject,
+      unarchiveProject,
     },
   };
 });
@@ -70,6 +72,7 @@ describe("projectSlice", () => {
   beforeEach(() => {
     listProjects.mockReset();
     getProject.mockReset();
+    unarchiveProject.mockReset();
   });
 
   describe("loadProjects", () => {
@@ -232,6 +235,27 @@ describe("projectSlice", () => {
       expect(harness.getState().projects["p1"]?.name).toBe("New name");
     });
 
+    it("reconciles a remote restore from ProjectUpdated without changing the active Project", async () => {
+      getProject.mockResolvedValue(makeManifest("p1", { status: "active", revision: 2 }));
+      const harness = createHarness();
+      harness.setState({
+        projects: {
+          p1: stored(makeManifest("p1", { status: "archived" })),
+          p2: stored(makeManifest("p2")),
+        },
+        activeProjectId: "p2",
+      });
+
+      harness
+        .getState()
+        .applyProjectEvent({ type: "project_updated", project_id: "p1", revision: 2 });
+
+      expect(harness.getState().projects["p1"]?.status).toBe("archived");
+      await flush();
+      expect(harness.getState().projects["p1"]?.status).toBe("active");
+      expect(harness.getState().activeProjectId).toBe("p2");
+    });
+
     it("refreshes the Project resource revision carried by the authoritative manifest", async () => {
       getProject.mockResolvedValue(makeManifest("p1", { revision: 2, resource_revision: 7 }));
       const harness = createHarness();
@@ -306,6 +330,85 @@ describe("projectSlice", () => {
 
       expect(harness.getState().activeProjectId).toBeNull();
     });
+  });
+
+  describe("unarchiveProject (#725)", () => {
+    it("merges the canonical restored manifest without changing the active Project", async () => {
+      const archived = makeManifest("p1", {
+        status: "archived",
+        revision: 4,
+        resource_revision: 9,
+        legacy_project_keys: ["legacy-p1"],
+      });
+      const restored = makeManifest("p1", {
+        status: "active",
+        revision: 5,
+        resource_revision: 9,
+        legacy_project_keys: ["legacy-p1"],
+      });
+      unarchiveProject.mockResolvedValue(restored);
+      const harness = createHarness();
+      harness.setState({
+        projects: {
+          p1: stored(archived),
+          p2: stored(makeManifest("p2")),
+        },
+        activeProjectId: "p2",
+      });
+
+      await expect(harness.getState().unarchiveProject("p1", 4)).resolves.toEqual(restored);
+
+      expect(unarchiveProject).toHaveBeenCalledWith("p1", 4);
+      expect(harness.getState().projects["p1"]).toMatchObject({
+        status: "active",
+        revision: 5,
+        resource_revision: 9,
+        project_path: "/repo/p1",
+        legacy_project_keys: ["legacy-p1"],
+      });
+      expect(harness.getState().activeProjectId).toBe("p2");
+    });
+
+    it("does not apply a late canonical response over a newer local revision", async () => {
+      unarchiveProject.mockResolvedValue(makeManifest("p1", { status: "active", revision: 5 }));
+      const newer = stored(makeManifest("p1", { status: "archived", revision: 6 }));
+      const harness = createHarness();
+      harness.setState({
+        projects: { p1: newer },
+        activeProjectId: null,
+      });
+
+      await harness.getState().unarchiveProject("p1", 5);
+
+      expect(harness.getState().projects["p1"]).toEqual(newer);
+      expect(harness.getState().activeProjectId).toBeNull();
+    });
+
+    it.each([
+      new ApiError(
+        "Project is not archived",
+        409,
+        "Conflict",
+        '{"error":{"code":"project_not_archived","message":"Project is not archived"}}',
+      ),
+      new ApiError("project revision conflict", 412, "Precondition Failed"),
+    ])(
+      "leaves the archived manifest untouched when restore rejects with $status",
+      async (error) => {
+        unarchiveProject.mockRejectedValue(error);
+        const archived = stored(makeManifest("p1", { status: "archived", revision: 4 }));
+        const harness = createHarness();
+        harness.setState({
+          projects: { p1: archived },
+          activeProjectId: "p2",
+        });
+
+        await expect(harness.getState().unarchiveProject("p1", 4)).rejects.toBe(error);
+
+        expect(harness.getState().projects["p1"]).toEqual(archived);
+        expect(harness.getState().activeProjectId).toBe("p2");
+      },
+    );
   });
 
   describe("migrateLegacyMemory", () => {

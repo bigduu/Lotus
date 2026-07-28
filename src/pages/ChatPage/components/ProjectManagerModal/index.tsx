@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   App as AntdApp,
   Button,
@@ -13,7 +13,15 @@ import {
   Typography,
   theme,
 } from "antd";
-import { DeleteOutlined, FolderOutlined, InboxOutlined, PlusOutlined } from "@ant-design/icons";
+import {
+  DeleteOutlined,
+  DownOutlined,
+  FolderOutlined,
+  InboxOutlined,
+  PlusOutlined,
+  RightOutlined,
+  UndoOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 
@@ -30,13 +38,22 @@ type ProjectManagerModalProps = {
   onOpenMigration: () => void;
 };
 
+const structuredErrorCode = (error: unknown): string | null => {
+  if (!isApiError(error) || !error.body) return null;
+  try {
+    const parsed = JSON.parse(error.body) as { error?: { code?: string } };
+    return parsed.error?.code?.trim() || null;
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Project manager (#154): create / rename / archive Projects and manage
  * their authoritative Project path, additional workspace bindings, and
  * read-only shared-resource summary.
  *
  * Deliberately out of scope until the backend lands:
- * - restore/unarchive (Bamboo-agent#725),
  * - session counts in the list (Bamboo-agent#727).
  */
 const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
@@ -53,6 +70,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
     createProject,
     updateProject,
     archiveProject,
+    unarchiveProject,
     bindWorkspace,
     unbindWorkspace,
     ensureProject,
@@ -66,6 +84,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
       createProject: state.createProject,
       updateProject: state.updateProject,
       archiveProject: state.archiveProject,
+      unarchiveProject: state.unarchiveProject,
       bindWorkspace: state.bindWorkspace,
       unbindWorkspace: state.unbindWorkspace,
       ensureProject: state.ensureProject,
@@ -75,18 +94,27 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
     })),
   );
 
-  const sortedProjects = useMemo(
-    () =>
-      Object.values(projects).sort((a, b) => {
-        if (a.status !== b.status) return a.status === "active" ? -1 : 1;
-        return b.updated_at.localeCompare(a.updated_at);
-      }),
+  const { activeProjects, archivedProjects } = useMemo(
+    () => ({
+      activeProjects: Object.values(projects)
+        .filter((project) => project.status === "active")
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+      archivedProjects: Object.values(projects)
+        .filter((project) => project.status === "archived")
+        .sort((a, b) => b.updated_at.localeCompare(a.updated_at)),
+    }),
     [projects],
   );
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  const selectProject = useCallback((projectId: string | null) => {
+    selectedIdRef.current = projectId;
+    setSelectedId(projectId);
+  }, []);
   const [creating, setCreating] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [archivedExpanded, setArchivedExpanded] = useState(false);
 
   // Unassigned root sessions — the entry point to the legacy migration
   // wizard (#156). Children inherit their root's project on the backend.
@@ -114,8 +142,20 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
     if (!open) return;
     if (selectedId && projects[selectedId]) return;
     const fallback = activeProjectId && projects[activeProjectId] ? activeProjectId : null;
-    setSelectedId(fallback ?? sortedProjects[0]?.id ?? null);
-  }, [open, projects, selectedId, activeProjectId, sortedProjects]);
+    const fallbackId = fallback ?? activeProjects[0]?.id ?? archivedProjects[0]?.id ?? null;
+    selectProject(fallbackId);
+    if (fallbackId && projects[fallbackId]?.status === "archived") {
+      setArchivedExpanded(true);
+    }
+  }, [
+    open,
+    projects,
+    selectedId,
+    activeProjectId,
+    activeProjects,
+    archivedProjects,
+    selectProject,
+  ]);
 
   // Load detail + resources for the selected project. Non-forced
   // ensureProject: the list endpoint already returns full manifests, so a
@@ -146,7 +186,10 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
         ensureProject(projectId, { force: true })
           .then(() => {
             const fresh = useAppStore.getState().projects[projectId];
-            if (fresh) {
+            // The canonical manifest always belongs in the store, but an old
+            // mutation must never overwrite the form for a Project selected
+            // while its conflict refetch was in flight.
+            if (fresh && selectedIdRef.current === projectId) {
               setEditName(fresh.name);
               setEditDescription(fresh.description ?? "");
               setEditProjectPath(fresh.project_path ?? "");
@@ -189,7 +232,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
       setNewName("");
       setNewDescription("");
       setNewProjectPath("");
-      setSelectedId(manifest.id);
+      selectProject(manifest.id);
     } catch (error) {
       message.error(error instanceof Error ? error.message : t("chat.project.createFailed"));
     } finally {
@@ -236,6 +279,30 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
     }
   };
 
+  const handleUnarchive = async () => {
+    if (!selected) return;
+    const projectId = selected.id;
+    setBusy(true);
+    try {
+      await unarchiveProject(projectId, selected.revision);
+      message.success(t("chat.project.restoreSuccess"));
+    } catch (error) {
+      // A 409 `project_not_archived` means another client already restored
+      // the Project. Reconcile the authoritative manifest so the local
+      // archived section cannot remain stale after surfacing the conflict.
+      if (
+        isApiError(error) &&
+        error.status === 409 &&
+        structuredErrorCode(error) === "project_not_archived"
+      ) {
+        ensureProject(projectId, { force: true }).catch(() => {});
+      }
+      handleMutationError(error, projectId, "chat.project.restoreFailed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleBind = async () => {
     if (!selected || !bindingPath.trim()) return;
     setBusy(true);
@@ -266,6 +333,40 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
       setBusy(false);
     }
   };
+
+  const renderProjectListItem = (project: ProjectManifest) => (
+    <List.Item
+      onClick={() => {
+        setCreating(false);
+        selectProject(project.id);
+      }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setCreating(false);
+          selectProject(project.id);
+        }
+      }}
+      style={{
+        cursor: "pointer",
+        padding: "6px 8px",
+        borderRadius: token.borderRadiusSM,
+        background: project.id === selectedId && !creating ? token.colorFillSecondary : undefined,
+      }}
+      data-testid={`project-list-item-${project.id}`}
+    >
+      <Flex align="center" gap={6} style={{ minWidth: 0 }}>
+        <Text ellipsis style={{ flex: 1 }}>
+          {project.name}
+        </Text>
+        {project.status === "archived" ? (
+          <Tag style={{ marginInlineEnd: 0 }}>{t("chat.project.archivedTag", "Archived")}</Tag>
+        ) : null}
+      </Flex>
+    </List.Item>
+  );
 
   return (
     <Modal
@@ -299,47 +400,36 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
               {t("chat.migration.entryCount", { count: unassignedRootCount })})
             </Button>
           ) : null}
-          <List
-            size="small"
-            dataSource={sortedProjects}
-            locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-            renderItem={(project) => (
-              <List.Item
-                onClick={() => {
-                  setCreating(false);
-                  setSelectedId(project.id);
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    setCreating(false);
-                    setSelectedId(project.id);
-                  }
-                }}
-                style={{
-                  cursor: "pointer",
-                  padding: "6px 8px",
-                  borderRadius: token.borderRadiusSM,
-                  background:
-                    project.id === selectedId && !creating ? token.colorFillSecondary : undefined,
-                }}
-                data-testid={`project-list-item-${project.id}`}
+          {activeProjects.length > 0 ? (
+            <List size="small" dataSource={activeProjects} renderItem={renderProjectListItem} />
+          ) : archivedProjects.length === 0 ? (
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
+          ) : null}
+          {archivedProjects.length > 0 ? (
+            <div style={{ marginTop: activeProjects.length > 0 ? 8 : 0 }}>
+              <Button
+                type="text"
+                size="small"
+                block
+                icon={archivedExpanded ? <DownOutlined /> : <RightOutlined />}
+                onClick={() => setArchivedExpanded((expanded) => !expanded)}
+                aria-expanded={archivedExpanded}
+                data-testid="project-archived-toggle"
+                style={{ justifyContent: "flex-start", color: token.colorTextSecondary }}
               >
-                <Flex align="center" gap={6} style={{ minWidth: 0 }}>
-                  <Text ellipsis style={{ flex: 1 }}>
-                    {project.name}
-                  </Text>
-                  {project.status === "archived" ? (
-                    <Tag style={{ marginInlineEnd: 0 }}>
-                      {t("chat.project.archivedTag", "Archived")}
-                    </Tag>
-                  ) : null}
-                </Flex>
-              </List.Item>
-            )}
-          />
+                {t("chat.project.archivedProjects", "Archived projects")} ({archivedProjects.length}
+                )
+              </Button>
+              {archivedExpanded ? (
+                <List
+                  size="small"
+                  dataSource={archivedProjects}
+                  renderItem={renderProjectListItem}
+                  data-testid="project-archived-list"
+                />
+              ) : null}
+            </div>
+          ) : null}
         </Flex>
 
         <Divider type="vertical" style={{ height: "auto" }} />
@@ -558,9 +648,23 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                   </Popconfirm>
                 </>
               ) : (
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {t("chat.project.restoreUnavailable")}
-                </Text>
+                <>
+                  <Divider style={{ margin: "4px 0" }} />
+                  <Button
+                    size="small"
+                    icon={<UndoOutlined />}
+                    loading={busy}
+                    disabled={busy}
+                    onClick={handleUnarchive}
+                    style={{ alignSelf: "flex-start" }}
+                    data-testid="project-unarchive"
+                  >
+                    {t("chat.project.restore", "Restore")}
+                  </Button>
+                  <Text type="secondary" style={{ fontSize: 12 }}>
+                    {t("chat.project.restoreDescription")}
+                  </Text>
+                </>
               )}
             </Flex>
           ) : (

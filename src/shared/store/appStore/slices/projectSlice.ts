@@ -59,6 +59,7 @@ export interface ProjectSlice {
     req: PatchProjectRequest,
   ) => Promise<ProjectManifest>;
   archiveProject: (projectId: string, revision: number) => Promise<ProjectManifest>;
+  unarchiveProject: (projectId: string, revision: number) => Promise<ProjectManifest>;
   bindWorkspace: (
     projectId: string,
     revision: number,
@@ -238,6 +239,24 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
           projects,
           activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
         };
+      });
+      return manifest;
+    },
+
+    unarchiveProject: async (projectId, revision) => {
+      const id = createProjectKey(projectId);
+      if (!id) throw new Error("Invalid project id");
+      const manifest = await projectService.unarchiveProject(id, revision);
+      set((state) => {
+        const projects = { ...state.projects };
+        // Merge only the canonical response. mergeProjectIntoMap rejects an
+        // out-of-order response, so a late restore can never roll a newer
+        // archive/update backward.
+        mergeProjectIntoMap(projects, manifest);
+        // Restoring is not a selection action. Keep the current creation
+        // default and session grouping stable even when another Project was
+        // active while this request completed.
+        return { projects };
       });
       return manifest;
     },
