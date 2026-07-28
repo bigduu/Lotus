@@ -232,6 +232,19 @@ describe("projectSlice", () => {
       expect(harness.getState().projects["p1"]?.name).toBe("New name");
     });
 
+    it("refreshes the Project resource revision carried by the authoritative manifest", async () => {
+      getProject.mockResolvedValue(makeManifest("p1", { revision: 2, resource_revision: 7 }));
+      const harness = createHarness();
+      harness.setState({ projects: { p1: stored(makeManifest("p1")) } });
+
+      harness
+        .getState()
+        .applyProjectEvent({ type: "project_updated", project_id: "p1", revision: 2 });
+      await flush();
+
+      expect(harness.getState().projects["p1"]?.resource_revision).toBe(7);
+    });
+
     it("lazily loads unknown projects", async () => {
       getProject.mockResolvedValue(makeManifest("p9"));
       const harness = createHarness();

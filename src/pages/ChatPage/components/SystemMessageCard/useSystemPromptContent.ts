@@ -17,6 +17,7 @@ type UseSystemPromptContentArgs = {
 export type PromptSnapshotSectionKey =
   | "base"
   | "enhancement"
+  | "project"
   | "workspace"
   | "instruction"
   | "env"
@@ -33,12 +34,51 @@ export type PromptSnapshotSection = {
   content: string;
 };
 
+export type PromptInspectorContextDetails = {
+  projectPath: string | null;
+  sessionWorkspacePath: string | null;
+  effectiveWorkspacePath: string | null;
+  resourceRevision: number | null;
+  usesProjectPathFallback: boolean;
+};
+
 const normalizeSnapshotContent = (value?: string | null): string | null => {
   if (typeof value !== "string") {
     return null;
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+};
+
+/**
+ * Join Bamboo's structured Project/session fields for the Inspector.
+ *
+ * `project_context` and `workspace_context` are opaque prompt sections. They
+ * are deliberately not parsed for metadata: Project path and resource
+ * revision come from ProjectStore, while the session workspace comes from the
+ * authoritative SessionSummary mapped onto `currentChat`.
+ */
+export const buildPromptInspectorContextDetails = (
+  fields: {
+    projectPath?: string | null;
+    sessionWorkspacePath?: string | null;
+    resourceRevision?: number | null;
+  } = {},
+): PromptInspectorContextDetails => {
+  const projectPath = normalizeSnapshotContent(fields.projectPath);
+  const sessionWorkspacePath = normalizeSnapshotContent(fields.sessionWorkspacePath);
+  const effectiveWorkspacePath = sessionWorkspacePath ?? projectPath;
+
+  return {
+    projectPath,
+    sessionWorkspacePath,
+    effectiveWorkspacePath,
+    resourceRevision:
+      typeof fields.resourceRevision === "number" && Number.isFinite(fields.resourceRevision)
+        ? fields.resourceRevision
+        : null,
+    usesProjectPathFallback: sessionWorkspacePath === null && projectPath !== null,
+  };
 };
 
 export const buildPromptSnapshotSections = (
@@ -51,6 +91,7 @@ export const buildPromptSnapshotSections = (
   const candidates: Array<[PromptSnapshotSectionKey, string | undefined]> = [
     ["base", snapshot.base_system_prompt],
     ["enhancement", snapshot.enhancement_prompt],
+    ["project", snapshot.project_context],
     ["workspace", snapshot.workspace_context],
     ["instruction", snapshot.instruction_context],
     ["env", snapshot.env_context],
