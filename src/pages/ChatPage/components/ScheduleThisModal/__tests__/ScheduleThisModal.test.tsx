@@ -27,6 +27,7 @@ function seedSession(
     title?: string;
     workspacePath?: string;
     model?: string;
+    projectId?: string;
   } = {},
 ) {
   const {
@@ -34,6 +35,7 @@ function seedSession(
     title = "Sales summary",
     workspacePath = "/Users/me/work/sales",
     model = "gpt-4o",
+    projectId = "project-sales",
   } = overrides;
 
   useAppStore.setState((state) => ({
@@ -61,6 +63,7 @@ function seedSession(
           lastUsedEnhancedPrompt: null,
           workspacePath,
           model,
+          projectId,
         },
       },
     ],
@@ -127,7 +130,19 @@ describe("ScheduleThisModal (#100)", () => {
       task_message: "Summarize yesterday's sales numbers",
       workspace_path: "/Users/me/work/sales",
       model: "gpt-4o",
+      project_id: "project-sales",
       auto_execute: true,
     });
+  });
+
+  it("keeps a schedule from an unassigned session explicitly unassigned", async () => {
+    seedSession({ projectId: "" });
+    renderModal();
+
+    await screen.findByDisplayValue("Summarize yesterday's sales numbers");
+    fireEvent.click(screen.getByText("Create"));
+
+    await waitFor(() => expect(mockCreateSchedule).toHaveBeenCalledTimes(1));
+    expect(mockCreateSchedule.mock.calls[0][0].run_config.project_id).toBeNull();
   });
 });

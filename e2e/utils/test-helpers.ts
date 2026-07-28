@@ -120,6 +120,11 @@ export async function clickWithModalGuard(
 }
 
 export async function ensureChatReady(page: Page) {
+  // Chat-ready scenarios exercise the post-onboarding application. Seed this
+  // before navigation so the delayed feature tour cannot mask later actions.
+  await page.addInitScript(() => {
+    localStorage.setItem('bodhi_onboarding_complete', 'true');
+  });
   await page.goto('/');
   await waitForAppReady(page);
   await ensureSidebarVisible(page);

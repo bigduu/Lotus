@@ -147,6 +147,13 @@ describe("LegacyMigrationModal (#156)", () => {
       "s3",
       "s4",
     ]);
+    expect(input.sessions[0]).toEqual({
+      session_id: "s1",
+      workspace_path: "/repo/s1",
+    });
+    expect(input.sessions[0]).not.toHaveProperty("canonical_path");
+    expect(input.sessions[0]).not.toHaveProperty("git_common_dir");
+    expect(input.sessions[0]).not.toHaveProperty("legacy_project_keys");
   });
 
   it("shows the empty state when every root session already belongs to a project", async () => {

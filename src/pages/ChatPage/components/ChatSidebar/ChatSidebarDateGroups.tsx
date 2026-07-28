@@ -333,6 +333,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               <Button
                 size="small"
                 type="text"
+                data-testid={`chat-item-children-toggle-${chat.id}`}
                 style={{
                   padding: 0,
                   minWidth: 18,
