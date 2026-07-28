@@ -1,7 +1,11 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildPromptSnapshotSections, useSystemPromptContent } from "../useSystemPromptContent";
+import {
+  buildPromptInspectorContextDetails,
+  buildPromptSnapshotSections,
+  useSystemPromptContent,
+} from "../useSystemPromptContent";
 
 const mockFindPresetById = vi.fn();
 const mockGetSessionSystemPrompt = vi.fn();
@@ -53,6 +57,8 @@ describe("useSystemPromptContent", () => {
       session_id: "session-1",
       base_system_prompt: "Base prompt",
       enhancement_prompt: "Enhancement layer",
+      project_context:
+        "<!-- BAMBOO_PROJECT_CONTEXT_START -->\nProject ID: project-1\nProject path: /repo/zenith\n<!-- BAMBOO_PROJECT_CONTEXT_END -->",
       workspace_context: "Workspace context",
       instruction_context: "Instruction layer",
       env_context: "Env context",
@@ -68,6 +74,7 @@ describe("useSystemPromptContent", () => {
     expect(sections.map((section) => section.key)).toEqual([
       "base",
       "enhancement",
+      "project",
       "workspace",
       "instruction",
       "env",
@@ -81,11 +88,69 @@ describe("useSystemPromptContent", () => {
     ]);
   });
 
+  it("joins authoritative Project and session fields without parsing prompt context", () => {
+    const details = buildPromptInspectorContextDetails({
+      projectPath: "/repo/zenith",
+      sessionWorkspacePath: "/repo/zenith-worktree",
+      resourceRevision: 7,
+    });
+
+    expect(details).toEqual({
+      projectPath: "/repo/zenith",
+      sessionWorkspacePath: "/repo/zenith-worktree",
+      effectiveWorkspacePath: "/repo/zenith-worktree",
+      resourceRevision: 7,
+      usesProjectPathFallback: false,
+    });
+  });
+
+  it("keeps Project and Workspace context sections independent when either field is missing", () => {
+    const common = {
+      session_id: "session-1",
+      base_system_prompt: "Base prompt",
+      effective_system_prompt: "Effective prompt",
+    };
+
+    expect(
+      buildPromptSnapshotSections({ ...common, project_context: "Project context" }).map(
+        (section) => section.key,
+      ),
+    ).toEqual(["base", "project", "effective"]);
+    expect(
+      buildPromptSnapshotSections({ ...common, workspace_context: "Workspace context" }).map(
+        (section) => section.key,
+      ),
+    ).toEqual(["base", "workspace", "effective"]);
+  });
+
+  it("uses the Project path as effective workspace when the session has no workspace", () => {
+    const details = buildPromptInspectorContextDetails({
+      projectPath: "/repo/zenith",
+      sessionWorkspacePath: null,
+      resourceRevision: 8,
+    });
+
+    expect(details.sessionWorkspacePath).toBeNull();
+    expect(details.effectiveWorkspacePath).toBe("/repo/zenith");
+    expect(details.usesProjectPathFallback).toBe(true);
+  });
+
+  it("degrades safely for legacy sessions with missing structured Project fields", () => {
+    expect(buildPromptInspectorContextDetails()).toEqual({
+      projectPath: null,
+      sessionWorkspacePath: null,
+      effectiveWorkspacePath: null,
+      resourceRevision: null,
+      usesProjectPathFallback: false,
+    });
+  });
+
   it("loads prompt snapshot and exposes sections when enhanced prompt is requested", async () => {
     mockGetSessionSystemPrompt.mockResolvedValue({
       session_id: "session-1",
       base_system_prompt: "Base prompt",
       enhancement_prompt: "Enhancement layer",
+      project_context: "Project context",
       workspace_context: "Workspace context",
       instruction_context: "Instruction layer",
       env_context: "Env context",
@@ -117,6 +182,7 @@ describe("useSystemPromptContent", () => {
     await waitFor(() => {
       expect(result.current.showEnhanced).toBe(true);
       expect(result.current.promptToDisplay).toBe("Effective prompt");
+      expect(result.current.snapshotSections.map((section) => section.key)).toContain("project");
       expect(result.current.snapshotSections.map((section) => section.key)).toContain(
         "instruction",
       );

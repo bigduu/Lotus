@@ -360,6 +360,8 @@ describe("AgentClient", () => {
       mockFetchResponse({
         session_id: "session-1",
         base_system_prompt: "Base prompt",
+        project_context: "Project context",
+        workspace_context: "Workspace context",
         instruction_context: "Instruction context",
         dream_notebook: "Dream note",
         session_memory_note: "Session note",
@@ -374,10 +376,14 @@ describe("AgentClient", () => {
       expect.stringContaining("/sessions/session%2Fwith%20space/system-prompt"),
       expect.objectContaining({ method: "GET" }),
     );
+    expect(result.project_context).toBe("Project context");
+    expect(result.workspace_context).toBe("Workspace context");
     expect(result.instruction_context).toBe("Instruction context");
     expect(result.dream_notebook).toBe("Dream note");
     expect(result.session_memory_note).toBe("Session note");
 
+    expectTypeOf(result.project_context).toEqualTypeOf<string | undefined>();
+    expectTypeOf(result.workspace_context).toEqualTypeOf<string | undefined>();
     expectTypeOf(result.instruction_context).toEqualTypeOf<string | undefined>();
     expectTypeOf(result.dream_notebook).toEqualTypeOf<string | undefined>();
     expectTypeOf(result.session_memory_note).toEqualTypeOf<string | undefined>();

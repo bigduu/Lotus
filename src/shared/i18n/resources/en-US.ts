@@ -554,10 +554,22 @@ export const enUsTranslation = {
           viewBase: "View Base",
           copy: "Copy",
           snapshotTitle: "Prompt Snapshot",
+          bambooSource: "Source: Bamboo",
+          contextModelHint:
+            "Project is the long-lived organization and shared-resource boundary; Workspace is the current execution directory and may change within the Project.",
+          projectPath: "Project path",
+          sessionWorkspace: "Session workspace",
+          effectiveWorkspace: "Effective workspace",
+          projectPathFallback:
+            "No session workspace is set, so Bamboo uses the Project path as the effective workspace.",
+          resourceRevision: "Resource revision",
+          notSet: "Not set",
+          unavailable: "Unavailable",
           sections: {
             base: "Base",
             enhancement: "Enhancement",
-            workspace: "Workspace",
+            project: "Project context · Bamboo",
+            workspace: "Workspace context · Bamboo",
             instruction: "Instruction",
             env: "Environment",
             skills: "Skills",
