@@ -295,9 +295,11 @@ export interface AgentEvent {
   command?: string;
   exit_code?: number;
   // Project lifecycle events (project_created, project_updated, project_archived)
-  project_id?: string;
+  project_id?: string | null;
   resource_revision?: number;
-  // SessionProjectUpdated event: explicit null means Unassigned.
+  // SessionProjectUpdated event: Project id is explicit null when Unassigned;
+  // workspace_path is also carried when Bamboo persists a workspace-only edit.
+  workspace_path?: string | null;
   metadata_version?: number;
 }
 
@@ -637,9 +639,11 @@ export interface PatchSessionRequest {
   /** Per-session "bypass permissions" toggle: when true, tool permission
    * checks are skipped for this session only. */
   bypass_permissions?: boolean;
-  /** Explicit Project re-assignment (null = unassign). Workspace changes are
-   * NOT patchable today — Bamboo-agent#726 tracks persisting them. */
+  /** Explicit Project re-assignment (null = unassign). */
   project_id?: string | null;
+  /** Persisted execution workspace. Requires `If-Match` and never changes
+   * `project_id`; assigned sessions may select only a bound Project path. */
+  workspace_path?: string;
 }
 
 export interface RunProjectDreamResponse {
@@ -1259,6 +1263,27 @@ export class AgentClient {
       { project_id: projectId },
       { headers: { "If-Match": `"${metadataVersion}"` } },
     );
+  }
+
+  /**
+   * Persist an existing session's execution workspace (#155 / Bamboo #726).
+   *
+   * The caller must first read the current metadata version. Bamboo validates
+   * Project ownership/bindings atomically, keeps `project_id` unchanged, and
+   * returns the authoritative session snapshot after the write.
+   */
+  async switchSessionWorkspace(
+    sessionId: string,
+    workspacePath: string,
+    metadataVersion: number,
+  ): Promise<SessionSummary> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const response = await agentApiClient.patch<GetSessionResponse>(
+      `sessions/${encodedSessionId}`,
+      { workspace_path: workspacePath },
+      { headers: { "If-Match": `"${metadataVersion}"` } },
+    );
+    return response.session;
   }
 
   /**

@@ -1,6 +1,6 @@
 import { StateCreator } from "zustand";
 import { ChatItem, Message } from "@shared/types/chat";
-import { AgentClient } from "@services/chat/AgentService";
+import { AgentClient, type SessionSummary } from "@services/chat/AgentService";
 import { ApiError } from "@services/api";
 import type { AppState } from "../";
 import { useProviderStore } from "./providerSlice";
@@ -51,6 +51,12 @@ const RECONCILE_DEBOUNCE_MS = 300;
 // "locked in" (it would otherwise beat the authoritative server value via
 // preferLocalSessionFields).
 const patchInFlight = new Map<string, { count: number; baseline: ChatItem | null }>();
+
+const normalizedProjectId = (projectId: string | null | undefined): string | null =>
+  projectId?.trim() || null;
+
+const normalizedWorkspacePath = (workspacePath: string | null | undefined): string | null =>
+  workspacePath?.trim() || null;
 
 export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, get) => ({
   chats: [],
@@ -345,6 +351,147 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           }
         });
     }
+  },
+
+  switchSessionWorkspace: async (sessionId, requestedWorkspacePath) => {
+    const workspacePath = requestedWorkspacePath.trim();
+    if (!workspacePath) {
+      throw new Error("Workspace path cannot be empty");
+    }
+
+    const startingChat = get().chats.find((chat) => chat.id === sessionId);
+    if (!startingChat) {
+      throw new Error("Session not found");
+    }
+    const startingProjectId = normalizedProjectId(startingChat.config.projectId);
+    const startingWorkspacePath = normalizedWorkspacePath(startingChat.config.workspacePath);
+
+    // Read the durable baseline and CAS token before the optimistic write. This
+    // baseline is also the rollback target for ordinary 4xx/5xx failures.
+    const before = await agentClient.getSessionWithVersion(sessionId);
+    if (before.metadataVersion === null) {
+      throw new Error("Session metadata version is unavailable; reopen the picker and try again");
+    }
+    const serverProjectId = normalizedProjectId(before.session.project_id);
+    if (serverProjectId !== startingProjectId) {
+      throw new Error(
+        "Session Project changed while the workspace picker was open; reopen it and try again",
+      );
+    }
+
+    // A newer local/session-list update completed while the GET was in flight.
+    // Do not let this stale completion overwrite it.
+    const liveBeforeOptimistic = get().chats.find((chat) => chat.id === sessionId);
+    if (
+      !liveBeforeOptimistic ||
+      normalizedProjectId(liveBeforeOptimistic.config.projectId) !== startingProjectId ||
+      normalizedWorkspacePath(liveBeforeOptimistic.config.workspacePath) !== startingWorkspacePath
+    ) {
+      throw new Error(
+        "Session workspace changed while the picker was loading; review the latest value and retry",
+      );
+    }
+
+    const applyWorkspaceIfCurrent = (
+      expectedCurrentPath: string | null,
+      nextPath: string | null,
+    ): void => {
+      set((state) => {
+        let changed = false;
+        const chats = state.chats.map((chat) => {
+          if (
+            chat.id !== sessionId ||
+            normalizedProjectId(chat.config.projectId) !== startingProjectId ||
+            normalizedWorkspacePath(chat.config.workspacePath) !== expectedCurrentPath
+          ) {
+            return chat;
+          }
+          changed = true;
+          return {
+            ...chat,
+            config: {
+              ...chat.config,
+              workspacePath: nextPath ?? undefined,
+            },
+          };
+        });
+        return changed ? { ...state, chats } : state;
+      });
+    };
+
+    const serverWorkspacePath = normalizedWorkspacePath(before.session.workspace_path);
+    applyWorkspaceIfCurrent(startingWorkspacePath, workspacePath);
+
+    let confirmed: SessionSummary;
+    try {
+      confirmed = await agentClient.switchSessionWorkspace(
+        sessionId,
+        workspacePath,
+        before.metadataVersion,
+      );
+    } catch (error) {
+      let rollbackWorkspacePath = serverWorkspacePath;
+      let shouldRollbackWorkspace = true;
+
+      // A 412 proves the pre-PATCH snapshot is stale. Refetch before rollback
+      // so the UI reconciles to current server truth while retaining the
+      // user's attempted input in the modal.
+      if (error instanceof ApiError && error.status === 412) {
+        try {
+          const fresh = await agentClient.getSessionWithVersion(sessionId);
+          if (normalizedProjectId(fresh.session.project_id) === startingProjectId) {
+            rollbackWorkspacePath = normalizedWorkspacePath(fresh.session.workspace_path);
+          } else {
+            // Project membership changed independently. The account/session
+            // refresh owns that reconciliation; never rewrite it here.
+            shouldRollbackWorkspace = false;
+            void get()
+              .refreshChatsNow()
+              .catch(() => {});
+          }
+        } catch (refreshError) {
+          console.warn(
+            `[ChatSlice] Failed to refresh session ${sessionId} after workspace CAS conflict:`,
+            refreshError,
+          );
+        }
+      }
+
+      if (shouldRollbackWorkspace) {
+        applyWorkspaceIfCurrent(workspacePath, rollbackWorkspacePath);
+      }
+      throw error;
+    }
+
+    const confirmedWorkspacePath = normalizedWorkspacePath(confirmed.workspace_path);
+    const confirmedProjectId = normalizedProjectId(confirmed.project_id);
+    if (confirmedProjectId !== startingProjectId) {
+      // The PATCH already committed, so this is a response-contract violation,
+      // not a mutation failure. Keep Bamboo's confirmed canonical path when it
+      // supplied one (otherwise retain the optimistic requested path), never
+      // roll back to the stale pre-PATCH baseline, and let a forced refresh
+      // reconcile the complete authoritative session.
+      if (confirmedWorkspacePath !== null) {
+        applyWorkspaceIfCurrent(workspacePath, confirmedWorkspacePath);
+      }
+      void get()
+        .refreshChatsNow()
+        .catch((refreshError) => {
+          console.warn(
+            `[ChatSlice] Failed to refresh session ${sessionId} after a workspace response Project mismatch:`,
+            refreshError,
+          );
+        });
+      throw new Error(
+        "Workspace switch was saved, but Bamboo returned an unexpected Project; refreshing session state",
+      );
+    }
+
+    // Use Bamboo's canonical/display path, but only while this optimistic
+    // write still owns the local field. A newer operation or feed refresh
+    // wins and must not be clobbered by this completion.
+    applyWorkspaceIfCurrent(workspacePath, confirmedWorkspacePath);
+    return confirmed;
   },
 
   persistSessionTitle: async (sessionId, title) => {
