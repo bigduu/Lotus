@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Project workspace picker (#155)", () => {
-  test("persists a bound workspace with session CAS and keeps Project grouping", async ({
+test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
+  test("persists a workspace and restores another Project without regrouping sessions", async ({
     page,
   }) => {
     const sessionId = "session-project-workspace";
     const projectId = "proj-zenith";
+    const archivedSessionId = "session-archived-project";
+    const archivedProjectId = "proj-old";
     const primaryPath = "/repo/zenith";
     const worktreePath = "/repo/zenith-worktree";
     const now = "2026-07-28T00:00:00Z";
@@ -14,6 +16,11 @@ test.describe("Project workspace picker (#155)", () => {
     let patchCallCount = 0;
     let patchBody: Record<string, unknown> | null = null;
     let patchIfMatch: string | null = null;
+    let archivedStatus: "active" | "archived" = "archived";
+    let archivedRevision = 4;
+    let unarchiveCallCount = 0;
+    let unarchiveBody: Record<string, unknown> | null = null;
+    let unarchiveIfMatch: string | null = null;
 
     await page.addInitScript(() => {
       localStorage.setItem("bodhi_onboarding_complete", "true");
@@ -40,6 +47,14 @@ test.describe("Project workspace picker (#155)", () => {
       is_running: false,
     });
 
+    const archivedSession = () => ({
+      ...session(),
+      id: archivedSessionId,
+      title: "Archived Project session",
+      project_id: archivedProjectId,
+      workspace_path: "/repo/old",
+    });
+
     const project = {
       id: projectId,
       name: "Zenith",
@@ -62,6 +77,17 @@ test.describe("Project workspace picker (#155)", () => {
       ],
       legacy_project_keys: [],
     };
+
+    const archivedProject = () => ({
+      ...project,
+      id: archivedProjectId,
+      name: "Old Project",
+      status: archivedStatus,
+      revision: archivedRevision,
+      project_path: "/repo/old",
+      workspace_count: 1,
+      workspace_bindings: [],
+    });
 
     await page.route("**/api/v1/health", async (route) => {
       await route.fulfill({ status: 200, contentType: "text/plain", body: "OK" });
@@ -103,12 +129,52 @@ test.describe("Project workspace picker (#155)", () => {
     });
 
     await page.route("**/v1/projects**", async (route) => {
-      const pathname = new URL(route.request().url()).pathname;
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      if (
+        request.method() === "POST" &&
+        pathname.endsWith(`/projects/${archivedProjectId}/unarchive`)
+      ) {
+        unarchiveCallCount += 1;
+        unarchiveBody = request.postDataJSON() as Record<string, unknown>;
+        unarchiveIfMatch = request.headers()["if-match"] ?? null;
+        archivedStatus = "active";
+        archivedRevision += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          headers: {
+            ETag: `"${archivedRevision}"`,
+            "Access-Control-Expose-Headers": "ETag",
+          },
+          body: JSON.stringify(archivedProject()),
+        });
+        return;
+      }
+      if (pathname.endsWith("/resources")) {
+        const resourceProjectId = pathname.includes(archivedProjectId)
+          ? archivedProjectId
+          : projectId;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            project_id: resourceProjectId,
+            resource_revision: 1,
+            resources: [],
+          }),
+        });
+        return;
+      }
       await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify(
-          pathname.endsWith(`/projects/${projectId}`) ? project : { projects: [project] },
+          pathname.endsWith(`/projects/${projectId}`)
+            ? project
+            : pathname.endsWith(`/projects/${archivedProjectId}`)
+              ? archivedProject()
+              : { projects: [project, archivedProject()] },
         ),
       });
     });
@@ -156,7 +222,7 @@ test.describe("Project workspace picker (#155)", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ sessions: [session()] }),
+          body: JSON.stringify({ sessions: [session(), archivedSession()] }),
         });
         return;
       }
@@ -197,6 +263,8 @@ test.describe("Project workspace picker (#155)", () => {
     await page.goto("/chat");
     await expect(page.locator('[data-testid="chat-item"]').first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Zenith (1)" })).toBeVisible();
+    const archivedGroup = page.getByRole("button", { name: "Old Project (1)" });
+    await expect(archivedGroup).toContainText("Archived");
     await page.locator('[data-testid="chat-item"]').first().click();
     await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
 
@@ -226,5 +294,30 @@ test.describe("Project workspace picker (#155)", () => {
     await page.getByRole("button", { name: "Reference workspace files" }).click();
     await page.getByRole("button", { name: "Set Workspace" }).click();
     await expect(page.getByTestId("project-workspace-option-1")).toBeChecked();
+    await page.getByRole("button", { name: "Cancel" }).click();
+    await expect(page.getByTestId("project-workspace-option-1")).toHaveCount(0);
+
+    await page.getByTestId("open-project-manager").click();
+    await expect(page.getByTestId("project-archived-toggle")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+    await page.getByTestId("project-archived-toggle").click();
+    await page.getByTestId(`project-list-item-${archivedProjectId}`).click();
+    await page.getByTestId("project-unarchive").click();
+
+    await expect.poll(() => unarchiveCallCount).toBe(1);
+    expect(unarchiveBody).toEqual({});
+    expect(unarchiveIfMatch).toBe('"4"');
+    await expect(page.getByText("Project restored")).toBeVisible();
+    await expect(page.getByTestId("project-unarchive")).toHaveCount(0);
+    await expect(page.getByTestId("project-archive")).toBeVisible();
+    await expect(page.getByTestId("project-archived-toggle")).toHaveCount(0);
+
+    // Restore changes only Project status. Its existing session stays under
+    // the same opaque Project group, while the archived badge disappears.
+    await expect(archivedGroup).toBeVisible();
+    await expect(archivedGroup).not.toContainText("Archived");
+    await expect(page.getByRole("button", { name: "Zenith (1)" })).toBeVisible();
   });
 });

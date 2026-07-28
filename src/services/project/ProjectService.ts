@@ -1,11 +1,12 @@
 /**
  * Project Service
  *
- * HTTP client for the Bamboo Project API (bigduu/Bamboo-agent#674).
+ * HTTP client for the Bamboo agent Project API at `/api/v1/projects`
+ * (bigduu/Bamboo-agent#674).
  * All mutating endpoints use optimistic CAS via the `If-Match` header and
  * return the updated authoritative manifest.
  */
-import { apiClient } from "../api";
+import { agentApiClient } from "../api";
 import type {
   CreateProjectRequest,
   LegacyMemoryMigrationRequest,
@@ -43,19 +44,19 @@ export class ProjectService {
   }
 
   async listProjects(): Promise<ProjectListResponse> {
-    return apiClient.get<ProjectListResponse>("projects", {
+    return agentApiClient.get<ProjectListResponse>("projects", {
       signal: this.signal(),
     });
   }
 
   async getProject(projectId: string): Promise<ProjectManifest> {
-    return apiClient.get<ProjectManifest>(`projects/${encodeURIComponent(projectId)}`, {
+    return agentApiClient.get<ProjectManifest>(`projects/${encodeURIComponent(projectId)}`, {
       signal: this.signal(),
     });
   }
 
   async createProject(req: CreateProjectRequest): Promise<ProjectManifest> {
-    return apiClient.post<ProjectManifest>("projects", req, {
+    return agentApiClient.post<ProjectManifest>("projects", req, {
       signal: this.signal(),
     });
   }
@@ -65,7 +66,7 @@ export class ProjectService {
     revision: number,
     req: PatchProjectRequest,
   ): Promise<ProjectManifest> {
-    return apiClient.patch<ProjectManifest>(`projects/${encodeURIComponent(projectId)}`, req, {
+    return agentApiClient.patch<ProjectManifest>(`projects/${encodeURIComponent(projectId)}`, req, {
       headers: this.etagHeader(revision),
       signal: this.signal(),
     });
@@ -76,7 +77,7 @@ export class ProjectService {
     revision: number,
     req: WorkspaceBindingRequest,
   ): Promise<ProjectManifest> {
-    return apiClient.post<ProjectManifest>(
+    return agentApiClient.post<ProjectManifest>(
       `projects/${encodeURIComponent(projectId)}/workspaces`,
       req,
       {
@@ -91,7 +92,7 @@ export class ProjectService {
     revision: number,
     req: WorkspaceBindingRequest,
   ): Promise<ProjectManifest> {
-    return apiClient.deleteWithBody<ProjectManifest>(
+    return agentApiClient.deleteWithBody<ProjectManifest>(
       `projects/${encodeURIComponent(projectId)}/workspaces`,
       { path: req.path },
       {
@@ -102,7 +103,7 @@ export class ProjectService {
   }
 
   async archiveProject(projectId: string, revision: number): Promise<ProjectManifest> {
-    return apiClient.post<ProjectManifest>(
+    return agentApiClient.post<ProjectManifest>(
       `projects/${encodeURIComponent(projectId)}/archive`,
       {},
       {
@@ -112,8 +113,19 @@ export class ProjectService {
     );
   }
 
+  async unarchiveProject(projectId: string, revision: number): Promise<ProjectManifest> {
+    return agentApiClient.post<ProjectManifest>(
+      `projects/${encodeURIComponent(projectId)}/unarchive`,
+      {},
+      {
+        headers: this.etagHeader(revision),
+        signal: this.signal(),
+      },
+    );
+  }
+
   async getProjectResources(projectId: string): Promise<ProjectResourceSummary> {
-    return apiClient.get<ProjectResourceSummary>(
+    return agentApiClient.get<ProjectResourceSummary>(
       `projects/${encodeURIComponent(projectId)}/resources`,
       {
         signal: this.signal(),
@@ -122,9 +134,13 @@ export class ProjectService {
   }
 
   async legacyDryRun(req: LegacyProjectDryRunRequest): Promise<LegacyProjectDryRunReport> {
-    return apiClient.post<LegacyProjectDryRunReport>("projects/migrations/legacy/dry-run", req, {
-      signal: this.signal(),
-    });
+    return agentApiClient.post<LegacyProjectDryRunReport>(
+      "projects/migrations/legacy/dry-run",
+      req,
+      {
+        signal: this.signal(),
+      },
+    );
   }
 
   async migrateLegacyMemory(
@@ -132,7 +148,7 @@ export class ProjectService {
     revision: number,
     req: LegacyMemoryMigrationRequest,
   ): Promise<LegacyMemoryMigrationResponse> {
-    return apiClient.post<LegacyMemoryMigrationResponse>(
+    return agentApiClient.post<LegacyMemoryMigrationResponse>(
       `projects/${encodeURIComponent(projectId)}/migrations/legacy-memory`,
       req,
       {
@@ -148,7 +164,7 @@ export class ProjectService {
   ): Promise<LegacyMemoryMigrationStatusResponse> {
     const encodedProjectId = encodeURIComponent(projectId);
     const encodedKey = encodeURIComponent(legacyProjectKey);
-    return apiClient.get<LegacyMemoryMigrationStatusResponse>(
+    return agentApiClient.get<LegacyMemoryMigrationStatusResponse>(
       `projects/${encodedProjectId}/migrations/legacy-memory?legacy_project_key=${encodedKey}`,
       {
         signal: this.signal(),

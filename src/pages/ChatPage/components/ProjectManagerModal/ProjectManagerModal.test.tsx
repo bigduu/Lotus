@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { App as AntdApp } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +13,7 @@ const {
   mockCreateProject,
   mockPatchProject,
   mockArchiveProject,
+  mockUnarchiveProject,
   mockBindWorkspace,
   mockUnbindWorkspace,
   mockGetProjectResources,
@@ -22,6 +23,7 @@ const {
   mockCreateProject: vi.fn(),
   mockPatchProject: vi.fn(),
   mockArchiveProject: vi.fn(),
+  mockUnarchiveProject: vi.fn(),
   mockBindWorkspace: vi.fn(),
   mockUnbindWorkspace: vi.fn(),
   mockGetProjectResources: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock("@services/project", async (importOriginal) => {
       createProject: mockCreateProject,
       patchProject: mockPatchProject,
       archiveProject: mockArchiveProject,
+      unarchiveProject: mockUnarchiveProject,
       bindWorkspace: mockBindWorkspace,
       unbindWorkspace: mockUnbindWorkspace,
       getProjectResources: mockGetProjectResources,
@@ -99,6 +102,7 @@ describe("ProjectManagerModal (#154)", () => {
     mockCreateProject.mockReset();
     mockPatchProject.mockReset();
     mockArchiveProject.mockReset();
+    mockUnarchiveProject.mockReset();
     mockBindWorkspace.mockReset();
     mockUnbindWorkspace.mockReset();
     mockGetProjectResources.mockReset();
@@ -133,6 +137,8 @@ describe("ProjectManagerModal (#154)", () => {
     renderModal();
 
     expect(await screen.findByTestId("project-list-item-proj-zenith")).toBeInTheDocument();
+    expect(screen.queryByTestId("project-list-item-proj-old")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("project-archived-toggle"));
     expect(screen.getByTestId("project-list-item-proj-old")).toHaveTextContent("Archived");
     expect(screen.getByTestId("project-detail-name")).toHaveValue("zenith");
     expect(screen.getByTestId("project-detail-path")).toHaveValue("/repo/zenith");
@@ -270,6 +276,122 @@ describe("ProjectManagerModal (#154)", () => {
     await waitFor(() => expect(mockArchiveProject).toHaveBeenCalledWith("proj-zenith", 1));
   });
 
+  it("restores an archived Project with pending state and keeps the active Project stable", async () => {
+    let resolveRestore: (manifest: ProjectManifest) => void = () => {};
+    mockUnarchiveProject.mockImplementation(
+      () =>
+        new Promise<ProjectManifest>((resolve) => {
+          resolveRestore = resolve;
+        }),
+    );
+    renderModal();
+
+    fireEvent.click(await screen.findByTestId("project-archived-toggle"));
+    fireEvent.click(await screen.findByTestId("project-list-item-proj-old"));
+    const restoreButton = await screen.findByTestId("project-unarchive");
+    fireEvent.click(restoreButton);
+
+    await waitFor(() => expect(restoreButton).toBeDisabled());
+    expect(useAppStore.getState().projects["proj-old"]?.status).toBe("archived");
+    resolveRestore(makeProject("proj-old", "old-stuff", { status: "active", revision: 2 }));
+
+    await waitFor(() => expect(mockUnarchiveProject).toHaveBeenCalledWith("proj-old", 1));
+    await waitFor(() => expect(useAppStore.getState().projects["proj-old"]?.status).toBe("active"));
+    expect(useAppStore.getState().activeProjectId).toBe("proj-zenith");
+    expect(await screen.findByText("Project restored")).toBeInTheDocument();
+  });
+
+  it("reconciles a structured project_not_archived 409 without switching Projects", async () => {
+    const restored = makeProject("proj-old", "old-stuff", {
+      status: "active",
+      revision: 2,
+    });
+    mockUnarchiveProject.mockRejectedValue(
+      new ApiError(
+        "Project is not archived",
+        409,
+        "Conflict",
+        JSON.stringify({
+          error: {
+            type: "api_error",
+            code: "project_not_archived",
+            message: "Project is not archived",
+          },
+          project_id: "proj-old",
+        }),
+      ),
+    );
+    mockGetProject.mockResolvedValueOnce(restored);
+    renderModal();
+
+    fireEvent.click(await screen.findByTestId("project-archived-toggle"));
+    fireEvent.click(await screen.findByTestId("project-list-item-proj-old"));
+    fireEvent.click(await screen.findByTestId("project-unarchive"));
+
+    expect(await screen.findByText("Project is not archived")).toBeInTheDocument();
+    await waitFor(() => expect(mockGetProject).toHaveBeenCalledWith("proj-old"));
+    await waitFor(() => expect(useAppStore.getState().projects["proj-old"]?.status).toBe("active"));
+    expect(useAppStore.getState().activeProjectId).toBe("proj-zenith");
+  });
+
+  it("reloads the archived canonical manifest after a restore 412", async () => {
+    mockUnarchiveProject.mockRejectedValue(
+      new ApiError("project revision conflict", 412, "Precondition Failed"),
+    );
+    mockGetProject.mockResolvedValueOnce(
+      makeProject("proj-old", "old-stuff", { status: "archived", revision: 2 }),
+    );
+    renderModal();
+
+    fireEvent.click(await screen.findByTestId("project-archived-toggle"));
+    fireEvent.click(await screen.findByTestId("project-list-item-proj-old"));
+    fireEvent.click(await screen.findByTestId("project-unarchive"));
+
+    expect(await screen.findByText(/modified elsewhere/)).toBeInTheDocument();
+    await waitFor(() => expect(mockGetProject).toHaveBeenCalledWith("proj-old"));
+    await waitFor(() => expect(useAppStore.getState().projects["proj-old"]?.revision).toBe(2));
+    expect(useAppStore.getState().projects["proj-old"]?.status).toBe("archived");
+    expect(useAppStore.getState().activeProjectId).toBe("proj-zenith");
+  });
+
+  it("does not overwrite another Project form when a restore 412 refetch resolves late", async () => {
+    let resolveRefetch: (manifest: ProjectManifest) => void = () => {};
+    mockUnarchiveProject.mockRejectedValue(
+      new ApiError("project revision conflict", 412, "Precondition Failed"),
+    );
+    mockGetProject.mockImplementation((id: string) =>
+      id === "proj-old"
+        ? new Promise<ProjectManifest>((resolve) => {
+            resolveRefetch = resolve;
+          })
+        : Promise.resolve(id === "proj-bamboo" ? BAMBOO : ZENITH),
+    );
+    renderModal();
+
+    fireEvent.click(await screen.findByTestId("project-archived-toggle"));
+    fireEvent.click(await screen.findByTestId("project-list-item-proj-old"));
+    fireEvent.click(await screen.findByTestId("project-unarchive"));
+    await waitFor(() => expect(mockGetProject).toHaveBeenCalledWith("proj-old"));
+
+    fireEvent.click(screen.getByTestId("project-list-item-proj-bamboo"));
+    const nameInput = await screen.findByTestId("project-detail-name");
+    await waitFor(() => expect(nameInput).toHaveValue("bamboo"));
+    fireEvent.change(nameInput, { target: { value: "bamboo-draft" } });
+
+    await act(async () => {
+      resolveRefetch(
+        makeProject("proj-old", "old-canonical", {
+          status: "archived",
+          revision: 2,
+        }),
+      );
+    });
+
+    await waitFor(() => expect(useAppStore.getState().projects["proj-old"]?.revision).toBe(2));
+    expect(nameInput).toHaveValue("bamboo-draft");
+    expect(useAppStore.getState().activeProjectId).toBe("proj-zenith");
+  });
+
   it("binds and unbinds workspaces with the current revision", async () => {
     mockBindWorkspace.mockResolvedValue(
       makeProject("proj-zenith", "zenith", {
@@ -341,15 +463,17 @@ describe("ProjectManagerModal (#154)", () => {
     expect(screen.getByTestId("project-detail-name")).toHaveValue("zenith-renamed-draft");
   });
 
-  it("hides mutation controls for archived projects", async () => {
+  it("hides edit/archive controls and exposes restore for archived projects", async () => {
     renderModal();
 
+    fireEvent.click(await screen.findByTestId("project-archived-toggle"));
     fireEvent.click(await screen.findByTestId("project-list-item-proj-old"));
 
     await waitFor(() => expect(screen.getByTestId("project-detail-name")).toHaveValue("old-stuff"));
     expect(screen.queryByTestId("project-detail-save")).not.toBeInTheDocument();
     expect(screen.queryByTestId("project-archive")).not.toBeInTheDocument();
     expect(screen.queryByTestId("project-bind-submit")).not.toBeInTheDocument();
-    expect(screen.getByText(/Bamboo-agent#725/)).toBeInTheDocument();
+    expect(screen.getByTestId("project-unarchive")).toHaveTextContent("Restore");
+    expect(screen.getByText(/without changing its sessions/)).toBeInTheDocument();
   });
 });
