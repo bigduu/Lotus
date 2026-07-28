@@ -109,7 +109,13 @@ async function waitForSendReadyOrSkip(page: Page) {
 
   for (let index = 0; index < 20; index += 1) {
     if (await sendButton.isEnabled()) {
-      return;
+      // Provider configuration hydrates asynchronously. Confirm the transient
+      // initial enabled state before allowing the test to click.
+      await page.waitForTimeout(500);
+      if (await sendButton.isEnabled()) {
+        return;
+      }
+      await skipIfProviderNotConfigured(page);
     }
     await page.waitForTimeout(500);
   }

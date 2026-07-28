@@ -139,14 +139,9 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
       roots.map((chat) => ({
         session_id: chat.id,
         workspace_path: chat.config.workspacePath ?? null,
-        // Best available canonical path: Bamboo canonicalizes workspace
-        // paths when they are assigned, so the session's recorded path is
-        // already canonical for the common case. git_common_dir and legacy
-        // keys are unknowable client-side (Bamboo-agent#728 tracks deriving
-        // them server-side).
-        canonical_path: chat.config.workspacePath ?? null,
-        git_common_dir: null,
-        legacy_project_keys: [],
+        // Bamboo owns canonical-path, Git common-dir, and legacy-key
+        // enrichment. Sending client guesses here can suppress the server's
+        // authoritative derivation for worktrees and older session metadata.
       })),
     )
       .then((nextReport) => {

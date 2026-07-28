@@ -57,6 +57,40 @@ describe("ProjectService", () => {
     );
   });
 
+  it("normalizes dry-run collections omitted by Bamboo when they are empty", async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          assignments: [
+            {
+              session_id: "session-1",
+              project_id: "project-1",
+              basis: "exact_canonical_binding",
+            },
+          ],
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
+    );
+    const service = new ProjectService();
+
+    await expect(service.legacyDryRun({ sessions: [] })).resolves.toEqual({
+      assignments: [
+        {
+          session_id: "session-1",
+          project_id: "project-1",
+          basis: "exact_canonical_binding",
+        },
+      ],
+      suggestions: [],
+      unassigned: [],
+      diagnostics: [],
+    });
+  });
+
   it("routes every Project endpoint through the agent API client", async () => {
     const service = new ProjectService();
 

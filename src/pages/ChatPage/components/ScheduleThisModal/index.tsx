@@ -139,6 +139,10 @@ export function ScheduleThisModal({ open, sessionId, onClose }: ScheduleThisModa
           system_prompt: normalizedString(values.system_prompt),
           task_message: taskMessage,
           model,
+          // A scheduled task created from a Project session is another root
+          // session in that same long-lived Project. Workspace alone is
+          // mutable execution context and must not be used to infer identity.
+          project_id: chat?.config.projectId?.trim() || null,
           workspace_path: normalizedString(values.workspace_path),
           enhance_prompt: normalizedString(values.enhance_prompt),
           auto_execute: autoExecute,

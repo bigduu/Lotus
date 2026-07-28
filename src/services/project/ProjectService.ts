@@ -134,13 +134,22 @@ export class ProjectService {
   }
 
   async legacyDryRun(req: LegacyProjectDryRunRequest): Promise<LegacyProjectDryRunReport> {
-    return agentApiClient.post<LegacyProjectDryRunReport>(
+    const report = await agentApiClient.post<Partial<LegacyProjectDryRunReport>>(
       "projects/migrations/legacy/dry-run",
       req,
       {
         signal: this.signal(),
       },
     );
+    // Bamboo omits empty report vectors from JSON. Normalize that wire
+    // representation once here so UI callers can rely on the complete domain
+    // contract instead of defensively branching before every iteration.
+    return {
+      assignments: report.assignments ?? [],
+      suggestions: report.suggestions ?? [],
+      unassigned: report.unassigned ?? [],
+      diagnostics: report.diagnostics ?? [],
+    };
   }
 
   async migrateLegacyMemory(
