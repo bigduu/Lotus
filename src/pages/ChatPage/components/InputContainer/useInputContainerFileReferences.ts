@@ -4,14 +4,16 @@ import i18n from "i18next";
 import type { FileReferenceInfo } from "../../utils/inputHighlight";
 import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import type { ChatItem } from "@shared/types/chat";
+import type { SessionSummary } from "@services/chat";
 import { workspaceService } from "@services/workspace";
+import { getWorkspaceSwitchErrorMessage } from "./workspaceSwitchErrors";
 
 interface UseInputContainerFileReferencesProps {
   content: string;
   setContent: (value: string) => void;
   currentSessionId: string | null;
   currentChat: ChatItem | null;
-  updateSession: (sessionId: string, update: Partial<ChatItem>) => void;
+  switchSessionWorkspace: (sessionId: string, workspacePath: string) => Promise<SessionSummary>;
   messageApi: MessageInstance;
 }
 
@@ -20,7 +22,7 @@ export const useInputContainerFileReferences = ({
   setContent,
   currentSessionId,
   currentChat,
-  updateSession,
+  switchSessionWorkspace,
   messageApi,
 }: UseInputContainerFileReferencesProps) => {
   const [fileReferences, setFileReferences] = useState<Map<string, WorkspaceFileEntry>>(new Map());
@@ -31,14 +33,49 @@ export const useInputContainerFileReferences = ({
   const [workspacePathInput, setWorkspacePathInput] = useState("");
   const [isWorkspaceLoading, setIsWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [workspaceSubmitError, setWorkspaceSubmitError] = useState<string | null>(null);
   const [isSavingWorkspace, setIsSavingWorkspace] = useState(false);
   const lastWorkspacePathRef = useRef<string | null>(null);
+  const modalSessionIdRef = useRef<string | null>(null);
+  const modalHydrationSessionIdRef = useRef<string | null>(null);
+  const workspaceSubmitIdRef = useRef(0);
+  const currentSessionIdRef = useRef(currentSessionId);
+  currentSessionIdRef.current = currentSessionId;
 
+  // A session change while the modal is open starts a new modal context. Keep
+  // later completion from the previous session from closing or rewriting it.
   useEffect(() => {
-    if (isWorkspaceModalVisible) {
-      setWorkspacePathInput(currentChat?.config.workspacePath ?? "");
+    if (!isWorkspaceModalVisible) return;
+    const matchingChat = currentChat?.id === currentSessionId ? currentChat : null;
+
+    if (modalSessionIdRef.current !== currentSessionId) {
+      workspaceSubmitIdRef.current += 1;
+      modalSessionIdRef.current = currentSessionId;
+      modalHydrationSessionIdRef.current = matchingChat ? null : currentSessionId;
+      setWorkspacePathInput(matchingChat?.config.workspacePath ?? "");
+      setWorkspaceSubmitError(null);
+      setIsSavingWorkspace(false);
+      return;
     }
-  }, [isWorkspaceModalVisible, currentChat?.config.workspacePath]);
+
+    // The pane id can render one frame before its ChatItem arrives. Hydrate
+    // exactly once from the matching record; later same-session server updates
+    // must not erase a user's attempted path after a failed submit.
+    if (
+      currentSessionId &&
+      modalHydrationSessionIdRef.current === currentSessionId &&
+      matchingChat
+    ) {
+      modalHydrationSessionIdRef.current = null;
+      setWorkspacePathInput(matchingChat.config.workspacePath ?? "");
+    }
+  }, [
+    currentChat,
+    currentChat?.config.workspacePath,
+    currentChat?.id,
+    currentSessionId,
+    isWorkspaceModalVisible,
+  ]);
 
   useEffect(() => {
     setShowFileSelector(false);
@@ -83,7 +120,11 @@ export const useInputContainerFileReferences = ({
       const workspacePath = currentChat.config.workspacePath;
 
       if (!workspacePath) {
+        workspaceSubmitIdRef.current += 1;
+        modalSessionIdRef.current = currentSessionId;
+        modalHydrationSessionIdRef.current = null;
         setWorkspacePathInput("");
+        setWorkspaceSubmitError(null);
         setIsWorkspaceModalVisible(true);
         setShowFileSelector(false);
         return;
@@ -136,7 +177,11 @@ export const useInputContainerFileReferences = ({
     const workspacePath = currentChat.config.workspacePath;
 
     if (!workspacePath) {
+      workspaceSubmitIdRef.current += 1;
+      modalSessionIdRef.current = currentSessionId;
+      modalHydrationSessionIdRef.current = null;
       setWorkspacePathInput("");
+      setWorkspaceSubmitError(null);
       setIsWorkspaceModalVisible(true);
       setShowFileSelector(false);
       return;
@@ -150,42 +195,82 @@ export const useInputContainerFileReferences = ({
     }
   }, [currentChat, currentSessionId, fetchWorkspaceFiles, workspaceFiles.length]);
 
+  const openWorkspaceModal = useCallback(() => {
+    workspaceSubmitIdRef.current += 1;
+    modalSessionIdRef.current = currentSessionId;
+    modalHydrationSessionIdRef.current = null;
+    setWorkspacePathInput(currentChat?.config.workspacePath ?? "");
+    setWorkspaceSubmitError(null);
+    setIsWorkspaceModalVisible(true);
+  }, [currentChat?.config.workspacePath, currentSessionId]);
+
   const handleWorkspaceModalCancel = useCallback(() => {
+    workspaceSubmitIdRef.current += 1;
+    modalSessionIdRef.current = null;
+    modalHydrationSessionIdRef.current = null;
     setIsWorkspaceModalVisible(false);
     setWorkspacePathInput("");
+    setWorkspaceSubmitError(null);
+    setIsSavingWorkspace(false);
   }, []);
 
   const handleWorkspaceModalSubmit = useCallback(
-    async (path: string) => {
-      if (!currentChat || !currentSessionId) return;
+    async (path: string): Promise<boolean> => {
+      const targetSessionId = modalSessionIdRef.current ?? currentSessionId;
+      if (
+        !currentChat ||
+        currentChat.id !== targetSessionId ||
+        !targetSessionId ||
+        targetSessionId !== currentSessionId
+      ) {
+        return false;
+      }
       const trimmedPath = path.trim();
       if (!trimmedPath) {
         messageApi.error(i18n.t("chat.view.workspacePathEmpty"));
-        return;
+        return false;
       }
 
+      const submitId = workspaceSubmitIdRef.current + 1;
+      workspaceSubmitIdRef.current = submitId;
+      setWorkspacePathInput(trimmedPath);
+      setWorkspaceSubmitError(null);
       setIsSavingWorkspace(true);
       try {
-        updateSession(currentSessionId, {
-          config: {
-            ...currentChat.config,
-            workspacePath: trimmedPath,
-          },
-        });
+        await switchSessionWorkspace(targetSessionId, trimmedPath);
+        if (
+          workspaceSubmitIdRef.current !== submitId ||
+          currentSessionIdRef.current !== targetSessionId
+        ) {
+          return false;
+        }
 
+        modalSessionIdRef.current = null;
+        modalHydrationSessionIdRef.current = null;
         setIsWorkspaceModalVisible(false);
         setWorkspacePathInput("");
         setShowFileSelector(false);
         setWorkspaceError(null);
+        setWorkspaceSubmitError(null);
+        return true;
       } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unable to save workspace path";
+        if (
+          workspaceSubmitIdRef.current !== submitId ||
+          currentSessionIdRef.current !== targetSessionId
+        ) {
+          return false;
+        }
+        const errorMessage = getWorkspaceSwitchErrorMessage(error);
+        setWorkspaceSubmitError(errorMessage);
         messageApi.error(errorMessage);
+        return false;
       } finally {
-        setIsSavingWorkspace(false);
+        if (workspaceSubmitIdRef.current === submitId) {
+          setIsSavingWorkspace(false);
+        }
       }
     },
-    [currentChat, currentSessionId, messageApi, updateSession],
+    [currentChat, currentSessionId, messageApi, switchSessionWorkspace],
   );
 
   return {
@@ -197,11 +282,11 @@ export const useInputContainerFileReferences = ({
     fileSearchText,
     isWorkspaceLoading,
     workspaceError,
+    workspaceSubmitError,
     isWorkspaceModalVisible,
     workspacePathInput,
     isSavingWorkspace,
-    setWorkspacePathInput,
-    setIsWorkspaceModalVisible,
+    openWorkspaceModal,
     handleFileReferenceChange,
     handleFileReferenceSelect,
     handleFileSelectorCancel,

@@ -1,4 +1,5 @@
 import { ChatItem, Message } from "@shared/types/chat";
+import type { SessionSummary } from "@services/chat/AgentService";
 
 export type DeleteMessageFailureReason =
   | "session_not_found"
@@ -39,6 +40,11 @@ export interface ChatSlice {
     updates: Partial<ChatItem>,
     options?: { skipBackendPatch?: boolean },
   ) => void;
+  /**
+   * Optimistically switch only `workspacePath`, persist it with session
+   * metadata CAS, then reconcile from Bamboo's authoritative response.
+   */
+  switchSessionWorkspace: (sessionId: string, workspacePath: string) => Promise<SessionSummary>;
   persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   /**
    * Apply an authoritative server title (from a `session_title_updated` SSE event).

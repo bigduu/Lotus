@@ -103,6 +103,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat?.messages]);
   const addMessage = useAppStore((state) => state.addMessage);
   const updateSession = useAppStore((state) => state.updateSession);
+  const switchSessionWorkspace = useAppStore((state) => state.switchSessionWorkspace);
   const isStreaming = useAppStore(selectIsStreaming(sessionId));
   const isInputLocked = useAppStore(selectIsInputLocked(sessionId));
   const canCancelFromExecution = useAppStore(selectCanCancel(sessionId));
@@ -373,7 +374,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setContent,
     currentSessionId: sessionId,
     currentChat,
-    updateSession,
+    switchSessionWorkspace,
     messageApi,
   });
 
@@ -1217,10 +1218,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             error={fileReferenceState.workspaceError}
             onSelect={fileReferenceState.handleFileReferenceSelect}
             onCancel={fileReferenceState.handleFileSelectorCancel}
-            onChangeWorkspace={() => {
-              fileReferenceState.setWorkspacePathInput(currentChat?.config.workspacePath ?? "");
-              fileReferenceState.setIsWorkspaceModalVisible(true);
-            }}
+            onChangeWorkspace={fileReferenceState.openWorkspaceModal}
           />
         </Suspense>
       )}
@@ -1229,7 +1227,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         <WorkspacePathModal
           open={fileReferenceState.isWorkspaceModalVisible}
           initialPath={fileReferenceState.workspacePathInput}
+          projectId={currentChat?.config.projectId ?? null}
           loading={fileReferenceState.isSavingWorkspace}
+          submitError={fileReferenceState.workspaceSubmitError}
           onSubmit={fileReferenceState.handleWorkspaceModalSubmit}
           onCancel={fileReferenceState.handleWorkspaceModalCancel}
         />

@@ -437,9 +437,22 @@ export const enUsTranslation = {
         modalTitle: "Set Workspace Path",
         invalidTitle: "Invalid Workspace Path",
         issuesDetected: "Potential issues detected with the workspace path:",
-        confirmSaveInvalid: "Do you still want to save this path?",
+        confirmSaveInvalid: "Submit this path anyway? Bamboo may reject it.",
         errorEnterPath: "Please enter a workspace path",
         errorSaveFailed: "Failed to save workspace path",
+        switchRevisionConflict:
+          "This session changed on the server. The latest workspace was restored; your attempted path is still here. Review it and try again.",
+        switchUnbound:
+          "This folder is not bound to this Project. Open Projects, bind the folder, then try again.",
+        switchOwnedByAnotherProject:
+          "This folder belongs to another Project. Choose a workspace bound to the current Project.",
+        switchProjectArchived:
+          "This Project is archived and its session workspace cannot be changed.",
+        switchProjectUnavailable:
+          "This session's Project is unavailable. Refresh Projects before choosing a workspace.",
+        switchSessionRunning:
+          "This session is running or starting. Stop it before changing the workspace.",
+        switchInvalidPath: "Choose an existing folder that Bamboo can use as a workspace.",
         placeholder: "e.g. /Users/alice/Workspace/MyProject",
         label: "Workspace",
         browseFolder: "Browse folder",
@@ -447,7 +460,7 @@ export const enUsTranslation = {
         descriptionP1:
           "Set a workspace path so file references and workspace tools can resolve files reliably.",
         descriptionP2:
-          "Choose an existing project folder. You can still continue with an invalid path, but related features may not work correctly.",
+          "Bamboo validates that the folder exists. For a Project session, the folder must already be bound to that Project.",
         checkTitle: "Workspace Path Check",
         checkDescription: "Workspace path validation failed.",
         recentTitle: "Recent Workspaces",
@@ -461,6 +474,17 @@ export const enUsTranslation = {
         openInspector: "Open inspector",
         multiPane: "{{count}} panes",
         toggleInspector: "Open inspector",
+        projectWorkspaces: "Project workspaces",
+        projectWorkspacesDescription:
+          "Choose the Project's primary folder or one of its additional bound workspaces.",
+        primaryProjectPath: "Primary Project folder",
+        additionalProjectWorkspace: "Bound workspace",
+        otherFolder: "Other folder",
+        otherFolderHint:
+          "Other folders are not bound automatically. If this Project does not already own the folder, bind it in Projects first.",
+        projectPathsLoading: "Refreshing Project workspaces…",
+        projectPathsLoadFailed:
+          "Project workspaces could not be refreshed. The backend will still validate your choice.",
       },
       folderBrowser: {
         title: "Select Workspace Folder",

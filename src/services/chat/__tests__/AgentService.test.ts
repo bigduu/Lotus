@@ -250,6 +250,43 @@ describe("AgentClient", () => {
     );
   });
 
+  it("switches workspace with workspace-only payload and quoted If-Match (#155)", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        session: {
+          id: "session/with space",
+          project_id: "proj-zenith",
+          workspace_path: "/repo/zenith-worktree",
+        },
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    const confirmed = await client.switchSessionWorkspace(
+      "session/with space",
+      "/repo/zenith-worktree",
+      7,
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/sessions/session%2Fwith%20space");
+    expect(init).toEqual(
+      expect.objectContaining({
+        method: "PATCH",
+        headers: expect.objectContaining({ "If-Match": '"7"' }),
+      }),
+    );
+    expect(JSON.parse(String(init.body))).toEqual({
+      workspace_path: "/repo/zenith-worktree",
+    });
+    expect(JSON.parse(String(init.body))).not.toHaveProperty("project_id");
+    expect(confirmed).toMatchObject({
+      project_id: "proj-zenith",
+      workspace_path: "/repo/zenith-worktree",
+    });
+  });
+
   it("patches session-scoped model and reasoning payload", async () => {
     fetchMock.mockResolvedValue(mockFetchResponse({}));
 
