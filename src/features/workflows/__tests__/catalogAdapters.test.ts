@@ -34,7 +34,7 @@ const legacyView: WorkflowCatalogView = {
 };
 
 describe("TypedWorkflowCatalogAdapter", () => {
-  it("maps the typed catalog contract and scopes it to the normalized session", async () => {
+  it("maps workflow identities, filters ordinary Skills, and scopes the request", async () => {
     const signal = new AbortController().signal;
     const get = vi.fn(async () => ({
       revision: 41,
@@ -104,25 +104,6 @@ describe("TypedWorkflowCatalogAdapter", () => {
       revision: 41,
       items: [
         {
-          id: "review",
-          name: "Review",
-          description: "Review changes against evidence.",
-          kind: "instruction",
-          source: "builtin",
-          status: "valid",
-          invocationPolicy: "manual",
-          argumentHint: undefined,
-          argumentSchema: { type: "object", additionalProperties: false },
-          readOnly: true,
-          revision: 7,
-          version: "3",
-          lastError: undefined,
-          shadowedCandidates: [
-            { source: "project", status: "valid", lastError: undefined },
-            { source: "user", status: "invalid", lastError: "invalid override" },
-          ],
-        },
-        {
           id: "release-train",
           name: "Release train",
           description: "Coordinate a durable release.",
@@ -141,7 +122,7 @@ describe("TypedWorkflowCatalogAdapter", () => {
           id: "legacy-review",
           name: "Legacy review",
           description: "Legacy repository review workflow.",
-          kind: "instruction",
+          kind: "orchestration",
           source: "workspace",
           status: "valid",
           legacy: true,
@@ -174,9 +155,10 @@ describe("TypedWorkflowCatalogAdapter", () => {
         cancel: false,
       },
     });
+    expect(result.items.some((item) => item.id === "review")).toBe(false);
   });
 
-  it("keeps valid entries when another typed entry is invalid", async () => {
+  it("keeps valid workflows when another entry is invalid and silently omits Skills", async () => {
     const adapter = new TypedWorkflowCatalogAdapter(async () => ({
       revision: 9,
       entries: [
@@ -184,7 +166,7 @@ describe("TypedWorkflowCatalogAdapter", () => {
           id: "research",
           name: "Research",
           description: "Research with sources.",
-          kind: "instruction",
+          kind: "orchestration",
           source: "user",
           revision: 3,
           invocation_policy: { automatic: true },
@@ -192,12 +174,23 @@ describe("TypedWorkflowCatalogAdapter", () => {
           winner: true,
         },
         {
-          id: "broken",
-          name: "Broken",
-          description: "",
+          id: "ordinary-skill",
+          name: "Ordinary Skill",
+          description: "A prompt instruction, not a Workflow.",
           kind: "instruction",
           source: "user",
           revision: 4,
+          invocation_policy: { explicit: true },
+          status: "valid",
+          winner: true,
+        },
+        {
+          id: "broken",
+          name: "Broken",
+          description: "",
+          kind: "orchestration",
+          source: "user",
+          revision: 5,
           invocation_policy: { explicit: true },
           status: "valid",
           winner: true,
@@ -215,8 +208,8 @@ describe("TypedWorkflowCatalogAdapter", () => {
       readOnly: false,
     });
     expect(result.diagnostics).toEqual([
-      { entryIndex: 1, itemId: "broken", message: "missing description" },
-      { entryIndex: 2, itemId: undefined, message: "entry is not an object" },
+      { entryIndex: 2, itemId: "broken", message: "missing description" },
+      { entryIndex: 3, itemId: undefined, message: "entry is not an object" },
     ]);
   });
 
@@ -232,7 +225,22 @@ describe("TypedWorkflowCatalogAdapter", () => {
 
 describe("LegacyWorkflowCatalogAdapter", () => {
   it("maps only workflow-shaped commands and legacy workflow metadata", async () => {
+    const orchestrationSkill = command({
+      metadata: {
+        kind: "orchestration",
+        source: "workspace",
+        status: "degraded",
+        invocationPolicy: { explicit: true, automatic: true },
+        argumentHint: "target environment",
+        lastError: "dependency unavailable",
+      } as CommandItem["metadata"],
+    });
     const workflowCommand = command({
+      id: "workflow-release",
+      name: "release",
+      displayName: "Release",
+      description: "Release through a true workflow command.",
+      type: "workflow",
       metadata: {
         kind: "orchestration",
         source: "workspace",
@@ -250,6 +258,14 @@ describe("LegacyWorkflowCatalogAdapter", () => {
       type: "workflow",
       metadata: { source: "global" },
     });
+    const ordinarySkill = command({
+      id: "skill-plan",
+      name: "plan",
+      displayName: "Plan",
+      description: "An instruction Skill.",
+      type: "skill",
+      metadata: { kind: "instruction", source: "global" } as CommandItem["metadata"],
+    });
     const mcp = command({ id: "mcp-read", name: "read", type: "mcp" });
     const workflows: WorkflowMetadata[] = [
       {
@@ -265,7 +281,13 @@ describe("LegacyWorkflowCatalogAdapter", () => {
         size: 80,
       },
     ];
-    const listCommands = vi.fn(async () => [workflowCommand, promptWorkflow, mcp]);
+    const listCommands = vi.fn(async () => [
+      orchestrationSkill,
+      workflowCommand,
+      promptWorkflow,
+      ordinarySkill,
+      mcp,
+    ]);
     const listWorkflows = vi.fn(async () => workflows);
 
     const result = await new LegacyWorkflowCatalogAdapter({
@@ -280,9 +302,10 @@ describe("LegacyWorkflowCatalogAdapter", () => {
         id: "deploy",
         name: "Deploy",
         description: "Deploy with the legacy prompt path.",
-        kind: "instruction",
+        kind: "orchestration",
         source: "legacy",
         status: "valid",
+        legacy: true,
         invocationPolicy: "manual",
         argumentHint: undefined,
         argumentSchema: undefined,
@@ -290,9 +313,9 @@ describe("LegacyWorkflowCatalogAdapter", () => {
         lastError: undefined,
       },
       {
-        id: "review",
-        name: "Review",
-        description: "Review changes against evidence.",
+        id: "release",
+        name: "Release",
+        description: "Release through a true workflow command.",
         kind: "orchestration",
         source: "project",
         status: "degraded",
@@ -306,13 +329,15 @@ describe("LegacyWorkflowCatalogAdapter", () => {
         id: "triage",
         name: "triage",
         description: "triage.md",
-        kind: "instruction",
+        kind: "orchestration",
         source: "project",
         status: "valid",
+        legacy: true,
         invocationPolicy: "manual",
         readOnly: false,
       },
     ]);
+    expect(result.items.some((item) => item.id === "review")).toBe(false);
     expect(result.capabilities).toMatchObject({
       mode: "legacy",
       edit: true,

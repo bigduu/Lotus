@@ -9,6 +9,7 @@ interface SkillCardProps {
   skill: SkillDefinition;
   disabled?: boolean;
   busy?: boolean;
+  mutationDisabled?: boolean;
   onToggleDisabled?: (skillId: string, nextDisabled: boolean) => void;
 }
 
@@ -16,6 +17,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
   skill,
   disabled = false,
   busy = false,
+  mutationDisabled = false,
   onToggleDisabled,
 }) => {
   const { t } = useTranslation();
@@ -38,9 +40,11 @@ export const SkillCard: React.FC<SkillCardProps> = ({
             <Switch
               checked={!disabled}
               loading={busy}
+              disabled={mutationDisabled}
               onChange={(enabled) => onToggleDisabled(skill.id, !enabled)}
               checkedChildren={t("components.skillManager.switchEnabled")}
               unCheckedChildren={t("components.skillManager.switchDisabled")}
+              aria-label={t("components.skillManager.toggleSkill", { name: skill.name })}
             />
           )}
         </Space>

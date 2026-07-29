@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type {
   LegacyWorkflowManagementClient,
@@ -24,7 +24,7 @@ const typedCatalog: WorkflowCatalogView = {
       id: "review",
       name: "Review",
       description: "Review a scoped change with evidence.",
-      kind: "instruction",
+      kind: "orchestration",
       source: "builtin",
       status: "valid",
       invocationPolicy: "both",
@@ -49,7 +49,7 @@ const typedCatalog: WorkflowCatalogView = {
       id: "personal-review",
       name: "Personal review",
       description: "A user workflow with an invalid local definition.",
-      kind: "instruction",
+      kind: "orchestration",
       source: "user",
       status: "invalid",
       invocationPolicy: "implicit",
@@ -72,7 +72,7 @@ const typedCatalog: WorkflowCatalogView = {
       id: "legacy-repo-review",
       name: "Repository legacy review",
       description: "A workspace legacy workflow ready to migrate.",
-      kind: "instruction",
+      kind: "orchestration",
       source: "workspace",
       status: "valid",
       legacy: true,
@@ -97,7 +97,17 @@ describe("SystemSettingsWorkflowsTab", () => {
     render(<SystemSettingsWorkflowsTab catalogAdapter={adapter} sessionId="session-125" />);
 
     expect(await screen.findByText("Review")).toBeInTheDocument();
-    expect(screen.getAllByText("Instruction")).toHaveLength(3);
+    expect(screen.getAllByText("Orchestration")).toHaveLength(4);
+    const realWorkflow = screen.getByRole("article", { name: "Release" });
+    expect(within(realWorkflow).getByText("Orchestration")).toBeInTheDocument();
+    expect(within(realWorkflow).queryByText("Legacy")).not.toBeInTheDocument();
+    const legacyWorkflow = screen.getByRole("article", { name: "Repository legacy review" });
+    expect(within(legacyWorkflow).getByText("Legacy")).toBeInTheDocument();
+    expect(within(legacyWorkflow).queryByText("Orchestration")).not.toBeInTheDocument();
+    expect(screen.queryByText("Instruction")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Filter by workflow kind" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Built-in")).toBeInTheDocument();
     expect(screen.getByText("Manual + automatic")).toBeInTheDocument();
     expect(screen.getAllByText("Read-only")).toHaveLength(2);
@@ -240,9 +250,10 @@ describe("SystemSettingsWorkflowsTab", () => {
           id: "old-review",
           name: "Old Review",
           description: "old-review.md",
-          kind: "instruction",
+          kind: "orchestration",
           source: "legacy",
           status: "valid",
+          legacy: true,
           invocationPolicy: "manual",
           readOnly: false,
         },
@@ -252,7 +263,10 @@ describe("SystemSettingsWorkflowsTab", () => {
     render(<SystemSettingsWorkflowsTab catalogAdapter={adapterWith(legacyCatalog)} />);
 
     expect(await screen.findByText("Old Review")).toBeInTheDocument();
-    expect(screen.getByText("Legacy")).toBeInTheDocument();
+    expect(screen.getAllByText("Legacy")).toHaveLength(2);
+    expect(
+      within(screen.getByRole("article", { name: "Old Review" })).queryByText("Orchestration"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Catalog source: Legacy adapter")).toBeInTheDocument();
     expect(screen.queryByText(/Revision/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Version/)).not.toBeInTheDocument();
@@ -274,9 +288,10 @@ describe("SystemSettingsWorkflowsTab", () => {
           id: "old-review",
           name: "Old Review",
           description: "old-review.md",
-          kind: "instruction",
+          kind: "orchestration",
           source: "legacy",
           status: "valid",
+          legacy: true,
           invocationPolicy: "manual",
           readOnly: false,
         },

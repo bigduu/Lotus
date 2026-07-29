@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { App as AntApp, Card, Input, List, Spin, Empty, Row, Button } from "antd";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { Alert, App as AntApp, Card, Input, List, Spin, Empty, Row, Button } from "antd";
 import { SearchOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { skillService } from "../../services/skill/SkillService";
@@ -21,7 +21,9 @@ export const SkillManager = () => {
   const [skills, setSkills] = useState<SkillDefinition[]>([]);
   const [isLoadingSkills, setIsLoadingSkills] = useState(false);
   const [skillsError, setSkillsError] = useState<string | null>(null);
+  const [configLoadError, setConfigLoadError] = useState<string | null>(null);
   const [savingSkillId, setSavingSkillId] = useState<string | null>(null);
+  const refreshGenerationRef = useRef(0);
 
   // Local state
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,28 +38,73 @@ export const SkillManager = () => {
       ),
     [toolsSkills.envelope],
   );
+  const configError = configLoadError ?? toolsSkills.error;
+  const hasKnownSkillState = Boolean(toolsSkills.envelope);
+  const canMutateSkillConfig =
+    toolsSkills.envelope?.status === "healthy" && !configError && !toolsSkills.loading;
 
   const loadSkillSettings = useCallback(
     async (refresh = true, refreshConfig = false) => {
+      const generation = ++refreshGenerationRef.current;
       setIsLoadingSkills(true);
       setSkillsError(null);
+      const skillsPromise = skillService.listSkills({ includeDisabled: true }, refresh);
+      const configResultPromise = refreshConfig
+        ? loadSection("tools-skills", { force: true }).then(
+            (envelope) => ({ ok: true as const, envelope }),
+            (error: unknown) => ({ ok: false as const, error }),
+          )
+        : null;
+      let skillsLoaded = false;
+
       try {
-        const [skillResponse] = await Promise.all([
-          skillService.listSkills({ includeDisabled: true }, refresh),
-          refreshConfig
-            ? loadSection("tools-skills", { force: true })
-            : loadSection("tools-skills"),
-        ]);
-        setSkills(skillResponse.skills);
-        setLastRefresh(new Date());
+        const skillResponse = await skillsPromise;
+        if (generation === refreshGenerationRef.current) {
+          setSkills(skillResponse.skills);
+          setLastRefresh(new Date());
+          skillsLoaded = true;
+        }
       } catch (error) {
-        const messageText = configErrorMessage(error, t("components.skillManager.loadFailed"));
-        setSkillsError(messageText);
+        if (generation === refreshGenerationRef.current) {
+          setSkillsError(configErrorMessage(error, t("components.skillManager.loadFailed")));
+        }
       } finally {
-        setIsLoadingSkills(false);
+        if (generation === refreshGenerationRef.current) {
+          setIsLoadingSkills(false);
+        }
       }
+
+      if (configResultPromise) {
+        const configResult = await configResultPromise;
+        if (generation === refreshGenerationRef.current) {
+          if (!configResult.ok) {
+            setConfigLoadError(
+              configErrorMessage(
+                configResult.error,
+                t("components.skillManager.configurationUnavailable"),
+              ),
+            );
+          } else if (configResult.envelope.status === "healthy") {
+            setConfigLoadError(null);
+          } else {
+            setConfigLoadError(
+              configResult.envelope.last_error ??
+                t("components.skillManager.configurationUnavailable"),
+            );
+          }
+        }
+      }
+
+      return generation === refreshGenerationRef.current && skillsLoaded;
     },
     [loadSection, t],
+  );
+
+  useEffect(
+    () => () => {
+      refreshGenerationRef.current += 1;
+    },
+    [],
   );
 
   // Load skills on mount and periodically (with refresh from disk)
@@ -85,23 +132,32 @@ export const SkillManager = () => {
 
   // Manual refresh handler
   const handleRefresh = useCallback(async () => {
-    await loadSkillSettings(true, true);
-    message.success(t("components.skillManager.skillsRefreshed"));
+    const loaded = await loadSkillSettings(true, true);
+    if (loaded) message.success(t("components.skillManager.skillsRefreshed"));
   }, [loadSkillSettings, message, t]);
 
-  // Show error message
   useEffect(() => {
-    if (skillsError) {
-      message.error(skillsError);
-      setSkillsError(null);
+    if (toolsSkills.envelope?.status === "healthy" && !toolsSkills.error) {
+      setConfigLoadError(null);
     }
-  }, [skillsError, message]);
+  }, [toolsSkills.envelope?.status, toolsSkills.error]);
 
   const handleToggleDisabled = useCallback(
     async (skillId: string, nextDisabled: boolean) => {
+      if (!canMutateSkillConfig) {
+        message.error(t("components.skillManager.configurationUnavailable"));
+        return;
+      }
       setSavingSkillId(skillId);
       try {
         const latest = await loadSection("tools-skills", { force: true });
+        if (latest.status !== "healthy") {
+          const latestError =
+            latest.last_error ?? t("components.skillManager.configurationUnavailable");
+          setConfigLoadError(latestError);
+          throw new Error(latestError);
+        }
+        setConfigLoadError(null);
         const currentDisabled = latest.data.skills?.disabled ?? [];
         const nextDisabledList = Array.from(
           new Set(
@@ -132,7 +188,7 @@ export const SkillManager = () => {
         setSavingSkillId(null);
       }
     },
-    [loadSection, message, saveSection, t],
+    [canMutateSkillConfig, loadSection, message, saveSection, t],
   );
 
   // Filter skills
@@ -199,6 +255,24 @@ export const SkillManager = () => {
         <div className="lotus-settings-note" style={{ marginBottom: "16px" }}>
           {t("components.skillManager.disabledHint")}
         </div>
+        {configError && (
+          <Alert
+            type="warning"
+            showIcon
+            message={t("components.skillManager.configurationUnavailable")}
+            description={configError}
+            style={{ marginBottom: "16px" }}
+          />
+        )}
+        {skillsError && (
+          <Alert
+            type="error"
+            showIcon
+            message={t("components.skillManager.loadFailed")}
+            description={skillsError}
+            style={{ marginBottom: "16px" }}
+          />
+        )}
         {/* Filters */}
         <Row style={{ marginBottom: "24px" }}>
           <Input
@@ -237,7 +311,8 @@ export const SkillManager = () => {
                     skill={skill}
                     disabled={disabledSkillIds.has(skill.id)}
                     busy={savingSkillId === skill.id}
-                    onToggleDisabled={handleToggleDisabled}
+                    mutationDisabled={!canMutateSkillConfig}
+                    onToggleDisabled={hasKnownSkillState ? handleToggleDisabled : undefined}
                   />
                 </List.Item>
               )}

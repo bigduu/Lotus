@@ -32,13 +32,21 @@ vi.mock("../mcp/McpServerTable", () => ({
   McpServerTable: ({
     servers,
     onEditServer,
+    configReadOnly,
   }: {
     servers: McpServer[];
     onEditServer: (server: McpServer) => void;
+    configReadOnly?: boolean;
   }) => (
-    <button type="button" onClick={() => onEditServer(servers[0]!)}>
-      Edit first server
-    </button>
+    <div>
+      <span>{servers[0]?.name}</span>
+      <button type="button" disabled={configReadOnly} onClick={() => onEditServer(servers[0]!)}>
+        Edit first server
+      </button>
+      <button type="button" disabled={configReadOnly}>
+        Delete first server
+      </button>
+    </div>
   ),
 }));
 
@@ -94,6 +102,9 @@ const resetHookResult = () => {
     isMutatingConfig: false,
     isRefreshingAll: false,
     isSelectedServerToolsLoading: false,
+    configAvailable: true,
+    configError: null,
+    runtimeError: null,
     error: null,
     setSelectedServerId: vi.fn(),
     addServer: vi.fn(),
@@ -224,5 +235,69 @@ describe("SystemSettingsMcpTab canonical MCP writes", () => {
         7,
       ),
     );
+  });
+
+  it("keeps runtime data visible while typed-config mutations are disabled", () => {
+    mocks.hookResult.configAvailable = false;
+    mocks.hookResult.configError = "typed MCP settings require the modular configuration facade";
+    mocks.hookResult.error = mocks.hookResult.configError;
+
+    renderTab();
+
+    expect(screen.getByText("Base server")).toBeInTheDocument();
+    expect(screen.getByText("MCP tools")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "MCP configuration is unavailable. Runtime servers and tools remain visible in read-only mode.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("typed MCP settings require the modular configuration facade"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add Server" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Import$/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Edit first server" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Delete first server" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Refresh All$/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Export$/ })).toBeEnabled();
+  });
+
+  it("disables Save when an open edit becomes read-only", async () => {
+    const view = renderTab();
+    fireEvent.click(screen.getByRole("button", { name: "Edit first server" }));
+    await screen.findByPlaceholderText("Filesystem MCP");
+
+    mocks.hookResult.configAvailable = false;
+    mocks.hookResult.configError = "typed config offline";
+    mocks.hookResult.error = "typed config offline";
+    view.rerender(
+      <AntdApp>
+        <SystemSettingsMcpTab />
+      </AntdApp>,
+    );
+
+    expect(await screen.findByRole("button", { name: "Save" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(mocks.updateServer).not.toHaveBeenCalled();
+  });
+
+  it("disables Import confirmation when an open import becomes read-only", async () => {
+    const view = renderTab();
+    fireEvent.click(screen.getByRole("button", { name: /Import$/ }));
+    await screen.findByText("Import MCP Servers");
+
+    mocks.hookResult.configAvailable = false;
+    mocks.hookResult.configError = "typed config offline";
+    mocks.hookResult.error = "typed config offline";
+    view.rerender(
+      <AntdApp>
+        <SystemSettingsMcpTab />
+      </AntdApp>,
+    );
+
+    const importButtons = screen.getAllByRole("button", { name: /Import$/ });
+    expect(importButtons.length).toBeGreaterThanOrEqual(2);
+    importButtons.forEach((button) => expect(button).toBeDisabled());
+    expect(mocks.importServers).not.toHaveBeenCalled();
   });
 });

@@ -67,7 +67,9 @@ const requiredString = (value: unknown, field: string): string => {
 const optionalString = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
-const isWorkflowKind = (value: unknown): value is WorkflowKind =>
+type RawWorkflowKind = "instruction" | WorkflowKind;
+
+const isRawWorkflowKind = (value: unknown): value is RawWorkflowKind =>
   value === "instruction" || value === "orchestration";
 
 const isWorkflowSource = (value: unknown): value is WorkflowSource =>
@@ -114,14 +116,14 @@ const shadowedCandidateFromTyped = (raw: unknown): WorkflowShadowedCandidate => 
   };
 };
 
-const typedEntryToCatalogItem = (raw: unknown): WorkflowCatalogItem => {
+const typedEntryToCatalogItem = (raw: unknown): WorkflowCatalogItem | null => {
   if (!isJsonObject(raw)) throw new Error("entry is not an object");
 
   const id = requiredString(raw.id, "id");
   const kind = raw.kind;
   const source = raw.source;
   const rawStatus = raw.winner === false ? "shadowed" : raw.status;
-  if (!isWorkflowKind(kind)) throw new Error("invalid kind");
+  if (!isRawWorkflowKind(kind)) throw new Error("invalid kind");
   if (!isWorkflowSource(source)) throw new Error("invalid source");
   if (!isWorkflowStatus(rawStatus)) throw new Error("invalid status");
   if (typeof raw.revision !== "number" || !Number.isSafeInteger(raw.revision) || raw.revision < 0) {
@@ -135,15 +137,22 @@ const typedEntryToCatalogItem = (raw: unknown): WorkflowCatalogItem => {
   if (!Array.isArray(shadowedCandidates)) throw new Error("invalid shadowed candidates");
   const mappedShadowedCandidates = shadowedCandidates.map(shadowedCandidateFromTyped);
   const migrationStatus = migrationStatusFromTyped(raw.migration_status ?? raw.migrationStatus);
+  const isLegacyWorkflow =
+    raw.legacy === true || source === "legacy" || migrationStatus !== undefined;
+
+  // Older Bamboo releases exposed every SKILL.md bundle through this endpoint
+  // as an "instruction" workflow. Keep compatibility for explicitly identified
+  // legacy Workflows, but never relabel an ordinary Skill as a Workflow.
+  if (kind !== "orchestration" && !isLegacyWorkflow) return null;
 
   return {
     id,
     name: requiredString(raw.name, "name"),
     description: requiredString(raw.description, "description"),
-    kind,
+    kind: "orchestration",
     source,
     status: rawStatus,
-    ...(raw.legacy === true ? { legacy: true } : {}),
+    ...(isLegacyWorkflow ? { legacy: true } : {}),
     ...(migrationStatus ? { migrationStatus } : {}),
     invocationPolicy: invocationPolicyFromMetadata(invocationPolicy),
     argumentHint: optionalString(argumentHint),
@@ -187,7 +196,8 @@ export class TypedWorkflowCatalogAdapter implements WorkflowCatalogAdapter {
     const diagnostics: WorkflowCatalogDiagnostic[] = [];
     snapshot.entries.forEach((entry, entryIndex) => {
       try {
-        items.push(typedEntryToCatalogItem(entry));
+        const item = typedEntryToCatalogItem(entry);
+        if (item) items.push(item);
       } catch (error) {
         diagnostics.push({
           entryIndex,
@@ -219,19 +229,18 @@ const legacySource = (value: unknown): WorkflowSource => {
 
 const commandToCatalogItem = (command: CommandItem): WorkflowCatalogItem | null => {
   const metadata = command.metadata as JsonObject;
-  const hasCatalogMetadata = isWorkflowKind(metadata.kind);
-  if (command.type !== "workflow" && !(command.type === "skill" && hasCatalogMetadata)) {
-    return null;
-  }
+  if (command.type !== "workflow") return null;
   const source = legacySource(metadata.source);
   const status = isWorkflowStatus(metadata.status) ? metadata.status : "valid";
+  const isLegacyWorkflow = metadata.legacy === true || metadata.kind !== "orchestration";
   return {
     id: command.name,
     name: command.displayName || command.name,
     description: command.description || command.name,
-    kind: isWorkflowKind(metadata.kind) ? metadata.kind : "instruction",
+    kind: "orchestration",
     source,
     status,
+    ...(isLegacyWorkflow ? { legacy: true } : {}),
     invocationPolicy: invocationPolicyFromMetadata(metadata.invocationPolicy),
     argumentHint: optionalString(metadata.argumentHint),
     argumentSchema: isJsonObject(metadata.argumentSchema) ? metadata.argumentSchema : undefined,
@@ -244,9 +253,10 @@ const workflowMetadataToCatalogItem = (workflow: WorkflowMetadata): WorkflowCata
   id: workflow.name,
   name: workflow.name,
   description: workflow.filename,
-  kind: "instruction",
+  kind: "orchestration",
   source: workflow.source === "workspace" ? "project" : "legacy",
   status: "valid",
+  legacy: true,
   invocationPolicy: "manual",
   readOnly: false,
 });

@@ -16,6 +16,7 @@ interface McpServerTableProps {
   onDisconnectServer?: (server: McpServer) => Promise<void> | void;
   onRefreshTools?: (server: McpServer) => Promise<void> | void;
   isServerActionLoading?: (serverId: string, action: McpServerAction) => boolean;
+  configReadOnly?: boolean;
 }
 
 const statusColorMap: Record<ServerStatus, string> = {
@@ -49,6 +50,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
   onDisconnectServer,
   onRefreshTools,
   isServerActionLoading,
+  configReadOnly = false,
 }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
@@ -147,6 +149,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
             <Space size={token.marginXS}>
               <Button
                 size="small"
+                disabled={configReadOnly}
                 onClick={(e) => {
                   e.stopPropagation();
                   onEditServer?.(record);
@@ -155,6 +158,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                 {t("settings.mcpServerTable.actions.edit")}
               </Button>
               <Popconfirm
+                disabled={configReadOnly}
                 title={t("settings.mcpServerTable.deleteTitle")}
                 description={t("settings.mcpServerTable.deleteDescription", {
                   name: record.name || record.id,
@@ -169,6 +173,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
                 <Button
                   size="small"
                   danger
+                  disabled={configReadOnly}
                   loading={isServerActionLoading?.(record.id, "delete")}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -204,6 +209,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
 
               <Button
                 size="small"
+                disabled={status === ServerStatus.Stopped}
                 onClick={(e) => {
                   e.stopPropagation();
                   onRefreshTools?.(record);
@@ -219,6 +225,7 @@ export const McpServerTable: React.FC<McpServerTableProps> = ({
     ],
     [
       isServerActionLoading,
+      configReadOnly,
       onConnectServer,
       onDeleteServer,
       onDisconnectServer,

@@ -74,6 +74,7 @@ interface McpServerFormModalProps {
   credentialStatus?: McpServerCredentialStatus;
   latestCredentialStatus?: McpServerCredentialStatus;
   confirmLoading?: boolean;
+  confirmDisabled?: boolean;
   onCancel: () => void;
   onSubmit: (config: McpServerConfig, expectedRevision?: number) => Promise<void> | void;
 }
@@ -445,6 +446,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
   credentialStatus,
   latestCredentialStatus,
   confirmLoading = false,
+  confirmDisabled = false,
   onCancel,
   onSubmit,
 }) => {
@@ -668,6 +670,7 @@ export const McpServerFormModal: React.FC<McpServerFormModalProps> = ({
       destroyOnClose
       forceRender
       confirmLoading={confirmLoading}
+      okButtonProps={{ disabled: confirmDisabled }}
       width={720}
     >
       {hasExternalRevision ? (

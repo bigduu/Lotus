@@ -2099,7 +2099,7 @@ export const zhCnTranslation = {
       workflowsTab: {
         title: "工作流库",
         description:
-          "浏览 Bamboo 提供的指令型和编排型工作流。服务器未声明对应能力前，相关操作会保持禁用。",
+          "浏览 Bamboo 提供的编排工作流和明确标记的旧版工作流。技能请在技能库中单独管理。",
         loading: "正在加载工作流目录",
         loadFailed: "加载工作流目录失败",
         refresh: "刷新",
@@ -2107,10 +2107,8 @@ export const zhCnTranslation = {
         noMatches: "没有工作流符合当前筛选条件",
         searchPlaceholder: "搜索工作流",
         searchLabel: "搜索工作流目录",
-        kindFilter: "按工作流类型筛选",
         sourceFilter: "按工作流来源筛选",
         statusFilter: "按工作流状态筛选",
-        allKinds: "全部类型",
         allSources: "全部来源",
         allStatuses: "全部状态",
         catalogMode: "目录来源：{{mode}}",
@@ -2149,7 +2147,6 @@ export const zhCnTranslation = {
         runWorkflow: "运行 {{name}}",
         deleteWorkflow: "删除 {{name}}",
         kind: {
-          instruction: "指令型",
           orchestration: "编排型",
         },
         source: {
@@ -2457,6 +2454,7 @@ export const zhCnTranslation = {
           "已导入 {{count}} 个服务器（新增 {{added}}，更新 {{updated}}，删除 {{removed}}）。启动失败 {{failed}} 个。",
         importStartFailures: "部分服务器未成功启动，配置已保存，请在服务器列表查看错误。",
         importFailed: "导入 MCP 服务器失败",
+        configurationUnavailable: "MCP 配置不可用。运行时服务器和工具仍会以只读模式显示。",
         overviewTitle: "MCP 概览",
         overviewDescription: "配置外部 MCP 服务器并查看已注册的工具别名。",
         totalServers: "服务器总数：{{count}}",
@@ -3079,6 +3077,8 @@ export const zhCnTranslation = {
         disabledTag: "已禁用",
         switchEnabled: "开",
         switchDisabled: "关",
+        toggleSkill: "启用或禁用 {{name}}",
+        configurationUnavailable: "技能启用/禁用配置不可用。技能目录仍会以只读模式显示。",
         skillStateSaved: "技能状态已保存",
         saveFailed: "保存技能状态失败",
         noSkillsFound: "未找到技能",

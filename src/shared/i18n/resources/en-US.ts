@@ -2179,7 +2179,7 @@ export const enUsTranslation = {
       workflowsTab: {
         title: "Workflow Library",
         description:
-          "Browse instruction and orchestration workflows from Bamboo. Unsupported actions stay disabled until the server advertises the matching capability.",
+          "Browse orchestration and explicitly identified legacy workflows from Bamboo. Skills are managed separately in the Skills library.",
         loading: "Loading workflow catalog",
         loadFailed: "Failed to load the workflow catalog",
         refresh: "Refresh",
@@ -2187,10 +2187,8 @@ export const enUsTranslation = {
         noMatches: "No workflows match the current filters",
         searchPlaceholder: "Search workflows",
         searchLabel: "Search workflow catalog",
-        kindFilter: "Filter by workflow kind",
         sourceFilter: "Filter by workflow source",
         statusFilter: "Filter by workflow status",
-        allKinds: "All kinds",
         allSources: "All sources",
         allStatuses: "All statuses",
         catalogMode: "Catalog source: {{mode}}",
@@ -2229,7 +2227,6 @@ export const enUsTranslation = {
         runWorkflow: "Run {{name}}",
         deleteWorkflow: "Delete {{name}}",
         kind: {
-          instruction: "Instruction",
           orchestration: "Orchestration",
         },
         source: {
@@ -2552,6 +2549,8 @@ export const enUsTranslation = {
         importStartFailures:
           "Some servers did not start. Config is saved; open the server list to see errors.",
         importFailed: "Failed to import MCP servers",
+        configurationUnavailable:
+          "MCP configuration is unavailable. Runtime servers and tools remain visible in read-only mode.",
         overviewTitle: "MCP Overview",
         overviewDescription: "Configure external MCP servers and inspect registered tool aliases.",
         totalServers: "Total servers: {{count}}",
@@ -3184,6 +3183,9 @@ export const enUsTranslation = {
         disabledTag: "Disabled",
         switchEnabled: "On",
         switchDisabled: "Off",
+        toggleSkill: "Enable or disable {{name}}",
+        configurationUnavailable:
+          "Skill enable/disable settings are unavailable. The catalog remains visible in read-only mode.",
         skillStateSaved: "Skill state saved",
         saveFailed: "Failed to save skill state",
         noSkillsFound: "No skills found",

@@ -319,7 +319,7 @@ const buildFrTranslation = (enTranslation: EnTranslation) => ({
       ...enTranslation.settings.workflowsTab,
       title: "Flux de travail",
       description:
-        "Parcourez les flux d’instructions et d’orchestration fournis par Bamboo. Les actions non prises en charge restent désactivées.",
+        "Parcourez les flux d’orchestration et les anciens flux explicitement identifiés par Bamboo. Les compétences sont gérées séparément.",
       loadFailed: "Échec du chargement des flux de travail",
       refresh: "Actualiser",
       empty: "Aucun flux de travail trouvé",
@@ -4293,7 +4293,8 @@ const buildZhTwTranslation = (zhCnTranslation: ZhCnBaseTranslation) => ({
     workflowsTab: {
       ...zhCnTranslation.settings.workflowsTab,
       title: "工作流程",
-      description: "瀏覽 Bamboo 提供的指令與編排工作流程；伺服器未宣告支援的操作會保持停用。",
+      description:
+        "瀏覽 Bamboo 提供的編排工作流程與明確標記的舊版工作流程；技能請在技能庫中單獨管理。",
       loadFailed: "載入工作流程失敗",
       refresh: "重新整理",
       empty: "暫無工作流程",

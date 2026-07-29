@@ -63,6 +63,9 @@ const SystemSettingsMcpTab: React.FC = () => {
     isMutatingConfig,
     isRefreshingAll,
     isSelectedServerToolsLoading,
+    configAvailable = true,
+    configError = null,
+    runtimeError = null,
     error,
     setSelectedServerId,
     addServer,
@@ -75,6 +78,7 @@ const SystemSettingsMcpTab: React.FC = () => {
     refreshAll,
     isServerActionLoading,
   } = useMcpSettings();
+  const operationError = error && error !== configError && error !== runtimeError ? error : null;
 
   const statusLabelMap: Record<ServerStatus, string> = useMemo(
     () => ({
@@ -144,6 +148,7 @@ const SystemSettingsMcpTab: React.FC = () => {
   } as const;
 
   const handleDeleteServer = async (server: McpServer) => {
+    if (!configAvailable) return;
     try {
       await deleteServer(server.id);
       msgApi.success(t("settings.mcpTab.serverDeleted"));
@@ -193,18 +198,24 @@ const SystemSettingsMcpTab: React.FC = () => {
   };
 
   const openCreateServerModal = () => {
+    if (!configAvailable) return;
     setEditingServer(null);
     setServerModalMode("create");
     setIsServerModalOpen(true);
   };
 
   const openEditServerModal = (server: McpServer) => {
+    if (!configAvailable) return;
     setEditingServer(server);
     setServerModalMode("edit");
     setIsServerModalOpen(true);
   };
 
   const handleSubmitServer = async (config: McpServer["config"], expectedRevision?: number) => {
+    if (!configAvailable) {
+      msgApi.error(t("settings.mcpTab.configurationUnavailable"));
+      return;
+    }
     try {
       if (serverModalMode === "edit") {
         if (!editingServer) {
@@ -233,6 +244,7 @@ const SystemSettingsMcpTab: React.FC = () => {
   };
 
   const openImportModal = () => {
+    if (!configAvailable) return;
     setIsImportOpen(true);
     setImportError(null);
     setImportMode("merge");
@@ -258,6 +270,10 @@ const SystemSettingsMcpTab: React.FC = () => {
   };
 
   const handleImport = async () => {
+    if (!configAvailable) {
+      setImportError(t("settings.mcpTab.configurationUnavailable"));
+      return;
+    }
     setImportError(null);
 
     let parsed: unknown;
@@ -319,7 +335,16 @@ const SystemSettingsMcpTab: React.FC = () => {
     <Space direction="vertical" size={token.marginMD} style={{ width: "100%" }}>
       {contextHolder}
 
-      {error ? <Alert type="error" showIcon message={error} /> : null}
+      {configError ? (
+        <Alert
+          type="warning"
+          showIcon
+          message={t("settings.mcpTab.configurationUnavailable")}
+          description={configError}
+        />
+      ) : null}
+      {runtimeError ? <Alert type="error" showIcon message={runtimeError} /> : null}
+      {operationError ? <Alert type="error" showIcon message={operationError} /> : null}
 
       <Card size="small" title={t("settings.mcpTab.overviewTitle")}>
         <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
@@ -370,7 +395,7 @@ const SystemSettingsMcpTab: React.FC = () => {
         title={t("settings.mcpTab.serversTitle")}
         extra={
           <Space>
-            <Button type="primary" onClick={openCreateServerModal}>
+            <Button type="primary" disabled={!configAvailable} onClick={openCreateServerModal}>
               {t("settings.mcpTab.addServer")}
             </Button>
             <Button
@@ -385,7 +410,7 @@ const SystemSettingsMcpTab: React.FC = () => {
             <Button icon={<CopyOutlined />} onClick={() => void handleExport()}>
               {t("settings.mcpTab.export")}
             </Button>
-            <Button icon={<UploadOutlined />} onClick={openImportModal}>
+            <Button icon={<UploadOutlined />} disabled={!configAvailable} onClick={openImportModal}>
               {t("settings.mcpTab.import")}
             </Button>
           </Space>
@@ -402,6 +427,7 @@ const SystemSettingsMcpTab: React.FC = () => {
           onDisconnectServer={handleDisconnectServer}
           onRefreshTools={handleRefreshServerTools}
           isServerActionLoading={isServerActionLoading}
+          configReadOnly={!configAvailable}
         />
       </Card>
 
@@ -422,6 +448,7 @@ const SystemSettingsMcpTab: React.FC = () => {
           latestEditingServer ? credentialStatusByServer[latestEditingServer.id] : undefined
         }
         confirmLoading={isMutatingConfig}
+        confirmDisabled={!configAvailable}
         onCancel={() => {
           if (isMutatingConfig) return;
           setIsServerModalOpen(false);
@@ -435,7 +462,7 @@ const SystemSettingsMcpTab: React.FC = () => {
         title={t("settings.mcpTab.importModalTitle")}
         okText={t("settings.mcpTab.import")}
         onOk={() => void handleImport()}
-        okButtonProps={{ loading: isImporting }}
+        okButtonProps={{ loading: isImporting, disabled: !configAvailable }}
         onCancel={() => {
           if (isImporting) return;
           setIsImportOpen(false);
