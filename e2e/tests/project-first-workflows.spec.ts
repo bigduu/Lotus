@@ -44,6 +44,9 @@ const loadChat = async (page: Page) => {
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+const exactGroupName = (groupName: string, count: number) =>
+  new RegExp(`^${escapeRegExp(groupName)} \\(${count}\\)$`);
+
 const findGroupWithCount = async (page: Page, groupName: string) => {
   const accessibleName = new RegExp(`^${escapeRegExp(groupName)} \\((\\d+)\\)$`);
   const group = page.getByRole("button", { name: accessibleName });
@@ -820,22 +823,32 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       const createFromGroup = async (input: {
         groupName: string;
         seedTitle: string;
+        initialCount: number | "live";
         projectId: string | null;
         workspacePath: string | null;
       }) => {
         // The browser suite shares one Bamboo process, so unrelated tests may
-        // leave additional Unassigned sessions. Read this group's live total,
-        // then still require this action to increment that exact total by one.
-        const { group, count: initialCount } = await findGroupWithCount(page, input.groupName);
+        // leave additional Unassigned sessions. Only that group reads its live
+        // total; a uniquely created Project must still begin with one seed.
+        const { group, count: initialCount } =
+          input.initialCount === "live"
+            ? await findGroupWithCount(page, input.groupName)
+            : {
+                group: page.getByRole("button", {
+                  name: exactGroupName(input.groupName, input.initialCount),
+                }),
+                count: input.initialCount,
+              };
+        await expect(group).toHaveCount(1);
+        await expect(group).toBeVisible();
         if ((await group.getAttribute("aria-expanded")) !== "true") {
           await group.click();
         }
-        await expect(
-          group
-            .locator("..")
-            .locator('[data-testid="chat-item"]')
-            .filter({ hasText: input.seedTitle }),
-        ).toBeVisible();
+        const seedRow = group
+          .locator("..")
+          .getByRole("option", { name: input.seedTitle, exact: true });
+        await expect(seedRow).toHaveCount(1);
+        await expect(seedRow).toBeVisible();
         await group.hover();
         const createButton = group.getByRole("button", {
           name: "Create session in this project",
@@ -894,7 +907,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
         await expect(
           page.getByRole("button", {
-            name: `${input.groupName} (${initialCount + 1})`,
+            name: exactGroupName(input.groupName, initialCount + 1),
           }),
         ).toBeVisible();
         await expect(
@@ -924,12 +937,14 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       await createFromGroup({
         groupName: projectName,
         seedTitle: projectSeedTitle,
+        initialCount: 1,
         projectId: project.id,
         workspacePath: fixture.primary,
       });
       await createFromGroup({
         groupName: "Unassigned",
         seedTitle: unassignedSeedTitle,
+        initialCount: "live",
         projectId: null,
         workspacePath: null,
       });
