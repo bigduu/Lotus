@@ -11,12 +11,13 @@
  * ChatSidebarDateGroups.virtualization.test.tsx and
  * ChatSidebarDateGroups.scrollAndStatus.test.tsx, unaffected by this prop.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { App as AntdApp, theme } from "antd";
 
 import { ChatSidebarDateGroups } from "./ChatSidebarDateGroups";
 import { NO_WORKSPACE_GROUP_KEY } from "../../utils/chatUtils";
+import { NO_PROJECT_GROUP_KEY } from "@services/project";
 import type { SidebarChatItem } from "@shared/types/sidebarChat";
 
 const { useToken } = theme;
@@ -222,5 +223,68 @@ describe("ChatSidebarDateGroups workspace mode (#95)", () => {
 
     const label = screen.getByText("Today (1)");
     expect(label).not.toHaveStyle({ color: "var(--lotus-primary)" });
+  });
+
+  it("shows an accessible Project action and maps Project and Unassigned keys without collapsing", () => {
+    const onCreateChatInProject = vi.fn();
+    const onCollapseChange = vi.fn();
+    const projectId = "proj-zenith";
+    renderHarness({
+      groupedChatsByDate: {
+        [projectId]: [
+          makeChat(1, {
+            config: {
+              systemPromptId: "general_assistant",
+              workspacePath: "/repo/zenith",
+              projectId,
+            },
+          }),
+        ],
+        [NO_PROJECT_GROUP_KEY]: [makeChat(2)],
+      },
+      sortedDateKeys: [projectId, NO_PROJECT_GROUP_KEY],
+      expandedKeys: [projectId, NO_PROJECT_GROUP_KEY],
+      groupingMode: "project",
+      groupLabels: { [projectId]: "Zenith" },
+      onCollapseChange,
+      onCreateChatInProject,
+    });
+
+    const createButtons = screen.getAllByRole("button", {
+      name: "Create session in this project",
+    });
+    expect(createButtons).toHaveLength(2);
+    expect(screen.queryByText("chat.sidebar.actions.createInProject")).not.toBeInTheDocument();
+
+    const projectHeader = screen.getByRole("button", { name: "Zenith (1)" });
+    const projectActions = projectHeader.querySelectorAll("button");
+    expect(projectActions[0]).toBe(createButtons[0]);
+    expect(projectActions[1]).toHaveClass("chat-sidebar-date-group-delete");
+
+    createButtons[0].focus();
+    expect(createButtons[0]).toHaveFocus();
+    fireEvent.mouseLeave(projectHeader);
+    expect(createButtons[0]).toHaveFocus();
+    fireEvent.click(createButtons[0]);
+    fireEvent.click(createButtons[1]);
+
+    expect(onCreateChatInProject).toHaveBeenNthCalledWith(1, projectId);
+    expect(onCreateChatInProject).toHaveBeenNthCalledWith(2, null);
+    expect(onCollapseChange).not.toHaveBeenCalled();
+  });
+
+  it("does not render the Project create action in workspace mode", () => {
+    renderHarness({
+      groupedChatsByDate: { "/repo/zenith": [makeChat(1)] },
+      sortedDateKeys: ["/repo/zenith"],
+      expandedKeys: ["/repo/zenith"],
+      groupingMode: "workspace",
+      groupLabels: { "/repo/zenith": "Zenith" },
+      onCreateChatInProject: vi.fn(),
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Create session in this project" }),
+    ).not.toBeInTheDocument();
   });
 });
