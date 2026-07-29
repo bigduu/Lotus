@@ -38,7 +38,6 @@ import {
   type WorkflowCatalogAdapter,
   type WorkflowCatalogItem,
   type WorkflowCatalogView,
-  type WorkflowKind,
   type WorkflowMigrationClient,
   type WorkflowSource,
   type WorkflowStatus,
@@ -68,9 +67,6 @@ export interface SystemSettingsWorkflowsTabProps {
   sessionId?: string | null;
 }
 
-const matchesFilter = <T extends string>(value: T, filter: FilterValue<T>): boolean =>
-  filter === "all" || value === filter;
-
 const isSafeWorkflowName = (name: string): boolean =>
   Boolean(name) && !name.includes("/") && !name.includes("\\") && !name.includes("..");
 
@@ -89,7 +85,6 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [kind, setKind] = useState<FilterValue<WorkflowKind>>("all");
   const [source, setSource] = useState<FilterValue<WorkflowSource>>("all");
   const [status, setStatus] = useState<FilterValue<WorkflowStatus>>("all");
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -132,7 +127,6 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     return (catalog?.items ?? []).filter((item) => {
-      if (!matchesFilter(item.kind, kind)) return false;
       if (
         source !== "all" &&
         item.source !== source &&
@@ -152,7 +146,7 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
         .filter((value): value is string => Boolean(value))
         .some((value) => value.toLowerCase().includes(query));
     });
-  }, [catalog?.items, kind, search, source, status]);
+  }, [catalog?.items, search, source, status]);
 
   const openLegacyCreate = useCallback(() => {
     setEditingOriginalName(null);
@@ -269,14 +263,15 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
               <Title id={`workflow-library-${item.id}`} level={5} style={{ margin: 0 }}>
                 {item.name}
               </Title>
-              <Tag color={item.kind === "orchestration" ? "purple" : "blue"}>
-                {t(`settings.workflowsTab.kind.${item.kind}`)}
-              </Tag>
+              {item.legacy ? (
+                <Tag color="orange">{t("settings.workflowsTab.legacy")}</Tag>
+              ) : (
+                <Tag color="purple">{t(`settings.workflowsTab.kind.${item.kind}`)}</Tag>
+              )}
               <Tag>{t(`settings.workflowsTab.source.${item.source}`)}</Tag>
               <Tag color={item.status === "valid" ? "success" : "warning"}>
                 {t(`settings.workflowsTab.status.${item.status}`)}
               </Tag>
-              {item.legacy && <Tag color="orange">{t("settings.workflowsTab.legacy")}</Tag>}
               {item.migrationStatus && (
                 <Tag color={item.migrationStatus === "available" ? "warning" : "success"}>
                   {t(`settings.workflowsTab.migrationStatus.${item.migrationStatus}`)}
@@ -421,23 +416,6 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
               style={{ minWidth: 220, flex: 1 }}
             />
             <Select
-              value={kind}
-              onChange={setKind}
-              aria-label={t("settings.workflowsTab.kindFilter")}
-              options={[
-                { value: "all", label: t("settings.workflowsTab.allKinds") },
-                {
-                  value: "instruction",
-                  label: t("settings.workflowsTab.kind.instruction"),
-                },
-                {
-                  value: "orchestration",
-                  label: t("settings.workflowsTab.kind.orchestration"),
-                },
-              ]}
-              style={{ minWidth: 160 }}
-            />
-            <Select
               value={source}
               onChange={setSource}
               aria-label={t("settings.workflowsTab.sourceFilter")}
@@ -516,7 +494,7 @@ const SystemSettingsWorkflowsTab: React.FC<SystemSettingsWorkflowsTabProps> = ({
                   <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
                     description={
-                      search || kind !== "all" || source !== "all" || status !== "all"
+                      search || source !== "all" || status !== "all"
                         ? t("settings.workflowsTab.noMatches")
                         : t("settings.workflowsTab.empty")
                     }

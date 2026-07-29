@@ -1,4 +1,4 @@
-export type WorkflowKind = "instruction" | "orchestration";
+export type WorkflowKind = "orchestration";
 
 export type WorkflowSource = "builtin" | "project" | "workspace" | "user" | "plugin" | "legacy";
 

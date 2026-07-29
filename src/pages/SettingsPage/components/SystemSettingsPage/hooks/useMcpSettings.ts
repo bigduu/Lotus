@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ServerStatus,
   createDefaultMcpServerConfig,
   mcpService,
   type HeaderConfig,
@@ -7,6 +8,7 @@ import {
   type McpServer,
   type McpServerConfig,
   type McpToolInfo,
+  type RuntimeInfo,
 } from "@services/mcp";
 import type {
   ConfigSectionEnvelope,
@@ -19,7 +21,7 @@ import { configErrorMessage } from "@shared/utils/configErrors";
 
 export type McpServerAction = "connect" | "disconnect" | "refresh" | "delete";
 
-type McpRuntimeServer = Pick<McpServer, "id" | "runtime">;
+type McpRuntimeServer = McpServer;
 
 interface McpRuntimeService {
   getServers: () => Promise<McpRuntimeServer[]>;
@@ -43,6 +45,9 @@ interface UseMcpSettingsResult {
   isMutatingConfig: boolean;
   isRefreshingAll: boolean;
   isSelectedServerToolsLoading: boolean;
+  configAvailable: boolean;
+  configError: string | null;
+  runtimeError: string | null;
   error: string | null;
   setSelectedServerId: (serverId: string | null) => void;
   refreshServers: (options?: { silent?: boolean }) => Promise<void>;
@@ -73,6 +78,20 @@ const toErrorMessage = (error: unknown, fallback: string): string =>
   configErrorMessage(error, fallback);
 
 const getActionKey = (serverId: string, action: McpServerAction): string => `${serverId}:${action}`;
+
+const canQueryServerTools = (server: McpServer | undefined): boolean =>
+  Boolean(server?.runtime && server.runtime.status !== ServerStatus.Stopped);
+
+const omitRecordKeys = <T>(
+  record: Record<string, T>,
+  keys: ReadonlySet<string>,
+): Record<string, T> => {
+  if (![...keys].some((key) => key in record)) return record;
+  return Object.fromEntries(Object.entries(record).filter(([key]) => !keys.has(key))) as Record<
+    string,
+    T
+  >;
+};
 
 const assertNotMaskedSecret = (value: string): void => {
   const trimmed = value.trim();
@@ -167,6 +186,34 @@ const makeSecretFree = (server: McpServerConfig): McpServerConfig => {
     }));
   }
   return clone;
+};
+
+const REDACTED_RUNTIME_ERROR = "MCP runtime error details are hidden.";
+
+const sanitizeRuntimeUrl = (value: string): string => {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return "";
+  }
+};
+
+const sanitizeRuntimeConfig = (server: McpServerConfig): McpServerConfig => {
+  const sanitized = makeSecretFree(server);
+  if (sanitized.transport.type !== "stdio") {
+    sanitized.transport.url = sanitizeRuntimeUrl(sanitized.transport.url);
+  }
+  return sanitized;
+};
+
+const sanitizeRuntimeInfo = (runtime: RuntimeInfo | undefined): RuntimeInfo | undefined => {
+  if (!runtime) return undefined;
+  return {
+    ...runtime,
+    ...(runtime.last_error ? { last_error: REDACTED_RUNTIME_ERROR } : {}),
+  };
 };
 
 export const prepareMcpMutation = (
@@ -345,9 +392,18 @@ const mergeCanonicalWithRuntime = (
     name: config.name ?? config.id,
     enabled: config.enabled,
     config: cloneServerConfig(config),
-    runtime: runtimeById.get(config.id),
+    runtime: sanitizeRuntimeInfo(runtimeById.get(config.id)),
   }));
 };
+
+const sanitizeRuntimeServers = (runtimeServers: McpRuntimeServer[]): McpServer[] =>
+  runtimeServers.map((server) => ({
+    id: server.id,
+    name: server.name || server.id,
+    enabled: server.enabled,
+    config: sanitizeRuntimeConfig(server.config),
+    runtime: sanitizeRuntimeInfo(server.runtime),
+  }));
 
 export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSettingsResult => {
   const { service = mcpService } = options;
@@ -363,15 +419,78 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
   const [selectedServerId, setSelectedServerIdState] = useState<string | null>(null);
   const [toolsByServer, setToolsByServer] = useState<Record<string, McpToolInfo[]>>({});
   const [toolLoadingByServer, setToolLoadingByServer] = useState<Record<string, boolean>>({});
+  const [toolErrorByServer, setToolErrorByServer] = useState<Record<string, string>>({});
   const [actionLoadingMap, setActionLoadingMap] = useState<Record<string, boolean>>({});
   const [isLoadingServers, setIsLoadingServers] = useState(false);
   const [isMutatingConfig, setIsMutatingConfig] = useState(false);
   const [isRefreshingAll, setIsRefreshingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [configAvailable, setConfigAvailable] = useState(false);
+  const [configLoadError, setConfigLoadError] = useState<string | null>(null);
   const [runtimeStatusError, setRuntimeStatusError] = useState<string | null>(null);
   const envelopeRef = useRef<ConfigSectionEnvelope<McpSection> | null>(null);
   const runtimeServersRef = useRef<McpRuntimeServer[]>([]);
+  const toolsByServerRef = useRef<Record<string, McpToolInfo[]>>({});
+  const configAvailableRef = useRef(false);
   const refreshSequence = useRef(0);
+  const runtimeSequence = useRef(0);
+  const loadingOwnerSequence = useRef(0);
+  const toolRequestGeneration = useRef<Record<string, number>>({});
+  const serverActionGeneration = useRef<Record<string, number>>({});
+  const runtimeActionGeneration = useRef(0);
+  const refreshAllGeneration = useRef(0);
+
+  const claimLoadingOwnership = useCallback((showLoader = false): number => {
+    const generation = ++loadingOwnerSequence.current;
+    if (showLoader) setIsLoadingServers(true);
+    return generation;
+  }, []);
+
+  const releaseLoadingOwnership = useCallback((generation: number): void => {
+    if (generation === loadingOwnerSequence.current) {
+      setIsLoadingServers(false);
+    }
+  }, []);
+
+  const claimToolRequestGeneration = useCallback((serverId: string): number => {
+    const generation = (toolRequestGeneration.current[serverId] ?? 0) + 1;
+    toolRequestGeneration.current[serverId] = generation;
+    return generation;
+  }, []);
+
+  const clearServerToolState = useCallback((serverId: string): void => {
+    const keys = new Set([serverId]);
+    const tools = omitRecordKeys(toolsByServerRef.current, keys);
+    if (tools !== toolsByServerRef.current) {
+      toolsByServerRef.current = tools;
+      setToolsByServer(tools);
+    }
+    setToolLoadingByServer((current) => omitRecordKeys(current, keys));
+    setToolErrorByServer((current) => omitRecordKeys(current, keys));
+  }, []);
+
+  const invalidateUnavailableToolState = useCallback((nextServers: McpServer[]): void => {
+    const queryableIds = new Set(
+      nextServers.filter(canQueryServerTools).map((server) => server.id),
+    );
+    const invalidIds = new Set(
+      [
+        ...Object.keys(toolRequestGeneration.current),
+        ...nextServers.filter((server) => !canQueryServerTools(server)).map((server) => server.id),
+      ].filter((serverId) => !queryableIds.has(serverId)),
+    );
+    if (!invalidIds.size) return;
+    invalidIds.forEach((serverId) => {
+      toolRequestGeneration.current[serverId] = (toolRequestGeneration.current[serverId] ?? 0) + 1;
+    });
+    const tools = omitRecordKeys(toolsByServerRef.current, invalidIds);
+    if (tools !== toolsByServerRef.current) {
+      toolsByServerRef.current = tools;
+      setToolsByServer(tools);
+    }
+    setToolLoadingByServer((current) => omitRecordKeys(current, invalidIds));
+    setToolErrorByServer((current) => omitRecordKeys(current, invalidIds));
+  }, []);
 
   const adoptSection = useCallback(
     (
@@ -385,6 +504,7 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
       runtimeServersRef.current = runtimeServers;
       setConfigRevision(envelope.revision);
       const merged = mergeCanonicalWithRuntime(envelope.data, runtimeServers);
+      invalidateUnavailableToolState(merged);
       setServers(merged);
       setCredentialStatusByServer(envelope.data.credential_status);
       setSelectedServerIdState((current) => {
@@ -392,75 +512,205 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
         return merged[0]?.id ?? null;
       });
     },
-    [],
+    [invalidateUnavailableToolState],
+  );
+
+  const adoptRuntimeOnly = useCallback(
+    (runtimeServers: McpRuntimeServer[], sequence?: number) => {
+      if (sequence !== undefined && sequence !== refreshSequence.current) return;
+      runtimeServersRef.current = runtimeServers;
+      const sanitized = sanitizeRuntimeServers(runtimeServers);
+      invalidateUnavailableToolState(sanitized);
+      setConfigRevision(null);
+      setCredentialStatusByServer({});
+      setServers(sanitized);
+      setSelectedServerIdState((current) => {
+        if (current && sanitized.some((server) => server.id === current)) return current;
+        return sanitized[0]?.id ?? null;
+      });
+    },
+    [invalidateUnavailableToolState],
   );
 
   const refreshServers = useCallback(
     async ({ silent = false }: { silent?: boolean } = {}) => {
       const sequence = ++refreshSequence.current;
-      if (!silent) setIsLoadingServers(true);
-      try {
-        const envelopePromise = loadSection("mcp", { force: true });
-        let runtimeError: unknown = null;
-        const runtimePromise = service.getServers().catch((loadError: unknown) => {
-          runtimeError = loadError;
-          return runtimeServersRef.current;
+      const runtimeGeneration = ++runtimeSequence.current;
+      const loadingGeneration = claimLoadingOwnership(!silent);
+      configAvailableRef.current = false;
+      setConfigAvailable(false);
+      setError(null);
+
+      const runtimeTask = service
+        .getServers()
+        .then((runtimeServers) => {
+          if (
+            sequence !== refreshSequence.current ||
+            runtimeGeneration !== runtimeSequence.current
+          ) {
+            return;
+          }
+          setRuntimeStatusError(null);
+          if (configAvailableRef.current && envelopeRef.current) {
+            adoptSection(envelopeRef.current, runtimeServers, sequence);
+          } else {
+            adoptRuntimeOnly(runtimeServers, sequence);
+          }
+        })
+        .catch((loadError: unknown) => {
+          if (
+            sequence !== refreshSequence.current ||
+            runtimeGeneration !== runtimeSequence.current
+          ) {
+            return;
+          }
+          setRuntimeStatusError(toErrorMessage(loadError, "Failed to load MCP runtime servers"));
         });
-        const [envelope, runtimeServers] = await Promise.all([envelopePromise, runtimePromise]);
-        adoptSection(envelope, runtimeServers, sequence);
-        setError(null);
-        setRuntimeStatusError(
-          runtimeError
-            ? toErrorMessage(
-                runtimeError,
-                "Configuration loaded, but MCP runtime status is unavailable",
-              )
-            : null,
-        );
-      } catch (loadError) {
-        setError(toErrorMessage(loadError, "Failed to load MCP servers"));
-        throw loadError;
-      } finally {
-        if (!silent && sequence === refreshSequence.current) setIsLoadingServers(false);
-      }
+
+      const configTask = loadSection("mcp", { force: true })
+        .then((envelope) => {
+          if (sequence !== refreshSequence.current) return;
+          const healthy = envelope.status === "healthy";
+          configAvailableRef.current = healthy;
+          setConfigAvailable(healthy);
+          setConfigLoadError(
+            healthy ? null : (envelope.last_error ?? "MCP configuration is not healthy"),
+          );
+          adoptSection(envelope, runtimeServersRef.current, sequence);
+        })
+        .catch((loadError: unknown) => {
+          if (sequence !== refreshSequence.current) return;
+          configAvailableRef.current = false;
+          envelopeRef.current = null;
+          setConfigAvailable(false);
+          setConfigRevision(null);
+          setCredentialStatusByServer({});
+          setConfigLoadError(toErrorMessage(loadError, "MCP configuration is unavailable"));
+          adoptRuntimeOnly(runtimeServersRef.current, sequence);
+        });
+
+      await Promise.allSettled([runtimeTask, configTask]);
+      releaseLoadingOwnership(loadingGeneration);
     },
-    [adoptSection, loadSection, service],
+    [
+      adoptRuntimeOnly,
+      adoptSection,
+      claimLoadingOwnership,
+      loadSection,
+      releaseLoadingOwnership,
+      service,
+    ],
   );
 
-  const refreshRuntime = useCallback(async () => {
-    const current = envelopeRef.current;
-    if (!current) {
-      await refreshServers({ silent: true });
-      return;
-    }
-    const runtimeServers = await service.getServers();
-    adoptSection(current, runtimeServers);
-    setRuntimeStatusError(null);
-  }, [adoptSection, refreshServers, service]);
-
-  const loadServerTools = useCallback(
-    async (serverId: string, force = false) => {
-      if (!serverId) return [] as McpToolInfo[];
-      if (!force && toolsByServer[serverId]) return toolsByServer[serverId];
-      setToolLoadingByServer((prev) => ({ ...prev, [serverId]: true }));
+  const refreshRuntime = useCallback(
+    async (operationGeneration: number) => {
+      // Runtime actions take over the runtime lane and the visible loading owner,
+      // but a pending config load in the same refresh generation remains valid.
+      const sequence = refreshSequence.current;
+      const runtimeGeneration = ++runtimeSequence.current;
+      const loadingGeneration = claimLoadingOwnership();
       try {
-        const tools = await service.getTools(serverId);
-        setToolsByServer((prev) => ({ ...prev, [serverId]: tools }));
-        setError(null);
-        return tools;
-      } catch (toolsError) {
-        setError(toErrorMessage(toolsError, "Failed to load MCP tools"));
-        throw toolsError;
+        const runtimeServers = await service.getServers();
+        if (
+          sequence !== refreshSequence.current ||
+          runtimeGeneration !== runtimeSequence.current ||
+          operationGeneration !== runtimeActionGeneration.current
+        ) {
+          return;
+        }
+        const current = envelopeRef.current;
+        if (current) {
+          adoptSection(current, runtimeServers, sequence);
+        } else {
+          adoptRuntimeOnly(runtimeServers, sequence);
+        }
+        setRuntimeStatusError(null);
+      } catch (runtimeError) {
+        if (
+          sequence !== refreshSequence.current ||
+          runtimeGeneration !== runtimeSequence.current ||
+          operationGeneration !== runtimeActionGeneration.current
+        ) {
+          return;
+        }
+        throw runtimeError;
       } finally {
-        setToolLoadingByServer((prev) => ({ ...prev, [serverId]: false }));
+        releaseLoadingOwnership(loadingGeneration);
       }
     },
-    [service, toolsByServer],
+    [adoptRuntimeOnly, adoptSection, claimLoadingOwnership, releaseLoadingOwnership, service],
+  );
+
+  const loadServerTools = useCallback(
+    async (serverId: string, force = false, ownerGeneration?: number) => {
+      if (!serverId) return [] as McpToolInfo[];
+      const currentRuntimeServer = runtimeServersRef.current.find(
+        (server) => server.id === serverId,
+      );
+      if (!canQueryServerTools(currentRuntimeServer)) {
+        invalidateUnavailableToolState(
+          runtimeServersRef.current.filter((server) => server.id !== serverId),
+        );
+        return [] as McpToolInfo[];
+      }
+      if (
+        ownerGeneration !== undefined &&
+        ownerGeneration !== toolRequestGeneration.current[serverId]
+      ) {
+        return [] as McpToolInfo[];
+      }
+      if (!force && toolsByServerRef.current[serverId]) {
+        return toolsByServerRef.current[serverId];
+      }
+      const requestGeneration = ownerGeneration ?? claimToolRequestGeneration(serverId);
+      setToolLoadingByServer((prev) => ({ ...prev, [serverId]: true }));
+      setToolErrorByServer((prev) => omitRecordKeys(prev, new Set([serverId])));
+      try {
+        const tools = await service.getTools(serverId);
+        const latestRuntimeServer = runtimeServersRef.current.find(
+          (server) => server.id === serverId,
+        );
+        if (
+          requestGeneration !== toolRequestGeneration.current[serverId] ||
+          !canQueryServerTools(latestRuntimeServer)
+        ) {
+          return [] as McpToolInfo[];
+        }
+        const nextTools = { ...toolsByServerRef.current, [serverId]: tools };
+        toolsByServerRef.current = nextTools;
+        setToolsByServer(nextTools);
+        setToolErrorByServer((prev) => omitRecordKeys(prev, new Set([serverId])));
+        return tools;
+      } catch (toolsError) {
+        const latestRuntimeServer = runtimeServersRef.current.find(
+          (server) => server.id === serverId,
+        );
+        if (
+          requestGeneration !== toolRequestGeneration.current[serverId] ||
+          !canQueryServerTools(latestRuntimeServer)
+        ) {
+          return [] as McpToolInfo[];
+        }
+        setToolErrorByServer((prev) => ({
+          ...prev,
+          [serverId]: toErrorMessage(toolsError, "Failed to load MCP tools"),
+        }));
+        throw toolsError;
+      } finally {
+        if (requestGeneration === toolRequestGeneration.current[serverId]) {
+          setToolLoadingByServer((prev) => ({ ...prev, [serverId]: false }));
+        }
+      }
+    },
+    [claimToolRequestGeneration, invalidateUnavailableToolState, service],
   );
 
   const mutateServers = useCallback(
     async (candidateServers: McpServerConfig[], expectedRevision?: number) => {
-      const current = envelopeRef.current ?? (await loadSection("mcp", { force: true }));
+      const current = envelopeRef.current;
+      if (!configAvailableRef.current || !current) {
+        throw new Error("MCP configuration is unavailable; runtime data is read-only.");
+      }
       const mutation = prepareMcpMutation(current.data, candidateServers);
       const saved = await saveMcpSettings(
         mutation.data,
@@ -471,28 +721,53 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
       // immediately and treat runtime-status refresh as best effort so a
       // transient status endpoint failure never makes a durable save appear
       // to have failed (and tempt the user to submit it twice).
-      adoptSection(saved, runtimeServersRef.current);
+      const sequence = ++refreshSequence.current;
+      const runtimeGeneration = ++runtimeSequence.current;
+      const loadingGeneration = claimLoadingOwnership();
+      const healthy = saved.status === "healthy";
+      configAvailableRef.current = healthy;
+      setConfigAvailable(healthy);
+      setConfigLoadError(healthy ? null : (saved.last_error ?? "MCP configuration is not healthy"));
       try {
-        const runtimeServers = await service.getServers();
-        adoptSection(saved, runtimeServers);
-      } catch (runtimeError) {
-        setRuntimeStatusError(
-          toErrorMessage(
-            runtimeError,
-            "Configuration saved, but MCP runtime status could not be refreshed",
-          ),
-        );
+        adoptSection(saved, runtimeServersRef.current, sequence);
+        try {
+          const runtimeServers = await service.getServers();
+          if (
+            sequence === refreshSequence.current &&
+            runtimeGeneration === runtimeSequence.current
+          ) {
+            setRuntimeStatusError(null);
+            adoptSection(saved, runtimeServers, sequence);
+          }
+        } catch (runtimeError) {
+          if (
+            sequence === refreshSequence.current &&
+            runtimeGeneration === runtimeSequence.current
+          ) {
+            setRuntimeStatusError(
+              toErrorMessage(
+                runtimeError,
+                "Configuration saved, but MCP runtime status could not be refreshed",
+              ),
+            );
+          }
+        }
+        return saved;
+      } finally {
+        releaseLoadingOwnership(loadingGeneration);
       }
-      return saved;
     },
-    [adoptSection, loadSection, saveMcpSettings, service],
+    [adoptSection, claimLoadingOwnership, releaseLoadingOwnership, saveMcpSettings, service],
   );
 
   const addServer = useCallback(
     async (config: McpServerConfig) => {
       setIsMutatingConfig(true);
       try {
-        const current = envelopeRef.current ?? (await loadSection("mcp", { force: true }));
+        const current = envelopeRef.current;
+        if (!configAvailableRef.current || !current) {
+          throw new Error("MCP configuration is unavailable; runtime data is read-only.");
+        }
         if (current.data.servers.some((server) => server.id === config.id)) {
           throw new Error(`MCP server '${config.id}' already exists.`);
         }
@@ -505,14 +780,17 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
         setIsMutatingConfig(false);
       }
     },
-    [loadSection, mutateServers],
+    [mutateServers],
   );
 
   const updateServer = useCallback(
     async (serverId: string, config: McpServerConfig, expectedRevision: number) => {
       setIsMutatingConfig(true);
       try {
-        const current = envelopeRef.current ?? (await loadSection("mcp", { force: true }));
+        const current = envelopeRef.current;
+        if (!configAvailableRef.current || !current) {
+          throw new Error("MCP configuration is unavailable; runtime data is read-only.");
+        }
         if (!current.data.servers.some((server) => server.id === serverId)) {
           throw new Error(`MCP server '${serverId}' no longer exists.`);
         }
@@ -529,20 +807,19 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
         setIsMutatingConfig(false);
       }
     },
-    [loadSection, mutateServers],
+    [mutateServers],
   );
 
   const deleteServer = useCallback(
     async (serverId: string) => {
       setActionLoadingMap((prev) => ({ ...prev, [getActionKey(serverId, "delete")]: true }));
       try {
-        const current = envelopeRef.current ?? (await loadSection("mcp", { force: true }));
+        const current = envelopeRef.current;
+        if (!configAvailableRef.current || !current) {
+          throw new Error("MCP configuration is unavailable; runtime data is read-only.");
+        }
         await mutateServers(current.data.servers.filter((server) => server.id !== serverId));
-        setToolsByServer((prev) => {
-          const next = { ...prev };
-          delete next[serverId];
-          return next;
-        });
+        clearServerToolState(serverId);
         setError(null);
       } catch (deleteError) {
         setError(toErrorMessage(deleteError, "Failed to delete MCP server"));
@@ -551,7 +828,7 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
         setActionLoadingMap((prev) => ({ ...prev, [getActionKey(serverId, "delete")]: false }));
       }
     },
-    [loadSection, mutateServers],
+    [clearServerToolState, mutateServers],
   );
 
   const importServers = useCallback(
@@ -562,7 +839,10 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
       setIsMutatingConfig(true);
       try {
         const incoming = parseImportedServers(imported);
-        const current = envelopeRef.current ?? (await loadSection("mcp", { force: true }));
+        const current = envelopeRef.current;
+        if (!configAvailableRef.current || !current) {
+          throw new Error("MCP configuration is unavailable; runtime data is read-only.");
+        }
         const currentIds = new Set(current.data.servers.map((server) => server.id));
         const incomingIds = new Set(incoming.map((server) => server.id));
         const candidate =
@@ -595,70 +875,223 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
         setIsMutatingConfig(false);
       }
     },
-    [loadSection, mutateServers],
+    [mutateServers],
   );
 
-  const setServerActionLoading = useCallback(
-    (serverId: string, action: McpServerAction, loading: boolean) => {
-      setActionLoadingMap((prev) => ({ ...prev, [getActionKey(serverId, action)]: loading }));
+  const claimServerAction = useCallback((serverId: string, action: McpServerAction): number => {
+    const key = getActionKey(serverId, action);
+    const generation = (serverActionGeneration.current[key] ?? 0) + 1;
+    serverActionGeneration.current[key] = generation;
+    setActionLoadingMap((prev) => ({ ...prev, [key]: true }));
+    return generation;
+  }, []);
+
+  const releaseServerAction = useCallback(
+    (serverId: string, action: McpServerAction, generation: number): void => {
+      const key = getActionKey(serverId, action);
+      if (serverActionGeneration.current[key] === generation) {
+        setActionLoadingMap((prev) => ({ ...prev, [key]: false }));
+      }
     },
     [],
   );
 
   const connectServer = useCallback(
     async (serverId: string) => {
-      setServerActionLoading(serverId, "connect", true);
+      const operationGeneration = ++runtimeActionGeneration.current;
+      const actionGeneration = claimToolRequestGeneration(serverId);
+      const loadingGeneration = claimServerAction(serverId, "connect");
+      setError(null);
+      setToolErrorByServer((current) => omitRecordKeys(current, new Set([serverId])));
       try {
-        await service.connectServer(serverId);
-        await refreshRuntime();
-      } catch (connectError) {
-        setError(toErrorMessage(connectError, "Failed to connect MCP server"));
-        throw connectError;
+        try {
+          await service.connectServer(serverId);
+        } catch (connectError) {
+          if (
+            actionGeneration !== toolRequestGeneration.current[serverId] ||
+            operationGeneration !== runtimeActionGeneration.current
+          ) {
+            return;
+          }
+          setError(toErrorMessage(connectError, "Failed to connect MCP server"));
+          throw connectError;
+        }
+        if (
+          actionGeneration !== toolRequestGeneration.current[serverId] ||
+          operationGeneration !== runtimeActionGeneration.current
+        ) {
+          return;
+        }
+        clearServerToolState(serverId);
+        try {
+          await refreshRuntime(operationGeneration);
+        } catch (runtimeError) {
+          if (
+            actionGeneration !== toolRequestGeneration.current[serverId] ||
+            operationGeneration !== runtimeActionGeneration.current
+          ) {
+            return;
+          }
+          setError(toErrorMessage(runtimeError, "Failed to refresh MCP status"));
+          throw runtimeError;
+        }
+        if (
+          actionGeneration !== toolRequestGeneration.current[serverId] ||
+          operationGeneration !== runtimeActionGeneration.current
+        ) {
+          return;
+        }
+        await loadServerTools(serverId, true, actionGeneration).catch(() => undefined);
       } finally {
-        setServerActionLoading(serverId, "connect", false);
+        releaseServerAction(serverId, "connect", loadingGeneration);
       }
     },
-    [refreshRuntime, service, setServerActionLoading],
+    [
+      claimServerAction,
+      claimToolRequestGeneration,
+      clearServerToolState,
+      loadServerTools,
+      releaseServerAction,
+      refreshRuntime,
+      service,
+    ],
   );
 
   const disconnectServer = useCallback(
     async (serverId: string) => {
-      setServerActionLoading(serverId, "disconnect", true);
+      const operationGeneration = ++runtimeActionGeneration.current;
+      const actionGeneration = claimToolRequestGeneration(serverId);
+      const loadingGeneration = claimServerAction(serverId, "disconnect");
+      setError(null);
+      setToolErrorByServer((current) => omitRecordKeys(current, new Set([serverId])));
       try {
-        await service.disconnectServer(serverId);
-        await refreshRuntime();
-      } catch (disconnectError) {
-        setError(toErrorMessage(disconnectError, "Failed to disconnect MCP server"));
-        throw disconnectError;
+        try {
+          await service.disconnectServer(serverId);
+        } catch (disconnectError) {
+          if (
+            actionGeneration !== toolRequestGeneration.current[serverId] ||
+            operationGeneration !== runtimeActionGeneration.current
+          ) {
+            return;
+          }
+          setError(toErrorMessage(disconnectError, "Failed to disconnect MCP server"));
+          throw disconnectError;
+        }
+        if (
+          actionGeneration !== toolRequestGeneration.current[serverId] ||
+          operationGeneration !== runtimeActionGeneration.current
+        ) {
+          return;
+        }
+        clearServerToolState(serverId);
+        try {
+          await refreshRuntime(operationGeneration);
+        } catch (runtimeError) {
+          if (
+            actionGeneration !== toolRequestGeneration.current[serverId] ||
+            operationGeneration !== runtimeActionGeneration.current
+          ) {
+            return;
+          }
+          setError(toErrorMessage(runtimeError, "Failed to refresh MCP status"));
+          throw runtimeError;
+        }
       } finally {
-        setServerActionLoading(serverId, "disconnect", false);
+        releaseServerAction(serverId, "disconnect", loadingGeneration);
       }
     },
-    [refreshRuntime, service, setServerActionLoading],
+    [
+      claimServerAction,
+      claimToolRequestGeneration,
+      clearServerToolState,
+      releaseServerAction,
+      refreshRuntime,
+      service,
+    ],
   );
 
   const refreshServerTools = useCallback(
     async (serverId: string) => {
-      setServerActionLoading(serverId, "refresh", true);
+      const runtimeServer = runtimeServersRef.current.find((server) => server.id === serverId);
+      if (!canQueryServerTools(runtimeServer)) return;
+      const operationGeneration = ++runtimeActionGeneration.current;
+      const refreshGeneration = claimToolRequestGeneration(serverId);
+      const loadingGeneration = claimServerAction(serverId, "refresh");
+      setError(null);
+      setToolErrorByServer((prev) => omitRecordKeys(prev, new Set([serverId])));
       try {
-        await service.refreshTools(serverId);
-        await loadServerTools(serverId, true);
-        await refreshRuntime();
-      } catch (refreshError) {
-        setError(toErrorMessage(refreshError, "Failed to refresh MCP tools"));
-        throw refreshError;
+        try {
+          await service.refreshTools(serverId);
+        } catch (refreshError) {
+          const latestRuntimeServer = runtimeServersRef.current.find(
+            (server) => server.id === serverId,
+          );
+          if (
+            refreshGeneration !== toolRequestGeneration.current[serverId] ||
+            operationGeneration !== runtimeActionGeneration.current ||
+            !canQueryServerTools(latestRuntimeServer)
+          ) {
+            return;
+          }
+          setToolErrorByServer((prev) => ({
+            ...prev,
+            [serverId]: toErrorMessage(refreshError, "Failed to refresh MCP tools"),
+          }));
+          throw refreshError;
+        }
+        if (
+          refreshGeneration !== toolRequestGeneration.current[serverId] ||
+          operationGeneration !== runtimeActionGeneration.current
+        ) {
+          return;
+        }
+        await loadServerTools(serverId, true, refreshGeneration);
+        if (
+          refreshGeneration !== toolRequestGeneration.current[serverId] ||
+          operationGeneration !== runtimeActionGeneration.current
+        ) {
+          return;
+        }
+        try {
+          await refreshRuntime(operationGeneration);
+        } catch (runtimeError) {
+          if (
+            refreshGeneration !== toolRequestGeneration.current[serverId] ||
+            operationGeneration !== runtimeActionGeneration.current
+          ) {
+            return;
+          }
+          setError(toErrorMessage(runtimeError, "Failed to refresh MCP status"));
+          throw runtimeError;
+        }
       } finally {
-        setServerActionLoading(serverId, "refresh", false);
+        releaseServerAction(serverId, "refresh", loadingGeneration);
       }
     },
-    [loadServerTools, refreshRuntime, service, setServerActionLoading],
+    [
+      claimServerAction,
+      claimToolRequestGeneration,
+      loadServerTools,
+      releaseServerAction,
+      refreshRuntime,
+      service,
+    ],
   );
 
   const refreshAll = useCallback(async () => {
+    const operationGeneration = ++runtimeActionGeneration.current;
+    const actionGeneration = ++refreshAllGeneration.current;
+    const toolOwners = new Map(
+      servers
+        .filter(canQueryServerTools)
+        .map((server) => [server.id, claimToolRequestGeneration(server.id)]),
+    );
     setIsRefreshingAll(true);
+    setError(null);
+    setToolErrorByServer((current) => omitRecordKeys(current, new Set(toolOwners.keys())));
     try {
       await Promise.all(
-        servers.map(async (server) => {
+        servers.filter(canQueryServerTools).map(async (server) => {
           try {
             await service.refreshTools(server.id);
           } catch {
@@ -666,15 +1099,53 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
           }
         }),
       );
-      await refreshRuntime();
-      if (selectedServerId) await loadServerTools(selectedServerId, true);
-    } catch (refreshError) {
-      setError(toErrorMessage(refreshError, "Failed to refresh MCP status"));
-      throw refreshError;
+      if (
+        operationGeneration !== runtimeActionGeneration.current ||
+        [...toolOwners].some(
+          ([serverId, generation]) => generation !== toolRequestGeneration.current[serverId],
+        )
+      ) {
+        return;
+      }
+      try {
+        await refreshRuntime(operationGeneration);
+      } catch (runtimeError) {
+        if (
+          operationGeneration !== runtimeActionGeneration.current ||
+          [...toolOwners].some(
+            ([serverId, generation]) => generation !== toolRequestGeneration.current[serverId],
+          )
+        ) {
+          return;
+        }
+        setError(toErrorMessage(runtimeError, "Failed to refresh MCP status"));
+        throw runtimeError;
+      }
+      const selectedOwner = selectedServerId ? toolOwners.get(selectedServerId) : undefined;
+      if (
+        operationGeneration !== runtimeActionGeneration.current ||
+        (selectedServerId &&
+          selectedOwner !== undefined &&
+          selectedOwner !== toolRequestGeneration.current[selectedServerId])
+      ) {
+        return;
+      }
+      if (selectedServerId && selectedOwner !== undefined) {
+        await loadServerTools(selectedServerId, true, selectedOwner);
+      }
     } finally {
-      setIsRefreshingAll(false);
+      if (actionGeneration === refreshAllGeneration.current) {
+        setIsRefreshingAll(false);
+      }
     }
-  }, [loadServerTools, refreshRuntime, selectedServerId, servers, service]);
+  }, [
+    claimToolRequestGeneration,
+    loadServerTools,
+    refreshRuntime,
+    selectedServerId,
+    servers,
+    service,
+  ]);
 
   const setSelectedServerId = useCallback((serverId: string | null) => {
     setSelectedServerIdState(serverId);
@@ -686,13 +1157,25 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
     [actionLoadingMap],
   );
 
-  const selectedServerTools = useMemo(
-    () => (selectedServerId ? (toolsByServer[selectedServerId] ?? []) : []),
-    [selectedServerId, toolsByServer],
-  );
+  const selectedServerTools = useMemo(() => {
+    if (!selectedServerId) return [];
+    const selectedServer = servers.find((server) => server.id === selectedServerId);
+    return canQueryServerTools(selectedServer) ? (toolsByServer[selectedServerId] ?? []) : [];
+  }, [selectedServerId, servers, toolsByServer]);
+  const selectedServerCanQueryTools = useMemo(() => {
+    if (!selectedServerId) return false;
+    return canQueryServerTools(servers.find((server) => server.id === selectedServerId));
+  }, [selectedServerId, servers]);
+  const selectedServerToolError = useMemo(() => {
+    if (!selectedServerCanQueryTools || !selectedServerId) return null;
+    return toolErrorByServer[selectedServerId] ?? null;
+  }, [selectedServerCanQueryTools, selectedServerId, toolErrorByServer]);
   const isSelectedServerToolsLoading = useMemo(
-    () => Boolean(selectedServerId && toolLoadingByServer[selectedServerId]),
-    [selectedServerId, toolLoadingByServer],
+    () =>
+      Boolean(
+        selectedServerCanQueryTools && selectedServerId && toolLoadingByServer[selectedServerId],
+      ),
+    [selectedServerCanQueryTools, selectedServerId, toolLoadingByServer],
   );
 
   useEffect(() => {
@@ -701,24 +1184,71 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
 
   useEffect(() => {
     const envelope = mcpSnapshot.envelope;
-    if (!envelope || envelope.revision <= (envelopeRef.current?.revision ?? -1)) return;
-    adoptSection(envelope, runtimeServersRef.current);
+    if (mcpSnapshot.loading) {
+      configAvailableRef.current = false;
+      setConfigAvailable(false);
+      return;
+    }
+    if (mcpSnapshot.error) {
+      configAvailableRef.current = false;
+      setConfigAvailable(false);
+      setConfigLoadError(mcpSnapshot.error);
+      return;
+    }
+    if (!envelope) {
+      configAvailableRef.current = false;
+      setConfigAvailable(false);
+      return;
+    }
+    const healthy = envelope.status === "healthy";
+    configAvailableRef.current = healthy;
+    setConfigAvailable(healthy);
+    setConfigLoadError(
+      healthy ? null : (envelope.last_error ?? "MCP configuration is not healthy"),
+    );
+    if (envelope.revision <= (envelopeRef.current?.revision ?? -1)) return;
+    const sequence = ++refreshSequence.current;
+    const runtimeGeneration = ++runtimeSequence.current;
+    const loadingGeneration = claimLoadingOwnership();
+    adoptSection(envelope, runtimeServersRef.current, sequence);
     void service
       .getServers()
-      .then((runtimeServers) => adoptSection(envelope, runtimeServers))
+      .then((runtimeServers) => {
+        if (sequence !== refreshSequence.current || runtimeGeneration !== runtimeSequence.current) {
+          return;
+        }
+        setRuntimeStatusError(null);
+        adoptSection(envelope, runtimeServers, sequence);
+      })
       .catch((runtimeError: unknown) => {
+        if (sequence !== refreshSequence.current || runtimeGeneration !== runtimeSequence.current) {
+          return;
+        }
         setRuntimeStatusError(
           toErrorMessage(
             runtimeError,
             "Configuration refreshed, but MCP runtime status is unavailable",
           ),
         );
+      })
+      .finally(() => {
+        releaseLoadingOwnership(loadingGeneration);
       });
-  }, [adoptSection, mcpSnapshot.envelope, service]);
+  }, [
+    adoptSection,
+    claimLoadingOwnership,
+    mcpSnapshot.envelope,
+    mcpSnapshot.error,
+    mcpSnapshot.loading,
+    releaseLoadingOwnership,
+    service,
+  ]);
 
   useEffect(() => {
-    if (selectedServerId) void loadServerTools(selectedServerId).catch(() => undefined);
-  }, [loadServerTools, selectedServerId]);
+    if (selectedServerId && selectedServerCanQueryTools) {
+      void loadServerTools(selectedServerId).catch(() => undefined);
+    }
+  }, [loadServerTools, selectedServerCanQueryTools, selectedServerId]);
 
   return {
     servers,
@@ -730,7 +1260,10 @@ export const useMcpSettings = (options: UseMcpSettingsOptions = {}): UseMcpSetti
     isMutatingConfig,
     isRefreshingAll,
     isSelectedServerToolsLoading,
-    error: error ?? runtimeStatusError,
+    configAvailable,
+    configError: configLoadError,
+    runtimeError: runtimeStatusError,
+    error: error ?? selectedServerToolError ?? configLoadError ?? runtimeStatusError,
     setSelectedServerId,
     refreshServers,
     addServer,
