@@ -56,6 +56,7 @@ export type SessionSummary = {
   message_count: number;
   has_attachments: boolean;
   is_running: boolean;
+  bypass_permissions?: boolean;
   metadata_version?: number;
   created_by_schedule_id?: string | null;
 };

@@ -326,6 +326,7 @@ export const zhCnTranslation = {
         actions: {
           collapseChildren: "折叠子会话",
           expandChildren: "展开子会话",
+          createInProject: "在此项目中新建会话",
         },
         delete: {
           title: "删除会话",

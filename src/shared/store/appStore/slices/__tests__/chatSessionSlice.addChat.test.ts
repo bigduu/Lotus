@@ -122,6 +122,76 @@ describe("chatSessionSlice addChat — Project membership (#134/#154)", () => {
     expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({ project_id: null }));
   });
 
+  it("sends an explicit active Project and workspace atomically", async () => {
+    mockCreateSession.mockResolvedValue({
+      session: makeSummary({
+        project_id: "proj-zenith",
+        workspace_path: "/repo/zenith",
+      }),
+    });
+    const store = createTestStore({
+      projects: { "proj-zenith": makeProject("proj-zenith", "active") },
+      activeProjectId: null,
+    });
+    const chatData = newChatData() as any;
+    chatData.config.projectId = "proj-zenith";
+    chatData.config.workspacePath = "/repo/zenith";
+
+    await store.getState().addChat(chatData);
+
+    expect(mockCreateSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project_id: "proj-zenith",
+        workspace_path: "/repo/zenith",
+      }),
+    );
+  });
+
+  it("honors explicit Unassigned instead of falling back to the active Project", async () => {
+    mockCreateSession.mockResolvedValue({ session: makeSummary({ project_id: null }) });
+    const store = createTestStore({
+      projects: { "proj-active": makeProject("proj-active", "active") },
+      activeProjectId: "proj-active",
+    });
+    const chatData = newChatData() as any;
+    chatData.config.projectId = null;
+
+    await store.getState().addChat(chatData);
+
+    expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({ project_id: null }));
+  });
+
+  it("does not send an explicit archived Project or fall back to another active Project", async () => {
+    mockCreateSession.mockResolvedValue({ session: makeSummary({ project_id: null }) });
+    const store = createTestStore({
+      projects: {
+        "proj-active": makeProject("proj-active", "active"),
+        "proj-archived": makeProject("proj-archived", "archived"),
+      },
+      activeProjectId: "proj-active",
+    });
+    const chatData = newChatData() as any;
+    chatData.config.projectId = "proj-archived";
+
+    await store.getState().addChat(chatData);
+
+    expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({ project_id: null }));
+  });
+
+  it("does not send an explicit dangling Project or fall back to another active Project", async () => {
+    mockCreateSession.mockResolvedValue({ session: makeSummary({ project_id: null }) });
+    const store = createTestStore({
+      projects: { "proj-active": makeProject("proj-active", "active") },
+      activeProjectId: "proj-active",
+    });
+    const chatData = newChatData() as any;
+    chatData.config.projectId = "proj-missing";
+
+    await store.getState().addChat(chatData);
+
+    expect(mockCreateSession).toHaveBeenCalledWith(expect.objectContaining({ project_id: null }));
+  });
+
   it("does not fabricate membership the backend did not assign", async () => {
     // Backend (or an older one) returns no project_id even though we asked.
     mockCreateSession.mockResolvedValue({ session: makeSummary({ project_id: undefined }) });

@@ -110,18 +110,25 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       );
 
     // Resolve the Project identity once so the create request carries it
-    // (#134): an explicit caller value wins, otherwise the currently active
-    // Project — but only when that Project is actually active. A dangling
-    // activeProjectId (archived/pruned elsewhere) must not be sent: the
-    // backend would reject every new session with 409 `project_archived`.
+    // (#134/#198): an explicit caller value wins, including an explicit null
+    // for "Unassigned". Explicit and fallback ids are both accepted only
+    // when their locally-known Project is active. A dangling/archived id must
+    // not be sent: the backend would reject creation with
+    // 409 `project_archived`, and falling back to another active Project
+    // would silently create the session under the wrong owner.
     // The local chat config trusts ONLY the backend-assigned value — if an
     // older backend ignores the field, the session lands in Unassigned
     // instead of the client fabricating a membership the backend never
     // persisted.
-    const activeProjectId = get().activeProjectId;
-    const activeProject = activeProjectId ? get().projects[activeProjectId] : undefined;
+    const projects = get().projects;
+    const hasExplicitProjectId =
+      !!chatData.config && Object.prototype.hasOwnProperty.call(chatData.config, "projectId");
+    const explicitProjectId = normalizedProjectId(chatData.config?.projectId);
+    const activeProjectId = normalizedProjectId(get().activeProjectId);
+    const candidateProjectId = hasExplicitProjectId ? explicitProjectId : activeProjectId;
+    const candidateProject = candidateProjectId ? projects[candidateProjectId] : undefined;
     const requestedProjectId =
-      chatData.config?.projectId ?? (activeProject?.status === "active" ? activeProjectId : null);
+      candidateProjectId && candidateProject?.status === "active" ? candidateProjectId : null;
 
     const created = await agentClient.createSession({
       title,

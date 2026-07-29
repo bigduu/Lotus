@@ -42,6 +42,22 @@ const loadChat = async (page: Page) => {
   await expect(page.getByTestId("project-switcher")).toBeVisible({ timeout: 20_000 });
 };
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const exactGroupName = (groupName: string, count: number) =>
+  new RegExp(`^${escapeRegExp(groupName)} \\(${count}\\)$`);
+
+const findGroupWithCount = async (page: Page, groupName: string) => {
+  const accessibleName = new RegExp(`^${escapeRegExp(groupName)} \\((\\d+)\\)$`);
+  const group = page.getByRole("button", { name: accessibleName });
+  await expect(group).toBeVisible();
+  const match = (await group.getAttribute("aria-label"))?.match(accessibleName);
+  if (!match) {
+    throw new Error(`Could not read the session count for Project group ${groupName}`);
+  }
+  return { group, count: Number(match[1]) };
+};
+
 test.describe("Project-first real Bamboo workflows (#158)", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -767,6 +783,171 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       );
       await expectGroupExpanded(page, "Missing project", 1);
       await expect(sessionRow(page, missingTitle)).toBeVisible();
+    } finally {
+      await cleanupProjectFixture(api, fixture, sessionIds, projectIds);
+    }
+  });
+
+  test("9: Project and Unassigned group actions create, select, and enable bypass atomically (#198)", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    const fixture = await createWorkspaceFixture(testInfo, "group-create");
+    const suffix = `${testInfo.workerIndex}-${Date.now()}`;
+    const projectName = `e2e-198-create-${suffix}`;
+    const projectSeedTitle = `e2e-198-project-seed-${suffix}`;
+    const unassignedSeedTitle = `e2e-198-unassigned-seed-${suffix}`;
+    const sessionIds: string[] = [];
+    const projectIds: string[] = [];
+
+    try {
+      const project = await createProject(api, {
+        name: projectName,
+        projectPath: fixture.primary,
+      });
+      projectIds.push(project.id);
+      const projectSeed = await createSession(api, {
+        title: projectSeedTitle,
+        projectId: project.id,
+        workspacePath: fixture.primary,
+      });
+      const unassignedSeed = await createSession(api, {
+        title: unassignedSeedTitle,
+        projectId: null,
+        workspacePath: fixture.legacy,
+      });
+      sessionIds.push(projectSeed.id, unassignedSeed.id);
+
+      await loadChat(page);
+
+      const createFromGroup = async (input: {
+        groupName: string;
+        seedTitle: string;
+        initialCount: number | "live";
+        projectId: string | null;
+        workspacePath: string | null;
+      }) => {
+        // The browser suite shares one Bamboo process, so unrelated tests may
+        // leave additional Unassigned sessions. Only that group reads its live
+        // total; a uniquely created Project must still begin with one seed.
+        const { group, count: initialCount } =
+          input.initialCount === "live"
+            ? await findGroupWithCount(page, input.groupName)
+            : {
+                group: page.getByRole("button", {
+                  name: exactGroupName(input.groupName, input.initialCount),
+                }),
+                count: input.initialCount,
+              };
+        await expect(group).toHaveCount(1);
+        await expect(group).toBeVisible();
+        if ((await group.getAttribute("aria-expanded")) !== "true") {
+          await group.click();
+        }
+        const seedRow = group
+          .locator("..")
+          .getByRole("option", { name: input.seedTitle, exact: true });
+        await expect(seedRow).toHaveCount(1);
+        await expect(seedRow).toBeVisible();
+        await group.hover();
+        const createButton = group.getByRole("button", {
+          name: "Create session in this project",
+        });
+        await expect(createButton).toHaveCSS("opacity", "1");
+
+        const createResponsePromise = page.waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname === "/api/v1/sessions",
+        );
+        const bypassResponsePromise = page.waitForResponse((response) => {
+          if (
+            response.request().method() !== "PATCH" ||
+            !new URL(response.url()).pathname.startsWith("/api/v1/sessions/")
+          ) {
+            return false;
+          }
+          try {
+            const body = response.request().postDataJSON() as {
+              bypass_permissions?: boolean;
+            };
+            return body.bypass_permissions === true;
+          } catch {
+            return false;
+          }
+        });
+
+        await createButton.click();
+        const createResponse = await createResponsePromise;
+        expect(createResponse.ok(), await createResponse.text()).toBe(true);
+        const requestBody = createResponse.request().postDataJSON() as {
+          project_id?: string | null;
+          workspace_path?: string | null;
+        };
+        expect(requestBody.project_id).toBe(input.projectId);
+        expect(requestBody.workspace_path).toBe(input.workspacePath);
+        const createBody = (await createResponse.json()) as {
+          session: SessionSummary;
+        };
+        sessionIds.push(createBody.session.id);
+        expect(createBody.session.project_id).toBe(input.projectId);
+        if (input.workspacePath !== null) {
+          expect(createBody.session.workspace_path).toBe(input.workspacePath);
+        } else {
+          // A null request leaves workspace selection to Bamboo. It may assign
+          // an isolated session workspace, but must not inherit the Project's.
+          expect(createBody.session.workspace_path).not.toBe(fixture.primary);
+        }
+
+        const bypassResponse = await bypassResponsePromise;
+        expect(bypassResponse.ok(), await bypassResponse.text()).toBe(true);
+        expect(bypassResponse.request().postDataJSON()).toEqual({
+          bypass_permissions: true,
+        });
+
+        await expect(
+          page.getByRole("button", {
+            name: exactGroupName(input.groupName, initialCount + 1),
+          }),
+        ).toBeVisible();
+        await expect(
+          page.getByRole("option", {
+            name: "New Session",
+            selected: true,
+          }),
+        ).toBeVisible();
+        await expect(
+          page.locator(".chat-pane-shell__title").getByText("New Session"),
+        ).toBeVisible();
+        await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
+        await expect(page.getByRole("button", { name: "Bypass ON" })).toHaveAttribute(
+          "aria-pressed",
+          "true",
+        );
+
+        const persisted = await getSessionWithVersion(api, createBody.session.id);
+        expect(persisted.session.project_id).toBe(input.projectId);
+        expect(persisted.session.workspace_path).toBe(createBody.session.workspace_path);
+        if (input.workspacePath !== null) {
+          expect(persisted.session.workspace_path).toBe(input.workspacePath);
+        }
+        expect(persisted.session.bypass_permissions).toBe(true);
+      };
+
+      await createFromGroup({
+        groupName: projectName,
+        seedTitle: projectSeedTitle,
+        initialCount: 1,
+        projectId: project.id,
+        workspacePath: fixture.primary,
+      });
+      await createFromGroup({
+        groupName: "Unassigned",
+        seedTitle: unassignedSeedTitle,
+        initialCount: "live",
+        projectId: null,
+        workspacePath: null,
+      });
     } finally {
       await cleanupProjectFixture(api, fixture, sessionIds, projectIds);
     }
