@@ -8,7 +8,7 @@
   opacity: 1;
 }
 
-@media (hover: none) {
+@media (hover: none), (max-width: 768px) {
   .chat-sidebar-date-group-header .chat-sidebar-date-group-action {
     opacity: 1;
   }
