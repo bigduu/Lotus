@@ -1,7 +1,13 @@
 import type { GlobalToken } from "antd/es/theme/interface";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Empty, Flex, List, Space, Tooltip } from "antd";
-import { ApartmentOutlined, DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
+import {
+  ApartmentOutlined,
+  DeleteOutlined,
+  DownOutlined,
+  PlusOutlined,
+  RightOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { ChatItem as ChatItemComponent, type ChatItemStatus } from "../ChatItem";
@@ -72,6 +78,7 @@ type ChatSidebarDateGroupsProps = {
   onSelectChat: (sessionId: string) => void;
   onDeleteChat: (sessionId: string) => void;
   onDeleteByDate: (dateKey: string) => void;
+  onCreateChatInProject?: (projectId: string | null) => void;
   onPinChat: (sessionId: string) => void;
   onUnpinChat: (sessionId: string) => void;
   onEditTitle: (sessionId: string, title: string) => void;
@@ -126,6 +133,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   onSelectChat,
   onDeleteChat,
   onDeleteByDate,
+  onCreateChatInProject,
   onPinChat,
   onUnpinChat,
   onEditTitle,
@@ -529,18 +537,20 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 e.currentTarget.style.background =
                   "var(--lotus-sidebar-item-hover-bg, rgba(204, 251, 241, 0.76))";
                 e.currentTarget.style.borderColor = "transparent";
-                const btn = e.currentTarget.querySelector(
-                  ".chat-sidebar-date-group-delete",
-                ) as HTMLElement;
-                if (btn) btn.style.opacity = "1";
+                e.currentTarget
+                  .querySelectorAll<HTMLElement>(".chat-sidebar-date-group-action")
+                  .forEach((button) => {
+                    button.style.opacity = "1";
+                  });
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "transparent";
                 e.currentTarget.style.borderColor = "transparent";
-                const btn = e.currentTarget.querySelector(
-                  ".chat-sidebar-date-group-delete",
-                ) as HTMLElement;
-                if (btn) btn.style.opacity = "0";
+                e.currentTarget
+                  .querySelectorAll<HTMLElement>(".chat-sidebar-date-group-action")
+                  .forEach((button) => {
+                    button.style.opacity = "0";
+                  });
               }}
               onClick={() => {
                 const next = new Set(expanded);
@@ -602,21 +612,43 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 ) : null}
               </Flex>
 
-              <Button
-                type="text"
-                size="small"
-                icon={<DeleteOutlined />}
-                className="chat-sidebar-date-group-delete"
-                style={{
-                  color: token.colorTextTertiary,
-                  opacity: 0,
-                  transition: "opacity 0.2s ease",
-                }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onDeleteByDate(dateKey);
-                }}
-              />
+              <Flex align="center" style={{ flexShrink: 0 }}>
+                {isProjectMode && onCreateChatInProject ? (
+                  <Tooltip title={t("chat.sidebar.actions.createInProject")}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<PlusOutlined />}
+                      aria-label={t("chat.sidebar.actions.createInProject")}
+                      className="chat-sidebar-date-group-create chat-sidebar-date-group-action"
+                      style={{
+                        color: token.colorTextTertiary,
+                        opacity: 0,
+                        transition: "opacity 0.2s ease",
+                      }}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onCreateChatInProject(dateKey === NO_PROJECT_GROUP_KEY ? null : dateKey);
+                      }}
+                    />
+                  </Tooltip>
+                ) : null}
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<DeleteOutlined />}
+                  className="chat-sidebar-date-group-delete chat-sidebar-date-group-action"
+                  style={{
+                    color: token.colorTextTertiary,
+                    opacity: 0,
+                    transition: "opacity 0.2s ease",
+                  }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onDeleteByDate(dateKey);
+                  }}
+                />
+              </Flex>
             </Flex>
 
             {isExpanded ? (

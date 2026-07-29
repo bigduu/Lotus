@@ -334,6 +334,7 @@ export const enUsTranslation = {
         actions: {
           collapseChildren: "Collapse child sessions",
           expandChildren: "Expand child sessions",
+          createInProject: "Create session in this project",
         },
         delete: {
           title: "Delete Session",

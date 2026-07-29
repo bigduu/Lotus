@@ -43,6 +43,7 @@ export const ChatSidebar: React.FC = () => {
     handleDeleteByDate,
     handleEditTitle,
     handleGenerateTitle,
+    handleCreateChatInProject,
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
@@ -182,6 +183,7 @@ export const ChatSidebar: React.FC = () => {
           onSelectChat={selectSession}
           onDeleteChat={handleDelete}
           onDeleteByDate={handleDeleteByDate}
+          onCreateChatInProject={handleCreateChatInProject}
           onPinChat={pinSession}
           onUnpinChat={unpinSession}
           onEditTitle={handleEditTitle}
