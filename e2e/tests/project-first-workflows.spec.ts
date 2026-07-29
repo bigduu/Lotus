@@ -42,6 +42,19 @@ const loadChat = async (page: Page) => {
   await expect(page.getByTestId("project-switcher")).toBeVisible({ timeout: 20_000 });
 };
 
+const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const findGroupWithCount = async (page: Page, groupName: string) => {
+  const accessibleName = new RegExp(`^${escapeRegExp(groupName)} \\((\\d+)\\)$`);
+  const group = page.getByRole("button", { name: accessibleName });
+  await expect(group).toBeVisible();
+  const match = (await group.getAttribute("aria-label"))?.match(accessibleName);
+  if (!match) {
+    throw new Error(`Could not read the session count for Project group ${groupName}`);
+  }
+  return { group, count: Number(match[1]) };
+};
+
 test.describe("Project-first real Bamboo workflows (#158)", () => {
   test.describe.configure({ mode: "serial" });
 
@@ -806,14 +819,23 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
       const createFromGroup = async (input: {
         groupName: string;
-        initialCount: number;
+        seedTitle: string;
         projectId: string | null;
         workspacePath: string | null;
       }) => {
-        const group = page.getByRole("button", {
-          name: `${input.groupName} (${input.initialCount})`,
-        });
-        await expect(group).toBeVisible();
+        // The browser suite shares one Bamboo process, so unrelated tests may
+        // leave additional Unassigned sessions. Read this group's live total,
+        // then still require this action to increment that exact total by one.
+        const { group, count: initialCount } = await findGroupWithCount(page, input.groupName);
+        if ((await group.getAttribute("aria-expanded")) !== "true") {
+          await group.click();
+        }
+        await expect(
+          group
+            .locator("..")
+            .locator('[data-testid="chat-item"]')
+            .filter({ hasText: input.seedTitle }),
+        ).toBeVisible();
         await group.hover();
         const createButton = group.getByRole("button", {
           name: "Create session in this project",
@@ -855,6 +877,14 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
           session: SessionSummary;
         };
         sessionIds.push(createBody.session.id);
+        expect(createBody.session.project_id).toBe(input.projectId);
+        if (input.workspacePath !== null) {
+          expect(createBody.session.workspace_path).toBe(input.workspacePath);
+        } else {
+          // A null request leaves workspace selection to Bamboo. It may assign
+          // an isolated session workspace, but must not inherit the Project's.
+          expect(createBody.session.workspace_path).not.toBe(fixture.primary);
+        }
 
         const bypassResponse = await bypassResponsePromise;
         expect(bypassResponse.ok(), await bypassResponse.text()).toBe(true);
@@ -864,7 +894,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
         await expect(
           page.getByRole("button", {
-            name: `${input.groupName} (${input.initialCount + 1})`,
+            name: `${input.groupName} (${initialCount + 1})`,
           }),
         ).toBeVisible();
         await expect(
@@ -884,19 +914,22 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
         const persisted = await getSessionWithVersion(api, createBody.session.id);
         expect(persisted.session.project_id).toBe(input.projectId);
-        expect(persisted.session.workspace_path).toBe(input.workspacePath);
+        expect(persisted.session.workspace_path).toBe(createBody.session.workspace_path);
+        if (input.workspacePath !== null) {
+          expect(persisted.session.workspace_path).toBe(input.workspacePath);
+        }
         expect(persisted.session.bypass_permissions).toBe(true);
       };
 
       await createFromGroup({
         groupName: projectName,
-        initialCount: 1,
+        seedTitle: projectSeedTitle,
         projectId: project.id,
         workspacePath: fixture.primary,
       });
       await createFromGroup({
         groupName: "Unassigned",
-        initialCount: 1,
+        seedTitle: unassignedSeedTitle,
         projectId: null,
         workspacePath: null,
       });
