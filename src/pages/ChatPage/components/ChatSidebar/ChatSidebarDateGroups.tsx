@@ -524,6 +524,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               aria-expanded={isExpanded}
               aria-label={`${resolveGroupLabel(dateKey)} (${totalChatsInDate})`}
               onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   const next = new Set(expanded);

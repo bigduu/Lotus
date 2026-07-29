@@ -273,6 +273,50 @@ describe("ChatSidebarDateGroups workspace mode (#95)", () => {
     expect(onCollapseChange).not.toHaveBeenCalled();
   });
 
+  it("keeps Plus keyboard activation separate from the Project group toggle", () => {
+    const onCreateChatInProject = vi.fn();
+    const onCollapseChange = vi.fn();
+    const projectId = "proj-zenith";
+    renderHarness({
+      groupedChatsByDate: {
+        [projectId]: [makeChat(1)],
+        [NO_PROJECT_GROUP_KEY]: [makeChat(2)],
+      },
+      sortedDateKeys: [projectId, NO_PROJECT_GROUP_KEY],
+      expandedKeys: [projectId, NO_PROJECT_GROUP_KEY],
+      groupingMode: "project",
+      groupLabels: { [projectId]: "Zenith" },
+      onCollapseChange,
+      onCreateChatInProject,
+    });
+
+    const createButtons = screen.getAllByRole("button", {
+      name: "Create session in this project",
+    });
+
+    createButtons[0].focus();
+    fireEvent.keyDown(createButtons[0], { key: "Enter", code: "Enter" });
+    fireEvent.click(createButtons[0]);
+    fireEvent.keyUp(createButtons[0], { key: "Enter", code: "Enter" });
+
+    createButtons[1].focus();
+    fireEvent.keyDown(createButtons[1], { key: " ", code: "Space" });
+    fireEvent.keyUp(createButtons[1], { key: " ", code: "Space" });
+    fireEvent.click(createButtons[1]);
+
+    expect(onCreateChatInProject).toHaveBeenCalledTimes(2);
+    expect(onCreateChatInProject).toHaveBeenNthCalledWith(1, projectId);
+    expect(onCreateChatInProject).toHaveBeenNthCalledWith(2, null);
+    expect(onCollapseChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Zenith (1)" }), {
+      key: "Enter",
+      code: "Enter",
+    });
+    expect(onCollapseChange).toHaveBeenCalledOnce();
+    expect(onCollapseChange).toHaveBeenCalledWith([NO_PROJECT_GROUP_KEY]);
+  });
+
   it("does not render the Project create action in workspace mode", () => {
     renderHarness({
       groupedChatsByDate: { "/repo/zenith": [makeChat(1)] },
