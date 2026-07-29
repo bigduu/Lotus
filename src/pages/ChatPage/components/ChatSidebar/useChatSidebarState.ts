@@ -24,6 +24,9 @@ import { openSession } from "@shared/utils/openSession";
 import { selectIsBusy, selectSidebarRunStateMap } from "@shared/store/appStore";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
+type CreateNewChatOptions = Partial<Omit<ChatItem, "id" | "config">> & {
+  config?: Partial<ChatItem["config"]>;
+};
 
 // Search filtering (matchesSearchQuery) can fall back to scanning message
 // content from the live store, which is expensive when it runs on every
@@ -265,8 +268,9 @@ export const useChatSidebarState = () => {
   }, [chats, ensureProject]);
 
   const createNewChat = useCallback(
-    async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
+    async (title?: string, options?: CreateNewChatOptions): Promise<string> => {
       const selectedPrompt = systemPrompts.find((p) => p.id === lastSelectedPromptId);
+      const { config: configOverrides, ...chatOverrides } = options ?? {};
 
       const systemPromptId =
         selectedPrompt?.id ||
@@ -289,8 +293,9 @@ export const useChatSidebarState = () => {
           lastUsedEnhancedPrompt: null,
           // Do NOT pass model_ref here — let addChat resolve it from provider defaults.
           // selectedModelRef is session-scoped and should not leak into new sessions.
+          ...configOverrides,
         },
-        ...options,
+        ...chatOverrides,
       };
       const newSessionId = await addChat(newChatData);
 
@@ -299,8 +304,69 @@ export const useChatSidebarState = () => {
       const { activeLeafId: targetLeafId } = useUILayoutStore.getState();
       useUILayoutStore.getState().setLeafSessionId(targetLeafId, newSessionId);
       useUILayoutStore.getState().setActiveLeafId(targetLeafId);
+      return newSessionId;
     },
     [addChat, lastSelectedPromptId, systemPrompts, t],
+  );
+
+  const handleCreateChatInProject = useCallback(
+    async (projectId: string | null): Promise<void> => {
+      const requestedProjectId = projectId?.trim() || null;
+      const project = requestedProjectId
+        ? useAppStore.getState().projects[requestedProjectId]
+        : undefined;
+      const workspacePath =
+        project?.status === "active" && project.project_path_status === "configured"
+          ? project.project_path?.trim() || undefined
+          : undefined;
+
+      let newSessionId: string;
+      try {
+        newSessionId = await createNewChat(undefined, {
+          config: {
+            // An explicit null prevents addChat from falling back to the
+            // globally active Project for the Unassigned group.
+            projectId: requestedProjectId,
+            ...(workspacePath ? { workspacePath } : {}),
+          },
+        });
+      } catch (error) {
+        console.error("Failed to create chat:", error);
+        modal.error({
+          title: t("chat.sidebar.createFailedTitle"),
+          content: error instanceof Error ? error.message : t("chat.sidebar.createFailedUnknown"),
+        });
+        return;
+      }
+
+      // Session creation is already committed and selected at this point.
+      // Bypass activation is intentionally best-effort: a PATCH or local
+      // synchronization failure must never roll back or reject the usable
+      // session, and the whole post-create phase emits at most one warning.
+      try {
+        await AgentClient.getInstance().patchSession(newSessionId, {
+          bypass_permissions: true,
+        });
+        const liveState = useAppStore.getState();
+        const createdChat = liveState.chats.find((chat) => chat.id === newSessionId);
+        if (!createdChat) {
+          throw new Error(`Created session ${newSessionId} is missing from local state`);
+        }
+        liveState.updateSession(
+          newSessionId,
+          {
+            config: {
+              ...createdChat.config,
+              bypassPermissions: true,
+            },
+          },
+          { skipBackendPatch: true },
+        );
+      } catch (error) {
+        console.warn("[ChatSidebar] Failed to enable bypass permissions for new session:", error);
+      }
+    },
+    [createNewChat, modal, t],
   );
 
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
@@ -1040,6 +1106,7 @@ export const useChatSidebarState = () => {
     handleDeleteByDate: handleDeleteByGroup,
     handleEditTitle,
     handleGenerateTitle,
+    handleCreateChatInProject,
     handleNewChat,
     handleNewChatSelectorClose,
     handleOpenSettings,
