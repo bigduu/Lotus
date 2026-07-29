@@ -1,14 +1,20 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SessionSummary } from "@services/chat/AgentService";
 import type { ProjectManifest } from "@services/project";
 import type { ChatItem } from "@shared/types/chat";
 import { useAppStore } from "@shared/store/appStore";
+import {
+  beginBypassPermissionMutation,
+  resetBypassPermissionMutations,
+} from "@shared/store/appStore/bypassPermissionMutations";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { useChatSidebarState } from "./useChatSidebarState";
 
-const { mockPatchSession, mockModalError } = vi.hoisted(() => ({
+const { mockPatchSession, mockListSessions, mockModalError } = vi.hoisted(() => ({
   mockPatchSession: vi.fn(),
+  mockListSessions: vi.fn(),
   mockModalError: vi.fn(),
 }));
 
@@ -21,6 +27,7 @@ vi.mock("@services/chat/AgentService", async () => {
     AgentClient: {
       getInstance: () => ({
         patchSession: mockPatchSession,
+        listSessions: mockListSessions,
       }),
     },
   };
@@ -51,6 +58,44 @@ vi.mock("antd", async () => {
 
 const originalUpdateSession = useAppStore.getState().updateSession;
 
+const makeSessionSummary = (
+  id: string,
+  overrides: Partial<SessionSummary> = {},
+): SessionSummary => ({
+  id,
+  kind: "root",
+  title: "New Session",
+  title_version: 0,
+  pinned: false,
+  parent_session_id: null,
+  root_session_id: id,
+  spawn_depth: 0,
+  model: "gpt-test",
+  model_ref: null,
+  reasoning_effort: null,
+  created_by_schedule_id: null,
+  project_id: null,
+  workspace_path: null,
+  created_at: "2026-07-29T00:00:00Z",
+  updated_at: "2026-07-29T00:00:00Z",
+  last_activity_at: "2026-07-29T00:00:00Z",
+  message_count: 0,
+  has_attachments: false,
+  is_running: false,
+  bypass_permissions: false,
+  ...overrides,
+});
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+};
+
 const makeProject = (id: string, overrides: Partial<ProjectManifest> = {}): ProjectManifest => ({
   id,
   name: id,
@@ -77,8 +122,10 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
 
   beforeEach(() => {
     localStorage.clear();
+    resetBypassPermissionMutations();
     mockPatchSession.mockReset();
     mockPatchSession.mockResolvedValue(undefined);
+    mockListSessions.mockReset();
     mockModalError.mockReset();
     consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
     nextSessionNumber = 1;
@@ -206,6 +253,71 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
     expect(consoleWarn).not.toHaveBeenCalled();
   });
 
+  it("fences a stale summary started before the bypass PATCH completes", async () => {
+    const project = makeProject("proj-zenith", { project_path: "/repo/zenith" });
+    useAppStore.setState({ projects: { [project.id]: project } });
+    const staleList = createDeferred<{ sessions: SessionSummary[] }>();
+    mockListSessions.mockReturnValueOnce(staleList.promise);
+    const { result } = renderHook(() => useChatSidebarState());
+
+    const staleRefresh = useAppStore.getState().refreshChatsNow();
+    expect(mockListSessions).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      await result.current.handleCreateChatInProject(project.id);
+    });
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+        .bypassPermissions,
+    ).toBe(true);
+
+    await act(async () => {
+      staleList.resolve({
+        sessions: [
+          makeSessionSummary("session-created-1", {
+            project_id: project.id,
+            workspace_path: "/repo/zenith",
+            bypass_permissions: false,
+          }),
+        ],
+      });
+      await staleRefresh;
+    });
+
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+        .bypassPermissions,
+    ).toBe(true);
+    expect(consoleWarn).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite a newer bypass mutation after the auto-enable PATCH", async () => {
+    const project = makeProject("proj-zenith");
+    useAppStore.setState({ projects: { [project.id]: project } });
+    const patch = createDeferred<void>();
+    mockPatchSession.mockReturnValueOnce(patch.promise);
+    const { result } = renderHook(() => useChatSidebarState());
+
+    let creation!: Promise<void>;
+    act(() => {
+      creation = result.current.handleCreateChatInProject(project.id);
+    });
+    await vi.waitFor(() => expect(mockPatchSession).toHaveBeenCalledOnce());
+
+    beginBypassPermissionMutation("session-created-1", false, true);
+    await act(async () => {
+      patch.resolve();
+      await creation;
+    });
+
+    expect(updateSession).not.toHaveBeenCalled();
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+        .bypassPermissions ?? false,
+    ).toBe(false);
+    expect(consoleWarn).not.toHaveBeenCalled();
+  });
+
   it.each([
     {
       label: "unset",
@@ -260,16 +372,53 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
   it("keeps the created session usable and warns once when bypass PATCH fails", async () => {
     const project = makeProject("proj-zenith");
     useAppStore.setState({ projects: { [project.id]: project } });
-    mockPatchSession.mockRejectedValue(new Error("patch unavailable"));
+    const patch = createDeferred<void>();
+    mockPatchSession.mockReturnValueOnce(patch.promise);
     const { result } = renderHook(() => useChatSidebarState());
 
+    let creation!: Promise<void>;
+    act(() => {
+      creation = result.current.handleCreateChatInProject(project.id);
+    });
+    await vi.waitFor(() => expect(mockPatchSession).toHaveBeenCalledOnce());
+
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        makeSessionSummary("session-created-1", {
+          project_id: project.id,
+          workspace_path: project.project_path,
+          bypass_permissions: false,
+        }),
+      ],
+    });
     await act(async () => {
-      await expect(result.current.handleCreateChatInProject(project.id)).resolves.toBeUndefined();
+      await useAppStore.getState().refreshChatsNow();
+    });
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+        .bypassPermissions,
+    ).toBe(true);
+
+    await act(async () => {
+      patch.reject(new Error("patch unavailable"));
+      await expect(creation).resolves.toBeUndefined();
     });
 
     expect(useAppStore.getState().chats.map((chat) => chat.id)).toContain("session-created-1");
     expect(useUILayoutStore.getState().leafSessionIds["pane-a"]).toBe("session-created-1");
-    expect(updateSession).not.toHaveBeenCalled();
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+        .bypassPermissions,
+    ).toBe(false);
+    expect(updateSession).toHaveBeenCalledWith(
+      "session-created-1",
+      {
+        config: expect.objectContaining({
+          bypassPermissions: false,
+        }),
+      },
+      { skipBackendPatch: true },
+    );
     expect(consoleWarn).toHaveBeenCalledTimes(1);
     expect(mockModalError).not.toHaveBeenCalled();
   });

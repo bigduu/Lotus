@@ -16,6 +16,11 @@ import { NO_PROJECT_GROUP_KEY } from "@services/project";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useAppStore } from "@shared/store/appStore";
+import {
+  beginBypassPermissionMutation,
+  confirmBypassPermissionMutation,
+  failBypassPermissionMutation,
+} from "@shared/store/appStore/bypassPermissionMutations";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { SidebarChatItem, SidebarScrollTarget } from "@shared/types/sidebarChat";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
@@ -343,27 +348,68 @@ export const useChatSidebarState = () => {
       // Bypass activation is intentionally best-effort: a PATCH or local
       // synchronization failure must never roll back or reject the usable
       // session, and the whole post-create phase emits at most one warning.
+      let bypassRevision: number | null = null;
+      let bypassConfirmed = false;
       try {
+        const createdChat = useAppStore.getState().chats.find((chat) => chat.id === newSessionId);
+        if (!createdChat) {
+          throw new Error(`Created session ${newSessionId} is missing from local state`);
+        }
+        bypassRevision = beginBypassPermissionMutation(
+          newSessionId,
+          true,
+          createdChat.config.bypassPermissions ?? false,
+        );
         await AgentClient.getInstance().patchSession(newSessionId, {
           bypass_permissions: true,
         });
+        bypassConfirmed = confirmBypassPermissionMutation(newSessionId, bypassRevision);
+        if (!bypassConfirmed) return;
+
         const liveState = useAppStore.getState();
-        const createdChat = liveState.chats.find((chat) => chat.id === newSessionId);
-        if (!createdChat) {
+        const liveChat = liveState.chats.find((chat) => chat.id === newSessionId);
+        if (!liveChat) {
           throw new Error(`Created session ${newSessionId} is missing from local state`);
         }
         liveState.updateSession(
           newSessionId,
           {
             config: {
-              ...createdChat.config,
+              ...liveChat.config,
               bypassPermissions: true,
             },
           },
           { skipBackendPatch: true },
         );
       } catch (error) {
-        console.warn("[ChatSidebar] Failed to enable bypass permissions for new session:", error);
+        let warningError = error;
+        if (bypassRevision !== null && !bypassConfirmed) {
+          const confirmedValue = failBypassPermissionMutation(newSessionId, bypassRevision);
+          if (confirmedValue !== null) {
+            try {
+              const liveState = useAppStore.getState();
+              const liveChat = liveState.chats.find((chat) => chat.id === newSessionId);
+              if (liveChat && (liveChat.config.bypassPermissions ?? false) !== confirmedValue) {
+                liveState.updateSession(
+                  newSessionId,
+                  {
+                    config: {
+                      ...liveChat.config,
+                      bypassPermissions: confirmedValue,
+                    },
+                  },
+                  { skipBackendPatch: true },
+                );
+              }
+            } catch (rollbackError) {
+              warningError = rollbackError;
+            }
+          }
+        }
+        console.warn(
+          "[ChatSidebar] Failed to enable bypass permissions for new session:",
+          warningError,
+        );
       }
     },
     [createNewChat, modal, t],
