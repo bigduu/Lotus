@@ -1,0 +1,15 @@
+.chat-sidebar-date-group-action {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.chat-sidebar-date-group-header:hover .chat-sidebar-date-group-action,
+.chat-sidebar-date-group-header:focus-within .chat-sidebar-date-group-action {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .chat-sidebar-date-group-header .chat-sidebar-date-group-action {
+    opacity: 1;
+  }
+}

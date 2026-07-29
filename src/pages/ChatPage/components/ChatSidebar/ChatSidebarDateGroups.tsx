@@ -24,6 +24,8 @@ import {
 import { NO_PROJECT_GROUP_KEY } from "@services/project";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
 
+import "./ChatSidebarDateGroups.css";
+
 // A date group's root-session list switches from plain (unvirtualized)
 // rendering to a windowed `@tanstack/react-virtual` viewport once it holds
 // more sessions than this. Typical sidebars (a handful to a few dozen
@@ -537,20 +539,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 e.currentTarget.style.background =
                   "var(--lotus-sidebar-item-hover-bg, rgba(204, 251, 241, 0.76))";
                 e.currentTarget.style.borderColor = "transparent";
-                e.currentTarget
-                  .querySelectorAll<HTMLElement>(".chat-sidebar-date-group-action")
-                  .forEach((button) => {
-                    button.style.opacity = "1";
-                  });
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "transparent";
                 e.currentTarget.style.borderColor = "transparent";
-                e.currentTarget
-                  .querySelectorAll<HTMLElement>(".chat-sidebar-date-group-action")
-                  .forEach((button) => {
-                    button.style.opacity = "0";
-                  });
               }}
               onClick={() => {
                 const next = new Set(expanded);
@@ -623,8 +615,6 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       className="chat-sidebar-date-group-create chat-sidebar-date-group-action"
                       style={{
                         color: token.colorTextTertiary,
-                        opacity: 0,
-                        transition: "opacity 0.2s ease",
                       }}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -640,8 +630,6 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                   className="chat-sidebar-date-group-delete chat-sidebar-date-group-action"
                   style={{
                     color: token.colorTextTertiary,
-                    opacity: 0,
-                    transition: "opacity 0.2s ease",
                   }}
                   onClick={(event) => {
                     event.stopPropagation();
