@@ -18,6 +18,7 @@ import {
   settingsService,
   type DurablePermissionRule,
   type PermissionPolicyResponse,
+  type TemporaryPermissionGrant,
 } from "@services/config";
 
 const { Text, Paragraph } = Typography;
@@ -115,6 +116,94 @@ const PermissionRuleList: React.FC<PermissionRuleListProps> = ({
   );
 };
 
+interface TemporaryGrantListProps {
+  grants: TemporaryPermissionGrant[];
+  loading: boolean;
+}
+
+const TemporaryGrantList: React.FC<TemporaryGrantListProps> = ({ grants, loading }) => {
+  const { t } = useTranslation();
+
+  return (
+    <List
+      loading={loading}
+      dataSource={grants}
+      locale={{ emptyText: t("settings.permissionsTab.noTemporaryGrants") }}
+      rowKey={(grant) =>
+        [
+          grant.scope,
+          grant.effect,
+          grant.session_id,
+          grant.request_id,
+          grant.permission_type,
+          grant.matcher,
+        ].join(":")
+      }
+      renderItem={(grant) => {
+        const scopeLabel =
+          grant.scope === "unscoped_session"
+            ? t("settings.permissionsTab.grantScopes.unscopedSession")
+            : grant.scope === "session"
+              ? t("settings.permissionsTab.grantScopes.session")
+              : grant.scope === "one_shot"
+                ? t("settings.permissionsTab.grantScopes.oneShot")
+                : grant.scope;
+        const effectLabel =
+          grant.effect === "allow"
+            ? t("settings.permissionsTab.grantEffects.allow")
+            : grant.effect === "deny"
+              ? t("settings.permissionsTab.grantEffects.deny")
+              : grant.effect;
+
+        return (
+          <List.Item>
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+              <Flex gap={8} wrap="wrap" align="center">
+                <Tag color={grant.effect === "allow" ? "success" : "error"}>{effectLabel}</Tag>
+                <Tag color={grant.scope === "one_shot" ? "purple" : "processing"}>{scopeLabel}</Tag>
+                <Tag>{grant.permission_type}</Tag>
+              </Flex>
+              <Text code style={{ overflowWrap: "anywhere" }}>
+                {grant.matcher}
+              </Text>
+              <Descriptions size="small" column={1} colon={false}>
+                {grant.session_id ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.sessionId")}>
+                    <Text type="secondary" copyable>
+                      {grant.session_id}
+                    </Text>
+                  </Descriptions.Item>
+                ) : null}
+                {grant.request_id ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.requestId")}>
+                    <Text type="secondary" copyable>
+                      {grant.request_id}
+                    </Text>
+                  </Descriptions.Item>
+                ) : null}
+                {grant.granted_at ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.grantedAt")}>
+                    {new Date(grant.granted_at).toLocaleString()}
+                  </Descriptions.Item>
+                ) : null}
+                {grant.expires_at ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.expiresAt")}>
+                    {new Date(grant.expires_at).toLocaleString()}
+                  </Descriptions.Item>
+                ) : grant.scope === "one_shot" ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.expiresAt")}>
+                    {t("settings.permissionsTab.oneShotLifetime")}
+                  </Descriptions.Item>
+                ) : null}
+              </Descriptions>
+            </Space>
+          </List.Item>
+        );
+      }}
+    />
+  );
+};
+
 const SystemSettingsPermissionsTab: React.FC = () => {
   const { t } = useTranslation();
   const { message, modal } = AntApp.useApp();
@@ -152,6 +241,8 @@ const SystemSettingsPermissionsTab: React.FC = () => {
 
   const askRules = useMemo(() => policy?.policy.ask_rules ?? [], [policy]);
   const durableRules = useMemo(() => policy?.policy.durable_rules ?? [], [policy]);
+  const temporaryGrants = useMemo(() => policy?.temporary_grants ?? [], [policy]);
+  const temporaryGrantContractAvailable = policy == null || Array.isArray(policy.temporary_grants);
   const rememberedAllows = useMemo(
     () => durableRules.filter((rule) => rule.effect === "allow"),
     [durableRules],
@@ -386,18 +477,24 @@ const SystemSettingsPermissionsTab: React.FC = () => {
       ) : null}
 
       <Card type="inner" title={t("settings.permissionsTab.temporaryGrants")}>
-        <Alert
-          type="info"
-          showIcon
-          message={t("settings.permissionsTab.temporaryInspectionUnavailable")}
-          description={
-            policy?.policy.session_grant_duration_secs
-              ? t("settings.permissionsTab.temporaryGrantDuration", {
-                  seconds: policy.policy.session_grant_duration_secs,
-                })
-              : undefined
-          }
-        />
+        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          {temporaryGrantContractAvailable ? (
+            <TemporaryGrantList grants={temporaryGrants} loading={loading} />
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message={t("settings.permissionsTab.temporaryInspectionUnavailable")}
+            />
+          )}
+          {policy?.policy.session_grant_duration_secs ? (
+            <Text type="secondary">
+              {t("settings.permissionsTab.temporaryGrantDuration", {
+                seconds: policy.policy.session_grant_duration_secs,
+              })}
+            </Text>
+          ) : null}
+        </Space>
       </Card>
     </Space>
   );

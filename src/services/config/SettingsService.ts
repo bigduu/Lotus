@@ -49,6 +49,8 @@ export interface CompleteAuthRequest {
 
 export type PermissionRuleEffect = "allow" | "deny" | "always_ask" | string;
 export type PermissionRuleScope = "workspace" | "global" | string;
+export type TemporaryPermissionGrantScope = "unscoped_session" | "session" | "one_shot" | string;
+export type TemporaryPermissionGrantEffect = "allow" | "deny" | string;
 
 export interface DurablePermissionRule {
   id: string;
@@ -68,6 +70,17 @@ export interface DurablePermissionRule {
   match_count?: number;
 }
 
+export interface TemporaryPermissionGrant {
+  scope: TemporaryPermissionGrantScope;
+  effect: TemporaryPermissionGrantEffect;
+  session_id?: string;
+  request_id?: string;
+  permission_type: string;
+  matcher: string;
+  granted_at?: string;
+  expires_at?: string;
+}
+
 export interface PermissionPolicyResponse {
   revision: number;
   loaded_at: string;
@@ -80,6 +93,8 @@ export interface PermissionPolicyResponse {
     durable_rules?: DurablePermissionRule[];
     session_grant_duration_secs?: number;
   };
+  /** Present when Bamboo exposes its live, non-durable grant projection. */
+  temporary_grants?: TemporaryPermissionGrant[];
 }
 
 /**

@@ -41,6 +41,25 @@ const policy = {
   source_path: "/tmp/permissions.json",
   source_kind: "primary",
   status: "valid",
+  temporary_grants: [
+    {
+      scope: "session",
+      effect: "allow",
+      session_id: "session-a",
+      permission_type: "execute_command",
+      matcher: "cargo test",
+      granted_at: "2026-07-31T00:00:00Z",
+      expires_at: "2026-07-31T00:30:00Z",
+    },
+    {
+      scope: "one_shot",
+      effect: "allow",
+      session_id: "session-a",
+      request_id: "request-1",
+      permission_type: "git_write",
+      matcher: "git push",
+    },
+  ],
   policy: {
     ask_rules: ["Bash(git push *)"],
     session_grant_duration_secs: 1800,
@@ -84,14 +103,33 @@ describe("SystemSettingsPermissionsTab", () => {
     mocks.getPermissionPolicy.mockResolvedValue(policy);
   });
 
-  it("shows revisioned allow/deny policy groups without fabricating temporary grants", async () => {
+  it("shows revisioned policy groups and Bamboo's active temporary grants", async () => {
     render(<SystemSettingsPermissionsTab />);
 
     expect(await screen.findByText("Policy revision 7")).toBeInTheDocument();
     expect(screen.getByText("exact_resource: git status")).toBeInTheDocument();
     expect(screen.getByText("http_origin: https://example.com")).toBeInTheDocument();
+    expect(screen.getByText("cargo test")).toBeInTheDocument();
+    expect(screen.getByText("git push")).toBeInTheDocument();
+    expect(screen.getByText("Session")).toBeInTheDocument();
+    expect(screen.getByText("One shot")).toBeInTheDocument();
+    expect(screen.getAllByText("session-a")).toHaveLength(2);
+    expect(screen.getByText("request-1")).toBeInTheDocument();
+    expect(screen.getByText("Consumed by the next matching request.")).toBeInTheDocument();
     expect(
-      screen.getByText(/does not currently expose active temporary grants/i),
+      screen.queryByText(/does not currently expose active temporary grants/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the explicit unavailable state for an older Bamboo contract", async () => {
+    mocks.getPermissionPolicy.mockResolvedValue({
+      ...policy,
+      temporary_grants: undefined,
+    });
+    render(<SystemSettingsPermissionsTab />);
+
+    expect(
+      await screen.findByText(/does not currently expose active temporary grants/i),
     ).toBeInTheDocument();
   });
 
