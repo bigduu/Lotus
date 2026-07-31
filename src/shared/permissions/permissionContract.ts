@@ -1,5 +1,16 @@
 export type PermissionScope = "once" | "session" | "workspace" | "global" | string;
 
+export const PERMISSION_DECISION_IDS = [
+  "allow_once",
+  "allow_session",
+  "allow_workspace",
+  "allow_global",
+  "deny_once",
+  "deny_session",
+] as const;
+
+export type PermissionDecisionId = (typeof PERMISSION_DECISION_IDS)[number];
+
 export interface PermissionDecision {
   id: string;
   label?: string;
@@ -19,11 +30,18 @@ export interface PermissionRequestContract {
   risk?: string;
   permissionType?: string;
   bypassRequested?: boolean;
+  autoApproveRequested?: boolean;
   reasonCode?: string;
   explanation?: string;
   requestedMode?: string;
   effectiveMode?: string;
-  matchedRule?: { name?: string; source?: string };
+  matchedRule?: {
+    id?: string;
+    name?: string;
+    source?: string;
+    effect?: string;
+    scope?: string;
+  };
   policyRevision?: string | number;
   allowedDecisions: PermissionDecision[];
   suggestedMatchers: Array<{ id: string; kind: string; value: string }>;
@@ -32,40 +50,92 @@ export interface PermissionRequestContract {
 
 export interface PermissionDecisionSubmission {
   request_id: string;
-  decision: string;
+  decision: PermissionDecisionId;
   matcher_id?: string;
-  expected_policy_revision?: string | number;
+  expected_policy_revision?: number;
+  confirm_global?: true;
 }
+
+export interface PermissionDecisionSubmissionOptions {
+  matcherId?: string;
+  confirmGlobal?: boolean;
+}
+
+const PERMISSION_DECISION_ID_SET = new Set<string>(PERMISSION_DECISION_IDS);
+const MATCHER_DECISIONS = new Set<PermissionDecisionId>([
+  "allow_session",
+  "allow_workspace",
+  "allow_global",
+  "deny_session",
+]);
+
+export const isPermissionDecisionId = (value: string): value is PermissionDecisionId =>
+  PERMISSION_DECISION_ID_SET.has(value);
+
+export const preferredPermissionMatcherId = (
+  request: PermissionRequestContract,
+): string | undefined =>
+  request.suggestedMatchers.find(
+    (matcher) => matcher.id === "exact_resource" || matcher.kind === "exact_resource",
+  )?.id ?? request.suggestedMatchers[0]?.id;
+
+const numericPolicyRevision = (value: string | number | undefined): number | undefined => {
+  const revision = typeof value === "string" && value.trim() ? Number(value) : value;
+  return typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0
+    ? revision
+    : undefined;
+};
 
 export const buildPermissionDecisionSubmission = (
   request: PermissionRequestContract,
   decision: string,
+  options: PermissionDecisionSubmissionOptions = {},
 ): PermissionDecisionSubmission => {
-  if (!request.requestId || !request.allowedDecisions.some((item) => item.id === decision)) {
+  if (
+    !request.requestId ||
+    !isPermissionDecisionId(decision) ||
+    !request.allowedDecisions.some((item) => item.id === decision)
+  ) {
     throw new Error("Decision is not authorized by Bamboo");
   }
+
   const durable = decision === "allow_workspace" || decision === "allow_global";
-  if (durable && request.suggestedMatchers.length !== 1) {
-    throw new Error("A single Bamboo matcher is required for remembered permission");
+  const matcherId = options.matcherId ?? preferredPermissionMatcherId(request);
+  if (MATCHER_DECISIONS.has(decision)) {
+    if (!matcherId) {
+      throw new Error("A Bamboo matcher is required for scoped permission");
+    }
+    if (!request.suggestedMatchers.some((matcher) => matcher.id === matcherId)) {
+      throw new Error("Matcher is not authorized by Bamboo");
+    }
   }
+
+  const policyRevision = numericPolicyRevision(request.policyRevision);
+  if (durable && policyRevision == null) {
+    throw new Error("A Bamboo policy revision is required for remembered permission");
+  }
+  if (decision === "allow_workspace" && !request.workspacePath?.trim()) {
+    throw new Error("A stable workspace identity is required for workspace permission");
+  }
+  if (decision === "allow_global" && options.confirmGlobal !== true) {
+    throw new Error("Global permission requires explicit confirmation");
+  }
+
   return {
     request_id: request.requestId,
     decision,
-    ...(durable ? { matcher_id: request.suggestedMatchers[0].id } : {}),
-    ...(request.policyRevision != null ? { expected_policy_revision: request.policyRevision } : {}),
+    ...(MATCHER_DECISIONS.has(decision) ? { matcher_id: matcherId } : {}),
+    ...(durable ? { expected_policy_revision: policyRevision } : {}),
+    ...(decision === "allow_global" ? { confirm_global: true as const } : {}),
   };
 };
 
-const PHASE_ONE_DECISIONS = new Set(["allow_once", "deny_once"]);
-
-/** Decisions supported by the currently shipped Bamboo #601 Phase 1 wire. */
-export const phaseOnePermissionDecisionIds = (
+/** Known decisions that this Lotus build can safely submit on the typed endpoint. */
+export const supportedPermissionDecisionIds = (
   request: PermissionRequestContract | null,
 ): string[] => {
   if (!request?.requestId) return [];
-  return request.allowedDecisions
-    .map((decision) => decision.id)
-    .filter((id) => PHASE_ONE_DECISIONS.has(id));
+  return request.allowedDecisions.map((decision) => decision.id).filter(isPermissionDecisionId);
 };
 
 const record = (value: unknown): Record<string, unknown> | null =>
@@ -134,8 +204,18 @@ export const normalizePermissionRequest = (value: unknown): PermissionRequestCon
     effectiveMode: text(source.effective_mode, source.effective_permission_mode),
     bypassRequested:
       typeof source.bypass_requested === "boolean" ? source.bypass_requested : undefined,
+    autoApproveRequested:
+      typeof source.auto_approve_requested === "boolean"
+        ? source.auto_approve_requested
+        : undefined,
     matchedRule: matched
-      ? { name: text(matched.name, matched.matcher), source: text(matched.source) }
+      ? {
+          id: text(matched.id),
+          name: text(matched.name, matched.matcher),
+          source: text(matched.source),
+          effect: text(matched.effect),
+          scope: text(matched.scope),
+        }
       : undefined,
     policyRevision:
       typeof source.policy_revision === "string" || typeof source.policy_revision === "number"

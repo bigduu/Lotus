@@ -13,8 +13,19 @@ import {
   resolveEffectiveReasoningEffort,
   resolveProviderDefaultReasoningEffort,
 } from "@shared/utils/reasoningEffort";
-import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../pages/ChatPage/components/ChatView/events";
+import {
+  CHAT_PENDING_QUESTION_RESOLVED_EVENT,
+  type ChatPendingQuestionResolvedEventDetail,
+} from "../../pages/ChatPage/components/ChatView/events";
 import { buildPendingQuestionIdentity } from "../../pages/ChatPage/utils/pendingQuestionIdentity";
+import { useInputContainerRespond } from "../../pages/ChatPage/components/InputContainer/useInputContainerRespond";
+import PermissionDecisionConfirmation from "../../pages/ChatPage/components/InputContainer/PermissionDecisionConfirmation";
+import {
+  isPermissionDecisionId,
+  normalizePermissionRequest,
+  preferredPermissionMatcherId,
+  supportedPermissionDecisionIds,
+} from "@shared/permissions/permissionContract";
 import "./QuestionDialog.css";
 
 // Plain global CSS (qd- namespaced) replaces the former CSS Module; this map
@@ -35,6 +46,7 @@ const styles = {
 
 const { Text } = Typography;
 const { useToken } = theme;
+const ignoreInputContent = (_content: string): void => undefined;
 
 export interface PendingQuestion {
   has_pending_question: boolean;
@@ -42,6 +54,7 @@ export interface PendingQuestion {
   options?: string[];
   allow_custom?: boolean;
   tool_call_id?: string;
+  permission_request?: unknown;
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -86,7 +99,7 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
-  const { message } = AntApp.useApp();
+  const { message, modal } = AntApp.useApp();
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -151,6 +164,7 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
   const currentProvider = useProviderStore((state) => state.currentProvider);
   const providerConfig = useProviderStore((state) => state.providerConfig);
   const providerInstances = useProviderStore((state) => state.providerInstances);
+  const isProviderModelRefEnabled = useProviderStore((state) => state.isProviderModelRefEnabled);
   const providerDefaultReasoningEffort = useMemo<ReasoningEffort | undefined>(
     () =>
       resolveProviderDefaultReasoningEffort(
@@ -170,6 +184,17 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
     inputEffort: inputReasoningEffort,
     persistedEffort: persistedReasoningEffort,
     providerDefault: providerDefaultReasoningEffort,
+  });
+  const { handleRespondSubmit: handleTypedRespondSubmit } = useInputContainerRespond({
+    sessionId,
+    reasoningEffort,
+    activeModelRef,
+    isFlagOn: isProviderModelRefEnabled,
+    messageApi: message,
+    setContent: ignoreInputContent,
+    pendingQuestionToolCallId: storePendingQuestion?.toolCallId ?? null,
+    permissionRequest: storePendingQuestion?.permissionRequest,
+    t,
   });
 
   const getExecutionDebugSnapshot = useCallback(() => {
@@ -202,13 +227,21 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
         return;
       }
       if (data.has_pending_question) {
+        const typedPermission = normalizePermissionRequest(data);
         const payload = {
           question: data.question ?? "",
-          options: data.options ?? [],
-          allowCustom: data.allow_custom ?? true,
+          options: typedPermission
+            ? supportedPermissionDecisionIds(typedPermission)
+            : (data.options ?? []),
+          allowCustom: typedPermission ? false : (data.allow_custom ?? true),
           toolCallId: data.tool_call_id ?? null,
+          permissionRequest: typedPermission ?? undefined,
         };
-        const identity = buildPendingQuestionIdentity({ sessionId, ...payload });
+        const identity = buildPendingQuestionIdentity({
+          sessionId,
+          ...payload,
+          requestId: typedPermission?.requestId,
+        });
         if (dismissedQuestionIdentityRef.current === identity) {
           emptyCountRef.current = 0;
           backoffLevelRef.current = 0;
@@ -243,12 +276,10 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
         return;
       }
 
-      // A failed poll (for example CORS/access-control or a transient network error)
-      // should not leave an old question/respond mode stuck in the UI. The next
-      // successful poll will re-open the dialog if the backend still has a pending question.
-      dismissedQuestionIdentityRef.current = null;
-      clearPendingQuestion(sessionId);
-      lastQuestionIdentityRef.current = null;
+      // A transport failure is not authoritative evidence that the question
+      // disappeared. Preserve the current prompt so a paused run cannot become
+      // stranded behind a transient CORS/network error; a later successful poll
+      // will reconcile it.
       emptyCountRef.current += 1;
       // Update backoff on error too (treat as empty response)
       if (emptyCountRef.current >= 6) {
@@ -292,12 +323,17 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
   // When a new question appears in the execution store, reset local UI state.
   useEffect(() => {
     if (storePendingQuestion) {
+      // Invalidate a poll that began before an SSE/replay delivered this
+      // question. Its older "no pending question" snapshot must not clear the
+      // newer request.
+      invalidatePendingPollResponses();
       const nextIdentity = buildPendingQuestionIdentity({
         sessionId,
         question: storePendingQuestion.question,
         options: storePendingQuestion.options,
         allowCustom: storePendingQuestion.allowCustom,
         toolCallId: storePendingQuestion.toolCallId,
+        requestId: storePendingQuestion.permissionRequest?.requestId,
       });
       const isSameQuestion = lastQuestionIdentityRef.current === nextIdentity;
 
@@ -324,6 +360,8 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
     storePendingQuestion?.options,
     storePendingQuestion?.question,
     storePendingQuestion?.toolCallId,
+    storePendingQuestion?.permissionRequest?.requestId,
+    invalidatePendingPollResponses,
   ]);
 
   // Adaptive polling with backoff based on session state and visibility
@@ -392,9 +430,17 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
     }
 
     const onResolved = (event: Event) => {
-      const customEvent = event as CustomEvent<{ sessionId?: string | null }>;
+      const customEvent = event as CustomEvent<ChatPendingQuestionResolvedEventDetail>;
       const targetSessionId = customEvent.detail?.sessionId ?? null;
       if (!targetSessionId || targetSessionId !== sessionId) {
+        return;
+      }
+      const resolvedRequestId = customEvent.detail?.requestId ?? null;
+      if (
+        resolvedRequestId &&
+        storePendingQuestion &&
+        resolvedRequestId !== (storePendingQuestion.permissionRequest?.requestId ?? null)
+      ) {
         return;
       }
 
@@ -413,7 +459,7 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
     return () => {
       window.removeEventListener(CHAT_PENDING_QUESTION_RESOLVED_EVENT, onResolved as EventListener);
     };
-  }, [sessionId, invalidatePendingPollResponses, getExecutionDebugSnapshot]);
+  }, [sessionId, storePendingQuestion, invalidatePendingPollResponses, getExecutionDebugSnapshot]);
 
   // Update selected option. Respond mode stays active for the entire
   // duration of the pending question (set in the effect above), so we
@@ -422,10 +468,80 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
     setSelectedOption(value);
   }, []);
 
+  const permissionDecisionLabel = useCallback(
+    (decision: string) =>
+      isPermissionDecisionId(decision)
+        ? t(`components.questionDialog.permissionDecisions.${decision}`)
+        : decision,
+    [t],
+  );
+
+  const submitTypedOption = async (
+    decision: string,
+    options: { matcherId?: string; confirmGlobal?: boolean } = {},
+  ) => {
+    setIsSubmitting(true);
+    invalidatePendingPollResponses();
+    try {
+      const submitted = await handleTypedRespondSubmit(decision, options);
+      if (!submitted) return;
+
+      dismissedQuestionIdentityRef.current = storePendingQuestion
+        ? buildPendingQuestionIdentity({
+            sessionId,
+            question: storePendingQuestion.question,
+            options: storePendingQuestion.options,
+            allowCustom: storePendingQuestion.allowCustom,
+            toolCallId: storePendingQuestion.toolCallId,
+            requestId: storePendingQuestion.permissionRequest?.requestId,
+          })
+        : null;
+      setSelectedOption(null);
+      emptyCountRef.current = 0;
+      onResponseSubmitted?.();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // Submit response (for predefined options only; custom is handled by InputContainer)
   const handleSubmit = async () => {
     if (!selectedOption || selectedOption === "custom") {
       message.warning(t("components.questionDialog.selectOptionWarning"));
+      return;
+    }
+
+    const typedPermission = storePendingQuestion?.permissionRequest;
+    if (typedPermission) {
+      if (selectedOption === "allow_workspace" || selectedOption === "allow_global") {
+        let selectedMatcherId = preferredPermissionMatcherId(typedPermission);
+        modal.confirm({
+          title: t(`components.questionDialog.confirmScopes.${selectedOption}.title`),
+          content: (
+            <PermissionDecisionConfirmation
+              decision={selectedOption}
+              request={typedPermission}
+              onMatcherChange={(matcherId) => {
+                selectedMatcherId = matcherId;
+              }}
+            />
+          ),
+          okText: permissionDecisionLabel(selectedOption),
+          okButtonProps: {
+            danger: selectedOption === "allow_global",
+            disabled:
+              !selectedMatcherId ||
+              (selectedOption === "allow_workspace" && !typedPermission.workspacePath),
+          },
+          onOk: () =>
+            submitTypedOption(selectedOption, {
+              matcherId: selectedMatcherId,
+              confirmGlobal: selectedOption === "allow_global",
+            }),
+        });
+        return;
+      }
+      await submitTypedOption(selectedOption);
       return;
     }
 
@@ -482,6 +598,7 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
             options: storePendingQuestion.options,
             allowCustom: storePendingQuestion.allowCustom,
             toolCallId: storePendingQuestion.toolCallId,
+            requestId: storePendingQuestion.permissionRequest?.requestId,
           })
         : null;
       setSelectedOption(null);
@@ -597,7 +714,7 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
             <Space direction="vertical" size={4} style={{ width: "100%" }}>
               {options?.map((option) => (
                 <Radio key={option} value={option} className={styles.optionItem}>
-                  <Text style={{ color: token.colorText }}>{option}</Text>
+                  <Text style={{ color: token.colorText }}>{permissionDecisionLabel(option)}</Text>
                 </Radio>
               ))}
 

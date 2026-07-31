@@ -1401,8 +1401,16 @@ describe("useAgentEventSubscription", () => {
           request_id: "permission-1",
           reason_code: "configured_always_ask",
           effective_mode: "bypass",
-          allowed_decisions: ["allow_once", "deny_once"],
-          suggested_matchers: [],
+          allowed_decisions: [
+            "allow_once",
+            "allow_session",
+            "allow_workspace",
+            "allow_global",
+            "deny_once",
+            "deny_session",
+            "future_backend_action",
+          ],
+          suggested_matchers: [{ id: "exact_resource", kind: "exact_resource", value: "git push" }],
         },
       });
     });
@@ -1416,7 +1424,15 @@ describe("useAgentEventSubscription", () => {
       expect.objectContaining({
         question: "Need more info",
         toolCallId: "call-clarify-1",
-        options: ["allow_once", "deny_once"],
+        options: [
+          "allow_once",
+          "allow_session",
+          "allow_workspace",
+          "allow_global",
+          "deny_once",
+          "deny_session",
+        ],
+        allowCustom: false,
         permissionRequest: expect.objectContaining({
           requestId: "permission-1",
           reasonCode: "configured_always_ask",

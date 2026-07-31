@@ -1,148 +1,502 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { App as AntApp, Button, Card, Flex, Input, List, Space, Tag, Typography } from "antd";
-import { DeleteOutlined, PlusOutlined } from "@ant-design/icons";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  App as AntApp,
+  Button,
+  Card,
+  Descriptions,
+  Flex,
+  Input,
+  List,
+  Space,
+  Tag,
+  Typography,
+} from "antd";
+import { DeleteOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
-import { settingsService } from "@services/config";
+import {
+  settingsService,
+  type DurablePermissionRule,
+  type PermissionPolicyResponse,
+  type TemporaryPermissionGrant,
+} from "@services/config";
 
 const { Text, Paragraph } = Typography;
 
 // Suggested patterns offered as one-click chips.
 const EXAMPLE_RULES = ["Bash(rm -rf *)", "Bash(git push *)", "Bash(sudo *)", "Write(/etc/**)"];
 
+interface PermissionRuleListProps {
+  rules: DurablePermissionRule[];
+  loading: boolean;
+  saving: boolean;
+  emptyText: string;
+  onRevoke: (rule: DurablePermissionRule) => void;
+}
+
+const PermissionRuleList: React.FC<PermissionRuleListProps> = ({
+  rules,
+  loading,
+  saving,
+  emptyText,
+  onRevoke,
+}) => {
+  const { t } = useTranslation();
+
+  return (
+    <List
+      loading={loading}
+      dataSource={rules}
+      locale={{ emptyText }}
+      renderItem={(rule) => (
+        <List.Item
+          actions={[
+            <Button
+              key="revoke"
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              loading={saving}
+              onClick={() => onRevoke(rule)}
+              aria-label={t("settings.permissionsTab.revokeRule", { id: rule.id })}
+            >
+              {t("settings.permissionsTab.revoke")}
+            </Button>,
+          ]}
+        >
+          <Space direction="vertical" size="small" style={{ width: "100%" }}>
+            <Flex gap={8} wrap="wrap" align="center">
+              <Text code style={{ overflowWrap: "anywhere" }}>
+                {rule.matcher.kind}: {rule.matcher.value}
+              </Text>
+              <Tag color={rule.scope === "global" ? "warning" : "processing"}>{rule.scope}</Tag>
+              <Tag>{rule.permission_type}</Tag>
+            </Flex>
+            <Descriptions size="small" column={1} colon={false}>
+              <Descriptions.Item label={t("settings.permissionsTab.ruleSource")}>
+                {rule.source}
+              </Descriptions.Item>
+              <Descriptions.Item label={t("settings.permissionsTab.ruleId")}>
+                <Text type="secondary" copyable>
+                  {rule.id}
+                </Text>
+              </Descriptions.Item>
+              {rule.workspace_path ? (
+                <Descriptions.Item label={t("settings.permissionsTab.workspace")}>
+                  <Text code style={{ overflowWrap: "anywhere" }}>
+                    {rule.workspace_path}
+                  </Text>
+                </Descriptions.Item>
+              ) : null}
+              {rule.created_at ? (
+                <Descriptions.Item label={t("settings.permissionsTab.createdAt")}>
+                  {new Date(rule.created_at).toLocaleString()}
+                </Descriptions.Item>
+              ) : null}
+              {rule.expires_at ? (
+                <Descriptions.Item label={t("settings.permissionsTab.expiresAt")}>
+                  {new Date(rule.expires_at).toLocaleString()}
+                </Descriptions.Item>
+              ) : null}
+              {rule.last_matched_at ? (
+                <Descriptions.Item label={t("settings.permissionsTab.lastMatchedAt")}>
+                  {new Date(rule.last_matched_at).toLocaleString()}
+                </Descriptions.Item>
+              ) : null}
+              {typeof rule.match_count === "number" ? (
+                <Descriptions.Item label={t("settings.permissionsTab.matchCount")}>
+                  {rule.match_count}
+                </Descriptions.Item>
+              ) : null}
+            </Descriptions>
+          </Space>
+        </List.Item>
+      )}
+    />
+  );
+};
+
+interface TemporaryGrantListProps {
+  grants: TemporaryPermissionGrant[];
+  loading: boolean;
+}
+
+const TemporaryGrantList: React.FC<TemporaryGrantListProps> = ({ grants, loading }) => {
+  const { t } = useTranslation();
+
+  return (
+    <List
+      loading={loading}
+      dataSource={grants}
+      locale={{ emptyText: t("settings.permissionsTab.noTemporaryGrants") }}
+      rowKey={(grant) =>
+        [
+          grant.scope,
+          grant.effect,
+          grant.session_id,
+          grant.request_id,
+          grant.permission_type,
+          grant.matcher,
+        ].join(":")
+      }
+      renderItem={(grant) => {
+        const scopeLabel =
+          grant.scope === "unscoped_session"
+            ? t("settings.permissionsTab.grantScopes.unscopedSession")
+            : grant.scope === "session"
+              ? t("settings.permissionsTab.grantScopes.session")
+              : grant.scope === "one_shot"
+                ? t("settings.permissionsTab.grantScopes.oneShot")
+                : grant.scope;
+        const effectLabel =
+          grant.effect === "allow"
+            ? t("settings.permissionsTab.grantEffects.allow")
+            : grant.effect === "deny"
+              ? t("settings.permissionsTab.grantEffects.deny")
+              : grant.effect;
+
+        return (
+          <List.Item>
+            <Space direction="vertical" size="small" style={{ width: "100%" }}>
+              <Flex gap={8} wrap="wrap" align="center">
+                <Tag color={grant.effect === "allow" ? "success" : "error"}>{effectLabel}</Tag>
+                <Tag color={grant.scope === "one_shot" ? "purple" : "processing"}>{scopeLabel}</Tag>
+                <Tag>{grant.permission_type}</Tag>
+              </Flex>
+              <Text code style={{ overflowWrap: "anywhere" }}>
+                {grant.matcher}
+              </Text>
+              <Descriptions size="small" column={1} colon={false}>
+                {grant.session_id ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.sessionId")}>
+                    <Text type="secondary" copyable>
+                      {grant.session_id}
+                    </Text>
+                  </Descriptions.Item>
+                ) : null}
+                {grant.request_id ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.requestId")}>
+                    <Text type="secondary" copyable>
+                      {grant.request_id}
+                    </Text>
+                  </Descriptions.Item>
+                ) : null}
+                {grant.granted_at ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.grantedAt")}>
+                    {new Date(grant.granted_at).toLocaleString()}
+                  </Descriptions.Item>
+                ) : null}
+                {grant.expires_at ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.expiresAt")}>
+                    {new Date(grant.expires_at).toLocaleString()}
+                  </Descriptions.Item>
+                ) : grant.scope === "one_shot" ? (
+                  <Descriptions.Item label={t("settings.permissionsTab.expiresAt")}>
+                    {t("settings.permissionsTab.oneShotLifetime")}
+                  </Descriptions.Item>
+                ) : null}
+              </Descriptions>
+            </Space>
+          </List.Item>
+        );
+      }}
+    />
+  );
+};
+
 const SystemSettingsPermissionsTab: React.FC = () => {
   const { t } = useTranslation();
-  const { message } = AntApp.useApp();
-  const [rules, setRules] = useState<string[]>([]);
+  const { message, modal } = AntApp.useApp();
+  const [policy, setPolicy] = useState<PermissionPolicyResponse | null>(null);
   const [draft, setDraft] = useState("");
+  const [askRuleError, setAskRuleError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const adoptPolicy = useCallback((next: PermissionPolicyResponse) => {
+    // Policy revisions are monotonic within a Bamboo process. A slow refresh
+    // must not roll the UI back after a newer CAS mutation has completed.
+    setPolicy((current) => (!current || next.revision >= current.revision ? next : current));
+  }, []);
 
-  const loadRules = useCallback(async () => {
-    try {
-      setLoading(true);
-      setRules(await settingsService.getPermissionAskRules());
-    } catch (error) {
-      message.error(t("settings.permissionsTab.loadFailed"));
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  }, [message, t]);
+  const loadPolicy = useCallback(
+    async (showError = true) => {
+      try {
+        setLoading(true);
+        adoptPolicy(await settingsService.getPermissionPolicy());
+      } catch (error) {
+        if (showError) {
+          message.error(t("settings.permissionsTab.loadFailed"));
+        }
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [adoptPolicy, message, t],
+  );
 
   useEffect(() => {
-    void loadRules();
-  }, [loadRules]);
+    void loadPolicy();
+  }, [loadPolicy]);
 
-  // Persist a new rule set; on success adopt the server-normalized list.
-  const persist = useCallback(
+  const askRules = useMemo(() => policy?.policy.ask_rules ?? [], [policy]);
+  const durableRules = useMemo(() => policy?.policy.durable_rules ?? [], [policy]);
+  const temporaryGrants = useMemo(() => policy?.temporary_grants ?? [], [policy]);
+  const temporaryGrantContractAvailable = policy == null || Array.isArray(policy.temporary_grants);
+  const rememberedAllows = useMemo(
+    () => durableRules.filter((rule) => rule.effect === "allow"),
+    [durableRules],
+  );
+  const denies = useMemo(
+    () => durableRules.filter((rule) => rule.effect === "deny"),
+    [durableRules],
+  );
+  const typedAlwaysAsk = useMemo(
+    () => durableRules.filter((rule) => rule.effect === "always_ask"),
+    [durableRules],
+  );
+  const otherRules = useMemo(
+    () => durableRules.filter((rule) => !["allow", "deny", "always_ask"].includes(rule.effect)),
+    [durableRules],
+  );
+
+  // Persist a new rule set with the revision the user actually inspected. On
+  // success, reload the canonical policy so all groups advance together.
+  const persistAskRules = useCallback(
     async (next: string[]) => {
+      if (!policy) return false;
       try {
         setSaving(true);
-        const saved = await settingsService.updatePermissionAskRules(next);
-        setRules(saved);
+        setAskRuleError(null);
+        await settingsService.updatePermissionAskRules(next, policy.revision);
+        adoptPolicy(await settingsService.getPermissionPolicy());
         message.success(t("settings.permissionsTab.saveSuccess"));
         return true;
       } catch (error) {
-        message.error(
-          error instanceof Error ? error.message : t("settings.permissionsTab.saveFailed"),
-        );
+        const errorMessage =
+          error instanceof Error ? error.message : t("settings.permissionsTab.saveFailed");
+        setAskRuleError(errorMessage);
+        message.error(errorMessage);
+        await loadPolicy(false);
         return false;
       } finally {
         setSaving(false);
       }
     },
-    [message, t],
+    [adoptPolicy, loadPolicy, message, policy, t],
   );
 
-  const addRule = useCallback(
+  const addAskRule = useCallback(
     async (pattern: string) => {
       const trimmed = pattern.trim();
       if (!trimmed) return;
-      if (rules.includes(trimmed)) {
+      if (askRules.includes(trimmed)) {
         message.info(t("settings.permissionsTab.duplicate"));
         return;
       }
-      const ok = await persist([...rules, trimmed]);
+      const ok = await persistAskRules([...askRules, trimmed]);
       if (ok) setDraft("");
     },
-    [rules, persist, message, t],
+    [askRules, message, persistAskRules, t],
   );
 
-  const removeRule = useCallback(
-    (pattern: string) => persist(rules.filter((r) => r !== pattern)),
-    [rules, persist],
+  const removeAskRule = useCallback(
+    (pattern: string) => persistAskRules(askRules.filter((rule) => rule !== pattern)),
+    [askRules, persistAskRules],
+  );
+
+  const revokeRule = useCallback(
+    (rule: DurablePermissionRule) => {
+      if (!policy) return;
+      modal.confirm({
+        title: t("settings.permissionsTab.revokeTitle"),
+        content: (
+          <Space direction="vertical">
+            <span>{t("settings.permissionsTab.revokeDescription")}</span>
+            <Text code style={{ overflowWrap: "anywhere" }}>
+              {rule.matcher.kind}: {rule.matcher.value}
+            </Text>
+          </Space>
+        ),
+        okText: t("settings.permissionsTab.revoke"),
+        okButtonProps: { danger: true },
+        onOk: async () => {
+          try {
+            setSaving(true);
+            const nextPolicy = await settingsService.deletePermissionRule(rule.id, policy.revision);
+            adoptPolicy(nextPolicy);
+            message.success(t("settings.permissionsTab.revokeSuccess"));
+          } catch (error) {
+            message.error(
+              error instanceof Error ? error.message : t("settings.permissionsTab.revokeFailed"),
+            );
+            await loadPolicy(false);
+          } finally {
+            setSaving(false);
+          }
+        },
+      });
+    },
+    [adoptPolicy, loadPolicy, message, modal, policy, t],
   );
 
   return (
-    <Card
-      className="lotus-settings-card"
-      title={t("settings.permissionsTab.title")}
-      extra={
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          loading={saving}
-          disabled={!draft.trim()}
-          onClick={() => void addRule(draft)}
-        >
-          {t("settings.permissionsTab.add")}
-        </Button>
-      }
-    >
-      <Space direction="vertical" style={{ width: "100%" }} size="large">
-        <Paragraph type="secondary" style={{ marginBottom: 0 }}>
-          {t("settings.permissionsTab.description")}
-        </Paragraph>
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Card className="lotus-settings-card" title={t("settings.permissionsTab.title")}>
+        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+          <Flex justify="space-between" align="center" gap={12} wrap="wrap">
+            <Paragraph type="secondary" style={{ marginBottom: 0, flex: "1 1 420px" }}>
+              {t("settings.permissionsTab.description")}
+            </Paragraph>
+            <Space wrap>
+              {policy ? (
+                <Tag>
+                  {t("settings.permissionsTab.policyRevision", { revision: policy.revision })}
+                </Tag>
+              ) : null}
+              <Button icon={<ReloadOutlined />} loading={loading} onClick={() => void loadPolicy()}>
+                {t("settings.permissionsTab.refresh")}
+              </Button>
+            </Space>
+          </Flex>
+          {policy?.last_error ? <Alert type="error" showIcon message={policy.last_error} /> : null}
+        </Space>
+      </Card>
 
-        <Input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onPressEnter={() => void addRule(draft)}
-          placeholder={t("settings.permissionsTab.placeholder")}
-          allowClear
-        />
-
-        <Flex gap={8} wrap="wrap" align="center">
-          <Text type="secondary" style={{ fontSize: 12 }}>
-            {t("settings.permissionsTab.examples")}
-          </Text>
-          {EXAMPLE_RULES.map((example) => (
-            <Tag.CheckableTag
-              key={example}
-              checked={rules.includes(example)}
-              onChange={() => {
-                if (!rules.includes(example)) void addRule(example);
+      <Card type="inner" title={t("settings.permissionsTab.alwaysAsk")}>
+        <Space direction="vertical" style={{ width: "100%" }} size="large">
+          <Flex gap={8} wrap="wrap">
+            <Input
+              value={draft}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setAskRuleError(null);
               }}
+              onPressEnter={() => void addAskRule(draft)}
+              placeholder={t("settings.permissionsTab.placeholder")}
+              allowClear
+              style={{ flex: "1 1 280px" }}
+            />
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              loading={saving}
+              disabled={!policy || !draft.trim()}
+              onClick={() => void addAskRule(draft)}
             >
-              {example}
-            </Tag.CheckableTag>
-          ))}
-        </Flex>
+              {t("settings.permissionsTab.add")}
+            </Button>
+          </Flex>
+          {askRuleError ? <Alert type="error" showIcon message={askRuleError} /> : null}
 
-        <List
+          <Flex gap={8} wrap="wrap" align="center">
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {t("settings.permissionsTab.examples")}
+            </Text>
+            {EXAMPLE_RULES.map((example) => (
+              <Tag.CheckableTag
+                key={example}
+                checked={askRules.includes(example)}
+                onChange={() => {
+                  if (!askRules.includes(example)) void addAskRule(example);
+                }}
+              >
+                {example}
+              </Tag.CheckableTag>
+            ))}
+          </Flex>
+
+          <List
+            loading={loading}
+            dataSource={askRules}
+            locale={{ emptyText: t("settings.permissionsTab.empty") }}
+            renderItem={(rule) => (
+              <List.Item
+                actions={[
+                  <Button
+                    key="delete"
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    loading={saving}
+                    onClick={() => void removeAskRule(rule)}
+                    aria-label={t("settings.permissionsTab.remove")}
+                  />,
+                ]}
+              >
+                <Text code>{rule}</Text>
+              </List.Item>
+            )}
+          />
+
+          {typedAlwaysAsk.length > 0 ? (
+            <>
+              <Text strong>{t("settings.permissionsTab.typedAlwaysAsk")}</Text>
+              <PermissionRuleList
+                rules={typedAlwaysAsk}
+                loading={loading}
+                saving={saving}
+                emptyText={t("settings.permissionsTab.noTypedAlwaysAsk")}
+                onRevoke={revokeRule}
+              />
+            </>
+          ) : null}
+        </Space>
+      </Card>
+
+      <Card type="inner" title={t("settings.permissionsTab.rememberedAllows")}>
+        <PermissionRuleList
+          rules={rememberedAllows}
           loading={loading}
-          dataSource={rules}
-          locale={{ emptyText: t("settings.permissionsTab.empty") }}
-          renderItem={(rule) => (
-            <List.Item
-              actions={[
-                <Button
-                  key="delete"
-                  danger
-                  size="small"
-                  icon={<DeleteOutlined />}
-                  loading={saving}
-                  onClick={() => void removeRule(rule)}
-                  aria-label={t("settings.permissionsTab.remove")}
-                />,
-              ]}
-            >
-              <Text code>{rule}</Text>
-            </List.Item>
-          )}
+          saving={saving}
+          emptyText={t("settings.permissionsTab.noRememberedAllows")}
+          onRevoke={revokeRule}
         />
-      </Space>
-    </Card>
+      </Card>
+
+      <Card type="inner" title={t("settings.permissionsTab.denies")}>
+        <PermissionRuleList
+          rules={denies}
+          loading={loading}
+          saving={saving}
+          emptyText={t("settings.permissionsTab.noDenies")}
+          onRevoke={revokeRule}
+        />
+      </Card>
+
+      {otherRules.length > 0 ? (
+        <Card type="inner" title={t("settings.permissionsTab.otherRules")}>
+          <PermissionRuleList
+            rules={otherRules}
+            loading={loading}
+            saving={saving}
+            emptyText={t("settings.permissionsTab.noOtherRules")}
+            onRevoke={revokeRule}
+          />
+        </Card>
+      ) : null}
+
+      <Card type="inner" title={t("settings.permissionsTab.temporaryGrants")}>
+        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+          {temporaryGrantContractAvailable ? (
+            <TemporaryGrantList grants={temporaryGrants} loading={loading} />
+          ) : (
+            <Alert
+              type="info"
+              showIcon
+              message={t("settings.permissionsTab.temporaryInspectionUnavailable")}
+            />
+          )}
+          {policy?.policy.session_grant_duration_secs ? (
+            <Text type="secondary">
+              {t("settings.permissionsTab.temporaryGrantDuration", {
+                seconds: policy.policy.session_grant_duration_secs,
+              })}
+            </Text>
+          ) : null}
+        </Space>
+      </Card>
+    </Space>
   );
 };
 
