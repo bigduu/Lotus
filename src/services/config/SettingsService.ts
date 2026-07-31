@@ -47,6 +47,41 @@ export interface CompleteAuthRequest {
   expires_in: number;
 }
 
+export type PermissionRuleEffect = "allow" | "deny" | "always_ask" | string;
+export type PermissionRuleScope = "workspace" | "global" | string;
+
+export interface DurablePermissionRule {
+  id: string;
+  permission_type: string;
+  effect: PermissionRuleEffect;
+  scope: PermissionRuleScope;
+  workspace_path?: string;
+  matcher: {
+    id: string;
+    kind: string;
+    value: string;
+  };
+  source: string;
+  expires_at?: string;
+  created_at?: string;
+  last_matched_at?: string;
+  match_count?: number;
+}
+
+export interface PermissionPolicyResponse {
+  revision: number;
+  loaded_at: string;
+  source_path: string;
+  source_kind: string;
+  status: string;
+  last_error?: string | null;
+  policy: {
+    ask_rules?: string[];
+    durable_rules?: DurablePermissionRule[];
+    session_grant_duration_secs?: number;
+  };
+}
+
 /**
  * Settings Service
  *
@@ -62,15 +97,32 @@ export class SettingsService {
     return response.rules;
   }
 
+  /** Read the revisioned typed permission policy used by the runtime. */
+  async getPermissionPolicy(): Promise<PermissionPolicyResponse> {
+    return apiClient.get<PermissionPolicyResponse>("/bamboo/permission/policy");
+  }
+
   /**
    * Replace the "always ask" permission rules. Returns the persisted list
    * (blank entries are dropped server-side).
    */
-  async updatePermissionAskRules(rules: string[]): Promise<string[]> {
+  async updatePermissionAskRules(rules: string[], expectedRevision?: number): Promise<string[]> {
     const response = await apiClient.put<{ rules: string[] }>("/bamboo/permission/ask-rules", {
       rules,
+      ...(expectedRevision == null ? {} : { expected_revision: expectedRevision }),
     });
     return response.rules;
+  }
+
+  /** Revoke one durable allow/deny/always-ask rule with policy CAS protection. */
+  async deletePermissionRule(
+    ruleId: string,
+    expectedRevision: number,
+  ): Promise<PermissionPolicyResponse> {
+    const encodedRuleId = encodeURIComponent(ruleId);
+    return apiClient.delete<PermissionPolicyResponse>(
+      `/bamboo/permission/rules/${encodedRuleId}?expected_revision=${expectedRevision}`,
+    );
   }
 
   /**

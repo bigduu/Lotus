@@ -30,7 +30,7 @@ import { createSessionMetaHandlers } from "./subscriptionHandlers/sessionMetaHan
 import { createChildHandlers } from "./subscriptionHandlers/childHandlers";
 import {
   normalizePermissionRequest,
-  phaseOnePermissionDecisionIds,
+  supportedPermissionDecisionIds,
 } from "@shared/permissions/permissionContract";
 
 /**
@@ -605,9 +605,9 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
           setPendingQuestion(targetSessionId, {
             question: event.question || "",
             options: typedPermission
-              ? phaseOnePermissionDecisionIds(typedPermission)
+              ? supportedPermissionDecisionIds(typedPermission)
               : event.options || [],
-            allowCustom: event.allow_custom ?? true,
+            allowCustom: typedPermission ? false : (event.allow_custom ?? true),
             toolCallId: event.tool_call_id ?? null,
             permissionRequest: typedPermission ?? undefined,
           });

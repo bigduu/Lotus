@@ -4,6 +4,7 @@ export interface PendingQuestionIdentityInput {
   options?: readonly string[] | null;
   allowCustom?: boolean | null;
   toolCallId?: string | null;
+  requestId?: string | null;
 }
 
 const normalizePendingQuestionOptions = (options?: readonly string[] | null): string[] =>
@@ -15,6 +16,7 @@ export const buildPendingQuestionIdentity = ({
   options,
   allowCustom,
   toolCallId,
+  requestId,
 }: PendingQuestionIdentityInput): string =>
   JSON.stringify({
     sessionId: sessionId ?? null,
@@ -22,6 +24,7 @@ export const buildPendingQuestionIdentity = ({
     options: normalizePendingQuestionOptions(options),
     allowCustom: allowCustom ?? true,
     toolCallId: toolCallId ?? null,
+    requestId: requestId ?? null,
   });
 
 export const arePendingQuestionIdentityInputsEqual = (
@@ -45,6 +48,10 @@ export const arePendingQuestionIdentityInputsEqual = (
   }
 
   if ((a.toolCallId ?? null) !== (b.toolCallId ?? null)) {
+    return false;
+  }
+
+  if ((a.requestId ?? null) !== (b.requestId ?? null)) {
     return false;
   }
 

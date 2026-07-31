@@ -24,7 +24,7 @@ import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
 import {
   normalizePermissionRequest,
-  phaseOnePermissionDecisionIds,
+  supportedPermissionDecisionIds,
 } from "@shared/permissions/permissionContract";
 import {
   executeWithOptionalReasoning,
@@ -217,9 +217,9 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         setPendingQuestion(sessionId, {
           question: pending.question || "",
           options: typedPermission
-            ? phaseOnePermissionDecisionIds(typedPermission)
+            ? supportedPermissionDecisionIds(typedPermission)
             : pending.options || [],
-          allowCustom: pending.allow_custom ?? true,
+          allowCustom: typedPermission ? false : (pending.allow_custom ?? true),
           toolCallId: pending.tool_call_id ?? null,
           permissionRequest: typedPermission ?? undefined,
         });

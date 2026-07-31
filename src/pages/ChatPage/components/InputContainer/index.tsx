@@ -65,6 +65,8 @@ import {
 import { useInputContainerModelOptions } from "./useInputContainerModelOptions";
 import { useInputContainerRespond } from "./useInputContainerRespond";
 import { useInputContainerGoalCommand } from "./useInputContainerGoalCommand";
+import PermissionDecisionConfirmation from "./PermissionDecisionConfirmation";
+import { preferredPermissionMatcherId } from "@shared/permissions/permissionContract";
 import type {
   ChatSendMessageEventDetail,
   ChatReferenceTextEventDetail,
@@ -457,24 +459,35 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         void handleRespondSubmit(decision);
         return;
       }
+      const permissionRequest = currentPendingRespond?.permissionRequest;
+      if (!permissionRequest) {
+        void handleRespondSubmit(decision);
+        return;
+      }
+      let selectedMatcherId = preferredPermissionMatcherId(permissionRequest);
       modal.confirm({
         title: t(`components.questionDialog.confirmScopes.${decision}.title`),
         content: (
-          <Space direction="vertical">
-            <span>{t(`components.questionDialog.confirmScopes.${decision}.description`)}</span>
-            {currentPendingRespond?.permissionRequest?.workspacePath ? (
-              <code>{currentPendingRespond.permissionRequest.workspacePath}</code>
-            ) : null}
-            {currentPendingRespond?.permissionRequest?.suggestedMatchers.map((matcher) => (
-              <code key={matcher.id}>
-                {matcher.kind}: {matcher.value}
-              </code>
-            ))}
-          </Space>
+          <PermissionDecisionConfirmation
+            decision={decision}
+            request={permissionRequest}
+            onMatcherChange={(matcherId) => {
+              selectedMatcherId = matcherId;
+            }}
+          />
         ),
         okText: permissionDecisionLabel(decision),
-        okButtonProps: { danger: decision === "allow_global" },
-        onOk: () => handleRespondSubmit(decision),
+        okButtonProps: {
+          danger: decision === "allow_global",
+          disabled:
+            !selectedMatcherId ||
+            (decision === "allow_workspace" && !permissionRequest.workspacePath),
+        },
+        onOk: () =>
+          handleRespondSubmit(decision, {
+            matcherId: selectedMatcherId,
+            confirmGlobal: decision === "allow_global",
+          }),
       });
     },
     [

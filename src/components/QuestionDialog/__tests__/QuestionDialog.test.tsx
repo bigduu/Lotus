@@ -56,6 +56,9 @@ vi.mock("../../../services/api", () => ({
     get: vi.fn(),
     post: vi.fn(),
   },
+  apiClient: {
+    get: vi.fn(),
+  },
 }));
 
 vi.mock("../../../pages/ChatPage/hooks/useActiveModelRef", () => ({
@@ -173,6 +176,7 @@ describe("QuestionDialog", () => {
                 options: payload.options,
                 allowCustom: payload.allowCustom,
                 toolCallId: payload.toolCallId,
+                permissionRequest: payload.permissionRequest,
                 receivedAt:
                   existingEntry?.interaction?.pendingQuestion?.receivedAt ??
                   "2026-05-14T00:00:00.000Z",
@@ -288,6 +292,20 @@ describe("QuestionDialog", () => {
     });
   });
 
+  it("does not treat a transient pending-question poll failure as authoritative resolution", async () => {
+    const { agentApiClient } = await import("../../../services/api");
+    (agentApiClient.get as any).mockRejectedValue(new Error("network unavailable"));
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(<QuestionDialog {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(agentApiClient.get).toHaveBeenCalled();
+    });
+    expect(mockClearPendingQuestion).not.toHaveBeenCalled();
+    consoleSpy.mockRestore();
+  });
+
   it("should submit response with model and mark session processing immediately, keeping it on when auto-resume starts", async () => {
     const { agentApiClient } = await import("../../../services/api");
     (agentApiClient.get as any).mockResolvedValue({
@@ -330,6 +348,74 @@ describe("QuestionDialog", () => {
       expect(mockMarkRespondStart).toHaveBeenCalledWith("test-session-1", "tool-1");
       expect(mockMarkSettleTimeout).not.toHaveBeenCalled();
     });
+  });
+
+  it("localizes and submits a scoped typed decision through the permission endpoint", async () => {
+    const { agentApiClient } = await import("../../../services/api");
+    const { App } = await import("antd");
+    const modal = App.useApp().modal;
+    (agentApiClient.get as any).mockResolvedValue({
+      has_pending_question: true,
+      question: "Allow git push?",
+      options: ["Approve", "Deny"],
+      allow_custom: true,
+      tool_call_id: "tool-permission-1",
+      permission_request: {
+        request_id: "permission-1",
+        session_id: "child/session",
+        workspace_path: "/workspace/project",
+        policy_revision: 6,
+        allowed_decisions: [
+          "allow_once",
+          "allow_session",
+          "allow_workspace",
+          "allow_global",
+          "deny_once",
+          "deny_session",
+        ],
+        suggested_matchers: [
+          { id: "prefix", kind: "command_prefix", value: "git" },
+          {
+            id: "exact_resource",
+            kind: "exact_resource",
+            value: "git push origin main",
+          },
+        ],
+      },
+    });
+    (agentApiClient.post as any).mockResolvedValue({
+      success: true,
+      replayed: false,
+      resume: { accepted: true },
+    });
+
+    await act(async () => {
+      render(<QuestionDialog {...defaultProps} />);
+    });
+
+    expect(await screen.findByText("Remember globally")).toBeInTheDocument();
+    expect(screen.queryByText("Approve")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Remember globally"));
+    fireEvent.click(screen.getByText("Confirm"));
+
+    expect(modal.confirm).toHaveBeenCalledTimes(1);
+    const confirmation = (modal.confirm as any).mock.calls[0][0];
+    await act(async () => {
+      await confirmation.onOk();
+    });
+
+    expect(agentApiClient.post).toHaveBeenCalledWith(
+      "sessions/child%2Fsession/permission-decisions",
+      {
+        request_id: "permission-1",
+        decision: "allow_global",
+        matcher_id: "exact_resource",
+        expected_policy_revision: 6,
+        confirm_global: true,
+      },
+      { retryable: true },
+    );
+    expect(mockApplyExecutionStarted).toHaveBeenCalledWith("test-session-1", "", 2);
   });
 
   it("should fall back to active provider model when selectedModel is not set", async () => {

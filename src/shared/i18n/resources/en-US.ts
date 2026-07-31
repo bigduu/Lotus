@@ -1924,9 +1924,16 @@ export const enUsTranslation = {
         },
       },
       permissionsTab: {
-        title: "Always-ask Commands",
+        title: "Permissions",
         description:
-          "Tool calls matching these rules always prompt for your approval — even when a session has bypass permissions enabled. Built-in detection of hard-dangerous shell commands (code injection, writes to sensitive paths) is always on; add patterns here for destructive commands like deletes or pushes. Syntax: Tool(pattern), e.g. Bash(rm -rf *), Bash(git push *), Write(/etc/**).",
+          "Inspect the revisioned policy Bamboo currently enforces, manage always-ask patterns, and revoke remembered rules.",
+        alwaysAsk: "Always ask",
+        rememberedAllows: "Remembered allows",
+        denies: "Denies",
+        otherRules: "Other policy rules",
+        temporaryGrants: "Temporary / session grants",
+        policyRevision: "Policy revision {{revision}}",
+        refresh: "Refresh",
         placeholder: "e.g. Bash(rm -rf *)",
         add: "Add rule",
         remove: "Remove rule",
@@ -1936,6 +1943,28 @@ export const enUsTranslation = {
         loadFailed: "Failed to load permission rules",
         saveSuccess: "Permission rules saved",
         saveFailed: "Failed to save permission rules",
+        typedAlwaysAsk: "Typed always-ask rules",
+        noTypedAlwaysAsk: "No typed always-ask rules.",
+        noRememberedAllows: "No remembered allow rules.",
+        noDenies: "No remembered deny rules.",
+        noOtherRules: "No other policy rules.",
+        revoke: "Revoke",
+        revokeRule: "Revoke permission rule {{id}}",
+        revokeTitle: "Revoke this permission rule?",
+        revokeDescription:
+          "Bamboo will stop applying this matcher after the revisioned delete succeeds.",
+        revokeSuccess: "Permission rule revoked",
+        revokeFailed: "Failed to revoke permission rule",
+        ruleSource: "Source",
+        ruleId: "Rule ID",
+        workspace: "Workspace",
+        createdAt: "Created",
+        expiresAt: "Expires",
+        lastMatchedAt: "Last matched",
+        matchCount: "Match count",
+        temporaryInspectionUnavailable:
+          "Bamboo does not currently expose active temporary grants through the policy API. Lotus will not infer or fabricate them.",
+        temporaryGrantDuration: "Configured session-grant lifetime: {{seconds}} seconds.",
       },
       keywordMaskingTab: {
         title: "Keyword Masking",
@@ -3136,17 +3165,44 @@ export const enUsTranslation = {
         responseInInputHint: "Use the options or input box below to respond.",
         responseByOptionHint: "Please respond using the options below the input box.",
         permissionReason: "Bamboo requires approval: {{reason}}",
+        permissionRequester: "Requester",
+        childExecutor: "Child executor",
         permissionTool: "Tool",
         permissionAction: "Operation",
         permissionResource: "Resource",
+        permissionRisk: "Risk",
+        requestedMode: "Requested mode",
         effectiveMode: "Effective mode",
         bypassStillAsked: "Bypass was requested, but this operation still requires approval.",
+        autoStillAsked: "Auto mode is active, but this operation still requires approval.",
         matchedRule: "Matched rule",
         suggestedMatchers: "Scope matcher",
-        matcherRequired:
-          "Bamboo must provide exactly one matcher before this permission can be remembered.",
+        expandResource: "Show full resource",
+        collapseResource: "Collapse resource",
+        permissionReasonCodes: {
+          configuredRule: "configured rule",
+          configuredAlwaysAsk: "This operation matched the required approval rule {{rule}}.",
+          configuredAlwaysAskBypass:
+            "Bypass is on, but this operation matched the required approval rule {{rule}}.",
+          hardDangerous: "Bamboo classified this as hard-dangerous and requires explicit approval.",
+          hardDangerousBypass:
+            "Bypass is on, but Bamboo keeps this hard-dangerous operation behind explicit approval.",
+          platformHardDeny: "The platform safety policy requires explicit review.",
+          explicitDeny: "This operation matched the deny rule {{rule}}.",
+          modeDenied: "The executor's effective permission mode requires explicit review.",
+          riskThreshold: "This operation exceeds the configured risk threshold.",
+        },
+        matcherRequired: "Bamboo must provide an authorized matcher for this scoped permission.",
+        policyRevisionRequired:
+          "Bamboo must provide a policy revision before this permission can be remembered.",
+        workspaceRequired:
+          "Bamboo must provide a stable workspace identity before this permission can be remembered.",
+        globalConfirmationRequired: "Global permission requires explicit confirmation.",
+        policyRevisionChanged:
+          "The permission policy changed. Review the refreshed scope and try again.",
+        requestChanged:
+          "This permission request is no longer current. Review the next request before responding.",
         decisionNotAllowed: "This permission decision is not authorized by Bamboo.",
-        typedEndpointUnavailable: "This scoped decision requires a newer Bamboo permission API.",
         permissionDecisions: {
           allow_once: "Allow once",
           allow_session: "Allow for this session",
@@ -3156,15 +3212,17 @@ export const enUsTranslation = {
           deny_session: "Deny for this session",
         },
         confirmScopes: {
+          workspace: "Workspace",
+          matcher: "Matcher to remember",
           allow_workspace: {
             title: "Remember permission for this workspace?",
             description:
-              "Bamboo will apply the matcher shown in the permission card to this workspace.",
+              "This matcher will be allowed only in the workspace shown below. Review it before saving.",
           },
           allow_global: {
             title: "Remember permission globally?",
             description:
-              "This affects every workspace. Review the exact matcher before continuing.",
+              "Strong warning: this matcher will be allowed in every workspace until you revoke it.",
           },
         },
       },
