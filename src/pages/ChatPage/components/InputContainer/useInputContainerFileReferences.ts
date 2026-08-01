@@ -13,6 +13,7 @@ interface UseInputContainerFileReferencesProps {
   setContent: (value: string) => void;
   currentSessionId: string | null;
   currentChat: ChatItem | null;
+  effectiveWorkspacePath?: string | null;
   switchSessionWorkspace: (sessionId: string, workspacePath: string) => Promise<SessionSummary>;
   messageApi: MessageInstance;
 }
@@ -22,12 +23,14 @@ export const useInputContainerFileReferences = ({
   setContent,
   currentSessionId,
   currentChat,
+  effectiveWorkspacePath = null,
   switchSessionWorkspace,
   messageApi,
 }: UseInputContainerFileReferencesProps) => {
   const [fileReferences, setFileReferences] = useState<Map<string, WorkspaceFileEntry>>(new Map());
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>([]);
   const [showFileSelector, setShowFileSelector] = useState(false);
+  const [isProjectModalVisible, setIsProjectModalVisible] = useState(false);
   const [fileSearchText, setFileSearchText] = useState("");
   const [isWorkspaceModalVisible, setIsWorkspaceModalVisible] = useState(false);
   const [workspacePathInput, setWorkspacePathInput] = useState("");
@@ -79,11 +82,12 @@ export const useInputContainerFileReferences = ({
 
   useEffect(() => {
     setShowFileSelector(false);
+    setIsProjectModalVisible(false);
     setFileSearchText("");
     setWorkspaceFiles([]);
     setFileReferences(new Map());
-    lastWorkspacePathRef.current = currentChat?.config.workspacePath ?? null;
-  }, [currentSessionId, currentChat?.config.workspacePath]);
+    lastWorkspacePathRef.current = effectiveWorkspacePath;
+  }, [currentSessionId, effectiveWorkspacePath]);
 
   const fetchWorkspaceFiles = useCallback(async (_sessionId: string, workspacePath: string) => {
     setIsWorkspaceLoading(true);
@@ -117,15 +121,10 @@ export const useInputContainerFileReferences = ({
         return;
       }
 
-      const workspacePath = currentChat.config.workspacePath;
+      const workspacePath = effectiveWorkspacePath;
 
       if (!workspacePath) {
-        workspaceSubmitIdRef.current += 1;
-        modalSessionIdRef.current = currentSessionId;
-        modalHydrationSessionIdRef.current = null;
-        setWorkspacePathInput("");
-        setWorkspaceSubmitError(null);
-        setIsWorkspaceModalVisible(true);
+        setIsProjectModalVisible(true);
         setShowFileSelector(false);
         return;
       }
@@ -136,7 +135,13 @@ export const useInputContainerFileReferences = ({
         fetchWorkspaceFiles(currentSessionId, workspacePath);
       }
     },
-    [currentChat, currentSessionId, fetchWorkspaceFiles, workspaceFiles.length],
+    [
+      currentChat,
+      currentSessionId,
+      effectiveWorkspacePath,
+      fetchWorkspaceFiles,
+      workspaceFiles.length,
+    ],
   );
 
   const handleFileReferenceSelect = useCallback(
@@ -174,15 +179,10 @@ export const useInputContainerFileReferences = ({
       return;
     }
 
-    const workspacePath = currentChat.config.workspacePath;
+    const workspacePath = effectiveWorkspacePath;
 
     if (!workspacePath) {
-      workspaceSubmitIdRef.current += 1;
-      modalSessionIdRef.current = currentSessionId;
-      modalHydrationSessionIdRef.current = null;
-      setWorkspacePathInput("");
-      setWorkspaceSubmitError(null);
-      setIsWorkspaceModalVisible(true);
+      setIsProjectModalVisible(true);
       setShowFileSelector(false);
       return;
     }
@@ -193,7 +193,22 @@ export const useInputContainerFileReferences = ({
     if (lastWorkspacePathRef.current !== workspacePath || workspaceFiles.length === 0) {
       fetchWorkspaceFiles(currentSessionId, workspacePath);
     }
-  }, [currentChat, currentSessionId, fetchWorkspaceFiles, workspaceFiles.length]);
+  }, [
+    currentChat,
+    currentSessionId,
+    effectiveWorkspacePath,
+    fetchWorkspaceFiles,
+    workspaceFiles.length,
+  ]);
+
+  const openProjectModal = useCallback(() => {
+    setShowFileSelector(false);
+    setIsProjectModalVisible(true);
+  }, []);
+
+  const closeProjectModal = useCallback(() => {
+    setIsProjectModalVisible(false);
+  }, []);
 
   const openWorkspaceModal = useCallback(() => {
     workspaceSubmitIdRef.current += 1;
@@ -280,6 +295,7 @@ export const useInputContainerFileReferences = ({
     showFileSelector,
     setShowFileSelector,
     fileSearchText,
+    isProjectModalVisible,
     isWorkspaceLoading,
     workspaceError,
     workspaceSubmitError,
@@ -287,6 +303,8 @@ export const useInputContainerFileReferences = ({
     workspacePathInput,
     isSavingWorkspace,
     openWorkspaceModal,
+    openProjectModal,
+    closeProjectModal,
     handleFileReferenceChange,
     handleFileReferenceSelect,
     handleFileSelectorCancel,

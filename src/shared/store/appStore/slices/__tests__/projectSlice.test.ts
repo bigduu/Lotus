@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@services/api";
 import type { ProjectManifest, ProjectSummary } from "@services/project";
-import { createProjectSlice, type ProjectSlice } from "../projectSlice";
+import {
+  ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY,
+  createProjectSlice,
+  type ProjectSlice,
+} from "../projectSlice";
 import { createSliceHarness } from "./sliceHarness";
 
 const { listProjects, getProject, unarchiveProject } = vi.hoisted(() => ({
@@ -73,6 +77,7 @@ describe("projectSlice", () => {
     listProjects.mockReset();
     getProject.mockReset();
     unarchiveProject.mockReset();
+    localStorage.removeItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY);
   });
 
   describe("loadProjects", () => {
@@ -128,6 +133,90 @@ describe("projectSlice", () => {
       await expect(harness2.getState().loadProjects()).rejects.toThrow();
       expect(harness2.getState().projectsAvailable).toBeNull();
     });
+
+    it("uses and persists the only active Project when no preference exists", async () => {
+      listProjects.mockResolvedValue({ projects: [makeManifest("p1")] });
+      const harness = createHarness();
+
+      await harness.getState().loadProjects();
+
+      expect(harness.getState().activeProjectId).toBe("p1");
+      expect(
+        JSON.parse(localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY) || "null"),
+      ).toEqual({ projectId: "p1" });
+    });
+
+    it("restores the current session Project when multiple active Projects exist", async () => {
+      listProjects.mockResolvedValue({ projects: [makeManifest("p1"), makeManifest("p2")] });
+      const harness = createHarness();
+      harness.setState({
+        currentSessionId: "session-1",
+        chats: [{ id: "session-1", config: { projectId: "p2" } }],
+      } as unknown as Partial<ProjectSlice>);
+
+      await harness.getState().loadProjects();
+
+      expect(harness.getState().activeProjectId).toBe("p2");
+      expect(
+        JSON.parse(localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY) || "null"),
+      ).toEqual({ projectId: "p2" });
+    });
+
+    it("preserves an explicitly persisted No project selection", async () => {
+      localStorage.setItem(
+        ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY,
+        JSON.stringify({ projectId: null }),
+      );
+      listProjects.mockResolvedValue({ projects: [makeManifest("p1")] });
+      const harness = createHarness();
+
+      await harness.getState().loadProjects();
+
+      expect(harness.getState().activeProjectId).toBeNull();
+      expect(
+        JSON.parse(localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY) || "null"),
+      ).toEqual({ projectId: null });
+    });
+
+    it("replaces a missing persisted Project with an unambiguous active fallback", async () => {
+      localStorage.setItem(
+        ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY,
+        JSON.stringify({ projectId: "ghost" }),
+      );
+      listProjects.mockResolvedValue({ projects: [makeManifest("p1")] });
+      const harness = createHarness();
+
+      await harness.getState().loadProjects();
+
+      expect(harness.getState().activeProjectId).toBe("p1");
+      expect(
+        JSON.parse(localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY) || "null"),
+      ).toEqual({ projectId: "p1" });
+    });
+
+    it("does not guess when multiple active Projects exist without context", async () => {
+      listProjects.mockResolvedValue({ projects: [makeManifest("p1"), makeManifest("p2")] });
+      const harness = createHarness();
+
+      await harness.getState().loadProjects();
+
+      expect(harness.getState().activeProjectId).toBeNull();
+      expect(localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY)).toBeNull();
+    });
+  });
+
+  it("persists explicit Project and No project selections", () => {
+    const harness = createHarness();
+
+    harness.getState().setActiveProjectId("p1");
+    expect(
+      JSON.parse(localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY) || "null"),
+    ).toEqual({ projectId: "p1" });
+
+    harness.getState().setActiveProjectId(null);
+    expect(
+      JSON.parse(localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY) || "null"),
+    ).toEqual({ projectId: null });
   });
 
   describe("ensureProject", () => {

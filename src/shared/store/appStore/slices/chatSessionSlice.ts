@@ -501,6 +501,127 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     return confirmed;
   },
 
+  assignSessionProject: async (sessionId, requestedProjectId) => {
+    const projectId = normalizedProjectId(requestedProjectId);
+    if (!projectId) {
+      throw new Error("Select a Project");
+    }
+    const refreshServerTruth = async (): Promise<void> => {
+      try {
+        await get().refreshChatsNow();
+      } catch {
+        // Preserve the Project assignment error that triggered reconciliation.
+      }
+    };
+    const startingChat = get().chats.find((chat) => chat.id === sessionId);
+    if (!startingChat) {
+      throw new Error("Session not found");
+    }
+    if (startingChat.kind === "child") {
+      throw new Error("Child sessions inherit their root session Project");
+    }
+
+    const startingProjectId = normalizedProjectId(startingChat.config.projectId);
+    const startingWorkspacePath = normalizedWorkspacePath(startingChat.config.workspacePath);
+    if (projectId === startingProjectId) {
+      const current = await agentClient.getSessionWithVersion(sessionId);
+      return current.session;
+    }
+
+    const targetProject = get().projects[projectId];
+    if (targetProject?.status !== "active") {
+      throw new Error("Select an active Project");
+    }
+    const targetWorkspacePath =
+      targetProject.project_path_status === "configured"
+        ? normalizedWorkspacePath(targetProject.project_path)
+        : null;
+    if (!targetWorkspacePath) {
+      throw new Error("The selected Project has no available primary folder");
+    }
+
+    // Read both server truth and the CAS token before mutation. Project
+    // reassignment is not optimistic: it can also replace the effective
+    // workspace, so the UI keeps showing the confirmed pair atomically.
+    const before = await agentClient.getSessionWithVersion(sessionId);
+    if (before.metadataVersion === null) {
+      throw new Error("Session metadata version is unavailable; reopen the Project picker");
+    }
+    if (normalizedProjectId(before.session.project_id) !== startingProjectId) {
+      await refreshServerTruth();
+      throw new Error("Session Project changed while the picker was open; reopen it and try again");
+    }
+
+    const liveBeforeMutation = get().chats.find((chat) => chat.id === sessionId);
+    if (
+      !liveBeforeMutation ||
+      normalizedProjectId(liveBeforeMutation.config.projectId) !== startingProjectId ||
+      normalizedWorkspacePath(liveBeforeMutation.config.workspacePath) !== startingWorkspacePath
+    ) {
+      throw new Error("Session context changed while the Project picker was loading");
+    }
+
+    let confirmed: SessionSummary;
+    try {
+      confirmed = await agentClient.reassignSessionProject(
+        sessionId,
+        projectId,
+        before.metadataVersion,
+        targetWorkspacePath,
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 412) {
+        await refreshServerTruth();
+      }
+      throw error;
+    }
+
+    const confirmedProjectId = normalizedProjectId(confirmed.project_id);
+    if (confirmedProjectId !== projectId) {
+      await refreshServerTruth();
+      throw new Error(
+        "Project assignment was saved, but Bamboo returned an unexpected Project; refreshing session state",
+      );
+    }
+
+    const confirmedWorkspacePath = normalizedWorkspacePath(confirmed.workspace_path);
+    if (!confirmedWorkspacePath) {
+      await refreshServerTruth();
+      throw new Error(
+        "Project assignment was saved, but Bamboo returned no execution directory; refreshing session state",
+      );
+    }
+    let applied = false;
+    set((state) => {
+      const chats = state.chats.map((chat) => {
+        if (
+          chat.id !== sessionId ||
+          normalizedProjectId(chat.config.projectId) !== startingProjectId ||
+          normalizedWorkspacePath(chat.config.workspacePath) !== startingWorkspacePath
+        ) {
+          return chat;
+        }
+        applied = true;
+        return {
+          ...chat,
+          config: {
+            ...chat.config,
+            projectId: confirmedProjectId,
+            workspacePath: confirmedWorkspacePath ?? undefined,
+          },
+        };
+      });
+      return applied ? { ...state, chats } : state;
+    });
+
+    if (!applied) {
+      await refreshServerTruth();
+    } else {
+      get().setActiveProjectId(confirmedProjectId);
+    }
+    return confirmed;
+  },
+
   persistSessionTitle: async (sessionId, title) => {
     // Capture previous title for rollback.
     const previousTitle = get().chats.find((c) => c.id === sessionId)?.title;

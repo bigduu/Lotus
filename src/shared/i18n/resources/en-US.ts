@@ -408,6 +408,26 @@ export const enUsTranslation = {
         conflict:
           "This project was modified elsewhere. The latest data has been reloaded — please retry.",
         selectProject: "Select a project to manage",
+        selectForSession: "Select Project",
+        sessionModalTitle: "Assign session to Project",
+        sessionModalDescription:
+          "Choose the Project that owns this session. Its primary folder becomes the execution directory automatically.",
+        assign: "Assign",
+        assignmentSuccess: "Session Project updated",
+        assignmentFailed: "Failed to update the session Project",
+        assignmentRevisionConflict:
+          "This session changed on the server. Its latest Project was restored; reopen the picker and try again.",
+        assignmentRunningConflict:
+          "This session is running or starting. Stop it before changing its Project.",
+        assignmentArchived: "The selected Project is archived. Choose an active Project.",
+        assignmentUnavailable: "The selected Project is unavailable. Refresh Projects and retry.",
+        assignmentPathUnavailable:
+          "The selected Project needs an available primary folder before it can own this session.",
+        assignmentWorkspaceConflict:
+          "The session directory conflicts with the selected Project. Its primary folder could not be applied.",
+        childProjectInherited:
+          "Child sessions inherit their root session's Project. Open the root session to change it.",
+        loadFailed: "Failed to load Projects",
       },
       migration: {
         entry: "Migrate legacy sessions",
@@ -615,6 +635,7 @@ export const enUsTranslation = {
       fileReference: {
         title: "@ File Reference",
         setWorkspace: "Set Workspace",
+        setProject: "Set Project",
         noMatches: "No matching files found",
         emptyDirectory: "Directory is empty",
       },
@@ -693,6 +714,8 @@ export const enUsTranslation = {
         archivedShort: "{{count}} archived",
       },
       contextBar: {
+        project: "Project",
+        projectTooltip: "Session Project: {{name}}. Click to change.",
         workspace: "Workspace",
         workspaceTooltip: "Workspace context: {{path}}",
         files: "Files",

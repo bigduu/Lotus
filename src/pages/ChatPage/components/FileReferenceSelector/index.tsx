@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Card, List, Typography, Space, Button, Empty, Spin, theme, Alert } from "antd";
-import { FileTextOutlined, FolderOutlined, ReloadOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, FileTextOutlined, FolderOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { WorkspaceFileEntry } from "@shared/types/workspace";
 
@@ -15,7 +15,7 @@ interface FileReferenceSelectorProps {
   error?: string | null;
   onSelect: (file: WorkspaceFileEntry) => void;
   onCancel: () => void;
-  onChangeWorkspace?: () => void;
+  onChangeProject?: () => void;
 }
 
 const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
@@ -26,7 +26,7 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
   error,
   onSelect,
   onCancel,
-  onChangeWorkspace,
+  onChangeProject,
 }) => {
   const { token } = useToken();
   const { t } = useTranslation();
@@ -126,14 +126,14 @@ const FileReferenceSelector: React.FC<FileReferenceSelectorProps> = ({
         }
         extra={
           <Space size={token.marginXS}>
-            {onChangeWorkspace && (
+            {onChangeProject && (
               <Button
                 type="text"
                 size="small"
-                icon={<ReloadOutlined />}
-                onClick={onChangeWorkspace}
+                icon={<AppstoreOutlined />}
+                onClick={onChangeProject}
               >
-                {t("chat.fileReference.setWorkspace")}
+                {t("chat.fileReference.setProject")}
               </Button>
             )}
             <Button type="text" size="small" onClick={onCancel}>

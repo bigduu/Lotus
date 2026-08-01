@@ -181,4 +181,24 @@ describe("useInputContainerFileReferences workspace switching (#155)", () => {
     expect(result.current.isWorkspaceModalVisible).toBe(false);
     expect(result.current.workspacePathInput).toBe("");
   });
+
+  it("opens the session Project picker instead of the Workspace modal when files lack context", () => {
+    const currentChat = makeChat("session-a", "");
+    const { result } = renderHook(() =>
+      useInputContainerFileReferences({
+        content: "",
+        setContent: vi.fn(),
+        currentSessionId: currentChat.id,
+        currentChat,
+        effectiveWorkspacePath: null,
+        switchSessionWorkspace: vi.fn(),
+        messageApi,
+      }),
+    );
+
+    act(() => result.current.handleFileReferenceButtonClick());
+
+    expect(result.current.isProjectModalVisible).toBe(true);
+    expect(result.current.isWorkspaceModalVisible).toBe(false);
+  });
 });

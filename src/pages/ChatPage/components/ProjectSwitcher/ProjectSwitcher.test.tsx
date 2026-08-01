@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ProjectSwitcher } from "./index";
 import { useAppStore } from "@shared/store/appStore";
 import type { ProjectManifest } from "@services/project";
+import type { ChatItem } from "@shared/types/chat";
 
 vi.mock("../ProjectManagerModal", () => ({
   default: ({ open }: { open: boolean }) => (open ? <div>ProjectManagerModalStub</div> : null),
@@ -52,6 +53,8 @@ describe("ProjectSwitcher (#154)", () => {
       },
       projectsAvailable: true,
       activeProjectId: "proj-zenith",
+      chats: [],
+      currentSessionId: null,
     }));
   });
 
@@ -67,11 +70,10 @@ describe("ProjectSwitcher (#154)", () => {
     await openSelect();
     const dropdown = document.querySelector(".ant-select-dropdown") as HTMLElement;
     expect(dropdown).toHaveTextContent("bamboo");
-    expect(dropdown).toHaveTextContent("No project");
     expect(dropdown).not.toHaveTextContent("old-stuff");
   });
 
-  it("switches the active project and clears it via 'No project'", async () => {
+  it("switches the new-session default when no session is selected", async () => {
     render(
       <AntdApp>
         <ProjectSwitcher />
@@ -81,10 +83,47 @@ describe("ProjectSwitcher (#154)", () => {
     await openSelect();
     fireEvent.click(await screen.findByText("bamboo"));
     await waitFor(() => expect(useAppStore.getState().activeProjectId).toBe("proj-bamboo"));
+  });
+
+  it("shows and reassigns the selected session's authoritative Project", async () => {
+    const assignSessionProject = vi.fn().mockResolvedValue({
+      id: "session-1",
+      project_id: "proj-bamboo",
+      workspace_path: "/repo/proj-bamboo",
+    });
+    const session = {
+      id: "session-1",
+      title: "Session",
+      kind: "root",
+      createdAt: Date.now(),
+      messages: [],
+      config: {
+        systemPromptId: "general_assistant",
+        baseSystemPrompt: "You are helpful.",
+        lastUsedEnhancedPrompt: null,
+        projectId: "proj-zenith",
+      },
+    } as ChatItem;
+    useAppStore.setState({
+      chats: [session],
+      currentSessionId: session.id,
+      activeProjectId: "proj-bamboo",
+      assignSessionProject,
+    });
+
+    render(
+      <AntdApp>
+        <ProjectSwitcher />
+      </AntdApp>,
+    );
+
+    expect(screen.getByTestId("project-switcher")).toHaveTextContent("zenith");
 
     await openSelect();
-    fireEvent.click(await screen.findByText("No project"));
-    await waitFor(() => expect(useAppStore.getState().activeProjectId).toBeNull());
+    fireEvent.click(await screen.findByText("bamboo"));
+    await waitFor(() =>
+      expect(assignSessionProject).toHaveBeenCalledWith("session-1", "proj-bamboo"),
+    );
   });
 
   it("hides entirely when the backend has no Project API", () => {

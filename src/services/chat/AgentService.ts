@@ -1256,13 +1256,18 @@ export class AgentClient {
     sessionId: string,
     projectId: string | null,
     metadataVersion: number,
-  ): Promise<void> {
+    workspacePath?: string,
+  ): Promise<SessionSummary> {
     const encodedSessionId = encodeURIComponent(sessionId);
-    await agentApiClient.patch(
+    const response = await agentApiClient.patch<GetSessionResponse>(
       `sessions/${encodedSessionId}`,
-      { project_id: projectId },
+      {
+        project_id: projectId,
+        ...(workspacePath ? { workspace_path: workspacePath } : {}),
+      },
       { headers: { "If-Match": `"${metadataVersion}"` } },
     );
+    return response.session;
   }
 
   /**

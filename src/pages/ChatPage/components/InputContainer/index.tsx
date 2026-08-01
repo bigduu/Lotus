@@ -77,8 +77,8 @@ export type { WorkflowDraft } from "./types";
 
 const FilePreview = lazy(() => import("../FilePreview"));
 const CommandSelector = lazy(() => import("../CommandSelector"));
-const WorkspacePathModal = lazy(() => import("../WorkspacePathModal"));
 const FileReferenceSelector = lazy(() => import("../FileReferenceSelector"));
+const SessionProjectModal = lazy(() => import("../SessionProjectModal"));
 
 const { useToken } = theme;
 
@@ -102,6 +102,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
   const activeSessionId = useAppStore((state) => state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(sessionId));
+  const currentProjectId = currentChat?.config.projectId?.trim() || null;
+  const currentProject = useAppStore((state) =>
+    currentProjectId ? state.projects[currentProjectId] : undefined,
+  );
+  const effectiveWorkspacePath = currentProjectId
+    ? currentProject?.status === "active" && currentProject.project_path_status === "configured"
+      ? currentProject.project_path?.trim() || null
+      : null
+    : currentChat?.config.workspacePath?.trim() || null;
   const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat?.messages]);
   const addMessage = useAppStore((state) => state.addMessage);
   const updateSession = useAppStore((state) => state.updateSession);
@@ -376,6 +385,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setContent,
     currentSessionId: sessionId,
     currentChat,
+    effectiveWorkspacePath,
     switchSessionWorkspace,
     messageApi,
   });
@@ -1231,20 +1241,31 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             error={fileReferenceState.workspaceError}
             onSelect={fileReferenceState.handleFileReferenceSelect}
             onCancel={fileReferenceState.handleFileSelectorCancel}
-            onChangeWorkspace={fileReferenceState.openWorkspaceModal}
+            onChangeProject={fileReferenceState.openProjectModal}
           />
         </Suspense>
       )}
 
       <Suspense fallback={null}>
-        <WorkspacePathModal
-          open={fileReferenceState.isWorkspaceModalVisible}
-          initialPath={fileReferenceState.workspacePathInput}
-          projectId={currentChat?.config.projectId ?? null}
-          loading={fileReferenceState.isSavingWorkspace}
-          submitError={fileReferenceState.workspaceSubmitError}
-          onSubmit={fileReferenceState.handleWorkspaceModalSubmit}
-          onCancel={fileReferenceState.handleWorkspaceModalCancel}
+        <SessionProjectModal
+          open={fileReferenceState.isProjectModalVisible}
+          sessionId={sessionId}
+          currentProjectId={currentProjectId}
+          isChildSession={currentChat?.kind === "child"}
+          onCancel={fileReferenceState.closeProjectModal}
+          onAssigned={(assigned) => {
+            const projectId = assigned.project_id?.trim();
+            const assignedProject = projectId
+              ? useAppStore.getState().projects[projectId]
+              : undefined;
+            const path =
+              assigned.workspace_path?.trim() || assignedProject?.project_path?.trim() || null;
+            if (sessionId && path) {
+              void fileReferenceState.fetchWorkspaceFiles(sessionId, path).then(() => {
+                fileReferenceState.setShowFileSelector(true);
+              });
+            }
+          }}
         />
       </Suspense>
     </div>

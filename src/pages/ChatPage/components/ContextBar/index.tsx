@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Flex, Tag, Tooltip, theme } from "antd";
 import {
   CodeOutlined,
@@ -6,12 +6,14 @@ import {
   FolderOutlined,
   InboxOutlined,
   ThunderboltOutlined,
+  AppstoreOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import { formatCompactTokenCount, formatTokenCount } from "@shared/types/tokenBudget";
 import { selectSessionById, useAppStore } from "@shared/store/appStore";
 import { MachineTag } from "@shared/components/MachineTag";
+import SessionProjectModal from "../SessionProjectModal";
 
 import "./index.css";
 
@@ -33,6 +35,9 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
   const { token } = useToken();
   const currentChat = useAppStore(selectSessionById(sessionId));
   const systemPrompts = useAppStore((state) => state.systemPrompts);
+  const projectId = currentChat?.config.projectId?.trim() || null;
+  const project = useAppStore((state) => (projectId ? state.projects[projectId] : undefined));
+  const [projectModalOpen, setProjectModalOpen] = useState(false);
 
   const workspacePath = currentChat?.config.workspacePath;
   const systemPromptId = currentChat?.config.systemPromptId;
@@ -62,15 +67,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
   const hasSummaryContext = summaryTokens > 0 || compressionCount > 0;
   const hasPromptCache = promptCachedToolOutputs > 0 || promptCachedToolTokensSaved > 0;
 
-  const hasContext =
-    placement ||
-    workspacePath ||
-    systemPromptName ||
-    fileRefCount > 0 ||
-    hasSummaryContext ||
-    hasPromptCache;
-  if (!hasContext) return null;
-
   return (
     <div
       className="lotus-context-bar"
@@ -81,6 +77,39 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
     >
       <Flex align="center" gap={6} wrap="wrap" className="lotus-context-bar__content">
         <MachineTag placement={placement} />
+
+        <Tooltip
+          title={
+            project
+              ? t("chat.contextBar.projectTooltip", {
+                  name: project.name,
+                  defaultValue: "Session Project: {{name}}. Click to change.",
+                })
+              : t("chat.project.sessionModalDescription")
+          }
+        >
+          <Tag
+            className="lotus-context-bar__tag"
+            icon={<AppstoreOutlined />}
+            bordered={false}
+            color={project ? "cyan" : "default"}
+            role="button"
+            tabIndex={0}
+            onClick={() => setProjectModalOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setProjectModalOpen(true);
+              }
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <span className="lotus-context-bar__tag-label">
+              {t("chat.contextBar.project", { defaultValue: "Project" })}
+            </span>
+            {project?.name ?? t("chat.project.selectForSession")}
+          </Tag>
+        </Tooltip>
 
         {workspacePath && (
           <Tooltip
@@ -175,6 +204,13 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
           </Tooltip>
         )}
       </Flex>
+      <SessionProjectModal
+        open={projectModalOpen}
+        sessionId={sessionId}
+        currentProjectId={projectId}
+        isChildSession={currentChat.kind === "child"}
+        onCancel={() => setProjectModalOpen(false)}
+      />
     </div>
   );
 };
