@@ -1,16 +1,19 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
-  test("persists a workspace and restores another Project without regrouping sessions", async ({
+test.describe("Session Project picker and lifecycle (#208 / #725)", () => {
+  test("persists an atomic Project assignment and restores an archived Project", async ({
     page,
   }) => {
     const sessionId = "session-project-workspace";
     const projectId = "proj-zenith";
+    const targetProjectId = "proj-bamboo";
     const archivedSessionId = "session-archived-project";
     const archivedProjectId = "proj-old";
     const primaryPath = "/repo/zenith";
     const worktreePath = "/repo/zenith-worktree";
+    const targetPath = "/repo/bamboo";
     const now = "2026-07-28T00:00:00Z";
+    let persistedProjectId = projectId;
     let persistedWorkspacePath = primaryPath;
     let metadataVersion = 7;
     let patchCallCount = 0;
@@ -37,7 +40,7 @@ test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
       spawn_depth: 0,
       model: "gpt-4o",
       model_ref: { provider: "openai", model: "gpt-4o" },
-      project_id: projectId,
+      project_id: persistedProjectId,
       workspace_path: persistedWorkspacePath,
       created_at: now,
       updated_at: now,
@@ -76,6 +79,15 @@ test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
         },
       ],
       legacy_project_keys: [],
+    };
+
+    const targetProject = {
+      ...project,
+      id: targetProjectId,
+      name: "Bamboo",
+      project_path: targetPath,
+      workspace_count: 1,
+      workspace_bindings: [],
     };
 
     const archivedProject = () => ({
@@ -172,9 +184,11 @@ test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
         body: JSON.stringify(
           pathname.endsWith(`/projects/${projectId}`)
             ? project
-            : pathname.endsWith(`/projects/${archivedProjectId}`)
-              ? archivedProject()
-              : { projects: [project, archivedProject()] },
+            : pathname.endsWith(`/projects/${targetProjectId}`)
+              ? targetProject
+              : pathname.endsWith(`/projects/${archivedProjectId}`)
+                ? archivedProject()
+                : { projects: [project, targetProject, archivedProject()] },
         ),
       });
     });
@@ -186,10 +200,11 @@ test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
 
       if (request.method() === "PATCH" && isDetail) {
         const body = request.postDataJSON() as Record<string, unknown>;
-        if (Object.prototype.hasOwnProperty.call(body, "workspace_path")) {
+        if (Object.prototype.hasOwnProperty.call(body, "project_id")) {
           patchCallCount += 1;
           patchBody = body;
           patchIfMatch = request.headers()["if-match"] ?? null;
+          persistedProjectId = String(body.project_id ?? "");
           persistedWorkspacePath = String(body.workspace_path ?? "");
           metadataVersion += 1;
         }
@@ -269,33 +284,32 @@ test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
     await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
 
     await page.getByRole("button", { name: "Reference workspace files" }).click();
-    await expect(page.getByRole("button", { name: "Set Workspace" })).toBeVisible();
-    await page.getByRole("button", { name: "Set Workspace" }).click();
-
-    const primaryOption = page.getByTestId("project-workspace-option-0");
-    const worktreeOption = page.getByTestId("project-workspace-option-1");
-    await expect(primaryOption).toBeChecked();
-    await expect(worktreeOption).toHaveValue(worktreePath);
-    await worktreeOption.check();
-    await page.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("button", { name: "Set Project" })).toBeVisible();
+    await page.getByRole("button", { name: "Set Project" }).click();
+    const projectDialog = page.getByRole("dialog", { name: "Assign session to Project" });
+    await expect(projectDialog).toBeVisible();
+    await projectDialog.getByTestId("session-project-select").click();
+    await page.locator(".ant-select-item-option").filter({ hasText: "Bamboo" }).click();
+    await projectDialog.getByRole("button", { name: "Assign" }).click();
+    await expect(projectDialog).toBeHidden();
 
     await expect.poll(() => patchCallCount).toBe(1);
-    expect(patchBody).toEqual({ workspace_path: worktreePath });
-    expect(patchBody).not.toHaveProperty("project_id");
+    expect(patchBody).toEqual({ project_id: targetProjectId, workspace_path: targetPath });
     expect(patchIfMatch).toBe('"7"');
-    await expect(page.getByTestId("chat-item-workspace")).toHaveText("zenith-worktree");
-    await expect(page.getByRole("button", { name: "Zenith (1)" })).toBeVisible();
+    await expect(page.getByTestId("chat-item-workspace")).toHaveText("bamboo");
+    await expect(page.getByRole("button", { name: "Bamboo (1)" })).toBeVisible();
 
     await page.reload();
     await expect(page.locator('[data-testid="chat-item"]').first()).toBeVisible();
-    await expect(page.getByRole("button", { name: "Zenith (1)" })).toBeVisible();
-    await expect(page.getByTestId("chat-item-workspace")).toHaveText("zenith-worktree");
+    await expect(page.getByRole("button", { name: "Bamboo (1)" })).toBeVisible();
+    await expect(page.getByTestId("chat-item-workspace")).toHaveText("bamboo");
     await page.locator('[data-testid="chat-item"]').first().click();
     await page.getByRole("button", { name: "Reference workspace files" }).click();
-    await page.getByRole("button", { name: "Set Workspace" }).click();
-    await expect(page.getByTestId("project-workspace-option-1")).toBeChecked();
-    await page.getByRole("button", { name: "Cancel" }).click();
-    await expect(page.getByTestId("project-workspace-option-1")).toHaveCount(0);
+    await page.getByRole("button", { name: "Set Project" }).click();
+    const restoredDialog = page.getByRole("dialog", { name: "Assign session to Project" });
+    await expect(restoredDialog.locator(".ant-select-selection-item")).toHaveText("Bamboo");
+    await restoredDialog.getByRole("button", { name: "Cancel" }).click();
+    await expect(restoredDialog).toBeHidden();
 
     await page.getByTestId("open-project-manager").click();
     await expect(page.getByTestId("project-archived-toggle")).toHaveAttribute(
@@ -318,6 +332,6 @@ test.describe("Project workspace picker and lifecycle (#155 / #725)", () => {
     // the same opaque Project group, while the archived badge disappears.
     await expect(archivedGroup).toBeVisible();
     await expect(archivedGroup).not.toContainText("Archived");
-    await expect(page.getByRole("button", { name: "Zenith (1)" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Bamboo (1)" })).toBeVisible();
   });
 });

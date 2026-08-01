@@ -473,12 +473,12 @@ export function sessionRow(page: Page, title: string) {
   return page.locator('[data-testid="chat-item"]').filter({ hasText: title });
 }
 
-export async function openWorkspacePicker(page: Page, sessionTitle: string) {
+export async function openSessionProjectPicker(page: Page, sessionTitle: string) {
   const row = sessionRow(page, sessionTitle);
   await expect(row).toBeVisible();
   await row.click();
   await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
-  const dialog = page.getByRole("dialog", { name: "Set Workspace Path" });
+  const dialog = page.getByRole("dialog", { name: "Assign session to Project" });
   const referenceButton = page.getByRole("button", { name: "Reference workspace files" });
 
   // Session-detail hydration can remount the transient file card once. Retry
@@ -487,10 +487,10 @@ export async function openWorkspacePicker(page: Page, sessionTitle: string) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     await referenceButton.click();
     const fileCard = page.locator(".ant-card").filter({ hasText: "@ File Reference" });
-    const setWorkspaceButton = fileCard.getByRole("button", { name: "Set Workspace" });
+    const setProjectButton = fileCard.getByRole("button", { name: "Set Project" });
     try {
-      await expect(setWorkspaceButton).toBeVisible({ timeout: 3_000 });
-      await setWorkspaceButton.evaluate((button: HTMLButtonElement) => button.click());
+      await expect(setProjectButton).toBeVisible({ timeout: 3_000 });
+      await setProjectButton.evaluate((button: HTMLButtonElement) => button.click());
       await expect(dialog).toBeVisible({ timeout: 3_000 });
       return dialog;
     } catch {
@@ -500,7 +500,18 @@ export async function openWorkspacePicker(page: Page, sessionTitle: string) {
     }
   }
 
-  throw new Error(`Workspace picker did not open for session ${sessionTitle}`);
+  throw new Error(`Project picker did not open for session ${sessionTitle}`);
+}
+
+export async function selectSessionProject(
+  page: Page,
+  dialog: ReturnType<Page["getByRole"]>,
+  projectName: string,
+): Promise<void> {
+  await dialog.getByTestId("session-project-select").click();
+  const option = page.locator(".ant-select-item-option").filter({ hasText: projectName });
+  await expect(option).toBeVisible();
+  await option.click();
 }
 
 export async function cleanupProjectFixture(
