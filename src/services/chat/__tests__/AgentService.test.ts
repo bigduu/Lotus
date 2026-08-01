@@ -287,6 +287,43 @@ describe("AgentClient", () => {
     });
   });
 
+  it("assigns a session Project and its primary path in one CAS patch (#208)", async () => {
+    fetchMock.mockResolvedValue(
+      mockFetchResponse({
+        session: {
+          id: "session/with space",
+          project_id: "proj-zenith",
+          workspace_path: "/repo/zenith",
+        },
+      }),
+    );
+
+    const client = AgentClient.getInstance();
+    const confirmed = await client.reassignSessionProject(
+      "session/with space",
+      "proj-zenith",
+      9,
+      "/repo/zenith",
+    );
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/sessions/session%2Fwith%20space");
+    expect(init).toEqual(
+      expect.objectContaining({
+        method: "PATCH",
+        headers: expect.objectContaining({ "If-Match": '"9"' }),
+      }),
+    );
+    expect(JSON.parse(String(init.body))).toEqual({
+      project_id: "proj-zenith",
+      workspace_path: "/repo/zenith",
+    });
+    expect(confirmed).toMatchObject({
+      project_id: "proj-zenith",
+      workspace_path: "/repo/zenith",
+    });
+  });
+
   it("patches session-scoped model and reasoning payload", async () => {
     fetchMock.mockResolvedValue(mockFetchResponse({}));
 

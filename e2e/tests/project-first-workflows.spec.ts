@@ -16,9 +16,10 @@ import {
   getProject,
   getSessionWithVersion,
   openProjectManager,
-  openWorkspacePicker,
+  openSessionProjectPicker,
   patchSession,
   runScheduleNow,
+  selectSessionProject,
   sessionRow,
   waitForScheduleSession,
   writeProjectCommandResource,
@@ -72,7 +73,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
     await api.dispose();
   });
 
-  test("1/2/3: creates and renames a Project while workspace switching and expansion stay keyed by project_id", async ({
+  test("1/2/3: creates and renames a Project while session assignment and expansion stay keyed by project_id", async ({
     page,
   }, testInfo) => {
     test.setTimeout(90_000);
@@ -80,6 +81,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
     const suffix = `${testInfo.workerIndex}-${Date.now()}`;
     const originalName = `e2e-158-lifecycle-${suffix}`;
     const renamedName = `${originalName}-renamed`;
+    const targetName = `${originalName}-target`;
     const primaryTitle = `e2e-158-primary-${suffix}`;
     const secondaryTitle = `e2e-158-secondary-${suffix}`;
     const observerTitle = `e2e-158-observer-${suffix}`;
@@ -122,6 +124,12 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       );
       await closeDialog(manager);
 
+      const targetProject = await createProject(api, {
+        name: targetName,
+        projectPath: fixture.legacy,
+      });
+      projectIds.push(targetProject.id);
+
       const primarySession = await createSession(api, {
         title: primaryTitle,
         projectId: project.id,
@@ -135,7 +143,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       const observerSession = await createSession(api, {
         title: observerTitle,
         projectId: null,
-        workspacePath: fixture.legacy,
+        workspacePath: null,
       });
       sessionIds.push(primarySession.id, secondarySession.id, observerSession.id);
 
@@ -150,21 +158,24 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
         "secondary",
       );
 
-      // Scenario 2: workspace is mutable, but the opaque Project grouping is not.
-      const workspaceDialog = await openWorkspacePicker(page, primaryTitle);
-      const secondaryOption = workspaceDialog.getByTestId("project-workspace-option-1");
-      await expect(secondaryOption).toHaveValue(fixture.secondary);
-      await secondaryOption.check();
-      await workspaceDialog.getByRole("button", { name: "Save" }).click();
-      await expect(workspaceDialog).toBeHidden();
+      // Scenario 2: a session selects its owning Project, and that Project's
+      // primary path becomes the execution directory in the same mutation.
+      const projectDialog = await openSessionProjectPicker(page, primaryTitle);
+      await selectSessionProject(page, projectDialog, targetName);
+      await projectDialog.getByRole("button", { name: "Assign" }).click();
+      await expect(projectDialog).toBeHidden();
       await expect(sessionRow(page, primaryTitle).getByTestId("chat-item-workspace")).toHaveText(
-        "secondary",
+        "legacy",
       );
+      const reassigned = await getSessionWithVersion(api, primarySession.id);
+      expect(reassigned.session.project_id).toBe(targetProject.id);
+      expect(reassigned.session.workspace_path).toBe(fixture.legacy);
 
       await page.reload();
-      await expectGroupExpanded(page, originalName, 2);
+      await expectGroupExpanded(page, originalName, 1);
+      await expectGroupExpanded(page, targetName, 1);
       await expect(sessionRow(page, primaryTitle).getByTestId("chat-item-workspace")).toHaveText(
-        "secondary",
+        "legacy",
       );
 
       // Select another group so the target Project is no longer force-expanded,
@@ -176,7 +187,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       }
       await sessionRow(page, observerTitle).click();
       await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
-      const projectGroup = page.getByRole("button", { name: `${originalName} (2)` });
+      const projectGroup = page.getByRole("button", { name: `${originalName} (1)` });
       if ((await projectGroup.getAttribute("aria-expanded")) !== "true") {
         await projectGroup.click();
       }
@@ -206,13 +217,14 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       expect(renameResponse.ok(), await renameResponse.text()).toBe(true);
       await closeDialog(renameManager);
 
-      await expect(page.getByRole("button", { name: `${renamedName} (2)` })).toBeVisible();
+      await expect(page.getByRole("button", { name: `${renamedName} (1)` })).toBeVisible();
       await page.reload();
-      const renamedGroup = page.getByRole("button", { name: `${renamedName} (2)` });
+      const renamedGroup = page.getByRole("button", { name: `${renamedName} (1)` });
       await expect(renamedGroup).toHaveAttribute("aria-expanded", "true");
-      await expect(sessionRow(page, primaryTitle)).toBeVisible();
       await expect(sessionRow(page, secondaryTitle)).toBeVisible();
-      await expect(page.getByRole("button", { name: `${originalName} (2)` })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: `${originalName} (1)` })).toHaveCount(0);
+      await expectGroupExpanded(page, targetName, 1);
+      await expect(sessionRow(page, primaryTitle)).toBeVisible();
       expect(
         await page.evaluate(
           ({ key, projectId }) => {
@@ -227,30 +239,29 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
     }
   });
 
-  test("6: ownership and stale-revision conflicts preserve the attempted workspace without silent overwrite", async ({
+  test("6: stale-revision conflicts preserve the server Project without silent overwrite", async ({
     page,
   }, testInfo) => {
     test.setTimeout(90_000);
     const fixture = await createWorkspaceFixture(testInfo, "conflicts");
     const suffix = `${testInfo.workerIndex}-${Date.now()}`;
-    const projectName = `e2e-158-owner-${suffix}`;
-    const foreignName = `e2e-158-foreign-${suffix}`;
+    const projectName = `e2e-158-source-${suffix}`;
+    const targetName = `e2e-158-target-${suffix}`;
     const sessionTitle = `e2e-158-conflict-session-${suffix}`;
     const concurrentTitle = `${sessionTitle}-concurrent`;
     const sessionIds: string[] = [];
     const projectIds: string[] = [];
 
     try {
-      let project = await createProject(api, {
+      const project = await createProject(api, {
         name: projectName,
         projectPath: fixture.primary,
       });
-      project = await bindWorkspace(api, project, fixture.secondary, "Secondary");
-      const foreignProject = await createProject(api, {
-        name: foreignName,
-        projectPath: fixture.foreign,
+      const targetProject = await createProject(api, {
+        name: targetName,
+        projectPath: fixture.secondary,
       });
-      projectIds.push(project.id, foreignProject.id);
+      projectIds.push(project.id, targetProject.id);
       const session = await createSession(api, {
         title: sessionTitle,
         projectId: project.id,
@@ -260,21 +271,6 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
       await loadChat(page);
       await expectGroupExpanded(page, projectName, 1);
-
-      // Real Bamboo 409: the attempted folder is owned by another Project.
-      let workspaceDialog = await openWorkspacePicker(page, sessionTitle);
-      await workspaceDialog.getByTestId("project-workspace-other").check();
-      const otherPathInput = workspaceDialog.locator('input[type="text"]').last();
-      await otherPathInput.fill(fixture.foreign);
-      await workspaceDialog.getByRole("button", { name: "Save" }).click();
-      await expect(workspaceDialog).toContainText(
-        "This folder belongs to another Project. Choose a workspace bound to the current Project.",
-      );
-      await expect(otherPathInput).toHaveValue(fixture.foreign);
-      await expect(sessionRow(page, sessionTitle).getByTestId("chat-item-workspace")).toHaveText(
-        "primary",
-      );
-      await workspaceDialog.getByRole("button", { name: "Cancel" }).click();
 
       // A controlled concurrent write advances Bamboo's real metadata revision
       // after Lotus' GET and before its PATCH. Only timing is intercepted; the
@@ -289,29 +285,30 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
         await route.continue();
       });
 
-      workspaceDialog = await openWorkspacePicker(page, sessionTitle);
-      const secondaryOption = workspaceDialog.getByTestId("project-workspace-option-1");
-      await expect(secondaryOption).toHaveValue(fixture.secondary);
-      await secondaryOption.check();
-      await workspaceDialog.getByRole("button", { name: "Save" }).click();
+      const projectDialog = await openSessionProjectPicker(page, sessionTitle);
+      await selectSessionProject(page, projectDialog, targetName);
+      await projectDialog.getByRole("button", { name: "Assign" }).click();
 
       await expect.poll(() => injectedRevisionConflict).toBe(true);
-      await expect(workspaceDialog).toContainText(
-        "This session changed on the server. The latest workspace was restored; your attempted path is still here.",
+      await expect(projectDialog).toContainText(
+        "This session changed on the server. Its latest Project was restored; reopen the picker and try again.",
       );
-      await expect(secondaryOption).toBeChecked();
+      await expect(projectDialog.locator(".ant-select-selection-item")).toHaveText(targetName);
       await expect(sessionRow(page, concurrentTitle).getByTestId("chat-item-workspace")).toHaveText(
         "primary",
       );
+      let persisted = await getSessionWithVersion(api, session.id);
+      expect(persisted.session.project_id).toBe(project.id);
+      expect(persisted.session.workspace_path).toBe(fixture.primary);
 
       await page.unroute(`**${sessionPath}`);
-      await workspaceDialog.getByRole("button", { name: "Save" }).click();
-      await expect(workspaceDialog).toBeHidden();
+      await projectDialog.getByRole("button", { name: "Assign" }).click();
+      await expect(projectDialog).toBeHidden();
       await expect(sessionRow(page, concurrentTitle).getByTestId("chat-item-workspace")).toHaveText(
         "secondary",
       );
-      const persisted = await getSessionWithVersion(api, session.id);
-      expect(persisted.session.project_id).toBe(project.id);
+      persisted = await getSessionWithVersion(api, session.id);
+      expect(persisted.session.project_id).toBe(targetProject.id);
       expect(persisted.session.workspace_path).toBe(fixture.secondary);
     } finally {
       await cleanupProjectFixture(api, fixture, sessionIds, projectIds);

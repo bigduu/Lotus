@@ -91,10 +91,67 @@ const createProjectKey = (id: string | null | undefined): string | null => {
   return id;
 };
 
+export const ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY = "lotus_active_project_v1";
+
+type ActiveProjectPreference = {
+  isSet: boolean;
+  projectId: string | null;
+};
+
+const readActiveProjectPreference = (): ActiveProjectPreference => {
+  try {
+    if (typeof localStorage === "undefined") return { isSet: false, projectId: null };
+    const raw = localStorage.getItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY);
+    if (raw === null) return { isSet: false, projectId: null };
+
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null || !("projectId" in parsed)) {
+      return { isSet: false, projectId: null };
+    }
+    const projectId = (parsed as { projectId?: unknown }).projectId;
+    if (projectId === null) return { isSet: true, projectId: null };
+    if (typeof projectId === "string" && projectId.trim()) {
+      return { isSet: true, projectId: projectId.trim() };
+    }
+  } catch {
+    // Corrupt or unavailable storage is equivalent to no saved preference.
+  }
+  return { isSet: false, projectId: null };
+};
+
+const writeActiveProjectPreference = (projectId: string | null): void => {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY, JSON.stringify({ projectId }));
+  } catch {
+    // Best-effort UI preference; storage failures must not block Project use.
+  }
+};
+
+const clearActiveProjectPreference = (): void => {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.removeItem(ACTIVE_PROJECT_PREFERENCE_STORAGE_KEY);
+  } catch {
+    // Best-effort cleanup.
+  }
+};
+
 export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = (set, get) => {
   // In-flight dedupe for ensureProject: concurrent lazy loads and forced
   // event-driven refetches share one request per Project id.
   const projectInflight = new Map<string, Promise<void>>();
+  let activeProjectPreference = readActiveProjectPreference();
+
+  const rememberActiveProject = (projectId: string | null): void => {
+    activeProjectPreference = { isSet: true, projectId };
+    writeActiveProjectPreference(projectId);
+  };
+
+  const forgetActiveProject = (): void => {
+    activeProjectPreference = { isSet: false, projectId: null };
+    clearActiveProjectPreference();
+  };
 
   return {
     projects: {},
@@ -103,13 +160,14 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
     projectsLoadedAt: null,
     projectsAvailable: null,
     projectsMissing: {},
-    activeProjectId: null,
+    activeProjectId: activeProjectPreference.projectId,
     projectResources: {},
     projectResourcesLoading: {},
     projectResourcesError: {},
 
     setActiveProjectId: (projectId) => {
       const id = createProjectKey(projectId);
+      rememberActiveProject(id);
       set({ activeProjectId: id });
     },
 
@@ -117,6 +175,9 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       set({ projectsLoading: true, projectsError: null });
       try {
         const list = await projectService.listProjects();
+        const preferenceUpdate: {
+          current: { type: "write"; projectId: string } | { type: "clear" } | null;
+        } = { current: null };
         set((state) => {
           // The remote list is authoritative: ids absent from it were
           // deleted (or are invisible) and are pruned instead of lingering
@@ -130,19 +191,69 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
           for (const item of list.projects) {
             mergeProjectIntoMap(projects, item);
           }
+
+          const isSelectable = (id: string | null): id is string =>
+            Boolean(
+              id &&
+                projects[id]?.status === "active" &&
+                projects[id]?.project_path_status === "configured" &&
+                projects[id]?.project_path?.trim(),
+            );
+          const stateProjectId = createProjectKey(state.activeProjectId);
+          const storedProjectId = createProjectKey(activeProjectPreference.projectId);
+
+          let activeProjectId: string | null;
+          if (isSelectable(stateProjectId)) {
+            activeProjectId = stateProjectId;
+            if (!activeProjectPreference.isSet || storedProjectId !== stateProjectId) {
+              preferenceUpdate.current = { type: "write", projectId: stateProjectId };
+            }
+          } else if (activeProjectPreference.isSet && activeProjectPreference.projectId === null) {
+            // An explicit "No project" is a real user preference, not an
+            // uninitialized value. Preserve it across reloads.
+            activeProjectId = null;
+          } else if (isSelectable(storedProjectId)) {
+            activeProjectId = storedProjectId;
+          } else {
+            // No usable explicit preference. Prefer the authoritative Project
+            // of the current session, then the only active Project when the
+            // choice is unambiguous. Never infer identity from workspace paths.
+            const currentSessionProjectId = createProjectKey(
+              state.currentSessionId
+                ? state.chats?.find((chat) => chat.id === state.currentSessionId)?.config.projectId
+                : null,
+            );
+            const activeProjects = Object.values(projects).filter(
+              (project) =>
+                project.status === "active" &&
+                project.project_path_status === "configured" &&
+                Boolean(project.project_path?.trim()),
+            );
+            activeProjectId = isSelectable(currentSessionProjectId)
+              ? currentSessionProjectId
+              : activeProjects.length === 1
+                ? activeProjects[0].id
+                : null;
+            preferenceUpdate.current = activeProjectId
+              ? { type: "write", projectId: activeProjectId }
+              : activeProjectPreference.isSet
+                ? { type: "clear" }
+                : null;
+          }
           return {
             projects,
             projectsLoading: false,
             projectsLoadedAt: Date.now(),
             projectsAvailable: true,
             projectsError: null,
-            // Pruned away by the remote list → can no longer be the default.
-            activeProjectId:
-              state.activeProjectId && !projects[state.activeProjectId]
-                ? null
-                : state.activeProjectId,
+            activeProjectId,
           };
         });
+        if (preferenceUpdate.current?.type === "write") {
+          rememberActiveProject(preferenceUpdate.current.projectId);
+        } else if (preferenceUpdate.current?.type === "clear") {
+          forgetActiveProject();
+        }
       } catch (error) {
         // 404 means the backend predates the Project API. Anything else
         // (network, 5xx) leaves availability unknown so the UI does not
@@ -182,6 +293,8 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
           });
         } catch (error) {
           if (isApiError(error) && error.status === 404) {
+            const clearsPreference =
+              get().activeProjectId === id || activeProjectPreference.projectId === id;
             set((state) => {
               const projects = { ...state.projects };
               delete projects[id];
@@ -191,6 +304,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
                 activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
               };
             });
+            if (clearsPreference) forgetActiveProject();
             return;
           }
           throw error;
@@ -211,6 +325,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
         mergeProjectIntoMap(projects, manifest);
         return { projects, activeProjectId: manifest.id };
       });
+      rememberActiveProject(manifest.id);
       return manifest;
     },
 
@@ -230,6 +345,8 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       const id = createProjectKey(projectId);
       if (!id) throw new Error("Invalid project id");
       const manifest = await projectService.archiveProject(id, revision);
+      const clearsPreference =
+        get().activeProjectId === id || activeProjectPreference.projectId === id;
       set((state) => {
         const projects = { ...state.projects };
         mergeProjectIntoMap(projects, manifest);
@@ -240,6 +357,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
           activeProjectId: state.activeProjectId === id ? null : state.activeProjectId,
         };
       });
+      if (clearsPreference) forgetActiveProject();
       return manifest;
     },
 
@@ -362,6 +480,9 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
 
       const existing = get().projects[id];
       if (existing && event.revision < existing.revision) return;
+      const clearsPreference =
+        event.type === "project_archived" &&
+        (get().activeProjectId === id || activeProjectPreference.projectId === id);
 
       // Bamboo's project events carry only {project_id, revision} — a rename
       // or binding change is NOT in the payload. Refetch the authoritative
@@ -394,6 +515,7 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
               : state.activeProjectId,
         };
       });
+      if (clearsPreference) forgetActiveProject();
     },
   };
 };

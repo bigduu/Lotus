@@ -844,8 +844,8 @@ describe("ChatSidebar", () => {
 
       await screen.findByText("Billing investigation");
       await waitFor(() => expect(useUILayoutStore.getState().sidebar.groupingMode).toBe("project"));
-      expect(screen.getByText(/^zenith/)).toBeInTheDocument();
-      expect(screen.getByText(/^bamboo/)).toBeInTheDocument();
+      expect(screen.getByText(/^zenith \(/)).toBeInTheDocument();
+      expect(screen.getByText(/^bamboo \(/)).toBeInTheDocument();
     });
 
     it("uses the root project and expands the hierarchy for a selected child", async () => {
@@ -863,7 +863,7 @@ describe("ChatSidebar", () => {
 
       expect(await screen.findByText("Billing investigation")).toBeInTheDocument();
       expect(screen.getByText("Billing child fix")).toBeInTheDocument();
-      expect(screen.getByText(/^zenith/)).toBeInTheDocument();
+      expect(screen.getByText(/^zenith \(/)).toBeInTheDocument();
     });
 
     it("buckets same-project sessions together and persists outer expansion", async () => {
