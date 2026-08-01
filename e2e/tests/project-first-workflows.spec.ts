@@ -92,7 +92,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       const manager = await openProjectManager(page);
       await manager.getByTestId("project-create-open").click();
       await manager.getByTestId("project-create-name").fill(originalName);
-      await manager.getByTestId("project-create-path").fill(fixture.primary);
+      await manager.getByTestId("project-create-path").getByRole("textbox").fill(fixture.primary);
       const createResponsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
@@ -106,7 +106,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       expect(project.project_path).toBe(fixture.primary);
       projectIds.push(project.id);
 
-      await manager.getByTestId("project-bind-input").fill(fixture.secondary);
+      await manager.getByTestId("project-bind-input").getByRole("textbox").fill(fixture.secondary);
       const bindResponsePromise = page.waitForResponse(
         (response) =>
           response.request().method() === "POST" &&
