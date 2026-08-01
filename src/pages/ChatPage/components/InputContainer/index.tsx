@@ -1251,6 +1251,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           open={fileReferenceState.isProjectModalVisible}
           sessionId={sessionId}
           currentProjectId={currentProjectId}
+          currentWorkspacePath={currentChat?.config.workspacePath}
           isChildSession={currentChat?.kind === "child"}
           onCancel={fileReferenceState.closeProjectModal}
           onAssigned={(assigned) => {

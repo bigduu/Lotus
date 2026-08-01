@@ -364,8 +364,10 @@ export const enUsTranslation = {
         selectorLabel: "Project",
         noProject: "No project",
         manage: "Manage projects",
-        managerTitle: "Projects",
+        managerTitle: "Projects & workspaces",
         newProject: "New project",
+        createAction: "Create Project",
+        manageWorkspaces: "Manage Projects & workspaces",
         nameLabel: "Name",
         namePlaceholder: "Project name",
         nameRequired: "Please enter a project name",
@@ -373,7 +375,7 @@ export const enUsTranslation = {
         descriptionPlaceholder: "Optional description",
         pathLabel: "Project folder",
         pathDescription:
-          "The primary source folder and default workspace for sessions in this Project.",
+          "The primary source folder and default workspace. Additional workspaces can be bound after creation.",
         pathRequired: "Please select a Project folder",
         pathNeedsSelection: "Choose primary folder",
         pathNeedsConfiguration: "Folder required",
@@ -411,7 +413,10 @@ export const enUsTranslation = {
         selectForSession: "Select Project",
         sessionModalTitle: "Assign session to Project",
         sessionModalDescription:
-          "Choose the Project that owns this session. Its primary folder becomes the execution directory automatically.",
+          "Choose the Project that owns this session and one of its bound workspaces as the execution directory.",
+        assignNoProjects:
+          "No active Project has a configured primary workspace. Create one here, then bind any additional workspaces it needs.",
+        assignProjectLoadFailed: "Failed to load this Project's workspaces",
         assign: "Assign",
         assignmentSuccess: "Session Project updated",
         assignmentFailed: "Failed to update the session Project",

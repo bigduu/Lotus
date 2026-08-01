@@ -47,10 +47,14 @@ export interface ChatSlice {
   switchSessionWorkspace: (sessionId: string, workspacePath: string) => Promise<SessionSummary>;
   /**
    * Reassign a root session to a first-class Project using Bamboo's metadata
-   * CAS. The target Project's authoritative primary path becomes the session
-   * workspace; callers never ask the user to duplicate that path manually.
+   * CAS. Callers may select one authoritative workspace already bound to the
+   * target Project; otherwise its primary path is used.
    */
-  assignSessionProject: (sessionId: string, projectId: string) => Promise<SessionSummary>;
+  assignSessionProject: (
+    sessionId: string,
+    projectId: string,
+    workspacePath?: string,
+  ) => Promise<SessionSummary>;
   persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   /**
    * Apply an authoritative server title (from a `session_title_updated` SSE event).

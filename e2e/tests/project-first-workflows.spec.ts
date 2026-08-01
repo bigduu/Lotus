@@ -73,6 +73,102 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
     await api.dispose();
   });
 
+  test("creates a Project from the session picker, binds multiple workspaces, and assigns the selected workspace (#210)", async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    const fixture = await createWorkspaceFixture(testInfo, "picker-create-workspaces");
+    const suffix = `${testInfo.workerIndex}-${Date.now()}`;
+    const projectName = `e2e-210-picker-${suffix}`;
+    const sessionTitle = `e2e-210-unassigned-${suffix}`;
+    const sessionIds: string[] = [];
+    const projectIds: string[] = [];
+
+    try {
+      const session = await createSession(api, {
+        title: sessionTitle,
+        projectId: null,
+        workspacePath: null,
+      });
+      sessionIds.push(session.id);
+
+      await loadChat(page);
+      const projectDialog = await openSessionProjectPicker(page, sessionTitle);
+      await expect(projectDialog.getByTestId("session-project-create")).toBeVisible();
+      await expect(projectDialog.getByTestId("session-project-manage")).toBeVisible();
+
+      await projectDialog.getByTestId("session-project-create").click();
+      const manager = page.getByRole("dialog", { name: "Projects & workspaces" });
+      await expect(manager).toBeVisible();
+      await expect(manager.getByTestId("project-create-name")).toBeVisible();
+      await manager.getByTestId("project-create-name").fill(projectName);
+      await manager.getByTestId("project-create-path").getByRole("textbox").fill(fixture.primary);
+      const createResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname === "/api/v1/projects",
+      );
+      await manager.getByTestId("project-create-submit").click();
+      const createResponse = await createResponsePromise;
+      expect(createResponse.ok(), await createResponse.text()).toBe(true);
+      const createdProject = (await createResponse.json()) as ProjectManifest;
+      projectIds.push(createdProject.id);
+
+      await manager.getByTestId("project-bind-input").getByRole("textbox").fill(fixture.secondary);
+      const bindResponsePromise = page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          new URL(response.url()).pathname ===
+            `/api/v1/projects/${encodeURIComponent(createdProject.id)}/workspaces`,
+      );
+      await manager.getByTestId("project-bind-submit").click();
+      const bindResponse = await bindResponsePromise;
+      expect(bindResponse.ok(), await bindResponse.text()).toBe(true);
+      const projectWithWorkspaces = (await bindResponse.json()) as ProjectManifest;
+      expect(projectWithWorkspaces.workspace_bindings.map((binding) => binding.path)).toContain(
+        fixture.secondary,
+      );
+      await closeDialog(manager);
+
+      await expect(projectDialog).toBeVisible();
+      await expect(projectDialog.locator(".ant-select-selection-item")).toHaveText(projectName);
+      const secondaryWorkspace = projectDialog.getByTestId("session-project-workspace-1");
+      await expect(secondaryWorkspace.locator("xpath=ancestor::label")).toContainText(
+        fixture.secondary,
+      );
+      await secondaryWorkspace.click();
+
+      const assignmentRequestPromise = page.waitForRequest(
+        (request) =>
+          request.method() === "PATCH" &&
+          new URL(request.url()).pathname === `/api/v1/sessions/${encodeURIComponent(session.id)}`,
+      );
+      await projectDialog.getByRole("button", { name: "Assign" }).click();
+      const assignmentRequest = await assignmentRequestPromise;
+      expect(assignmentRequest.postDataJSON()).toEqual({
+        project_id: createdProject.id,
+        workspace_path: fixture.secondary,
+      });
+      await expect(projectDialog).toBeHidden();
+
+      const persisted = await getSessionWithVersion(api, session.id);
+      expect(persisted.session.project_id).toBe(createdProject.id);
+      expect(persisted.session.workspace_path).toBe(fixture.secondary);
+      await expectGroupExpanded(page, projectName, 1);
+      await expect(sessionRow(page, sessionTitle).getByTestId("chat-item-workspace")).toHaveText(
+        "secondary",
+      );
+
+      await page.reload();
+      await expectGroupExpanded(page, projectName, 1);
+      await expect(sessionRow(page, sessionTitle).getByTestId("chat-item-workspace")).toHaveText(
+        "secondary",
+      );
+    } finally {
+      await cleanupProjectFixture(api, fixture, sessionIds, projectIds);
+    }
+  });
+
   test("1/2/3: creates and renames a Project while session assignment and expansion stay keyed by project_id", async ({
     page,
   }, testInfo) => {

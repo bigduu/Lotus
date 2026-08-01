@@ -131,6 +131,62 @@ describe("chatSessionSlice assignSessionProject (#208)", () => {
     expect(store.getState().activeProjectId).toBe("proj-new");
   });
 
+  it("atomically assigns an explicitly selected workspace bound to the target Project", async () => {
+    mockGetSessionWithVersion.mockResolvedValue({
+      session: summary("proj-old", "/repo/proj-old"),
+      metadataVersion: 9,
+    });
+    mockReassignSessionProject.mockResolvedValue(summary("proj-new", "/repo/proj-new-worktree"));
+    const store = createTestStore();
+    store.setState((state) => ({
+      projects: {
+        ...state.projects,
+        "proj-new": {
+          ...state.projects["proj-new"],
+          workspace_count: 2,
+          workspace_bindings: [
+            { path: "/repo/proj-new-worktree", label: null, git_common_dir: null },
+          ],
+        },
+      },
+    }));
+
+    await store.getState().assignSessionProject("session-1", "proj-new", "/repo/proj-new-worktree");
+
+    expect(mockReassignSessionProject).toHaveBeenCalledWith(
+      "session-1",
+      "proj-new",
+      9,
+      "/repo/proj-new-worktree",
+    );
+    expect(store.getState().chats[0].config).toMatchObject({
+      projectId: "proj-new",
+      workspacePath: "/repo/proj-new-worktree",
+    });
+  });
+
+  it("switches to another bound workspace without changing Project identity", async () => {
+    mockGetSessionWithVersion.mockResolvedValue({
+      session: summary("proj-old", "/repo/proj-old"),
+      metadataVersion: 10,
+    });
+    mockReassignSessionProject.mockResolvedValue(summary("proj-old", "/repo/proj-old-worktree"));
+    const store = createTestStore();
+
+    await store.getState().assignSessionProject("session-1", "proj-old", "/repo/proj-old-worktree");
+
+    expect(mockReassignSessionProject).toHaveBeenCalledWith(
+      "session-1",
+      "proj-old",
+      10,
+      "/repo/proj-old-worktree",
+    );
+    expect(store.getState().chats[0].config).toMatchObject({
+      projectId: "proj-old",
+      workspacePath: "/repo/proj-old-worktree",
+    });
+  });
+
   it("rejects direct child reassignment so root/child Project identity cannot diverge", async () => {
     const store = createTestStore(chat("child"));
 
@@ -207,6 +263,23 @@ describe("chatSessionSlice assignSessionProject (#208)", () => {
     await expect(assignment).rejects.toThrow(
       "Session context changed while the Project picker was loading",
     );
+    expect(mockReassignSessionProject).not.toHaveBeenCalled();
+  });
+
+  it("refreshes instead of overwriting a workspace changed on the server", async () => {
+    mockGetSessionWithVersion.mockResolvedValue({
+      session: summary("proj-old", "/server/newer-workspace"),
+      metadataVersion: 11,
+    });
+    const store = createTestStore();
+    const refreshChatsNow = vi.fn().mockResolvedValue(undefined);
+    store.setState({ refreshChatsNow });
+
+    await expect(store.getState().assignSessionProject("session-1", "proj-new")).rejects.toThrow(
+      "Session context changed while the picker was open",
+    );
+
+    expect(refreshChatsNow).toHaveBeenCalledOnce();
     expect(mockReassignSessionProject).not.toHaveBeenCalled();
   });
 
