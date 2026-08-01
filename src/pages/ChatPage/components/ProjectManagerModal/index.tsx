@@ -16,7 +16,6 @@ import {
 import {
   DeleteOutlined,
   DownOutlined,
-  FolderOutlined,
   InboxOutlined,
   PlusOutlined,
   RightOutlined,
@@ -28,6 +27,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@shared/store/appStore";
 import { isApiError } from "@services/api";
 import type { ProjectManifest } from "@services/project";
+import WorkspacePicker from "../WorkspacePicker";
 
 const { Text } = Typography;
 
@@ -459,13 +459,17 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
               </div>
               <div>
                 <Text type="secondary">{t("chat.project.pathLabel", "Project folder")}</Text>
-                <Input
-                  value={newProjectPath}
-                  onChange={(event) => setNewProjectPath(event.target.value)}
-                  placeholder={t("chat.workspace.placeholder")}
-                  prefix={<FolderOutlined />}
-                  data-testid="project-create-path"
-                />
+                <div data-testid="project-create-path">
+                  <WorkspacePicker
+                    value={newProjectPath}
+                    onChange={setNewProjectPath}
+                    placeholder={t("chat.workspace.placeholder")}
+                    disabled={busy}
+                    allowBrowse
+                    showRecentWorkspaces={false}
+                    showSuggestions={false}
+                  />
+                </div>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {t("chat.project.pathDescription")}
                 </Text>
@@ -522,14 +526,17 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                     </Tag>
                   ) : null}
                 </Flex>
-                <Input
-                  value={editProjectPath}
-                  onChange={(event) => setEditProjectPath(event.target.value)}
-                  placeholder={t("chat.workspace.placeholder")}
-                  prefix={<FolderOutlined />}
-                  disabled={selected.status === "archived"}
-                  data-testid="project-detail-path"
-                />
+                <div data-testid="project-detail-path">
+                  <WorkspacePicker
+                    value={editProjectPath}
+                    onChange={setEditProjectPath}
+                    placeholder={t("chat.workspace.placeholder")}
+                    disabled={selected.status === "archived" || busy}
+                    allowBrowse
+                    showRecentWorkspaces={false}
+                    showSuggestions={false}
+                  />
+                </div>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {t("chat.project.pathDescription")}
                 </Text>
@@ -582,14 +589,18 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
                 />
               )}
               {selected.status === "active" ? (
-                <Flex gap={8}>
-                  <Input
-                    value={bindingPath}
-                    onChange={(event) => setBindingPath(event.target.value)}
-                    placeholder={t("chat.workspace.placeholder")}
-                    size="small"
-                    data-testid="project-bind-input"
-                  />
+                <Flex gap={8} align="start">
+                  <div style={{ flex: 1, minWidth: 0 }} data-testid="project-bind-input">
+                    <WorkspacePicker
+                      value={bindingPath}
+                      onChange={setBindingPath}
+                      placeholder={t("chat.workspace.placeholder")}
+                      disabled={busy}
+                      allowBrowse
+                      showRecentWorkspaces={false}
+                      showSuggestions={false}
+                    />
+                  </div>
                   <Button
                     size="small"
                     onClick={handleBind}
