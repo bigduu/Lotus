@@ -35,7 +35,11 @@ type ProjectManagerModalProps = {
   open: boolean;
   onClose: () => void;
   /** Opens the legacy migration wizard (rendered as a sibling modal). */
-  onOpenMigration: () => void;
+  onOpenMigration?: () => void;
+  /** Opens directly on the create form when launched from a session picker. */
+  initialView?: "manage" | "create";
+  /** Lets a session picker adopt the authoritative Project returned by create. */
+  onProjectCreated?: (project: ProjectManifest) => void;
 };
 
 const structuredErrorCode = (error: unknown): string | null => {
@@ -60,6 +64,8 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   open,
   onClose,
   onOpenMigration,
+  initialView = "manage",
+  onProjectCreated,
 }) => {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
@@ -112,7 +118,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
     selectedIdRef.current = projectId;
     setSelectedId(projectId);
   }, []);
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(initialView === "create");
   const [busy, setBusy] = useState(false);
   const [archivedExpanded, setArchivedExpanded] = useState(false);
 
@@ -136,6 +142,11 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
   const selected: ProjectManifest | null = selectedId ? (projects[selectedId] ?? null) : null;
   const resources = selectedId ? projectResources[selectedId] : undefined;
   const resourcesError = selectedId ? projectResourcesError[selectedId] : undefined;
+
+  useEffect(() => {
+    if (!open) return;
+    setCreating(initialView === "create");
+  }, [initialView, open]);
 
   // Pick a sensible selection when the modal opens or the list changes.
   useEffect(() => {
@@ -233,6 +244,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
       setNewDescription("");
       setNewProjectPath("");
       selectProject(manifest.id);
+      onProjectCreated?.(manifest);
     } catch (error) {
       message.error(error instanceof Error ? error.message : t("chat.project.createFailed"));
     } finally {
@@ -389,7 +401,7 @@ const ProjectManagerModal: React.FC<ProjectManagerModalProps> = ({
           >
             {t("chat.project.newProject", "New project")}
           </Button>
-          {unassignedRootCount > 0 ? (
+          {onOpenMigration && unassignedRootCount > 0 ? (
             <Button
               size="small"
               onClick={onOpenMigration}

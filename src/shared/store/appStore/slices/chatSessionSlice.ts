@@ -501,7 +501,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     return confirmed;
   },
 
-  assignSessionProject: async (sessionId, requestedProjectId) => {
+  assignSessionProject: async (sessionId, requestedProjectId, requestedWorkspacePath) => {
     const projectId = normalizedProjectId(requestedProjectId);
     if (!projectId) {
       throw new Error("Select a Project");
@@ -523,21 +523,29 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
     const startingProjectId = normalizedProjectId(startingChat.config.projectId);
     const startingWorkspacePath = normalizedWorkspacePath(startingChat.config.workspacePath);
-    if (projectId === startingProjectId) {
-      const current = await agentClient.getSessionWithVersion(sessionId);
-      return current.session;
-    }
 
     const targetProject = get().projects[projectId];
     if (targetProject?.status !== "active") {
       throw new Error("Select an active Project");
     }
-    const targetWorkspacePath =
+    const primaryWorkspacePath =
       targetProject.project_path_status === "configured"
         ? normalizedWorkspacePath(targetProject.project_path)
         : null;
+    const targetWorkspacePath =
+      requestedWorkspacePath === undefined
+        ? primaryWorkspacePath
+        : normalizedWorkspacePath(requestedWorkspacePath);
     if (!targetWorkspacePath) {
-      throw new Error("The selected Project has no available primary folder");
+      throw new Error(
+        requestedWorkspacePath === undefined
+          ? "The selected Project has no available primary folder"
+          : "Select an available workspace from the target Project",
+      );
+    }
+    if (projectId === startingProjectId && targetWorkspacePath === startingWorkspacePath) {
+      const current = await agentClient.getSessionWithVersion(sessionId);
+      return current.session;
     }
 
     // Read both server truth and the CAS token before mutation. Project
@@ -547,9 +555,12 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     if (before.metadataVersion === null) {
       throw new Error("Session metadata version is unavailable; reopen the Project picker");
     }
-    if (normalizedProjectId(before.session.project_id) !== startingProjectId) {
+    if (
+      normalizedProjectId(before.session.project_id) !== startingProjectId ||
+      normalizedWorkspacePath(before.session.workspace_path) !== startingWorkspacePath
+    ) {
       await refreshServerTruth();
-      throw new Error("Session Project changed while the picker was open; reopen it and try again");
+      throw new Error("Session context changed while the picker was open; reopen it and try again");
     }
 
     const liveBeforeMutation = get().chats.find((chat) => chat.id === sessionId);

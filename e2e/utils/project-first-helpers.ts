@@ -459,7 +459,7 @@ export async function writeProjectCommandResource(
 export async function openProjectManager(page: Page) {
   await expect(page.getByTestId("open-project-manager")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("open-project-manager").click();
-  const dialog = page.getByRole("dialog", { name: "Projects" });
+  const dialog = page.getByRole("dialog", { name: "Projects & workspaces" });
   await expect(dialog).toBeVisible();
   return dialog;
 }

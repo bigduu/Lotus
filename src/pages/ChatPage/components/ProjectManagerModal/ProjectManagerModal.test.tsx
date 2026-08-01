@@ -114,10 +114,22 @@ const LEGACY = makeProject("proj-legacy", "legacy", {
 });
 const ARCHIVED = makeProject("proj-old", "old-stuff", { status: "archived" });
 
-const renderModal = () =>
+const renderModal = (
+  props: {
+    initialView?: "manage" | "create";
+    onProjectCreated?: (project: ProjectManifest) => void;
+    withMigration?: boolean;
+  } = {},
+) =>
   render(
     <AntdApp>
-      <ProjectManagerModal open={true} onClose={() => {}} onOpenMigration={() => {}} />
+      <ProjectManagerModal
+        open={true}
+        onClose={() => {}}
+        initialView={props.initialView}
+        onProjectCreated={props.onProjectCreated}
+        onOpenMigration={props.withMigration === false ? undefined : () => {}}
+      />
     </AntdApp>,
   );
 
@@ -215,6 +227,26 @@ describe("ProjectManagerModal (#154)", () => {
     );
     // Creating a project makes it the active project (projectSlice behavior).
     await waitFor(() => expect(useAppStore.getState().activeProjectId).toBe("proj-new"));
+  });
+
+  it("opens directly on creation and returns the authoritative created Project", async () => {
+    const created = makeProject("proj-new", "nova", {
+      project_path: "/repo/nova",
+      revision: 1,
+    });
+    const onProjectCreated = vi.fn();
+    mockCreateProject.mockResolvedValue(created);
+    renderModal({ initialView: "create", onProjectCreated, withMigration: false });
+
+    fireEvent.change(await screen.findByTestId("project-create-name"), {
+      target: { value: "nova" },
+    });
+    fireEvent.change(getWorkspaceInput("project-create-path"), {
+      target: { value: "/repo/nova" },
+    });
+    fireEvent.click(screen.getByTestId("project-create-submit"));
+
+    await waitFor(() => expect(onProjectCreated).toHaveBeenCalledWith(created));
   });
 
   it("requires a name when creating", async () => {

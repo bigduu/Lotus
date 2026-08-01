@@ -208,6 +208,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
         open={projectModalOpen}
         sessionId={sessionId}
         currentProjectId={projectId}
+        currentWorkspacePath={workspacePath}
         isChildSession={currentChat.kind === "child"}
         onCancel={() => setProjectModalOpen(false)}
       />
