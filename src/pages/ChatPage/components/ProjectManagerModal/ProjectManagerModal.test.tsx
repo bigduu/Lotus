@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { App as AntdApp } from "antd";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,6 +17,7 @@ const {
   mockBindWorkspace,
   mockUnbindWorkspace,
   mockGetProjectResources,
+  mockFolderSelection,
 } = vi.hoisted(() => ({
   mockListProjects: vi.fn(),
   mockGetProject: vi.fn(),
@@ -27,6 +28,7 @@ const {
   mockBindWorkspace: vi.fn(),
   mockUnbindWorkspace: vi.fn(),
   mockGetProjectResources: vi.fn(),
+  mockFolderSelection: { path: "/repo/selected" },
 }));
 
 vi.mock("@services/project", async (importOriginal) => {
@@ -47,6 +49,30 @@ vi.mock("@services/project", async (importOriginal) => {
     },
   };
 });
+
+vi.mock("../FolderBrowser", () => ({
+  FolderBrowser: ({
+    visible,
+    onClose,
+    onSelect,
+  }: {
+    visible: boolean;
+    onClose: () => void;
+    onSelect: (path: string) => void;
+  }) =>
+    visible ? (
+      <button
+        type="button"
+        data-testid="folder-browser-select-current"
+        onClick={() => {
+          onSelect(mockFolderSelection.path);
+          onClose();
+        }}
+      >
+        Select current folder
+      </button>
+    ) : null,
+}));
 
 const makeProject = (
   id: string,
@@ -95,6 +121,19 @@ const renderModal = () =>
     </AntdApp>,
   );
 
+const getWorkspaceInput = (testId: string) =>
+  within(screen.getByTestId(testId)).getByRole("textbox");
+
+const browseWorkspace = (testId: string, path: string) => {
+  mockFolderSelection.path = path;
+  fireEvent.click(
+    within(screen.getByTestId(testId)).getByRole("button", {
+      name: "Browse folder",
+    }),
+  );
+  fireEvent.click(screen.getByTestId("folder-browser-select-current"));
+};
+
 describe("ProjectManagerModal (#154)", () => {
   beforeEach(() => {
     mockListProjects.mockReset();
@@ -106,6 +145,7 @@ describe("ProjectManagerModal (#154)", () => {
     mockBindWorkspace.mockReset();
     mockUnbindWorkspace.mockReset();
     mockGetProjectResources.mockReset();
+    mockFolderSelection.path = "/repo/selected";
 
     mockGetProject.mockImplementation((id: string) =>
       Promise.resolve(id === "proj-bamboo" ? BAMBOO : id === "proj-old" ? ARCHIVED : ZENITH),
@@ -141,7 +181,7 @@ describe("ProjectManagerModal (#154)", () => {
     fireEvent.click(screen.getByTestId("project-archived-toggle"));
     expect(screen.getByTestId("project-list-item-proj-old")).toHaveTextContent("Archived");
     expect(screen.getByTestId("project-detail-name")).toHaveValue("zenith");
-    expect(screen.getByTestId("project-detail-path")).toHaveValue("/repo/zenith");
+    expect(getWorkspaceInput("project-detail-path")).toHaveValue("/repo/zenith");
     // Additional workspace binding from the manifest.
     expect(await screen.findByText("/repo/zenith-worktree")).toBeInTheDocument();
     // Resource summary only shows present kinds, with counts and revision.
@@ -161,7 +201,7 @@ describe("ProjectManagerModal (#154)", () => {
 
     fireEvent.click(screen.getByTestId("project-create-open"));
     fireEvent.change(screen.getByTestId("project-create-name"), { target: { value: "nova" } });
-    fireEvent.change(screen.getByTestId("project-create-path"), {
+    fireEvent.change(getWorkspaceInput("project-create-path"), {
       target: { value: "/repo/nova" },
     });
     fireEvent.click(screen.getByTestId("project-create-submit"));
@@ -224,7 +264,8 @@ describe("ProjectManagerModal (#154)", () => {
     );
     renderModal();
 
-    fireEvent.change(await screen.findByTestId("project-detail-path"), {
+    await screen.findByTestId("project-detail-path");
+    fireEvent.change(getWorkspaceInput("project-detail-path"), {
       target: { value: "/repo/zenith-moved" },
     });
     fireEvent.click(screen.getByTestId("project-detail-save"));
@@ -238,12 +279,59 @@ describe("ProjectManagerModal (#154)", () => {
     );
   });
 
+  it("applies browsed folders to primary and additional Project paths", async () => {
+    mockPatchProject.mockResolvedValue(
+      makeProject("proj-zenith", "zenith", {
+        project_path: "/repo/zenith-moved",
+        revision: 2,
+      }),
+    );
+    mockBindWorkspace.mockResolvedValue(
+      makeProject("proj-zenith", "zenith", {
+        project_path: "/repo/zenith-moved",
+        revision: 3,
+        workspace_count: 3,
+        workspace_bindings: [
+          { path: "/repo/zenith-worktree", label: null, git_common_dir: null },
+          { path: "/repo/zenith-extra", label: null, git_common_dir: null },
+        ],
+      }),
+    );
+    renderModal();
+
+    await screen.findByTestId("project-detail-path");
+    browseWorkspace("project-detail-path", "/repo/zenith-moved");
+    expect(getWorkspaceInput("project-detail-path")).toHaveValue("/repo/zenith-moved");
+    fireEvent.click(screen.getByTestId("project-detail-save"));
+
+    await waitFor(() =>
+      expect(mockPatchProject).toHaveBeenCalledWith("proj-zenith", 1, {
+        name: "zenith",
+        description: null,
+        project_path: "/repo/zenith-moved",
+      }),
+    );
+    await waitFor(() => expect(useAppStore.getState().projects["proj-zenith"]?.revision).toBe(2));
+
+    browseWorkspace("project-bind-input", "/repo/zenith-extra");
+    expect(getWorkspaceInput("project-bind-input")).toHaveValue("/repo/zenith-extra");
+    fireEvent.click(screen.getByTestId("project-bind-submit"));
+
+    await waitFor(() =>
+      expect(mockBindWorkspace).toHaveBeenCalledWith("proj-zenith", 2, {
+        path: "/repo/zenith-extra",
+        label: null,
+        git_common_dir: null,
+      }),
+    );
+  });
+
   it("requires explicit selection for legacy Projects with multiple bindings", async () => {
     renderModal();
 
     fireEvent.click(await screen.findByTestId("project-list-item-proj-legacy"));
 
-    await waitFor(() => expect(screen.getByTestId("project-detail-path")).toHaveValue(""));
+    await waitFor(() => expect(getWorkspaceInput("project-detail-path")).toHaveValue(""));
     expect(screen.getByText("Choose primary folder")).toBeInTheDocument();
     expect(screen.getByText("/repo/legacy-a")).toBeInTheDocument();
     expect(screen.getByText("/repo/legacy-b")).toBeInTheDocument();
@@ -412,7 +500,8 @@ describe("ProjectManagerModal (#154)", () => {
     );
     renderModal();
 
-    fireEvent.change(await screen.findByTestId("project-bind-input"), {
+    await screen.findByTestId("project-bind-input");
+    fireEvent.change(getWorkspaceInput("project-bind-input"), {
       target: { value: "/repo/nova" },
     });
     fireEvent.click(screen.getByTestId("project-bind-submit"));
@@ -453,7 +542,8 @@ describe("ProjectManagerModal (#154)", () => {
       target: { value: "zenith-renamed-draft" },
     });
     // …then bind a workspace, which returns a new manifest (revision bump).
-    fireEvent.change(await screen.findByTestId("project-bind-input"), {
+    await screen.findByTestId("project-bind-input");
+    fireEvent.change(getWorkspaceInput("project-bind-input"), {
       target: { value: "/repo/nova" },
     });
     fireEvent.click(screen.getByTestId("project-bind-submit"));
