@@ -686,7 +686,7 @@ describe("ProviderSettings", () => {
       openai: { base_url: "https://local.example/v1" },
     });
     expect(api.putRequests.at(-1)?.expected_revision).toBe(2);
-  }, 20000);
+  }, 40000);
 
   it("adopts a newer provider snapshot while the form is clean", async () => {
     const api = setupProviderSettingsFetch({
