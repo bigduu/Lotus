@@ -1,10 +1,34 @@
-import { useMemo, useCallback, useEffect } from "react";
-import { Dropdown, Button, Space, Tag, theme } from "antd";
-import { DownOutlined } from "@ant-design/icons";
+import { useMemo, useCallback, useEffect, useState } from "react";
+import { Dropdown, Button, Input, Space, Tag, theme } from "antd";
+import { DownOutlined, SearchOutlined } from "@ant-design/icons";
 import i18n from "i18next";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
 import type { MenuProps } from "antd";
+
+const normalizeSearchText = (value: string) =>
+  value
+    .normalize("NFKD")
+    .toLocaleLowerCase()
+    .replace(/[\s\-_.:/]+/g, "");
+
+const fuzzyMatch = (query: string, candidate: string) => {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return true;
+
+  const normalizedCandidate = normalizeSearchText(candidate);
+  if (normalizedCandidate.includes(normalizedQuery)) return true;
+
+  let queryIndex = 0;
+  for (const character of normalizedCandidate) {
+    if (character === normalizedQuery[queryIndex]) {
+      queryIndex += 1;
+      if (queryIndex === normalizedQuery.length) return true;
+    }
+  }
+
+  return false;
+};
 
 export function ProviderModelPicker({
   value,
@@ -20,6 +44,7 @@ export function ProviderModelPicker({
   appearance?: "default" | "contrast";
 }) {
   const { token } = theme.useToken();
+  const [searchQuery, setSearchQuery] = useState("");
   const catalog = useProviderStore((s) => s.catalog);
   const getProviderDisplayLabel = useProviderStore((s) => s.getProviderDisplayLabel);
 
@@ -34,6 +59,14 @@ export function ProviderModelPicker({
 
     const grouped: Record<string, { display: string; models: typeof catalog.models }> = {};
     for (const model of catalog.models) {
+      const searchText = [
+        model.reference.provider,
+        model.provider_display_name,
+        model.reference.model,
+        model.display_name,
+      ].join(" ");
+      if (!fuzzyMatch(searchQuery, searchText)) continue;
+
       const provider = model.reference.provider;
       if (!grouped[provider]) {
         grouped[provider] = { display: model.provider_display_name, models: [] };
@@ -42,21 +75,19 @@ export function ProviderModelPicker({
     }
 
     const items: MenuProps["items"] = [];
-    const providerKeys = Object.keys(grouped);
-    providerKeys.forEach((provider, index) => {
-      const group = grouped[provider];
+    Object.values(grouped).forEach((group, index) => {
       if (index > 0) {
         items.push({ type: "divider" });
       }
       items.push({
         type: "group",
         label: group.display,
-        children: group.models.map((m) => ({
-          key: `${m.reference.provider}/${m.reference.model}`,
+        children: group.models.map((model) => ({
+          key: `${model.reference.provider}/${model.reference.model}`,
           label: (
             <Space size={4}>
-              <span>{m.display_name}</span>
-              {m.capabilities.supports_vision && (
+              <span>{model.display_name}</span>
+              {model.capabilities.supports_vision && (
                 <Tag color="blue" style={{ fontSize: 10, lineHeight: "16px", padding: "0 3px" }}>
                   Vision
                 </Tag>
@@ -67,8 +98,16 @@ export function ProviderModelPicker({
       });
     });
 
+    if (items.length === 0) {
+      items.push({
+        key: "__no_results__",
+        disabled: true,
+        label: i18n.t("chat.model.noModelsAvailable"),
+      });
+    }
+
     return items;
-  }, [catalog]);
+  }, [catalog, searchQuery]);
 
   const selectedKey = value ? `${value.provider}/${value.model}` : undefined;
   const selectedProviderLabel = value ? getProviderDisplayLabel(value.provider) : undefined;
@@ -78,6 +117,8 @@ export function ProviderModelPicker({
 
   const handleSelect = useCallback(
     (info: { key: string }) => {
+      if (info.key === "__no_results__") return;
+
       const [provider, ...rest] = info.key.split("/");
       const model = rest.join("/");
       if (provider && model) {
@@ -137,6 +178,57 @@ export function ProviderModelPicker({
           items: menuItems,
           style: { maxHeight: "50vh", overflowY: "auto" },
           onClick: handleSelect,
+        }}
+        dropdownRender={(menu) => (
+          <div
+            onKeyDownCapture={(event) => {
+              if (event.key !== "Enter" || !(event.target instanceof HTMLElement)) return;
+
+              const focusedItem = event.target.closest<HTMLElement>(
+                ".ant-dropdown-menu-item:not(.ant-dropdown-menu-item-disabled)",
+              );
+              if (!focusedItem) return;
+
+              event.preventDefault();
+              focusedItem.click();
+            }}
+            style={{
+              minWidth: 260,
+              maxWidth: "calc(100vw - 32px)",
+              background: token.colorBgElevated,
+              borderRadius: token.borderRadiusLG,
+            }}
+          >
+            <div style={{ padding: token.paddingXS }}>
+              <Input
+                autoFocus
+                allowClear
+                data-testid="provider-model-search"
+                prefix={<SearchOutlined />}
+                placeholder={i18n.t("chat.model.selectModel")}
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") return;
+
+                  event.stopPropagation();
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    event.currentTarget
+                      .closest(".ant-dropdown")
+                      ?.querySelector<HTMLElement>(
+                        ".ant-dropdown-menu-item:not(.ant-dropdown-menu-item-disabled)",
+                      )
+                      ?.focus();
+                  }
+                }}
+              />
+            </div>
+            {menu}
+          </div>
+        )}
+        onOpenChange={(open) => {
+          if (!open) setSearchQuery("");
         }}
         disabled={disabled}
       >
