@@ -382,9 +382,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         const enhancePrompt = getSystemPromptEnhancementText(resolvedProviderType).trim();
         const copilotConclusionWithOptionsEnhancementEnabled =
           resolvedProviderType === "copilot" && isCopilotConclusionWithOptionsEnhancementEnabled();
-        // Normalize workspace path: remove trailing slashes, handle cross-platform
-        const rawWorkspacePath = currentChat?.config?.workspacePath || "";
-        const workspacePath = rawWorkspacePath.trim().replace(/\/+$/, "").replace(/\\+$/, "");
+        const persistedWorkspacePath = currentChat?.config?.workspacePath?.trim() || null;
 
         debugLog("[Streaming]", "sendWithAgent.start", {
           sessionId,
@@ -394,12 +392,17 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           imageCount: userMessage.images?.length ?? 0,
           reasoningEffort: reasoningEffort ?? null,
           selectedSkillCount: selectedSkillIds?.length ?? 0,
-          workspacePath: workspacePath || null,
+          workspacePath: persistedWorkspacePath,
           activeModel,
           activeModelRef: activeModelRef ?? null,
         });
 
-        // Step 1: Send message to Agent
+        // Step 1: Send message to Agent. The session was already created
+        // through POST /sessions, and Workspace changes are persisted
+        // separately through the CAS-backed PATCH /sessions/{id} endpoint.
+        // Replaying the current workspace here would make Bamboo interpret an
+        // ordinary turn as an explicit switch and reject legacy/unregistered
+        // persisted workspaces with 409.
         const response = await agentClientRef.current.sendMessage({
           message: content,
           session_id: sessionId,
@@ -411,7 +414,6 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           // when unknown — Bamboo treats a missing field as "no opinion",
           // never as an unassign instruction.
           project_id: currentChat?.config?.projectId ?? undefined,
-          workspace_path: workspacePath || undefined,
           selected_skill_ids:
             selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
           images: userMessage.images

@@ -269,16 +269,16 @@ describe("useMessageStreaming", () => {
     expect(mockStoreState.setAgentAvailability).not.toHaveBeenCalledWith(false);
   });
 
-  it("passes workspace_path to agent chat requests", async () => {
+  it("omits the persisted workspace from ordinary chat requests", async () => {
     mockStoreState.agentAvailability = true;
     mockAgentSendMessage.mockResolvedValue({
-      session_id: "session-1",
+      session_id: "chat-1",
       status: "started",
     });
     mockAgentExecute.mockResolvedValue({
-      session_id: "session-1",
+      session_id: "chat-1",
       status: "started",
-      events_url: "/api/v1/events/session-1",
+      events_url: "/api/v1/events/chat-1",
     });
     mockAgentSubscribeToEvents.mockResolvedValue(undefined);
 
@@ -290,7 +290,8 @@ describe("useMessageStreaming", () => {
       config: {
         systemPromptId: "general_assistant",
         baseSystemPrompt: "Base prompt",
-        workspacePath: "/tmp/workspace",
+        projectId: "project-zenith",
+        workspacePath: "/private/tmp/legacy-unbound-workspace",
         lastUsedEnhancedPrompt: null,
       },
       currentInteraction: {
@@ -314,12 +315,14 @@ describe("useMessageStreaming", () => {
       await result.current.sendMessage("hello");
     });
 
-    expect(mockAgentSendMessage).toHaveBeenCalledWith(
+    const request = mockAgentSendMessage.mock.calls[0]?.[0];
+    expect(request).toEqual(
       expect.objectContaining({
         message: "hello",
-        workspace_path: "/tmp/workspace",
+        project_id: "project-zenith",
       }),
     );
+    expect(request).not.toHaveProperty("workspace_path");
   });
 
   it("sets processing true before sendMessage network call so UI responds immediately", async () => {
