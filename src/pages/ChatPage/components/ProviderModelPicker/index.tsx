@@ -181,17 +181,6 @@ export function ProviderModelPicker({
         }}
         dropdownRender={(menu) => (
           <div
-            onKeyDownCapture={(event) => {
-              if (event.key !== "Enter" || !(event.target instanceof HTMLElement)) return;
-
-              const focusedItem = event.target.closest<HTMLElement>(
-                ".ant-dropdown-menu-item:not(.ant-dropdown-menu-item-disabled)",
-              );
-              if (!focusedItem) return;
-
-              event.preventDefault();
-              focusedItem.click();
-            }}
             style={{
               minWidth: 260,
               maxWidth: "calc(100vw - 32px)",

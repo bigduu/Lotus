@@ -157,7 +157,13 @@ describe("ProviderModelPicker", () => {
     fireEvent.keyDown(search, { key: "ArrowDown" });
 
     expect(firstResultItem).toHaveFocus();
-    fireEvent.keyDown(firstResultItem, { key: "Enter" });
+    fireEvent.keyDown(firstResultItem, {
+      key: "Enter",
+      code: "Enter",
+      keyCode: 13,
+      which: 13,
+    });
+    expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenCalledWith({
       provider: "anthropic",
       model: "claude-opus-4-7",
