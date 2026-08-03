@@ -230,6 +230,12 @@ export interface ChatItem {
    * the title state machine (callers of `addChat` need not set this).
    */
   titleVersion?: number;
+  /**
+   * Explicit backend title lifecycle. `false` means first-message automatic
+   * title generation is still pending; `true` means generated, fallback, or
+   * manual title finalization has completed. Undefined is legacy/fail-safe.
+   */
+  titleGenerated?: boolean;
   createdAt: number;
   pinned?: boolean;
   messages: Message[];

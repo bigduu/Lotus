@@ -115,6 +115,7 @@ export const canReuseSessionListChat = (prev: ChatItem, next: ChatItem): boolean
     prev.placement?.host === next.placement?.host &&
     prev.title === next.title &&
     prev.titleVersion === next.titleVersion &&
+    prev.titleGenerated === next.titleGenerated &&
     prev.createdAt === next.createdAt &&
     prev.pinned === next.pinned &&
     prev.messages === next.messages &&

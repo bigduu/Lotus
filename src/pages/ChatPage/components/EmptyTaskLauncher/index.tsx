@@ -38,6 +38,8 @@ type LauncherTemplate = {
   title: string;
   description: string;
   sessionTitle: string;
+  /** Whether this template's title is intentional rather than a placeholder. */
+  titleGenerated?: boolean;
   prefill: string;
   baseSystemPrompt?: string;
   category: TemplateCategory;
@@ -222,6 +224,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
           "Start from scratch with the default assistant and an empty composer.",
         ),
         sessionTitle: t("chat.emptyLauncher.actions.blank.sessionTitle", "New Session"),
+        titleGenerated: false,
         prefill: t("chat.emptyLauncher.actions.blank.prefill", ""),
         category: "development",
       },
@@ -511,6 +514,10 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
         const defaultPromptConfig = resolveDefaultPromptConfig(systemPrompts, lastSelectedPromptId);
         const newSessionId = await addChat({
           title: template.sessionTitle,
+          // Most curated launcher titles are intentional metadata. The blank
+          // template opts into the pending lifecycle explicitly; no localized
+          // title text is inspected here.
+          titleGenerated: template.titleGenerated ?? true,
           createdAt: Date.now(),
           messages: [],
           config: {

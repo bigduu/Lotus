@@ -25,6 +25,7 @@ const createChat = (overrides: Partial<ChatItem> & { id: string }): ChatItem => 
   id: overrides.id,
   title: overrides.title ?? "Initial",
   titleVersion: overrides.titleVersion,
+  titleGenerated: overrides.titleGenerated,
   pinned: overrides.pinned,
   updatedAt: overrides.updatedAt,
   createdAt: overrides.createdAt ?? Date.now(),
@@ -56,29 +57,31 @@ describe("applyServerTitle", () => {
     store = createTestStore();
     store.setState((state) => ({
       ...state,
-      chats: [createChat({ id: "s1", title: "Original", titleVersion: 3 })],
+      chats: [createChat({ id: "s1", title: "Original", titleVersion: 3, titleGenerated: true })],
     }));
   });
 
   it("ignores events with title_version <= current version", () => {
-    store.getState().applyServerTitle("s1", "Stale Replay", 2);
+    store.getState().applyServerTitle("s1", "Stale Replay", 2, false);
     const chat = store.getState().chats.find((c) => c.id === "s1");
     expect(chat?.title).toBe("Original");
     expect(chat?.titleVersion).toBe(3);
+    expect(chat?.titleGenerated).toBe(true);
   });
 
   it("ignores events with title_version equal to current version", () => {
-    store.getState().applyServerTitle("s1", "Same Version", 3);
+    store.getState().applyServerTitle("s1", "Same Version", 3, true);
     const chat = store.getState().chats.find((c) => c.id === "s1");
     expect(chat?.title).toBe("Original");
     expect(chat?.titleVersion).toBe(3);
   });
 
   it("applies events with title_version strictly greater than current version", () => {
-    store.getState().applyServerTitle("s1", "Newer Title", 5);
+    store.getState().applyServerTitle("s1", "Newer Title", 5, true);
     const chat = store.getState().chats.find((c) => c.id === "s1");
     expect(chat?.title).toBe("Newer Title");
     expect(chat?.titleVersion).toBe(5);
+    expect(chat?.titleGenerated).toBe(true);
   });
 
   it("treats missing local titleVersion as 0", () => {
@@ -86,7 +89,7 @@ describe("applyServerTitle", () => {
       ...state,
       chats: [createChat({ id: "s2", title: "Legacy" })],
     }));
-    store.getState().applyServerTitle("s2", "Versioned", 1);
+    store.getState().applyServerTitle("s2", "Versioned", 1, true);
     const chat = store.getState().chats.find((c) => c.id === "s2");
     expect(chat?.title).toBe("Versioned");
     expect(chat?.titleVersion).toBe(1);
@@ -94,8 +97,29 @@ describe("applyServerTitle", () => {
 
   it("does nothing when the session is not in the chat list", () => {
     const before = store.getState().chats;
-    store.getState().applyServerTitle("missing", "Anything", 99);
+    store.getState().applyServerTitle("missing", "Anything", 99, true);
     expect(store.getState().chats).toBe(before);
+  });
+
+  it("finalizes an explicitly pending lifecycle at the same version", () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          title: "Already Refreshed",
+          titleVersion: 3,
+          titleGenerated: false,
+        }),
+      ],
+    }));
+
+    store.getState().applyServerTitle("s1", "Already Refreshed", 3, true);
+
+    const chat = store.getState().chats[0];
+    expect(chat?.title).toBe("Already Refreshed");
+    expect(chat?.titleVersion).toBe(3);
+    expect(chat?.titleGenerated).toBe(true);
   });
 });
 

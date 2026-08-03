@@ -19,7 +19,6 @@ import { debugSse, isAbortError } from "./useAgentEventSubscription.helpers";
 import {
   PARENT_SETTLE_DELAY_MS,
   TITLE_REFRESH_RETRY_DELAYS_MS,
-  isUntitledChatTitle,
 } from "./agentSubscriptionRunner.helpers";
 import type { SubscriptionContext, RunContext } from "./subscriptionContext";
 import { createStreamingHandlers } from "./subscriptionHandlers/streamingHandlers";
@@ -202,7 +201,7 @@ export function startAgentSubscription(sessionId: string, ctx: SubscriptionConte
     if (!chat || chat.isRunning) {
       return false;
     }
-    return isUntitledChatTitle(chat.title) && (chat.titleVersion ?? 0) === 0;
+    return chat.titleGenerated === false;
   };
 
   const scheduleTitleRefreshRetry = () => {

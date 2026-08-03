@@ -58,11 +58,17 @@ export interface ChatSlice {
   persistSessionTitle: (sessionId: string, title: string) => Promise<void>;
   /**
    * Apply an authoritative server title (from a `session_title_updated` SSE event).
-   * Updates `title` + `titleVersion` only when `titleVersion > current.titleVersion`.
+   * Updates `title` + `titleVersion` when the version advances and applies the
+   * explicit lifecycle monotonically (pending may finalize, never regress).
    * Does NOT call `patchSession` — the backend has already persisted the change
    * (the SSE event implies persistence).
    */
-  applyServerTitle: (sessionId: string, title: string, titleVersion: number) => void;
+  applyServerTitle: (
+    sessionId: string,
+    title: string,
+    titleVersion: number,
+    titleGenerated: boolean,
+  ) => void;
   /**
    * Apply an authoritative server pinned flag (from a `session_pinned_updated`
    * SSE event). Suppresses replays whose `updatedAt` is older than the local

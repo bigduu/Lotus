@@ -11,7 +11,7 @@
  *    `executionStateSlice` should never see a metadata event.
  *
  * State for these fields lives on `chatSessionSlice` (each `ChatItem` already
- * has `title`, `titleVersion`, `pinned`, `updatedAt`). This module is just the
+ * has `title`, `titleVersion`, `titleGenerated`, `pinned`, `updatedAt`). This module is just the
  * dispatch surface; it does not own state.
  *
  * Implementation note: the dispatcher takes a `target` (the two `applyServer*`
@@ -50,7 +50,12 @@ export function isSessionMetadataEvent(event: AgentEvent): event is ReplayableSe
  * isolated test store's state from unit tests.
  */
 export interface ReplayableSessionEventTarget {
-  applyServerTitle: (sessionId: string, title: string, titleVersion: number) => void;
+  applyServerTitle: (
+    sessionId: string,
+    title: string,
+    titleVersion: number,
+    titleGenerated: boolean,
+  ) => void;
   applyServerPinned: (sessionId: string, pinned: boolean, updatedAt: string) => void;
 }
 
@@ -69,7 +74,12 @@ export function applyReplayableSessionEvent(
         typeof event.title === "string" &&
         typeof event.title_version === "number"
       ) {
-        target.applyServerTitle(event.session_id, event.title, event.title_version);
+        target.applyServerTitle(
+          event.session_id,
+          event.title,
+          event.title_version,
+          typeof event.title_generated === "boolean" ? event.title_generated : true,
+        );
       }
       break;
     }
@@ -107,8 +117,21 @@ export function applyReplayableSessionEventToList(
       }
       const incoming = event.title_version;
       const existing = chats[idx].titleVersion ?? 0;
-      if (incoming <= existing) return;
-      chats[idx] = { ...chats[idx], title: event.title, titleVersion: incoming };
+      const titleGenerated =
+        typeof event.title_generated === "boolean" ? event.title_generated : true;
+      if (incoming < existing) return;
+      if (incoming === existing) {
+        if (chats[idx].titleGenerated === false && titleGenerated) {
+          chats[idx] = { ...chats[idx], titleGenerated: true };
+        }
+        return;
+      }
+      chats[idx] = {
+        ...chats[idx],
+        title: event.title,
+        titleVersion: incoming,
+        titleGenerated: chats[idx].titleGenerated === true || titleGenerated,
+      };
       return;
     }
     case "session_pinned_updated": {

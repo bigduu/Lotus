@@ -1606,7 +1606,7 @@ describe("useAgentEventSubscription", () => {
     });
   });
 
-  it("retries refreshing chats when completion settles but title is still a default placeholder", async () => {
+  it("retries refreshing chats when the explicit title lifecycle is still pending", async () => {
     vi.useFakeTimers();
 
     let completeHandler: any;
@@ -1621,8 +1621,9 @@ describe("useAgentEventSubscription", () => {
     mockState.chats = [
       {
         id: "session-1",
-        title: "New session with Bodhi",
+        title: "Arbitrary Visible Title",
         titleVersion: 0,
+        titleGenerated: false,
         isRunning: true,
         messages: [],
       },
@@ -1650,8 +1651,9 @@ describe("useAgentEventSubscription", () => {
         mockState.chats = [
           {
             id: "session-1",
-            title: "New session with Bodhi",
+            title: "Arbitrary Visible Title",
             titleVersion: 0,
+            titleGenerated: false,
             isRunning: false,
             messages: [],
           },
@@ -1662,6 +1664,7 @@ describe("useAgentEventSubscription", () => {
             id: "session-1",
             title: "Real Generated Title",
             titleVersion: 1,
+            titleGenerated: true,
             isRunning: false,
             messages: [],
           },
@@ -2702,12 +2705,18 @@ describe("useAgentEventSubscription", () => {
         session_id: "session-1",
         title: "Renamed via SSE",
         title_version: 7,
+        title_generated: true,
         source: "manual",
         updated_at: "2026-01-15T12:00:00.000Z",
       });
     });
 
-    expect(mockState.applyServerTitle).toHaveBeenCalledWith("session-1", "Renamed via SSE", 7);
+    expect(mockState.applyServerTitle).toHaveBeenCalledWith(
+      "session-1",
+      "Renamed via SSE",
+      7,
+      true,
+    );
   });
 
   it("routes live session_pinned_updated through applyServerPinned on the store", async () => {

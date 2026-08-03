@@ -38,6 +38,7 @@ const createSummary = (overrides: Partial<SessionSummary> & { id: string }): Ses
   kind: overrides.kind ?? "root",
   title: overrides.title ?? "Remote Title",
   title_version: overrides.title_version ?? 0,
+  title_generated: overrides.title_generated ?? true,
   pinned: overrides.pinned ?? false,
   parent_session_id: null,
   root_session_id: overrides.root_session_id ?? overrides.id,
@@ -61,6 +62,7 @@ const createChat = (overrides: Partial<ChatItem> & { id: string }): ChatItem => 
   id: overrides.id,
   title: overrides.title ?? "Local Title",
   titleVersion: overrides.titleVersion,
+  titleGenerated: overrides.titleGenerated,
   pinned: overrides.pinned,
   updatedAt: overrides.updatedAt,
   createdAt: overrides.createdAt ?? Date.now(),
@@ -112,6 +114,54 @@ describe("applySessionsList (via refreshChats)", () => {
     await store.getState().refreshChatsNow();
 
     expect(store.getState().chats[0].config.workspacePath).toBe("/work/zenith");
+  });
+
+  it("maps pending title lifecycle independently of the visible title text", async () => {
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          title: "Looks Completely Custom",
+          title_generated: false,
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    expect(store.getState().chats[0].title).toBe("Looks Completely Custom");
+    expect(store.getState().chats[0].titleGenerated).toBe(false);
+  });
+
+  it("upgrades pending title lifecycle without letting stale summaries regress it", async () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          title: "Generated",
+          titleVersion: 1,
+          titleGenerated: true,
+        }),
+      ],
+    }));
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          title: "Stale Pending",
+          title_version: 0,
+          title_generated: false,
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    const chat = store.getState().chats[0];
+    expect(chat.title).toBe("Generated");
+    expect(chat.titleVersion).toBe(1);
+    expect(chat.titleGenerated).toBe(true);
   });
 
   it("lets server OFF replace stale local bypass ON after refresh", async () => {

@@ -160,6 +160,7 @@ describe("EmptyTaskLauncher", () => {
 
     expect(createdSession).toMatchObject({
       title: "Code Review",
+      titleGenerated: true,
       config: expect.objectContaining({
         workspacePath: "/workspace/project",
       }),
@@ -204,6 +205,7 @@ describe("EmptyTaskLauncher", () => {
     const createdSession = useAppStore
       .getState()
       .chats.find((chat: any) => chat.id === "session-blank");
+    expect(createdSession?.titleGenerated).toBe(false);
     expect(createdSession?.config.workspacePath).toBeUndefined();
   });
 
