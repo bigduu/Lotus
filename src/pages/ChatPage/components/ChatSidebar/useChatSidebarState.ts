@@ -431,6 +431,13 @@ export const useChatSidebarState = () => {
           "[ChatSidebar] Failed to enable bypass permissions for new session:",
           warningError,
         );
+        // The server may have committed the mutation even when its response
+        // was lost, or another client may have won a CAS race. Rollback is
+        // only a temporary local fallback; immediately reconcile from Bamboo.
+        void useAppStore
+          .getState()
+          .refreshChatsNow()
+          .catch(() => undefined);
       }
     },
     [createNewChat, modal, t],
