@@ -1,4 +1,11 @@
-import { expect, test, type APIRequestContext, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+  type Response as PlaywrightResponse,
+  type TestInfo,
+} from "@playwright/test";
 
 import {
   PROJECT_EXPANSION_STORAGE_KEY,
@@ -953,31 +960,24 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
             response.request().method() === "POST" &&
             new URL(response.url()).pathname === "/api/v1/sessions",
         );
-        let bypassAttemptCount = 0;
+        const sessionResponses: PlaywrightResponse[] = [];
+        const bypassResponses: PlaywrightResponse[] = [];
         const bypassResponsePromise = page.waitForResponse((response) => {
-          if (
-            response.request().method() !== "PATCH" ||
-            !new URL(response.url()).pathname.startsWith("/api/v1/sessions/")
-          ) {
+          const path = new URL(response.url()).pathname;
+          if (!path.startsWith("/api/v1/sessions/")) {
             return false;
           }
-          try {
-            const body = response.request().postDataJSON() as {
-              bypass_permissions?: boolean;
-              permission_mode?: string;
-            };
-            if (body.bypass_permissions !== true && body.permission_mode !== "bypass") {
-              return false;
-            }
 
-            bypassAttemptCount += 1;
-            // Typed writes use optimistic CAS. A create-time metadata update
-            // may win the first race, so Lotus is allowed exactly one 412
-            // before its bounded re-read/retry must produce the final result.
-            return response.status() !== 412 || bypassAttemptCount === 2;
-          } catch {
+          sessionResponses.push(response);
+          if (response.request().method() !== "PATCH") {
             return false;
           }
+
+          bypassResponses.push(response);
+          // Typed writes use optimistic CAS. A create-time metadata update may
+          // win the first race, so wait for the bounded retry after one 412.
+          // Every captured attempt is validated below, including failures.
+          return response.status() !== 412 || bypassResponses.length === 2;
         });
 
         await createButton.click();
@@ -1004,19 +1004,58 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
         const bypassResponse = await bypassResponsePromise;
         expect(bypassResponse.ok(), await bypassResponse.text()).toBe(true);
-        expect(bypassAttemptCount).toBeLessThanOrEqual(2);
-        expect(new URL(bypassResponse.url()).pathname).toBe(
-          `/api/v1/sessions/${encodeURIComponent(createBody.session.id)}`,
-        );
-        if (createBody.session.permission_mode !== undefined) {
-          expect(bypassResponse.request().postDataJSON()).toEqual({
-            permission_mode: "bypass",
-          });
-          expect(bypassResponse.request().headers()["if-match"]).toMatch(/^"\d+"$/);
+        const sessionPath = `/api/v1/sessions/${encodeURIComponent(createBody.session.id)}`;
+        const supportsTypedMode = createBody.session.permission_mode !== undefined;
+
+        if (supportsTypedMode) {
+          expect([1, 2]).toContain(bypassResponses.length);
         } else {
-          expect(bypassResponse.request().postDataJSON()).toEqual({
-            bypass_permissions: true,
-          });
+          expect(bypassResponses).toHaveLength(1);
+        }
+
+        for (const attempt of bypassResponses) {
+          expect(new URL(attempt.url()).pathname).toBe(sessionPath);
+          if (supportsTypedMode) {
+            expect(attempt.request().postDataJSON()).toEqual({
+              permission_mode: "bypass",
+            });
+            const ifMatch = attempt.request().headers()["if-match"];
+            expect(ifMatch).toMatch(/^"\d+"$/);
+
+            const attemptIndex = sessionResponses.indexOf(attempt);
+            const precedingRead = sessionResponses
+              .slice(0, attemptIndex)
+              .reverse()
+              .find(
+                (candidate) =>
+                  candidate.request().method() === "GET" &&
+                  new URL(candidate.url()).pathname === sessionPath &&
+                  candidate.ok(),
+              );
+            expect(precedingRead).toBeDefined();
+            expect(ifMatch).toBe(precedingRead?.headers()["etag"]?.replace(/^W\//, ""));
+          } else {
+            expect(attempt.request().postDataJSON()).toEqual({
+              bypass_permissions: true,
+            });
+          }
+        }
+
+        if (bypassResponses.length === 2) {
+          expect(bypassResponses[0].status()).toBe(412);
+          expect(bypassResponses[1].ok()).toBe(true);
+          const firstAttemptIndex = sessionResponses.indexOf(bypassResponses[0]);
+          const secondAttemptIndex = sessionResponses.indexOf(bypassResponses[1]);
+          expect(
+            sessionResponses
+              .slice(firstAttemptIndex + 1, secondAttemptIndex)
+              .some(
+                (response) =>
+                  response.request().method() === "GET" &&
+                  new URL(response.url()).pathname === sessionPath &&
+                  response.ok(),
+              ),
+          ).toBe(true);
         }
 
         await expect(
