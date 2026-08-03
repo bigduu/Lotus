@@ -120,7 +120,7 @@ describe("accountFeed runner", () => {
         title_version: 3,
       }),
     );
-    expect(storeActions.applyServerTitle).toHaveBeenCalledWith("s1", "Renamed", 3);
+    expect(storeActions.applyServerTitle).toHaveBeenCalledWith("s1", "Renamed", 3, true);
 
     captured!.onChange(
       change(2, {

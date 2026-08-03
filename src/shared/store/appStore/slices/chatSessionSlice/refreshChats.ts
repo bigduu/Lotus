@@ -134,10 +134,21 @@ export function applySessionsList(
       // (manual PATCH or auto-title generation), so the highest version always wins.
       const remoteTitleVersion = c.titleVersion ?? 0;
       const localTitleVersion = prev.titleVersion ?? 0;
-      const titleFields =
-        remoteTitleVersion > localTitleVersion
+      const titleGenerated =
+        prev.titleGenerated === true || c.titleGenerated === true
+          ? true
+          : remoteTitleVersion > localTitleVersion
+            ? (c.titleGenerated ?? prev.titleGenerated)
+            : (prev.titleGenerated ?? c.titleGenerated);
+      const titleFields = {
+        ...(remoteTitleVersion > localTitleVersion
           ? { title: c.title, titleVersion: remoteTitleVersion }
-          : { title: prev.title, titleVersion: localTitleVersion };
+          : { title: prev.title, titleVersion: localTitleVersion }),
+        // Lifecycle is monotonic: a pending summary may finalize, while a
+        // lagging summary must never reopen title generation after manual or
+        // generated finalization.
+        titleGenerated,
+      };
 
       const mergedConfig = {
         ...prevConfig,
@@ -175,16 +186,17 @@ export function applySessionsList(
 
       const mergedChat: ChatItem = {
         ...c,
-        // `title` and `titleVersion` are deliberately omitted here —
+        // `title`, `titleVersion`, and `titleGenerated` are deliberately
+        // omitted here —
         // version-based precedence below (`...titleFields`) is the source of truth
-        // for those two fields, overriding the `updatedAt`-based logic.
+        // for those fields, overriding the `updatedAt`-based logic.
         pinned: preferLocalSessionFields ? prev.pinned : c.pinned,
         updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
         messages: prev.messages,
         messageCount: effectiveMessageCount,
         planMode: c.planMode,
         config: mergedConfig,
-        // Override title/titleVersion with version-based precedence,
+        // Override title metadata with version/lifecycle precedence,
         // overriding the `updatedAt`-based decision for these fields specifically.
         ...titleFields,
       };

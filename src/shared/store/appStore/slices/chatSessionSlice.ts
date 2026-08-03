@@ -132,6 +132,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
 
     const created = await agentClient.createSession({
       title,
+      // Titles supplied while creating a blank chat are UI labels, not manual
+      // renames. Keep the lifecycle pending without inspecting localized text.
+      title_generated: chatData.titleGenerated ?? false,
       system_prompt: basePrompt || undefined,
       model,
       model_ref: modelRef,
@@ -634,14 +637,18 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   },
 
   persistSessionTitle: async (sessionId, title) => {
-    // Capture previous title for rollback.
-    const previousTitle = get().chats.find((c) => c.id === sessionId)?.title;
+    // Capture previous title lifecycle for rollback.
+    const previousChat = get().chats.find((c) => c.id === sessionId);
+    const previousTitle = previousChat?.title;
+    const previousTitleGenerated = previousChat?.titleGenerated;
 
     // Optimistic local update.
     set((state) => ({
       ...state,
       chats: state.chats.map((chat) =>
-        chat.id === sessionId ? { ...chat, title, updatedAt: new Date().toISOString() } : chat,
+        chat.id === sessionId
+          ? { ...chat, title, titleGenerated: true, updatedAt: new Date().toISOString() }
+          : chat,
       ),
     }));
 
@@ -657,7 +664,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         set((state) => ({
           ...state,
           chats: state.chats.map((chat) =>
-            chat.id === sessionId ? { ...chat, title: previousTitle } : chat,
+            chat.id === sessionId
+              ? { ...chat, title: previousTitle, titleGenerated: previousTitleGenerated }
+              : chat,
           ),
         }));
       }
@@ -666,16 +675,32 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     }
   },
 
-  applyServerTitle: (sessionId, title, titleVersion) =>
+  applyServerTitle: (sessionId, title, titleVersion, titleGenerated) =>
     set((state) => {
       const existing = state.chats.find((c) => c.id === sessionId);
       if (!existing) return state;
-      if (titleVersion <= (existing.titleVersion ?? 0)) return state;
+      const existingVersion = existing.titleVersion ?? 0;
+      if (titleVersion < existingVersion) return state;
+      if (titleVersion === existingVersion) {
+        if (existing.titleGenerated !== false || !titleGenerated) return state;
+        return {
+          ...state,
+          chats: state.chats.map((chat) =>
+            chat.id === sessionId ? { ...chat, titleGenerated: true } : chat,
+          ),
+        };
+      }
       return {
         ...state,
         chats: state.chats.map((chat) =>
           chat.id === sessionId
-            ? { ...chat, title, titleVersion, updatedAt: new Date().toISOString() }
+            ? {
+                ...chat,
+                title,
+                titleVersion,
+                titleGenerated: existing.titleGenerated === true || titleGenerated,
+                updatedAt: new Date().toISOString(),
+              }
             : chat,
         ),
       };
@@ -886,6 +911,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       });
       const created = await agentClient.createSession({
         title: i18n.t("chat.sidebar.newSession"),
+        title_generated: false,
         model: defaultModel,
         model_ref: defaultModelRef,
         provider: defaultModelRef?.provider,

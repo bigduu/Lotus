@@ -259,7 +259,12 @@ const applyChange = (change: ChangeEvent): void => {
       break;
     case "session_title_updated":
       if (sessionId && typeof event.title === "string") {
-        store.applyServerTitle(sessionId, event.title, event.title_version ?? 0);
+        store.applyServerTitle(
+          sessionId,
+          event.title,
+          event.title_version ?? 0,
+          typeof event.title_generated === "boolean" ? event.title_generated : true,
+        );
       }
       // Title also affects the list ordering/labels of non-open sessions.
       scheduleRefresh();

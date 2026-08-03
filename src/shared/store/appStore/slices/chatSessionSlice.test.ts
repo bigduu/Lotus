@@ -30,6 +30,7 @@ const {
       id: "session-1",
       kind: "root",
       title: "New Session",
+      title_generated: false,
       pinned: false,
       root_session_id: "session-1",
       spawn_depth: 0,
@@ -636,6 +637,7 @@ describe("chatSessionSlice session model propagation", () => {
         id: "session-1",
         kind: "root",
         title: "New Session",
+        title_generated: false,
         pinned: false,
         root_session_id: "session-1",
         spawn_depth: 0,
@@ -671,6 +673,7 @@ describe("chatSessionSlice session model propagation", () => {
     expect(createSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "gpt-5.2",
+        title_generated: false,
       }),
     );
   });
@@ -683,6 +686,22 @@ describe("chatSessionSlice session model propagation", () => {
     expect(createSessionMock).toHaveBeenCalledWith(
       expect.objectContaining({
         model: undefined,
+      }),
+    );
+  });
+
+  it("forwards an explicitly finalized title lifecycle without inspecting its text", async () => {
+    const store = createTestStore();
+    const { id: _id, ...chatData } = createChat("temp-chat");
+    chatData.title = "Any Curated Launcher Title";
+    chatData.titleGenerated = true;
+
+    await store.getState().addChat(chatData);
+
+    expect(createSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Any Curated Launcher Title",
+        title_generated: true,
       }),
     );
   });
@@ -840,6 +859,7 @@ describe("chatSessionSlice session model propagation", () => {
 
       // Local state must be updated immediately.
       expect(store.getState().chats[0]?.title).toBe("My New Title");
+      expect(store.getState().chats[0]?.titleGenerated).toBe(true);
 
       // Backend must be called with the new title.
       expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "My New Title" });
@@ -847,7 +867,7 @@ describe("chatSessionSlice session model propagation", () => {
 
     it("rolls back title when PATCH fails", async () => {
       const store = createTestStore();
-      const chat = createChat("session-1");
+      const chat = { ...createChat("session-1"), titleGenerated: false };
 
       store.setState((state) => ({
         ...state,
@@ -864,6 +884,7 @@ describe("chatSessionSlice session model propagation", () => {
 
       // Title must be rolled back to the original.
       expect(store.getState().chats[0]?.title).toBe("Chat session-1");
+      expect(store.getState().chats[0]?.titleGenerated).toBe(false);
       expect(patchSessionMock).toHaveBeenCalledWith("session-1", { title: "Broken Title" });
     });
 

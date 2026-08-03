@@ -264,6 +264,7 @@ export interface AgentEvent {
   round_count?: number;
   // SessionTitleUpdated event
   title_version?: number;
+  title_generated?: boolean;
   source?: "auto" | "manual" | "fallback";
   updated_at?: string;
   // Live config and project lifecycle events share a numeric revision field.
@@ -481,6 +482,8 @@ export interface SessionSummary {
   kind: SessionKind;
   title: string;
   title_version: number;
+  /** Explicit backend lifecycle; absent legacy rows fail safe as finalized. */
+  title_generated?: boolean;
   pinned: boolean;
   parent_session_id?: string | null;
   root_session_id: string;
@@ -560,6 +563,8 @@ export interface ListSessionsResponse {
 
 export interface CreateSessionRequest {
   title?: string;
+  /** Explicit lifecycle for UI placeholders; omitted legacy titles are finalized. */
+  title_generated?: boolean;
   system_prompt?: string;
   model?: string;
   model_ref?: { provider: string; model: string };
@@ -894,6 +899,7 @@ export interface SessionTitleUpdatedEvent {
   session_id: string;
   title: string;
   title_version: number;
+  title_generated: boolean;
   source: "auto" | "manual" | "fallback";
   updated_at: string;
 }
@@ -2029,6 +2035,10 @@ export class AgentClient {
             session_id: event.session_id,
             title: event.title,
             title_version: event.title_version,
+            // Older Bamboo events did not carry the lifecycle. Treat them as
+            // finalized rather than guessing from localized visible text.
+            title_generated:
+              typeof event.title_generated === "boolean" ? event.title_generated : true,
             source: event.source,
             updated_at: event.updated_at,
           });
