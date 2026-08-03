@@ -984,6 +984,19 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
             return false;
           }
 
+          let patchBody: Record<string, unknown>;
+          try {
+            patchBody = response.request().postDataJSON() as Record<string, unknown>;
+          } catch {
+            return false;
+          }
+          if (!("permission_mode" in patchBody) && !("bypass_permissions" in patchBody)) {
+            // Session creation also persists model/Gold defaults. Keep those
+            // responses in sessionResponses for ordering, but they are not
+            // permission-mode attempts and must not terminate this waiter.
+            return false;
+          }
+
           bypassResponses.push(response);
           // A non-412 PATCH is terminal. A second 412 is also terminal so the
           // test reports the bounded retry failure instead of timing out.
