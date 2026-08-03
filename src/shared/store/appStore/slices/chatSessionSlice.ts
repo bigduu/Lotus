@@ -145,8 +145,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       workspace_path: chatData.config?.workspacePath?.trim() || null,
     });
 
+    const mappedSession = sessionSummaryToChatItem(created.session);
     const newChat: ChatItem = {
-      ...sessionSummaryToChatItem(created.session),
+      ...mappedSession,
       title,
       config: {
         ...chatData.config,
@@ -155,6 +156,12 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         model_ref: created.session.model_ref ?? null,
         reasoningEffort: created.session.reasoning_effort ?? null,
         goldConfig: created.session.gold_config ?? chatData.config?.goldConfig ?? null,
+        // The create response is authoritative for both the exact mode and
+        // typed-mode capability. Do not let the caller's pre-create config
+        // make a current Bamboo backend look legacy until the next refresh.
+        bypassPermissions: mappedSession.config.bypassPermissions,
+        permissionMode: mappedSession.config.permissionMode,
+        permissionModeSupported: mappedSession.config.permissionModeSupported,
         // If the caller provided a base prompt, keep it; otherwise fall back.
         baseSystemPrompt: basePrompt || DEFAULT_BASE_SYSTEM_PROMPT,
       },

@@ -99,6 +99,25 @@ describe("chatSessionSlice addChat — Project membership (#134/#154)", () => {
     expect(chat?.config.projectId).toBe("proj-zenith");
   });
 
+  it("retains the authoritative typed permission mode from the create response", async () => {
+    mockCreateSession.mockResolvedValue({
+      session: makeSummary({
+        permission_mode: "auto",
+        bypass_permissions: true,
+      }),
+    });
+    const store = createTestStore({ projects: {}, activeProjectId: null });
+
+    const sessionId = await store.getState().addChat(newChatData() as any);
+
+    const chat = store.getState().chats.find((candidate) => candidate.id === sessionId);
+    expect(chat?.config).toMatchObject({
+      permissionMode: "auto",
+      permissionModeSupported: true,
+      bypassPermissions: true,
+    });
+  });
+
   it("does NOT send a dangling archived active Project", async () => {
     mockCreateSession.mockResolvedValue({ session: makeSummary() });
     const store = createTestStore({
