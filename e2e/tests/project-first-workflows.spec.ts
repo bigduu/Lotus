@@ -963,8 +963,9 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
           try {
             const body = response.request().postDataJSON() as {
               bypass_permissions?: boolean;
+              permission_mode?: string;
             };
-            return body.bypass_permissions === true;
+            return body.bypass_permissions === true || body.permission_mode === "bypass";
           } catch {
             return false;
           }
@@ -994,9 +995,16 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
         const bypassResponse = await bypassResponsePromise;
         expect(bypassResponse.ok(), await bypassResponse.text()).toBe(true);
-        expect(bypassResponse.request().postDataJSON()).toEqual({
-          bypass_permissions: true,
-        });
+        if (createBody.session.permission_mode !== undefined) {
+          expect(bypassResponse.request().postDataJSON()).toEqual({
+            permission_mode: "bypass",
+          });
+          expect(bypassResponse.request().headers()["if-match"]).toMatch(/^"\d+"$/);
+        } else {
+          expect(bypassResponse.request().postDataJSON()).toEqual({
+            bypass_permissions: true,
+          });
+        }
 
         await expect(
           page.getByRole("button", {
@@ -1013,10 +1021,9 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
           page.locator(".chat-pane-shell__title").getByText("New Session"),
         ).toBeVisible();
         await expect(page.locator('[data-testid="chat-input"]')).toBeVisible();
-        await expect(page.getByRole("button", { name: "Bypass ON" })).toHaveAttribute(
-          "aria-pressed",
-          "true",
-        );
+        const permissionModeControl = page.getByTestId("permission-mode-control");
+        await expect(permissionModeControl).toHaveAttribute("data-permission-mode", "bypass");
+        await expect(permissionModeControl).toContainText("Bypass");
 
         const persisted = await getSessionWithVersion(api, createBody.session.id);
         expect(persisted.session.project_id).toBe(input.projectId);
@@ -1025,6 +1032,9 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
           expect(persisted.session.workspace_path).toBe(input.workspacePath);
         }
         expect(persisted.session.bypass_permissions).toBe(true);
+        if (createBody.session.permission_mode !== undefined) {
+          expect(persisted.session.permission_mode).toBe("bypass");
+        }
       };
 
       await createFromGroup({
