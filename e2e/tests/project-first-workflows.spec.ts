@@ -962,21 +962,31 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
         );
         const sessionResponses: PlaywrightResponse[] = [];
         const bypassResponses: PlaywrightResponse[] = [];
-        const bypassResponsePromise = page.waitForResponse((response) => {
+        const permissionModeTerminalPromise = page.waitForResponse(async (response) => {
           const path = new URL(response.url()).pathname;
           if (!path.startsWith("/api/v1/sessions/")) {
             return false;
           }
 
           sessionResponses.push(response);
+          if (response.request().method() === "GET" && response.ok()) {
+            try {
+              const body = (await response.json()) as { session?: SessionSummary };
+              // A concurrent writer may already have committed the requested
+              // mode. AgentService then converges from this read without a
+              // redundant PATCH, including immediately after a 412.
+              return body.session?.permission_mode === "bypass";
+            } catch {
+              return false;
+            }
+          }
           if (response.request().method() !== "PATCH") {
             return false;
           }
 
           bypassResponses.push(response);
-          // Typed writes use optimistic CAS. A create-time metadata update may
-          // win the first race, so wait for the bounded retry after one 412.
-          // Every captured attempt is validated below, including failures.
+          // A non-412 PATCH is terminal. A second 412 is also terminal so the
+          // test reports the bounded retry failure instead of timing out.
           return response.status() !== 412 || bypassResponses.length === 2;
         });
 
@@ -1002,13 +1012,14 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
           expect(createBody.session.workspace_path).not.toBe(fixture.primary);
         }
 
-        const bypassResponse = await bypassResponsePromise;
-        expect(bypassResponse.ok(), await bypassResponse.text()).toBe(true);
+        const permissionModeTerminal = await permissionModeTerminalPromise;
+        expect(permissionModeTerminal.ok(), await permissionModeTerminal.text()).toBe(true);
         const sessionPath = `/api/v1/sessions/${encodeURIComponent(createBody.session.id)}`;
         const supportsTypedMode = createBody.session.permission_mode !== undefined;
+        expect(new URL(permissionModeTerminal.url()).pathname).toBe(sessionPath);
 
         if (supportsTypedMode) {
-          expect([1, 2]).toContain(bypassResponses.length);
+          expect([0, 1, 2]).toContain(bypassResponses.length);
         } else {
           expect(bypassResponses).toHaveLength(1);
         }
@@ -1033,7 +1044,12 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
                   candidate.ok(),
               );
             expect(precedingRead).toBeDefined();
-            expect(ifMatch).toBe(precedingRead?.headers()["etag"]?.replace(/^W\//, ""));
+            if (!precedingRead) {
+              throw new Error("Typed permission PATCH was not preceded by a session read");
+            }
+            const precedingBody = (await precedingRead.json()) as { session?: SessionSummary };
+            expect(precedingBody.session?.permission_mode).not.toBe("bypass");
+            expect(ifMatch).toBe(precedingRead.headers()["etag"]?.replace(/^W\//, ""));
           } else {
             expect(attempt.request().postDataJSON()).toEqual({
               bypass_permissions: true,
@@ -1041,9 +1057,31 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
           }
         }
 
-        if (bypassResponses.length === 2) {
+        const expectTargetRead = async (response: PlaywrightResponse) => {
+          expect(response.request().method()).toBe("GET");
+          const body = (await response.json()) as { session?: SessionSummary };
+          expect(body.session?.permission_mode).toBe("bypass");
+        };
+
+        if (!supportsTypedMode) {
+          expect(permissionModeTerminal).toBe(bypassResponses[0]);
+        } else if (bypassResponses.length === 0) {
+          await expectTargetRead(permissionModeTerminal);
+        } else if (bypassResponses.length === 1) {
+          const [attempt] = bypassResponses;
+          if (attempt.status() === 412) {
+            expect(sessionResponses.indexOf(permissionModeTerminal)).toBeGreaterThan(
+              sessionResponses.indexOf(attempt),
+            );
+            await expectTargetRead(permissionModeTerminal);
+          } else {
+            expect(attempt.ok()).toBe(true);
+            expect(permissionModeTerminal).toBe(attempt);
+          }
+        } else {
           expect(bypassResponses[0].status()).toBe(412);
           expect(bypassResponses[1].ok()).toBe(true);
+          expect(permissionModeTerminal).toBe(bypassResponses[1]);
           const firstAttemptIndex = sessionResponses.indexOf(bypassResponses[0]);
           const secondAttemptIndex = sessionResponses.indexOf(bypassResponses[1]);
           expect(
