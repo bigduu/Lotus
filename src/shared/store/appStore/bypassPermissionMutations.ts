@@ -25,6 +25,22 @@ export const beginPermissionModeMutation = (
   return revision;
 };
 
+/**
+ * Atomically start a UI mutation unless this exact session already has one in
+ * flight. Component-local loading state is reset by navigation, so it cannot
+ * provide this cross-navigation exclusion by itself.
+ */
+export const tryBeginPermissionModeMutation = (
+  sessionId: string,
+  optimisticValue: SessionPermissionMode,
+  lastConfirmedValue: SessionPermissionMode,
+): number | null => {
+  if (pendingBySession.get(sessionId)?.confirmedAtRevision === null) {
+    return null;
+  }
+  return beginPermissionModeMutation(sessionId, optimisticValue, lastConfirmedValue);
+};
+
 export const beginPermissionModeSummaryRequest = (): number => ++nextRevision;
 
 export const reconcilePermissionModeSummary = (
@@ -114,8 +130,10 @@ export const failBypassPermissionMutation = (
   return value === null ? null : value !== "default";
 };
 
-export const isBypassPermissionMutationPending = (sessionId: string): boolean =>
+export const isPermissionModeMutationPending = (sessionId: string): boolean =>
   pendingBySession.get(sessionId)?.confirmedAtRevision === null;
+
+export const isBypassPermissionMutationPending = isPermissionModeMutationPending;
 
 /** @internal Test isolation only. */
 export const resetBypassPermissionMutations = (): void => {

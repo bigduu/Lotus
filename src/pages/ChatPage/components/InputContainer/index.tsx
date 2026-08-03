@@ -23,9 +23,10 @@ import {
 } from "@shared/store/appStore";
 import { readPersistedInputReasoningEffort } from "@shared/store/appStore/slices/inputStateSlice";
 import {
-  beginPermissionModeMutation,
   confirmPermissionModeMutation,
   failPermissionModeMutation,
+  isPermissionModeMutationPending,
+  tryBeginPermissionModeMutation,
 } from "@shared/store/appStore/bypassPermissionMutations";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
@@ -229,16 +230,30 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const permissionModeStatusSessionRef = useRef(sessionId);
   permissionModeStatusSessionRef.current = sessionId;
   useEffect(() => setPermissionModeMutationStatus("idle"), [sessionId]);
+  const isSessionPermissionModeMutationPending = sessionId
+    ? isPermissionModeMutationPending(sessionId)
+    : false;
   const setPermissionModePersisted = useCallback(
     async (next: SessionPermissionMode) => {
-      if (!sessionId || !currentChat || permissionModeMutationStatus === "pending") {
+      if (
+        !sessionId ||
+        !currentChat ||
+        permissionModeMutationStatus === "pending" ||
+        isPermissionModeMutationPending(sessionId)
+      ) {
         return;
       }
       if (next === "auto" && !permissionModeSupported) {
         messageApi.error(t("chat.input.permissionMode.autoUnsupported"));
         return;
       }
-      const revision = beginPermissionModeMutation(sessionId, next, permissionMode);
+      // Navigation resets component-local status. The tracker provides the
+      // atomic per-session fence that still prevents a second write after the
+      // user leaves and returns while the first request is in flight.
+      const revision = tryBeginPermissionModeMutation(sessionId, next, permissionMode);
+      if (revision === null) {
+        return;
+      }
       setPermissionModeMutationStatus("pending");
       updateSession(
         sessionId,
@@ -1035,7 +1050,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <PermissionModeControl
         mode={permissionMode}
         supportsAuto={permissionModeSupported}
-        mutationStatus={permissionModeMutationStatus}
+        mutationStatus={
+          isSessionPermissionModeMutationPending ? "pending" : permissionModeMutationStatus
+        }
         sessionTitle={currentChat?.title ?? ""}
         compact={isMobile}
         disabled={!sessionId}
@@ -1044,6 +1061,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     ),
     [
       currentChat?.title,
+      isSessionPermissionModeMutationPending,
       isMobile,
       permissionMode,
       permissionModeMutationStatus,
