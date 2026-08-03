@@ -953,6 +953,7 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
             response.request().method() === "POST" &&
             new URL(response.url()).pathname === "/api/v1/sessions",
         );
+        let bypassAttemptCount = 0;
         const bypassResponsePromise = page.waitForResponse((response) => {
           if (
             response.request().method() !== "PATCH" ||
@@ -965,7 +966,15 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
               bypass_permissions?: boolean;
               permission_mode?: string;
             };
-            return body.bypass_permissions === true || body.permission_mode === "bypass";
+            if (body.bypass_permissions !== true && body.permission_mode !== "bypass") {
+              return false;
+            }
+
+            bypassAttemptCount += 1;
+            // Typed writes use optimistic CAS. A create-time metadata update
+            // may win the first race, so Lotus is allowed exactly one 412
+            // before its bounded re-read/retry must produce the final result.
+            return response.status() !== 412 || bypassAttemptCount === 2;
           } catch {
             return false;
           }
@@ -995,6 +1004,10 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
 
         const bypassResponse = await bypassResponsePromise;
         expect(bypassResponse.ok(), await bypassResponse.text()).toBe(true);
+        expect(bypassAttemptCount).toBeLessThanOrEqual(2);
+        expect(new URL(bypassResponse.url()).pathname).toBe(
+          `/api/v1/sessions/${encodeURIComponent(createBody.session.id)}`,
+        );
         if (createBody.session.permission_mode !== undefined) {
           expect(bypassResponse.request().postDataJSON()).toEqual({
             permission_mode: "bypass",
