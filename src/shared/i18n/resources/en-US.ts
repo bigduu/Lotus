@@ -564,6 +564,43 @@ export const enUsTranslation = {
           success: "Saved",
           error: "Failed to update bypass permissions",
         },
+        permissionMode: {
+          ariaLabel: "Permission mode: {{mode}}",
+          autoUnsupported:
+            "Auto requires a newer Bamboo backend. This session can still use Default or Bypass.",
+          modes: {
+            default: {
+              label: "Default",
+              description: "Evaluate normal policy; high-risk operations may ask for approval.",
+            },
+            bypass: {
+              label: "Bypass",
+              description:
+                "Skip ordinary prompts; hard-dangerous operations and always-ask rules still require approval.",
+            },
+            auto: {
+              label: "Auto",
+              description:
+                "Never pause for Bamboo approval; operations may execute immediately in this session.",
+            },
+          },
+          status: {
+            pending: "Saving…",
+            success: "Saved",
+            error: "Failed to update permission mode",
+          },
+          autoConfirm: {
+            title: "Enable dangerous Auto mode?",
+            warning:
+              "Bamboo will not ask for approval before tool calls, including high-risk operations.",
+            scope:
+              "This applies only to session “{{session}}” and remains active until you change its permission mode.",
+            boundaries:
+              "Plan/read-only restrictions, explicit hard denies, authentication, OS permissions, and sandbox limits still apply.",
+            enable: "Enable Auto for this session",
+            cancel: "Keep current mode",
+          },
+        },
         strictToolOnlyMode: "Strict tool-only mode",
         toolSpecificModeLabel: "Tool-specific mode",
         allowedTools: "Allowed tools:",

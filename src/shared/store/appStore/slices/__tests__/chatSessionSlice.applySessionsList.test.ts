@@ -56,6 +56,7 @@ const createSummary = (overrides: Partial<SessionSummary> & { id: string }): Ses
   has_attachments: false,
   is_running: overrides.is_running ?? false,
   bypass_permissions: overrides.bypass_permissions ?? false,
+  permission_mode: overrides.permission_mode,
 });
 
 const createChat = (overrides: Partial<ChatItem> & { id: string }): ChatItem => ({
@@ -186,6 +187,72 @@ describe("applySessionsList (via refreshChats)", () => {
     await store.getState().refreshChatsNow();
 
     expect(store.getState().chats[0].config.bypassPermissions).toBe(false);
+  });
+
+  it("round-trips server Auto distinctly from the true compatibility boolean", async () => {
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          bypass_permissions: true,
+          permission_mode: "auto",
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    expect(store.getState().chats[0].config).toMatchObject({
+      permissionMode: "auto",
+      permissionModeSupported: true,
+      bypassPermissions: true,
+    });
+  });
+
+  it("never displays legacy Bypass as Auto when permission_mode is absent", async () => {
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [createSummary({ id: "s1", bypass_permissions: true })],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    expect(store.getState().chats[0].config).toMatchObject({
+      permissionMode: "bypass",
+      permissionModeSupported: false,
+      bypassPermissions: true,
+    });
+  });
+
+  it("reconnect replaces stale local Auto with authoritative server Bypass", async () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          config: {
+            systemPromptId: "general_assistant",
+            baseSystemPrompt: "Base prompt",
+            lastUsedEnhancedPrompt: null,
+            permissionMode: "auto",
+            permissionModeSupported: true,
+            bypassPermissions: true,
+          },
+        }),
+      ],
+    }));
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          bypass_permissions: true,
+          permission_mode: "bypass",
+        }),
+      ],
+    });
+
+    await store.getState().refreshChatsNow();
+
+    expect(store.getState().chats[0].config.permissionMode).toBe("bypass");
   });
 
   it("keeps optimistic bypass only during PATCH and rolls back to refreshed server truth", async () => {

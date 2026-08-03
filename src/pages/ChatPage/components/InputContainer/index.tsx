@@ -2,14 +2,12 @@ import React, { useMemo, useEffect, useState, lazy, Suspense, useRef, useCallbac
 import { App as AntApp, Space, theme, Tag, Alert, Spin, Dropdown, Button } from "antd";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import {
-  ToolOutlined,
   RobotOutlined,
   SettingOutlined,
   ExperimentOutlined,
   LoadingOutlined,
   DownOutlined,
-  ThunderboltOutlined,
-  ThunderboltFilled,
+  ToolOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { MessageInput } from "../MessageInput";
@@ -25,9 +23,9 @@ import {
 } from "@shared/store/appStore";
 import { readPersistedInputReasoningEffort } from "@shared/store/appStore/slices/inputStateSlice";
 import {
-  beginBypassPermissionMutation,
-  confirmBypassPermissionMutation,
-  failBypassPermissionMutation,
+  beginPermissionModeMutation,
+  confirmPermissionModeMutation,
+  failPermissionModeMutation,
 } from "@shared/store/appStore/bypassPermissionMutations";
 import { useChatInputHistory } from "../../hooks/useChatInputHistory";
 import { useInputContainerCommand } from "./useInputContainerCommand";
@@ -72,6 +70,8 @@ import type {
   ChatReferenceTextEventDetail,
   WorkflowDraft,
 } from "./types";
+import PermissionModeControl, { type PermissionModeMutationStatus } from "./PermissionModeControl";
+import type { SessionPermissionMode } from "@shared/permissions/sessionPermissionMode";
 
 export type { WorkflowDraft } from "./types";
 
@@ -220,45 +220,78 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [currentChat, sessionId, setInputReasoningEffort, updateSession],
   );
 
-  const bypassPermissions = currentChat?.config?.bypassPermissions ?? false;
-  const [bypassMutationStatus, setBypassMutationStatus] = useState<
-    "idle" | "pending" | "success" | "error"
-  >("idle");
-  const bypassStatusSessionRef = useRef(sessionId);
-  bypassStatusSessionRef.current = sessionId;
-  useEffect(() => setBypassMutationStatus("idle"), [sessionId]);
-  const setBypassPermissionsPersisted = useCallback(
-    async (next: boolean) => {
-      if (!sessionId || !currentChat || bypassMutationStatus === "pending") {
+  const permissionMode: SessionPermissionMode =
+    currentChat?.config?.permissionMode ??
+    (currentChat?.config?.bypassPermissions ? "bypass" : "default");
+  const permissionModeSupported = currentChat?.config?.permissionModeSupported === true;
+  const [permissionModeMutationStatus, setPermissionModeMutationStatus] =
+    useState<PermissionModeMutationStatus>("idle");
+  const permissionModeStatusSessionRef = useRef(sessionId);
+  permissionModeStatusSessionRef.current = sessionId;
+  useEffect(() => setPermissionModeMutationStatus("idle"), [sessionId]);
+  const setPermissionModePersisted = useCallback(
+    async (next: SessionPermissionMode) => {
+      if (!sessionId || !currentChat || permissionModeMutationStatus === "pending") {
         return;
       }
-      const revision = beginBypassPermissionMutation(sessionId, next, bypassPermissions);
-      setBypassMutationStatus("pending");
-      // Optimistic local update; backend already persists to runtime.json.
+      if (next === "auto" && !permissionModeSupported) {
+        messageApi.error(t("chat.input.permissionMode.autoUnsupported"));
+        return;
+      }
+      const revision = beginPermissionModeMutation(sessionId, next, permissionMode);
+      setPermissionModeMutationStatus("pending");
       updateSession(
         sessionId,
         {
           config: {
             ...currentChat.config,
-            bypassPermissions: next,
+            permissionMode: next,
+            bypassPermissions: next !== "default",
           },
         },
         { skipBackendPatch: true },
       );
       try {
-        await agentClient.patchSession(sessionId, { bypass_permissions: next });
-        if (
-          confirmBypassPermissionMutation(sessionId, revision) &&
-          bypassStatusSessionRef.current === sessionId
-        ) {
-          setBypassMutationStatus("success");
+        let confirmedMode = next;
+        if (permissionModeSupported) {
+          const confirmedSession = await agentClient.setSessionPermissionMode(sessionId, next);
+          // The CAS PATCH response is authoritative even if another client or
+          // a backend policy resolves the requested mode differently.
+          confirmedMode = confirmedSession.permission_mode ?? next;
+        } else {
+          // Legacy Bamboo only understands Default/Bypass. Auto is rejected
+          // above and is never approximated through this compatibility bool.
+          await agentClient.patchSession(sessionId, {
+            bypass_permissions: next === "bypass",
+          });
+        }
+        if (confirmPermissionModeMutation(sessionId, revision, confirmedMode)) {
+          const latestConfig =
+            useAppStore.getState().chats.find((chat) => chat.id === sessionId)?.config ??
+            currentChat.config;
+          updateSession(
+            sessionId,
+            {
+              config: {
+                ...latestConfig,
+                permissionMode: confirmedMode,
+                permissionModeSupported,
+                bypassPermissions: confirmedMode !== "default",
+              },
+            },
+            { skipBackendPatch: true },
+          );
+          // Persist the authoritative response into the session that initiated
+          // the request even if the user navigated elsewhere while it was in
+          // flight. Only the transient status belongs to the visible session.
+          if (permissionModeStatusSessionRef.current === sessionId) {
+            setPermissionModeMutationStatus("success");
+          }
         }
       } catch (error) {
-        console.warn("[InputContainer] Failed to persist bypass permissions:", error);
-        // Roll back to the latest backend-confirmed value observed while this
-        // exact mutation was in flight. Never infer rollback as `!next`.
-        const confirmedValue = failBypassPermissionMutation(sessionId, revision);
-        if (confirmedValue === null) return;
+        console.warn("[InputContainer] Failed to persist permission mode:", error);
+        const confirmedMode = failPermissionModeMutation(sessionId, revision);
+        if (confirmedMode === null) return;
         const latestConfig =
           useAppStore.getState().chats.find((chat) => chat.id === sessionId)?.config ??
           currentChat.config;
@@ -267,18 +300,32 @@ export const InputContainer: React.FC<InputContainerProps> = ({
           {
             config: {
               ...latestConfig,
-              bypassPermissions: confirmedValue,
+              permissionMode: confirmedMode,
+              bypassPermissions: confirmedMode !== "default",
             },
           },
           { skipBackendPatch: true },
         );
-        if (bypassStatusSessionRef.current === sessionId) {
-          setBypassMutationStatus("error");
-          messageApi.error(t("chat.input.bypassPermissions.error"));
+        if (permissionModeStatusSessionRef.current === sessionId) {
+          setPermissionModeMutationStatus("error");
+          messageApi.error(t("chat.input.permissionMode.status.error"));
         }
+        void useAppStore
+          .getState()
+          .refreshChatsNow()
+          .catch(() => undefined);
       }
     },
-    [bypassMutationStatus, bypassPermissions, currentChat, messageApi, sessionId, t, updateSession],
+    [
+      currentChat,
+      messageApi,
+      permissionMode,
+      permissionModeMutationStatus,
+      permissionModeSupported,
+      sessionId,
+      t,
+      updateSession,
+    ],
   );
 
   const {
@@ -983,60 +1030,26 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     modelButton,
   ]);
 
-  const bypassControl = useMemo(
+  const permissionModeControl = useMemo(
     () => (
-      <Button
-        type="text"
-        size="small"
-        // Toggleable at ANY time, including while the agent is running: the
-        // backend adopts a mid-run flip on the next round's tool calls and never
-        // reverts it (bamboo #540). The handler still guards on !sessionId.
-        disabled={!sessionId || bypassMutationStatus === "pending"}
-        loading={bypassMutationStatus === "pending"}
-        onClick={() => setBypassPermissionsPersisted(!bypassPermissions)}
-        aria-pressed={bypassPermissions}
-        aria-label={
-          bypassPermissions
-            ? t("chat.input.bypassPermissions.onLabel")
-            : t("chat.input.bypassPermissions.offLabel")
-        }
-        style={{
-          minWidth: isMobile ? 40 : undefined,
-          padding: isMobile ? "0 8px" : "0 12px",
-          height: 36,
-          borderRadius: 18,
-          color: bypassPermissions ? token.colorError : token.colorTextSecondary,
-        }}
-        title={
-          bypassPermissions
-            ? t("chat.input.bypassPermissions.onTitle")
-            : t("chat.input.bypassPermissions.offTitle")
-        }
-      >
-        <Space size={6}>
-          {bypassPermissions ? <ThunderboltFilled /> : <ThunderboltOutlined />}
-          {!isMobile && <span>{t("chat.input.bypassPermissions.label")}</span>}
-          <span aria-live="polite" data-testid="bypass-permissions-status" style={{ fontSize: 11 }}>
-            {bypassMutationStatus === "pending"
-              ? t("chat.input.bypassPermissions.pending")
-              : bypassMutationStatus === "success"
-                ? t("chat.input.bypassPermissions.success")
-                : bypassMutationStatus === "error"
-                  ? t("chat.input.bypassPermissions.error")
-                  : ""}
-          </span>
-        </Space>
-      </Button>
+      <PermissionModeControl
+        mode={permissionMode}
+        supportsAuto={permissionModeSupported}
+        mutationStatus={permissionModeMutationStatus}
+        sessionTitle={currentChat?.title ?? ""}
+        compact={isMobile}
+        disabled={!sessionId}
+        onChange={setPermissionModePersisted}
+      />
     ),
     [
-      bypassPermissions,
-      bypassMutationStatus,
-      sessionId,
+      currentChat?.title,
       isMobile,
-      setBypassPermissionsPersisted,
-      t,
-      token.colorError,
-      token.colorTextSecondary,
+      permissionMode,
+      permissionModeMutationStatus,
+      permissionModeSupported,
+      sessionId,
+      setPermissionModePersisted,
     ],
   );
 
@@ -1045,10 +1058,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <Space size={0} wrap>
         {modelControl}
         {reasoningControl}
-        {bypassControl}
+        {permissionModeControl}
       </Space>
     ),
-    [modelControl, reasoningControl, bypassControl],
+    [modelControl, reasoningControl, permissionModeControl],
   );
 
   const validateMessage = useCallback(

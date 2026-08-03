@@ -1,8 +1,8 @@
 import { StateCreator } from "zustand";
 import { AgentClient, SessionSummary } from "@services/chat/AgentService";
 import {
-  beginBypassPermissionSummaryRequest,
-  reconcileBypassPermissionSummary,
+  beginPermissionModeSummaryRequest,
+  reconcilePermissionModeSummary,
 } from "../../bypassPermissionMutations";
 import { debugLog } from "@shared/utils/debugFlags";
 import { ChatItem } from "@shared/types/chat";
@@ -175,11 +175,18 @@ export function applySessionsList(
           : nextConfig.goldConfig,
         // Bamboo's summary is authoritative. The sole exception is the exact
         // window in which this session has an optimistic PATCH in flight.
-        bypassPermissions: reconcileBypassPermissionSummary(
-          c.id,
-          nextConfig.bypassPermissions ?? false,
-          summaryRequestRevision,
-        ),
+        ...(() => {
+          const permissionMode = reconcilePermissionModeSummary(
+            c.id,
+            nextConfig.permissionMode ?? "default",
+            summaryRequestRevision,
+          );
+          return {
+            permissionMode,
+            permissionModeSupported: nextConfig.permissionModeSupported ?? false,
+            bypassPermissions: permissionMode !== "default",
+          };
+        })(),
         compressionEvents: prev.config?.compressionEvents ?? c.config?.compressionEvents,
         syncCursor: prev.config?.syncCursor ?? c.config?.syncCursor,
       };
@@ -233,7 +240,7 @@ export async function executeRefreshChats(set: ChatSliceSet): Promise<void> {
   debugLog("[ChatSlice]", "refreshChats.start", {});
   refreshChatsState.inFlight = (async () => {
     try {
-      const summaryRequestRevision = beginBypassPermissionSummaryRequest();
+      const summaryRequestRevision = beginPermissionModeSummaryRequest();
       const list = await agentClient.listSessions();
       debugLog("[ChatSlice]", "refreshChats.response", {
         count: list.sessions.length,

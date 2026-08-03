@@ -13,6 +13,7 @@ import { getDefaultSystemPrompts } from "@shared/utils/defaultSystemPrompts";
 import { getBackendBaseUrlSync } from "@shared/utils/backendBaseUrl";
 import i18n from "@shared/i18n";
 import { mapTokenBudgetUsage } from "@shared/types/tokenBudget";
+import { resolveSessionPermissionMode } from "@shared/permissions/sessionPermissionMode";
 
 const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
 export const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
@@ -93,6 +94,7 @@ export const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     : Date.now();
 
   const tokenUsage = mapTokenBudgetUsage(s.token_usage);
+  const permission = resolveSessionPermissionMode(s);
   return {
     id: s.id,
     kind: s.kind,
@@ -127,7 +129,9 @@ export const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
       model: s.model,
       model_ref: s.model_ref ?? null,
       reasoningEffort: s.reasoning_effort ?? null,
-      bypassPermissions: s.bypass_permissions ?? false,
+      bypassPermissions: permission.mode !== "default",
+      permissionMode: permission.mode,
+      permissionModeSupported: permission.supportsTypedMode,
       goldConfig: s.gold_config ?? null,
       tokenUsage,
       truncationOccurred: s.token_usage?.truncation_occurred,

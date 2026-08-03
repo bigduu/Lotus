@@ -377,6 +377,7 @@ export const useChatSidebarState = () => {
             config: {
               ...liveChat.config,
               bypassPermissions: true,
+              permissionMode: "bypass",
             },
           },
           { skipBackendPatch: true },
@@ -396,6 +397,7 @@ export const useChatSidebarState = () => {
                     config: {
                       ...liveChat.config,
                       bypassPermissions: confirmedValue,
+                      permissionMode: confirmedValue ? "bypass" : "default",
                     },
                   },
                   { skipBackendPatch: true },

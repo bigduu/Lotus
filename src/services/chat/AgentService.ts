@@ -9,6 +9,10 @@ import { agentApiClient, isApiError } from "../api";
 import { getBackendBaseUrlSync } from "../../shared/utils/backendBaseUrl";
 import * as v2Stream from "./v2Stream";
 import type { FeedSubscription } from "./v2Stream";
+import {
+  isSessionPermissionMode,
+  type SessionPermissionMode,
+} from "@shared/permissions/sessionPermissionMode";
 
 export type { FeedSubscription } from "./v2Stream";
 
@@ -539,6 +543,11 @@ export interface SessionSummary {
    * list endpoints leave it `false`.
    */
   bypass_permissions?: boolean;
+  /**
+   * First-class server-authoritative mode. Its valid presence also advertises
+   * typed Auto support; older backends omit it and only support legacy Bypass.
+   */
+  permission_mode?: SessionPermissionMode;
 }
 
 export interface RunningSessionEntry {
@@ -644,6 +653,8 @@ export interface PatchSessionRequest {
   /** Per-session "bypass permissions" toggle: when true, tool permission
    * checks are skipped for this session only. */
   bypass_permissions?: boolean;
+  /** Typed mode writes require If-Match and must not include the legacy bool. */
+  permission_mode?: SessionPermissionMode;
   /** Explicit Project re-assignment (null = unassign). */
   project_id?: string | null;
   /** Persisted execution workspace. Requires `If-Match` and never changes
@@ -1232,6 +1243,49 @@ export class AgentClient {
   async patchSession(sessionId: string, req: PatchSessionRequest): Promise<void> {
     const encodedSessionId = encodeURIComponent(sessionId);
     await agentApiClient.patch(`sessions/${encodedSessionId}`, req);
+  }
+
+  /**
+   * Persist a first-class permission mode with Bamboo's metadata CAS contract.
+   * A single 412 is reconciled by re-reading the authoritative session and
+   * retrying once; PATCH itself is never transport-retried.
+   */
+  async setSessionPermissionMode(
+    sessionId: string,
+    mode: SessionPermissionMode,
+  ): Promise<SessionSummary> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const current = await this.getSessionWithVersion(sessionId);
+      if (!isSessionPermissionMode(current.session.permission_mode)) {
+        throw new Error("This Bamboo backend does not support typed session permission modes");
+      }
+      if (current.metadataVersion === null) {
+        throw new Error("Session metadata version is unavailable; refresh and try again");
+      }
+      if (current.session.permission_mode === mode) {
+        return current.session;
+      }
+
+      try {
+        const response = await agentApiClient.patch<GetSessionResponse>(
+          `sessions/${encodedSessionId}`,
+          { permission_mode: mode },
+          { headers: { "If-Match": `"${current.metadataVersion}"` } },
+        );
+        if (!isSessionPermissionMode(response.session.permission_mode)) {
+          throw new Error("Bamboo returned an invalid typed session permission mode");
+        }
+        return response.session;
+      } catch (error) {
+        if (!(isApiError(error) && error.status === 412 && attempt === 0)) {
+          throw error;
+        }
+      }
+    }
+
+    throw new Error("Session permission mode changed concurrently; refresh and try again");
   }
 
   /**

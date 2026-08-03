@@ -242,6 +242,7 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
           projectId: project.id,
           workspacePath: "/repo/zenith",
           bypassPermissions: true,
+          permissionMode: "bypass",
         }),
       },
       { skipBackendPatch: true },
@@ -250,6 +251,10 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
       useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
         .bypassPermissions,
     ).toBe(true);
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+        .permissionMode,
+    ).toBe("bypass");
     expect(consoleWarn).not.toHaveBeenCalled();
   });
 
@@ -415,6 +420,7 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
       {
         config: expect.objectContaining({
           bypassPermissions: false,
+          permissionMode: "default",
         }),
       },
       { skipBackendPatch: true },

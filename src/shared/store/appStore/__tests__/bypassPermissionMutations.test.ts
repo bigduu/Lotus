@@ -7,6 +7,11 @@ import {
   failBypassPermissionMutation,
   reconcileBypassPermissionSummary,
   resetBypassPermissionMutations,
+  beginPermissionModeMutation,
+  beginPermissionModeSummaryRequest,
+  confirmPermissionModeMutation,
+  failPermissionModeMutation,
+  reconcilePermissionModeSummary,
 } from "../bypassPermissionMutations";
 
 describe("bypass permission mutation revisions", () => {
@@ -52,5 +57,36 @@ describe("bypass permission mutation revisions", () => {
     expect(confirmBypassPermissionMutation("s1", revision)).toBe(true);
 
     expect(reconcileBypassPermissionSummary("s1", false, racingSummary)).toBe(true);
+  });
+});
+
+describe("typed permission mode mutation revisions", () => {
+  beforeEach(resetBypassPermissionMutations);
+
+  it("keeps Auto distinct from the legacy Bypass mode", () => {
+    const revision = beginPermissionModeMutation("s1", "auto", "bypass");
+
+    expect(reconcilePermissionModeSummary("s1", "bypass")).toBe("auto");
+    expect(failPermissionModeMutation("s1", revision)).toBe("bypass");
+  });
+
+  it("fences a stale Bypass summary after Auto is confirmed", () => {
+    const staleSummary = beginPermissionModeSummaryRequest();
+    const revision = beginPermissionModeMutation("s1", "auto", "default");
+    expect(confirmPermissionModeMutation("s1", revision)).toBe(true);
+
+    expect(reconcilePermissionModeSummary("s1", "bypass", staleSummary)).toBe("auto");
+    expect(reconcilePermissionModeSummary("s1", "auto")).toBe("auto");
+  });
+
+  it("fences stale summaries to the PATCH response when it differs from the request", () => {
+    const staleSummary = beginPermissionModeSummaryRequest();
+    const revision = beginPermissionModeMutation("s1", "auto", "default");
+
+    expect(confirmPermissionModeMutation("s1", revision, "bypass")).toBe(true);
+    expect(reconcilePermissionModeSummary("s1", "default", staleSummary)).toBe("bypass");
+
+    const freshSummary = beginPermissionModeSummaryRequest();
+    expect(reconcilePermissionModeSummary("s1", "bypass", freshSummary)).toBe("bypass");
   });
 });
