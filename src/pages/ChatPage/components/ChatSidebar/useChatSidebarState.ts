@@ -17,12 +17,13 @@ import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
 import { useAppStore } from "@shared/store/appStore";
 import {
-  beginBypassPermissionMutation,
-  confirmBypassPermissionMutation,
-  failBypassPermissionMutation,
+  confirmPermissionModeMutation,
+  failPermissionModeMutation,
+  tryBeginPermissionModeMutation,
 } from "@shared/store/appStore/bypassPermissionMutations";
 import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { SidebarChatItem, SidebarScrollTarget } from "@shared/types/sidebarChat";
+import type { SessionPermissionMode } from "@shared/permissions/sessionPermissionMode";
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import type { SidebarGroupingMode } from "@shared/store/uiLayoutStore.types";
 import { openSession } from "@shared/utils/openSession";
@@ -355,15 +356,33 @@ export const useChatSidebarState = () => {
         if (!createdChat) {
           throw new Error(`Created session ${newSessionId} is missing from local state`);
         }
-        bypassRevision = beginBypassPermissionMutation(
+        bypassRevision = tryBeginPermissionModeMutation(
           newSessionId,
-          true,
-          createdChat.config.bypassPermissions ?? false,
+          "bypass",
+          createdChat.config.permissionMode ??
+            (createdChat.config.bypassPermissions ? "bypass" : "default"),
         );
-        await AgentClient.getInstance().patchSession(newSessionId, {
-          bypass_permissions: true,
-        });
-        bypassConfirmed = confirmBypassPermissionMutation(newSessionId, bypassRevision);
+        if (bypassRevision === null) return;
+
+        let confirmedMode: SessionPermissionMode = "bypass";
+        if (createdChat.config.permissionModeSupported === true) {
+          const confirmedSession = await AgentClient.getInstance().setSessionPermissionMode(
+            newSessionId,
+            "bypass",
+          );
+          confirmedMode = confirmedSession.permission_mode ?? "bypass";
+        } else {
+          // Preserve the best-effort path for older Bamboo versions that only
+          // understand the compatibility boolean.
+          await AgentClient.getInstance().patchSession(newSessionId, {
+            bypass_permissions: true,
+          });
+        }
+        bypassConfirmed = confirmPermissionModeMutation(
+          newSessionId,
+          bypassRevision,
+          confirmedMode,
+        );
         if (!bypassConfirmed) return;
 
         const liveState = useAppStore.getState();
@@ -376,7 +395,8 @@ export const useChatSidebarState = () => {
           {
             config: {
               ...liveChat.config,
-              bypassPermissions: true,
+              bypassPermissions: confirmedMode !== "default",
+              permissionMode: confirmedMode,
             },
           },
           { skipBackendPatch: true },
@@ -384,18 +404,19 @@ export const useChatSidebarState = () => {
       } catch (error) {
         let warningError = error;
         if (bypassRevision !== null && !bypassConfirmed) {
-          const confirmedValue = failBypassPermissionMutation(newSessionId, bypassRevision);
-          if (confirmedValue !== null) {
+          const confirmedMode = failPermissionModeMutation(newSessionId, bypassRevision);
+          if (confirmedMode !== null) {
             try {
               const liveState = useAppStore.getState();
               const liveChat = liveState.chats.find((chat) => chat.id === newSessionId);
-              if (liveChat && (liveChat.config.bypassPermissions ?? false) !== confirmedValue) {
+              if (liveChat && liveChat.config.permissionMode !== confirmedMode) {
                 liveState.updateSession(
                   newSessionId,
                   {
                     config: {
                       ...liveChat.config,
-                      bypassPermissions: confirmedValue,
+                      bypassPermissions: confirmedMode !== "default",
+                      permissionMode: confirmedMode,
                     },
                   },
                   { skipBackendPatch: true },
@@ -410,6 +431,13 @@ export const useChatSidebarState = () => {
           "[ChatSidebar] Failed to enable bypass permissions for new session:",
           warningError,
         );
+        // The server may have committed the mutation even when its response
+        // was lost, or another client may have won a CAS race. Rollback is
+        // only a temporary local fallback; immediately reconcile from Bamboo.
+        void useAppStore
+          .getState()
+          .refreshChatsNow()
+          .catch(() => undefined);
       }
     },
     [createNewChat, modal, t],

@@ -250,6 +250,98 @@ describe("AgentClient", () => {
     );
   });
 
+  it("writes typed Auto with the current session ETag", async () => {
+    const getResponse = mockFetchResponse({
+      session: { id: "session/with space", permission_mode: "default" },
+    });
+    getResponse.headers.set("etag", '"7"');
+    fetchMock.mockResolvedValueOnce(getResponse).mockResolvedValueOnce(
+      mockFetchResponse({
+        session: {
+          id: "session/with space",
+          permission_mode: "auto",
+          bypass_permissions: true,
+        },
+      }),
+    );
+
+    const result = await AgentClient.getInstance().setSessionPermissionMode(
+      "session/with space",
+      "auto",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [patchUrl, patchInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(patchUrl).toContain("/sessions/session%2Fwith%20space");
+    expect(patchInit).toEqual(
+      expect.objectContaining({
+        method: "PATCH",
+        headers: expect.objectContaining({ "If-Match": '"7"' }),
+      }),
+    );
+    expect(JSON.parse(String(patchInit.body))).toEqual({ permission_mode: "auto" });
+    expect(JSON.parse(String(patchInit.body))).not.toHaveProperty("bypass_permissions");
+    expect(result.permission_mode).toBe("auto");
+  });
+
+  it("re-reads once and retries a typed mode write after a 412 conflict", async () => {
+    const stale = mockFetchResponse({ session: { id: "s1", permission_mode: "default" } });
+    stale.headers.set("etag", '"4"');
+    const fresh = mockFetchResponse({ session: { id: "s1", permission_mode: "bypass" } });
+    fresh.headers.set("etag", '"5"');
+    fetchMock
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValueOnce(mockFetchError("Precondition Failed", 412))
+      .mockResolvedValueOnce(fresh)
+      .mockResolvedValueOnce(mockFetchResponse({ session: { id: "s1", permission_mode: "auto" } }));
+
+    await expect(
+      AgentClient.getInstance().setSessionPermissionMode("s1", "auto"),
+    ).resolves.toMatchObject({ permission_mode: "auto" });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect((fetchMock.mock.calls[1][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"4"' }),
+    );
+    expect((fetchMock.mock.calls[3][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"5"' }),
+    );
+  });
+
+  it("stops after the bounded typed mode retry also receives 412", async () => {
+    const stale = mockFetchResponse({ session: { id: "s1", permission_mode: "default" } });
+    stale.headers.set("etag", '"4"');
+    const fresh = mockFetchResponse({ session: { id: "s1", permission_mode: "bypass" } });
+    fresh.headers.set("etag", '"5"');
+    fetchMock
+      .mockResolvedValueOnce(stale)
+      .mockResolvedValueOnce(mockFetchError("Precondition Failed", 412))
+      .mockResolvedValueOnce(fresh)
+      .mockResolvedValueOnce(mockFetchError("Precondition Failed again", 412));
+
+    await expect(
+      AgentClient.getInstance().setSessionPermissionMode("s1", "auto"),
+    ).rejects.toMatchObject({ status: 412 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect((fetchMock.mock.calls[3][1] as RequestInit).headers).toEqual(
+      expect.objectContaining({ "If-Match": '"5"' }),
+    );
+  });
+
+  it("does not emulate typed modes when an older backend omits permission_mode", async () => {
+    const legacy = mockFetchResponse({
+      session: { id: "s1", bypass_permissions: true },
+    });
+    legacy.headers.set("etag", '"2"');
+    fetchMock.mockResolvedValueOnce(legacy);
+
+    await expect(AgentClient.getInstance().setSessionPermissionMode("s1", "auto")).rejects.toThrow(
+      "does not support typed session permission modes",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("switches workspace with workspace-only payload and quoted If-Match (#155)", async () => {
     fetchMock.mockResolvedValue(
       mockFetchResponse({

@@ -57,6 +57,7 @@ export type SessionSummary = {
   has_attachments: boolean;
   is_running: boolean;
   bypass_permissions?: boolean;
+  permission_mode?: "default" | "bypass" | "auto";
   metadata_version?: number;
   created_by_schedule_id?: string | null;
 };

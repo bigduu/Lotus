@@ -12,11 +12,13 @@ import {
 import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import { useChatSidebarState } from "./useChatSidebarState";
 
-const { mockPatchSession, mockListSessions, mockModalError } = vi.hoisted(() => ({
-  mockPatchSession: vi.fn(),
-  mockListSessions: vi.fn(),
-  mockModalError: vi.fn(),
-}));
+const { mockPatchSession, mockSetSessionPermissionMode, mockListSessions, mockModalError } =
+  vi.hoisted(() => ({
+    mockPatchSession: vi.fn(),
+    mockSetSessionPermissionMode: vi.fn(),
+    mockListSessions: vi.fn(),
+    mockModalError: vi.fn(),
+  }));
 
 vi.mock("@services/chat/AgentService", async () => {
   const actual = await vi.importActual<typeof import("@services/chat/AgentService")>(
@@ -27,6 +29,7 @@ vi.mock("@services/chat/AgentService", async () => {
     AgentClient: {
       getInstance: () => ({
         patchSession: mockPatchSession,
+        setSessionPermissionMode: mockSetSessionPermissionMode,
         listSessions: mockListSessions,
       }),
     },
@@ -125,6 +128,7 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
     resetBypassPermissionMutations();
     mockPatchSession.mockReset();
     mockPatchSession.mockResolvedValue(undefined);
+    mockSetSessionPermissionMode.mockReset();
     mockListSessions.mockReset();
     mockModalError.mockReset();
     consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -242,6 +246,7 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
           projectId: project.id,
           workspacePath: "/repo/zenith",
           bypassPermissions: true,
+          permissionMode: "bypass",
         }),
       },
       { skipBackendPatch: true },
@@ -250,7 +255,58 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
       useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
         .bypassPermissions,
     ).toBe(true);
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+        .permissionMode,
+    ).toBe("bypass");
     expect(consoleWarn).not.toHaveBeenCalled();
+  });
+
+  it("uses the typed CAS mode mutation when the create response advertises support", async () => {
+    const project = makeProject("proj-zenith", { project_path: "/repo/zenith" });
+    useAppStore.setState({ projects: { [project.id]: project } });
+    addChat.mockImplementationOnce(async (chatData: Omit<ChatItem, "id">) => {
+      const sessionId = "session-created-1";
+      const createdChat: ChatItem = {
+        id: sessionId,
+        kind: "root",
+        currentInteraction: null,
+        ...chatData,
+        config: {
+          ...chatData.config,
+          permissionMode: "default",
+          permissionModeSupported: true,
+          bypassPermissions: false,
+        },
+      };
+      useAppStore.setState((state) => ({
+        chats: [createdChat, ...state.chats],
+        currentSessionId: sessionId,
+        latestActiveSessionId: sessionId,
+      }));
+      return sessionId;
+    });
+    mockSetSessionPermissionMode.mockResolvedValueOnce(
+      makeSessionSummary("session-created-1", {
+        permission_mode: "bypass",
+        bypass_permissions: true,
+      }),
+    );
+    const { result } = renderHook(() => useChatSidebarState());
+
+    await act(async () => {
+      await result.current.handleCreateChatInProject(project.id);
+    });
+
+    expect(mockSetSessionPermissionMode).toHaveBeenCalledWith("session-created-1", "bypass");
+    expect(mockPatchSession).not.toHaveBeenCalled();
+    expect(
+      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config,
+    ).toMatchObject({
+      permissionMode: "bypass",
+      permissionModeSupported: true,
+      bypassPermissions: true,
+    });
   });
 
   it("fences a stale summary started before the bypass PATCH completes", async () => {
@@ -369,7 +425,7 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
     });
   });
 
-  it("keeps the created session usable and warns once when bypass PATCH fails", async () => {
+  it("refreshes authoritative state when the bypass PATCH response is lost", async () => {
     const project = makeProject("proj-zenith");
     useAppStore.setState({ projects: { [project.id]: project } });
     const patch = createDeferred<void>();
@@ -382,15 +438,27 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
     });
     await vi.waitFor(() => expect(mockPatchSession).toHaveBeenCalledOnce());
 
-    mockListSessions.mockResolvedValueOnce({
-      sessions: [
-        makeSessionSummary("session-created-1", {
-          project_id: project.id,
-          workspace_path: project.project_path,
-          bypass_permissions: false,
-        }),
-      ],
-    });
+    mockListSessions
+      .mockResolvedValueOnce({
+        sessions: [
+          makeSessionSummary("session-created-1", {
+            project_id: project.id,
+            workspace_path: project.project_path,
+            bypass_permissions: false,
+          }),
+        ],
+      })
+      .mockResolvedValueOnce({
+        // Simulate a lost PATCH response: Bamboo committed Bypass even though
+        // the client observed a rejection.
+        sessions: [
+          makeSessionSummary("session-created-1", {
+            project_id: project.id,
+            workspace_path: project.project_path,
+            bypass_permissions: true,
+          }),
+        ],
+      });
     await act(async () => {
       await useAppStore.getState().refreshChatsNow();
     });
@@ -404,17 +472,22 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
       await expect(creation).resolves.toBeUndefined();
     });
 
+    await vi.waitFor(() => expect(mockListSessions).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(
+        useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
+          .bypassPermissions,
+      ).toBe(true),
+    );
+
     expect(useAppStore.getState().chats.map((chat) => chat.id)).toContain("session-created-1");
     expect(useUILayoutStore.getState().leafSessionIds["pane-a"]).toBe("session-created-1");
-    expect(
-      useAppStore.getState().chats.find((chat) => chat.id === "session-created-1")?.config
-        .bypassPermissions,
-    ).toBe(false);
     expect(updateSession).toHaveBeenCalledWith(
       "session-created-1",
       {
         config: expect.objectContaining({
           bypassPermissions: false,
+          permissionMode: "default",
         }),
       },
       { skipBackendPatch: true },
@@ -425,6 +498,15 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
 
   it("keeps the created session usable and warns once when local bypass sync fails", async () => {
     const project = makeProject("proj-zenith");
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        makeSessionSummary("session-created-1", {
+          project_id: project.id,
+          workspace_path: project.project_path,
+          bypass_permissions: true,
+        }),
+      ],
+    });
     useAppStore.setState({
       projects: { [project.id]: project },
       updateSession: vi.fn(() => {
@@ -442,5 +524,6 @@ describe("useChatSidebarState — create session in Project (#198)", () => {
     expect(useUILayoutStore.getState().leafSessionIds["pane-a"]).toBe("session-created-1");
     expect(consoleWarn).toHaveBeenCalledTimes(1);
     expect(mockModalError).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(mockListSessions).toHaveBeenCalledOnce());
   });
 });

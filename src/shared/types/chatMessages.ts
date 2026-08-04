@@ -250,10 +250,13 @@ export interface ChatItem {
     model?: string;
     model_ref?: ProviderModelRef | null;
     reasoningEffort?: import("@services/chat/AgentService").ReasoningEffort | null;
-    /** Per-session "bypass permissions" toggle, mirrored from the backend
-     * session detail (`SessionSummary.bypass_permissions`). When true, tool
-     * permission checks are skipped for this session only. */
+    /** Legacy compatibility mirror. True can mean Bypass or Auto on a new
+     * backend, so policy decisions must use `permissionMode` instead. */
     bypassPermissions?: boolean;
+    /** Exact server-authoritative Default / Bypass / Auto state. */
+    permissionMode?: import("@shared/permissions/sessionPermissionMode").SessionPermissionMode;
+    /** Valid `permission_mode` presence from Bamboo; false disables Auto. */
+    permissionModeSupported?: boolean;
     goldConfig?: GoldConfig | null;
     goalState?: GoalState | null;
     tokenUsage?: TokenUsage;

@@ -7,6 +7,13 @@ import {
   failBypassPermissionMutation,
   reconcileBypassPermissionSummary,
   resetBypassPermissionMutations,
+  beginPermissionModeMutation,
+  beginPermissionModeSummaryRequest,
+  confirmPermissionModeMutation,
+  failPermissionModeMutation,
+  isPermissionModeMutationPending,
+  reconcilePermissionModeSummary,
+  tryBeginPermissionModeMutation,
 } from "../bypassPermissionMutations";
 
 describe("bypass permission mutation revisions", () => {
@@ -52,5 +59,58 @@ describe("bypass permission mutation revisions", () => {
     expect(confirmBypassPermissionMutation("s1", revision)).toBe(true);
 
     expect(reconcileBypassPermissionSummary("s1", false, racingSummary)).toBe(true);
+  });
+});
+
+describe("typed permission mode mutation revisions", () => {
+  beforeEach(resetBypassPermissionMutations);
+
+  it("keeps Auto distinct from the legacy Bypass mode", () => {
+    const revision = beginPermissionModeMutation("s1", "auto", "bypass");
+
+    expect(reconcilePermissionModeSummary("s1", "bypass")).toBe("auto");
+    expect(failPermissionModeMutation("s1", revision)).toBe("bypass");
+  });
+
+  it("fences a stale Bypass summary after Auto is confirmed", () => {
+    const staleSummary = beginPermissionModeSummaryRequest();
+    const revision = beginPermissionModeMutation("s1", "auto", "default");
+    expect(confirmPermissionModeMutation("s1", revision)).toBe(true);
+
+    expect(reconcilePermissionModeSummary("s1", "bypass", staleSummary)).toBe("auto");
+    expect(reconcilePermissionModeSummary("s1", "auto")).toBe("auto");
+  });
+
+  it("fences stale summaries to the PATCH response when it differs from the request", () => {
+    const staleSummary = beginPermissionModeSummaryRequest();
+    const revision = beginPermissionModeMutation("s1", "auto", "default");
+
+    expect(confirmPermissionModeMutation("s1", revision, "bypass")).toBe(true);
+    expect(reconcilePermissionModeSummary("s1", "default", staleSummary)).toBe("bypass");
+
+    const freshSummary = beginPermissionModeSummaryRequest();
+    expect(reconcilePermissionModeSummary("s1", "bypass", freshSummary)).toBe("bypass");
+  });
+
+  it("blocks same-session re-entry across navigation while allowing another session", () => {
+    const staleSummary = beginPermissionModeSummaryRequest();
+    const autoRevision = tryBeginPermissionModeMutation("s1", "auto", "default");
+    const otherSessionRevision = tryBeginPermissionModeMutation("s2", "bypass", "default");
+
+    expect(autoRevision).not.toBeNull();
+    expect(otherSessionRevision).not.toBeNull();
+    expect(isPermissionModeMutationPending("s1")).toBe(true);
+
+    // Simulates returning to s1 after component-local pending state reset. A
+    // Default no-op must not supersede the still-running Auto PATCH.
+    expect(tryBeginPermissionModeMutation("s1", "default", "auto")).toBeNull();
+
+    expect(confirmPermissionModeMutation("s1", autoRevision!, "auto")).toBe(true);
+    expect(reconcilePermissionModeSummary("s1", "default", staleSummary)).toBe("auto");
+    expect(isPermissionModeMutationPending("s1")).toBe(false);
+
+    // Once the first write is confirmed, the user can intentionally change
+    // this session again even while the short-lived summary fence remains.
+    expect(tryBeginPermissionModeMutation("s1", "default", "auto")).not.toBeNull();
   });
 });

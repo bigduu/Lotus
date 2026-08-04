@@ -84,6 +84,8 @@ const areChatConfigsEquivalent = (a: ChatItem["config"], b: ChatItem["config"]):
     areModelRefsEqual(a.model_ref, b.model_ref) &&
     a.reasoningEffort === b.reasoningEffort &&
     a.bypassPermissions === b.bypassPermissions &&
+    a.permissionMode === b.permissionMode &&
+    a.permissionModeSupported === b.permissionModeSupported &&
     JSON.stringify(a.goldConfig ?? null) === JSON.stringify(b.goldConfig ?? null) &&
     JSON.stringify(a.goalState ?? null) === JSON.stringify(b.goalState ?? null) &&
     areTokenUsagesEqual(a.tokenUsage, b.tokenUsage) &&

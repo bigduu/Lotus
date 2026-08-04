@@ -536,6 +536,37 @@ export const zhCnTranslation = {
           success: "已保存",
           error: "更新绕过权限失败",
         },
+        permissionMode: {
+          ariaLabel: "权限模式：{{mode}}",
+          autoUnsupported: "Auto 需要更新版本的 Bamboo 后端。此会话仍可使用默认或免确认模式。",
+          modes: {
+            default: {
+              label: "默认",
+              description: "按正常策略评估；高风险操作可能请求批准。",
+            },
+            bypass: {
+              label: "免确认",
+              description: "跳过普通提示；强制高危操作和始终询问规则仍需批准。",
+            },
+            auto: {
+              label: "Auto",
+              description: "不等待 Bamboo 批准；此会话中的操作可能立即执行。",
+            },
+          },
+          status: {
+            pending: "保存中…",
+            success: "已保存",
+            error: "更新权限模式失败",
+          },
+          autoConfirm: {
+            title: "启用危险的 Auto 模式？",
+            warning: "Bamboo 在工具调用前将不再请求批准，包括高风险操作。",
+            scope: "此设置仅作用于会话“{{session}}”，直到你再次更改该会话的权限模式。",
+            boundaries: "计划/只读限制、显式硬拒绝、身份验证、操作系统权限和沙箱限制仍然有效。",
+            enable: "为此会话启用 Auto",
+            cancel: "保持当前模式",
+          },
+        },
         strictToolOnlyMode: "严格仅工具模式",
         toolSpecificModeLabel: "工具特定模式",
         allowedTools: "允许的工具：",
