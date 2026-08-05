@@ -256,14 +256,18 @@ describe("ChatSidebarDateGroups workspace mode (#95)", () => {
     expect(createButtons).toHaveLength(2);
     expect(screen.queryByText("chat.sidebar.actions.createInProject")).not.toBeInTheDocument();
 
-    const projectHeader = screen.getByRole("button", { name: "Zenith (1)" });
-    const projectActions = projectHeader.querySelectorAll("button");
-    expect(projectActions[0]).toBe(createButtons[0]);
-    expect(projectActions[1]).toHaveClass("chat-sidebar-date-group-delete");
+    const projectToggle = screen.getByRole("button", { name: "Zenith (1)" });
+    // #202: the toggle is its own explicit button — Create/Delete are
+    // siblings inside the same header row, never nested inside the toggle.
+    expect(projectToggle).toHaveClass("chat-sidebar-date-group-toggle");
+    expect(projectToggle.querySelectorAll("button")).toHaveLength(0);
+    const headerRow = projectToggle.closest(".chat-sidebar-date-group-header");
+    expect(headerRow).not.toBeNull();
+    expect(headerRow?.contains(createButtons[0])).toBe(true);
 
     createButtons[0].focus();
     expect(createButtons[0]).toHaveFocus();
-    fireEvent.mouseLeave(projectHeader);
+    fireEvent.mouseLeave(headerRow as HTMLElement);
     expect(createButtons[0]).toHaveFocus();
     fireEvent.click(createButtons[0]);
     fireEvent.click(createButtons[1]);
@@ -309,10 +313,10 @@ describe("ChatSidebarDateGroups workspace mode (#95)", () => {
     expect(onCreateChatInProject).toHaveBeenNthCalledWith(2, null);
     expect(onCollapseChange).not.toHaveBeenCalled();
 
-    fireEvent.keyDown(screen.getByRole("button", { name: "Zenith (1)" }), {
-      key: "Enter",
-      code: "Enter",
-    });
+    // #202: the toggle is a native <button> — real-browser Enter/Space
+    // activation is covered by e2e (jsdom does not implement native button
+    // activation), so unit-level activation is exercised via click.
+    fireEvent.click(screen.getByRole("button", { name: "Zenith (1)" }));
     expect(onCollapseChange).toHaveBeenCalledOnce();
     expect(onCollapseChange).toHaveBeenCalledWith([NO_PROJECT_GROUP_KEY]);
   });

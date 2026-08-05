@@ -350,9 +350,11 @@ describe("ChatSidebar", () => {
       // Exactly one date group renders while this filter is active (it
       // holds the single pinned "Platform roadmap" match), so its header is
       // the sole group-toggle button whose accessible name ends in "(1)".
-      const groupHeader = document.querySelector<HTMLElement>(".chat-sidebar-date-group-header");
-      expect(groupHeader).not.toBeNull();
-      fireEvent.click(groupHeader as HTMLElement);
+      // (#202: the interactive target is the explicit toggle button inside
+      // the header row, not the header container itself.)
+      const groupToggle = document.querySelector<HTMLElement>(".chat-sidebar-date-group-toggle");
+      expect(groupToggle).not.toBeNull();
+      fireEvent.click(groupToggle as HTMLElement);
 
       await waitFor(() => {
         expect(screen.queryByText("Platform roadmap")).toBeNull();
