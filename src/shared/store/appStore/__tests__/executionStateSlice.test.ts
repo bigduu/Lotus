@@ -14,6 +14,7 @@ import {
   type ExecutionPhase,
   type ExecutionStateSlice,
 } from "../slices/executionStateSlice";
+import { deriveSidebarRunState } from "../selectors/executionSelectors";
 
 // =============================================================================
 // Phase 0 reducer tests — see plan §E.1.
@@ -374,7 +375,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.interaction.respondMode).toBeNull();
   });
 
-  it("waiting_user_answer + markRespondStart → starting with bumped generation and cleared question", () => {
+  it("waiting_user_answer + markRespondStart clears stale summary state and derives running", () => {
     // §E.1.9
     let map = startSession();
     map = applyExecutionEvent(
@@ -387,6 +388,17 @@ describe("executionStateSlice — applyExecutionEvent", () => {
       },
       fixedNow(T1),
     );
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "applySessionSummary",
+        sessionId: SESSION,
+        summary: summary({ is_running: true, has_pending_question: true }),
+      },
+      fixedNow(T1),
+    );
+
+    expect(deriveSidebarRunState(map[SESSION])).toBe("awaiting");
 
     map = applyExecutionEvent(map, { type: "markRespondStart", sessionId: SESSION }, fixedNow(T2));
 
@@ -395,7 +407,96 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(entry.generation).toBe(2);
     expect(entry.interaction.pendingQuestion).toBeNull();
     expect(entry.interaction.respondMode).toBeNull();
+    expect(entry.backend.hasPendingQuestion).toBe(false);
+    expect(deriveSidebarRunState(entry)).toBe("running");
     expect(entry.activeReasons).toContain("optimistic:respond");
+  });
+
+  it("authoritative endpoint clear resumes a cross-device waiting session and a later prompt restores awaiting", () => {
+    let map = startSession();
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "setPendingQuestion",
+        sessionId: SESSION,
+        payload: {
+          question: "Approve?",
+          options: ["Approve", "Deny"],
+          allowCustom: false,
+          toolCallId: "permission-1",
+        },
+      },
+      fixedNow(T1),
+    );
+
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "applySessionSummary",
+        sessionId: SESSION,
+        summary: summary({ is_running: true, has_pending_question: true }),
+      },
+      fixedNow(T2),
+    );
+    map = applyExecutionEvent(
+      map,
+      { type: "clearPendingQuestion", sessionId: SESSION },
+      fixedNow(T2),
+    );
+
+    expect(map[SESSION].phase).toBe<ExecutionPhase>("running");
+    expect(map[SESSION].interaction.pendingQuestion).toBeNull();
+    expect(map[SESSION].backend.hasPendingQuestion).toBe(false);
+    expect(deriveSidebarRunState(map[SESSION])).toBe("running");
+
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "setPendingQuestion",
+        sessionId: SESSION,
+        payload: {
+          question: "Approve again?",
+          options: ["Approve", "Deny"],
+          allowCustom: false,
+          toolCallId: "permission-2",
+        },
+      },
+      fixedNow(T3),
+    );
+
+    expect(deriveSidebarRunState(map[SESSION])).toBe("awaiting");
+  });
+
+  it("an unknown summary pending state preserves a real prompt", () => {
+    let map = seedIdle();
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "setPendingQuestion",
+        sessionId: SESSION,
+        payload: {
+          question: "Still waiting?",
+          options: [],
+          allowCustom: true,
+          toolCallId: "question-2",
+        },
+      },
+      fixedNow(T1),
+    );
+
+    map = applyExecutionEvent(
+      map,
+      {
+        type: "applySessionSummary",
+        sessionId: SESSION,
+        summary: summary({ is_running: true, has_pending_question: undefined }),
+      },
+      fixedNow(T2),
+    );
+
+    expect(map[SESSION].phase).toBe<ExecutionPhase>("waiting_user_answer");
+    expect(map[SESSION].interaction.pendingQuestion?.question).toBe("Still waiting?");
+    expect(deriveSidebarRunState(map[SESSION])).toBe("awaiting");
   });
 
   it("duplicate setPendingQuestion payload is idempotent even with a fresh options array", () => {
@@ -1169,7 +1270,7 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     expect(SESSION in next).toBe(false);
   });
 
-  it("clearPendingQuestion clears pendingQuestion and respondMode without touching phase", () => {
+  it("clearPendingQuestion treats the endpoint clear as authoritative and converges to idle", () => {
     let map = startSession();
     map = applyExecutionEvent(
       map,
@@ -1195,8 +1296,8 @@ describe("executionStateSlice — applyExecutionEvent", () => {
     );
     expect(map[SESSION].interaction.pendingQuestion).toBeNull();
     expect(map[SESSION].interaction.respondMode).toBeNull();
-    // clearPendingQuestion does not auto-transition; phase remains.
-    expect(map[SESSION].phase).toBe<ExecutionPhase>("waiting_user_answer");
+    expect(map[SESSION].backend.hasPendingQuestion).toBe(false);
+    expect(map[SESSION].phase).toBe<ExecutionPhase>("idle");
   });
 
   it("tool_token updates the matching active tool call's preview", () => {

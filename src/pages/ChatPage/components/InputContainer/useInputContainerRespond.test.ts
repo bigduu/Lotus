@@ -127,6 +127,27 @@ describe("useInputContainerRespond typed permission decisions", () => {
     expect(mocks.post).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["allow_once", "deny_once"] as const)(
+    "starts the shared optimistic resume transition for a successful %s decision",
+    async (decision) => {
+      mocks.post.mockResolvedValue({
+        success: true,
+        replayed: false,
+        resume: { accepted: true },
+      });
+      const { result } = renderRespondHook();
+
+      await act(async () => {
+        await result.current.handleRespondSubmit(decision);
+      });
+
+      expect(mocks.markRespondStart).toHaveBeenCalledWith("root-session", "tool-call-1");
+      expect(mocks.clearPendingQuestion).toHaveBeenCalledWith("root-session");
+      expect(mocks.applyExecutionStarted).toHaveBeenCalledWith("root-session", "", 2);
+      expect(mocks.markSettleTimeout).not.toHaveBeenCalled();
+    },
+  );
+
   it("keeps the prompt available after a transient submission failure", async () => {
     mocks.post.mockRejectedValue(new Error("network unavailable"));
     const { result } = renderRespondHook();

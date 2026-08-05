@@ -174,6 +174,23 @@ const applyPendingQuestionSnapshot = (
   };
 };
 
+const withPendingQuestionCleared = (
+  entry: SessionExecutionState,
+  phase: ExecutionPhase = entry.phase,
+): SessionExecutionState => ({
+  ...entry,
+  phase,
+  backend: {
+    ...entry.backend,
+    hasPendingQuestion: false,
+  },
+  interaction: {
+    ...entry.interaction,
+    pendingQuestion: null,
+    respondMode: null,
+  },
+});
+
 const pendingChildApprovalEquals = (
   current: PendingChildApprovalPayload,
   payload: PendingChildApprovalPayload,
@@ -1132,6 +1149,10 @@ export const applyExecutionEvent = (
           activeToolCalls: [],
           lastStatusHint: null,
         },
+        backend: {
+          ...entry.backend,
+          hasPendingQuestion: false,
+        },
         interaction: {
           ...entry.interaction,
           pendingQuestion: null,
@@ -1390,17 +1411,21 @@ export const applyExecutionEvent = (
     }
     case "clearPendingQuestion": {
       const entry = ensureEntry(map, action.sessionId);
-      if (entry.interaction.pendingQuestion === null && entry.interaction.respondMode === null) {
+      const phase =
+        entry.phase === "waiting_user_answer"
+          ? entry.backend.isRunning
+            ? "running"
+            : "idle"
+          : entry.phase;
+      if (
+        entry.interaction.pendingQuestion === null &&
+        entry.interaction.respondMode === null &&
+        entry.backend.hasPendingQuestion !== true &&
+        phase === entry.phase
+      ) {
         return map;
       }
-      const next: SessionExecutionState = {
-        ...entry,
-        interaction: {
-          ...entry.interaction,
-          pendingQuestion: null,
-          respondMode: null,
-        },
-      };
+      const next = withPendingQuestionCleared(entry, phase);
       return writeEntry(map, action.sessionId, next);
     }
     case "enqueuePendingChildApproval": {
