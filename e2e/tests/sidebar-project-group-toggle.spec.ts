@@ -85,6 +85,10 @@ test.describe("Sidebar Project group toggle a11y (#202)", () => {
       // collapse (the selected session's group is force-expanded).
       const groupB = page.getByRole("button", { name: `${projectNameB} (1)` });
       await expect(groupB).toBeVisible({ timeout: 20_000 });
+      if ((await groupB.getAttribute("aria-expanded")) !== "true") {
+        await groupB.click();
+      }
+      await expect(groupB).toHaveAttribute("aria-expanded", "true");
       await page.getByRole("option", { name: sessionB.title }).click();
 
       const groupNameA = (count: number) => `${projectNameA} (${count})`;

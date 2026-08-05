@@ -211,7 +211,7 @@ describe("ChatSidebarDateGroups group-header a11y structure (#202)", () => {
   });
 
   it("applies the same explicit toggle structure in date and workspace modes", () => {
-    renderHarness({
+    const { unmount } = renderHarness({
       groupedChatsByDate: { Today: [makeChat(1)] },
       sortedDateKeys: ["Today"],
       expandedKeys: ["Today"],
@@ -221,5 +221,19 @@ describe("ChatSidebarDateGroups group-header a11y structure (#202)", () => {
     expect(dateToggle.tagName).toBe("BUTTON");
     expect(dateToggle).toHaveAttribute("aria-expanded", "true");
     expect(dateToggle.closest(".chat-sidebar-date-group-header")).not.toHaveAttribute("role");
+
+    unmount();
+    renderHarness({
+      groupedChatsByDate: { "/repo/zenith": [makeChat(2)] },
+      sortedDateKeys: ["/repo/zenith"],
+      expandedKeys: ["/repo/zenith"],
+      groupingMode: "workspace",
+      groupLabels: { "/repo/zenith": "zenith" },
+    });
+
+    const workspaceToggle = screen.getByRole("button", { name: "zenith (1)" });
+    expect(workspaceToggle.tagName).toBe("BUTTON");
+    expect(workspaceToggle).toHaveAttribute("aria-expanded", "true");
+    expect(workspaceToggle.closest(".chat-sidebar-date-group-header")).not.toHaveAttribute("role");
   });
 });
