@@ -296,6 +296,10 @@ export const enUsTranslation = {
       },
     },
     chat: {
+      sessionCreateRecovery: {
+        title: "Session creation is still being confirmed",
+        retry: "Check again",
+      },
       sidebar: {
         newSession: "New Session",
         createFailedTitle: "Failed to create session",

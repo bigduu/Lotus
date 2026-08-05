@@ -25,6 +25,7 @@ import { useSettingsViewStore, type SettingsTabKey } from "@shared/store/setting
 import { useLedgerViewStore } from "@shared/store/ledgerViewStore";
 import { useUILayoutStore, getLeafIdsFromTree } from "@shared/store/uiLayoutStore";
 import { useThemeStore } from "@shared/store/themeStore";
+import { useSessionCreateRecovery } from "@shared/hooks/useSessionCreateRecovery";
 import {
   useExperienceModeStore,
   ADVANCED_ONLY_SETTINGS_TABS,
@@ -314,6 +315,7 @@ export const CommandPalette: React.FC = () => {
   const isVdiSafeMode =
     typeof document !== "undefined" && document.body.getAttribute("data-vdi-safe") === "true";
   const { message } = AntdApp.useApp();
+  const showSessionCreateRecovery = useSessionCreateRecovery();
   const chats = useAppStore((state) => projectCommandPaletteSessions(state.chats));
   const addChat = useAppStore((state) => state.addChat);
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
@@ -355,6 +357,12 @@ export const CommandPalette: React.FC = () => {
   const experienceMode = useExperienceModeStore((state) => state.mode);
   const toggleExperienceMode = useExperienceModeStore((state) => state.toggleMode);
 
+  const attachCreatedSession = useCallback((sessionId: string) => {
+    const { activeLeafId, setLeafSessionId, setActiveLeafId } = useUILayoutStore.getState();
+    setLeafSessionId(activeLeafId, sessionId);
+    setActiveLeafId(activeLeafId);
+  }, []);
+
   const createNewSession = useCallback(async () => {
     const selectedPrompt = systemPrompts.find((p) => p.id === lastSelectedPromptId);
     const systemPromptId =
@@ -363,26 +371,41 @@ export const CommandPalette: React.FC = () => {
         ? systemPrompts.find((p) => p.id === "general_assistant")?.id || systemPrompts[0].id
         : "");
 
-    const newSessionId = await addChat({
-      title: t("chat.sidebar.newSession"),
-      createdAt: Date.now(),
-      messages: [],
-      config: {
-        systemPromptId,
-        baseSystemPrompt:
-          selectedPrompt?.content ||
-          (systemPrompts.length > 0
-            ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
-              systemPrompts[0].content
-            : ""),
-        lastUsedEnhancedPrompt: null,
-      },
-    });
-
-    const { activeLeafId, setLeafSessionId, setActiveLeafId } = useUILayoutStore.getState();
-    setLeafSessionId(activeLeafId, newSessionId);
-    setActiveLeafId(activeLeafId);
-  }, [addChat, lastSelectedPromptId, systemPrompts, t]);
+    try {
+      const newSessionId = await addChat({
+        title: t("chat.sidebar.newSession"),
+        createdAt: Date.now(),
+        messages: [],
+        config: {
+          systemPromptId,
+          baseSystemPrompt:
+            selectedPrompt?.content ||
+            (systemPrompts.length > 0
+              ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
+                systemPrompts[0].content
+              : ""),
+          lastUsedEnhancedPrompt: null,
+        },
+      });
+      attachCreatedSession(newSessionId);
+    } catch (error) {
+      if (
+        showSessionCreateRecovery(error, {
+          onRecovered: attachCreatedSession,
+        })
+      ) {
+        return;
+      }
+      throw error;
+    }
+  }, [
+    addChat,
+    attachCreatedSession,
+    lastSelectedPromptId,
+    showSessionCreateRecovery,
+    systemPrompts,
+    t,
+  ]);
 
   const baseActions = useMemo<CommandPaletteAction[]>(() => {
     const settingsActions: CommandPaletteAction[] = SETTINGS_ACTIONS.filter((item) => {

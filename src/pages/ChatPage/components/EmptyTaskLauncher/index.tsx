@@ -20,6 +20,7 @@ import {
 import { useTranslation } from "react-i18next";
 
 import { selectSessionById, useAppStore } from "@shared/store/appStore";
+import { useSessionCreateRecovery } from "@shared/hooks/useSessionCreateRecovery";
 import { assignSessionToActiveLeaf } from "../../utils/assignSessionToActiveLeaf";
 import { CHAT_FOCUS_INPUT_EVENT } from "../ChatView/events";
 
@@ -190,6 +191,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const { message, modal } = AntApp.useApp();
+  const showSessionCreateRecovery = useSessionCreateRecovery();
   const currentSessionId = useAppStore((state) => sessionId ?? state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(currentSessionId));
   const addChat = useAppStore((state) => state.addChat);
@@ -510,6 +512,16 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
     async (template: LauncherTemplate) => {
       if (pendingTaskId) return;
 
+      const completeLaunch = (newSessionId: string) => {
+        assignSessionToActiveLeaf(newSessionId);
+
+        if (template.prefill.trim().length > 0) {
+          setInputContent(newSessionId, template.prefill);
+        }
+
+        requestComposerFocus(newSessionId);
+      };
+
       const launchTemplate = async () => {
         const defaultPromptConfig = resolveDefaultPromptConfig(systemPrompts, lastSelectedPromptId);
         const newSessionId = await addChat({
@@ -527,14 +539,25 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
             ...(workspacePath ? { workspacePath } : {}),
           },
         });
+        completeLaunch(newSessionId);
+      };
 
-        assignSessionToActiveLeaf(newSessionId);
-
-        if (template.prefill.trim().length > 0) {
-          setInputContent(newSessionId, template.prefill);
+      const handleLaunchError = (error: unknown) => {
+        if (
+          showSessionCreateRecovery(error, {
+            // Creation failed before any pane/prefill/focus side effect ran.
+            // Complete those once, only after recovery returns the session.
+            onRecovered: completeLaunch,
+          })
+        ) {
+          return;
         }
-
-        requestComposerFocus(newSessionId);
+        console.error("[EmptyTaskLauncher] Failed to create session", error);
+        message.error(
+          error instanceof Error
+            ? error.message
+            : t("chat.emptyLauncher.errors.createFailed", "Failed to create session"),
+        );
       };
 
       setPendingTaskId(template.id);
@@ -589,14 +612,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
           cancelText: t("common.cancel"),
           onOk: () =>
             launchTemplate()
-              .catch((error: unknown) => {
-                console.error("[EmptyTaskLauncher] Failed to create session", error);
-                message.error(
-                  error instanceof Error
-                    ? error.message
-                    : t("chat.emptyLauncher.errors.createFailed", "Failed to create session"),
-                );
-              })
+              .catch(handleLaunchError)
               .finally(() => {
                 setPendingTaskId(null);
               }),
@@ -608,12 +624,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       try {
         await launchTemplate();
       } catch (error) {
-        console.error("[EmptyTaskLauncher] Failed to create session", error);
-        message.error(
-          error instanceof Error
-            ? error.message
-            : t("chat.emptyLauncher.errors.createFailed", "Failed to create session"),
-        );
+        handleLaunchError(error);
       } finally {
         setPendingTaskId(null);
       }
@@ -628,6 +639,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
       requestComposerFocus,
       sessionId,
       setInputContent,
+      showSessionCreateRecovery,
       systemPrompts,
       t,
       workspacePath,

@@ -13,6 +13,7 @@ import {
   isSessionPermissionMode,
   type SessionPermissionMode,
 } from "@shared/permissions/sessionPermissionMode";
+import { createSessionIdempotencyKey } from "./sessionCreateIdempotency";
 
 export type { FeedSubscription } from "./v2Stream";
 
@@ -590,6 +591,72 @@ export interface CreateSessionResponse {
   session: SessionSummary;
 }
 
+export interface CreateSessionOptions {
+  /** Reuse only when continuing the same previously-ambiguous logical action. */
+  idempotencyKey?: string;
+  /**
+   * Local creation time for a persisted logical operation. This is required
+   * before an `unknown` status may be replayed: Bamboo deliberately forgets
+   * terminal receipts after its documented retention window, so an old key
+   * that now looks unknown must never create a duplicate resource.
+   */
+  operationCreatedAtMs?: number;
+  /**
+   * Set to false only when the caller allocated and durably stored the key
+   * before this operation's first POST. Supplied keys otherwise resume an
+   * ambiguous operation by checking its status before any replay.
+   */
+  resumeExistingOperation?: boolean;
+}
+
+export type SessionCreateOperationStatus =
+  | "pending"
+  | "succeeded"
+  | "failed"
+  | "expired"
+  | "unknown";
+
+export interface SessionCreateOperationResponse {
+  status: SessionCreateOperationStatus;
+  session?: SessionSummary;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
+/**
+ * The create request lost its response and Bamboo could not confirm a final
+ * result within the bounded recovery window. This is deliberately distinct
+ * from a definitive create failure: the session may already exist, so callers
+ * must not tell the user that creation certainly failed.
+ */
+export class SessionCreateRecoveryError extends Error {
+  readonly recoverable = true;
+
+  constructor(
+    public readonly idempotencyKey: string,
+    public readonly operationStatus: Extract<SessionCreateOperationStatus, "pending" | "unknown">,
+    message?: string,
+    public readonly operationCreatedAtMs?: number,
+  ) {
+    super(
+      message ??
+        (operationStatus === "pending"
+          ? "Session creation is still being confirmed and may already have succeeded. Refresh the session list before starting another session."
+          : "The connection was lost while creating the session, so the result is still unknown. Refresh the session list before starting another session."),
+    );
+    this.name = "SessionCreateRecoveryError";
+  }
+}
+
+export function isSessionCreateRecoveryError(error: unknown): error is SessionCreateRecoveryError {
+  return error instanceof SessionCreateRecoveryError;
+}
+
+const isAmbiguousSessionCreatePostError = (error: unknown): boolean =>
+  !isApiError(error) || error.status === 408 || error.status >= 500;
+
 export interface GetSessionResponse {
   session: SessionSummary;
 }
@@ -1092,6 +1159,9 @@ const summarizeStreamControlEvent = (event: AgentEvent): Record<string, unknown>
 export class AgentClient {
   private static instance: AgentClient;
 
+  private static readonly SESSION_CREATE_STATUS_CHECKS = 3;
+  private static readonly SESSION_CREATE_STATUS_POLL_MS = 1000;
+
   static getInstance(): AgentClient {
     if (!AgentClient.instance) {
       AgentClient.instance = new AgentClient();
@@ -1232,9 +1302,222 @@ export class AgentClient {
 
   /**
    * Create a new backend session (root).
+   *
+   * A fresh key represents one explicit logical create action. If the POST's
+   * response is lost, status lookup and any safe replay keep this exact key so
+   * Bamboo returns the original session instead of allocating a duplicate.
    */
-  async createSession(req: CreateSessionRequest): Promise<CreateSessionResponse> {
-    return agentApiClient.post<CreateSessionResponse>("sessions", req);
+  async createSession(
+    req: CreateSessionRequest,
+    options: CreateSessionOptions = {},
+  ): Promise<CreateSessionResponse> {
+    const existingIdempotencyKey = options.idempotencyKey?.trim();
+    const suppliedCreatedAt = options.operationCreatedAtMs;
+    const operationCreatedAtMs =
+      typeof suppliedCreatedAt === "number" && Number.isFinite(suppliedCreatedAt)
+        ? suppliedCreatedAt
+        : existingIdempotencyKey
+          ? undefined
+          : Date.now();
+    if (existingIdempotencyKey && options.resumeExistingOperation !== false) {
+      debugLog("[AgentClient]", "sessions.create.resume", {});
+      // A UI/startup retry is a continuation, not a new create. Query first,
+      // then allow one same-key POST if a pending reservation stays pending.
+      // Bamboo serializes the claim and reuses its reserved UUID, so this also
+      // recovers a crash that happened after reservation but before creation.
+      return this.recoverCreateSession(
+        req,
+        existingIdempotencyKey,
+        true,
+        this.isUnknownReplayWithinRetention(operationCreatedAtMs),
+        operationCreatedAtMs,
+      );
+    }
+
+    const idempotencyKey = existingIdempotencyKey || createSessionIdempotencyKey();
+
+    try {
+      return await this.postCreateSession(req, idempotencyKey);
+    } catch (error) {
+      // A concrete 4xx (apart from request timeout) is definitive. A 408/5xx
+      // can still follow an upstream timeout or a post-commit server failure,
+      // so preserve the key and recover exactly like a lost response.
+      if (!isAmbiguousSessionCreatePostError(error)) {
+        throw error;
+      }
+
+      debugLog("[AgentClient]", "sessions.create.response_lost", {});
+      const receivedAmbiguousHttpResponse = isApiError(error);
+      return this.recoverCreateSession(
+        req,
+        idempotencyKey,
+        receivedAmbiguousHttpResponse,
+        receivedAmbiguousHttpResponse,
+        operationCreatedAtMs,
+      );
+    }
+  }
+
+  private postCreateSession(
+    req: CreateSessionRequest,
+    idempotencyKey: string,
+  ): Promise<CreateSessionResponse> {
+    return agentApiClient.post<CreateSessionResponse>("sessions", req, {
+      headers: { "Idempotency-Key": idempotencyKey },
+    });
+  }
+
+  private async getSessionCreateOperation(
+    idempotencyKey: string,
+  ): Promise<SessionCreateOperationResponse> {
+    return agentApiClient.get<SessionCreateOperationResponse>(
+      `session-create-operations/${encodeURIComponent(idempotencyKey)}`,
+    );
+  }
+
+  private async recoverCreateSession(
+    req: CreateSessionRequest,
+    idempotencyKey: string,
+    replayPersistentPending: boolean,
+    allowUnknownReplay: boolean,
+    operationCreatedAtMs?: number,
+  ): Promise<CreateSessionResponse> {
+    let lastStatus: Extract<SessionCreateOperationStatus, "pending" | "unknown"> = "unknown";
+    let replayAttempted = false;
+
+    const replayOnce = async (): Promise<CreateSessionResponse | null> => {
+      replayAttempted = true;
+      try {
+        return await this.postCreateSession(req, idempotencyKey);
+      } catch (error) {
+        if (!isAmbiguousSessionCreatePostError(error)) {
+          // A replay conflict or another deterministic response must be
+          // surfaced immediately, never disguised as transport ambiguity.
+          throw error;
+        }
+        debugLog("[AgentClient]", "sessions.create.replay_response_lost", {});
+        return null;
+      }
+    };
+
+    for (let check = 0; check < AgentClient.SESSION_CREATE_STATUS_CHECKS; check += 1) {
+      let operation: SessionCreateOperationResponse;
+      try {
+        operation = await this.getSessionCreateOperation(idempotencyKey);
+      } catch (error) {
+        debugLog("[AgentClient]", "sessions.create.status_unavailable", {
+          check,
+        });
+
+        // A deterministic status-endpoint response (for example, an
+        // unsupported endpoint on an older Bamboo) cannot be interpreted as
+        // an authoritative `unknown`. Replaying against such a server could
+        // duplicate a session, so preserve the non-definitive outcome.
+        if (isApiError(error)) {
+          throw new SessionCreateRecoveryError(
+            idempotencyKey,
+            "unknown",
+            undefined,
+            operationCreatedAtMs,
+          );
+        }
+        operation = { status: "unknown" };
+      }
+
+      debugLog("[AgentClient]", "sessions.create.recovery_status", {
+        check,
+        status: operation.status,
+      });
+
+      if (operation.status === "succeeded") {
+        if (operation.session) {
+          return { session: operation.session };
+        }
+        // The operation is committed but its resource identity is missing.
+        // Never replay a create in this malformed-success state.
+        throw new SessionCreateRecoveryError(
+          idempotencyKey,
+          "unknown",
+          undefined,
+          operationCreatedAtMs,
+        );
+      }
+
+      if (operation.status === "failed") {
+        const failure = new Error(operation.error?.message || "Session creation failed");
+        failure.name = operation.error?.code || "SessionCreateOperationFailedError";
+        throw failure;
+      }
+
+      if (operation.status === "expired") {
+        const expired = new Error(
+          operation.error?.message ||
+            "The session creation recovery record expired. Refresh the session list before starting another session.",
+        );
+        expired.name = operation.error?.code || "SessionCreateOperationExpiredError";
+        throw expired;
+      }
+
+      lastStatus = operation.status;
+
+      if (operation.status === "unknown" && allowUnknownReplay && !replayAttempted) {
+        const statusCode = operation.error?.code?.toLowerCase() ?? "";
+        if (statusCode.includes("expired")) {
+          throw new SessionCreateRecoveryError(
+            idempotencyKey,
+            "unknown",
+            "The session creation recovery record expired before its result could be confirmed. Refresh the session list before starting another session.",
+            operationCreatedAtMs,
+          );
+        }
+
+        // `unknown` means Bamboo has no committed result to return from the
+        // lookup. Replaying the byte-equivalent request with the SAME key is
+        // safe: Bamboo either starts it once or returns the existing result.
+        const replayed = await replayOnce();
+        if (replayed) {
+          return replayed;
+        }
+      }
+
+      // A transport-aborted first request remains poll-only: the original
+      // handler may still be running. An explicit continuation (the UI's
+      // "Check again" or a persisted startup resume), and a concrete 408/5xx,
+      // may issue one same-key POST after pending persists. Do it one check
+      // before the bound so an ambiguous replay still gets a final lookup.
+      if (
+        operation.status === "pending" &&
+        replayPersistentPending &&
+        !replayAttempted &&
+        check >= Math.max(0, AgentClient.SESSION_CREATE_STATUS_CHECKS - 2)
+      ) {
+        const replayed = await replayOnce();
+        if (replayed) {
+          return replayed;
+        }
+      }
+
+      if (check < AgentClient.SESSION_CREATE_STATUS_CHECKS - 1) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, AgentClient.SESSION_CREATE_STATUS_POLL_MS),
+        );
+      }
+    }
+
+    throw new SessionCreateRecoveryError(
+      idempotencyKey,
+      lastStatus,
+      undefined,
+      operationCreatedAtMs,
+    );
+  }
+
+  private isUnknownReplayWithinRetention(operationCreatedAtMs: number | undefined): boolean {
+    if (operationCreatedAtMs === undefined) {
+      return false;
+    }
+    const ageMs = Date.now() - operationCreatedAtMs;
+    return ageMs >= 0 && ageMs < 24 * 60 * 60 * 1000;
   }
 
   /**
