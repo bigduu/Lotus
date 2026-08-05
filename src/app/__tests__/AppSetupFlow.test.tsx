@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { mockBootstrapCritical, mockBootstrapDeferred } = vi.hoisted(() => ({
@@ -23,6 +23,7 @@ vi.mock("@shared/store/appStore", () => ({
 }));
 
 import App from "../App";
+import { SessionCreateRecoveryError } from "@services/chat/AgentService";
 
 const mockSetupStatus = (status: {
   is_complete: boolean;
@@ -78,6 +79,38 @@ describe("App setup flow", () => {
     expect(await screen.findByText("MainLayout")).toBeInTheDocument();
     await waitFor(() => {
       expect(mockBootstrapCritical).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("offers an explicit same-operation bootstrap retry while initial creation is pending", async () => {
+    mockSetupStatus({
+      is_complete: true,
+      has_proxy_config: true,
+      has_proxy_env: true,
+      message: "Setup already completed.",
+    });
+    mockBootstrapCritical
+      .mockRejectedValueOnce(
+        new SessionCreateRecoveryError(
+          "lotus-session-startup-recovery",
+          "pending",
+          "The original session creation is still pending.",
+          Date.now(),
+        ),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The original session creation is still pending.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: /check again/i }));
+
+    await waitFor(() => {
+      expect(mockBootstrapCritical).toHaveBeenCalledTimes(2);
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(mockBootstrapDeferred).toHaveBeenCalledTimes(1);
     });
   });
 

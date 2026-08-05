@@ -1,6 +1,11 @@
 import { StateCreator } from "zustand";
 import { ChatItem, Message } from "@shared/types/chat";
-import { AgentClient, type SessionSummary } from "@services/chat/AgentService";
+import {
+  AgentClient,
+  isSessionCreateRecoveryError,
+  type CreateSessionResponse,
+  type SessionSummary,
+} from "@services/chat/AgentService";
 import { ApiError } from "@services/api";
 import type { AppState } from "../";
 import { useProviderStore } from "./providerSlice";
@@ -23,6 +28,12 @@ import {
   refreshChatsState,
   settleTrailingRefreshCallbacks,
 } from "./chatSessionSlice/refreshChats";
+import { ChatSessionCreateRecoveryError } from "./chatSessionSlice/sessionCreateRecovery";
+import {
+  acquireInitialSessionCreateOperation,
+  clearInitialSessionCreateOperation,
+  getInitialSessionCreateOperation,
+} from "./chatSessionSlice/initialSessionCreateOperation";
 
 // Re-export public types + the test-only history mapper so existing import
 // paths (`@shared/store/appStore/slices/chatSessionSlice`) keep resolving.
@@ -32,6 +43,10 @@ export type {
   DeleteMessageFailureReason,
 } from "./chatSessionSlice/types";
 export { mapHistoryMessagesToUi } from "./chatSessionSlice/messageMapping";
+export {
+  ChatSessionCreateRecoveryError,
+  isChatSessionCreateRecoveryError,
+} from "./chatSessionSlice/sessionCreateRecovery";
 
 import type { ChatSlice } from "./chatSessionSlice/types";
 
@@ -130,7 +145,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     const requestedProjectId =
       candidateProjectId && candidateProject?.status === "active" ? candidateProjectId : null;
 
-    const created = await agentClient.createSession({
+    const createRequest = {
       title,
       // Titles supplied while creating a blank chat are UI labels, not manual
       // renames. Keep the lifecycle pending without inspecting localized text.
@@ -143,42 +158,69 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       gold_config: chatData.config?.goldConfig ?? undefined,
       project_id: requestedProjectId,
       workspace_path: chatData.config?.workspacePath?.trim() || null,
-    });
-
-    const mappedSession = sessionSummaryToChatItem(created.session);
-    const newChat: ChatItem = {
-      ...mappedSession,
-      title,
-      config: {
-        ...chatData.config,
-        projectId: created.session.project_id ?? undefined,
-        model: created.session.model,
-        model_ref: created.session.model_ref ?? null,
-        reasoningEffort: created.session.reasoning_effort ?? null,
-        goldConfig: created.session.gold_config ?? chatData.config?.goldConfig ?? null,
-        // The create response is authoritative for both the exact mode and
-        // typed-mode capability. Do not let the caller's pre-create config
-        // make a current Bamboo backend look legacy until the next refresh.
-        bypassPermissions: mappedSession.config.bypassPermissions,
-        permissionMode: mappedSession.config.permissionMode,
-        permissionModeSupported: mappedSession.config.permissionModeSupported,
-        // If the caller provided a base prompt, keep it; otherwise fall back.
-        baseSystemPrompt: basePrompt || DEFAULT_BASE_SYSTEM_PROMPT,
-      },
-      messages: [],
     };
 
-    set((state) => {
-      const chats = [newChat, ...state.chats.filter((c) => c.id !== newChat.id)];
-      return {
-        ...state,
-        chats,
-        currentSessionId: newChat.id,
-        latestActiveSessionId: newChat.id,
-      };
-    });
+    const createAndInsert = async (
+      idempotencyKey?: string,
+      operationCreatedAtMs?: number,
+    ): Promise<string> => {
+      let created: CreateSessionResponse;
+      try {
+        created = idempotencyKey
+          ? await agentClient.createSession(createRequest, {
+              idempotencyKey,
+              operationCreatedAtMs,
+            })
+          : await agentClient.createSession(createRequest);
+      } catch (error) {
+        if (isSessionCreateRecoveryError(error)) {
+          throw new ChatSessionCreateRecoveryError(
+            error.idempotencyKey,
+            error.operationStatus,
+            () => createAndInsert(error.idempotencyKey, error.operationCreatedAtMs),
+            error.message,
+          );
+        }
+        throw error;
+      }
 
-    return newChat.id;
+      const mappedSession = sessionSummaryToChatItem(created.session);
+      const newChat: ChatItem = {
+        ...mappedSession,
+        title,
+        config: {
+          ...chatData.config,
+          projectId: created.session.project_id ?? undefined,
+          model: created.session.model,
+          model_ref: created.session.model_ref ?? null,
+          reasoningEffort: created.session.reasoning_effort ?? null,
+          goldConfig: created.session.gold_config ?? chatData.config?.goldConfig ?? null,
+          // The create response is authoritative for both the exact mode and
+          // typed-mode capability. Do not let the caller's pre-create config
+          // make a current Bamboo backend look legacy until the next refresh.
+          bypassPermissions: mappedSession.config.bypassPermissions,
+          permissionMode: mappedSession.config.permissionMode,
+          permissionModeSupported: mappedSession.config.permissionModeSupported,
+          // If the caller provided a base prompt, keep it; otherwise fall back.
+          baseSystemPrompt: basePrompt || DEFAULT_BASE_SYSTEM_PROMPT,
+        },
+        messages: [],
+      };
+
+      set((state) => {
+        const chats = [newChat, ...state.chats.filter((c) => c.id !== newChat.id)];
+        return {
+          ...state,
+          chats,
+          currentSessionId: newChat.id,
+          latestActiveSessionId: newChat.id,
+        };
+      });
+
+      return newChat.id;
+    };
+
+    return createAndInsert();
   },
 
   selectSession: (sessionId) => {
@@ -908,7 +950,35 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
   loadChats: async () => {
     debugLog("[ChatSlice]", "loadChats.start", {});
     let list = await agentClient.listSessions();
-    if (!list.sessions || list.sessions.length === 0) {
+    let initialCreateRecoveryError: unknown;
+    const persistedInitialOperation = getInitialSessionCreateOperation();
+    if (persistedInitialOperation) {
+      // A session created elsewhere is not evidence about this exact logical
+      // operation. Always resolve its durable key before clearing it.
+      try {
+        const created = await agentClient.createSession(persistedInitialOperation.request, {
+          idempotencyKey: persistedInitialOperation.idempotencyKey,
+          operationCreatedAtMs: persistedInitialOperation.createdAtMs,
+          resumeExistingOperation: true,
+        });
+        clearInitialSessionCreateOperation();
+        list = {
+          sessions: [
+            created.session,
+            ...(list.sessions ?? []).filter((session) => session.id !== created.session.id),
+          ],
+        };
+      } catch (error) {
+        if (isSessionCreateRecoveryError(error)) {
+          initialCreateRecoveryError = error;
+        } else {
+          clearInitialSessionCreateOperation();
+          if (!list.sessions?.length) {
+            throw error;
+          }
+        }
+      }
+    } else if (!list.sessions || list.sessions.length === 0) {
       // Use provider defaults when creating the initial session on startup
       const defaultModel = useProviderStore.getState().getActiveModel()?.trim();
       const defaultModelRef = useProviderStore.getState().providerConfig.defaults?.chat;
@@ -916,14 +986,36 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         defaultModel: defaultModel ?? null,
         defaultModelRef: defaultModelRef ?? null,
       });
-      const created = await agentClient.createSession({
+      const initialRequest = {
         title: i18n.t("chat.sidebar.newSession"),
         title_generated: false,
         model: defaultModel,
         model_ref: defaultModelRef,
         provider: defaultModelRef?.provider,
-      });
-      list = { sessions: [created.session] };
+      };
+      const { operation, isNew } = acquireInitialSessionCreateOperation(initialRequest);
+
+      try {
+        const created = await agentClient.createSession(operation.request, {
+          idempotencyKey: operation.idempotencyKey,
+          operationCreatedAtMs: operation.createdAtMs,
+          // The operation record is stored before the first POST. Later
+          // startup attempts query status before any same-key replay.
+          resumeExistingOperation: !isNew,
+        });
+        clearInitialSessionCreateOperation();
+        list = { sessions: [created.session] };
+      } catch (error) {
+        // An ambiguous create must retain its exact key/request across another
+        // loadChats call or same-tab reload. Definitive failures are safe to
+        // clear so a later explicit startup attempt can begin a new action.
+        if (isSessionCreateRecoveryError(error)) {
+          initialCreateRecoveryError = error;
+        } else {
+          clearInitialSessionCreateOperation();
+          throw error;
+        }
+      }
     }
 
     const chats = list.sessions.map(sessionSummaryToChatItem);
@@ -1007,6 +1099,10 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       // Lazy load history for the initial session.
       debugLog("[ChatSlice]", "loadChats.loadInitialHistory", { currentSessionId });
       await get().loadChatHistory(currentSessionId);
+    }
+
+    if (initialCreateRecoveryError) {
+      throw initialCreateRecoveryError;
     }
   },
 

@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { SessionSummary } from "@services/chat/AgentService";
-import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
+import {
+  ChatSessionCreateRecoveryError,
+  createChatSlice,
+  type ChatSlice,
+} from "../chatSessionSlice";
 import type { ProjectManifest } from "@services/project";
 
 const { mockCreateSession } = vi.hoisted(() => ({
@@ -17,6 +21,8 @@ vi.mock("@services/chat/AgentService", () => ({
       patchSession: vi.fn(async () => undefined),
     })),
   },
+  isSessionCreateRecoveryError: (error: unknown) =>
+    error instanceof Error && error.name === "SessionCreateRecoveryError",
 }));
 
 const makeSummary = (overrides: Partial<SessionSummary> = {}): SessionSummary => ({
@@ -223,5 +229,50 @@ describe("chatSessionSlice addChat — Project membership (#134/#154)", () => {
 
     const chat = store.getState().chats.find((c) => c.id === sessionId);
     expect(chat?.config.projectId).toBeUndefined();
+  });
+
+  it("retries one ambiguous logical create with the same key and inserts once", async () => {
+    const serviceRecoveryError = Object.assign(
+      new Error(
+        "Session creation is still being confirmed and may already have succeeded. Refresh first.",
+      ),
+      {
+        name: "SessionCreateRecoveryError",
+        idempotencyKey: "lotus-session-stable-key",
+        operationStatus: "pending" as const,
+        operationCreatedAtMs: 1_775_000_000_000,
+      },
+    );
+    mockCreateSession
+      .mockRejectedValueOnce(serviceRecoveryError)
+      .mockResolvedValueOnce({ session: makeSummary({ id: "session-recovered" }) });
+    const store = createTestStore({ projects: {}, activeProjectId: null });
+
+    const firstResult = await store
+      .getState()
+      .addChat(newChatData() as any)
+      .catch((error: unknown) => error);
+
+    expect(firstResult).toBeInstanceOf(ChatSessionCreateRecoveryError);
+    expect(firstResult).toMatchObject({
+      recoverable: true,
+      idempotencyKey: "lotus-session-stable-key",
+      operationStatus: "pending",
+    });
+    expect(store.getState().chats).toHaveLength(0);
+
+    const sessionId = await (firstResult as ChatSessionCreateRecoveryError).retry();
+
+    expect(sessionId).toBe("session-recovered");
+    expect(mockCreateSession).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ title: "New Session" }),
+      {
+        idempotencyKey: "lotus-session-stable-key",
+        operationCreatedAtMs: 1_775_000_000_000,
+      },
+    );
+    expect(store.getState().chats.map((chat) => chat.id)).toEqual(["session-recovered"]);
+    expect(store.getState().currentSessionId).toBe("session-recovered");
   });
 });

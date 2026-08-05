@@ -288,6 +288,10 @@ export const zhCnTranslation = {
       },
     },
     chat: {
+      sessionCreateRecovery: {
+        title: "仍在确认会话创建结果",
+        retry: "再次检查",
+      },
       sidebar: {
         newSession: "新建会话",
         createFailedTitle: "创建会话失败",

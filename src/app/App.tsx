@@ -20,6 +20,7 @@ import { resolveThemeTokens } from "@shared/theme/tokens";
 import { useIsMobile } from "@shared/hooks/useMediaQuery";
 import { StorageManager } from "../services/storage/StorageManager";
 import { migrateFromLocalStorage } from "../services/storage/migrateFromLocalStorage";
+import { isSessionCreateRecoveryError } from "@services/chat/AgentService";
 
 function App() {
   const { t } = useTranslation();
@@ -41,6 +42,12 @@ function App() {
   // Slow-start feedback (#172): the backend probe can retry for up to ~20s
   // — after a few seconds, tell the user what the wait is about.
   const [startupWaitLong, setStartupWaitLong] = useState(false);
+  const [startupCreateRecovery, setStartupCreateRecovery] = useState<{
+    message: string;
+    operationStatus: "pending" | "unknown";
+  } | null>(null);
+  const [bootstrapRetryNonce, setBootstrapRetryNonce] = useState(0);
+  const [bootstrapInFlight, setBootstrapInFlight] = useState(false);
 
   useEffect(() => {
     if (isSetupComplete !== null || backendStartupError) {
@@ -164,17 +171,46 @@ function App() {
       return;
     }
 
+    let cancelled = false;
+    setBootstrapInFlight(true);
+
     // Staged bootstrap: await critical (provider + chats) so the shell has
     // sessions, then kick off deferred (models + prompts) in the background
     // without blocking the first useful render.
     bootstrapCritical()
       .then(() => {
+        if (!cancelled) {
+          setStartupCreateRecovery(null);
+        }
         return bootstrapDeferred();
       })
       .catch((err) => {
+        if (cancelled) {
+          return;
+        }
+        if (isSessionCreateRecoveryError(err)) {
+          console.warn("[App] Session creation is still being confirmed during bootstrap", {
+            operationStatus: err.operationStatus,
+          });
+          setStartupCreateRecovery({
+            message: err.message,
+            operationStatus: err.operationStatus,
+          });
+          return;
+        }
+        setStartupCreateRecovery(null);
         console.error("[App] Bootstrap error:", err);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setBootstrapInFlight(false);
+        }
       });
-  }, [isSetupComplete]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapRetryNonce, isSetupComplete]);
 
   // Cleanup stale IndexedDB data on startup and periodically
   useEffect(() => {
@@ -300,7 +336,33 @@ function App() {
     >
       <AntdApp>
         <ErrorBoundary name="App">
-          <div style={{ position: "relative" }}>{appContent}</div>
+          <div style={{ position: "relative" }}>
+            {startupCreateRecovery ? (
+              <Flex
+                role="alert"
+                align="center"
+                justify="space-between"
+                gap={12}
+                wrap
+                style={{
+                  padding: "10px 16px",
+                  background: themeToken?.colorWarningBg ?? "rgba(250, 173, 20, 0.12)",
+                }}
+              >
+                <div>
+                  <strong>{t("chat.sessionCreateRecovery.title")}</strong>
+                  <div style={{ marginTop: 2 }}>{startupCreateRecovery.message}</div>
+                </div>
+                <Button
+                  loading={bootstrapInFlight}
+                  onClick={() => setBootstrapRetryNonce((nonce) => nonce + 1)}
+                >
+                  {t("chat.sessionCreateRecovery.retry")}
+                </Button>
+              </Flex>
+            ) : null}
+            {appContent}
+          </div>
         </ErrorBoundary>
       </AntdApp>
     </AntdConfigProvider>

@@ -28,6 +28,7 @@ import {
 } from "../ChatView/events";
 import { useTranslation } from "react-i18next";
 import { useMediaQuery } from "@shared/hooks/useMediaQuery";
+import { useSessionCreateRecovery } from "@shared/hooks/useSessionCreateRecovery";
 import { buildConversationWorkspaceState } from "../../workspace/workspaceState";
 
 import "./styles.css";
@@ -40,6 +41,7 @@ const MAX_PANES = 4;
 const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
   const { token } = useToken();
   const { t } = useTranslation();
+  const showSessionCreateRecovery = useSessionCreateRecovery();
 
   const tree = useUILayoutStore((s) => s.tree);
   const leafSessionIds = useUILayoutStore((s) => s.leafSessionIds);
@@ -98,25 +100,44 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
         ? systemPrompts.find((p) => p.id === "general_assistant")?.id || systemPrompts[0].id
         : "");
 
-    const newSessionId = await addChat({
-      title: t("chat.sidebar.newSession"),
-      createdAt: Date.now(),
-      messages: [],
-      config: {
-        systemPromptId,
-        baseSystemPrompt:
-          selectedPrompt?.content ||
-          (systemPrompts.length > 0
-            ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
-              systemPrompts[0].content
-            : ""),
-        lastUsedEnhancedPrompt: null,
-      },
-    });
+    const attachToPane = (sessionId: string) => {
+      setLeafSessionId(leafId, sessionId);
+      setActiveLeafId(leafId);
+    };
 
-    setLeafSessionId(leafId, newSessionId);
-    setActiveLeafId(leafId);
-  }, [addChat, lastSelectedPromptId, systemPrompts, t, leafId, setLeafSessionId, setActiveLeafId]);
+    try {
+      const newSessionId = await addChat({
+        title: t("chat.sidebar.newSession"),
+        createdAt: Date.now(),
+        messages: [],
+        config: {
+          systemPromptId,
+          baseSystemPrompt:
+            selectedPrompt?.content ||
+            (systemPrompts.length > 0
+              ? systemPrompts.find((p) => p.id === "general_assistant")?.content ||
+                systemPrompts[0].content
+              : ""),
+          lastUsedEnhancedPrompt: null,
+        },
+      });
+      attachToPane(newSessionId);
+    } catch (error) {
+      if (showSessionCreateRecovery(error, { onRecovered: attachToPane })) {
+        return;
+      }
+      throw error;
+    }
+  }, [
+    addChat,
+    lastSelectedPromptId,
+    systemPrompts,
+    t,
+    leafId,
+    setLeafSessionId,
+    setActiveLeafId,
+    showSessionCreateRecovery,
+  ]);
 
   return (
     <div

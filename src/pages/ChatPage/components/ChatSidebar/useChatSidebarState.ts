@@ -28,6 +28,7 @@ import { useUILayoutStore } from "@shared/store/uiLayoutStore";
 import type { SidebarGroupingMode } from "@shared/store/uiLayoutStore.types";
 import { openSession } from "@shared/utils/openSession";
 import { selectIsBusy, selectSidebarRunStateMap } from "@shared/store/appStore";
+import { useSessionCreateRecovery } from "@shared/hooks/useSessionCreateRecovery";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
 type CreateNewChatOptions = Partial<Omit<ChatItem, "id" | "config">> & {
@@ -180,6 +181,7 @@ const matchesStatusFilter = (
 export const useChatSidebarState = () => {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
+  const showSessionCreateRecovery = useSessionCreateRecovery();
   const {
     chats,
     currentSessionId,
@@ -273,6 +275,12 @@ export const useChatSidebarState = () => {
     }
   }, [chats, ensureProject]);
 
+  const assignCreatedSessionToActivePane = useCallback((sessionId: string) => {
+    const { activeLeafId: targetLeafId } = useUILayoutStore.getState();
+    useUILayoutStore.getState().setLeafSessionId(targetLeafId, sessionId);
+    useUILayoutStore.getState().setActiveLeafId(targetLeafId);
+  }, []);
+
   const createNewChat = useCallback(
     async (title?: string, options?: CreateNewChatOptions): Promise<string> => {
       const selectedPrompt = systemPrompts.find((p) => p.id === lastSelectedPromptId);
@@ -304,16 +312,106 @@ export const useChatSidebarState = () => {
         ...chatOverrides,
       };
       const newSessionId = await addChat(newChatData);
-
-      // Assign the new chat to the currently active pane (read from store to
-      // avoid stale closures when the user just split panes).
-      const { activeLeafId: targetLeafId } = useUILayoutStore.getState();
-      useUILayoutStore.getState().setLeafSessionId(targetLeafId, newSessionId);
-      useUILayoutStore.getState().setActiveLeafId(targetLeafId);
+      // Read the active pane after creation so a just-completed split cannot
+      // leave the recovered session attached to a stale leaf.
+      assignCreatedSessionToActivePane(newSessionId);
       return newSessionId;
     },
-    [addChat, lastSelectedPromptId, systemPrompts, t],
+    [addChat, assignCreatedSessionToActivePane, lastSelectedPromptId, systemPrompts, t],
   );
+
+  const enableBypassForNewSession = useCallback(async (newSessionId: string): Promise<void> => {
+    // Session creation is already committed and selected at this point.
+    // Bypass activation is intentionally best-effort: a PATCH or local
+    // synchronization failure must never roll back or reject the usable
+    // session, and the whole post-create phase emits at most one warning.
+    let bypassRevision: number | null = null;
+    let bypassConfirmed = false;
+    try {
+      const createdChat = useAppStore.getState().chats.find((chat) => chat.id === newSessionId);
+      if (!createdChat) {
+        throw new Error(`Created session ${newSessionId} is missing from local state`);
+      }
+      bypassRevision = tryBeginPermissionModeMutation(
+        newSessionId,
+        "bypass",
+        createdChat.config.permissionMode ??
+          (createdChat.config.bypassPermissions ? "bypass" : "default"),
+      );
+      if (bypassRevision === null) return;
+
+      let confirmedMode: SessionPermissionMode = "bypass";
+      if (createdChat.config.permissionModeSupported === true) {
+        const confirmedSession = await AgentClient.getInstance().setSessionPermissionMode(
+          newSessionId,
+          "bypass",
+        );
+        confirmedMode = confirmedSession.permission_mode ?? "bypass";
+      } else {
+        // Preserve the best-effort path for older Bamboo versions that only
+        // understand the compatibility boolean.
+        await AgentClient.getInstance().patchSession(newSessionId, {
+          bypass_permissions: true,
+        });
+      }
+      bypassConfirmed = confirmPermissionModeMutation(newSessionId, bypassRevision, confirmedMode);
+      if (!bypassConfirmed) return;
+
+      const liveState = useAppStore.getState();
+      const liveChat = liveState.chats.find((chat) => chat.id === newSessionId);
+      if (!liveChat) {
+        throw new Error(`Created session ${newSessionId} is missing from local state`);
+      }
+      liveState.updateSession(
+        newSessionId,
+        {
+          config: {
+            ...liveChat.config,
+            bypassPermissions: confirmedMode !== "default",
+            permissionMode: confirmedMode,
+          },
+        },
+        { skipBackendPatch: true },
+      );
+    } catch (error) {
+      let warningError = error;
+      if (bypassRevision !== null && !bypassConfirmed) {
+        const confirmedMode = failPermissionModeMutation(newSessionId, bypassRevision);
+        if (confirmedMode !== null) {
+          try {
+            const liveState = useAppStore.getState();
+            const liveChat = liveState.chats.find((chat) => chat.id === newSessionId);
+            if (liveChat && liveChat.config.permissionMode !== confirmedMode) {
+              liveState.updateSession(
+                newSessionId,
+                {
+                  config: {
+                    ...liveChat.config,
+                    bypassPermissions: confirmedMode !== "default",
+                    permissionMode: confirmedMode,
+                  },
+                },
+                { skipBackendPatch: true },
+              );
+            }
+          } catch (rollbackError) {
+            warningError = rollbackError;
+          }
+        }
+      }
+      console.warn(
+        "[ChatSidebar] Failed to enable bypass permissions for new session:",
+        warningError,
+      );
+      // The server may have committed the mutation even when its response
+      // was lost, or another client may have won a CAS race. Rollback is
+      // only a temporary local fallback; immediately reconcile from Bamboo.
+      void useAppStore
+        .getState()
+        .refreshChatsNow()
+        .catch(() => undefined);
+    }
+  }, []);
 
   const handleCreateChatInProject = useCallback(
     async (projectId: string | null): Promise<void> => {
@@ -337,6 +435,16 @@ export const useChatSidebarState = () => {
           },
         });
       } catch (error) {
+        if (
+          showSessionCreateRecovery(error, {
+            onRecovered: async (sessionId) => {
+              assignCreatedSessionToActivePane(sessionId);
+              await enableBypassForNewSession(sessionId);
+            },
+          })
+        ) {
+          return;
+        }
         console.error("Failed to create chat:", error);
         modal.error({
           title: t("chat.sidebar.createFailedTitle"),
@@ -345,102 +453,16 @@ export const useChatSidebarState = () => {
         return;
       }
 
-      // Session creation is already committed and selected at this point.
-      // Bypass activation is intentionally best-effort: a PATCH or local
-      // synchronization failure must never roll back or reject the usable
-      // session, and the whole post-create phase emits at most one warning.
-      let bypassRevision: number | null = null;
-      let bypassConfirmed = false;
-      try {
-        const createdChat = useAppStore.getState().chats.find((chat) => chat.id === newSessionId);
-        if (!createdChat) {
-          throw new Error(`Created session ${newSessionId} is missing from local state`);
-        }
-        bypassRevision = tryBeginPermissionModeMutation(
-          newSessionId,
-          "bypass",
-          createdChat.config.permissionMode ??
-            (createdChat.config.bypassPermissions ? "bypass" : "default"),
-        );
-        if (bypassRevision === null) return;
-
-        let confirmedMode: SessionPermissionMode = "bypass";
-        if (createdChat.config.permissionModeSupported === true) {
-          const confirmedSession = await AgentClient.getInstance().setSessionPermissionMode(
-            newSessionId,
-            "bypass",
-          );
-          confirmedMode = confirmedSession.permission_mode ?? "bypass";
-        } else {
-          // Preserve the best-effort path for older Bamboo versions that only
-          // understand the compatibility boolean.
-          await AgentClient.getInstance().patchSession(newSessionId, {
-            bypass_permissions: true,
-          });
-        }
-        bypassConfirmed = confirmPermissionModeMutation(
-          newSessionId,
-          bypassRevision,
-          confirmedMode,
-        );
-        if (!bypassConfirmed) return;
-
-        const liveState = useAppStore.getState();
-        const liveChat = liveState.chats.find((chat) => chat.id === newSessionId);
-        if (!liveChat) {
-          throw new Error(`Created session ${newSessionId} is missing from local state`);
-        }
-        liveState.updateSession(
-          newSessionId,
-          {
-            config: {
-              ...liveChat.config,
-              bypassPermissions: confirmedMode !== "default",
-              permissionMode: confirmedMode,
-            },
-          },
-          { skipBackendPatch: true },
-        );
-      } catch (error) {
-        let warningError = error;
-        if (bypassRevision !== null && !bypassConfirmed) {
-          const confirmedMode = failPermissionModeMutation(newSessionId, bypassRevision);
-          if (confirmedMode !== null) {
-            try {
-              const liveState = useAppStore.getState();
-              const liveChat = liveState.chats.find((chat) => chat.id === newSessionId);
-              if (liveChat && liveChat.config.permissionMode !== confirmedMode) {
-                liveState.updateSession(
-                  newSessionId,
-                  {
-                    config: {
-                      ...liveChat.config,
-                      bypassPermissions: confirmedMode !== "default",
-                      permissionMode: confirmedMode,
-                    },
-                  },
-                  { skipBackendPatch: true },
-                );
-              }
-            } catch (rollbackError) {
-              warningError = rollbackError;
-            }
-          }
-        }
-        console.warn(
-          "[ChatSidebar] Failed to enable bypass permissions for new session:",
-          warningError,
-        );
-        // The server may have committed the mutation even when its response
-        // was lost, or another client may have won a CAS race. Rollback is
-        // only a temporary local fallback; immediately reconcile from Bamboo.
-        void useAppStore
-          .getState()
-          .refreshChatsNow()
-          .catch(() => undefined);
-      }
+      await enableBypassForNewSession(newSessionId);
     },
-    [createNewChat, modal, t],
+    [
+      assignCreatedSessionToActivePane,
+      createNewChat,
+      enableBypassForNewSession,
+      modal,
+      showSessionCreateRecovery,
+      t,
+    ],
   );
 
   const [isNewChatSelectorOpen, setIsNewChatSelectorOpen] = useState(false);
@@ -1083,6 +1105,16 @@ export const useChatSidebarState = () => {
       });
       setIsNewChatSelectorOpen(false);
     } catch (error) {
+      if (
+        showSessionCreateRecovery(error, {
+          onRecovered: (sessionId) => {
+            assignCreatedSessionToActivePane(sessionId);
+            setIsNewChatSelectorOpen(false);
+          },
+        })
+      ) {
+        return;
+      }
       console.error("Failed to create chat:", error);
       modal.error({
         title: t("chat.sidebar.createFailedTitle"),

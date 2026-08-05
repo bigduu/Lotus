@@ -3,15 +3,31 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type {
   AgentEvent,
+  CreateSessionOptions,
+  CreateSessionRequest,
+  CreateSessionResponse,
   RunningSessionsResponse,
   SessionSummary,
 } from "@services/chat/AgentService";
 import { createChatSlice, type ChatSlice } from "../slices/chatSessionSlice";
+import {
+  acquireInitialSessionCreateOperation,
+  clearInitialSessionCreateOperation,
+  getInitialSessionCreateOperation,
+  resetInitialSessionCreateOperationMemoryForTest,
+} from "../slices/chatSessionSlice/initialSessionCreateOperation";
 
 // Hoisted mock for `listSessions` and `getRunningSessions` so the slice's
 // singleton AgentClient picks up the stubs.
-const { mockListSessions, mockGetRunningSessions } = vi.hoisted(() => ({
+const { mockListSessions, mockCreateSession, mockGetRunningSessions } = vi.hoisted(() => ({
   mockListSessions: vi.fn<() => Promise<{ sessions: SessionSummary[] }>>(),
+  mockCreateSession:
+    vi.fn<
+      (
+        request: CreateSessionRequest,
+        options?: CreateSessionOptions,
+      ) => Promise<CreateSessionResponse>
+    >(),
   mockGetRunningSessions: vi.fn<() => Promise<RunningSessionsResponse>>(),
 }));
 
@@ -20,7 +36,7 @@ vi.mock("@services/chat/AgentService", () => ({
     getInstance: vi.fn(() => ({
       deleteSession: vi.fn(),
       listSessions: mockListSessions,
-      createSession: vi.fn(),
+      createSession: mockCreateSession,
       patchSession: vi.fn(async () => undefined),
       getHistory: vi.fn(async () => ({
         session_id: "s",
@@ -31,6 +47,8 @@ vi.mock("@services/chat/AgentService", () => ({
       getRunningSessions: mockGetRunningSessions,
     })),
   },
+  isSessionCreateRecoveryError: (error: unknown) =>
+    error instanceof Error && error.name === "SessionCreateRecoveryError",
 }));
 
 const createSummary = (overrides: Partial<SessionSummary> & { id: string }): SessionSummary => ({
@@ -82,7 +100,101 @@ describe("loadChats boot replay preserves metadata through trailing set", () => 
   beforeEach(() => {
     store = createTestStore();
     mockListSessions.mockReset();
+    mockCreateSession.mockReset();
     mockGetRunningSessions.mockReset();
+    clearInitialSessionCreateOperation();
+  });
+
+  it.each(["pending", "unknown"] as const)(
+    "resumes the same initial create after a same-tab reload when status is %s",
+    async (operationStatus) => {
+      mockListSessions.mockResolvedValue({ sessions: [] });
+      mockCreateSession.mockImplementationOnce(async (_request, options) => {
+        const error = new Error("Session creation is still being confirmed");
+        error.name = "SessionCreateRecoveryError";
+        Object.assign(error, {
+          recoverable: true,
+          operationStatus,
+          idempotencyKey: options?.idempotencyKey,
+        });
+        throw error;
+      });
+
+      await expect(store.getState().loadChats()).rejects.toMatchObject({
+        name: "SessionCreateRecoveryError",
+        operationStatus,
+      });
+
+      const firstRequest = mockCreateSession.mock.calls[0]?.[0];
+      const firstOptions = mockCreateSession.mock.calls[0]?.[1];
+      expect(firstRequest).toBeDefined();
+      expect(firstOptions).toMatchObject({
+        idempotencyKey: expect.stringMatching(/^lotus-session-.+/),
+        operationCreatedAtMs: expect.any(Number),
+        resumeExistingOperation: false,
+      });
+
+      // Simulate a document reload: Zustand/module consumers are recreated,
+      // while this tab's sessionStorage remains available.
+      resetInitialSessionCreateOperationMemoryForTest();
+      store = createTestStore();
+      mockCreateSession.mockResolvedValueOnce({
+        session: createSummary({ id: "session-recovered", title: "New Session" }),
+      });
+      mockGetRunningSessions.mockResolvedValueOnce({ sessions: [] });
+
+      await store.getState().loadChats();
+
+      const resumedRequest = mockCreateSession.mock.calls[1]?.[0];
+      const resumedOptions = mockCreateSession.mock.calls[1]?.[1];
+      expect(resumedRequest).toEqual(firstRequest);
+      expect(resumedOptions).toEqual({
+        idempotencyKey: firstOptions?.idempotencyKey,
+        operationCreatedAtMs: firstOptions?.operationCreatedAtMs,
+        resumeExistingOperation: true,
+      });
+      expect(store.getState().chats.map((chat) => chat.id)).toEqual(["session-recovered"]);
+
+      // Success cleared both memory and storage, so another cold startup would
+      // allocate a genuinely new logical operation.
+      resetInitialSessionCreateOperationMemoryForTest();
+      const afterSuccess = acquireInitialSessionCreateOperation({ title: "Another startup" });
+      expect(afterSuccess.isNew).toBe(true);
+      expect(afterSuccess.operation.idempotencyKey).not.toBe(firstOptions?.idempotencyKey);
+    },
+  );
+
+  it("keeps and resumes a pending startup key even when another session appears", async () => {
+    const persisted = acquireInitialSessionCreateOperation({ title: "Original startup" }).operation;
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [createSummary({ id: "unrelated-session", title: "Created elsewhere" })],
+    });
+    mockCreateSession.mockImplementationOnce(async () => {
+      const error = new Error("Session creation is still being confirmed");
+      error.name = "SessionCreateRecoveryError";
+      Object.assign(error, {
+        recoverable: true,
+        operationStatus: "pending",
+        idempotencyKey: persisted.idempotencyKey,
+        operationCreatedAtMs: persisted.createdAtMs,
+      });
+      throw error;
+    });
+    mockGetRunningSessions.mockResolvedValueOnce({ sessions: [] });
+
+    await expect(store.getState().loadChats()).rejects.toMatchObject({
+      name: "SessionCreateRecoveryError",
+      operationStatus: "pending",
+    });
+
+    expect(mockCreateSession).toHaveBeenCalledWith(persisted.request, {
+      idempotencyKey: persisted.idempotencyKey,
+      operationCreatedAtMs: persisted.createdAtMs,
+      resumeExistingOperation: true,
+    });
+    expect(store.getState().chats.map((chat) => chat.id)).toEqual(["unrelated-session"]);
+    resetInitialSessionCreateOperationMemoryForTest();
+    expect(getInitialSessionCreateOperation()).toEqual(persisted);
   });
 
   it("prefers higher-version replay title over stale baseline", async () => {

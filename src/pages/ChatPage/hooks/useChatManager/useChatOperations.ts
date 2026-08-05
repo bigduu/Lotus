@@ -5,6 +5,7 @@ import type { ChatItem, UserSystemPrompt } from "@shared/types/chat";
 import type { UseChatState } from "./types";
 import { AgentClient } from "@services/chat/AgentService";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
+import { useSessionCreateRecovery } from "@shared/hooks/useSessionCreateRecovery";
 
 /**
  * Hook for chat CRUD operations
@@ -25,6 +26,7 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
   const lastSelectedPromptId = useAppStore((state) => state.lastSelectedPromptId);
   const systemPrompts = useAppStore((state) => state.systemPrompts);
   const agentClient = AgentClient.getInstance();
+  const showSessionCreateRecovery = useSessionCreateRecovery();
 
   const createNewChat = useCallback(
     async (title?: string, options?: Partial<Omit<ChatItem, "id">>) => {
@@ -56,9 +58,16 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
         },
         ...options,
       };
-      await addChat(newChatData);
+      try {
+        await addChat(newChatData);
+      } catch (error) {
+        if (showSessionCreateRecovery(error)) {
+          return;
+        }
+        throw error;
+      }
     },
-    [addChat, lastSelectedPromptId, systemPrompts],
+    [addChat, lastSelectedPromptId, showSessionCreateRecovery, systemPrompts],
   );
 
   const createChatWithSystemPrompt = useCallback(
@@ -83,9 +92,16 @@ export function useChatOperations(state: UseChatState): UseChatOperations {
         "[useChatOperations] Calling addChat with newChatData.config:",
         newChatData.config,
       );
-      await addChat(newChatData);
+      try {
+        await addChat(newChatData);
+      } catch (error) {
+        if (showSessionCreateRecovery(error)) {
+          return;
+        }
+        throw error;
+      }
     },
-    [addChat],
+    [addChat, showSessionCreateRecovery],
   );
 
   const toggleChatPin = useCallback(
