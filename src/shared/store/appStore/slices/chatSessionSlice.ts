@@ -1032,7 +1032,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           debugLog("[ChatSlice]", "loadChatHistory.skipMissingChat", { sessionId, attempt });
           return;
         }
-        // Marker for the replace-mode staleness guard (#164): captured
+        // Marker for the history staleness guards (#164, #178): captured
         // BEFORE the fetch so an in-flight advance (optimistic send,
         // streaming append) is detected once the snapshot arrives.
         const preFetchLength = chat.messages.length;
@@ -1071,9 +1071,16 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         }
 
         const nextMessages = mapHistoryMessagesToUi(sessionId, history.messages);
+        const latestChat = get().chats.find((c) => c.id === sessionId);
+        const latestMessages = latestChat?.messages ?? [];
+        const latestLastId = latestMessages[latestMessages.length - 1]?.id ?? null;
+        const advancedInFlight =
+          !latestChat ||
+          latestMessages.length !== preFetchLength ||
+          latestLastId !== preFetchLastId;
 
         if (mode === "monotonic") {
-          const prevMessages = chat.messages || [];
+          const prevMessages = latestMessages;
           const prevLen = prevMessages.length;
           const nextLen = nextMessages.length;
           const nextLastRole = nextMessages[nextMessages.length - 1]?.role;
@@ -1087,9 +1094,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           // Only replace when backend is strictly longer, or when lengths are equal
           // but backend clearly progressed from a user tail / changed terminal item.
           let shouldReplace = false;
-          if (nextLen > prevLen) {
+          if (!advancedInFlight && nextLen > prevLen) {
             shouldReplace = true;
-          } else if (nextLen === prevLen) {
+          } else if (!advancedInFlight && nextLen === prevLen) {
             const resolvedUserTail = prevLastRole === "user" && nextLastRole !== "user";
             const terminalChanged =
               typeof prevLastId === "string" &&
@@ -1107,18 +1114,24 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             nextLastRole: nextLastRole ?? null,
             prevLastId: prevLastId ?? null,
             nextLastId: nextLastId ?? null,
+            preFetchLength,
+            preFetchLastId,
+            advancedInFlight,
             shouldReplace,
           });
 
           if (!shouldReplace) {
-            get().updateSession(sessionId, {
-              messageCount: Math.max(chat.messageCount ?? 0, serverMessageCount),
-            });
+            if (latestChat) {
+              get().updateSession(sessionId, {
+                messageCount: Math.max(latestChat.messageCount ?? 0, serverMessageCount),
+              });
+            }
             debugLog("[ChatSlice]", "loadChatHistory.monotonicSkip", {
               sessionId,
               attempt,
-              localMessageCount: chat.messages.length,
+              localMessageCount: latestMessages.length,
               serverMessageCount,
+              advancedInFlight,
             });
             return;
           }
@@ -1130,14 +1143,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           // newer messages. Legitimate intentional shrinks (retry truncate,
           // /goal resync) do not advance local state between the marker and
           // the apply, so they still pass through.
-          const latestChat = get().chats.find((c) => c.id === sessionId);
-          const latestMessages = latestChat?.messages ?? [];
-          const latestLastId = latestMessages[latestMessages.length - 1]?.id ?? null;
-          const advancedInFlight =
-            !latestChat ||
-            latestMessages.length !== preFetchLength ||
-            latestLastId !== preFetchLastId;
-
           debugLog("[ChatSlice]", "loadChatHistory.replaceDecision", {
             sessionId,
             attempt,

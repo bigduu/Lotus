@@ -215,3 +215,41 @@ describe("loadChatHistory replace-mode staleness guard (#164)", () => {
     expect(messages.map((m) => m.id)).toEqual(["h1", "a1"]);
   });
 });
+
+describe("loadChatHistory monotonic-mode staleness guard (#178)", () => {
+  beforeEach(() => {
+    mockGetHistory.mockReset();
+  });
+
+  it("preserves messages appended while a longer snapshot is in flight", async () => {
+    const localFirst = userMessage("local-1", "first");
+    const localStreamed = userMessage("local-2", "streamed");
+    const store = createTestStore(makeChat([localFirst]));
+
+    let resolveHistory: (value: unknown) => void = () => {};
+    mockGetHistory.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveHistory = resolve;
+        }),
+    );
+
+    const loadPromise = store.getState().loadChatHistory("s1", { mode: "monotonic" });
+
+    // The backend response is longer than the pre-fetch state, but the
+    // session has independently advanced to newer messages while waiting.
+    store.getState().updateSession("s1", {
+      messages: [localFirst, localStreamed],
+    });
+
+    resolveHistory({
+      ...historyOf(["h1", "h2"]),
+      total_message_count: 4,
+    });
+    await loadPromise;
+
+    const chat = store.getState().chats[0];
+    expect(chat.messages.map((message) => message.id)).toEqual(["local-1", "local-2"]);
+    expect(chat.messageCount).toBe(4);
+  });
+});
