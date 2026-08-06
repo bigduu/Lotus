@@ -151,7 +151,9 @@ export const useMessageCardMermaidFix = (messageId: string, sessionId?: string |
   // Use fast/cheap model for mermaid fix (lightweight syntax repair task)
   const fastModel = useFastModel();
   const fastModelRef = useFastModelRef();
-  const effectiveFastModel = fastModelRef?.model ?? fastModel;
+  const effectiveFastModel = fastModelRef
+    ? `${fastModelRef.provider}/${fastModelRef.model}`
+    : fastModel;
 
   return useCallback(
     async (chart: string, renderError?: string) => {
