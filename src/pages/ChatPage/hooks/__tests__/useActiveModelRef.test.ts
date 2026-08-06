@@ -1,8 +1,19 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { useActiveModelRef } from "../useActiveModelRef";
+import { useActiveModelRef, useFastModelRef } from "../useActiveModelRef";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
+
+const initialProviderConfig = useProviderStore.getState().providerConfig;
+
+afterEach(() => {
+  act(() => {
+    useProviderStore.setState({
+      providerConfig: initialProviderConfig,
+      selectedModelRef: null,
+    });
+  });
+});
 
 /**
  * Covers the *resolution* half of the "wrong model recorded" fix: InputContainer
@@ -12,12 +23,6 @@ import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
  * half is covered in useInputContainerSubmit.test.ts.
  */
 describe("useActiveModelRef — model that gets recorded as used", () => {
-  afterEach(() => {
-    act(() => {
-      useProviderStore.setState({ selectedModelRef: null });
-    });
-  });
-
   it("resolves the session's model_ref (the value passed as usedModelName)", () => {
     const { result } = renderHook(() => useActiveModelRef({ provider: "zhipu", model: "glm-5.1" }));
 
@@ -48,5 +53,64 @@ describe("useActiveModelRef — model that gets recorded as used", () => {
     const { result } = renderHook(() => useActiveModelRef(null));
 
     expect(result.current?.model).toBe("glm-5.1");
+  });
+});
+
+describe("useFastModelRef", () => {
+  it("reacts when provider defaults load and switch", () => {
+    act(() => {
+      useProviderStore.setState((state) => ({
+        providerConfig: {
+          ...state.providerConfig,
+          defaults: undefined,
+        },
+      }));
+    });
+
+    const { result } = renderHook(() => useFastModelRef());
+    expect(result.current).toBeNull();
+
+    act(() => {
+      useProviderStore.setState((state) => ({
+        providerConfig: {
+          ...state.providerConfig,
+          defaults: {
+            chat: { provider: "instance-a", model: "chat-a" },
+            fast: { provider: "instance-a", model: "fast-a" },
+          },
+        },
+      }));
+    });
+    expect(result.current).toEqual({ provider: "instance-a", model: "fast-a" });
+
+    act(() => {
+      useProviderStore.setState((state) => ({
+        providerConfig: {
+          ...state.providerConfig,
+          defaults: {
+            chat: { provider: "instance-b", model: "chat-b" },
+            fast: { provider: "instance-b", model: "fast-b" },
+          },
+        },
+      }));
+    });
+    expect(result.current).toEqual({ provider: "instance-b", model: "fast-b" });
+  });
+
+  it("falls back to the reactive chat model ref when no fast ref is configured", () => {
+    act(() => {
+      useProviderStore.setState((state) => ({
+        providerConfig: {
+          ...state.providerConfig,
+          defaults: {
+            chat: { provider: "instance-chat", model: "chat-model" },
+          },
+        },
+      }));
+    });
+
+    const { result } = renderHook(() => useFastModelRef());
+
+    expect(result.current).toEqual({ provider: "instance-chat", model: "chat-model" });
   });
 });

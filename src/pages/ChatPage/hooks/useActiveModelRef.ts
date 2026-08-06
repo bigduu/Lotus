@@ -41,8 +41,17 @@ export function useActiveModelRef(
 
 /** Returns the fast/cheap model as ProviderModelRef when the flag is ON. */
 export function useFastModelRef(): ProviderModelRef | null {
-  const getFastModelRef = useProviderStore((s) => s.getFastModelRef);
-  return useMemo(() => getFastModelRef(), [getFastModelRef]);
+  const providerDefaults = useProviderStore((s) => s.providerConfig.defaults);
+
+  return useMemo(() => {
+    const fastModelRef = providerDefaults?.fast;
+    if (fastModelRef?.model?.trim()) {
+      return fastModelRef;
+    }
+
+    const chatModelRef = providerDefaults?.chat;
+    return chatModelRef?.model?.trim() ? chatModelRef : null;
+  }, [providerDefaults]);
 }
 
 /** Returns the vision-capable model as ProviderModelRef when the flag is ON. */
