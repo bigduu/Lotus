@@ -7,6 +7,7 @@ const {
   mockStoreState,
   mockGetState,
   mockLoadChatHistory,
+  mockUseFastModelRef,
 } = vi.hoisted(() => {
   const state: any = {
     currentSessionId: null as string | null,
@@ -21,11 +22,16 @@ const {
     mockStoreState: state,
     mockGetState: vi.fn(() => state),
     mockLoadChatHistory: state.loadChatHistory,
+    mockUseFastModelRef: vi.fn(),
   };
 });
 
 vi.mock("../../hooks/useActiveModel", () => ({
   useFastModel: () => "gpt-5",
+}));
+
+vi.mock("../../hooks/useActiveModelRef", () => ({
+  useFastModelRef: mockUseFastModelRef,
 }));
 
 vi.mock("../../services/openaiClient", () => ({
@@ -86,9 +92,33 @@ describe("useMessageCardMermaidFix", () => {
     mockStoreState.loadChatHistory = mockLoadChatHistory;
     mockStoreState.loadChatHistory.mockResolvedValue(undefined);
     mockGetState.mockImplementation(() => mockStoreState);
+    mockUseFastModelRef.mockReturnValue(null);
   });
 
-  it("persists fixed mermaid content and updates local session messages", async () => {
+  it("uses the full provider/model ref for the Mermaid AI request", async () => {
+    mockUseFastModelRef.mockReturnValue({
+      provider: "copilot-fast",
+      model: "gpt-5-mini",
+    });
+    mockStoreState.currentSessionId = "session-1";
+    mockStoreState.chats = [createChatWithAssistantMessage("```mermaid\ngraph TD\nA -->\n```")];
+    mockCompletionsCreate.mockResolvedValueOnce({
+      choices: [{ message: { content: "graph TD\nA --> B" } }],
+    });
+    mockPatchSessionMessage.mockResolvedValueOnce(undefined);
+
+    const { result } = renderHook(() => useMessageCardMermaidFix("assistant-1"));
+
+    await result.current("graph TD\nA -->", "Parse error");
+
+    expect(mockCompletionsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: "copilot-fast/gpt-5-mini",
+      }),
+    );
+  });
+
+  it("falls back to the legacy fast model and persists fixed Mermaid content", async () => {
     mockStoreState.currentSessionId = "session-1";
     mockStoreState.chats = [
       createChatWithAssistantMessage(
