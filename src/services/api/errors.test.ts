@@ -1,6 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, getErrorMessage, isConfigRecoveryPendingError, withFallback } from "./errors";
+import {
+  ApiError,
+  getErrorMessage,
+  isConfigRecoveryPendingError,
+  isNoPendingQuestionError,
+  NO_PENDING_QUESTION_ERROR,
+  withFallback,
+} from "./errors";
 
 /** Mirrors the bamboo `ResponseError` envelope for `AppError::ConfigRecoveryPending`
  *  (bamboo #153 / PR #493): 409 + `error.code === "config_recovery_pending"`. */
@@ -90,6 +97,57 @@ describe("isConfigRecoveryPendingError", () => {
   it("rejects non-ApiError values", () => {
     expect(isConfigRecoveryPendingError(new Error("boom"))).toBe(false);
     expect(isConfigRecoveryPendingError(undefined)).toBe(false);
+  });
+});
+
+describe("isNoPendingQuestionError", () => {
+  it("recognizes the exact Bamboo 400 response", () => {
+    const body = JSON.stringify({
+      error: { message: NO_PENDING_QUESTION_ERROR, type: "api_error" },
+    });
+    expect(
+      isNoPendingQuestionError(new ApiError(NO_PENDING_QUESTION_ERROR, 400, "Bad Request", body)),
+    ).toBe(true);
+  });
+
+  it("supports the legacy flat error envelope", () => {
+    const body = JSON.stringify({ error: NO_PENDING_QUESTION_ERROR });
+    expect(
+      isNoPendingQuestionError(new ApiError(NO_PENDING_QUESTION_ERROR, 400, "Bad Request", body)),
+    ).toBe(true);
+  });
+
+  it("keeps Invalid response failures visible", () => {
+    const body = JSON.stringify({
+      error: { message: "Invalid response", type: "api_error" },
+      message: "Choose a valid option",
+    });
+    expect(
+      isNoPendingQuestionError(new ApiError("Invalid response", 400, "Bad Request", body)),
+    ).toBe(false);
+  });
+
+  it("requires the matching status and structured body", () => {
+    const body = JSON.stringify({
+      error: { message: NO_PENDING_QUESTION_ERROR, type: "api_error" },
+    });
+    expect(
+      isNoPendingQuestionError(new ApiError(NO_PENDING_QUESTION_ERROR, 404, "Not Found", body)),
+    ).toBe(false);
+    expect(
+      isNoPendingQuestionError(
+        new ApiError(NO_PENDING_QUESTION_ERROR, 500, "Internal Server Error", body),
+      ),
+    ).toBe(false);
+    expect(
+      isNoPendingQuestionError(new ApiError(NO_PENDING_QUESTION_ERROR, 400, "Bad Request")),
+    ).toBe(false);
+    expect(
+      isNoPendingQuestionError(
+        new ApiError(NO_PENDING_QUESTION_ERROR, 400, "Bad Request", "not json"),
+      ),
+    ).toBe(false);
+    expect(isNoPendingQuestionError(new Error(NO_PENDING_QUESTION_ERROR))).toBe(false);
   });
 });
 
