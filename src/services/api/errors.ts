@@ -20,6 +20,10 @@ export function isApiError(error: unknown): error is ApiError {
  *  (`AppError::ConfigRecoveryPending`, bamboo #153 / PR #493). */
 export const CONFIG_RECOVERY_PENDING_CODE = "config_recovery_pending";
 
+/** Exact error text returned by Bamboo when a respond request loses a race
+ * with another surface that already resolved the pending question. */
+export const NO_PENDING_QUESTION_ERROR = "No pending question waiting for response";
+
 /**
  * Whether `error` is the 409 a settings save gets back while a pending
  * config-corruption recovery is unconfirmed. Mirrors the `error.code` parsing
@@ -32,6 +36,31 @@ export function isConfigRecoveryPendingError(error: unknown): boolean {
   try {
     const parsed = JSON.parse(error.body) as { error?: { code?: string } };
     return parsed.error?.code === CONFIG_RECOVERY_PENDING_CODE;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `error` is Bamboo's benign respond race. Match both the HTTP status
+ * and the structured response body so unrelated 400 responses (notably
+ * `Invalid response`) remain visible to the user.
+ */
+export function isNoPendingQuestionError(error: unknown): boolean {
+  if (!isApiError(error) || error.status !== 400 || !error.body) {
+    return false;
+  }
+  try {
+    const parsed = JSON.parse(error.body) as {
+      error?: string | { message?: unknown };
+    };
+    const message =
+      typeof parsed.error === "string"
+        ? parsed.error
+        : typeof parsed.error?.message === "string"
+          ? parsed.error.message
+          : null;
+    return message === NO_PENDING_QUESTION_ERROR;
   } catch {
     return false;
   }

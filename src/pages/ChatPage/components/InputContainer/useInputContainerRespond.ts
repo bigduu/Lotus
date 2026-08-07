@@ -3,7 +3,7 @@ import type { MessageInstance } from "antd/es/message/interface";
 import type { TFunction } from "i18next";
 import { selectPendingQuestion, useAppStore } from "@shared/store/appStore";
 import { agentApiClient, apiClient } from "@services/api";
-import { isApiError } from "@services/api/errors";
+import { isApiError, isNoPendingQuestionError } from "@services/api/errors";
 import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import type { ProviderModelRef } from "@shared/types/providerModelRef";
@@ -266,6 +266,22 @@ export const useInputContainerRespond = ({
         }
         return true;
       } catch (err) {
+        if (!permissionSubmission && isNoPendingQuestionError(err)) {
+          setContent("");
+          clearPendingQuestion(sessionId);
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent(CHAT_PENDING_QUESTION_RESOLVED_EVENT, {
+                detail: {
+                  sessionId,
+                  requestId: activePermissionRequest?.requestId,
+                },
+              }),
+            );
+          }
+          markSettleTimeout(sessionId);
+          return true;
+        }
         console.error("[InputContainer] Failed to submit respond:", err);
         let restoredSnapshot = pendingSnapshot;
         if (restoredSnapshot?.permissionRequest && isApiError(err) && err.status === 409) {

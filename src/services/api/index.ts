@@ -14,6 +14,8 @@ export {
   withFallback,
   isConfigRecoveryPendingError,
   CONFIG_RECOVERY_PENDING_CODE,
+  isNoPendingQuestionError,
+  NO_PENDING_QUESTION_ERROR,
 } from "./errors";
 
 export * from "./types";

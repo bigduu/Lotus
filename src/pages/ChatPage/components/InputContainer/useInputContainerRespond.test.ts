@@ -1,8 +1,9 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@services/api/client";
 
 import { useInputContainerRespond } from "./useInputContainerRespond";
+import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../ChatView/events";
 
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
@@ -12,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   applyExecutionStarted: vi.fn(),
   setPendingQuestion: vi.fn(),
   clearPendingQuestion: vi.fn(),
+  setContent: vi.fn(),
   pendingQuestion: null as any,
 }));
 
@@ -66,7 +68,9 @@ const messageApi = {
   warning: vi.fn(),
 };
 
-const renderRespondHook = () =>
+const renderRespondHook = (
+  activePermissionRequest: typeof permissionRequest | null = permissionRequest,
+) =>
   renderHook(() =>
     useInputContainerRespond({
       sessionId: "root-session",
@@ -74,18 +78,22 @@ const renderRespondHook = () =>
       activeModelRef: null,
       isFlagOn: () => false,
       messageApi: messageApi as any,
-      setContent: vi.fn(),
+      setContent: mocks.setContent,
       pendingQuestionToolCallId: "tool-call-1",
-      permissionRequest,
+      permissionRequest: activePermissionRequest ?? undefined,
       t: ((key: string) => key) as any,
     }),
   );
 
-describe("useInputContainerRespond typed permission decisions", () => {
+describe("useInputContainerRespond", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.pendingQuestion = pendingQuestion;
     mocks.markRespondStart.mockReturnValue(2);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("posts a typed global decision with the selected matcher and confirmation", async () => {
@@ -238,5 +246,80 @@ describe("useInputContainerRespond typed permission decisions", () => {
 
     expect(mocks.post).not.toHaveBeenCalled();
     expect(messageApi.warning).toHaveBeenCalledWith("components.questionDialog.requestChanged");
+  });
+
+  it("quietly converges when another surface already resolved the pending question", async () => {
+    const body = JSON.stringify({
+      error: {
+        message: "No pending question waiting for response",
+        type: "api_error",
+      },
+    });
+    const error = new ApiError(
+      "No pending question waiting for response",
+      400,
+      "Bad Request",
+      body,
+    );
+    mocks.pendingQuestion = {
+      ...pendingQuestion,
+      permissionRequest: undefined,
+    };
+    mocks.post.mockRejectedValue(error);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const { result } = renderRespondHook(null);
+
+    let submitted = false;
+    await act(async () => {
+      submitted = await result.current.handleRespondSubmit("allow_once");
+    });
+
+    expect(submitted).toBe(true);
+    expect(consoleSpy).not.toHaveBeenCalled();
+    expect(messageApi.error).not.toHaveBeenCalled();
+    expect(messageApi.success).not.toHaveBeenCalled();
+    expect(mocks.setContent).toHaveBeenCalledWith("");
+    expect(mocks.clearPendingQuestion).toHaveBeenCalledWith("root-session");
+    expect(mocks.setPendingQuestion).not.toHaveBeenCalled();
+    expect(mocks.markSettleTimeout).toHaveBeenCalledWith("root-session");
+    expect(mocks.applyExecutionStarted).not.toHaveBeenCalled();
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: CHAT_PENDING_QUESTION_RESOLVED_EVENT,
+        detail: { sessionId: "root-session", requestId: undefined },
+      }),
+    );
+  });
+
+  it("keeps an Invalid response 400 on the loud failure path", async () => {
+    const body = JSON.stringify({
+      error: { message: "Invalid response", type: "api_error" },
+      message: "Choose a valid option",
+    });
+    const error = new ApiError("Invalid response", 400, "Bad Request", body);
+    mocks.pendingQuestion = {
+      ...pendingQuestion,
+      permissionRequest: undefined,
+    };
+    mocks.post.mockRejectedValue(error);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    const { result } = renderRespondHook(null);
+
+    let submitted = true;
+    await act(async () => {
+      submitted = await result.current.handleRespondSubmit("allow_once");
+    });
+
+    expect(submitted).toBe(false);
+    expect(consoleSpy).toHaveBeenCalledWith("[InputContainer] Failed to submit respond:", error);
+    expect(messageApi.error).toHaveBeenCalledWith("Invalid response");
+    expect(mocks.setContent).not.toHaveBeenCalled();
+    expect(mocks.clearPendingQuestion).not.toHaveBeenCalled();
+    expect(mocks.markSettleTimeout).toHaveBeenCalledWith("root-session");
+    expect(dispatchSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: CHAT_PENDING_QUESTION_RESOLVED_EVENT }),
+    );
   });
 });

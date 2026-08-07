@@ -4,6 +4,7 @@ import { EditOutlined, UpOutlined, DownOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/react/shallow";
 import { agentApiClient } from "../../services/api";
+import { isNoPendingQuestionError } from "@services/api/errors";
 import { selectIsBusy, selectPendingQuestion, useAppStore } from "@shared/store/appStore";
 import { useActiveModelRef } from "../../pages/ChatPage/hooks/useActiveModelRef";
 import { readPersistedInputReasoningEffort } from "@shared/store/appStore/slices/inputStateSlice";
@@ -645,6 +646,31 @@ const QuestionDialogComponent: React.FC<QuestionDialogProps> = ({
       // Notify parent (optional)
       onResponseSubmitted?.();
     } catch (err) {
+      if (isNoPendingQuestionError(err)) {
+        dismissedQuestionIdentityRef.current = storePendingQuestion
+          ? buildPendingQuestionIdentity({
+              sessionId,
+              question: storePendingQuestion.question,
+              options: storePendingQuestion.options,
+              allowCustom: storePendingQuestion.allowCustom,
+              toolCallId: storePendingQuestion.toolCallId,
+              requestId: storePendingQuestion.permissionRequest?.requestId,
+            })
+          : null;
+        setSelectedOption(null);
+        emptyCountRef.current = 0;
+        clearPendingQuestion(sessionId);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent(CHAT_PENDING_QUESTION_RESOLVED_EVENT, {
+              detail: { sessionId },
+            }),
+          );
+        }
+        markSettleTimeout(sessionId);
+        onResponseSubmitted?.();
+        return;
+      }
       console.error("Failed to submit response:", err);
       message.error(
         err instanceof Error ? err.message : t("components.questionDialog.submitFailed"),

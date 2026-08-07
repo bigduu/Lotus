@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QuestionDialog, formatPendingQuestionText } from "../QuestionDialog";
 import { useAppStore } from "@shared/store/appStore";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
+import { ApiError } from "@services/api/client";
+import { CHAT_PENDING_QUESTION_RESOLVED_EVENT } from "../../../pages/ChatPage/components/ChatView/events";
 
 // Mock dependencies
 vi.mock("@shared/store/appStore", async (importOriginal) => {
@@ -962,6 +964,105 @@ describe("QuestionDialog", () => {
       expect(mockMarkRespondStart).toHaveBeenCalledWith("test-session-1", "tool-1");
       expect(mockMarkSettleTimeout).toHaveBeenCalledWith("test-session-1");
     });
+  });
+
+  it("quietly converges when another surface already resolved the pending question", async () => {
+    const { agentApiClient } = await import("../../../services/api");
+    const { App } = await import("antd");
+    const message = App.useApp().message;
+    const onResponseSubmitted = vi.fn();
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    (agentApiClient.get as any).mockResolvedValue({
+      has_pending_question: true,
+      question: "Test?",
+      options: ["A"],
+      allow_custom: false,
+      tool_call_id: "tool-1",
+    });
+    const body = JSON.stringify({
+      error: {
+        message: "No pending question waiting for response",
+        type: "api_error",
+      },
+    });
+    (agentApiClient.post as any).mockRejectedValueOnce(
+      new ApiError("No pending question waiting for response", 400, "Bad Request", body),
+    );
+
+    await act(async () => {
+      render(<QuestionDialog {...defaultProps} onResponseSubmitted={onResponseSubmitted} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test?")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("A"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Confirm"));
+    });
+
+    await waitFor(() => {
+      expect(mockClearPendingQuestion).toHaveBeenCalledWith("test-session-1");
+      expect(mockMarkSettleTimeout).toHaveBeenCalledWith("test-session-1");
+    });
+    expect(consoleSpy).not.toHaveBeenCalled();
+    expect(message.error).not.toHaveBeenCalled();
+    expect(message.success).not.toHaveBeenCalled();
+    expect(onResponseSubmitted).toHaveBeenCalledTimes(1);
+    expect(dispatchSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: CHAT_PENDING_QUESTION_RESOLVED_EVENT,
+        detail: { sessionId: "test-session-1" },
+      }),
+    );
+    consoleSpy.mockRestore();
+    dispatchSpy.mockRestore();
+  });
+
+  it("keeps an Invalid response 400 on the loud failure path", async () => {
+    const { agentApiClient } = await import("../../../services/api");
+    const { App } = await import("antd");
+    const message = App.useApp().message;
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+    (agentApiClient.get as any).mockResolvedValue({
+      has_pending_question: true,
+      question: "Test?",
+      options: ["A"],
+      allow_custom: false,
+      tool_call_id: "tool-1",
+    });
+    const body = JSON.stringify({
+      error: { message: "Invalid response", type: "api_error" },
+      message: "Choose a valid option",
+    });
+    const error = new ApiError("Invalid response", 400, "Bad Request", body);
+    (agentApiClient.post as any).mockRejectedValueOnce(error);
+
+    await act(async () => {
+      render(<QuestionDialog {...defaultProps} />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Test?")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("A"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Confirm"));
+    });
+
+    await waitFor(() => {
+      expect(mockMarkSettleTimeout).toHaveBeenCalledWith("test-session-1");
+      expect(message.error).toHaveBeenCalledWith("Invalid response");
+    });
+    expect(consoleSpy).toHaveBeenCalledWith("Failed to submit response:", error);
+    expect(mockClearPendingQuestion).not.toHaveBeenCalled();
+    expect(dispatchSpy).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: CHAT_PENDING_QUESTION_RESOLVED_EVENT }),
+    );
+    consoleSpy.mockRestore();
+    dispatchSpy.mockRestore();
   });
 
   it("should clear processing when auto_resume_status is missing", async () => {
