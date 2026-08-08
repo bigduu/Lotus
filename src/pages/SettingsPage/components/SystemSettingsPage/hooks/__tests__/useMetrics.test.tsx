@@ -1,7 +1,28 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import type { MetricsSummary } from "@services/metrics";
+import { createDeferred } from "./deferred";
 import { useMetrics } from "../useMetrics";
+
+const createSummary = (totalSessions: number): MetricsSummary => ({
+  total_sessions: totalSessions,
+  total_tokens: {
+    prompt_tokens: totalSessions,
+    completion_tokens: totalSessions,
+    total_tokens: totalSessions * 2,
+  },
+  total_tool_calls: totalSessions,
+  active_sessions: 0,
+});
+
+const createService = (getSummary: () => Promise<MetricsSummary>) => ({
+  getSummary,
+  getByModel: vi.fn().mockResolvedValue([]),
+  getSessions: vi.fn().mockResolvedValue([]),
+  getDaily: vi.fn().mockResolvedValue([]),
+  getSessionDetail: vi.fn().mockResolvedValue(null),
+});
 
 describe("useMetrics", () => {
   it("loads metrics datasets on mount and exposes refresh", async () => {
@@ -167,5 +188,140 @@ describe("useMetrics", () => {
 
     expect(service.getSessionDetail).toHaveBeenCalledWith("session-1");
     expect(result.current.sessionDetail?.session.session_id).toBe("session-1");
+  });
+
+  it("keeps the newest filter result when an older request resolves last", async () => {
+    const older = createDeferred<MetricsSummary>();
+    const newer = createDeferred<MetricsSummary>();
+    const getSummary = vi
+      .fn()
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => newer.promise);
+    const service = createService(getSummary);
+    const { result, rerender } = renderHook(
+      ({ model }) =>
+        useMetrics({
+          service,
+          autoRefreshMs: 0,
+          filters: { days: 30, granularity: "daily", model },
+        }),
+      { initialProps: { model: "older-model" } },
+    );
+
+    await waitFor(() => expect(getSummary).toHaveBeenCalledTimes(1));
+    rerender({ model: "newer-model" });
+    await waitFor(() => expect(getSummary).toHaveBeenCalledTimes(2));
+
+    await act(async () => {
+      newer.resolve(createSummary(2));
+      await newer.promise;
+    });
+    await waitFor(() => expect(result.current.summary?.total_sessions).toBe(2));
+
+    await act(async () => {
+      older.resolve(createSummary(1));
+      await older.promise;
+    });
+
+    expect(result.current.summary?.total_sessions).toBe(2);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("clears old filter data when the replacement request fails", async () => {
+    const older = createDeferred<MetricsSummary>();
+    const newer = createDeferred<MetricsSummary>();
+    const getSummary = vi
+      .fn()
+      .mockImplementationOnce(() => older.promise)
+      .mockImplementationOnce(() => newer.promise);
+    const service = createService(getSummary);
+    const { result, rerender } = renderHook(
+      ({ model }) =>
+        useMetrics({
+          service,
+          autoRefreshMs: 0,
+          filters: { days: 30, granularity: "daily", model },
+        }),
+      { initialProps: { model: "older-model" } },
+    );
+
+    await act(async () => {
+      older.resolve(createSummary(1));
+      await older.promise;
+    });
+    await waitFor(() => expect(result.current.summary?.total_sessions).toBe(1));
+
+    rerender({ model: "newer-model" });
+    await waitFor(() => {
+      expect(getSummary).toHaveBeenCalledTimes(2);
+      expect(result.current.summary).toBeNull();
+      expect(result.current.isLoading).toBe(true);
+    });
+
+    await act(async () => {
+      newer.reject(new Error("new filter failed"));
+      await newer.promise.catch(() => undefined);
+    });
+
+    await waitFor(() => {
+      expect(result.current.error).toBe("new filter failed");
+      expect(result.current.summary).toBeNull();
+      expect(result.current.modelMetrics).toEqual([]);
+      expect(result.current.sessions).toEqual([]);
+      expect(result.current.timeline).toEqual([]);
+      expect(result.current.isLoading).toBe(false);
+    });
+  });
+
+  it("lets an overlapping refresh own both loading flags", async () => {
+    const initial = createDeferred<MetricsSummary>();
+    const refresh = createDeferred<MetricsSummary>();
+    const getSummary = vi
+      .fn()
+      .mockImplementationOnce(() => initial.promise)
+      .mockImplementationOnce(() => refresh.promise);
+    const service = createService(getSummary);
+    const { result } = renderHook(() =>
+      useMetrics({
+        service,
+        autoRefreshMs: 0,
+        filters: { days: 30, granularity: "daily" },
+      }),
+    );
+
+    await waitFor(() => {
+      expect(getSummary).toHaveBeenCalledTimes(1);
+      expect(result.current.isLoading).toBe(true);
+      expect(result.current.isRefreshing).toBe(false);
+    });
+
+    let refreshPromise = Promise.resolve();
+    act(() => {
+      refreshPromise = result.current.refresh();
+    });
+
+    await waitFor(() => {
+      expect(getSummary).toHaveBeenCalledTimes(2);
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.isRefreshing).toBe(true);
+    });
+
+    await act(async () => {
+      initial.resolve(createSummary(1));
+      await initial.promise;
+    });
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isRefreshing).toBe(true);
+    expect(result.current.summary).toBeNull();
+
+    await act(async () => {
+      refresh.resolve(createSummary(2));
+      await refreshPromise;
+    });
+
+    expect(result.current.summary?.total_sessions).toBe(2);
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isRefreshing).toBe(false);
   });
 });

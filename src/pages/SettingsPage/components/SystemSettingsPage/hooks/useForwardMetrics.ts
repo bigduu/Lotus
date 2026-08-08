@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { metricsService } from "@services/metrics";
 import type {
@@ -72,13 +72,20 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestGenerationRef = useRef(0);
 
   const loadAllMetrics = useCallback(
     async (showLoading: boolean) => {
+      const requestGeneration = ++requestGenerationRef.current;
+
+      setIsLoading(showLoading);
+      setIsRefreshing(!showLoading);
+      setError(null);
+
       if (showLoading) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
+        setSummary(null);
+        setEndpointMetrics([]);
+        setRequests([]);
       }
 
       try {
@@ -97,16 +104,22 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
           metricsService.getForwardRequests({ ...baseQuery, limit: normalizedFilters.limit }),
         ]);
 
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
+
         setSummary(summaryResponse);
         setEndpointMetrics(endpointResponse);
         setRequests(requestsResponse);
         setError(null);
       } catch (loadError) {
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
         setError(toErrorMessage(loadError, "Failed to load forward metrics"));
       } finally {
-        if (showLoading) {
+        if (requestGeneration === requestGenerationRef.current) {
           setIsLoading(false);
-        } else {
           setIsRefreshing(false);
         }
       }
@@ -126,9 +139,16 @@ export const useForwardMetrics = (options: UseForwardMetricsOptions = {}) => {
 
   useEffect(() => {
     if (!enabled) {
+      requestGenerationRef.current += 1;
+      setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
     void loadAllMetrics(true);
+
+    return () => {
+      requestGenerationRef.current += 1;
+    };
   }, [enabled, loadAllMetrics]);
 
   useEffect(() => {
