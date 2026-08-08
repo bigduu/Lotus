@@ -204,7 +204,7 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
             {summaryText ? (
               <div>
                 <Text strong style={{ fontSize: token.fontSizeSM }}>
-                  {t("components.toolSteps.summary", { defaultValue: "Summary" })}
+                  {t("components.toolSteps.summary")}
                 </Text>
                 <div style={{ marginTop: token.marginXS }}>
                   <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
@@ -277,7 +277,7 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
             {fileChangePayload ? (
               <>
                 <Text strong style={{ fontSize: token.fontSizeSM }}>
-                  {t("components.toolSteps.fileChanges", { defaultValue: "File changes" })}
+                  {t("components.toolSteps.fileChanges")}
                 </Text>
                 <FileChangeViewer
                   payload={fileChangePayload}
@@ -313,7 +313,7 @@ const ToolStepDetailDrawer: React.FC<ToolStepDetailDrawerProps> = ({
       ? [
           {
             key: "diff" as const,
-            label: t("components.toolSteps.diff", { defaultValue: "Diff" }),
+            label: t("components.toolSteps.diff"),
             children: (
               <div className="lotus-tool-step-drawer-pane">
                 <FileChangeViewer

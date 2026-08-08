@@ -137,16 +137,16 @@ export const ProjectSwitcher: React.FC = () => {
         onChange={(value) => void handleProjectChange(value)}
         loading={projectsLoading || assigning}
         disabled={currentChat?.kind === "child"}
-        aria-label={t("chat.project.selectorLabel", "Project")}
+        aria-label={t("chat.project.selectorLabel")}
         data-testid="project-switcher"
       />
-      <Tooltip title={t("chat.project.manage", "Manage projects")} placement="top">
+      <Tooltip title={t("chat.project.manage")} placement="top">
         <Button
           type="text"
           size="small"
           icon={<AppstoreOutlined />}
           onClick={() => setManagerOpen(true)}
-          aria-label={t("chat.project.manage", "Manage projects")}
+          aria-label={t("chat.project.manage")}
           data-testid="open-project-manager"
           className="lotus-toolbar-icon"
           style={{ borderRadius: token.borderRadiusLG, flexShrink: 0 }}

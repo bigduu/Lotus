@@ -29,10 +29,10 @@ export function useSessionCreateRecovery() {
 
       const showRecovery = (current: ChatSessionCreateRecoveryError): void => {
         modal.confirm({
-          title: t("chat.sessionCreateRecovery.title", "Session creation is still being confirmed"),
+          title: t("chat.sessionCreateRecovery.title"),
           content: current.message,
-          okText: t("chat.sessionCreateRecovery.retry", "Check again"),
-          cancelText: t("common.close", "Close"),
+          okText: t("chat.sessionCreateRecovery.retry"),
+          cancelText: t("common.close"),
           onOk: async () => {
             let sessionId: string;
             try {
@@ -49,11 +49,11 @@ export function useSessionCreateRecovery() {
                 options.onDefinitiveError(retryError);
               } else {
                 modal.error({
-                  title: t("chat.sidebar.createFailedTitle", "Failed to create session"),
+                  title: t("chat.sidebar.createFailedTitle"),
                   content:
                     retryError instanceof Error
                       ? retryError.message
-                      : t("chat.sidebar.createFailedUnknown", "Unknown error"),
+                      : t("chat.sidebar.createFailedUnknown"),
                 });
               }
               return;

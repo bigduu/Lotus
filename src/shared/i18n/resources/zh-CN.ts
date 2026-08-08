@@ -56,6 +56,11 @@ export const zhCnTranslation = {
     feedback: {
       helpful: "有帮助",
       notHelpful: "无帮助",
+      retry: {
+        shorter: "更简短",
+        deeper: "更深入",
+        actionable: "更可执行",
+      },
     },
     sessionSummary: {
       title: "会话摘要",
@@ -98,10 +103,19 @@ export const zhCnTranslation = {
         newSession: "创建新会话",
         openAgenda: "打开日程",
         openProviderSettings: "打开 Provider 设置",
+        openModelLimits: "打开模型限制",
+        openPrompts: "打开系统提示词",
+        openSkills: "打开技能",
         openMcpSettings: "打开 MCP 设置",
         openWorkflowSettings: "打开工作流设置",
+        openHooks: "打开 Hooks",
         openSessionsSettings: "打开会话监控",
         openSchedulesSettings: "打开计划任务",
+        openMetrics: "打开指标面板",
+        openMasking: "打开关键词脱敏",
+        openEnvVars: "打开环境变量",
+        openConfig: "打开配置",
+        openAppSettings: "打开应用设置",
         switchToLight: "切换到浅色模式",
         switchToDark: "切换到深色模式",
         showSidebar: "显示侧边栏",
@@ -819,6 +833,13 @@ export const zhCnTranslation = {
         title: "从任务开始",
         subtitle: "在当前分栏中创建一个聚焦会话，并先预填第一条消息，再由你决定是否发送。",
         hint: "不会自动发送，你可以先编辑提示词。",
+        categories: {
+          development: "开发",
+          debugging: "调试",
+          analysis: "分析",
+          documentation: "文档",
+          operations: "运维",
+        },
         actions: {
           blank: {
             title: "空白会话",

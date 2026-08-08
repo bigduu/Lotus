@@ -258,12 +258,9 @@ const NotificationChannelsSection: React.FC = () => {
   return (
     <Card size="small" className="lotus-settings-card" loading={loading}>
       <Flex vertical gap={token.marginMD}>
-        <Text strong>{t("settings.notificationsTab.channels.title", "Notification Channels")}</Text>
+        <Text strong>{t("settings.notificationsTab.channels.title")}</Text>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {t(
-            "settings.notificationsTab.channels.description",
-            "Configure how the backend delivers notifications (desktop, ntfy, Bark). Saved settings apply to every device.",
-          )}
+          {t("settings.notificationsTab.channels.description")}
         </Text>
 
         {loadError ? (
@@ -273,7 +270,7 @@ const NotificationChannelsSection: React.FC = () => {
             message={loadError}
             action={
               <Button size="small" onClick={() => void load()}>
-                {t("settings.notificationsTab.channels.retry", "Retry")}
+                {t("settings.notificationsTab.channels.retry")}
               </Button>
             }
           />
@@ -326,7 +323,7 @@ const NotificationChannelsSection: React.FC = () => {
             <Divider style={{ margin: `${token.marginXS}px 0` }} />
 
             <Flex vertical gap={token.marginXS}>
-              <Text>{t("settings.notificationsTab.channels.desktop.title", "Desktop")}</Text>
+              <Text>{t("settings.notificationsTab.channels.desktop.title")}</Text>
               <Select<DesktopMode>
                 data-testid="channel-desktop-mode"
                 value={draft.desktopMode}
@@ -334,15 +331,12 @@ const NotificationChannelsSection: React.FC = () => {
                 options={[
                   {
                     value: "auto",
-                    label: t(
-                      "settings.notificationsTab.channels.desktop.auto",
-                      "Auto (on when standalone, off when embedded in Bodhi)",
-                    ),
+                    label: t("settings.notificationsTab.channels.desktop.auto"),
                   },
-                  { value: "on", label: t("settings.notificationsTab.channels.desktop.on", "On") },
+                  { value: "on", label: t("settings.notificationsTab.channels.desktop.on") },
                   {
                     value: "off",
-                    label: t("settings.notificationsTab.channels.desktop.off", "Off"),
+                    label: t("settings.notificationsTab.channels.desktop.off"),
                   },
                 ]}
               />
@@ -352,17 +346,17 @@ const NotificationChannelsSection: React.FC = () => {
 
             <Flex vertical gap={token.marginXS}>
               <Flex align="center" justify="space-between" gap={token.marginSM}>
-                <Text>{t("settings.notificationsTab.channels.ntfy.title", "ntfy")}</Text>
+                <Text>{t("settings.notificationsTab.channels.ntfy.title")}</Text>
                 <Switch
                   data-testid="channel-ntfy-enabled"
                   checked={draft.ntfyEnabled}
                   onChange={(checked) => patch({ ntfyEnabled: checked })}
-                  aria-label={t("settings.notificationsTab.channels.ntfy.enable", "Enable ntfy")}
+                  aria-label={t("settings.notificationsTab.channels.ntfy.enable")}
                 />
               </Flex>
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.notificationsTab.channels.ntfy.baseUrl", "Base URL")}
+                  {t("settings.notificationsTab.channels.ntfy.baseUrl")}
                 </Text>
                 <Input
                   data-testid="channel-ntfy-base-url"
@@ -373,24 +367,18 @@ const NotificationChannelsSection: React.FC = () => {
               </label>
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.notificationsTab.channels.ntfy.topic", "Topic")}
+                  {t("settings.notificationsTab.channels.ntfy.topic")}
                 </Text>
                 <Input
                   data-testid="channel-ntfy-topic"
                   value={draft.ntfyTopic}
                   onChange={(e) => patch({ ntfyTopic: e.target.value })}
-                  placeholder={t(
-                    "settings.notificationsTab.channels.ntfy.topicPlaceholder",
-                    "my-bamboo-topic",
-                  )}
+                  placeholder={t("settings.notificationsTab.channels.ntfy.topicPlaceholder")}
                 />
               </label>
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t(
-                    "settings.notificationsTab.channels.ntfy.token",
-                    "Token (optional, for self-hosted instances)",
-                  )}
+                  {t("settings.notificationsTab.channels.ntfy.token")}
                 </Text>
                 <Input.Password
                   data-testid="channel-ntfy-token"
@@ -401,14 +389,8 @@ const NotificationChannelsSection: React.FC = () => {
                   }}
                   placeholder={
                     hasStoredNtfyToken
-                      ? t(
-                          "settings.notificationsTab.channels.ntfy.tokenPlaceholderConfigured",
-                          "Configured — leave blank to keep",
-                        )
-                      : t(
-                          "settings.notificationsTab.channels.ntfy.tokenPlaceholderEmpty",
-                          "Not required for the public ntfy.sh topic",
-                        )
+                      ? t("settings.notificationsTab.channels.ntfy.tokenPlaceholderConfigured")
+                      : t("settings.notificationsTab.channels.ntfy.tokenPlaceholderEmpty")
                   }
                 />
               </label>
@@ -432,17 +414,17 @@ const NotificationChannelsSection: React.FC = () => {
 
             <Flex vertical gap={token.marginXS}>
               <Flex align="center" justify="space-between" gap={token.marginSM}>
-                <Text>{t("settings.notificationsTab.channels.bark.title", "Bark")}</Text>
+                <Text>{t("settings.notificationsTab.channels.bark.title")}</Text>
                 <Switch
                   data-testid="channel-bark-enabled"
                   checked={draft.barkEnabled}
                   onChange={(checked) => patch({ barkEnabled: checked })}
-                  aria-label={t("settings.notificationsTab.channels.bark.enable", "Enable Bark")}
+                  aria-label={t("settings.notificationsTab.channels.bark.enable")}
                 />
               </Flex>
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.notificationsTab.channels.bark.baseUrl", "Base URL")}
+                  {t("settings.notificationsTab.channels.bark.baseUrl")}
                 </Text>
                 <Input
                   data-testid="channel-bark-base-url"
@@ -468,7 +450,7 @@ const NotificationChannelsSection: React.FC = () => {
               ) : null}
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.notificationsTab.channels.bark.deviceKey", "Device Key")}
+                  {t("settings.notificationsTab.channels.bark.deviceKey")}
                 </Text>
                 <Input.Password
                   data-testid="channel-bark-device-key"
@@ -479,14 +461,8 @@ const NotificationChannelsSection: React.FC = () => {
                   }}
                   placeholder={
                     hasStoredBarkKey
-                      ? t(
-                          "settings.notificationsTab.channels.bark.deviceKeyPlaceholderConfigured",
-                          "Configured — leave blank to keep",
-                        )
-                      : t(
-                          "settings.notificationsTab.channels.bark.deviceKeyPlaceholderEmpty",
-                          "The device key from the Bark iOS app",
-                        )
+                      ? t("settings.notificationsTab.channels.bark.deviceKeyPlaceholderConfigured")
+                      : t("settings.notificationsTab.channels.bark.deviceKeyPlaceholderEmpty")
                   }
                 />
               </label>
@@ -506,20 +482,16 @@ const NotificationChannelsSection: React.FC = () => {
                   disabled={testing}
                 >
                   {testing
-                    ? t("settings.notificationsTab.channels.testing", "Sending…")
-                    : t("settings.notificationsTab.channels.test", "Send test notification")}
+                    ? t("settings.notificationsTab.channels.testing")
+                    : t("settings.notificationsTab.channels.test")}
                 </Button>
                 {attempted ? (
                   <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
                     {attempted.length > 0
                       ? t("settings.notificationsTab.channels.testAttempted", {
-                          defaultValue: "Attempted: {{channels}}",
                           channels: attempted.join(", "),
                         })
-                      : t(
-                          "settings.notificationsTab.channels.testNone",
-                          "No channels are currently enabled",
-                        )}
+                      : t("settings.notificationsTab.channels.testNone")}
                   </Text>
                 ) : null}
                 {testError ? (
@@ -531,7 +503,7 @@ const NotificationChannelsSection: React.FC = () => {
               <Flex align="center" gap={token.marginSM}>
                 {saved ? (
                   <Text type="success" style={{ fontSize: token.fontSizeSM }}>
-                    {t("settings.notificationsTab.channels.saved", "Saved")}
+                    {t("settings.notificationsTab.channels.saved")}
                   </Text>
                 ) : null}
                 <Button
@@ -542,8 +514,8 @@ const NotificationChannelsSection: React.FC = () => {
                   disabled={saving}
                 >
                   {saving
-                    ? t("settings.notificationsTab.channels.saving", "Saving…")
-                    : t("settings.notificationsTab.channels.save", "Save channel settings")}
+                    ? t("settings.notificationsTab.channels.saving")
+                    : t("settings.notificationsTab.channels.save")}
                 </Button>
               </Flex>
             </Flex>

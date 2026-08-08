@@ -125,7 +125,15 @@ vi.mock("@shared/store/appStore", async () => {
 });
 
 vi.mock("react-i18next", () => ({
-  useTranslation: vi.fn(() => ({ t: (_key: string, fallback?: string) => fallback ?? _key })),
+  useTranslation: vi.fn(() => ({
+    t: (key: string, fallback?: string) =>
+      ({
+        "chat.statusRail.idle": "Ready",
+        "chat.statusRail.evaluatingTasks": "Evaluating task progress…",
+      })[key] ??
+      fallback ??
+      key,
+  })),
 }));
 
 import { useAppStore } from "@shared/store/appStore";

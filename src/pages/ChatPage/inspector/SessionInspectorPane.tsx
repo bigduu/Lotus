@@ -204,7 +204,7 @@ const SessionConfigCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
         <Flex align="center" gap={6} style={{ minWidth: 0 }}>
           <RobotOutlined style={{ color: token.colorTextSecondary }} />
           <Text strong style={{ fontSize: 12 }}>
-            {t("inspector.configuration", "Configuration")}
+            {t("inspector.configuration")}
           </Text>
         </Flex>
         <Flex vertical gap={2} style={{ width: "100%", minWidth: 0 }}>
@@ -434,7 +434,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
     // that leaves the conversation visible behind it.
     return (
       <Drawer
-        title={t("inspector.title", "Inspector")}
+        title={t("inspector.title")}
         placement={isMobile ? "bottom" : "right"}
         open={open}
         onClose={() => onOpenChange(false)}
@@ -481,7 +481,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
       >
         <Flex align="center" gap={token.marginXS}>
           <AppstoreOutlined />
-          <Text strong>{t("inspector.title", "Inspector")}</Text>
+          <Text strong>{t("inspector.title")}</Text>
         </Flex>
         <Button
           type="text"

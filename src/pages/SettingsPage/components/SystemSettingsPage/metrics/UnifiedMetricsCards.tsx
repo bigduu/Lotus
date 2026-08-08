@@ -129,9 +129,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
-            title={t("settings.unifiedMetricsCards.syncMismatches", {
-              defaultValue: "Sync Mismatches",
-            })}
+            title={t("settings.unifiedMetricsCards.syncMismatches")}
             value={
               chatSummary?.total_sync_mismatches ?? combinedSummary?.total_sync_mismatches ?? 0
             }
@@ -189,9 +187,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       <Col xs={24} sm={12} xl={6}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
-            title={t("settings.unifiedMetricsCards.promptCachedToolOutputs", {
-              defaultValue: "Prompt-Cached Tool Outputs",
-            })}
+            title={t("settings.unifiedMetricsCards.promptCachedToolOutputs")}
             value={
               chatSummary?.prompt_cached_tool_outputs ??
               combinedSummary?.prompt_cached_tool_outputs ??

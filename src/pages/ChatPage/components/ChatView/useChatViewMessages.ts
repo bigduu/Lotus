@@ -409,7 +409,6 @@ export const useChatViewMessages = (currentChat: ChatItem | null, currentMessage
         createdAt: event.createdAt,
         label: t("chat.compression.timelineDetail", {
           count: event.messagesCompressed,
-          defaultValue: "{{count}} messages archived",
         }),
       };
       const eventTs = toTimestamp(event.createdAt);

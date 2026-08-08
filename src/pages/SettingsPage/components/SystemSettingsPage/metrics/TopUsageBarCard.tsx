@@ -59,10 +59,7 @@ const TopUsageBarCard: React.FC<TopUsageBarCardProps> = ({
                 <Tooltip
                   formatter={(value: number) => [
                     value.toLocaleString(),
-                    countLabel ??
-                      t("settings.metricsDashboard.calls", {
-                        defaultValue: "Calls",
-                      }),
+                    countLabel ?? t("settings.metricsDashboard.calls"),
                   ]}
                   labelFormatter={(label, payload) => {
                     const meta = payload?.[0]?.payload?.meta as string | undefined;
@@ -73,12 +70,7 @@ const TopUsageBarCard: React.FC<TopUsageBarCardProps> = ({
                   dataKey="count"
                   fill={color}
                   radius={[0, 6, 6, 0]}
-                  name={
-                    countLabel ??
-                    t("settings.metricsDashboard.calls", {
-                      defaultValue: "Calls",
-                    })
-                  }
+                  name={countLabel ?? t("settings.metricsDashboard.calls")}
                 />
               </BarChart>
             </ResponsiveContainer>

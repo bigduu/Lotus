@@ -45,7 +45,21 @@ vi.mock("@ant-design/icons", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (_key: string, fallback?: string) => fallback ?? _key,
+    t: (key: string) =>
+      ({
+        "sessionSummary.title": "Session Summary",
+        "sessionSummary.totalTokens": "Total tokens",
+        "sessionSummary.promptTokens": "Prompt",
+        "sessionSummary.completionTokens": "Completion",
+        "sessionSummary.messages": "messages",
+        "sessionSummary.userTurns": "user",
+        "sessionSummary.assistantTurns": "assistant",
+        "sessionSummary.toolCalls": "tool calls",
+        "sessionSummary.errors": "errors",
+        "sessionSummary.compressions": "compressions",
+        "sessionSummary.filesChanged": "Files Changed",
+        "sessionSummary.lastResponse": "Latest Response",
+      })[key] ?? key,
   }),
 }));
 

@@ -643,7 +643,7 @@ export const ProviderSettings: React.FC = () => {
         },
         expectedRevision,
       );
-      message.success(t("settings.providerTab.credentialCleared", "Provider credential cleared"));
+      message.success(t("settings.providerTab.credentialCleared"));
     },
     [commitProviderMutation, message, providerEnvelope?.revision, t],
   );
@@ -1345,9 +1345,7 @@ export const ProviderSettings: React.FC = () => {
     const apiKeyRules = (requiredMessage: string) =>
       hasStoredKey ? [] : [{ required: true, message: requiredMessage }];
     const apiKeyPlaceholder = (defaultPlaceholder: string) =>
-      hasStoredKey
-        ? t("settings.providerTab.apiKeyKeepPlaceholder", "Configured — leave empty to keep")
-        : defaultPlaceholder;
+      hasStoredKey ? t("settings.providerTab.apiKeyKeepPlaceholder") : defaultPlaceholder;
     const credentialStatusSummary = provider !== "copilot" && (
       <Space direction="vertical" size={4} style={{ marginBottom: 12 }}>
         <ProviderCredentialStatusTag
@@ -1355,12 +1353,7 @@ export const ProviderSettings: React.FC = () => {
           pendingReplacement={pendingReplacement}
         />
         {environmentCredential ? (
-          <Text type="secondary">
-            {t(
-              "settings.providerTab.environmentCredentialHint",
-              "This credential comes from the environment. It remains read-only unless you explicitly replace it.",
-            )}
-          </Text>
+          <Text type="secondary">{t("settings.providerTab.environmentCredentialHint")}</Text>
         ) : null}
       </Space>
     );
@@ -1368,16 +1361,13 @@ export const ProviderSettings: React.FC = () => {
       provider !== "copilot" &&
       !environmentCredential && (
         <Popconfirm
-          title={t(
-            "settings.providerTab.confirmClearCredential",
-            "Clear the stored credential for this provider?",
-          )}
+          title={t("settings.providerTab.confirmClearCredential")}
           onConfirm={() => void handleClearProviderCredential(provider)}
-          okText={t("settings.providerTab.clear", "Clear")}
-          cancelText={t("settings.providerTab.cancel", "Cancel")}
+          okText={t("settings.providerTab.clear")}
+          cancelText={t("settings.providerTab.cancel")}
         >
           <Button danger size="small" style={{ marginBottom: 16 }}>
-            {t("settings.providerTab.clearCredential", "Clear stored credential")}
+            {t("settings.providerTab.clearCredential")}
           </Button>
         </Popconfirm>
       );
@@ -1394,9 +1384,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input.Password
                 data-testid="api-key-input"
-                placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.openaiApiKeyPlaceholder", "sk-..."),
-                )}
+                placeholder={apiKeyPlaceholder(t("settings.providerTab.openaiApiKeyPlaceholder"))}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1406,12 +1394,7 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.openaiBaseUrlHelp")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.openaiBaseUrlPlaceholder",
-                  "https://api.openai.com/v1",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.openaiBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "openai", "reasoning_effort"]}
@@ -1427,10 +1410,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Select
                 mode="tags"
-                placeholder={t(
-                  "settings.providerTab.responsesOnlyModelsPlaceholder",
-                  'e.g. "gpt-5.3-codex", "gpt-5*"',
-                )}
+                placeholder={t("settings.providerTab.responsesOnlyModelsPlaceholder")}
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
@@ -1450,7 +1430,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Password
                 placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.anthropicApiKeyPlaceholder", "sk-ant-..."),
+                  t("settings.providerTab.anthropicApiKeyPlaceholder"),
                 )}
                 prefix={<KeyOutlined />}
               />
@@ -1461,12 +1441,7 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.anthropicBaseUrlHelp")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.anthropicBaseUrlPlaceholder",
-                  "https://api.anthropic.com/v1",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.anthropicBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "anthropic", "max_tokens"]}
@@ -1475,7 +1450,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input
                 type="number"
-                placeholder={t("settings.providerTab.maxTokensPlaceholder", "4096")}
+                placeholder={t("settings.providerTab.maxTokensPlaceholder")}
                 min={1}
                 max={100000}
               />
@@ -1502,9 +1477,7 @@ export const ProviderSettings: React.FC = () => {
               rules={apiKeyRules(t("settings.providerTab.geminiApiKeyRequired"))}
             >
               <Password
-                placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.geminiApiKeyPlaceholder", "AIza..."),
-                )}
+                placeholder={apiKeyPlaceholder(t("settings.providerTab.geminiApiKeyPlaceholder"))}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1514,12 +1487,7 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.baseUrlOptional")}
               extra={t("settings.providerTab.geminiBaseUrlHelp")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.geminiBaseUrlPlaceholder",
-                  "https://generativelanguage.googleapis.com/v1beta",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.geminiBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "gemini", "reasoning_effort"]}
@@ -1609,10 +1577,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Select
                 mode="tags"
-                placeholder={t(
-                  "settings.providerTab.responsesOnlyModelsPlaceholder",
-                  'e.g. "gpt-5.3-codex", "gpt-5*"',
-                )}
+                placeholder={t("settings.providerTab.responsesOnlyModelsPlaceholder")}
                 tokenSeparators={[",", " ", "\n", "\t"]}
               />
             </Form.Item>
@@ -1643,9 +1608,7 @@ export const ProviderSettings: React.FC = () => {
             >
               <Input.Password
                 data-testid="bodhi-api-key-input"
-                placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.bodhiApiKeyPlaceholder", "bhi_sk_..."),
-                )}
+                placeholder={apiKeyPlaceholder(t("settings.providerTab.bodhiApiKeyPlaceholder"))}
                 prefix={<KeyOutlined />}
               />
             </Form.Item>
@@ -1655,22 +1618,14 @@ export const ProviderSettings: React.FC = () => {
               label={t("settings.providerTab.bodhiBaseUrl")}
               extra={t("settings.providerTab.bodhiBaseUrlExtra")}
             >
-              <Input
-                placeholder={t(
-                  "settings.providerTab.bodhiBaseUrlPlaceholder",
-                  "http://localhost:8080",
-                )}
-              />
+              <Input placeholder={t("settings.providerTab.bodhiBaseUrlPlaceholder")} />
             </Form.Item>
             <Form.Item
               name={["providers", "bodhi", "target_provider"]}
               label={t("settings.providerTab.targetProvider")}
               extra={t("settings.providerTab.targetProviderExtra")}
             >
-              <Select
-                placeholder={t("settings.providerTab.targetProviderPlaceholder", "openai")}
-                allowClear
-              >
+              <Select placeholder={t("settings.providerTab.targetProviderPlaceholder")} allowClear>
                 <Select.Option value="openai">OpenAI</Select.Option>
                 <Select.Option value="anthropic">Anthropic</Select.Option>
                 <Select.Option value="gemini">Gemini</Select.Option>
@@ -1741,13 +1696,12 @@ export const ProviderSettings: React.FC = () => {
       buildProviderFormState(providerEnvelope.data, memory),
     );
     modal.info({
-      title: t("settings.providerTab.compareChanges", "Compare provider changes"),
+      title: t("settings.providerTab.compareChanges"),
       width: 760,
       content: (
         <Space direction="vertical" size={12} style={{ width: "100%" }}>
           <Text>
             {t("settings.providerTab.compareRevision", {
-              defaultValue: "Loaded revision {{loaded}}; latest revision is {{latest}}.",
               loaded: baseRevision,
               latest: providerEnvelope.revision,
             })}
@@ -1782,9 +1736,7 @@ export const ProviderSettings: React.FC = () => {
         ),
       ),
     );
-    message.info(
-      t("settings.providerTab.draftReapplied", "Draft kept and rebased onto the latest revision."),
-    );
+    message.info(t("settings.providerTab.draftReapplied"));
   };
 
   return (
@@ -1800,13 +1752,8 @@ export const ProviderSettings: React.FC = () => {
           type="warning"
           showIcon
           style={{ marginBottom: 16 }}
-          message={t(
-            "settings.providerTab.externalRevisionTitle",
-            "Provider configuration changed on disk",
-          )}
+          message={t("settings.providerTab.externalRevisionTitle")}
           description={t("settings.providerTab.externalRevisionDescription", {
-            defaultValue:
-              "Your draft is based on revision {{loaded}}; revision {{latest}} is now available.",
             loaded: baseRevision,
             latest: externalRevision,
           })}
@@ -1822,13 +1769,13 @@ export const ProviderSettings: React.FC = () => {
                   )
                 }
               >
-                {t("settings.providerTab.reloadLatest", "Reload latest")}
+                {t("settings.providerTab.reloadLatest")}
               </Button>
               <Button size="small" onClick={compareProviderDraft}>
-                {t("settings.providerTab.compareChanges", "Compare")}
+                {t("settings.providerTab.compareChanges")}
               </Button>
               <Button size="small" type="primary" onClick={reapplyProviderDraft}>
-                {t("settings.providerTab.reapplyDraft", "Reapply draft")}
+                {t("settings.providerTab.reapplyDraft")}
               </Button>
             </Space>
           }

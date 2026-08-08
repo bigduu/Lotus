@@ -164,10 +164,8 @@ export const HomeDashboard: React.FC<{
             <DashboardOutlined />
           </span>
           <div className="lotus-home-header-text">
-            <h2 style={{ color: token.colorText }}>{t("home.title", "Welcome to Bodhi")}</h2>
-            <p style={{ color: token.colorTextSecondary }}>
-              {t("home.subtitle", "Here's an overview of your workspace.")}
-            </p>
+            <h2 style={{ color: token.colorText }}>{t("home.title")}</h2>
+            <p style={{ color: token.colorTextSecondary }}>{t("home.subtitle")}</p>
           </div>
         </div>
 
@@ -183,7 +181,7 @@ export const HomeDashboard: React.FC<{
                   className="lotus-home-section-icon"
                   style={{ color: token.colorSuccess }}
                 />
-                <span>{t("home.sections.running", "Running Now")}</span>
+                <span>{t("home.sections.running")}</span>
               </div>
               <div className="lotus-home-session-list">
                 {runningSessions.map((chat) => (
@@ -205,7 +203,7 @@ export const HomeDashboard: React.FC<{
                   className="lotus-home-section-icon"
                   style={{ color: "var(--lotus-gold)" }}
                 />
-                <span>{t("home.sections.pinned", "Pinned")}</span>
+                <span>{t("home.sections.pinned")}</span>
               </div>
               <div className="lotus-home-session-list">
                 {pinnedSessions.map((chat) => (
@@ -224,7 +222,7 @@ export const HomeDashboard: React.FC<{
             <div className="lotus-home-section">
               <div className="lotus-home-section-title" style={{ color: token.colorTextSecondary }}>
                 <ClockCircleOutlined className="lotus-home-section-icon" />
-                <span>{t("home.sections.recent", "Recent Sessions")}</span>
+                <span>{t("home.sections.recent")}</span>
               </div>
               <div className="lotus-home-session-list">
                 {recentSessions.map((chat) => (
@@ -241,7 +239,7 @@ export const HomeDashboard: React.FC<{
 
           {chats.length === 0 ? (
             <div className="lotus-home-empty-hint" style={{ color: token.colorTextTertiary }}>
-              {t("home.empty", "No sessions yet. Create one to get started!")}
+              {t("home.empty")}
             </div>
           ) : null}
         </div>

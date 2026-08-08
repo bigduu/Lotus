@@ -45,9 +45,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
   // destination, not a separate feature name.
   const schedulesLabel = t("settings.schedulesTab.listTitle");
   const themeLabel =
-    themeMode === "dark"
-      ? t("settings.appTab.lightMode", "Light Mode")
-      : t("settings.appTab.darkMode", "Dark Mode");
+    themeMode === "dark" ? t("settings.appTab.lightMode") : t("settings.appTab.darkMode");
 
   return (
     <Flex
@@ -173,7 +171,7 @@ export const ChatSidebarFooter: React.FC<ChatSidebarFooterProps> = ({
             userSelect: "text",
           }}
         >
-          {t("settings.appTab.runningVersion", "Running version")}: v{APP_VERSION}
+          {t("settings.appTab.runningVersion")}: v{APP_VERSION}
         </Text>
       )}
     </Flex>

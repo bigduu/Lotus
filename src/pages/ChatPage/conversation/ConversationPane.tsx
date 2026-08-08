@@ -507,7 +507,6 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
       title={t("chat.compression.tooltip", {
         count: latestCompressionEvent.messagesCompressed,
         time: getMessageTimeLabel(latestCompressionEvent.createdAt),
-        defaultValue: "Latest compression at {{time}}: {{count}} messages archived",
       })}
     >
       <Tag
@@ -517,7 +516,6 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
       >
         {t("chat.compression.archivedShort", {
           count: latestCompressionEvent.messagesCompressed,
-          defaultValue: "{{count}} archived",
         })}
       </Tag>
     </Tooltip>
@@ -543,7 +541,6 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
             (
             {t("components.tokenUsage.truncatedBadge", {
               count: currentSegmentsRemoved,
-              defaultValue: "{{count}} truncated",
             })}
             )
           </span>
@@ -565,7 +562,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   return (
     <Layout
       role="region"
-      aria-label={t("chat.view.chatRegion", "Chat conversation")}
+      aria-label={t("chat.view.chatRegion")}
       style={{
         flex: 1,
         minHeight: 0,

@@ -329,7 +329,7 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
     const envelope = snapshot.envelope;
     if (!envelope) return;
     modal.info({
-      title: t("settings.keywordMaskingTab.externalCompareTitle", "Compare keyword revisions"),
+      title: t("settings.keywordMaskingTab.externalCompareTitle"),
       width: 760,
       content: (
         <pre style={{ maxHeight: 460, overflow: "auto", whiteSpace: "pre-wrap" }}>
@@ -381,26 +381,21 @@ const SystemSettingsKeywordMaskingTab: React.FC = () => {
           <Alert
             type="warning"
             showIcon
-            message={t(
-              "settings.keywordMaskingTab.externalChange",
-              "Keyword masking changed on disk",
-            )}
+            message={t("settings.keywordMaskingTab.externalChange")}
             description={t("settings.keywordMaskingTab.externalChangeDescription", {
-              defaultValue:
-                "Your draft is based on revision {{loaded}}; revision {{latest}} is now available.",
               loaded: baseRevision,
               latest: externalRevision,
             })}
             action={
               <Flex gap={8} wrap="wrap">
                 <Button size="small" onClick={reloadExternalChanges}>
-                  {t("settings.keywordMaskingTab.reload", "Reload")}
+                  {t("settings.keywordMaskingTab.reload")}
                 </Button>
                 <Button size="small" onClick={compareExternalChanges}>
-                  {t("settings.keywordMaskingTab.compare", "Compare")}
+                  {t("settings.keywordMaskingTab.compare")}
                 </Button>
                 <Button size="small" type="primary" onClick={reapplyExternalChanges}>
-                  {t("settings.keywordMaskingTab.reapply", "Reapply")}
+                  {t("settings.keywordMaskingTab.reapply")}
                 </Button>
               </Flex>
             }

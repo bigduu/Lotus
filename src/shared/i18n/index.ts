@@ -47,6 +47,13 @@ const buildFrTranslation = (enTranslation: EnTranslation) => ({
     retry: "Réessayer",
     backendNotReachable:
       "Le back-end est inaccessible à {{baseUrl}} (dernière erreur : {{message}})",
+    notifications: {
+      ...enTranslation.app.notifications,
+      toolApproval: {
+        ...enTranslation.app.notifications.toolApproval,
+        genericTitle: "Approbation requise",
+      },
+    },
   },
   chat: {
     ...enTranslation.chat,
@@ -1066,6 +1073,7 @@ const buildJaTranslation = (enTranslation: EnTranslation) => ({
     notifications: {
       toolApproval: {
         title: "承認が必要: {{tool}}",
+        genericTitle: "承認が必要です",
         body: "ツール {{tool}} の実行には承認が必要です",
         unknownTool: "不明なツール",
       },
@@ -2064,6 +2072,21 @@ const buildJaTranslation = (enTranslation: EnTranslation) => ({
       tokens: "トークン",
       usedPercent: "{{value}}% 使用",
     },
+    approval: {
+      ...enTranslation.components.approval,
+      workflow: "ワークフロー",
+      executionRequest: "実行リクエスト",
+      aiWantsExecute: "AI が次の操作を実行しようとしています",
+      childTitle: "サブエージェントの承認が必要です",
+      childQuestion: "サブエージェントが承認を必要とするツールを実行しようとしています。",
+      approve: "承認",
+      deny: "拒否",
+      toolName: "ツール",
+      permission: "権限",
+      target: "対象",
+      childGone: "サブエージェントは待機していないため、リクエストは閉じられました。",
+      deliverFailed: "決定を送信できませんでした。もう一度お試しください。",
+    },
     plan: {
       ...enTranslation.components.plan,
       executionPlan: "実行プラン",
@@ -2126,6 +2149,13 @@ const buildHiTranslation = (enTranslation: EnTranslation) => ({
     loading: "लोड हो रहा है...",
     retry: "पुनः प्रयास करें",
     backendNotReachable: "बैकएंड {{baseUrl}} पर उपलब्ध नहीं है (अंतिम त्रुटि: {{message}})",
+    notifications: {
+      ...enTranslation.app.notifications,
+      toolApproval: {
+        ...enTranslation.app.notifications.toolApproval,
+        genericTitle: "स्वीकृति आवश्यक",
+      },
+    },
   },
   chat: {
     ...enTranslation.chat,
@@ -2732,6 +2762,15 @@ const buildFrFullTranslation = (enTranslation: EnTranslation) => {
         workflow: "Workflow",
         executionRequest: "Demande d'exécution",
         aiWantsExecute: "L'IA souhaite exécuter l'action suivante",
+        childTitle: "Approbation du sous-agent requise",
+        childQuestion: "Un sous-agent souhaite exécuter un outil qui nécessite votre approbation.",
+        approve: "Approuver",
+        deny: "Refuser",
+        toolName: "Outil",
+        permission: "Autorisation",
+        target: "Cible",
+        childGone: "Le sous-agent n’attend plus ; la demande a été fermée.",
+        deliverFailed: "Impossible de transmettre votre décision. Veuillez réessayer.",
       },
       toolSession: {
         ...enTranslation.components.toolSession,
@@ -3158,6 +3197,15 @@ const buildHiFullTranslation = (enTranslation: EnTranslation) => {
         workflow: "वर्कफ़्लो",
         executionRequest: "निष्पादन अनुरोध",
         aiWantsExecute: "AI निम्नलिखित क्रिया निष्पादित करना चाहता है",
+        childTitle: "सब-एजेंट की स्वीकृति आवश्यक है",
+        childQuestion: "एक सब-एजेंट ऐसा टूल चलाना चाहता है जिसके लिए आपकी स्वीकृति आवश्यक है।",
+        approve: "स्वीकृत करें",
+        deny: "अस्वीकार करें",
+        toolName: "टूल",
+        permission: "अनुमति",
+        target: "लक्ष्य",
+        childGone: "सब-एजेंट अब प्रतीक्षा नहीं कर रहा है; अनुरोध बंद कर दिया गया।",
+        deliverFailed: "आपका निर्णय भेजा नहीं जा सका। कृपया फिर से प्रयास करें।",
       },
       toolSession: {
         ...enTranslation.components.toolSession,
@@ -3231,6 +3279,7 @@ const buildZhTwTranslation = (zhCnTranslation: ZhCnBaseTranslation) => ({
       ...zhCnTranslation.app.notifications,
       toolApproval: {
         title: "需要批准：{{tool}}",
+        genericTitle: "需要核准",
         body: "工具 {{tool}} 需要您的批准才能執行",
         unknownTool: "未知工具",
       },
@@ -3393,6 +3442,7 @@ const buildZhTwTranslation = (zhCnTranslation: ZhCnBaseTranslation) => ({
     streaming: {
       ...zhCnTranslation.chat.streaming,
       assistant: "助手",
+      sendFailed: "訊息傳送失敗",
     },
     model: {
       selectModel: "選擇模型",
@@ -4447,6 +4497,17 @@ const buildZhTwTranslation = (zhCnTranslation: ZhCnBaseTranslation) => ({
     approval: {
       ...zhCnTranslation.components?.approval,
       workflow: "工作流程",
+      executionRequest: "執行請求",
+      aiWantsExecute: "AI 想執行以下操作",
+      childTitle: "子代理需要核准",
+      childQuestion: "子代理想執行需要您核准的工具。",
+      approve: "核准",
+      deny: "拒絕",
+      toolName: "工具",
+      permission: "權限",
+      target: "目標",
+      childGone: "子代理已不再等待，該請求已關閉。",
+      deliverFailed: "無法傳送您的決定，請再試一次。",
     },
     todoList: {
       ...zhCnTranslation.components.todoList,

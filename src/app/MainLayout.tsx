@@ -210,7 +210,7 @@ export const MainLayout: React.FC<{
           e.currentTarget.style.left = "-9999px";
         }}
       >
-        {t("app.skipToContent", "Skip to main content")}
+        {t("app.skipToContent")}
       </a>
       {auxReady && (
         <React.Suspense fallback={null}>
@@ -272,7 +272,7 @@ export const MainLayout: React.FC<{
                 <React.Suspense
                   fallback={
                     <div style={{ padding: 24, color: "var(--ant-color-text-secondary)" }}>
-                      {t("app.loading", "Loading…")}
+                      {t("app.loading")}
                     </div>
                   }
                 >

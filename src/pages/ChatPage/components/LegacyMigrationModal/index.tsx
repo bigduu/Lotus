@@ -341,7 +341,7 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
   return (
     <Modal
       open={open}
-      title={t("chat.migration.title", "Legacy session migration")}
+      title={t("chat.migration.title")}
       footer={null}
       onCancel={onClose}
       width={720}

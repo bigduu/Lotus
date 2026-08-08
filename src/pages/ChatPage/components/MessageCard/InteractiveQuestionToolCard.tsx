@@ -138,7 +138,7 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
       ) : null}
 
       <div>
-        <Text strong>{t("components.questionDialog.questionLabel", "Question")}</Text>
+        <Text strong>{t("components.questionDialog.questionLabel")}</Text>
         <div style={{ marginTop: 8 }}>
           <ReactMarkdown
             remarkPlugins={markdownPlugins}
@@ -275,23 +275,12 @@ export const InteractiveQuestionToolCard: React.FC<InteractiveQuestionToolCardPr
       ) : null}
 
       {resolvedExternally ? (
-        <Text type="secondary">
-          {t(
-            "components.questionDialog.responseSubmittedContinue",
-            "Response submitted. Continuing...",
-          )}
-        </Text>
+        <Text type="secondary">{t("components.questionDialog.responseSubmittedContinue")}</Text>
       ) : (
         <Text type="secondary">
           {allowCustom
-            ? t(
-                "components.questionDialog.responseInInputHint",
-                "Use the options or input box below to respond.",
-              )
-            : t(
-                "components.questionDialog.responseByOptionHint",
-                "Please respond using the options below the input box.",
-              )}
+            ? t("components.questionDialog.responseInInputHint")
+            : t("components.questionDialog.responseByOptionHint")}
         </Text>
       )}
     </Space>

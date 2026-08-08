@@ -43,7 +43,6 @@ export const MachineTag: React.FC<MachineTagProps> = ({ placement, compact, clas
       title={t("chat.machine.tooltip", {
         kind,
         host,
-        defaultValue: "Runs on {{kind}} · {{host}}",
       })}
     >
       <Tag
@@ -53,9 +52,7 @@ export const MachineTag: React.FC<MachineTagProps> = ({ placement, compact, clas
         className={className}
       >
         {!compact && (
-          <span style={{ opacity: 0.65, marginRight: 4 }}>
-            {t("chat.machine.label", { defaultValue: "Machine" })}
-          </span>
+          <span style={{ opacity: 0.65, marginRight: 4 }}>{t("chat.machine.label")}</span>
         )}
         {`${kind} · ${host}`}
       </Tag>

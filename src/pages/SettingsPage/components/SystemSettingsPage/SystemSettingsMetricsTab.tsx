@@ -366,47 +366,33 @@ const SystemSettingsMetricsTab: React.FC = () => {
         value: totalSessions > 0 ? Math.round(totalSessionTokens / totalSessions) : 0,
       },
       {
-        title: t("settings.metricsDashboard.compactStats.savedTokens", {
-          defaultValue: "Saved Tokens",
-        }),
+        title: t("settings.metricsDashboard.compactStats.savedTokens"),
         value: totalSavedTokens,
       },
       {
-        title: t("settings.metricsDashboard.compactStats.toolContextSavedTokens", {
-          defaultValue: "Tool Context Saved Tokens",
-        }),
+        title: t("settings.metricsDashboard.compactStats.toolContextSavedTokens"),
         value: toolContextTokensSaved,
       },
       {
-        title: t("settings.metricsDashboard.compactStats.nonToolCompressionSavedTokens", {
-          defaultValue: "Non-Tool Compression Saved Tokens",
-        }),
+        title: t("settings.metricsDashboard.compactStats.nonToolCompressionSavedTokens"),
         value: nonToolCompressionTokensSaved,
       },
       {
-        title: t("settings.metricsDashboard.compactStats.savedTokenRatio", {
-          defaultValue: "Saved / Chat Tokens",
-        }),
+        title: t("settings.metricsDashboard.compactStats.savedTokenRatio"),
         value: savedTokenRatio,
         suffix: "%",
       },
       {
-        title: t("settings.metricsDashboard.compactStats.toolSavedShare", {
-          defaultValue: "Tool Share of Saved Tokens",
-        }),
+        title: t("settings.metricsDashboard.compactStats.toolSavedShare"),
         value: toolSavedShare,
         suffix: "%",
       },
       {
-        title: t("settings.metricsDashboard.compactStats.promptCachedToolOutputs", {
-          defaultValue: "Prompt-Cached Tool Outputs",
-        }),
+        title: t("settings.metricsDashboard.compactStats.promptCachedToolOutputs"),
         value: promptCachedToolOutputs,
       },
       {
-        title: t("settings.metricsDashboard.compactStats.compressionEvents", {
-          defaultValue: "Compression Events",
-        }),
+        title: t("settings.metricsDashboard.compactStats.compressionEvents"),
         value: totalCompressionEvents,
       },
       {
@@ -471,29 +457,21 @@ const SystemSettingsMetricsTab: React.FC = () => {
 
     return [
       {
-        title: t("settings.metricsDashboard.forward.performance.p95Latency", {
-          defaultValue: "P95 Latency",
-        }),
+        title: t("settings.metricsDashboard.forward.performance.p95Latency"),
         value: formatDuration(p95ForwardDuration),
       },
       {
-        title: t("settings.metricsDashboard.forward.performance.errorRate", {
-          defaultValue: "Error Rate",
-        }),
+        title: t("settings.metricsDashboard.forward.performance.errorRate"),
         value: Number(errorRate.toFixed(1)),
         suffix: "%",
       },
       {
-        title: t("settings.metricsDashboard.forward.performance.streamingRatio", {
-          defaultValue: "Streaming Ratio",
-        }),
+        title: t("settings.metricsDashboard.forward.performance.streamingRatio"),
         value: Number(streamRate.toFixed(1)),
         suffix: "%",
       },
       {
-        title: t("settings.metricsDashboard.forward.performance.endpointCoverage", {
-          defaultValue: "Endpoint Coverage",
-        }),
+        title: t("settings.metricsDashboard.forward.performance.endpointCoverage"),
         value: endpointMetrics.length,
       },
     ];
@@ -504,21 +482,15 @@ const SystemSettingsMetricsTab: React.FC = () => {
       usageSummary
         ? [
             {
-              label: t("settings.metricsDashboard.skillsAndMcp.mix.coreTools", {
-                defaultValue: "Core Tools",
-              }),
+              label: t("settings.metricsDashboard.skillsAndMcp.mix.coreTools"),
               count: usageSummary.core_tool_calls,
             },
             {
-              label: t("settings.metricsDashboard.skillsAndMcp.mix.skillLoads", {
-                defaultValue: "Skill Loads",
-              }),
+              label: t("settings.metricsDashboard.skillsAndMcp.mix.skillLoads"),
               count: usageSummary.skill_load_calls,
             },
             {
-              label: t("settings.metricsDashboard.skillsAndMcp.mix.mcpCalls", {
-                defaultValue: "MCP Calls",
-              }),
+              label: t("settings.metricsDashboard.skillsAndMcp.mix.mcpCalls"),
               count: usageSummary.mcp_calls,
             },
           ].filter((item) => item.count > 0)
@@ -541,7 +513,6 @@ const SystemSettingsMetricsTab: React.FC = () => {
         label: item.server_id,
         count: item.count,
         meta: t("settings.metricsDashboard.skillsAndMcp.meta.uniqueTools", {
-          defaultValue: "{{count}} tools",
           count: item.unique_tools,
         }),
       })),
@@ -665,15 +636,10 @@ const SystemSettingsMetricsTab: React.FC = () => {
                     <Card
                       size="small"
                       className="lotus-metric-card"
-                      title={t("settings.metricsDashboard.overviewSections.scaleTitle", {
-                        defaultValue: "Scale & Activity",
-                      })}
+                      title={t("settings.metricsDashboard.overviewSections.scaleTitle")}
                       extra={
                         <Text type="secondary">
-                          {t("settings.metricsDashboard.overviewSections.scaleSubtitle", {
-                            defaultValue:
-                              "Current usage volume across chat, forward, skills, and memory.",
-                          })}
+                          {t("settings.metricsDashboard.overviewSections.scaleSubtitle")}
                         </Text>
                       }
                     >
@@ -687,15 +653,10 @@ const SystemSettingsMetricsTab: React.FC = () => {
                     <Card
                       size="small"
                       className="lotus-metric-card"
-                      title={t("settings.metricsDashboard.overviewSections.efficiencyTitle", {
-                        defaultValue: "Compression & Efficiency Advantage",
-                      })}
+                      title={t("settings.metricsDashboard.overviewSections.efficiencyTitle")}
                       extra={
                         <Text type="secondary">
-                          {t("settings.metricsDashboard.overviewSections.efficiencySubtitle", {
-                            defaultValue:
-                              "Real savings from context compression, especially around tool-heavy workflows.",
-                          })}
+                          {t("settings.metricsDashboard.overviewSections.efficiencySubtitle")}
                         </Text>
                       }
                     >
@@ -733,10 +694,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
                         type="secondary"
                         style={{ display: "block", marginTop: token.marginXS }}
                       >
-                        {t("settings.metricsDashboard.efficiencyHint", {
-                          defaultValue:
-                            "这些指标优先使用真实运行统计：总节约 Tokens、工具上下文压缩节约、非工具压缩节约、压缩事件数，以及会话 / Forward 的平均负载与质量指标。",
-                        })}
+                        {t("settings.metricsDashboard.efficiencyHint")}
                       </Text>
                     </Card>
                   </Space>
@@ -744,7 +702,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
               },
               {
                 key: "chat",
-                label: t("settings.metricsDashboard.tabs.chat", { defaultValue: "Chat" }),
+                label: t("settings.metricsDashboard.tabs.chat"),
                 children: (
                   <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
                     <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
@@ -811,83 +769,47 @@ const SystemSettingsMetricsTab: React.FC = () => {
               },
               {
                 key: "skills-and-mcp",
-                label: t("settings.metricsDashboard.tabs.skillsAndMcp", {
-                  defaultValue: "Skills & MCP",
-                }),
+                label: t("settings.metricsDashboard.tabs.skillsAndMcp"),
                 children: (
                   <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
                     <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
                     <div style={responsiveGridStyle(token.marginSM, 360)}>
                       <TopUsageBarCard
-                        title={t("settings.metricsDashboard.skillsAndMcp.usageMixTitle", {
-                          defaultValue: "Usage Mix",
-                        })}
-                        subtitle={t("settings.metricsDashboard.skillsAndMcp.usageMixSubtitle", {
-                          defaultValue:
-                            "Compare core tools, skill loads, and MCP calls in one view.",
-                        })}
-                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noUsageMix", {
-                          defaultValue: "No usage data available for this range.",
-                        })}
+                        title={t("settings.metricsDashboard.skillsAndMcp.usageMixTitle")}
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.usageMixSubtitle")}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noUsageMix")}
                         data={usageMixData}
                         loading={isUsageLoading}
                         color="var(--lotus-chart-primary)"
                       />
                       <TopUsageBarCard
-                        title={t("settings.metricsDashboard.skillsAndMcp.topSkillsTitle", {
-                          defaultValue: "Top Skills",
-                        })}
-                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topSkillsSubtitle", {
-                          defaultValue: "Counted from load_skill calls during matching sessions.",
-                        })}
-                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noSkills", {
-                          defaultValue: "No skills were loaded in this range.",
-                        })}
+                        title={t("settings.metricsDashboard.skillsAndMcp.topSkillsTitle")}
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topSkillsSubtitle")}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noSkills")}
                         data={topSkillData}
                         loading={isUsageLoading}
                         color="var(--lotus-chart-purple)"
                       />
                       <TopUsageBarCard
-                        title={t("settings.metricsDashboard.skillsAndMcp.topMcpServersTitle", {
-                          defaultValue: "Top MCP Servers",
-                        })}
-                        subtitle={t(
-                          "settings.metricsDashboard.skillsAndMcp.topMcpServersSubtitle",
-                          {
-                            defaultValue: "Server-level MCP call distribution.",
-                          },
-                        )}
-                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpServers", {
-                          defaultValue: "No MCP activity recorded for this range.",
-                        })}
+                        title={t("settings.metricsDashboard.skillsAndMcp.topMcpServersTitle")}
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpServersSubtitle")}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpServers")}
                         data={topMcpServerData}
                         loading={isUsageLoading}
                         color="var(--lotus-chart-cyan)"
                       />
                       <TopUsageBarCard
-                        title={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsTitle", {
-                          defaultValue: "Top MCP Tools",
-                        })}
-                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsSubtitle", {
-                          defaultValue: "Most frequently called MCP tool aliases.",
-                        })}
-                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpTools", {
-                          defaultValue: "No MCP tools were called in this range.",
-                        })}
+                        title={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsTitle")}
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topMcpToolsSubtitle")}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noMcpTools")}
                         data={topMcpToolData}
                         loading={isUsageLoading}
                         color="var(--lotus-chart-accent)"
                       />
                       <TopUsageBarCard
-                        title={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsTitle", {
-                          defaultValue: "Top Core Tools",
-                        })}
-                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsSubtitle", {
-                          defaultValue: "Canonicalized built-in and server tool usage ranking.",
-                        })}
-                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noCoreTools", {
-                          defaultValue: "No core tools were called in this range.",
-                        })}
+                        title={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsTitle")}
+                        subtitle={t("settings.metricsDashboard.skillsAndMcp.topCoreToolsSubtitle")}
+                        emptyText={t("settings.metricsDashboard.skillsAndMcp.noCoreTools")}
                         data={topCoreToolData}
                         loading={isUsageLoading}
                         color="var(--lotus-chart-secondary)"
@@ -898,16 +820,14 @@ const SystemSettingsMetricsTab: React.FC = () => {
               },
               {
                 key: "forward",
-                label: t("settings.metricsDashboard.tabs.forward", { defaultValue: "Forward" }),
+                label: t("settings.metricsDashboard.tabs.forward"),
                 children: (
                   <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
                     <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
                     <Card
                       size="small"
                       className="lotus-metric-card"
-                      title={t("settings.metricsDashboard.forward.performanceTitle", {
-                        defaultValue: "Forward Performance",
-                      })}
+                      title={t("settings.metricsDashboard.forward.performanceTitle")}
                     >
                       <Row gutter={[token.marginSM, token.marginSM]}>
                         {forwardPerformanceStats.map((metric) => (
@@ -944,7 +864,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
               },
               {
                 key: "memory",
-                label: t("settings.metricsDashboard.tabs.memory", { defaultValue: "Memory" }),
+                label: t("settings.metricsDashboard.tabs.memory"),
                 children: (
                   <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
                     <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
@@ -952,43 +872,23 @@ const SystemSettingsMetricsTab: React.FC = () => {
                     <Card
                       size="small"
                       className="lotus-metric-card"
-                      title={t("settings.metricsDashboard.memory.breakdownTitle", {
-                        defaultValue: "Memory Breakdown",
-                      })}
+                      title={t("settings.metricsDashboard.memory.breakdownTitle")}
                     >
                       <Descriptions size="small" bordered column={1}>
-                        <Descriptions.Item
-                          label={t("settings.metricsDashboard.memory.byType", {
-                            defaultValue: "By Type",
-                          })}
-                        >
+                        <Descriptions.Item label={t("settings.metricsDashboard.memory.byType")}>
                           {formatBreakdownText(memorySummary?.by_type)}
                         </Descriptions.Item>
-                        <Descriptions.Item
-                          label={t("settings.metricsDashboard.memory.byStatus", {
-                            defaultValue: "By Status",
-                          })}
-                        >
+                        <Descriptions.Item label={t("settings.metricsDashboard.memory.byStatus")}>
                           {formatBreakdownText(memorySummary?.by_status)}
                         </Descriptions.Item>
-                        <Descriptions.Item
-                          label={t("settings.metricsDashboard.memory.byScope", {
-                            defaultValue: "By Scope",
-                          })}
-                        >
+                        <Descriptions.Item label={t("settings.metricsDashboard.memory.byScope")}>
                           {formatBreakdownText(memorySummary?.by_scope)}
                         </Descriptions.Item>
-                        <Descriptions.Item
-                          label={t("settings.metricsDashboard.memory.lastDream", {
-                            defaultValue: "Last Dream",
-                          })}
-                        >
+                        <Descriptions.Item label={t("settings.metricsDashboard.memory.lastDream")}>
                           {formatTimestamp(memorySummary?.last_dream_at)}
                         </Descriptions.Item>
                         <Descriptions.Item
-                          label={t("settings.metricsDashboard.memory.lastReindex", {
-                            defaultValue: "Last Reindex",
-                          })}
+                          label={t("settings.metricsDashboard.memory.lastReindex")}
                         >
                           {formatTimestamp(memorySummary?.last_reindex_at)}
                         </Descriptions.Item>

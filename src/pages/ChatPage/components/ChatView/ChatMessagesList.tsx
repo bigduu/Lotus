@@ -211,7 +211,6 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
           aria-label={t("chat.compression.timelineAria", {
             detail: convertedEntry.label,
             time: timeLabel,
-            defaultValue: "{{detail}} at {{time}}",
           })}
           style={{
             margin: "6px 0 10px 0",
@@ -224,7 +223,7 @@ const ChatMessagesListComponent: React.FC<ChatMessagesListProps> = ({
           <Flex align="center" justify="space-between" gap={8} wrap>
             <Flex align="center" gap={8} wrap>
               <Tag color="gold" icon={<InboxOutlined />}>
-                {t("chat.compression.tag", "Context compressed")}
+                {t("chat.compression.tag")}
               </Tag>
               <Text strong style={{ fontSize: 12 }}>
                 {convertedEntry.label}

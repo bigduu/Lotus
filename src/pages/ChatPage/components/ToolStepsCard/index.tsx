@@ -467,7 +467,6 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
                       {t("components.toolSteps.fileChangeStats", {
                         added: fileChangeStats.added,
                         removed: fileChangeStats.removed,
-                        defaultValue: `Added ${fileChangeStats.added} lines, removed ${fileChangeStats.removed} lines`,
                       })}
                     </Text>
                     <FileChangeViewer
@@ -485,7 +484,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
                       style={{ padding: 0, height: "auto", fontSize: token.fontSizeSM - 1 }}
                       onClick={() => openDrawer(entry, "diff")}
                     >
-                      {t("components.toolSteps.viewFullDiff", { defaultValue: "View full diff" })}
+                      {t("components.toolSteps.viewFullDiff")}
                     </Button>
                   </div>
                 </div>
@@ -510,9 +509,7 @@ const ToolStepsCardComponent: React.FC<ToolStepsCardProps> = ({
                     }
                   >
                     {miniPreviewKind === "result"
-                      ? t("components.toolSteps.viewFullResult", {
-                          defaultValue: "View full result",
-                        })
+                      ? t("components.toolSteps.viewFullResult")
                       : t("components.toolSteps.viewFullOutput")}
                   </Button>
                 </div>

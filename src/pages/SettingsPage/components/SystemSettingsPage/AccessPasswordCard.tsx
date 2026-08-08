@@ -87,10 +87,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
 
   const helperText = useMemo(() => {
     if (credentialState === "from_env") {
-      return t(
-        "settings.configTab.accessPassword.helperFromEnv",
-        "The active verifier comes from the environment. It remains read-only unless you explicitly replace it.",
-      );
+      return t("settings.configTab.accessPassword.helperFromEnv");
     }
     if (!passwordEnabled) {
       return t("settings.configTab.accessPassword.helperNotEnabled");
@@ -195,9 +192,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
     try {
       const values = await form.validateFields();
       if (baseRevision === null) {
-        throw new Error(
-          t("settings.configTab.accessPassword.loadStatusFailed", "Failed to load access status"),
-        );
+        throw new Error(t("settings.configTab.accessPassword.loadStatusFailed"));
       }
       setIsSaving(true);
 
@@ -235,9 +230,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
 
   const handleClear = async () => {
     if (baseRevision === null) {
-      msgApi.error(
-        t("settings.configTab.accessPassword.loadStatusFailed", "Failed to load access status"),
-      );
+      msgApi.error(t("settings.configTab.accessPassword.loadStatusFailed"));
       return;
     }
     const currentPassword = form.getFieldValue("currentPassword")?.trim();
@@ -257,7 +250,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
         { current_password: currentPassword || undefined },
         baseRevision,
       );
-      msgApi.success(t("settings.configTab.accessPassword.cleared", "Access password cleared"));
+      msgApi.success(t("settings.configTab.accessPassword.cleared"));
       form.resetFields();
       baseMetadataRef.current = accessMetadata(result.envelope.data, result.credential.source);
       setBaseRevision(result.envelope.revision);
@@ -270,22 +263,17 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
         setSaveConflict(error.conflict);
         await loadStatus(true).catch(() => undefined);
       }
-      msgApi.error(
-        configErrorMessage(
-          error,
-          t("settings.configTab.accessPassword.clearFailed", "Failed to clear access password"),
-        ),
-      );
+      msgApi.error(configErrorMessage(error, t("settings.configTab.accessPassword.clearFailed")));
     } finally {
       setIsSaving(false);
     }
   };
 
   const credentialLabels: Record<AccessCredentialState, string> = {
-    configured: t("settings.configTab.accessPassword.credentialConfigured", "Configured"),
-    from_env: t("settings.configTab.accessPassword.credentialFromEnv", "From env"),
-    missing: t("settings.configTab.accessPassword.credentialMissing", "Missing"),
-    error: t("settings.configTab.accessPassword.credentialError", "Error"),
+    configured: t("settings.configTab.accessPassword.credentialConfigured"),
+    from_env: t("settings.configTab.accessPassword.credentialFromEnv"),
+    missing: t("settings.configTab.accessPassword.credentialMissing"),
+    error: t("settings.configTab.accessPassword.credentialError"),
   };
 
   return (
@@ -331,41 +319,30 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
             showIcon
             message={
               saveConflict
-                ? t(
-                    "settings.configTab.accessPassword.revisionConflict",
-                    "Access-control revision conflict",
-                  )
-                : t(
-                    "settings.configTab.accessPassword.changedExternally",
-                    "Access-control configuration changed externally",
-                  )
+                ? t("settings.configTab.accessPassword.revisionConflict")
+                : t("settings.configTab.accessPassword.changedExternally")
             }
             description={
               saveConflict
-                ? t(
-                    "settings.configTab.accessPassword.revisionConflictDescription",
-                    "Your draft expected revision {{expected}}; the server is at revision {{current}}. Password fields were preserved.",
-                    {
-                      expected: saveConflict.expectedRevision,
-                      current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
-                    },
-                  )
-                : t(
-                    "settings.configTab.accessPassword.changedExternallyDescription",
-                    "Revision {{base}} changed to {{latest}}. Password fields were preserved.",
-                    { base: baseRevision, latest: externalRevision },
-                  )
+                ? t("settings.configTab.accessPassword.revisionConflictDescription", {
+                    expected: saveConflict.expectedRevision,
+                    current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
+                  })
+                : t("settings.configTab.accessPassword.changedExternallyDescription", {
+                    base: baseRevision,
+                    latest: externalRevision,
+                  })
             }
             action={
               <Space wrap>
                 <Button size="small" onClick={() => void reloadLatest()}>
-                  {t("settings.configTab.accessPassword.reload", "Reload latest")}
+                  {t("settings.configTab.accessPassword.reload")}
                 </Button>
                 <Button size="small" onClick={() => setShowComparison((current) => !current)}>
-                  {t("settings.configTab.accessPassword.compare", "Compare")}
+                  {t("settings.configTab.accessPassword.compare")}
                 </Button>
                 <Button size="small" onClick={() => void reapplyLatest()}>
-                  {t("settings.configTab.accessPassword.reapply", "Reapply")}
+                  {t("settings.configTab.accessPassword.reapply")}
                 </Button>
               </Space>
             }
@@ -462,14 +439,8 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
             </Button>
             {passwordEnabled ? (
               <Popconfirm
-                title={t(
-                  "settings.configTab.accessPassword.clearConfirm",
-                  "Clear the access password?",
-                )}
-                description={t(
-                  "settings.configTab.accessPassword.clearConfirmDescription",
-                  "Password protection will be disabled. Paired device credentials are preserved.",
-                )}
+                title={t("settings.configTab.accessPassword.clearConfirm")}
+                description={t("settings.configTab.accessPassword.clearConfirmDescription")}
                 onConfirm={() => handleClear()}
                 okButtonProps={{ danger: true }}
               >
@@ -480,7 +451,7 @@ export const AccessPasswordCard: React.FC<AccessPasswordCardProps> = ({ msgApi }
                     baseRevision === null || externalRevision !== null || Boolean(saveConflict)
                   }
                 >
-                  {t("settings.configTab.accessPassword.clearAction", "Clear password")}
+                  {t("settings.configTab.accessPassword.clearAction")}
                 </Button>
               </Popconfirm>
             ) : null}

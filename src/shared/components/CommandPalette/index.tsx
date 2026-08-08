@@ -18,6 +18,7 @@ import {
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
+import { getActiveLocaleTag } from "@shared/i18n/dateFnsLocale";
 import { useAppStore } from "@shared/store/appStore";
 import { isBusyPhase } from "@shared/store/appStore/slices/executionStateSlice";
 import { openSession } from "@shared/utils/openSession";
@@ -105,9 +106,7 @@ const SETTINGS_ACTIONS: Array<{
   id: string;
   tabKey: SettingsTabKey;
   titleKey: string;
-  fallbackTitle: string;
   subtitleKey?: string;
-  fallbackSubtitle?: string;
   badge?: string;
   keywords?: string[];
 }> = [
@@ -115,9 +114,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-provider",
     tabKey: "provider",
     titleKey: "commandPalette.actions.openProviderSettings",
-    fallbackTitle: "Open Provider Settings",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "AI",
     keywords: ["api", "key", "openai", "anthropic", "gemini", "model"],
   },
@@ -125,9 +122,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-model-limits",
     tabKey: "model-limits",
     titleKey: "commandPalette.actions.openModelLimits",
-    fallbackTitle: "Open Model Limits",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "AI",
     keywords: ["token", "context", "window", "budget", "limit"],
   },
@@ -135,9 +130,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-prompts",
     tabKey: "prompts",
     titleKey: "commandPalette.actions.openPrompts",
-    fallbackTitle: "Open System Prompts",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "AI",
     keywords: ["system", "prompt", "persona", "instruction"],
   },
@@ -145,9 +138,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-skills",
     tabKey: "skills",
     titleKey: "commandPalette.actions.openSkills",
-    fallbackTitle: "Open Skills",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "Tools",
     keywords: ["skill", "capability", "plugin"],
   },
@@ -155,9 +146,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-mcp",
     tabKey: "mcp",
     titleKey: "commandPalette.actions.openMcpSettings",
-    fallbackTitle: "Open MCP Settings",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "Tools",
     keywords: ["mcp", "server", "tool", "external"],
   },
@@ -165,9 +154,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-workflows",
     tabKey: "workflows",
     titleKey: "commandPalette.actions.openWorkflowSettings",
-    fallbackTitle: "Open Workflow Settings",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "Tools",
     keywords: ["workflow", "automation", "template"],
   },
@@ -175,9 +162,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-hooks",
     tabKey: "hooks",
     titleKey: "commandPalette.actions.openHooks",
-    fallbackTitle: "Open Hooks",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "Tools",
     keywords: ["hook", "event", "trigger", "callback"],
   },
@@ -185,9 +170,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-schedules",
     tabKey: "schedules",
     titleKey: "commandPalette.actions.openSchedulesSettings",
-    fallbackTitle: "Open Schedules",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "Ops",
     keywords: ["schedule", "cron", "recurring", "timer", "automated"],
   },
@@ -195,9 +178,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-sessions",
     tabKey: "sessions",
     titleKey: "commandPalette.actions.openSessionsSettings",
-    fallbackTitle: "Open Session Monitor",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "Monitor",
     keywords: ["session", "monitor", "cleanup", "history"],
   },
@@ -205,9 +186,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-metrics",
     tabKey: "metrics",
     titleKey: "commandPalette.actions.openMetrics",
-    fallbackTitle: "Open Metrics Dashboard",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "Monitor",
     keywords: ["metrics", "dashboard", "analytics", "usage", "stats"],
   },
@@ -215,9 +194,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-masking",
     tabKey: "masking",
     titleKey: "commandPalette.actions.openMasking",
-    fallbackTitle: "Open Keyword Masking",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "Security & privacy",
     badge: "Security",
     keywords: ["mask", "redact", "privacy", "keyword", "sensitive"],
   },
@@ -225,9 +202,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-env",
     tabKey: "env-vars",
     titleKey: "commandPalette.actions.openEnvVars",
-    fallbackTitle: "Open Environment Variables",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "System",
     keywords: ["env", "environment", "variable", "config"],
   },
@@ -235,9 +210,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-config",
     tabKey: "config",
     titleKey: "commandPalette.actions.openConfig",
-    fallbackTitle: "Open Configuration",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "System",
     keywords: ["config", "json", "bamboo", "data", "path"],
   },
@@ -245,9 +218,7 @@ const SETTINGS_ACTIONS: Array<{
     id: "settings-app",
     tabKey: "app",
     titleKey: "commandPalette.actions.openAppSettings",
-    fallbackTitle: "Open App Settings",
     subtitleKey: "commandPalette.groups.settings",
-    fallbackSubtitle: "System settings",
     badge: "System",
     keywords: ["app", "application", "reset", "theme", "language"],
   },
@@ -278,7 +249,7 @@ const getSessionSubtitle = (
   }
   if (chat.updatedAt) {
     try {
-      segments.push(new Date(chat.updatedAt).toLocaleString());
+      segments.push(new Date(chat.updatedAt).toLocaleString(getActiveLocaleTag()));
     } catch {
       segments.push(chat.updatedAt);
     }
@@ -417,11 +388,8 @@ export const CommandPalette: React.FC = () => {
     }).map((item) => ({
       id: item.id,
       kind: "action",
-      title: t(item.titleKey, item.fallbackTitle),
-      subtitle: t(
-        item.subtitleKey || "commandPalette.groups.settings",
-        item.fallbackSubtitle || "System settings",
-      ),
+      title: t(item.titleKey),
+      subtitle: t(item.subtitleKey || "commandPalette.groups.settings"),
       keywords: [item.tabKey, item.badge || "", "settings", "config", ...(item.keywords || [])],
       icon: <SettingOutlined />,
       badge: item.badge,
@@ -434,11 +402,11 @@ export const CommandPalette: React.FC = () => {
       {
         id: "new-session",
         kind: "action",
-        title: t("commandPalette.actions.newSession", "Create New Session"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+        title: t("commandPalette.actions.newSession"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["new", "create", "session", "chat", "conversation"],
         icon: <PlusOutlined />,
-        badge: t("commandPalette.badges.quickAction", "Action"),
+        badge: t("commandPalette.badges.quickAction"),
         onSelect: async () => {
           await createNewSession();
         },
@@ -448,9 +416,9 @@ export const CommandPalette: React.FC = () => {
         kind: "action",
         title:
           themeMode === "dark"
-            ? t("commandPalette.actions.switchToLight", "Switch to Light Mode")
-            : t("commandPalette.actions.switchToDark", "Switch to Dark Mode"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+            ? t("commandPalette.actions.switchToLight")
+            : t("commandPalette.actions.switchToDark"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["theme", "dark", "light", "mode", "appearance", "toggle", "color"],
         icon: <BgColorsOutlined />,
         badge: themeMode === "dark" ? "☀️" : "🌙",
@@ -462,9 +430,9 @@ export const CommandPalette: React.FC = () => {
         id: "toggle-sidebar",
         kind: "action",
         title: sidebarCollapsed
-          ? t("commandPalette.actions.showSidebar", "Show Sidebar")
-          : t("commandPalette.actions.hideSidebar", "Hide Sidebar"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+          ? t("commandPalette.actions.showSidebar")
+          : t("commandPalette.actions.hideSidebar"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["sidebar", "toggle", "hide", "show", "panel", "menu"],
         icon: sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />,
         badge: "Layout",
@@ -475,11 +443,11 @@ export const CommandPalette: React.FC = () => {
       {
         id: "open-agenda",
         kind: "action",
-        title: t("commandPalette.actions.openAgenda", "Open Agenda"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+        title: t("commandPalette.actions.openAgenda"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["agenda", "ledger", "todo", "task", "reminder", "event", "habit", "due"],
         icon: <CalendarOutlined />,
-        badge: t("commandPalette.badges.quickAction", "Action"),
+        badge: t("commandPalette.badges.quickAction"),
         onSelect: () => {
           useLedgerViewStore.getState().open();
         },
@@ -487,8 +455,8 @@ export const CommandPalette: React.FC = () => {
       {
         id: "split-pane",
         kind: "action",
-        title: t("commandPalette.actions.splitPane", "Split Pane"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+        title: t("commandPalette.actions.splitPane"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["split", "pane", "multi", "dual", "side", "layout"],
         icon: <LayoutOutlined />,
         badge: "Layout",
@@ -506,9 +474,9 @@ export const CommandPalette: React.FC = () => {
         kind: "action",
         title:
           experienceMode === "simple"
-            ? t("commandPalette.actions.switchToAdvanced", "Switch to Advanced Mode")
-            : t("commandPalette.actions.switchToSimple", "Switch to Simple Mode"),
-        subtitle: t("commandPalette.groups.quickActions", "Quick actions"),
+            ? t("commandPalette.actions.switchToAdvanced")
+            : t("commandPalette.actions.switchToSimple"),
+        subtitle: t("commandPalette.groups.quickActions"),
         keywords: ["mode", "simple", "advanced", "beginner", "expert", "experience", "complexity"],
         icon: <ExperimentOutlined />,
         badge: experienceMode === "simple" ? "Simple" : "Advanced",
@@ -542,17 +510,17 @@ export const CommandPalette: React.FC = () => {
         title: chat.title,
         subtitle: getSessionSubtitle(
           chat,
-          t("commandPalette.badges.childSession", "Child session"),
-          t("commandPalette.badges.rootSession", "Session"),
+          t("commandPalette.badges.childSession"),
+          t("commandPalette.badges.rootSession"),
         ),
         keywords: buildSessionKeywords(chat, isRunning),
         icon: <MessageOutlined />,
         badge: chat.pinned
-          ? t("commandPalette.badges.pinned", "Pinned")
+          ? t("commandPalette.badges.pinned")
           : isRunning
-            ? t("commandPalette.badges.running", "Running")
+            ? t("commandPalette.badges.running")
             : chat.kind === "child"
-              ? t("commandPalette.badges.child", "Child")
+              ? t("commandPalette.badges.child")
               : undefined,
         onSelect: () => {
           openSession(chat.id);
@@ -641,9 +609,7 @@ export const CommandPalette: React.FC = () => {
           } catch (error) {
             console.error("[CommandPalette] action failed", error);
             message.error(
-              error instanceof Error
-                ? error.message
-                : t("commandPalette.errors.actionFailed", "Command failed"),
+              error instanceof Error ? error.message : t("commandPalette.errors.actionFailed"),
             );
           }
         })();
@@ -726,14 +692,8 @@ export const CommandPalette: React.FC = () => {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             variant="borderless"
-            placeholder={t(
-              "commandPalette.searchPlaceholder",
-              "Search sessions, settings, and actions",
-            )}
-            aria-label={t(
-              "commandPalette.searchPlaceholder",
-              "Search sessions, settings, and actions",
-            )}
+            placeholder={t("commandPalette.searchPlaceholder")}
+            aria-label={t("commandPalette.searchPlaceholder")}
             role="combobox"
             aria-expanded={true}
             aria-controls="lotus-command-palette-listbox"
@@ -757,12 +717,7 @@ export const CommandPalette: React.FC = () => {
 
         <div className="lotus-command-palette-hint">
           <ClockCircleOutlined />
-          <span>
-            {t(
-              "commandPalette.navigationHint",
-              "Use ↑↓ to navigate, Enter to open, and Esc to close.",
-            )}
-          </span>
+          <span>{t("commandPalette.navigationHint")}</span>
         </div>
 
         <div
@@ -774,7 +729,7 @@ export const CommandPalette: React.FC = () => {
           {filteredActions.length === 0 ? (
             <div className="lotus-command-palette-empty">
               <AppstoreOutlined />
-              <span>{t("commandPalette.empty", "No matching commands")}</span>
+              <span>{t("commandPalette.empty")}</span>
             </div>
           ) : (
             filteredActions.map((action, index) => {
@@ -800,7 +755,7 @@ export const CommandPalette: React.FC = () => {
                         message.error(
                           error instanceof Error
                             ? error.message
-                            : t("commandPalette.errors.actionFailed", "Command failed"),
+                            : t("commandPalette.errors.actionFailed"),
                         );
                       }
                     })();

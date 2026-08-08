@@ -103,6 +103,26 @@ describe("LedgerDrawer", () => {
   );
 
   it(
+    "uses the raw value as the label for an unknown extensible record kind",
+    async () => {
+      mockGetAgenda.mockResolvedValue({
+        generated_at: "2026-07-13T08:00:00Z",
+        overdue: [],
+        today: [],
+        upcoming: [],
+        undated: [agendaItem({ id: "rec-custom", kind: "meeting", title: "Design sync" })],
+      });
+
+      render(<LedgerDrawer />);
+
+      const row = await screen.findByTestId("ledger-item-rec-custom");
+      expect(within(row).getByText("meeting")).toBeInTheDocument();
+      expect(within(row).queryByText("ledger.kinds.meeting")).not.toBeInTheDocument();
+    },
+    LEDGER_UI_TEST_TIMEOUT_MS,
+  );
+
+  it(
     "updates the trigger badge count from overdue + today",
     async () => {
       render(<LedgerDrawer />);

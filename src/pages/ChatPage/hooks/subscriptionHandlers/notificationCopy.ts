@@ -17,7 +17,7 @@ export function notificationTitleForCategory(category?: string): string | null {
     case "needs_clarification":
       return i18n.t("app.notifications.clarification.title");
     case "needs_approval":
-      return i18n.t("app.notifications.toolApproval.genericTitle", "Approval required");
+      return i18n.t("app.notifications.toolApproval.genericTitle");
     case "context_critical":
       return i18n.t("app.notifications.contextPressure.title");
     case "subagent_completed":

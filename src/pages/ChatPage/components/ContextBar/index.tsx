@@ -83,7 +83,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
             project
               ? t("chat.contextBar.projectTooltip", {
                   name: project.name,
-                  defaultValue: "Session Project: {{name}}. Click to change.",
                 })
               : t("chat.project.sessionModalDescription")
           }
@@ -104,9 +103,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
             }}
             style={{ cursor: "pointer" }}
           >
-            <span className="lotus-context-bar__tag-label">
-              {t("chat.contextBar.project", { defaultValue: "Project" })}
-            </span>
+            <span className="lotus-context-bar__tag-label">{t("chat.contextBar.project")}</span>
             {project?.name ?? t("chat.project.selectForSession")}
           </Tag>
         </Tooltip>
@@ -115,13 +112,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
           <Tooltip
             title={t("chat.contextBar.workspaceTooltip", {
               path: workspacePath,
-              defaultValue: "Workspace context: {{path}}",
             })}
           >
             <Tag className="lotus-context-bar__tag" icon={<FolderOutlined />} bordered={false}>
-              <span className="lotus-context-bar__tag-label">
-                {t("chat.contextBar.workspace", { defaultValue: "Workspace" })}
-              </span>
+              <span className="lotus-context-bar__tag-label">{t("chat.contextBar.workspace")}</span>
               {shortenPath(workspacePath)}
             </Tag>
           </Tooltip>
@@ -131,13 +125,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
           <Tooltip
             title={t("chat.contextBar.fileRefsTooltip", {
               count: fileRefCount,
-              defaultValue: "{{count}} file reference(s) in this session",
             })}
           >
             <Tag className="lotus-context-bar__tag" icon={<FileOutlined />} bordered={false}>
-              <span className="lotus-context-bar__tag-label">
-                {t("chat.contextBar.files", { defaultValue: "Files" })}
-              </span>
+              <span className="lotus-context-bar__tag-label">{t("chat.contextBar.files")}</span>
               {fileRefCount}
             </Tag>
           </Tooltip>
@@ -147,13 +138,10 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
           <Tooltip
             title={t("chat.contextBar.promptTooltip", {
               name: systemPromptName,
-              defaultValue: "System prompt: {{name}}",
             })}
           >
             <Tag className="lotus-context-bar__tag" icon={<CodeOutlined />} bordered={false}>
-              <span className="lotus-context-bar__tag-label">
-                {t("chat.contextBar.prompt", { defaultValue: "Prompt" })}
-              </span>
+              <span className="lotus-context-bar__tag-label">{t("chat.contextBar.prompt")}</span>
               {systemPromptName}
             </Tag>
           </Tooltip>
@@ -164,8 +152,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
             title={t("chat.contextBar.summaryTooltip", {
               tokens: formatTokenCount(summaryTokens),
               count: compressionCount,
-              defaultValue:
-                "Conversation summary contributes {{tokens}} tokens. {{count}} compression event(s) archived older messages.",
             })}
           >
             <Tag
@@ -174,7 +160,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
               bordered={false}
               color="gold"
             >
-              {t("chat.contextBar.summary", { defaultValue: "Summary" })}
+              {t("chat.contextBar.summary")}
             </Tag>
           </Tooltip>
         )}
@@ -184,8 +170,6 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
             title={t("chat.contextBar.promptCacheTooltip", {
               count: promptCachedToolOutputs,
               tokens: formatTokenCount(promptCachedToolTokensSaved),
-              defaultValue:
-                "{{count}} tool output(s) were compacted into prompt-side cache notes, saving {{tokens}} tokens.",
             })}
           >
             <Tag
@@ -195,7 +179,7 @@ export const ContextBar: React.FC<ContextBarProps> = ({ sessionId }) => {
               color="green"
             >
               <span className="lotus-context-bar__tag-label">
-                {t("chat.contextBar.promptCache", { defaultValue: "Prompt cache" })}
+                {t("chat.contextBar.promptCache")}
               </span>
               {promptCachedToolTokensSaved > 0
                 ? formatCompactTokenCount(promptCachedToolTokensSaved)
