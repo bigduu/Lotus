@@ -7,7 +7,6 @@ import { useShallow } from "zustand/react/shallow";
 import { selectChildren, selectPendingChildApprovals, useAppStore } from "@shared/store/appStore";
 import { openSession } from "@shared/utils/openSession";
 import { toolService } from "@services/tool/ToolService";
-import { useSubagentProfiles } from "../../hooks/useSubagentProfiles";
 import InlineMetaText from "@shared/components/InlineMetaText";
 import { SubAgentRow, type SubAgentRetryMode, type SubAgentRowData } from "./SubAgentRow";
 
@@ -182,7 +181,6 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
   const applyChildProgress = useAppStore((s) => s.applyChildProgress);
   const clearChildProgress = useAppStore((s) => s.clearChildProgress);
 
-  const { byId: subagentProfilesById } = useSubagentProfiles();
   const previousMergedItemsByIdRef = useRef<Map<string, MergedSubAgentItem>>(new Map());
 
   const progressItems = useMemo(() => {
@@ -569,7 +567,6 @@ export const SubAgentsPanel: React.FC<SubAgentsPanelProps> = ({
       isRetrying={retryingChildId === it.childSessionId}
       isContinuing={continuingChildId === it.childSessionId}
       isDeleting={deletingChildId === it.childSessionId}
-      subagentProfilesById={subagentProfilesById}
       onOpenChild={handleOpenChild}
       onContinueChild={handleContinueChild}
       onRetryChild={handleRetryChild}
