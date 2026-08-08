@@ -13,9 +13,10 @@ import { zhCnTranslation } from "../resources/zh-CN";
  *   zh-TW spreads from zh-CN), so a key that is simply absent from a *spread*
  *   locale is not a bug: it inherits the base-locale string automatically.
  * - The two genuine bug classes this test guards against:
- *   1. A `t("a.b.c")` call site references a key that does not exist in
- *      en-US.ts at all — those keys silently render the literal fallback
- *      string (or the raw key) in EVERY locale, including English.
+ *   1. A `t("a.b.c")` call site, or a dynamic catalog's `*Key: "a.b.c"`
+ *      entry, references a key that does not exist in en-US.ts at all — those
+ *      keys silently render the literal fallback string (or the raw key) in
+ *      EVERY locale, including English.
  *   2. A key exists in en-US.ts but is missing from zh-CN.ts — zh-CN users
  *      silently see English text because i18next's fallbackLng is en-US.
  *
@@ -64,20 +65,27 @@ function collectSourceFiles(dir: string, files: string[] = []): string[] {
 // `t` while intentionally allowing member access before `.t(...)`.
 const STATIC_T_CALL = /(?<![A-Za-z0-9_$])t\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
 
+// Dynamic catalogs pass a variable into t(), so the call itself cannot expose
+// the resource key. Their conventional `titleKey` / `labelKey` / `errorKey`
+// properties are still statically auditable.
+const STATIC_KEY_PROPERTY = /\b[A-Za-z][A-Za-z0-9]*Key\s*:\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
+
 function extractStaticKeys(): Map<string, { file: string; line: number }[]> {
   const keys = new Map<string, { file: string; line: number }[]>();
   for (const file of collectSourceFiles(SRC_ROOT)) {
     const content = readFileSync(file, "utf8");
-    let match: RegExpExecArray | null;
-    STATIC_T_CALL.lastIndex = 0;
-    while ((match = STATIC_T_CALL.exec(content))) {
-      const [, quote, raw] = match;
-      if (quote === "`" && raw.includes("${")) continue; // dynamic template, not a static key
-      if (!/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)+$/.test(raw)) continue; // not a dotted i18n key
-      const line = content.slice(0, match.index).split("\n").length;
-      const rel = path.relative(SRC_ROOT, file);
-      if (!keys.has(raw)) keys.set(raw, []);
-      keys.get(raw)!.push({ file: rel, line });
+    for (const pattern of [STATIC_T_CALL, STATIC_KEY_PROPERTY]) {
+      let match: RegExpExecArray | null;
+      pattern.lastIndex = 0;
+      while ((match = pattern.exec(content))) {
+        const [, quote, raw] = match;
+        if (quote === "`" && raw.includes("${")) continue; // dynamic template, not a static key
+        if (!/^[a-zA-Z0-9_]+(\.[a-zA-Z0-9_]+)+$/.test(raw)) continue; // not a dotted i18n key
+        const line = content.slice(0, match.index).split("\n").length;
+        const rel = path.relative(SRC_ROOT, file);
+        if (!keys.has(raw)) keys.set(raw, []);
+        keys.get(raw)!.push({ file: rel, line });
+      }
     }
   }
   return keys;
@@ -122,7 +130,17 @@ describe("i18n key coverage (Lotus #11 regression guard)", () => {
     expect(staticKeys.size).toBeGreaterThan(500);
   });
 
-  it("every statically-referenced t() key exists in en-US.ts", () => {
+  it("extracts keys stored in indirect translation catalogs", () => {
+    expect([...staticKeys.keys()]).toEqual(
+      expect.arrayContaining([
+        "chat.emptyLauncher.categories.development",
+        "commandPalette.actions.openAppSettings",
+        "feedback.retry.actionable",
+      ]),
+    );
+  });
+
+  it("every statically-referenced translation key exists in en-US.ts", () => {
     const missing: string[] = [];
     for (const [key, sites] of staticKeys) {
       if (isDynamicPrefixed(key)) continue;
@@ -135,7 +153,7 @@ describe("i18n key coverage (Lotus #11 regression guard)", () => {
 
     expect(
       missing,
-      `The following keys are referenced via t() but do not exist in en-US.ts.\n` +
+      `The following keys are referenced via t() or an indirect catalog but do not exist in en-US.ts.\n` +
         `They silently render only their fallback string (or the raw key) in every locale:\n` +
         missing.join("\n"),
     ).toEqual([]);

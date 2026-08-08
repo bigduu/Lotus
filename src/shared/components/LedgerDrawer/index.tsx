@@ -141,7 +141,7 @@ const LedgerItemRow: React.FC<{ item: LedgerListItem; actions: RowActions }> = (
             color={kindTagColor(item.kind)}
             style={{ marginInlineEnd: 0 }}
           >
-            {t(`ledger.kinds.${item.kind}`)}
+            {t(`ledger.kinds.${item.kind}`, { defaultValue: item.kind })}
           </Tag>
           <Tag color={priorityTagColor(item.priority)} style={{ marginInlineEnd: 0 }}>
             {t(`ledger.priorities.${item.priority}`)}

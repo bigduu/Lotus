@@ -155,12 +155,12 @@ const CATEGORY_ORDER: TemplateCategory[] = [
   "operations",
 ];
 
-const CATEGORY_LABEL_KEYS: Record<TemplateCategory, string> = {
-  development: "chat.emptyLauncher.categories.development",
-  debugging: "chat.emptyLauncher.categories.debugging",
-  analysis: "chat.emptyLauncher.categories.analysis",
-  documentation: "chat.emptyLauncher.categories.documentation",
-  operations: "chat.emptyLauncher.categories.operations",
+const CATEGORY_LABELS: Record<TemplateCategory, { labelKey: string }> = {
+  development: { labelKey: "chat.emptyLauncher.categories.development" },
+  debugging: { labelKey: "chat.emptyLauncher.categories.debugging" },
+  analysis: { labelKey: "chat.emptyLauncher.categories.analysis" },
+  documentation: { labelKey: "chat.emptyLauncher.categories.documentation" },
+  operations: { labelKey: "chat.emptyLauncher.categories.operations" },
 };
 
 const resolveDefaultPromptConfig = (
@@ -603,7 +603,7 @@ export const EmptyTaskLauncher: React.FC<EmptyTaskLauncherProps> = ({
         {CATEGORY_ORDER.map((category) => {
           const items = groupedByCategory[category];
           if (!items || items.length === 0) return null;
-          const labelKey = CATEGORY_LABEL_KEYS[category];
+          const { labelKey } = CATEGORY_LABELS[category];
           return (
             <div key={category} className="lotus-empty-task-launcher__category">
               <Typography.Text

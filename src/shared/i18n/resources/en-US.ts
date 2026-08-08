@@ -58,6 +58,11 @@ export const enUsTranslation = {
     feedback: {
       helpful: "Helpful",
       notHelpful: "Not helpful",
+      retry: {
+        shorter: "Shorter",
+        deeper: "Deeper",
+        actionable: "More actionable",
+      },
     },
     sessionSummary: {
       title: "Session Summary",
@@ -100,10 +105,19 @@ export const enUsTranslation = {
         newSession: "Create New Session",
         openAgenda: "Open Agenda",
         openProviderSettings: "Open Provider Settings",
+        openModelLimits: "Open Model Limits",
+        openPrompts: "Open System Prompts",
+        openSkills: "Open Skills",
         openMcpSettings: "Open MCP Settings",
         openWorkflowSettings: "Open Workflow Settings",
+        openHooks: "Open Hooks",
         openSessionsSettings: "Open Session Monitor",
         openSchedulesSettings: "Open Schedules",
+        openMetrics: "Open Metrics Dashboard",
+        openMasking: "Open Keyword Masking",
+        openEnvVars: "Open Environment Variables",
+        openConfig: "Open Configuration",
+        openAppSettings: "Open App Settings",
         switchToLight: "Switch to Light Mode",
         switchToDark: "Switch to Dark Mode",
         showSidebar: "Show Sidebar",
@@ -857,6 +871,13 @@ export const enUsTranslation = {
         subtitle:
           "Create a focused session in this pane and prefill the first message before you send it.",
         hint: "Nothing is sent automatically — you can edit the prompt first.",
+        categories: {
+          development: "Development",
+          debugging: "Debugging",
+          analysis: "Analysis",
+          documentation: "Documentation",
+          operations: "Operations",
+        },
         actions: {
           blank: {
             title: "Blank session",
