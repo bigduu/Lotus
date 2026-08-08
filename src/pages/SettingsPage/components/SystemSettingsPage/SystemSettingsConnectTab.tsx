@@ -325,12 +325,9 @@ const SystemSettingsConnectTab: React.FC = () => {
   return (
     <Card size="small" className="lotus-settings-card" loading={loading}>
       <Flex vertical gap={token.marginMD}>
-        <Text strong>{t("settings.connectTab.title", "Connect (IM Bridge)")}</Text>
+        <Text strong>{t("settings.connectTab.title")}</Text>
         <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-          {t(
-            "settings.connectTab.description",
-            "Drive Bamboo sessions from an external chat platform. Enabling a platform starts a persistent bridge; disabling removes it.",
-          )}
+          {t("settings.connectTab.description")}
         </Text>
 
         {loadError ? (
@@ -340,7 +337,7 @@ const SystemSettingsConnectTab: React.FC = () => {
             message={loadError}
             action={
               <Button size="small" onClick={() => void load()}>
-                {t("settings.connectTab.retry", "Retry")}
+                {t("settings.connectTab.retry")}
               </Button>
             }
           />
@@ -383,17 +380,17 @@ const SystemSettingsConnectTab: React.FC = () => {
 
             <Flex vertical gap={token.marginXS}>
               <Flex align="center" justify="space-between" gap={token.marginSM}>
-                <Text>{t("settings.connectTab.telegram.title", "Telegram")}</Text>
+                <Text>{t("settings.connectTab.telegram.title")}</Text>
                 <Switch
                   data-testid="connect-telegram-enabled"
                   checked={draft.telegramEnabled}
                   onChange={(checked) => patch({ telegramEnabled: checked })}
-                  aria-label={t("settings.connectTab.telegram.enable", "Enable Telegram bridge")}
+                  aria-label={t("settings.connectTab.telegram.enable")}
                 />
               </Flex>
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.connectTab.telegram.token", "Bot Token")}
+                  {t("settings.connectTab.telegram.token")}
                 </Text>
                 <Input.Password
                   data-testid="connect-telegram-token"
@@ -404,14 +401,8 @@ const SystemSettingsConnectTab: React.FC = () => {
                   }}
                   placeholder={
                     hasStoredTelegramToken
-                      ? t(
-                          "settings.connectTab.telegram.tokenPlaceholderConfigured",
-                          "Configured — leave blank to keep",
-                        )
-                      : t(
-                          "settings.connectTab.telegram.tokenPlaceholderEmpty",
-                          "Token from @BotFather",
-                        )
+                      ? t("settings.connectTab.telegram.tokenPlaceholderConfigured")
+                      : t("settings.connectTab.telegram.tokenPlaceholderEmpty")
                   }
                 />
               </label>
@@ -431,7 +422,7 @@ const SystemSettingsConnectTab: React.FC = () => {
               ) : null}
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.connectTab.telegram.allowFrom", "Allowed user IDs")}
+                  {t("settings.connectTab.telegram.allowFrom")}
                 </Text>
                 <Select<string[]>
                   data-testid="connect-telegram-allow-from"
@@ -440,19 +431,13 @@ const SystemSettingsConnectTab: React.FC = () => {
                   tokenSeparators={[",", " "]}
                   value={draft.telegramAllowFrom}
                   onChange={(value) => patch({ telegramAllowFrom: value })}
-                  placeholder={t(
-                    "settings.connectTab.telegram.allowFromPlaceholder",
-                    "Telegram numeric user ID",
-                  )}
+                  placeholder={t("settings.connectTab.telegram.allowFromPlaceholder")}
                   style={{ width: "100%" }}
                 />
               </label>
               {telegramDenyAll ? (
                 <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
-                  {t(
-                    "settings.connectTab.denyAllWarning",
-                    "No allowed users configured — every inbound message will be rejected until you add at least one ID.",
-                  )}
+                  {t("settings.connectTab.denyAllWarning")}
                 </Text>
               ) : null}
             </Flex>
@@ -461,23 +446,23 @@ const SystemSettingsConnectTab: React.FC = () => {
 
             <Flex vertical gap={token.marginXS}>
               <Flex align="center" justify="space-between" gap={token.marginSM}>
-                <Text>{t("settings.connectTab.feishu.title", "Feishu / Lark")}</Text>
+                <Text>{t("settings.connectTab.feishu.title")}</Text>
                 <Switch
                   data-testid="connect-feishu-enabled"
                   checked={draft.feishuEnabled}
                   onChange={(checked) => patch({ feishuEnabled: checked })}
-                  aria-label={t("settings.connectTab.feishu.enable", "Enable Feishu bridge")}
+                  aria-label={t("settings.connectTab.feishu.enable")}
                 />
               </Flex>
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.connectTab.feishu.appId", "App ID")}
+                  {t("settings.connectTab.feishu.appId")}
                 </Text>
                 <Input
                   data-testid="connect-feishu-app-id"
                   value={draft.feishuAppId}
                   onChange={(e) => patch({ feishuAppId: e.target.value })}
-                  placeholder={t("settings.connectTab.feishu.appIdPlaceholder", "cli_xxxxxxxx")}
+                  placeholder={t("settings.connectTab.feishu.appIdPlaceholder")}
                 />
               </label>
               {hasStoredFeishuSecret ? (
@@ -495,7 +480,7 @@ const SystemSettingsConnectTab: React.FC = () => {
               ) : null}
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.connectTab.feishu.appSecret", "App Secret")}
+                  {t("settings.connectTab.feishu.appSecret")}
                 </Text>
                 <Input.Password
                   data-testid="connect-feishu-app-secret"
@@ -506,35 +491,26 @@ const SystemSettingsConnectTab: React.FC = () => {
                   }}
                   placeholder={
                     hasStoredFeishuSecret
-                      ? t(
-                          "settings.connectTab.feishu.appSecretPlaceholderConfigured",
-                          "Configured — leave blank to keep",
-                        )
-                      : t(
-                          "settings.connectTab.feishu.appSecretPlaceholderEmpty",
-                          "App secret from the Feishu/Lark developer console",
-                        )
+                      ? t("settings.connectTab.feishu.appSecretPlaceholderConfigured")
+                      : t("settings.connectTab.feishu.appSecretPlaceholderEmpty")
                   }
                 />
               </label>
               {credentialStatus(storedFeishu?.app_secret_credential, hasStoredFeishuSecret)}
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.connectTab.feishu.domain", "Domain")}
+                  {t("settings.connectTab.feishu.domain")}
                 </Text>
                 <Input
                   data-testid="connect-feishu-domain"
                   value={draft.feishuDomain}
                   onChange={(e) => patch({ feishuDomain: e.target.value })}
-                  placeholder={t(
-                    "settings.connectTab.feishu.domainPlaceholder",
-                    "feishu (default), lark, or a private-deployment https:// base URL",
-                  )}
+                  placeholder={t("settings.connectTab.feishu.domainPlaceholder")}
                 />
               </label>
               <label>
                 <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.connectTab.feishu.allowFrom", "Allowed open IDs")}
+                  {t("settings.connectTab.feishu.allowFrom")}
                 </Text>
                 <Select<string[]>
                   data-testid="connect-feishu-allow-from"
@@ -543,19 +519,13 @@ const SystemSettingsConnectTab: React.FC = () => {
                   tokenSeparators={[",", " "]}
                   value={draft.feishuAllowFrom}
                   onChange={(value) => patch({ feishuAllowFrom: value })}
-                  placeholder={t(
-                    "settings.connectTab.feishu.allowFromPlaceholder",
-                    "Feishu open_id",
-                  )}
+                  placeholder={t("settings.connectTab.feishu.allowFromPlaceholder")}
                   style={{ width: "100%" }}
                 />
               </label>
               {feishuDenyAll ? (
                 <Text type="warning" style={{ fontSize: token.fontSizeSM }}>
-                  {t(
-                    "settings.connectTab.denyAllWarning",
-                    "No allowed users configured — every inbound message will be rejected until you add at least one ID.",
-                  )}
+                  {t("settings.connectTab.denyAllWarning")}
                 </Text>
               ) : null}
             </Flex>
@@ -567,7 +537,7 @@ const SystemSettingsConnectTab: React.FC = () => {
             <Flex align="center" justify="end" gap={token.marginSM}>
               {saved ? (
                 <Text type="success" style={{ fontSize: token.fontSizeSM }}>
-                  {t("settings.connectTab.saved", "Saved")}
+                  {t("settings.connectTab.saved")}
                 </Text>
               ) : null}
               <Button
@@ -577,9 +547,7 @@ const SystemSettingsConnectTab: React.FC = () => {
                 onClick={() => void save()}
                 disabled={saving}
               >
-                {saving
-                  ? t("settings.connectTab.saving", "Saving…")
-                  : t("settings.connectTab.save", "Save connect settings")}
+                {saving ? t("settings.connectTab.saving") : t("settings.connectTab.save")}
               </Button>
             </Flex>
           </>

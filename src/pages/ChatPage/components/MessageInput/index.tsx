@@ -197,7 +197,7 @@ export const MessageInput = React.memo<MessageInputProps>(
         <div
           className={`message-input-container lotus-message-input-shell ${isDragOver ? "is-drag-over" : ""}`}
           role="group"
-          aria-label={t("chat.input.messageComposer", "Message composer")}
+          aria-label={t("chat.input.messageComposer")}
           style={{
             position: "relative",
             border: `1px solid ${isDragOver ? "var(--lotus-input-border-active)" : "var(--lotus-input-border)"}`,

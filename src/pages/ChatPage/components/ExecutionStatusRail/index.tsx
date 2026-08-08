@@ -33,7 +33,6 @@ type StatusConfig = {
   icon: React.ReactNode;
   color: string;
   labelKey: string;
-  fallbackLabel: string;
   animate?: boolean;
 };
 
@@ -42,46 +41,39 @@ const STATUS_CONFIGS: Record<ExecutionState, StatusConfig> = {
     icon: <MinusCircleOutlined />,
     color: "default",
     labelKey: "chat.statusRail.idle",
-    fallbackLabel: "Ready",
   },
   thinking: {
     icon: <LoadingOutlined spin />,
     color: "processing",
     labelKey: "chat.statusRail.thinking",
-    fallbackLabel: "Thinking…",
     animate: true,
   },
   running_tools: {
     icon: <SyncOutlined spin />,
     color: "processing",
     labelKey: "chat.statusRail.runningTools",
-    fallbackLabel: "Running tools…",
     animate: true,
   },
   waiting_user_answer: {
     icon: <QuestionCircleOutlined />,
     color: "warning",
     labelKey: "chat.statusRail.waitingAnswer",
-    fallbackLabel: "Waiting for your answer",
   },
   running_children: {
     icon: <SyncOutlined spin />,
     color: "processing",
     labelKey: "chat.statusRail.runningChildren",
-    fallbackLabel: "Running sub-agents…",
     animate: true,
   },
   completed: {
     icon: <CheckCircleOutlined />,
     color: "success",
     labelKey: "chat.statusRail.completed",
-    fallbackLabel: "Completed",
   },
   error: {
     icon: <CloseCircleOutlined />,
     color: "error",
     labelKey: "chat.statusRail.error",
-    fallbackLabel: "Error",
   },
 };
 
@@ -155,7 +147,7 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
             bordered={false}
             className="lotus-execution-rail__status-tag"
           >
-            {t(config.labelKey, config.fallbackLabel)}
+            {t(config.labelKey)}
           </Tag>
         )}
 
@@ -166,7 +158,7 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
             bordered={false}
             className="lotus-execution-rail__status-tag"
           >
-            {t("chat.statusRail.evaluatingTasks", "Evaluating task progress…")}
+            {t("chat.statusRail.evaluatingTasks")}
           </Tag>
         )}
 
@@ -185,7 +177,6 @@ export const ExecutionStatusRail: React.FC<ExecutionStatusRailProps> = ({ sessio
             title={t("chat.statusRail.childrenTooltip", {
               running: model.runningChildCount,
               total: model.runningChildCount,
-              defaultValue: "{{running}} running sub-agents",
             })}
           >
             <Tag bordered={false} className="lotus-execution-rail__detail-tag">

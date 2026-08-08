@@ -183,7 +183,7 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   useEffect(() => {
     void loadSection("cluster-fabric").catch(() => {
-      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      message.error(t("settings.clusters.fetchError"));
     });
   }, [loadSection, message, t]);
 
@@ -222,7 +222,7 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   const openAddModal = () => {
     if (!envelope) {
-      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      message.error(t("settings.clusters.fetchError"));
       return;
     }
     const values = emptyNodeDraft();
@@ -239,7 +239,7 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   const openEditModal = (node: ClusterFabricNode) => {
     if (!envelope) {
-      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      message.error(t("settings.clusters.fetchError"));
       return;
     }
     const values = draftFromNode(node, nodeClusterName.get(node.id));
@@ -264,12 +264,7 @@ const SystemSettingsClustersTab: React.FC = () => {
         ? latestEnvelope.data.nodes.find((node) => node.id === editingId)
         : null;
       if (editingId && !latestNode) {
-        message.warning(
-          t(
-            "settings.clusters.removedExternally",
-            "This cluster node no longer exists in the latest configuration.",
-          ),
-        );
+        message.warning(t("settings.clusters.removedExternally"));
         closeModal();
         return;
       }
@@ -319,9 +314,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       const latest = await loadSection("cluster-fabric", { force: true });
       adoptModalEnvelope(latest, false);
     } catch (error) {
-      message.error(
-        configErrorMessage(error, t("settings.clusters.fetchError", "Failed to load clusters")),
-      );
+      message.error(configErrorMessage(error, t("settings.clusters.fetchError")));
     }
   }, [adoptModalEnvelope, loadSection, message, t]);
 
@@ -330,9 +323,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       const latest = await loadSection("cluster-fabric", { force: true });
       adoptModalEnvelope(latest, true);
     } catch (error) {
-      message.error(
-        configErrorMessage(error, t("settings.clusters.fetchError", "Failed to load clusters")),
-      );
+      message.error(configErrorMessage(error, t("settings.clusters.fetchError")));
     }
   }, [adoptModalEnvelope, loadSection, message, t]);
 
@@ -423,7 +414,7 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   const handleSave = async (values: NodeFormValues) => {
     if (modalBaseRevision === null) {
-      message.error(t("settings.clusters.fetchError", "Failed to load clusters"));
+      message.error(t("settings.clusters.fetchError"));
       return;
     }
     const request: ClusterNodeMutation = {
@@ -443,11 +434,7 @@ const SystemSettingsClustersTab: React.FC = () => {
 
     try {
       await saveClusterNode(editingId, request, modalBaseRevision);
-      message.success(
-        editingId
-          ? t("settings.clusters.updated", "Node updated")
-          : t("settings.clusters.created", "Node created"),
-      );
+      message.success(editingId ? t("settings.clusters.updated") : t("settings.clusters.created"));
       closeModal();
     } catch (error: unknown) {
       if (error instanceof ConfigConflictError) {
@@ -459,9 +446,7 @@ const SystemSettingsClustersTab: React.FC = () => {
           // Keep the original conflict visible when the diagnostic refresh fails.
         }
       }
-      message.error(
-        configErrorMessage(error, t("settings.clusters.saveError", "Failed to save node")),
-      );
+      message.error(configErrorMessage(error, t("settings.clusters.saveError")));
     }
   };
 
@@ -471,11 +456,9 @@ const SystemSettingsClustersTab: React.FC = () => {
     if (!envelope) return;
     try {
       await deleteClusterNode(id, envelope.revision);
-      message.success(t("settings.clusters.deleted", "Node deleted"));
+      message.success(t("settings.clusters.deleted"));
     } catch (err: unknown) {
-      message.error(
-        configErrorMessage(err, t("settings.clusters.deleteError", "Failed to delete node")),
-      );
+      message.error(configErrorMessage(err, t("settings.clusters.deleteError")));
     }
   };
 
@@ -487,11 +470,11 @@ const SystemSettingsClustersTab: React.FC = () => {
       const preflight = action === "test" ? (res.preflight ?? "") : "";
       message.success(
         preflight
-          ? t("settings.clusters.testOk", "Reachable: {{info}}", { info: preflight })
-          : t("settings.clusters.actionOk", "Action triggered"),
+          ? t("settings.clusters.testOk", { info: preflight })
+          : t("settings.clusters.actionOk"),
       );
     } catch (err: unknown) {
-      message.error(configErrorMessage(err, t("settings.clusters.actionFailed", "Action failed")));
+      message.error(configErrorMessage(err, t("settings.clusters.actionFailed")));
     }
   };
 
@@ -502,9 +485,9 @@ const SystemSettingsClustersTab: React.FC = () => {
     setLogsText("");
     try {
       const res = await configSectionsService.getClusterNodeLogs(node.id, 200);
-      setLogsText(res.logs || t("settings.clusters.logsEmpty", "(no log output yet)"));
+      setLogsText(res.logs || t("settings.clusters.logsEmpty"));
     } catch (err: unknown) {
-      setLogsText(configErrorMessage(err, t("settings.clusters.logsError", "Failed to read logs")));
+      setLogsText(configErrorMessage(err, t("settings.clusters.logsError")));
     } finally {
       setLogsLoading(false);
     }
@@ -524,10 +507,10 @@ const SystemSettingsClustersTab: React.FC = () => {
   ) => {
     if (!status) return null;
     const stateLabel = {
-      configured: t("settings.clusters.credentialConfigured", "Configured"),
-      from_env: t("settings.clusters.credentialFromEnv", "From env"),
-      missing: t("settings.clusters.credentialMissing", "Missing"),
-      error: t("settings.clusters.credentialError", "Error"),
+      configured: t("settings.clusters.credentialConfigured"),
+      from_env: t("settings.clusters.credentialFromEnv"),
+      missing: t("settings.clusters.credentialMissing"),
+      error: t("settings.clusters.credentialError"),
     }[status.state];
     const color = {
       configured: "success",
@@ -541,10 +524,7 @@ const SystemSettingsClustersTab: React.FC = () => {
         <Tag color={color}>{stateLabel}</Tag>
         {status.state === "from_env" ? (
           <Text type="secondary" style={{ fontSize: 12 }}>
-            {t(
-              "settings.clusters.environmentCredentialHint",
-              "The environment value is read-only; only an explicit replacement is persisted.",
-            )}
+            {t("settings.clusters.environmentCredentialHint")}
           </Text>
         ) : null}
       </Flex>
@@ -553,19 +533,19 @@ const SystemSettingsClustersTab: React.FC = () => {
 
   const columns = [
     {
-      title: t("settings.clusters.label", "Label"),
+      title: t("settings.clusters.label"),
       dataIndex: "label",
       key: "label",
       render: (label: string, node: ClusterFabricNode) => (
         <Space>
           <CloudServerOutlined />
           <Text strong>{label}</Text>
-          {!node.enabled && <Tag>{t("settings.clusters.disabled", "disabled")}</Tag>}
+          {!node.enabled && <Tag>{t("settings.clusters.disabled")}</Tag>}
         </Space>
       ),
     },
     {
-      title: t("settings.clusters.target", "Target"),
+      title: t("settings.clusters.target"),
       key: "target",
       render: (_: unknown, node: ClusterFabricNode) =>
         node.placement.type === "ssh" ? (
@@ -573,11 +553,11 @@ const SystemSettingsClustersTab: React.FC = () => {
             {node.placement.username}@{node.placement.host}:{node.placement.port}
           </Text>
         ) : (
-          <Tag color="blue">{t("settings.clusters.local", "local")}</Tag>
+          <Tag color="blue">{t("settings.clusters.local")}</Tag>
         ),
     },
     {
-      title: t("settings.clusters.cluster", "Cluster"),
+      title: t("settings.clusters.cluster"),
       key: "cluster",
       render: (_: unknown, node: ClusterFabricNode) => {
         const name = nodeClusterName.get(node.id);
@@ -585,7 +565,7 @@ const SystemSettingsClustersTab: React.FC = () => {
       },
     },
     {
-      title: t("settings.clusters.status", "Status"),
+      title: t("settings.clusters.status"),
       key: "status",
       render: (_: unknown, node: ClusterFabricNode) => {
         const status = node.state?.status ?? "not_deployed";
@@ -601,7 +581,7 @@ const SystemSettingsClustersTab: React.FC = () => {
             )}
             {lastSeen && (
               <Text type="secondary" style={{ fontSize: 11 }}>
-                {t("settings.clusters.lastSeen", "seen {{ago}}", { ago: lastSeen })}
+                {t("settings.clusters.lastSeen", { ago: lastSeen })}
               </Text>
             )}
           </Space>
@@ -609,42 +589,42 @@ const SystemSettingsClustersTab: React.FC = () => {
       },
     },
     {
-      title: t("settings.clusters.actions", "Actions"),
+      title: t("settings.clusters.actions"),
       key: "actions",
       width: 320,
       render: (_: unknown, node: ClusterFabricNode) => (
         <Space size="small" wrap>
           <Button size="small" onClick={() => handleAction(node.id, "test")}>
-            {t("settings.clusters.test", "Test")}
+            {t("settings.clusters.test")}
           </Button>
           <Button size="small" type="primary" ghost onClick={() => handleAction(node.id, "deploy")}>
-            {t("settings.clusters.deploy", "Deploy")}
+            {t("settings.clusters.deploy")}
           </Button>
           <Button size="small" onClick={() => handleAction(node.id, "stop")}>
-            {t("settings.clusters.stop", "Stop")}
+            {t("settings.clusters.stop")}
           </Button>
           <Button size="small" onClick={() => showLogs(node)}>
-            {t("settings.clusters.logs", "Logs")}
+            {t("settings.clusters.logs")}
           </Button>
           <Button
             type="text"
             size="small"
             icon={<EditOutlined />}
             onClick={() => openEditModal(node)}
-            aria-label={t("settings.clusters.edit", "Edit")}
+            aria-label={t("settings.clusters.edit")}
           />
           <Popconfirm
-            title={t("settings.clusters.deleteConfirm", "Delete this node?")}
+            title={t("settings.clusters.deleteConfirm")}
             onConfirm={() => handleDelete(node.id)}
-            okText={t("settings.clusters.yes", "Yes")}
-            cancelText={t("settings.clusters.no", "No")}
+            okText={t("settings.clusters.yes")}
+            cancelText={t("settings.clusters.no")}
           >
             <Button
               type="text"
               size="small"
               danger
               icon={<DeleteOutlined />}
-              aria-label={t("settings.clusters.delete", "Delete")}
+              aria-label={t("settings.clusters.delete")}
             />
           </Popconfirm>
         </Space>
@@ -660,18 +640,15 @@ const SystemSettingsClustersTab: React.FC = () => {
     <div style={{ maxWidth: 1000 }}>
       <Card
         className="lotus-settings-card"
-        title={t("settings.clusters.title", "Remote Clusters")}
+        title={t("settings.clusters.title")}
         extra={
           <Button type="primary" icon={<PlusOutlined />} onClick={openAddModal}>
-            {t("settings.clusters.addButton", "Add Node")}
+            {t("settings.clusters.addButton")}
           </Button>
         }
       >
         <Paragraph type="secondary" style={{ marginBottom: 16 }}>
-          {t(
-            "settings.clusters.description",
-            "Register machines (local or over SSH) to deploy worker agents onto. SSH credentials are encrypted at rest and never sent to the agent. Deploy/Test/Stop are wired but the deploy engine ships in a later phase.",
-          )}
+          {t("settings.clusters.description")}
         </Paragraph>
 
         <Table
@@ -681,21 +658,17 @@ const SystemSettingsClustersTab: React.FC = () => {
           size="small"
           pagination={false}
           loading={loading}
-          locale={{ emptyText: t("settings.clusters.noNodes", "No nodes registered") }}
+          locale={{ emptyText: t("settings.clusters.noNodes") }}
         />
       </Card>
 
       <Modal
-        title={
-          editingId
-            ? t("settings.clusters.editTitle", "Edit Node")
-            : t("settings.clusters.addTitle", "Add Node")
-        }
+        title={editingId ? t("settings.clusters.editTitle") : t("settings.clusters.addTitle")}
         open={modalOpen}
         onCancel={closeModal}
         onOk={() => form.submit()}
-        okText={t("settings.clusters.save", "Save")}
-        cancelText={t("settings.clusters.cancel", "Cancel")}
+        okText={t("settings.clusters.save")}
+        cancelText={t("settings.clusters.cancel")}
         width={560}
         destroyOnClose
       >
@@ -706,38 +679,30 @@ const SystemSettingsClustersTab: React.FC = () => {
             style={{ marginBottom: 16 }}
             message={
               saveConflict
-                ? t("settings.clusters.revisionConflict", "Cluster revision conflict")
-                : t(
-                    "settings.clusters.changedExternally",
-                    "Cluster configuration changed externally",
-                  )
+                ? t("settings.clusters.revisionConflict")
+                : t("settings.clusters.changedExternally")
             }
             description={
               saveConflict
-                ? t(
-                    "settings.clusters.revisionConflictDescription",
-                    "Your draft expected revision {{expected}}; the server is at revision {{current}}. The draft was preserved.",
-                    {
-                      expected: saveConflict.expectedRevision,
-                      current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
-                    },
-                  )
-                : t(
-                    "settings.clusters.changedExternallyDescription",
-                    "Revision {{base}} changed to {{latest}}. Your unsaved node draft was preserved.",
-                    { base: modalBaseRevision, latest: externalRevision },
-                  )
+                ? t("settings.clusters.revisionConflictDescription", {
+                    expected: saveConflict.expectedRevision,
+                    current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
+                  })
+                : t("settings.clusters.changedExternallyDescription", {
+                    base: modalBaseRevision,
+                    latest: externalRevision,
+                  })
             }
             action={
               <Flex gap={8} wrap="wrap">
                 <Button size="small" onClick={() => void reloadModal()}>
-                  {t("settings.clusters.reload", "Reload")}
+                  {t("settings.clusters.reload")}
                 </Button>
                 <Button size="small" onClick={() => setShowComparison((current) => !current)}>
-                  {t("settings.clusters.compare", "Compare")}
+                  {t("settings.clusters.compare")}
                 </Button>
                 <Button size="small" type="primary" onClick={() => void reapplyModal()}>
-                  {t("settings.clusters.reapply", "Reapply")}
+                  {t("settings.clusters.reapply")}
                 </Button>
               </Flex>
             }
@@ -761,22 +726,22 @@ const SystemSettingsClustersTab: React.FC = () => {
         >
           <Form.Item
             name="label"
-            label={t("settings.clusters.label", "Label")}
+            label={t("settings.clusters.label")}
             rules={[
               {
                 required: true,
-                message: t("settings.clusters.labelRequired", "Label is required"),
+                message: t("settings.clusters.labelRequired"),
               },
             ]}
           >
             <Input placeholder="gpu-1" autoFocus />
           </Form.Item>
 
-          <Form.Item name="placement_type" label={t("settings.clusters.placement", "Placement")}>
+          <Form.Item name="placement_type" label={t("settings.clusters.placement")}>
             <Select
               options={[
-                { value: "ssh", label: t("settings.clusters.ssh", "SSH (remote)") },
-                { value: "local", label: t("settings.clusters.localhost", "Local (this host)") },
+                { value: "ssh", label: t("settings.clusters.ssh") },
+                { value: "local", label: t("settings.clusters.localhost") },
               ]}
             />
           </Form.Item>
@@ -786,53 +751,46 @@ const SystemSettingsClustersTab: React.FC = () => {
               <Space.Compact block>
                 <Form.Item
                   name="host"
-                  label={t("settings.clusters.host", "Host")}
+                  label={t("settings.clusters.host")}
                   style={{ width: "70%" }}
                   rules={[
                     {
                       required: true,
-                      message: t("settings.clusters.hostRequired", "Host is required"),
+                      message: t("settings.clusters.hostRequired"),
                     },
                   ]}
                 >
                   <Input placeholder="10.0.0.5" />
                 </Form.Item>
-                <Form.Item
-                  name="port"
-                  label={t("settings.clusters.port", "Port")}
-                  style={{ width: "30%" }}
-                >
+                <Form.Item name="port" label={t("settings.clusters.port")} style={{ width: "30%" }}>
                   <InputNumber min={1} max={65535} style={{ width: "100%" }} />
                 </Form.Item>
               </Space.Compact>
 
               <Form.Item
                 name="username"
-                label={t("settings.clusters.username", "Username")}
+                label={t("settings.clusters.username")}
                 rules={[
                   {
                     required: true,
-                    message: t("settings.clusters.usernameRequired", "Username is required"),
+                    message: t("settings.clusters.usernameRequired"),
                   },
                 ]}
               >
                 <Input placeholder="deploy" />
               </Form.Item>
 
-              <Form.Item
-                name="auth_method"
-                label={t("settings.clusters.authMethod", "Auth method")}
-              >
+              <Form.Item name="auth_method" label={t("settings.clusters.authMethod")}>
                 <Select
                   options={[
-                    { value: "password", label: t("settings.clusters.password", "Password") },
+                    { value: "password", label: t("settings.clusters.password") },
                     {
                       value: "private_key",
-                      label: t("settings.clusters.privateKey", "Private key"),
+                      label: t("settings.clusters.privateKey"),
                     },
                     {
                       value: "system_ssh_config",
-                      label: t("settings.clusters.systemSsh", "Use host's SSH config"),
+                      label: t("settings.clusters.systemSsh"),
                     },
                   ]}
                 />
@@ -841,69 +799,49 @@ const SystemSettingsClustersTab: React.FC = () => {
               {authMethod === "password" && (
                 <Form.Item
                   name="password"
-                  label={t("settings.clusters.password", "Password")}
+                  label={t("settings.clusters.password")}
                   extra={
                     editingNode ? (
                       <Space direction="vertical" size={4}>
                         {credentialStatusBadge(
-                          t("settings.clusters.password", "Password"),
+                          t("settings.clusters.password"),
                           editingCredentialStatus?.password,
                         )}
-                        <Text type="secondary">
-                          {t(
-                            "settings.clusters.secretEditHint",
-                            "Leave empty to keep the existing secret",
-                          )}
-                        </Text>
+                        <Text type="secondary">{t("settings.clusters.secretEditHint")}</Text>
                       </Space>
                     ) : undefined
                   }
                   rules={[
                     {
                       required: !isConfiguredCredential(editingCredentialStatus?.password),
-                      message: t("settings.clusters.passwordRequired", "Password is required"),
+                      message: t("settings.clusters.passwordRequired"),
                     },
                   ]}
                 >
                   <Input.Password
                     visibilityToggle
-                    placeholder={
-                      editingNode
-                        ? t("settings.clusters.keepSecret", "Enter new password or leave empty")
-                        : undefined
-                    }
+                    placeholder={editingNode ? t("settings.clusters.keepSecret") : undefined}
                   />
                 </Form.Item>
               )}
 
               {authMethod === "private_key" && (
                 <>
-                  <Form.Item
-                    name="private_key_path"
-                    label={t(
-                      "settings.clusters.privateKeyPath",
-                      "Private key file path (on this host)",
-                    )}
-                  >
+                  <Form.Item name="private_key_path" label={t("settings.clusters.privateKeyPath")}>
                     <Input placeholder="~/.ssh/id_ed25519" />
                   </Form.Item>
                   <Form.Item
                     name="private_key"
-                    label={t("settings.clusters.privateKeyInline", "…or paste key (PEM)")}
+                    label={t("settings.clusters.privateKeyInline")}
                     dependencies={["private_key_path"]}
                     extra={
                       editingNode ? (
                         <Space direction="vertical" size={4}>
                           {credentialStatusBadge(
-                            t("settings.clusters.privateKey", "Private key"),
+                            t("settings.clusters.privateKey"),
                             editingCredentialStatus?.private_key,
                           )}
-                          <Text type="secondary">
-                            {t(
-                              "settings.clusters.secretEditHint",
-                              "Leave empty to keep the existing secret",
-                            )}
-                          </Text>
+                          <Text type="secondary">{t("settings.clusters.secretEditHint")}</Text>
                         </Space>
                       ) : undefined
                     }
@@ -918,12 +856,7 @@ const SystemSettingsClustersTab: React.FC = () => {
                           )?.trim();
                           if (path || inline) return;
                           if (isConfiguredCredential(editingCredentialStatus?.private_key)) return;
-                          throw new Error(
-                            t(
-                              "settings.clusters.privateKeyRequired",
-                              "Provide a key file path or paste a private key",
-                            ),
-                          );
+                          throw new Error(t("settings.clusters.privateKeyRequired"));
                         },
                       },
                     ]}
@@ -932,12 +865,12 @@ const SystemSettingsClustersTab: React.FC = () => {
                   </Form.Item>
                   <Form.Item
                     name="passphrase"
-                    label={t("settings.clusters.passphrase", "Passphrase")}
+                    label={t("settings.clusters.passphrase")}
                     extra={
                       editingNode ? (
                         <Space direction="vertical" size={4}>
                           {credentialStatusBadge(
-                            t("settings.clusters.passphrase", "Passphrase"),
+                            t("settings.clusters.passphrase"),
                             editingCredentialStatus?.passphrase,
                           )}
                           {isConfiguredCredential(editingCredentialStatus?.passphrase) ? (
@@ -951,11 +884,8 @@ const SystemSettingsClustersTab: React.FC = () => {
                               }}
                             >
                               {clearPassphrase
-                                ? t(
-                                    "settings.clusters.passphraseWillClear",
-                                    "Passphrase will be cleared",
-                                  )
-                                : t("settings.clusters.clearPassphrase", "Clear stored passphrase")}
+                                ? t("settings.clusters.passphraseWillClear")
+                                : t("settings.clusters.clearPassphrase")}
                             </Button>
                           ) : null}
                         </Space>
@@ -977,47 +907,37 @@ const SystemSettingsClustersTab: React.FC = () => {
 
           <Form.Item
             name="artifact_path"
-            label={t("settings.clusters.artifactPath", "Artifact path (binary to upload)")}
-            extra={t(
-              "settings.clusters.artifactHint",
-              "Path on this host to the correct-arch bamboo binary; used at deploy time (P2).",
-            )}
+            label={t("settings.clusters.artifactPath")}
+            extra={t("settings.clusters.artifactHint")}
           >
             <Input placeholder="/path/to/bamboo-linux-x64" />
           </Form.Item>
 
-          <Form.Item name="default_role" label={t("settings.clusters.role", "Default role")}>
+          <Form.Item name="default_role" label={t("settings.clusters.role")}>
             <Input placeholder="worker" />
           </Form.Item>
 
           <Form.Item
             name="auto_recover"
-            label={t("settings.clusters.autoRecover", "Auto-recover")}
+            label={t("settings.clusters.autoRecover")}
             valuePropName="checked"
-            extra={t(
-              "settings.clusters.autoRecoverHint",
-              "Redeploy this node automatically if the health monitor finds its worker gone.",
-            )}
+            extra={t("settings.clusters.autoRecoverHint")}
           >
             <Switch />
           </Form.Item>
 
-          <Form.Item name="cluster_name" label={t("settings.clusters.cluster", "Cluster")}>
+          <Form.Item name="cluster_name" label={t("settings.clusters.cluster")}>
             <Select
               allowClear
               showSearch
               mode="tags"
               maxCount={1}
-              placeholder={t("settings.clusters.clusterPlaceholder", "Pick or type a cluster name")}
+              placeholder={t("settings.clusters.clusterPlaceholder")}
               options={clusters.map((c) => ({ value: c.name, label: c.name }))}
             />
           </Form.Item>
 
-          <Form.Item
-            name="enabled"
-            label={t("settings.clusters.enabled", "Enabled")}
-            valuePropName="checked"
-          >
+          <Form.Item name="enabled" label={t("settings.clusters.enabled")} valuePropName="checked">
             <Switch />
           </Form.Item>
         </Form>
@@ -1025,19 +945,19 @@ const SystemSettingsClustersTab: React.FC = () => {
 
       {/* ── Logs drawer ───────────────────────────────────────────── */}
       <Modal
-        title={t("settings.clusters.logsTitle", "Logs — {{label}}", {
+        title={t("settings.clusters.logsTitle", {
           label: logsNode?.label ?? "",
         })}
         open={logsOpen}
         onCancel={() => setLogsOpen(false)}
         onOk={() => logsNode && showLogs(logsNode)}
-        okText={t("settings.clusters.refresh", "Refresh")}
-        cancelText={t("settings.clusters.close", "Close")}
+        okText={t("settings.clusters.refresh")}
+        cancelText={t("settings.clusters.close")}
         width={760}
         destroyOnClose
       >
         {logsLoading ? (
-          <Text type="secondary">{t("settings.clusters.loading", "Loading…")}</Text>
+          <Text type="secondary">{t("settings.clusters.loading")}</Text>
         ) : (
           <pre
             style={{

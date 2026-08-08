@@ -37,9 +37,7 @@ const SyncMismatchBreakdownCard: React.FC<SyncMismatchBreakdownCardProps> = ({
       <Card
         size="small"
         className="lotus-metric-card"
-        title={t("settings.metricsDashboard.syncMismatchBreakdownTitle", {
-          defaultValue: "Sync Mismatch Breakdown",
-        })}
+        title={t("settings.metricsDashboard.syncMismatchBreakdownTitle")}
       >
         <Skeleton active paragraph={{ rows: 5 }} />
       </Card>
@@ -60,23 +58,15 @@ const SyncMismatchBreakdownCard: React.FC<SyncMismatchBreakdownCardProps> = ({
     <Card
       size="small"
       className="lotus-metric-card"
-      title={t("settings.metricsDashboard.syncMismatchBreakdownTitle", {
-        defaultValue: "Sync Mismatch Breakdown",
-      })}
+      title={t("settings.metricsDashboard.syncMismatchBreakdownTitle")}
       extra={
-        <Text type="secondary">
-          {t("settings.metricsDashboard.syncMismatchBreakdownSubtitle", {
-            defaultValue: "Grouped by execute sync mismatch reason",
-          })}
-        </Text>
+        <Text type="secondary">{t("settings.metricsDashboard.syncMismatchBreakdownSubtitle")}</Text>
       }
     >
       {chartData.length === 0 ? (
         <Empty
           image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={t("settings.metricsDashboard.noSyncMismatchBreakdown", {
-            defaultValue: "No sync mismatches recorded for the selected range",
-          })}
+          description={t("settings.metricsDashboard.noSyncMismatchBreakdown")}
         />
       ) : (
         <div style={{ width: "100%", minWidth: 0, height: 280, minHeight: 280 }}>
@@ -92,13 +82,10 @@ const SyncMismatchBreakdownCard: React.FC<SyncMismatchBreakdownCardProps> = ({
               <Tooltip
                 formatter={(value: number) => [
                   value.toLocaleString(),
-                  t("settings.metricsDashboard.syncMismatchCountLabel", {
-                    defaultValue: "Mismatches",
-                  }),
+                  t("settings.metricsDashboard.syncMismatchCountLabel"),
                 ]}
                 labelFormatter={(label) =>
                   t("settings.metricsDashboard.syncMismatchReasonLabel", {
-                    defaultValue: "Reason: {{label}}",
                     label,
                   })
                 }
@@ -107,9 +94,7 @@ const SyncMismatchBreakdownCard: React.FC<SyncMismatchBreakdownCardProps> = ({
                 dataKey="count"
                 fill="var(--lotus-chart-danger)"
                 radius={[0, 6, 6, 0]}
-                name={t("settings.metricsDashboard.syncMismatchCountLabel", {
-                  defaultValue: "Mismatches",
-                })}
+                name={t("settings.metricsDashboard.syncMismatchCountLabel")}
               />
             </BarChart>
           </ResponsiveContainer>

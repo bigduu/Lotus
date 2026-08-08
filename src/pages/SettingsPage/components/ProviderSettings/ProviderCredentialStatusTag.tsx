@@ -14,12 +14,10 @@ export const ProviderCredentialStatusTag = ({
   const { t } = useTranslation();
 
   if (isEnvironmentCredential(status)) {
-    return <Tag color="processing">{t("settings.providerTab.credentialFromEnv", "From env")}</Tag>;
+    return <Tag color="processing">{t("settings.providerTab.credentialFromEnv")}</Tag>;
   }
   if (status?.configured || pendingReplacement) {
-    return (
-      <Tag color="success">{t("settings.providerTab.credentialConfigured", "Configured")}</Tag>
-    );
+    return <Tag color="success">{t("settings.providerTab.credentialConfigured")}</Tag>;
   }
-  return <Tag color="warning">{t("settings.providerTab.credentialMissing", "Missing")}</Tag>;
+  return <Tag color="warning">{t("settings.providerTab.credentialMissing")}</Tag>;
 };

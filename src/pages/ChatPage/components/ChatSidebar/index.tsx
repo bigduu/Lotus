@@ -90,7 +90,7 @@ export const ChatSidebar: React.FC = () => {
   return (
     <nav
       data-tour-id="sidebar"
-      aria-label={t("chat.sidebar.title", "Chat sidebar")}
+      aria-label={t("chat.sidebar.title")}
       style={{
         width: "100%",
         height: "100%",
@@ -117,7 +117,7 @@ export const ChatSidebar: React.FC = () => {
           onClick={() => setCollapsed(true)}
           size={screens.xs ? "small" : "middle"}
           className="lotus-toolbar-icon"
-          aria-label={t("chat.sidebar.collapse", "Collapse sidebar")}
+          aria-label={t("chat.sidebar.collapse")}
         />
       </Flex>
 
@@ -135,8 +135,8 @@ export const ChatSidebar: React.FC = () => {
           value={searchQuery}
           onChange={(event) => handleSearchQueryChange(event.target.value)}
           prefix={<SearchOutlined style={{ color: token.colorTextTertiary }} />}
-          placeholder={t("chat.sidebar.searchPlaceholder", "Search sessions")}
-          aria-label={t("chat.sidebar.searchPlaceholder", "Search sessions")}
+          placeholder={t("chat.sidebar.searchPlaceholder")}
+          aria-label={t("chat.sidebar.searchPlaceholder")}
           size="small"
           style={{
             borderRadius: token.borderRadiusLG,
@@ -149,10 +149,10 @@ export const ChatSidebar: React.FC = () => {
           value={statusFilter}
           onChange={(value) => handleStatusFilterChange(value as typeof statusFilter)}
           options={[
-            { label: t("chat.sidebar.filters.all", "All"), value: "all" },
-            { label: t("chat.sidebar.filters.pinned", "Pinned"), value: "pinned" },
-            { label: t("chat.sidebar.filters.running", "Running"), value: "running" },
-            { label: t("chat.sidebar.filters.child", "Child"), value: "child" },
+            { label: t("chat.sidebar.filters.all"), value: "all" },
+            { label: t("chat.sidebar.filters.pinned"), value: "pinned" },
+            { label: t("chat.sidebar.filters.running"), value: "running" },
+            { label: t("chat.sidebar.filters.child"), value: "child" },
           ]}
         />
       </Flex>
@@ -160,7 +160,7 @@ export const ChatSidebar: React.FC = () => {
       <Flex
         vertical
         role="list"
-        aria-label={t("chat.sidebar.chatList", "Chat list")}
+        aria-label={t("chat.sidebar.chatList")}
         style={{
           flex: 1,
           minHeight: 0,

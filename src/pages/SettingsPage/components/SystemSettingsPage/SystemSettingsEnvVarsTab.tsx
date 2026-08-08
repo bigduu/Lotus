@@ -159,7 +159,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
 
   const openAddModal = () => {
     if (revision === null) {
-      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
+      message.error(t("settings.envVars.fetchError"));
       return;
     }
 
@@ -178,7 +178,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
 
   const openEditModal = (entry: EnvSectionEntry) => {
     if (revision === null) {
-      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
+      message.error(t("settings.envVars.fetchError"));
       return;
     }
 
@@ -203,12 +203,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         ? envelope.data.find((entry) => entry.name === editingName)
         : undefined;
       if (editingName && !latestEntry && !keepDraft) {
-        message.warning(
-          t(
-            "settings.envVars.removedExternally",
-            "This environment variable no longer exists in the latest configuration.",
-          ),
-        );
+        message.warning(t("settings.envVars.removedExternally"));
         closeModal();
         return;
       }
@@ -249,7 +244,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       const latest = await loadSection("env", { force: true });
       adoptModalEnvelope(latest, false);
     } catch {
-      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
+      message.error(t("settings.envVars.fetchError"));
     }
   }, [adoptModalEnvelope, loadSection, message, t]);
 
@@ -291,26 +286,16 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     description?: string;
   }) => {
     if (modalBaseRevision === null) {
-      message.error(t("settings.envVars.fetchError", "Failed to load environment variables"));
+      message.error(t("settings.envVars.fetchError"));
       return;
     }
     const existing = editingName ? entries.find((entry) => entry.name === editingName) : undefined;
     if (values.secret && existing?.secret === false && !values.value) {
-      message.error(
-        t(
-          "settings.envVars.secretReplacementRequired",
-          "Converting a plain variable to secret requires a replacement value.",
-        ),
-      );
+      message.error(t("settings.envVars.secretReplacementRequired"));
       return;
     }
     if (!values.secret && existing?.secret && !values.value && !clearRequested) {
-      message.error(
-        t(
-          "settings.envVars.plainReplacementRequired",
-          "Converting a secret variable to plain requires an explicit value.",
-        ),
-      );
+      message.error(t("settings.envVars.plainReplacementRequired"));
       return;
     }
 
@@ -336,11 +321,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
 
     try {
       await saveEnvVar(req, modalBaseRevision);
-      message.success(
-        editingName
-          ? t("settings.envVars.updated", "Variable updated")
-          : t("settings.envVars.created", "Variable created"),
-      );
+      message.success(editingName ? t("settings.envVars.updated") : t("settings.envVars.created"));
       closeModal();
     } catch (err: unknown) {
       if (err instanceof ConfigConflictError) {
@@ -348,9 +329,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         setSaveConflict(err.conflict);
         await loadSection("env", { force: true }).catch(() => undefined);
       }
-      message.error(
-        configErrorMessage(err, t("settings.envVars.saveError", "Failed to save variable")),
-      );
+      message.error(configErrorMessage(err, t("settings.envVars.saveError")));
     }
   };
 
@@ -358,14 +337,12 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     if (revision === null) return;
     try {
       await deleteEnvVar(name, revision);
-      message.success(t("settings.envVars.deleted", "Variable deleted"));
+      message.success(t("settings.envVars.deleted"));
     } catch (err: unknown) {
       if (err instanceof ConfigConflictError) {
         await loadSection("env", { force: true }).catch(() => undefined);
       }
-      message.error(
-        configErrorMessage(err, t("settings.envVars.deleteError", "Failed to delete variable")),
-      );
+      message.error(configErrorMessage(err, t("settings.envVars.deleteError")));
     }
   };
 
@@ -379,29 +356,27 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
 
   const columns = [
     {
-      title: t("settings.envVars.name", "Name"),
+      title: t("settings.envVars.name"),
       dataIndex: "name",
       key: "name",
       render: (name: string) => <Text code>{name}</Text>,
     },
     {
-      title: t("settings.envVars.value", "Value"),
+      title: t("settings.envVars.value"),
       dataIndex: "value",
       key: "value",
       render: (value: string | undefined, record: EnvSectionEntry) => {
         if (!record.secret) {
           return (
-            <Text>
-              {value || <Text type="secondary">{t("settings.envVars.empty", "(empty)")}</Text>}
-            </Text>
+            <Text>{value || <Text type="secondary">{t("settings.envVars.empty")}</Text>}</Text>
           );
         }
         const state = envCredentialState(record);
         const labels: Record<EnvCredentialState, string> = {
-          configured: t("settings.envVars.credentialConfigured", "Configured"),
-          from_env: t("settings.envVars.credentialFromEnv", "From env"),
-          missing: t("settings.envVars.credentialMissing", "Missing"),
-          error: t("settings.envVars.credentialError", "Error"),
+          configured: t("settings.envVars.credentialConfigured"),
+          from_env: t("settings.envVars.credentialFromEnv"),
+          missing: t("settings.envVars.credentialMissing"),
+          error: t("settings.envVars.credentialError"),
         };
         return (
           <Tag
@@ -422,20 +397,20 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
       },
     },
     {
-      title: t("settings.envVars.type", "Type"),
+      title: t("settings.envVars.type"),
       key: "secret",
       width: 100,
       render: (_: unknown, record: EnvSectionEntry) =>
         record.secret ? (
           <Tag color="warning" icon={<LockOutlined />}>
-            {t("settings.envVars.secret", "Secret")}
+            {t("settings.envVars.secret")}
           </Tag>
         ) : (
-          <Tag color="processing">{t("settings.envVars.plain", "Plain")}</Tag>
+          <Tag color="processing">{t("settings.envVars.plain")}</Tag>
         ),
     },
     {
-      title: t("settings.envVars.descriptionCol", "Description"),
+      title: t("settings.envVars.descriptionCol"),
       dataIndex: "description",
       key: "description",
       ellipsis: true,
@@ -449,7 +424,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         ),
     },
     {
-      title: t("settings.envVars.actions", "Actions"),
+      title: t("settings.envVars.actions"),
       key: "actions",
       width: 120,
       render: (_: unknown, record: EnvSectionEntry) => (
@@ -459,20 +434,20 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             size="small"
             icon={<EditOutlined />}
             onClick={() => openEditModal(record)}
-            aria-label={t("settings.envVars.edit", "Edit")}
+            aria-label={t("settings.envVars.edit")}
           />
           <Popconfirm
-            title={t("settings.envVars.deleteConfirm", "Delete this variable?")}
+            title={t("settings.envVars.deleteConfirm")}
             onConfirm={() => handleDelete(record.name)}
-            okText={t("settings.envVars.yes", "Yes")}
-            cancelText={t("settings.envVars.no", "No")}
+            okText={t("settings.envVars.yes")}
+            cancelText={t("settings.envVars.no")}
           >
             <Button
               type="text"
               size="small"
               danger
               icon={<DeleteOutlined />}
-              aria-label={t("settings.envVars.delete", "Delete")}
+              aria-label={t("settings.envVars.delete")}
             />
           </Popconfirm>
         </Space>
@@ -486,7 +461,7 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
     <div style={{ maxWidth: 900 }}>
       <Card
         className="lotus-settings-card"
-        title={t("settings.envVars.title", "Environment Variables")}
+        title={t("settings.envVars.title")}
         extra={
           <Button
             type="primary"
@@ -494,15 +469,12 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             onClick={openAddModal}
             disabled={revision === null}
           >
-            {t("settings.envVars.addButton", "Add Variable")}
+            {t("settings.envVars.addButton")}
           </Button>
         }
       >
         <Paragraph type="secondary" style={{ marginBottom: 16 }}>
-          {t(
-            "settings.envVars.description",
-            "Variables are injected into Bash tool processes. Secret variables are encrypted at rest.",
-          )}
+          {t("settings.envVars.description")}
         </Paragraph>
 
         {envSnapshot.error ? (
@@ -522,23 +494,19 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           pagination={false}
           loading={loading}
           locale={{
-            emptyText: t("settings.envVars.noVars", "No environment variables configured"),
+            emptyText: t("settings.envVars.noVars"),
           }}
         />
       </Card>
 
       {/* ── Add / Edit Modal ─────────────────────────────────────── */}
       <Modal
-        title={
-          editingName
-            ? t("settings.envVars.editTitle", "Edit Variable")
-            : t("settings.envVars.addTitle", "Add Environment Variable")
-        }
+        title={editingName ? t("settings.envVars.editTitle") : t("settings.envVars.addTitle")}
         open={modalOpen}
         onCancel={closeModal}
         onOk={() => form.submit()}
-        okText={t("settings.envVars.save", "Save")}
-        cancelText={t("settings.envVars.cancel", "Cancel")}
+        okText={t("settings.envVars.save")}
+        cancelText={t("settings.envVars.cancel")}
         destroyOnClose
       >
         {externalRevision !== null || saveConflict ? (
@@ -547,37 +515,27 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
             showIcon
             message={
               saveConflict
-                ? t("settings.envVars.revisionConflict", "Environment revision conflict")
-                : t(
-                    "settings.envVars.changedExternally",
-                    "Environment variables changed externally",
-                  )
+                ? t("settings.envVars.revisionConflict")
+                : t("settings.envVars.changedExternally")
             }
             description={
               saveConflict
-                ? t(
-                    "settings.envVars.revisionConflictDescription",
-                    "Your draft expected revision {{expected}}; the server is at revision {{current}}. The draft was preserved.",
-                    {
-                      expected: saveConflict.expectedRevision,
-                      current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
-                    },
-                  )
-                : t(
-                    "settings.envVars.changedExternallyDescription",
-                    "Your draft was preserved. Reload to discard it, compare revisions, or reapply it over the latest configuration.",
-                  )
+                ? t("settings.envVars.revisionConflictDescription", {
+                    expected: saveConflict.expectedRevision,
+                    current: saveConflict.currentRevision ?? externalRevision ?? "unknown",
+                  })
+                : t("settings.envVars.changedExternallyDescription")
             }
             action={
               <Space wrap>
                 <Button size="small" onClick={() => void reloadModal()}>
-                  {t("settings.envVars.reload", "Reload latest")}
+                  {t("settings.envVars.reload")}
                 </Button>
                 <Button size="small" onClick={() => setShowComparison((current) => !current)}>
-                  {t("settings.envVars.compare", "Compare")}
+                  {t("settings.envVars.compare")}
                 </Button>
                 <Button size="small" onClick={reapplyModal}>
-                  {t("settings.envVars.reapply", "Reapply")}
+                  {t("settings.envVars.reapply")}
                 </Button>
               </Space>
             }
@@ -598,11 +556,8 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
           <Alert
             type="info"
             showIcon
-            message={t("settings.envVars.credentialFromEnv", "From env")}
-            description={t(
-              "settings.envVars.credentialFromEnvHelp",
-              "The active value comes from the environment. It remains read-only unless you explicitly enter a replacement or clear the persisted binding.",
-            )}
+            message={t("settings.envVars.credentialFromEnv")}
+            description={t("settings.envVars.credentialFromEnvHelp")}
             style={{ marginBottom: 16 }}
           />
         ) : null}
@@ -616,18 +571,15 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
         >
           <Form.Item
             name="name"
-            label={t("settings.envVars.name", "Name")}
+            label={t("settings.envVars.name")}
             rules={[
               {
                 required: true,
-                message: t("settings.envVars.nameRequired", "Variable name is required"),
+                message: t("settings.envVars.nameRequired"),
               },
               {
                 pattern: ENV_VAR_NAME_RE,
-                message: t(
-                  "settings.envVars.nameInvalid",
-                  "Must start with a letter or underscore, followed by letters, digits, or underscores",
-                ),
+                message: t("settings.envVars.nameInvalid"),
               },
             ]}
           >
@@ -640,24 +592,20 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
 
           <Form.Item
             name="value"
-            label={t("settings.envVars.value", "Value")}
+            label={t("settings.envVars.value")}
             rules={[
               {
                 required: editingName === null,
-                message: t("settings.envVars.valueRequired", "Value is required for new variables"),
+                message: t("settings.envVars.valueRequired"),
               },
             ]}
-            extra={
-              editingName
-                ? t("settings.envVars.valueEditHint", "Leave empty to keep the existing value")
-                : undefined
-            }
+            extra={editingName ? t("settings.envVars.valueEditHint") : undefined}
           >
             <Input.Password
               placeholder={
                 editingName
-                  ? t("settings.envVars.valuePlaceholderEdit", "Enter new value or leave empty")
-                  : t("settings.envVars.valuePlaceholder", "Enter value")
+                  ? t("settings.envVars.valuePlaceholderEdit")
+                  : t("settings.envVars.valuePlaceholder")
               }
               visibilityToggle
             />
@@ -674,30 +622,22 @@ const SystemSettingsEnvVarsTab: React.FC = () => {
               style={{ marginTop: -12, marginBottom: 12 }}
             >
               {clearRequested
-                ? t("settings.envVars.valueWillBeCleared", "Value will be cleared")
-                : t("settings.envVars.clearStoredValue", "Clear stored value")}
+                ? t("settings.envVars.valueWillBeCleared")
+                : t("settings.envVars.clearStoredValue")}
             </Button>
           ) : null}
 
           <Form.Item
             name="secret"
-            label={t("settings.envVars.secret", "Secret")}
+            label={t("settings.envVars.secret")}
             valuePropName="checked"
-            extra={t(
-              "settings.envVars.secretHint",
-              "Secret variables are encrypted on disk and masked in the UI",
-            )}
+            extra={t("settings.envVars.secretHint")}
           >
             <Switch />
           </Form.Item>
 
-          <Form.Item
-            name="description"
-            label={t("settings.envVars.descriptionField", "Description")}
-          >
-            <Input
-              placeholder={t("settings.envVars.descriptionPlaceholder", "Optional description")}
-            />
+          <Form.Item name="description" label={t("settings.envVars.descriptionField")}>
+            <Input placeholder={t("settings.envVars.descriptionPlaceholder")} />
           </Form.Item>
         </Form>
       </Modal>

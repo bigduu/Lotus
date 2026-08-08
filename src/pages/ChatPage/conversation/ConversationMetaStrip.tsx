@@ -51,11 +51,10 @@ export const ConversationMetaStrip: React.FC<ConversationMetaStripProps> = ({
       title={t("chat.planMode.tooltip", {
         status: planMode.status,
         mode: planMode.pre_permission_mode,
-        defaultValue: "Plan mode active · phase: {{status}} · previous mode: {{mode}}",
       })}
     >
       <Tag color="purple" icon={<CompassOutlined />} style={{ marginInlineEnd: 0 }}>
-        {t("chat.planMode.active", { defaultValue: "Plan mode" })}
+        {t("chat.planMode.active")}
       </Tag>
     </Tooltip>
   ) : null;
@@ -98,7 +97,6 @@ export const ConversationMetaStrip: React.FC<ConversationMetaStripProps> = ({
                 <Tag color="blue" style={{ marginInlineEnd: 0 }}>
                   {t("chat.workspace.multiPane", {
                     count: workspaceState.leafCount,
-                    defaultValue: "{{count}} panes",
                   })}
                 </Tag>
               ) : null}
@@ -109,13 +107,11 @@ export const ConversationMetaStrip: React.FC<ConversationMetaStripProps> = ({
                 size="small"
                 icon={<AppstoreOutlined />}
                 onClick={onRequestOpenInspector}
-                aria-label={t("chat.workspace.toggleInspector", {
-                  defaultValue: "Open inspector",
-                })}
+                aria-label={t("chat.workspace.toggleInspector")}
               >
                 {workspaceState.inspectorMode === "drawer"
-                  ? t("chat.workspace.openInspector", { defaultValue: "Inspector" })
-                  : t("chat.workspace.toggleInspector", { defaultValue: "Inspector" })}
+                  ? t("chat.workspace.openInspector")
+                  : t("chat.workspace.toggleInspector")}
               </Button>
             ) : null}
           </Flex>

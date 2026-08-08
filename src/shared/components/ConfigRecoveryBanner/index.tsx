@@ -12,20 +12,15 @@ function sourceDescription(source: ConfigRecoverySource, t: TFunction): string {
   switch (source.kind) {
     case "salvaged":
       return t("configRecovery.source.salvaged", {
-        defaultValue: "Salvaged {{count}} field(s) directly from the corrupt file.",
         count: source.fields.length,
       });
     case "backup":
       return t("configRecovery.source.backup", {
-        defaultValue: "Restored from the last-known-good backup (generation {{generation}}).",
         generation: source.generation,
       });
     case "defaults":
     default:
-      return t(
-        "configRecovery.source.defaults",
-        "No usable salvage or backup was found — reset to built-in defaults.",
-      );
+      return t("configRecovery.source.defaults");
   }
 }
 
@@ -75,34 +70,21 @@ export const ConfigRecoveryBanner: React.FC = () => {
       banner
       closable={false}
       style={{ borderRadius: 0 }}
-      message={
-        <Text strong>
-          {t("configRecovery.title", "Configuration was recovered after a corruption")}
-        </Text>
-      }
+      message={<Text strong>{t("configRecovery.title")}</Text>}
       description={
         <Space direction="vertical" size={token.marginXS} style={{ width: "100%" }}>
-          <Paragraph style={{ marginBottom: 0 }}>
-            {t(
-              "configRecovery.description",
-              "config.json could not be read and was automatically recovered. Settings cannot be saved until you resolve this.",
-            )}
-          </Paragraph>
+          <Paragraph style={{ marginBottom: 0 }}>{t("configRecovery.description")}</Paragraph>
           <Text data-testid="config-recovery-source">{sourceDescription(status.source, t)}</Text>
           {status.quarantine_path ? (
             <Text type="secondary" code data-testid="config-recovery-quarantine-path">
               {t("configRecovery.quarantinePath", {
-                defaultValue: "Corrupt original preserved at: {{path}}",
                 path: status.quarantine_path,
               })}
             </Text>
           ) : null}
           {lastAction === "reject" ? (
             <Text type="warning" data-testid="config-recovery-reject-notice">
-              {t(
-                "configRecovery.rejectNotice",
-                "Rejected — nothing was discarded. config.json is untouched on disk and settings stay locked until you Accept, or hand-fix config.json and restart the backend.",
-              )}
+              {t("configRecovery.rejectNotice")}
             </Text>
           ) : null}
           {error ? (
@@ -118,7 +100,7 @@ export const ConfigRecoveryBanner: React.FC = () => {
               loading={resolving}
               onClick={() => void resolve(true)}
             >
-              {t("configRecovery.accept", "Accept — save recovered configuration")}
+              {t("configRecovery.accept")}
             </Button>
             <Button
               data-testid="config-recovery-reject"
@@ -127,7 +109,7 @@ export const ConfigRecoveryBanner: React.FC = () => {
               loading={resolving}
               onClick={() => void resolve(false)}
             >
-              {t("configRecovery.reject", "Reject — keep the corrupt file for manual repair")}
+              {t("configRecovery.reject")}
             </Button>
           </Space>
         </Space>

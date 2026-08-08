@@ -141,13 +141,13 @@ const LedgerItemRow: React.FC<{ item: LedgerListItem; actions: RowActions }> = (
             color={kindTagColor(item.kind)}
             style={{ marginInlineEnd: 0 }}
           >
-            {t(`ledger.kinds.${item.kind}`, item.kind)}
+            {t(`ledger.kinds.${item.kind}`)}
           </Tag>
           <Tag color={priorityTagColor(item.priority)} style={{ marginInlineEnd: 0 }}>
-            {t(`ledger.priorities.${item.priority}`, item.priority)}
+            {t(`ledger.priorities.${item.priority}`)}
           </Tag>
           <Tag color={statusTagColor(item.status)} style={{ marginInlineEnd: 0 }}>
-            {t(`ledger.statuses.${item.status}`, item.status)}
+            {t(`ledger.statuses.${item.status}`)}
           </Tag>
           {timeText ? (
             <Text type="secondary" style={{ fontSize: 12 }}>
@@ -464,15 +464,15 @@ export const LedgerDrawer: React.FC = () => {
 
   const kindOptions = KNOWN_KINDS.map((kind) => ({
     value: kind,
-    label: t(`ledger.kinds.${kind}`, kind),
+    label: t(`ledger.kinds.${kind}`),
   }));
   const statusOptions = ALL_STATUSES.map((status) => ({
     value: status,
-    label: t(`ledger.statuses.${status}`, status),
+    label: t(`ledger.statuses.${status}`),
   }));
   const priorityOptions = PRIORITIES.map((priority) => ({
     value: priority,
-    label: t(`ledger.priorities.${priority}`, priority),
+    label: t(`ledger.priorities.${priority}`),
   }));
 
   return (

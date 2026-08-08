@@ -51,9 +51,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
       <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
-            title={t("settings.metricsCards.syncMismatches", {
-              defaultValue: "Sync Mismatches",
-            })}
+            title={t("settings.metricsCards.syncMismatches")}
             value={summary?.total_sync_mismatches ?? 0}
             precision={0}
             valueStyle={{
@@ -100,9 +98,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
       <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
-            title={t("settings.metricsCards.tokensSaved", {
-              defaultValue: "Saved Tokens",
-            })}
+            title={t("settings.metricsCards.tokensSaved")}
             value={summary?.total_tokens_saved ?? 0}
             precision={0}
             formatter={statisticNumberFormatter}
@@ -113,9 +109,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
       <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
-            title={t("settings.metricsCards.toolContextSavedTokens", {
-              defaultValue: "Tool Context Saved Tokens",
-            })}
+            title={t("settings.metricsCards.toolContextSavedTokens")}
             value={summary?.tool_context_tokens_saved ?? 0}
             precision={0}
             formatter={statisticNumberFormatter}
@@ -126,9 +120,7 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
       <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
-            title={t("settings.metricsCards.compressionEvents", {
-              defaultValue: "Compression Events",
-            })}
+            title={t("settings.metricsCards.compressionEvents")}
             value={summary?.total_compression_events ?? 0}
             precision={0}
             formatter={statisticNumberFormatter}

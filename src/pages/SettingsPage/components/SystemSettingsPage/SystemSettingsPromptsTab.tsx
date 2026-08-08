@@ -2,7 +2,6 @@ import React, { Suspense, lazy } from "react";
 import { Button, Card, Collapse, Flex, Input, Space, Spin, Switch, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 import MermaidSettingsTab from "./MermaidSettingsTab";
-import { getCopilotConclusionWithOptionsEnhancementUserFacingText } from "@shared/utils/copilotConclusionWithOptionsEnhancementUtils";
 
 const SystemPromptManager = lazy(() => import("../SystemPromptManager"));
 const { Text } = Typography;
@@ -67,9 +66,7 @@ const SystemSettingsPromptsTab: React.FC<SystemSettingsPromptsTabProps> = ({
                 />
               </Flex>
               <Text type="secondary" style={{ fontSize: token.fontSizeSM }}>
-                {t("settings.promptsTab.copilotConclusionWithOptionsBeforeFinishDescription", {
-                  defaultValue: getCopilotConclusionWithOptionsEnhancementUserFacingText(),
-                })}
+                {t("settings.promptsTab.copilotConclusionWithOptionsBeforeFinishDescription")}
               </Text>
             </Space>
           )}

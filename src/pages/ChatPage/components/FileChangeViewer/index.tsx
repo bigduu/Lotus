@@ -209,14 +209,14 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
             type={viewMode === "sideBySide" ? "primary" : "default"}
             onClick={() => setViewMode("sideBySide")}
           >
-            {t("components.toolResult.sideBySide", { defaultValue: "Side by side" })}
+            {t("components.toolResult.sideBySide")}
           </Button>
           <Button
             size={toggleSize}
             type={viewMode === "unified" ? "primary" : "default"}
             onClick={() => setViewMode("unified")}
           >
-            {t("components.toolResult.unified", { defaultValue: "Unified" })}
+            {t("components.toolResult.unified")}
           </Button>
         </Space>
       ) : null}
@@ -238,9 +238,7 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
                 fontSize: compact ? 11 : token.fontSizeSM,
               }}
             >
-              {t("components.toolResult.noDiffPreview", {
-                defaultValue: "No diff preview available.",
-              })}
+              {t("components.toolResult.noDiffPreview")}
             </Text>
           )
         ) : sideBySideRows.length > 0 ? (
@@ -350,9 +348,7 @@ const FileChangeViewer: React.FC<FileChangeViewerProps> = ({
               fontSize: compact ? 11 : token.fontSizeSM,
             }}
           >
-            {t("components.toolResult.noDiffPreview", {
-              defaultValue: "No diff preview available.",
-            })}
+            {t("components.toolResult.noDiffPreview")}
           </Text>
         )}
       </div>

@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { afterEach, describe, expect, it, beforeEach, vi } from "vitest";
 import { App as AntdApp } from "antd";
 
 import { CommandPalette } from "../index";
 import { useAppStore } from "@shared/store/appStore";
 import { useSettingsViewStore } from "@shared/store/settingsViewStore";
+import { changeLocale } from "@shared/i18n";
 
 vi.mock("@shared/utils/openSession", () => ({
   openSession: vi.fn(),
@@ -81,6 +82,10 @@ describe("CommandPalette", () => {
     }));
   });
 
+  afterEach(async () => {
+    await changeLocale("en-US");
+  });
+
   it("opens with cmd/ctrl+k and renders actions", async () => {
     render(
       <AntdApp>
@@ -130,5 +135,23 @@ describe("CommandPalette", () => {
     await waitFor(() => {
       expect(screen.getByText("Investigate token budget")).toBeInTheDocument();
     });
+  });
+
+  it("formats session timestamps with the selected application locale", async () => {
+    const updatedAt = "2026-07-26T14:30:00.000Z";
+    useAppStore.setState((state) => ({
+      chats: state.chats.map((chat) => (chat.id === "session-1" ? { ...chat, updatedAt } : chat)),
+    }));
+    await changeLocale("fr-FR");
+
+    render(
+      <AntdApp>
+        <CommandPalette />
+      </AntdApp>,
+    );
+    fireEvent.keyDown(window, { key: "k", metaKey: true });
+
+    const expectedTimestamp = new Date(updatedAt).toLocaleString("fr-FR");
+    expect(await screen.findByText((text) => text.includes(expectedTimestamp))).toBeInTheDocument();
   });
 });

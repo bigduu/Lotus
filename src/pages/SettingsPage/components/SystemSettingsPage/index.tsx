@@ -166,7 +166,6 @@ const SystemSettingsPage = ({
         msgApi.error(
           t("settings.notifications.resetConfigPartialFailure", {
             count: failures.length,
-            defaultValue: "{{count}} configuration sections could not be reset.",
           }),
         );
         setIsResetting(false);
@@ -220,9 +219,7 @@ const SystemSettingsPage = ({
     setVdiSafeModeEnabled(checked);
     window.dispatchEvent(new Event("lotus-vdi-safe-mode-change"));
     msgApi.success(
-      checked
-        ? t("settings.appTab.vdiSafeModeEnabled", "Graphics compatibility mode enabled")
-        : t("settings.appTab.vdiSafeModeDisabled", "Graphics compatibility mode disabled"),
+      checked ? t("settings.appTab.vdiSafeModeEnabled") : t("settings.appTab.vdiSafeModeDisabled"),
     );
   };
 
@@ -270,7 +267,7 @@ const SystemSettingsPage = ({
           </Text>
         </Flex>
         <Text type="secondary" data-testid="settings-page-version">
-          {t("settings.appTab.runningVersion", "Running version")}: v{APP_VERSION}
+          {t("settings.appTab.runningVersion")}: v{APP_VERSION}
         </Text>
       </Flex>
       <Layout.Content
@@ -368,10 +365,10 @@ const SystemSettingsPage = ({
               children: withConfigStatus(["env", "credentials"], <SystemSettingsEnvVarsTab />),
             },
             // ── Deployment ──
-            groupLabel("group-deployment", t("settings.page.groups.deployment", "Deployment")),
+            groupLabel("group-deployment", t("settings.page.groups.deployment")),
             {
               key: "clusters",
-              label: tabLabel("clusters", t("settings.page.tabs.clusters", "Clusters")),
+              label: tabLabel("clusters", t("settings.page.tabs.clusters")),
               children: withConfigStatus(
                 ["cluster-fabric", "credentials"],
                 <SystemSettingsClustersTab />,
@@ -410,10 +407,7 @@ const SystemSettingsPage = ({
             },
             {
               key: "notifications",
-              label: tabLabel(
-                "notifications",
-                t("settings.page.tabs.notifications", "Notifications"),
-              ),
+              label: tabLabel("notifications", t("settings.page.tabs.notifications")),
               children: withConfigStatus(
                 ["notifications", "credentials"],
                 <SystemSettingsNotificationsTab />,
@@ -421,7 +415,7 @@ const SystemSettingsPage = ({
             },
             {
               key: "connect",
-              label: tabLabel("connect", t("settings.page.tabs.connect", "Connect")),
+              label: tabLabel("connect", t("settings.page.tabs.connect")),
               children: withConfigStatus(["connect", "credentials"], <SystemSettingsConnectTab />),
             },
             {

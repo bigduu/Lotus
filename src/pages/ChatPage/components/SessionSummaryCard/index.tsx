@@ -202,20 +202,16 @@ export const SessionSummaryCard: React.FC<{
     : null;
   const tokenTooltip = lifetimeTokenUsage ? (
     <div style={{ minWidth: 180 }}>
-      <div style={{ fontWeight: 600, marginBottom: 4 }}>
-        {t("sessionSummary.totalTokens", "Total tokens")}
+      <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("sessionSummary.totalTokens")}</div>
+      <div>
+        {t("sessionSummary.promptTokens")}: {formatTokenCount(lifetimeTokenUsage.prompt_tokens)}
       </div>
       <div>
-        {t("sessionSummary.promptTokens", "Prompt")}:{" "}
-        {formatTokenCount(lifetimeTokenUsage.prompt_tokens)}
-      </div>
-      <div>
-        {t("sessionSummary.completionTokens", "Completion")}:{" "}
+        {t("sessionSummary.completionTokens")}:{" "}
         {formatTokenCount(lifetimeTokenUsage.completion_tokens)}
       </div>
       <div>
-        {t("sessionSummary.totalTokens", "Total tokens")}:{" "}
-        {formatTokenCount(lifetimeTokenUsage.total_tokens)}
+        {t("sessionSummary.totalTokens")}: {formatTokenCount(lifetimeTokenUsage.total_tokens)}
       </div>
     </div>
   ) : null;
@@ -246,7 +242,7 @@ export const SessionSummaryCard: React.FC<{
           <ProfileOutlined />
         </span>
         <span className="lotus-session-summary-header-title" style={{ color: token.colorText }}>
-          {t("sessionSummary.title", "Session Summary")}
+          {t("sessionSummary.title")}
         </span>
 
         {/* Mini stats inline when collapsed */}
@@ -311,7 +307,7 @@ export const SessionSummaryCard: React.FC<{
               <MessageOutlined className="lotus-session-summary-stat-icon" />
               <span>
                 <span className="lotus-session-summary-stat-value">{stats.messageCount}</span>{" "}
-                {t("sessionSummary.messages", "messages")}
+                {t("sessionSummary.messages")}
               </span>
             </span>
             <span
@@ -321,7 +317,7 @@ export const SessionSummaryCard: React.FC<{
               <span className="lotus-session-summary-stat-icon">👤</span>
               <span>
                 <span className="lotus-session-summary-stat-value">{stats.userMessageCount}</span>{" "}
-                {t("sessionSummary.userTurns", "user")}
+                {t("sessionSummary.userTurns")}
               </span>
             </span>
             <span
@@ -333,7 +329,7 @@ export const SessionSummaryCard: React.FC<{
                 <span className="lotus-session-summary-stat-value">
                   {stats.assistantMessageCount}
                 </span>{" "}
-                {t("sessionSummary.assistantTurns", "assistant")}
+                {t("sessionSummary.assistantTurns")}
               </span>
             </span>
             {stats.toolCallCount > 0 && (
@@ -344,7 +340,7 @@ export const SessionSummaryCard: React.FC<{
                 <FunctionOutlined className="lotus-session-summary-stat-icon" />
                 <span>
                   <span className="lotus-session-summary-stat-value">{stats.toolCallCount}</span>{" "}
-                  {t("sessionSummary.toolCalls", "tool calls")}
+                  {t("sessionSummary.toolCalls")}
                 </span>
               </span>
             )}
@@ -353,7 +349,7 @@ export const SessionSummaryCard: React.FC<{
                 <WarningOutlined className="lotus-session-summary-stat-icon" />
                 <span>
                   <span className="lotus-session-summary-stat-value">{stats.toolErrorCount}</span>{" "}
-                  {t("sessionSummary.errors", "errors")}
+                  {t("sessionSummary.errors")}
                 </span>
               </span>
             )}
@@ -374,7 +370,7 @@ export const SessionSummaryCard: React.FC<{
                 <CodeOutlined className="lotus-session-summary-stat-icon" />
                 <span>
                   <span className="lotus-session-summary-stat-value">{stats.compressionCount}</span>{" "}
-                  {t("sessionSummary.compressions", "compressions")}
+                  {t("sessionSummary.compressions")}
                 </span>
               </span>
             )}
@@ -389,7 +385,7 @@ export const SessionSummaryCard: React.FC<{
                     <span className="lotus-session-summary-stat-value">
                       {compactLifetimeTokens}
                     </span>{" "}
-                    {t("sessionSummary.totalTokens", "total tokens")}
+                    {t("sessionSummary.totalTokens")}
                   </span>
                 </span>
               </Tooltip>
@@ -409,7 +405,7 @@ export const SessionSummaryCard: React.FC<{
                   letterSpacing: 0.3,
                 }}
               >
-                {t("sessionSummary.filesChanged", "Files Changed")}
+                {t("sessionSummary.filesChanged")}
               </div>
               {compact ? (
                 <InlineMetaText
@@ -444,7 +440,7 @@ export const SessionSummaryCard: React.FC<{
                   letterSpacing: 0.3,
                 }}
               >
-                {t("sessionSummary.lastResponse", "Latest Response")}
+                {t("sessionSummary.lastResponse")}
               </div>
               <div
                 className="lotus-session-summary-conclusion"

@@ -188,7 +188,6 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
                 <Tag color={isActive ? "blue" : "default"} style={{ marginInlineEnd: 0 }}>
                   {t("chat.multiPane.paneLabel", {
                     index: paneIndex,
-                    defaultValue: "Pane {{index}}",
                   })}
                 </Tag>
               ) : null}
@@ -264,12 +263,8 @@ const PaneShell: React.FC<{ leafId: string }> = ({ leafId }) => {
                   size="small"
                   type="text"
                   icon={<AppstoreOutlined />}
-                  title={t("chat.workspace.openInspector", {
-                    defaultValue: "Open inspector",
-                  })}
-                  aria-label={t("chat.workspace.openInspector", {
-                    defaultValue: "Open inspector",
-                  })}
+                  title={t("chat.workspace.openInspector")}
+                  aria-label={t("chat.workspace.openInspector")}
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();

@@ -67,21 +67,15 @@ const statusLabel = (
 ): string => {
   switch (status) {
     case "awaiting_response":
-      return t("settings.metricsTable.session.status.awaitingResponse", {
-        defaultValue: "Awaiting Response",
-      });
+      return t("settings.metricsTable.session.status.awaitingResponse");
     case "running":
-      return t("settings.metricsTable.session.status.running", { defaultValue: "Running" });
+      return t("settings.metricsTable.session.status.running");
     case "completed":
-      return t("settings.metricsTable.session.status.completed", {
-        defaultValue: "Completed",
-      });
+      return t("settings.metricsTable.session.status.completed");
     case "error":
-      return t("settings.metricsTable.session.status.error", { defaultValue: "Error" });
+      return t("settings.metricsTable.session.status.error");
     case "cancelled":
-      return t("settings.metricsTable.session.status.cancelled", {
-        defaultValue: "Cancelled",
-      });
+      return t("settings.metricsTable.session.status.cancelled");
     default:
       return status;
   }

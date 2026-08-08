@@ -59,10 +59,10 @@ function collectSourceFiles(dir: string, files: string[] = []): string[] {
   return files;
 }
 
-// Matches `t("literal.key")`, `t('literal.key')`, `t(\`literal.key\`)` — i.e. any
-// call to a function named `t` (useTranslation's t, getFixedT()'s t, etc.) whose
-// first argument is a plain string literal with no interpolation.
-const STATIC_T_CALL = /(?<![A-Za-z0-9_$.])t\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
+// Matches `t("literal.key")`, `i18n.t('literal.key')`, and equivalent static
+// template literals. The negative lookbehind rejects identifiers ending in
+// `t` while intentionally allowing member access before `.t(...)`.
+const STATIC_T_CALL = /(?<![A-Za-z0-9_$])t\(\s*(["'`])((?:\\.|(?!\1)[^\\])*)\1/g;
 
 function extractStaticKeys(): Map<string, { file: string; line: number }[]> {
   const keys = new Map<string, { file: string; line: number }[]>();

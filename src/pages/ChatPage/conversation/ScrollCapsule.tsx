@@ -40,7 +40,7 @@ export const ScrollCapsule: React.FC<ScrollCapsuleProps> = ({
             size="small"
             onClick={onScrollToTop}
           >
-            {t("chat.scroll.jumpToTop", { defaultValue: "Jump to top" })}
+            {t("chat.scroll.jumpToTop")}
           </Button>
         ) : null}
         {showScrollToBottom ? (
@@ -62,9 +62,8 @@ export const ScrollCapsule: React.FC<ScrollCapsuleProps> = ({
                 {hasUnreadActivity
                   ? t("chat.scroll.newMessagesWithCount", {
                       count: unreadCount,
-                      defaultValue: unreadCount > 0 ? "{{count}} new messages" : "New messages",
                     })
-                  : t("chat.scroll.backToLatest", { defaultValue: "Back to latest" })}
+                  : t("chat.scroll.backToLatest")}
               </Button>
             </span>
             {hasUnreadActivity && unreadCount > 0 ? (

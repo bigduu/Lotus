@@ -22,7 +22,14 @@ vi.mock("antd", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
-    t: (_key: string, fallback: string) => fallback,
+    t: (key: string) =>
+      ({
+        "chat.sessionCreateRecovery.title": "Session creation is still being confirmed",
+        "chat.sessionCreateRecovery.retry": "Check again",
+        "common.close": "Close",
+        "chat.sidebar.createFailedTitle": "Failed to create session",
+        "chat.sidebar.createFailedUnknown": "Unknown error",
+      })[key] ?? key,
   }),
 }));
 

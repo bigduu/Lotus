@@ -12,7 +12,6 @@ type FeedbackRating = "like" | "dislike" | null;
 interface RetryVariation {
   key: string;
   labelKey: string;
-  fallbackLabel: string;
   color: string;
   prefix: string;
 }
@@ -21,21 +20,18 @@ const RETRY_VARIATIONS: RetryVariation[] = [
   {
     key: "shorter",
     labelKey: "feedback.retry.shorter",
-    fallbackLabel: "Shorter",
     color: "blue",
     prefix: "Please give a shorter, more concise answer:",
   },
   {
     key: "deeper",
     labelKey: "feedback.retry.deeper",
-    fallbackLabel: "Deeper",
     color: "purple",
     prefix: "Please provide a more detailed, in-depth answer:",
   },
   {
     key: "actionable",
     labelKey: "feedback.retry.actionable",
-    fallbackLabel: "More actionable",
     color: "green",
     prefix: "Please make your answer more actionable with specific steps:",
   },
@@ -90,24 +86,24 @@ export const MessageFeedback: React.FC<{
   return (
     <div className={classes} data-message-id={messageId}>
       {/* Like */}
-      <Tooltip title={t("feedback.helpful", "Helpful")}>
+      <Tooltip title={t("feedback.helpful")}>
         <button
           type="button"
           className={`lotus-msg-feedback-btn ${rating === "like" ? "is-liked" : ""}`}
           onClick={handleLike}
-          aria-label={t("feedback.helpful", "Helpful")}
+          aria-label={t("feedback.helpful")}
         >
           {rating === "like" ? <LikeFilled /> : <LikeOutlined />}
         </button>
       </Tooltip>
 
       {/* Dislike */}
-      <Tooltip title={t("feedback.notHelpful", "Not helpful")}>
+      <Tooltip title={t("feedback.notHelpful")}>
         <button
           type="button"
           className={`lotus-msg-feedback-btn ${rating === "dislike" ? "is-disliked" : ""}`}
           onClick={handleDislike}
-          aria-label={t("feedback.notHelpful", "Not helpful")}
+          aria-label={t("feedback.notHelpful")}
         >
           {rating === "dislike" ? <DislikeFilled /> : <DislikeOutlined />}
         </button>
@@ -134,7 +130,7 @@ export const MessageFeedback: React.FC<{
                   }
                 }}
               >
-                {t(v.labelKey, v.fallbackLabel)}
+                {t(v.labelKey)}
               </Tag>
             ))}
           </span>
