@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { metricsService } from "@services/metrics";
 import type { MetricsUsageBreakdownResponse } from "@services/metrics";
@@ -54,13 +54,18 @@ export const useMetricsUsage = (options: UseMetricsUsageOptions = {}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestGenerationRef = useRef(0);
 
   const loadUsage = useCallback(
     async (showLoading: boolean) => {
+      const requestGeneration = ++requestGenerationRef.current;
+
+      setIsLoading(showLoading);
+      setIsRefreshing(!showLoading);
+      setError(null);
+
       if (showLoading) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
+        setData(null);
       }
 
       try {
@@ -69,14 +74,21 @@ export const useMetricsUsage = (options: UseMetricsUsageOptions = {}) => {
           endDate: resolvedRange.endDate,
           model: normalizedFilters.model,
         });
+
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
+
         setData(response);
         setError(null);
       } catch (loadError) {
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
         setError(toErrorMessage(loadError, "Failed to load usage breakdown"));
       } finally {
-        if (showLoading) {
+        if (requestGeneration === requestGenerationRef.current) {
           setIsLoading(false);
-        } else {
           setIsRefreshing(false);
         }
       }
@@ -90,9 +102,16 @@ export const useMetricsUsage = (options: UseMetricsUsageOptions = {}) => {
 
   useEffect(() => {
     if (!enabled) {
+      requestGenerationRef.current += 1;
+      setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
     void loadUsage(true);
+
+    return () => {
+      requestGenerationRef.current += 1;
+    };
   }, [enabled, loadUsage]);
 
   useEffect(() => {

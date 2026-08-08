@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   metricsService,
@@ -115,13 +115,28 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestGenerationRef = useRef(0);
 
   const loadAllMetrics = useCallback(
     async (showLoading: boolean) => {
+      const requestGeneration = ++requestGenerationRef.current;
+
+      // The newest request owns both flags. Resetting both prevents a refresh
+      // from inheriting `isLoading` from an older initial/filter request (and
+      // vice versa) when requests overlap.
+      setIsLoading(showLoading);
+      setIsRefreshing(!showLoading);
+      setError(null);
+
       if (showLoading) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
+        // A filter transition must not keep rendering data for the previous
+        // range while its replacement request is in flight or after it fails.
+        setSummary(null);
+        setModelMetrics([]);
+        setSessions([]);
+        setTimeline([]);
+        setMemorySummary(null);
+        setMemoryTimeline([]);
       }
 
       try {
@@ -174,6 +189,10 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
           memoryTimelinePromise,
         ]);
 
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
+
         setSummary(summaryResponse);
         setModelMetrics(modelResponse);
         setSessions(sessionsResponse);
@@ -182,11 +201,13 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
         setMemoryTimeline(memoryTimelineResponse);
         setError(null);
       } catch (loadError) {
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
         setError(toErrorMessage(loadError, "Failed to load metrics"));
       } finally {
-        if (showLoading) {
+        if (requestGeneration === requestGenerationRef.current) {
           setIsLoading(false);
-        } else {
           setIsRefreshing(false);
         }
       }
@@ -227,9 +248,16 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
 
   useEffect(() => {
     if (!enabled) {
+      requestGenerationRef.current += 1;
+      setIsLoading(false);
+      setIsRefreshing(false);
       return;
     }
     void loadAllMetrics(true);
+
+    return () => {
+      requestGenerationRef.current += 1;
+    };
   }, [enabled, loadAllMetrics]);
 
   useEffect(() => {
