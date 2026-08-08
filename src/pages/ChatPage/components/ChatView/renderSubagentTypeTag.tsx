@@ -1,34 +1,18 @@
 import React from "react";
 import { Tag } from "antd";
 
-import type { SubagentProfile } from "@services/subagent/types";
-
 /**
- * Render a small Tag showing the subagent profile (role) of a child session.
- *
- * Resolution order:
- *   1. If `subagentType` is null/empty → render nothing (legacy/root sessions
- *      that pre-date subagent profiles or are not children).
- *   2. If the catalogue has a matching profile → use its `display_name`,
- *      `ui.icon` and `ui.color` for nice presentation.
- *   3. Otherwise → fall back to rendering the raw id (catalogue may still
- *      be loading, or backend supplied an id we don't know about).
+ * Render the backend-provided `subagent_type` as a cosmetic label.
+ * Empty values are omitted for legacy/root sessions and children without a
+ * label; non-empty values are displayed verbatim after trimming whitespace.
  */
 export const renderSubagentTypeTag = (
   subagentType: string | null | undefined,
-  byId: Map<string, SubagentProfile>,
   options?: { compact?: boolean },
 ): React.ReactNode => {
   const id = subagentType?.trim();
   if (!id) return null;
 
-  const profile = byId.get(id);
-  const label = profile?.display_name?.trim() || id;
-  const icon = profile?.ui?.icon?.trim();
-  // AntD Tag accepts the raw color name strings (e.g. "blue", "purple").
-  // If the profile didn't supply one, omit the color prop entirely so the
-  // tag renders in the default neutral palette.
-  const color = profile?.ui?.color?.trim() || undefined;
   const compact = options?.compact ?? false;
 
   if (compact) {
@@ -36,23 +20,19 @@ export const renderSubagentTypeTag = (
       <span
         data-testid={`sub-agent-role-tag-${id}`}
         style={{
-          color: color || "inherit",
+          color: "inherit",
           lineHeight: "inherit",
           whiteSpace: "nowrap",
         }}
       >
-        {icon ? `${icon} ${label}` : label}
+        {id}
       </span>
     );
   }
 
   return (
-    <Tag
-      color={color}
-      style={{ marginInlineEnd: 0, flex: "0 0 auto" }}
-      data-testid={`sub-agent-role-tag-${id}`}
-    >
-      {icon ? `${icon} ${label}` : label}
+    <Tag style={{ marginInlineEnd: 0, flex: "0 0 auto" }} data-testid={`sub-agent-role-tag-${id}`}>
+      {id}
     </Tag>
   );
 };

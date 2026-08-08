@@ -2,7 +2,6 @@ import { memo } from "react";
 import { Button, Dropdown, Flex, Tag, Typography, theme } from "antd";
 import { useTranslation } from "react-i18next";
 
-import type { SubagentProfile } from "@services/subagent/types";
 import type { SessionPlacement } from "@services/chat/AgentService";
 import { useChildPreviewState, getMergedChildPreview } from "../../streaming/useChildPreviewState";
 import { renderSubagentTypeTag } from "./renderSubagentTypeTag";
@@ -59,7 +58,6 @@ export interface SubAgentRowProps {
   isRetrying: boolean;
   isContinuing: boolean;
   isDeleting: boolean;
-  subagentProfilesById: Map<string, SubagentProfile>;
   onOpenChild: (childSessionId: string) => void;
   onContinueChild: (childSessionId: string) => void;
   onRetryChild: (childSessionId: string, retryMode: SubAgentRetryMode) => void;
@@ -89,7 +87,6 @@ export const SubAgentRow = memo<SubAgentRowProps>(
     isRetrying,
     isContinuing,
     isDeleting,
-    subagentProfilesById,
     onOpenChild,
     onContinueChild,
     onRetryChild,
@@ -187,7 +184,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                   // in the non-compact branch, so without this a resident is
                   // indistinguishable in compact view).
                   item.lifecycle === "resident" ? t("chat.subAgents.residentBadge") : null,
-                  renderSubagentTypeTag(item.subagentType, subagentProfilesById, {
+                  renderSubagentTypeTag(item.subagentType, {
                     compact: true,
                   }),
                   item.placement ? <MachineTag placement={item.placement} compact /> : null,
@@ -225,7 +222,7 @@ export const SubAgentRow = memo<SubAgentRowProps>(
                     {t("chat.subAgents.residentBadge")}
                   </Tag>
                 ) : null}
-                {renderSubagentTypeTag(item.subagentType, subagentProfilesById)}
+                {renderSubagentTypeTag(item.subagentType)}
                 {item.placement ? <MachineTag placement={item.placement} compact /> : null}
               </>
             )}
@@ -431,7 +428,6 @@ export const SubAgentRow = memo<SubAgentRowProps>(
     prev.isRetrying === next.isRetrying &&
     prev.isContinuing === next.isContinuing &&
     prev.isDeleting === next.isDeleting &&
-    prev.subagentProfilesById === next.subagentProfilesById &&
     prev.onOpenChild === next.onOpenChild &&
     prev.onContinueChild === next.onContinueChild &&
     prev.onRetryChild === next.onRetryChild &&

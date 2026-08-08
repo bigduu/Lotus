@@ -22,7 +22,7 @@
  * this file backs `@shared/store/appStore` with an ACTUAL zustand store
  * and drives updates through `useAppStore.setState(...)`, observing
  * whether the panel's render function actually re-executes by spying on
- * `useSubagentProfiles`, a hook it calls unconditionally on every render
+ * `useTranslation`, the first hook it calls unconditionally on every render
  * before its only early return.
  */
 import React from "react";
@@ -144,19 +144,23 @@ vi.mock("../../../../services/tool/ToolService", () => ({
   toolService: { executeTool: vi.fn() },
 }));
 
-vi.mock("../../hooks/useSubagentProfiles", () => ({
-  useSubagentProfiles: vi.fn(() => ({ byId: new Map() })),
-}));
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return {
+    ...actual,
+    useTranslation: vi.fn(actual.useTranslation),
+  };
+});
 
 vi.mock("../../hooks/useActiveModel", () => ({
   useActiveModel: () => "test-model",
 }));
 
 import { useAppStore } from "@shared/store/appStore";
-import { useSubagentProfiles } from "../../hooks/useSubagentProfiles";
+import { useTranslation } from "react-i18next";
 import { SubAgentsPanel } from "./SubAgentsPanel";
 
-const renderSpy = vi.mocked(useSubagentProfiles);
+const renderSpy = vi.mocked(useTranslation);
 
 // The mocked store is a module-level singleton (real zustand store), so
 // reset its state before each test rather than recreating the module.
