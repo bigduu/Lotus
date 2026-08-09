@@ -1,10 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import {
-  FileOperationsService,
-  type FileFilter,
-  type SaveFileOptions,
-  type SaveFileResult,
-} from "../FileOperationsService";
+import { FileOperationsService } from "../FileOperationsService";
 import * as environmentModule from "../../../utils/environment";
 
 // Mock environment check

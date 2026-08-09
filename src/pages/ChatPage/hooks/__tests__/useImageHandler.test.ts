@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act } from "@testing-library/react";
 import { useImageHandler } from "../useImageHandler";
 import { ImageFile, processImageFiles, cleanupImagePreviews } from "../../utils/imageUtils";
 
@@ -208,7 +208,7 @@ describe("useImageHandler", () => {
       const fileList = {
         0: mockImage.file,
         length: 1,
-        item: (index: number) => mockImage.file,
+        item: (_index: number) => mockImage.file,
       } as FileList;
 
       await act(async () => {

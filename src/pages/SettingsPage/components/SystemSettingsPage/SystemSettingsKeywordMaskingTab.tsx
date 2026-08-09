@@ -50,7 +50,7 @@ const entriesEqual = (left: KeywordEntry | undefined, right: KeywordEntry | unde
       left.enabled === right.enabled,
   );
 
-export const reapplyKeywordEntries = (
+const reapplyKeywordEntries = (
   base: KeywordEntry[],
   draft: KeywordEntry[],
   latest: KeywordEntry[],

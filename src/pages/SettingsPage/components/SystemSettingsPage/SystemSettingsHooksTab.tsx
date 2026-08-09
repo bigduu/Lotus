@@ -142,7 +142,7 @@ const lifecycleEntryEqual = (
       left.timeoutMs === right.timeoutMs,
   );
 
-export const reapplyLifecycleEntries = (
+const reapplyLifecycleEntries = (
   base: LifecycleHookEditorEntry[],
   draft: LifecycleHookEditorEntry[],
   latest: LifecycleHookEditorEntry[],

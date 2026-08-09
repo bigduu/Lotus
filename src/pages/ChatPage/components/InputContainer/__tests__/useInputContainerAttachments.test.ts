@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useInputContainerAttachments } from "../useInputContainerAttachments";
 import type { ProcessedFile } from "../../../utils/fileUtils";

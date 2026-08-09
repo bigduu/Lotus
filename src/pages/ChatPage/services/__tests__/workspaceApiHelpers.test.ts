@@ -406,7 +406,6 @@ describe("workspaceApiHelpers", () => {
 
       // Consume generator
       for await (const _ of generator) {
-        // eslint-disable-next-line no-empty
       }
 
       expect(mockFetch).toHaveBeenCalledWith(
@@ -532,7 +531,6 @@ describe("workspaceApiHelpers", () => {
 
       // Consume generator
       for await (const _ of generator) {
-        // eslint-disable-next-line no-empty
       }
 
       expect(releaseLock).toHaveBeenCalled();
@@ -556,7 +554,7 @@ describe("workspaceApiHelpers", () => {
         for await (const _ of generator) {
           // Should throw
         }
-      } catch (error) {
+      } catch {
         // Expected
       }
 

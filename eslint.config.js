@@ -113,7 +113,7 @@ export default [
 
       // ── React Hooks ──
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      "react-hooks/exhaustive-deps": "error",
 
       // ── React Refresh (Vite HMR) ──
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],

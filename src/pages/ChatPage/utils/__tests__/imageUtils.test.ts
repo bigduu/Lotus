@@ -55,7 +55,7 @@ class MockCanvas {
     return contextId === "2d" ? this._context2d : null;
   }
 
-  toDataURL(type?: string, quality?: any): string {
+  toDataURL(type?: string, _quality?: number): string {
     return `data:${type || "image/png"};base64,mockbase64data`;
   }
 }

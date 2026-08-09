@@ -1,8 +1,4 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-
-// Import the slice to access the utility functions
-import { create } from "zustand";
-import type { AppState } from "@shared/store/appStore";
+import { describe, expect, it, vi } from "vitest";
 
 // We'll need to import and test the utility functions indirectly through the slice
 // Since they're not exported, we'll test them through the public API or mock them
