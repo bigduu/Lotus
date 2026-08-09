@@ -38,7 +38,7 @@
     "test:e2e:ui": "npm --prefix ./e2e run test:ui --",
     "test:e2e:debug": "npm --prefix ./e2e run test:debug --",
     "test:e2e:report": "npm --prefix ./e2e run test:report --",
-    "lint": "eslint src",
+    "lint": "eslint src --max-warnings 0",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,mjs,cjs,json,md}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,mjs,cjs,json,md}\"",

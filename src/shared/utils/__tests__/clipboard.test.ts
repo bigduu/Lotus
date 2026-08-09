@@ -145,7 +145,6 @@ describe("clipboard", () => {
 
     it("throws combined error when both methods fail", async () => {
       const navigatorError = new Error("navigator failed");
-      const execError = new Error("execCommand failed");
 
       clipboardWriteText.mockRejectedValueOnce(navigatorError);
       execCommand.mockReturnValueOnce(false);

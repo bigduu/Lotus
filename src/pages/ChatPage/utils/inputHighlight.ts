@@ -26,7 +26,7 @@ export const getInputHighlightSegments = (value: string): HighlightSegment[] => 
     const isFileTrigger = char === "@" && (index === 0 || isWhitespace(prevChar));
 
     if (!isCommandTrigger && !isFileTrigger) {
-      let start = index;
+      const start = index;
       while (
         index < length &&
         !(
