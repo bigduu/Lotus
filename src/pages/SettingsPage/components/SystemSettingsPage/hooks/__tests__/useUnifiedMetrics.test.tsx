@@ -1,6 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { SessionDetail } from "@services/metrics";
 import { createDeferred } from "./deferred";
 import { useUnifiedMetrics } from "../useUnifiedMetrics";
 
@@ -58,6 +59,22 @@ const modelMetric = (model: string) => ({
   rounds: 1,
   tokens: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
   tool_calls: 0,
+});
+
+const createSessionDetail = (sessionId: string, model: string): SessionDetail => ({
+  session: {
+    session_id: sessionId,
+    model,
+    started_at: "2026-02-10T10:00:00Z",
+    completed_at: "2026-02-10T10:01:00Z",
+    total_rounds: 1,
+    total_token_usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    tool_call_count: 0,
+    tool_breakdown: {},
+    status: "completed",
+    message_count: 2,
+  },
+  rounds: [],
 });
 
 describe("useUnifiedMetrics", () => {
@@ -196,5 +213,93 @@ describe("useUnifiedMetrics", () => {
       await selectedSummary.promise;
     });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
+  });
+
+  it("clears session detail on a model change and ignores the prior detail success", async () => {
+    const staleDetail = createDeferred<SessionDetail | null>();
+    metricsServiceMock.getSessionDetail
+      .mockResolvedValueOnce(createSessionDetail("visible-session", "older-model"))
+      .mockImplementationOnce(() => staleDetail.promise);
+    const { result, rerender } = renderHook(
+      ({ model }) => useUnifiedMetrics({ autoRefreshMs: 0, filters: { days: 30, model } }),
+      { initialProps: { model: "older-model" } },
+    );
+
+    await waitFor(() => expect(result.current.chatSummary?.total_sessions).toBe(2));
+    await act(async () => {
+      await result.current.loadSessionDetail("visible-session");
+    });
+    expect(result.current.sessionDetail?.session.session_id).toBe("visible-session");
+
+    let staleLoad = Promise.resolve();
+    act(() => {
+      staleLoad = result.current.loadSessionDetail("stale-session");
+    });
+    await waitFor(() => expect(result.current.isSessionDetailLoading).toBe(true));
+
+    rerender({ model: "newer-model" });
+    await waitFor(() => {
+      expect(metricsServiceMock.getUnifiedSummary).toHaveBeenCalledTimes(2);
+      expect(result.current.sessionDetail).toBeNull();
+      expect(result.current.isSessionDetailLoading).toBe(false);
+    });
+
+    await act(async () => {
+      staleDetail.resolve(createSessionDetail("stale-session", "older-model"));
+      await staleLoad;
+    });
+
+    expect(result.current.sessionDetail).toBeNull();
+    expect(result.current.isSessionDetailLoading).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("does not let a stale detail error reset a newer detail loading state", async () => {
+    const staleDetail = createDeferred<SessionDetail | null>();
+    const currentDetail = createDeferred<SessionDetail | null>();
+    metricsServiceMock.getSessionDetail
+      .mockImplementationOnce(() => staleDetail.promise)
+      .mockImplementationOnce(() => currentDetail.promise);
+    const { result, rerender } = renderHook(
+      ({ model }) => useUnifiedMetrics({ autoRefreshMs: 0, filters: { days: 30, model } }),
+      { initialProps: { model: "older-model" } },
+    );
+
+    await waitFor(() => expect(result.current.chatSummary?.total_sessions).toBe(2));
+
+    let staleLoad = Promise.resolve();
+    act(() => {
+      staleLoad = result.current.loadSessionDetail("stale-session");
+    });
+    await waitFor(() => expect(result.current.isSessionDetailLoading).toBe(true));
+
+    rerender({ model: "newer-model" });
+    await waitFor(() => {
+      expect(metricsServiceMock.getUnifiedSummary).toHaveBeenCalledTimes(2);
+      expect(result.current.isSessionDetailLoading).toBe(false);
+    });
+
+    let currentLoad = Promise.resolve();
+    act(() => {
+      currentLoad = result.current.loadSessionDetail("current-session");
+    });
+    await waitFor(() => expect(result.current.isSessionDetailLoading).toBe(true));
+
+    await act(async () => {
+      staleDetail.reject(new Error("stale detail failed"));
+      await staleLoad;
+    });
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.sessionDetail).toBeNull();
+    expect(result.current.isSessionDetailLoading).toBe(true);
+
+    await act(async () => {
+      currentDetail.resolve(createSessionDetail("current-session", "newer-model"));
+      await currentLoad;
+    });
+
+    expect(result.current.sessionDetail?.session.session_id).toBe("current-session");
+    expect(result.current.isSessionDetailLoading).toBe(false);
   });
 });

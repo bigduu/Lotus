@@ -210,6 +210,14 @@ const UnifiedMetricsDashboard: React.FC = () => {
             }}
           />
         </Space>
+        {selectedModel ? (
+          <Alert
+            type="info"
+            showIcon
+            message={t("settings.metricsDashboard.memoryModelFilterNotice")}
+            style={{ marginTop: token.marginSM }}
+          />
+        ) : null}
       </Card>
 
       {/* Unified Metrics Cards */}

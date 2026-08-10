@@ -126,6 +126,7 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestGenerationRef = useRef(0);
+  const sessionDetailGenerationRef = useRef(0);
 
   const loadAllMetrics = useCallback(
     async (showLoading: boolean) => {
@@ -253,24 +254,37 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
 
   const loadSessionDetail = useCallback(
     async (sessionId: string) => {
+      const detailGeneration = ++sessionDetailGenerationRef.current;
       setIsSessionDetailLoading(true);
       try {
         const detail = await service.getSessionDetail(sessionId);
+        if (detailGeneration !== sessionDetailGenerationRef.current) {
+          return;
+        }
         setSessionDetail(detail);
       } catch (detailError) {
+        if (detailGeneration !== sessionDetailGenerationRef.current) {
+          return;
+        }
         setError(toErrorMessage(detailError, "Failed to load session detail"));
       } finally {
-        setIsSessionDetailLoading(false);
+        if (detailGeneration === sessionDetailGenerationRef.current) {
+          setIsSessionDetailLoading(false);
+        }
       }
     },
     [service],
   );
 
   const clearSessionDetail = useCallback(() => {
+    sessionDetailGenerationRef.current += 1;
     setSessionDetail(null);
+    setIsSessionDetailLoading(false);
   }, []);
 
   useEffect(() => {
+    clearSessionDetail();
+
     if (!enabled) {
       requestGenerationRef.current += 1;
       setIsLoading(false);
@@ -281,8 +295,9 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
 
     return () => {
       requestGenerationRef.current += 1;
+      sessionDetailGenerationRef.current += 1;
     };
-  }, [enabled, loadAllMetrics]);
+  }, [clearSessionDetail, enabled, loadAllMetrics]);
 
   useEffect(() => {
     if (!enabled || autoRefreshMs <= 0) {

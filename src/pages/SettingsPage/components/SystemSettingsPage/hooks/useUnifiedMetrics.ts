@@ -95,6 +95,7 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestGenerationRef = useRef(0);
+  const sessionDetailGenerationRef = useRef(0);
 
   const loadAllMetrics = useCallback(
     async (showLoading: boolean) => {
@@ -213,28 +214,41 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
   }, [loadAllMetrics]);
 
   const loadSessionDetail = useCallback(async (sessionId: string) => {
+    const detailGeneration = ++sessionDetailGenerationRef.current;
     setIsSessionDetailLoading(true);
     try {
       const detail = await metricsService.getSessionDetail(sessionId);
+      if (detailGeneration !== sessionDetailGenerationRef.current) {
+        return;
+      }
       setSessionDetail(detail);
     } catch (detailError) {
+      if (detailGeneration !== sessionDetailGenerationRef.current) {
+        return;
+      }
       setError(toErrorMessage(detailError, "Failed to load session detail"));
     } finally {
-      setIsSessionDetailLoading(false);
+      if (detailGeneration === sessionDetailGenerationRef.current) {
+        setIsSessionDetailLoading(false);
+      }
     }
   }, []);
 
   const clearSessionDetail = useCallback(() => {
+    sessionDetailGenerationRef.current += 1;
     setSessionDetail(null);
+    setIsSessionDetailLoading(false);
   }, []);
 
   useEffect(() => {
+    clearSessionDetail();
     void loadAllMetrics(true);
 
     return () => {
       requestGenerationRef.current += 1;
+      sessionDetailGenerationRef.current += 1;
     };
-  }, [loadAllMetrics]);
+  }, [clearSessionDetail, loadAllMetrics]);
 
   useEffect(() => {
     if (autoRefreshMs <= 0) {

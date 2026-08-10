@@ -2805,6 +2805,7 @@ export const zhCnTranslation = {
         startDate: "开始日期",
         endDate: "结束日期",
         model: "模型",
+        memoryModelFilterNotice: "记忆指标始终汇总所有模型，不受模型筛选影响。",
         daysOption: "{{value}} 天",
         granularity: {
           daily: "按天",

@@ -622,6 +622,14 @@ const SystemSettingsMetricsTab: React.FC = () => {
               }}
             />
           </Space>
+          {selectedModel ? (
+            <Alert
+              type="info"
+              showIcon
+              message={t("settings.metricsDashboard.memoryModelFilterNotice")}
+              style={{ marginTop: token.marginSM }}
+            />
+          ) : null}
         </Card>
 
         <Card size="small" title={t("settings.metricsDashboard.dashboardTitle")}>

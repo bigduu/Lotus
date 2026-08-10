@@ -29,6 +29,13 @@ async function openModelSelectAndFindOption(optionText: string) {
   });
 }
 
+function clearModelSelect() {
+  const select = screen.getAllByRole("combobox")[0].closest(".ant-select");
+  const clear = select?.querySelector(".ant-select-clear");
+  expect(clear).toBeTruthy();
+  fireEvent.mouseDown(clear as HTMLElement);
+}
+
 vi.mock("../hooks/useUnifiedMetrics", () => ({
   useUnifiedMetrics: (...args: unknown[]) => mockUseUnifiedMetrics(...args),
 }));
@@ -171,8 +178,23 @@ describe("UnifiedMetricsDashboard", () => {
         "models:gpt-5",
       );
     });
+    expect(
+      screen.getByText("Memory metrics remain all-model and are not affected by the model filter."),
+    ).toBeInTheDocument();
     expect(screen.queryByTestId("unified-sync-mismatch-breakdown-mock")).not.toBeInTheDocument();
 
     expect(await openModelSelectAndFindOption("claude-4")).toBeInTheDocument();
+
+    clearModelSelect();
+    await waitFor(() => {
+      expect(mockUseUnifiedMetrics).toHaveBeenLastCalledWith(
+        expect.objectContaining({ filters: expect.objectContaining({ model: undefined }) }),
+      );
+      expect(
+        screen.queryByText(
+          "Memory metrics remain all-model and are not affected by the model filter.",
+        ),
+      ).not.toBeInTheDocument();
+    });
   });
 });
