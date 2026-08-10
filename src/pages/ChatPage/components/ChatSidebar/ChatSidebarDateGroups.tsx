@@ -505,28 +505,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               align="center"
               justify="space-between"
               style={{
-                cursor: "pointer",
                 padding: "4px 8px",
                 borderRadius: token.borderRadiusSM,
                 transition: "background-color 0.2s ease, color 0.2s ease",
                 border: "1px solid transparent",
-              }}
-              role="button"
-              tabIndex={0}
-              aria-expanded={isExpanded}
-              aria-label={`${resolveGroupLabel(dateKey)} (${totalChatsInDate})`}
-              onKeyDown={(e) => {
-                if (e.target !== e.currentTarget) return;
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  const next = new Set(expanded);
-                  if (next.has(dateKey)) {
-                    next.delete(dateKey);
-                  } else {
-                    next.add(dateKey);
-                  }
-                  onCollapseChange(Array.from(next));
-                }
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background =
@@ -537,18 +519,43 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 e.currentTarget.style.background = "transparent";
                 e.currentTarget.style.borderColor = "transparent";
               }}
-              onClick={() => {
-                const next = new Set(expanded);
-                if (next.has(dateKey)) {
-                  next.delete(dateKey);
-                } else {
-                  next.add(dateKey);
-                }
-                onCollapseChange(Array.from(next));
-              }}
               className="chat-sidebar-date-group-header"
             >
-              <Flex align="center" gap="small" style={{ minWidth: 0 }}>
+              {/* Expand/collapse is its own explicit native-button target
+                  (#202): the header row itself is NOT interactive, so the
+                  Create/Delete controls are siblings of this toggle rather
+                  than interactive descendants of a role="button" container.
+                  Native <button> semantics supply Enter/Space activation,
+                  focus visibility, and touch behavior for free. */}
+              <button
+                type="button"
+                className="chat-sidebar-date-group-toggle"
+                aria-expanded={isExpanded}
+                aria-label={`${resolveGroupLabel(dateKey)} (${totalChatsInDate})`}
+                onClick={() => {
+                  const next = new Set(expanded);
+                  if (next.has(dateKey)) {
+                    next.delete(dateKey);
+                  } else {
+                    next.add(dateKey);
+                  }
+                  onCollapseChange(Array.from(next));
+                }}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: 0,
+                  border: "none",
+                  background: "none",
+                  cursor: "pointer",
+                  font: "inherit",
+                  color: "inherit",
+                  textAlign: "left",
+                }}
+              >
                 {isExpanded ? (
                   <DownOutlined style={{ fontSize: 12, opacity: 0.6 }} />
                 ) : (
@@ -595,7 +602,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                     {t("chat.sidebar.archived")}
                   </span>
                 ) : null}
-              </Flex>
+              </button>
 
               <Flex align="center" style={{ flexShrink: 0 }}>
                 {isProjectMode && onCreateChatInProject ? (
@@ -609,8 +616,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       style={{
                         color: token.colorTextTertiary,
                       }}
-                      onClick={(event) => {
-                        event.stopPropagation();
+                      onClick={() => {
                         onCreateChatInProject(dateKey === NO_PROJECT_GROUP_KEY ? null : dateKey);
                       }}
                     />
@@ -624,8 +630,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                   style={{
                     color: token.colorTextTertiary,
                   }}
-                  onClick={(event) => {
-                    event.stopPropagation();
+                  onClick={() => {
                     onDeleteByDate(dateKey);
                   }}
                 />

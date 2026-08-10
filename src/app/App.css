@@ -1137,7 +1137,7 @@ body[data-vdi-safe="true"] .lotus-sidebar-actions-dropdown .ant-dropdown-menu-it
    the shell already shows its own elevated shadow on :focus-within. */
 /* Focus rings for sidebar and list items */
 [data-testid="chat-item"]:focus-visible,
-.chat-sidebar-date-group-header:focus-visible {
+.chat-sidebar-date-group-toggle:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px var(--lotus-focus-ring) !important;
   border-radius: 8px;

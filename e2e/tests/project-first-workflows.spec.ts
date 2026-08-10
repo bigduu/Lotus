@@ -944,13 +944,17 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
         if ((await group.getAttribute("aria-expanded")) !== "true") {
           await group.click();
         }
-        const seedRow = group
+        // #202: the group locator resolves to the explicit toggle button;
+        // the session rows live under the toggle's grandparent (the group
+        // wrapper), while Create/Delete are siblings inside the header row.
+        const headerRow = group.locator("..");
+        const seedRow = headerRow
           .locator("..")
           .getByRole("option", { name: input.seedTitle, exact: true });
         await expect(seedRow).toHaveCount(1);
         await expect(seedRow).toBeVisible();
         await group.hover();
-        const createButton = group.getByRole("button", {
+        const createButton = headerRow.getByRole("button", {
           name: "Create session in this project",
         });
         await expect(createButton).toHaveCSS("opacity", "1");
