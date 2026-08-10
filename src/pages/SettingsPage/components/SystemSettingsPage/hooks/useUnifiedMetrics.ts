@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { metricsService } from "@services/metrics";
 import type {
@@ -47,7 +47,7 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
     () => ({
       startDate: filters?.startDate,
       endDate: filters?.endDate,
-      model: filters?.model,
+      model: filters?.model?.trim() || undefined,
       days: filters?.days ?? 30,
       granularity: filters?.granularity ?? "daily",
       sessionLimit: filters?.sessionLimit ?? 200,
@@ -75,6 +75,7 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
   // Chat metrics state
   const [chatSummary, setChatSummary] = useState<MetricsSummary | null>(null);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics[]>([]);
+  const [modelCatalog, setModelCatalog] = useState<string[]>([]);
   const [sessions, setSessions] = useState<SessionMetrics[]>([]);
   const [sessionDetail, setSessionDetail] = useState<SessionDetail | null>(null);
   const [isSessionDetailLoading, setIsSessionDetailLoading] = useState(false);
@@ -93,70 +94,106 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
   const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const requestGenerationRef = useRef(0);
 
   const loadAllMetrics = useCallback(
     async (showLoading: boolean) => {
+      const requestGeneration = ++requestGenerationRef.current;
+
+      setIsLoading(showLoading);
+      setIsRefreshing(!showLoading);
+      setError(null);
+
       if (showLoading) {
-        setIsLoading(true);
-      } else {
-        setIsRefreshing(true);
+        // Keep every visible dataset on the same filter generation. Rendering
+        // old all-model values while the selected-model requests are pending
+        // would recreate the mixed-scope dashboard this hook is meant to avoid.
+        setChatSummary(null);
+        setForwardSummary(null);
+        setCombinedSummary(null);
+        setMemorySummary(null);
+        setTimeline([]);
+        setModelMetrics([]);
+        setSessions([]);
+        setEndpointMetrics([]);
+        setForwardRequests([]);
       }
 
       try {
-        // Load unified summary and timeline
-        const [unifiedSummary, timelineResponse] = await Promise.all([
+        const modelFilter = normalizedFilters.model ? { model: normalizedFilters.model } : {};
+        const forwardQuery: ForwardMetricsQuery = {
+          startDate: resolvedRange.startDate,
+          endDate: resolvedRange.endDate,
+          ...modelFilter,
+          limit: normalizedFilters.sessionLimit,
+        };
+
+        const [
+          unifiedSummary,
+          timelineResponse,
+          modelResponse,
+          sessionsResponse,
+          endpointResponse,
+          requestsResponse,
+        ] = await Promise.all([
           metricsService.getUnifiedSummary({
             startDate: resolvedRange.startDate,
             endDate: resolvedRange.endDate,
+            ...modelFilter,
           }),
           metricsService.getUnifiedTimeline({
             days: resolvedRange.days,
             endDate: resolvedRange.endDate,
             granularity: normalizedFilters.granularity,
+            ...modelFilter,
           }),
+          metricsService.getByModel({
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
+            ...modelFilter,
+          }),
+          metricsService.getSessions({
+            startDate: resolvedRange.startDate,
+            endDate: resolvedRange.endDate,
+            ...modelFilter,
+            limit: normalizedFilters.sessionLimit,
+          }),
+          metricsService.getForwardByEndpoint(forwardQuery),
+          metricsService.getForwardRequests(forwardQuery),
         ]);
+
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
 
         setChatSummary(unifiedSummary.chat);
         setForwardSummary(unifiedSummary.forward);
         setCombinedSummary(unifiedSummary.combined);
         setMemorySummary(unifiedSummary.memory);
         setTimeline(timelineResponse);
-
-        // Load detailed metrics in parallel
-        const forwardQuery: ForwardMetricsQuery = {
-          startDate: resolvedRange.startDate,
-          endDate: resolvedRange.endDate,
-          model: normalizedFilters.model,
-          limit: normalizedFilters.sessionLimit,
-        };
-
-        const [modelResponse, sessionsResponse, endpointResponse, requestsResponse] =
-          await Promise.all([
-            metricsService.getByModel({
-              startDate: resolvedRange.startDate,
-              endDate: resolvedRange.endDate,
-            }),
-            metricsService.getSessions({
-              startDate: resolvedRange.startDate,
-              endDate: resolvedRange.endDate,
-              model: normalizedFilters.model,
-              limit: normalizedFilters.sessionLimit,
-            }),
-            metricsService.getForwardByEndpoint(forwardQuery),
-            metricsService.getForwardRequests(forwardQuery),
-          ]);
-
         setModelMetrics(modelResponse);
+        setModelCatalog((currentCatalog) => {
+          const responseModels = modelResponse.map((item) => item.model);
+          if (!normalizedFilters.model) {
+            return Array.from(new Set(responseModels));
+          }
+          if (currentCatalog.length > 0) {
+            return currentCatalog;
+          }
+          return Array.from(new Set([normalizedFilters.model, ...responseModels]));
+        });
         setSessions(sessionsResponse);
         setEndpointMetrics(endpointResponse);
         setForwardRequests(requestsResponse);
         setError(null);
       } catch (loadError) {
+        if (requestGeneration !== requestGenerationRef.current) {
+          return;
+        }
         setError(toErrorMessage(loadError, "Failed to load metrics"));
       } finally {
-        if (showLoading) {
+        if (requestGeneration === requestGenerationRef.current) {
           setIsLoading(false);
-        } else {
           setIsRefreshing(false);
         }
       }
@@ -193,6 +230,10 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
 
   useEffect(() => {
     void loadAllMetrics(true);
+
+    return () => {
+      requestGenerationRef.current += 1;
+    };
   }, [loadAllMetrics]);
 
   useEffect(() => {
@@ -226,6 +267,7 @@ export const useUnifiedMetrics = (options: UseUnifiedMetricsOptions = {}) => {
     // Chat metrics
     chatSummary,
     modelMetrics,
+    modelCatalog,
     sessions,
     sessionDetail,
     isSessionDetailLoading,

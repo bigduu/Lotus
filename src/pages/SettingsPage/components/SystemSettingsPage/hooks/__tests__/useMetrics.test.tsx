@@ -1,7 +1,7 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import type { MetricsSummary } from "@services/metrics";
+import type { DailyMetrics, MetricsSummary, ModelMetrics, SessionMetrics } from "@services/metrics";
 import { createDeferred } from "./deferred";
 import { useMetrics } from "../useMetrics";
 
@@ -14,6 +14,45 @@ const createSummary = (totalSessions: number): MetricsSummary => ({
   },
   total_tool_calls: totalSessions,
   active_sessions: 0,
+});
+
+const createModelMetrics = (model: string, sessions = 1): ModelMetrics => ({
+  model,
+  sessions,
+  rounds: sessions,
+  tokens: {
+    prompt_tokens: sessions,
+    completion_tokens: sessions,
+    total_tokens: sessions * 2,
+  },
+  tool_calls: sessions,
+});
+
+const createSessionMetrics = (model: string): SessionMetrics => ({
+  session_id: `${model}-session`,
+  model,
+  started_at: "2026-02-10T10:00:00Z",
+  completed_at: "2026-02-10T10:01:00Z",
+  total_rounds: 1,
+  total_token_usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  tool_call_count: 0,
+  tool_breakdown: {},
+  status: "completed",
+  message_count: 2,
+});
+
+const createDailyMetrics = (sessions: number): DailyMetrics => ({
+  date: "2026-02-10",
+  total_sessions: sessions,
+  total_rounds: sessions,
+  total_token_usage: {
+    prompt_tokens: sessions,
+    completion_tokens: sessions,
+    total_tokens: sessions * 2,
+  },
+  total_tool_calls: sessions,
+  model_breakdown: {},
+  tool_breakdown: {},
 });
 
 const createService = (getSummary: () => Promise<MetricsSummary>) => ({
@@ -125,8 +164,81 @@ describe("useMetrics", () => {
     expect(service.getSessions).toHaveBeenCalledWith({
       startDate: "2026-02-04",
       endDate: "2026-02-10",
-      model: undefined,
       limit: 200,
+    });
+  });
+
+  it("uses one normalized model for every dataset and omits it after clearing", async () => {
+    const service = {
+      getSummary: vi.fn().mockResolvedValue(createSummary(2)),
+      getByModel: vi
+        .fn()
+        .mockImplementation((query?: { model?: string }) =>
+          Promise.resolve(
+            query?.model
+              ? [createModelMetrics(query.model)]
+              : [createModelMetrics("gpt-5"), createModelMetrics("claude-4")],
+          ),
+        ),
+      getSessions: vi.fn().mockResolvedValue([]),
+      getDaily: vi.fn().mockResolvedValue([]),
+      getSessionDetail: vi.fn().mockResolvedValue(null),
+    };
+    const { result, rerender } = renderHook(
+      ({ model }: { model?: string }) =>
+        useMetrics({
+          service,
+          autoRefreshMs: 0,
+          filters: { endDate: "2026-02-10", days: 7, granularity: "daily", model },
+        }),
+      { initialProps: { model: undefined } },
+    );
+
+    await waitFor(() => expect(service.getSummary).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.modelCatalog).toEqual(["gpt-5", "claude-4"]));
+
+    rerender({ model: "  gpt-5  " });
+    await waitFor(() => expect(service.getSummary).toHaveBeenCalledTimes(2));
+
+    const selectedRange = {
+      startDate: "2026-02-04",
+      endDate: "2026-02-10",
+      model: "gpt-5",
+    };
+    expect(service.getSummary).toHaveBeenNthCalledWith(2, selectedRange);
+    expect(service.getByModel).toHaveBeenNthCalledWith(2, selectedRange);
+    expect(service.getSessions).toHaveBeenNthCalledWith(2, {
+      ...selectedRange,
+      limit: 200,
+    });
+    expect(service.getDaily).toHaveBeenNthCalledWith(2, {
+      days: 7,
+      endDate: "2026-02-10",
+      granularity: "daily",
+      model: "gpt-5",
+    });
+    await waitFor(() => {
+      expect(result.current.modelMetrics.map((item) => item.model)).toEqual(["gpt-5"]);
+      expect(result.current.modelCatalog).toEqual(["gpt-5", "claude-4"]);
+    });
+
+    rerender({ model: "" });
+    await waitFor(() => expect(service.getSummary).toHaveBeenCalledTimes(3));
+
+    const clearedRange = {
+      startDate: "2026-02-04",
+      endDate: "2026-02-10",
+    };
+    expect(service.getSummary).toHaveBeenNthCalledWith(3, clearedRange);
+    expect(service.getByModel).toHaveBeenNthCalledWith(3, clearedRange);
+    expect(service.getSessions).toHaveBeenNthCalledWith(3, {
+      ...clearedRange,
+      limit: 200,
+    });
+    expect(service.getDaily).toHaveBeenNthCalledWith(3, {
+      days: 7,
+      endDate: "2026-02-10",
+      granularity: "daily",
     });
   });
 
@@ -234,7 +346,22 @@ describe("useMetrics", () => {
       .fn()
       .mockImplementationOnce(() => older.promise)
       .mockImplementationOnce(() => newer.promise);
-    const service = createService(getSummary);
+    const service = {
+      getSummary,
+      getByModel: vi
+        .fn()
+        .mockResolvedValueOnce([createModelMetrics("older-model")])
+        .mockResolvedValueOnce([]),
+      getSessions: vi
+        .fn()
+        .mockResolvedValueOnce([createSessionMetrics("older-model")])
+        .mockResolvedValueOnce([]),
+      getDaily: vi
+        .fn()
+        .mockResolvedValueOnce([createDailyMetrics(1)])
+        .mockResolvedValueOnce([]),
+      getSessionDetail: vi.fn().mockResolvedValue(null),
+    };
     const { result, rerender } = renderHook(
       ({ model }) =>
         useMetrics({
@@ -249,7 +376,12 @@ describe("useMetrics", () => {
       older.resolve(createSummary(1));
       await older.promise;
     });
-    await waitFor(() => expect(result.current.summary?.total_sessions).toBe(1));
+    await waitFor(() => {
+      expect(result.current.summary?.total_sessions).toBe(1);
+      expect(result.current.modelMetrics).toHaveLength(1);
+      expect(result.current.sessions).toHaveLength(1);
+      expect(result.current.timeline).toHaveLength(1);
+    });
 
     rerender({ model: "newer-model" });
     await waitFor(() => {

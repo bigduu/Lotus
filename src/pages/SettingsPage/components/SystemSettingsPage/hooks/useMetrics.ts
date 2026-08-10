@@ -24,8 +24,16 @@ export interface MetricsFilters {
 }
 
 interface MetricsHookService {
-  getSummary: (query?: { startDate?: string; endDate?: string }) => Promise<MetricsSummary>;
-  getByModel: (query?: { startDate?: string; endDate?: string }) => Promise<ModelMetrics[]>;
+  getSummary: (query?: {
+    startDate?: string;
+    endDate?: string;
+    model?: string;
+  }) => Promise<MetricsSummary>;
+  getByModel: (query?: {
+    startDate?: string;
+    endDate?: string;
+    model?: string;
+  }) => Promise<ModelMetrics[]>;
   getSessions: (query?: {
     startDate?: string;
     endDate?: string;
@@ -36,6 +44,7 @@ interface MetricsHookService {
     days?: number;
     endDate?: string;
     granularity?: MetricsGranularity;
+    model?: string;
   }) => Promise<DailyMetrics[] | PeriodMetrics[]>;
   getSessionDetail: (sessionId: string) => Promise<SessionDetail | null>;
   getMemorySummary?: (query?: { days?: number; endDate?: string }) => Promise<MemoryMetricsSummary>;
@@ -79,7 +88,7 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
     () => ({
       startDate: filters?.startDate,
       endDate: filters?.endDate,
-      model: filters?.model,
+      model: filters?.model?.trim() || undefined,
       days: filters?.days ?? 30,
       granularity: filters?.granularity ?? "daily",
       sessionLimit: filters?.sessionLimit ?? 200,
@@ -106,6 +115,7 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
 
   const [summary, setSummary] = useState<MetricsSummary | null>(null);
   const [modelMetrics, setModelMetrics] = useState<ModelMetrics[]>([]);
+  const [modelCatalog, setModelCatalog] = useState<string[]>([]);
   const [sessions, setSessions] = useState<SessionMetrics[]>([]);
   const [timeline, setTimeline] = useState<Array<DailyMetrics | PeriodMetrics>>([]);
   const [memorySummary, setMemorySummary] = useState<MemoryMetricsSummary | null>(null);
@@ -140,6 +150,7 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
       }
 
       try {
+        const modelFilter = normalizedFilters.model ? { model: normalizedFilters.model } : {};
         const memorySummaryPromise = service.getMemorySummary
           ? service
               .getMemorySummary({
@@ -169,21 +180,24 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
           service.getSummary({
             startDate: resolvedRange.startDate,
             endDate: resolvedRange.endDate,
+            ...modelFilter,
           }),
           service.getByModel({
             startDate: resolvedRange.startDate,
             endDate: resolvedRange.endDate,
+            ...modelFilter,
           }),
           service.getSessions({
             startDate: resolvedRange.startDate,
             endDate: resolvedRange.endDate,
-            model: normalizedFilters.model,
+            ...modelFilter,
             limit: normalizedFilters.sessionLimit,
           }),
           service.getDaily({
             days: resolvedRange.days,
             endDate: resolvedRange.endDate,
             granularity: normalizedFilters.granularity,
+            ...modelFilter,
           }),
           memorySummaryPromise,
           memoryTimelinePromise,
@@ -195,6 +209,16 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
 
         setSummary(summaryResponse);
         setModelMetrics(modelResponse);
+        setModelCatalog((currentCatalog) => {
+          const responseModels = modelResponse.map((item) => item.model);
+          if (!normalizedFilters.model) {
+            return Array.from(new Set(responseModels));
+          }
+          if (currentCatalog.length > 0) {
+            return currentCatalog;
+          }
+          return Array.from(new Set([normalizedFilters.model, ...responseModels]));
+        });
         setSessions(sessionsResponse);
         setTimeline(dailyResponse);
         setMemorySummary(memoryResponse);
@@ -277,6 +301,7 @@ export const useMetrics = (options: UseMetricsOptions = {}) => {
   return {
     summary,
     modelMetrics,
+    modelCatalog,
     sessions,
     timeline,
     memorySummary,

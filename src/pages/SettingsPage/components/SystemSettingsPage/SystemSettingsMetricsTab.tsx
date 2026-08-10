@@ -192,6 +192,7 @@ const SystemSettingsMetricsTab: React.FC = () => {
   const {
     summary,
     modelMetrics,
+    modelCatalog,
     sessions,
     timeline,
     memorySummary,
@@ -262,11 +263,11 @@ const SystemSettingsMetricsTab: React.FC = () => {
 
   const modelOptions = useMemo(
     () =>
-      modelMetrics.map((item) => ({
-        label: item.model,
-        value: item.model,
+      modelCatalog.map((model) => ({
+        label: model,
+        value: model,
       })),
-    [modelMetrics],
+    [modelCatalog],
   );
 
   const activityData = useMemo(() => {
@@ -644,7 +645,12 @@ const SystemSettingsMetricsTab: React.FC = () => {
                       }
                     >
                       <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                        <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
+                        <MetricCards
+                          summary={summary}
+                          sessions={sessions}
+                          loading={isLoading}
+                          showSyncMismatches={!selectedModel}
+                        />
                         <ForwardMetricsCards summary={forwardSummary} loading={isForwardLoading} />
                         <UsageBreakdownCards summary={usageSummary} loading={isUsageLoading} />
                         <MemoryMetricsCards summary={memorySummary} loading={isLoading} />
@@ -705,16 +711,23 @@ const SystemSettingsMetricsTab: React.FC = () => {
                 label: t("settings.metricsDashboard.tabs.chat"),
                 children: (
                   <Space direction="vertical" size={token.marginSM} style={{ width: "100%" }}>
-                    <MetricCards summary={summary} sessions={sessions} loading={isLoading} />
+                    <MetricCards
+                      summary={summary}
+                      sessions={sessions}
+                      loading={isLoading}
+                      showSyncMismatches={!selectedModel}
+                    />
                     <div style={responsiveGridStyle(token.marginSM, 360)}>
                       <TokenChart data={tokenChartData} loading={isLoading} />
                       <ModelDistribution data={modelMetrics} loading={isLoading} />
                     </div>
                     <div style={responsiveGridStyle(token.marginSM, 360)}>
-                      <SyncMismatchBreakdownCard
-                        breakdown={summary?.sync_mismatch_breakdown}
-                        loading={isLoading}
-                      />
+                      {!selectedModel ? (
+                        <SyncMismatchBreakdownCard
+                          breakdown={summary?.sync_mismatch_breakdown}
+                          loading={isLoading}
+                        />
+                      ) : null}
                       <Card
                         size="small"
                         className="lotus-metric-card"
