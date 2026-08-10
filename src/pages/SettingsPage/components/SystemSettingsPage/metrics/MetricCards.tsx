@@ -10,6 +10,7 @@ interface MetricCardsProps {
   summary: MetricsSummary | null;
   sessions: SessionMetrics[];
   loading: boolean;
+  showSyncMismatches?: boolean;
 }
 
 const formatDuration = (durationMs: number): string => {
@@ -36,7 +37,12 @@ const averageSessionDuration = (sessions: SessionMetrics[]): number => {
   return Math.floor(total / completed.length);
 };
 
-const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading }) => {
+const MetricCards: React.FC<MetricCardsProps> = ({
+  summary,
+  sessions,
+  loading,
+  showSyncMismatches = true,
+}) => {
   const { t } = useTranslation();
   const { token } = useToken();
 
@@ -48,21 +54,23 @@ const MetricCards: React.FC<MetricCardsProps> = ({ summary, sessions, loading })
 
   return (
     <Row gutter={[token.marginSM, token.marginSM]}>
-      <Col xs={24} sm={12} lg={8} xl={4}>
-        <Card size="small" className="lotus-metric-card">
-          <Statistic
-            title={t("settings.metricsCards.syncMismatches")}
-            value={summary?.total_sync_mismatches ?? 0}
-            precision={0}
-            valueStyle={{
-              color:
-                (summary?.total_sync_mismatches ?? 0) > 0
-                  ? "var(--lotus-chart-danger)"
-                  : "var(--lotus-chart-secondary)",
-            }}
-          />
-        </Card>
-      </Col>
+      {showSyncMismatches ? (
+        <Col xs={24} sm={12} lg={8} xl={4}>
+          <Card size="small" className="lotus-metric-card">
+            <Statistic
+              title={t("settings.metricsCards.syncMismatches")}
+              value={summary?.total_sync_mismatches ?? 0}
+              precision={0}
+              valueStyle={{
+                color:
+                  (summary?.total_sync_mismatches ?? 0) > 0
+                    ? "var(--lotus-chart-danger)"
+                    : "var(--lotus-chart-secondary)",
+              }}
+            />
+          </Card>
+        </Col>
+      ) : null}
       <Col xs={24} sm={12} lg={8} xl={4}>
         <Card size="small" className="lotus-metric-card">
           <Statistic

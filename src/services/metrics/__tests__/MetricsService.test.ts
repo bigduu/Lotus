@@ -69,6 +69,102 @@ describe("MetricsService", () => {
     );
   });
 
+  it("applies one selected model to every chat metrics dataset", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(
+        mockFetchResponse({
+          total_sessions: 1,
+          total_tokens: { prompt_tokens: 2, completion_tokens: 3, total_tokens: 5 },
+          total_tool_calls: 1,
+          active_sessions: 0,
+        }),
+      )
+      .mockResolvedValueOnce(mockFetchResponse([]))
+      .mockResolvedValueOnce(mockFetchResponse([]))
+      .mockResolvedValueOnce(mockFetchResponse([]));
+
+    const service = new MetricsService();
+    const range = {
+      startDate: "2026-02-01",
+      endDate: "2026-02-10",
+      model: "gpt-5",
+    };
+
+    await service.getSummary(range);
+    await service.getByModel(range);
+    await service.getDaily({
+      days: 10,
+      endDate: "2026-02-10",
+      granularity: "daily",
+      model: "gpt-5",
+    });
+    await service.getSessions({ ...range, limit: 200 });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://127.0.0.1:9562/api/v1/metrics/summary?start_date=2026-02-01&end_date=2026-02-10&model=gpt-5",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:9562/api/v1/metrics/by-model?start_date=2026-02-01&end_date=2026-02-10&model=gpt-5",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://127.0.0.1:9562/api/v1/metrics/daily?days=10&end_date=2026-02-10&granularity=daily&model=gpt-5",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://127.0.0.1:9562/api/v1/metrics/sessions?start_date=2026-02-01&end_date=2026-02-10&model=gpt-5&limit=200",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("omits a cleared model from every chat metrics dataset", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(
+        mockFetchResponse({
+          total_sessions: 0,
+          total_tokens: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+          total_tool_calls: 0,
+          active_sessions: 0,
+        }),
+      )
+      .mockResolvedValueOnce(mockFetchResponse([]))
+      .mockResolvedValueOnce(mockFetchResponse([]))
+      .mockResolvedValueOnce(mockFetchResponse([]));
+
+    const service = new MetricsService();
+
+    await service.getSummary({ startDate: "2026-02-01", model: "" });
+    await service.getByModel({ model: "" });
+    await service.getDaily({ days: 7, granularity: "daily", model: "" });
+    await service.getSessions({ model: "", limit: 200 });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://127.0.0.1:9562/api/v1/metrics/summary?start_date=2026-02-01",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:9562/api/v1/metrics/by-model",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://127.0.0.1:9562/api/v1/metrics/daily?days=7&granularity=daily",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://127.0.0.1:9562/api/v1/metrics/sessions?limit=200",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
   it("calls sessions and forward metrics endpoints with query params", async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(mockFetchResponse([]))
@@ -198,7 +294,7 @@ describe("MetricsService", () => {
     );
   });
 
-  it("calls v2 endpoints and omits empty query values", async () => {
+  it("applies the selected model to v2 summary and timeline", async () => {
     vi.mocked(global.fetch)
       .mockResolvedValueOnce(
         mockFetchResponse({
@@ -210,14 +306,42 @@ describe("MetricsService", () => {
 
     const service = new MetricsService();
     await service.getUnifiedSummary({
-      startDate: "",
-      endDate: undefined,
+      startDate: "2026-02-01",
+      endDate: "2026-02-10",
+      model: "gpt-5",
     });
     await service.getUnifiedTimeline({
       days: 7,
       endDate: "2026-02-10",
       granularity: "daily",
+      model: "gpt-5",
     });
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "http://127.0.0.1:9562/api/v1/metrics/v2/summary?start_date=2026-02-01&end_date=2026-02-10&model=gpt-5",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:9562/api/v1/metrics/v2/timeline?days=7&end_date=2026-02-10&granularity=daily&model=gpt-5",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("omits cleared model and empty values from v2 requests", async () => {
+    vi.mocked(global.fetch)
+      .mockResolvedValueOnce(
+        mockFetchResponse({
+          total_sessions: 0,
+          total_cost: 0,
+        }),
+      )
+      .mockResolvedValueOnce(mockFetchResponse([]));
+
+    const service = new MetricsService();
+    await service.getUnifiedSummary({ startDate: "", endDate: undefined, model: "" });
+    await service.getUnifiedTimeline({ days: 7, granularity: "daily", model: "" });
 
     expect(global.fetch).toHaveBeenNthCalledWith(
       1,
@@ -226,7 +350,7 @@ describe("MetricsService", () => {
     );
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
-      "http://127.0.0.1:9562/api/v1/metrics/v2/timeline?days=7&end_date=2026-02-10&granularity=daily",
+      "http://127.0.0.1:9562/api/v1/metrics/v2/timeline?days=7&granularity=daily",
       expect.objectContaining({ method: "GET" }),
     );
   });

@@ -68,6 +68,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
     combinedSummary,
     memorySummary,
     modelMetrics,
+    modelCatalog,
     sessions,
     sessionDetail,
     endpointMetrics,
@@ -92,11 +93,11 @@ const UnifiedMetricsDashboard: React.FC = () => {
 
   const modelOptions = useMemo(
     () =>
-      modelMetrics.map((item) => ({
-        label: item.model,
-        value: item.model,
+      modelCatalog.map((model) => ({
+        label: model,
+        value: model,
       })),
-    [modelMetrics],
+    [modelCatalog],
   );
 
   const roundColumns: ColumnsType<RoundMetrics> = useMemo(
@@ -209,6 +210,14 @@ const UnifiedMetricsDashboard: React.FC = () => {
             }}
           />
         </Space>
+        {selectedModel ? (
+          <Alert
+            type="info"
+            showIcon
+            message={t("settings.metricsDashboard.memoryModelFilterNotice")}
+            style={{ marginTop: token.marginSM }}
+          />
+        ) : null}
       </Card>
 
       {/* Unified Metrics Cards */}
@@ -219,6 +228,7 @@ const UnifiedMetricsDashboard: React.FC = () => {
         memorySummary={memorySummary}
         sessions={sessions}
         loading={isLoading}
+        showSyncMismatches={!selectedModel}
       />
 
       {/* Charts Row */}
@@ -234,10 +244,12 @@ const UnifiedMetricsDashboard: React.FC = () => {
         <ModelDistribution data={modelMetrics} loading={isLoading} />
       </div>
 
-      <SyncMismatchBreakdownCard
-        breakdown={chatSummary?.sync_mismatch_breakdown}
-        loading={isLoading}
-      />
+      {!selectedModel ? (
+        <SyncMismatchBreakdownCard
+          breakdown={chatSummary?.sync_mismatch_breakdown}
+          loading={isLoading}
+        />
+      ) : null}
 
       {/* Forward Endpoint Distribution */}
       <ForwardEndpointDistribution data={endpointMetrics} loading={isLoading} />

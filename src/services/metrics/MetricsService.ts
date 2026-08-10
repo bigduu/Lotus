@@ -43,6 +43,7 @@ export class MetricsService {
     const query = buildQueryString({
       start_date: range.startDate,
       end_date: range.endDate,
+      model: range.model,
     });
     return agentApiClient.get<MetricsSummary>(`metrics/summary${query}`);
   }
@@ -51,6 +52,7 @@ export class MetricsService {
     const query = buildQueryString({
       start_date: range.startDate,
       end_date: range.endDate,
+      model: range.model,
     });
     return agentApiClient.get<ModelMetrics[]>(`metrics/by-model${query}`);
   }
@@ -94,6 +96,7 @@ export class MetricsService {
       days: query.days,
       end_date: query.endDate,
       granularity: query.granularity,
+      model: query.model,
     });
     return agentApiClient.get<DailyOrPeriodMetrics>(`metrics/daily${queryString}`);
   }
@@ -162,6 +165,7 @@ export class MetricsService {
     const query = buildQueryString({
       start_date: range.startDate,
       end_date: range.endDate,
+      model: range.model,
     });
     return agentApiClient.get<UnifiedSummary>(`metrics/v2/summary${query}`);
   }
@@ -171,6 +175,7 @@ export class MetricsService {
       days: query.days,
       end_date: query.endDate,
       granularity: query.granularity,
+      model: query.model,
     });
     return agentApiClient.get<UnifiedTimelinePoint[]>(`metrics/v2/timeline${queryString}`);
   }

@@ -114,16 +114,14 @@ export interface PeriodMetrics {
 export interface MetricsDateRange {
   startDate?: string;
   endDate?: string;
+  model?: string;
 }
 
 export interface MetricsSessionQuery extends MetricsDateRange {
-  model?: string;
   limit?: number;
 }
 
-export interface MetricsUsageQuery extends MetricsDateRange {
-  model?: string;
-}
+export type MetricsUsageQuery = MetricsDateRange;
 
 export interface UsageCountItem {
   name: string;
@@ -169,6 +167,7 @@ export interface MetricsDailyQuery {
   days?: number;
   endDate?: string;
   granularity?: MetricsGranularity;
+  model?: string;
 }
 
 // Forward metrics types

@@ -2917,6 +2917,8 @@ export const enUsTranslation = {
         startDate: "Start date",
         endDate: "End date",
         model: "Model",
+        memoryModelFilterNotice:
+          "Memory metrics remain all-model and are not affected by the model filter.",
         daysOption: "{{value}} days",
         granularity: {
           daily: "Daily",

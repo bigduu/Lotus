@@ -18,6 +18,7 @@ interface UnifiedMetricsCardsProps {
   memorySummary: MemoryMetricsSummary | null;
   sessions: SessionMetrics[];
   loading: boolean;
+  showSyncMismatches?: boolean;
 }
 
 const formatDuration = (durationMs: number | null | undefined): string => {
@@ -63,6 +64,7 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
   memorySummary,
   sessions,
   loading,
+  showSyncMismatches = true,
 }) => {
   const { t } = useTranslation();
   const { token } = useToken();
@@ -126,25 +128,27 @@ const UnifiedMetricsCards: React.FC<UnifiedMetricsCardsProps> = ({
       </Col>
 
       {/* Chat Metrics */}
-      <Col xs={24} sm={12} xl={6}>
-        <Card size="small" className="lotus-metric-card">
-          <Statistic
-            title={t("settings.unifiedMetricsCards.syncMismatches")}
-            value={
-              chatSummary?.total_sync_mismatches ?? combinedSummary?.total_sync_mismatches ?? 0
-            }
-            precision={0}
-            valueStyle={{
-              color:
-                (chatSummary?.total_sync_mismatches ??
-                  combinedSummary?.total_sync_mismatches ??
-                  0) > 0
-                  ? "var(--lotus-chart-danger)"
-                  : "var(--lotus-chart-secondary)",
-            }}
-          />
-        </Card>
-      </Col>
+      {showSyncMismatches ? (
+        <Col xs={24} sm={12} xl={6}>
+          <Card size="small" className="lotus-metric-card">
+            <Statistic
+              title={t("settings.unifiedMetricsCards.syncMismatches")}
+              value={
+                chatSummary?.total_sync_mismatches ?? combinedSummary?.total_sync_mismatches ?? 0
+              }
+              precision={0}
+              valueStyle={{
+                color:
+                  (chatSummary?.total_sync_mismatches ??
+                    combinedSummary?.total_sync_mismatches ??
+                    0) > 0
+                    ? "var(--lotus-chart-danger)"
+                    : "var(--lotus-chart-secondary)",
+              }}
+            />
+          </Card>
+        </Col>
+      ) : null}
       <Col xs={24} sm={12} xl={6}>
         <Card size="small" className="lotus-metric-card">
           <Statistic
