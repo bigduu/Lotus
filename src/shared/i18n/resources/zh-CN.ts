@@ -613,6 +613,10 @@ export const zhCnTranslation = {
         runProjectDreamNoChange: "无需更新 Project Dream",
         runProjectDreamFailed: "运行 Project Dream 失败",
         scheduleThis: "定时执行此会话…",
+        copySession: "复制会话",
+        copySessionRunning: "正在复制会话…",
+        copySessionSuccess: "会话已复制",
+        copySessionFailed: "复制会话失败",
       },
       prompt: {
         selectorTitle: "选择系统提示词",

@@ -41,6 +41,24 @@ export const refreshChatsState: RefreshChatsState = {
   trailingReject: null,
 };
 
+// A committed create/copy can race an older full-list request whose snapshot
+// predates that commit. Full-list reconciliation normally treats absence as
+// deletion, so protect newly committed IDs until a forced trailing read has
+// run after the stale request. Counts make nested callers safe.
+const protectedSessionIds = new Map<string, number>();
+
+export function protectSessionFromStaleLists(sessionId: string): () => void {
+  protectedSessionIds.set(sessionId, (protectedSessionIds.get(sessionId) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const count = protectedSessionIds.get(sessionId) ?? 0;
+    if (count <= 1) protectedSessionIds.delete(sessionId);
+    else protectedSessionIds.set(sessionId, count - 1);
+  };
+}
+
 export function consumeTrailingRefreshCallbacks(): {
   resolve: (() => void) | null;
   reject: ((error: unknown) => void) | null;
@@ -218,6 +236,13 @@ export function applySessionsList(
       chatsChanged = true;
       return mergedChat;
     });
+
+    for (const localChat of state.chats) {
+      if (protectedSessionIds.has(localChat.id) && !sessions.some((s) => s.id === localChat.id)) {
+        merged.push(localChat);
+        chatsChanged = true;
+      }
+    }
 
     if (!chatsChanged && executionBySession === state.executionBySession) {
       return state;

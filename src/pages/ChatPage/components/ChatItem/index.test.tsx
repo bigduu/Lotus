@@ -149,3 +149,45 @@ describe("ChatItem 'Schedule this' menu item (#100)", () => {
     expect(screen.queryByText("Schedule this…")).toBeNull();
   });
 });
+
+describe("ChatItem 'Copy Session' menu item (#153)", () => {
+  async function openMenu() {
+    fireEvent.mouseEnter(screen.getByTestId("chat-item"));
+    fireEvent.click(await screen.findByLabelText("More actions"));
+  }
+
+  it.each(["root", "child"] as const)(
+    "offers copying for a %s session and passes the source id",
+    async (kind) => {
+      const onCopy = vi.fn();
+      renderChatItem({ chat: { ...baseChat, kind }, onCopy });
+
+      await openMenu();
+      fireEvent.click(await screen.findByText("Copy Session"));
+
+      expect(onCopy).toHaveBeenCalledOnce();
+      expect(onCopy).toHaveBeenCalledWith("chat-1");
+    },
+  );
+
+  it("shows a disabled pending item while that source is being copied", async () => {
+    const onCopy = vi.fn();
+    renderChatItem({ onCopy, isCopying: true });
+
+    await openMenu();
+    const pendingLabel = await screen.findByText("Copying session…");
+    const menuItem = pendingLabel.closest("li");
+
+    expect(menuItem).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(pendingLabel);
+    expect(onCopy).not.toHaveBeenCalled();
+  });
+
+  it("omits the action when its owner does not provide a copy handler", async () => {
+    renderChatItem({ onCopy: undefined });
+
+    await openMenu();
+    expect(await screen.findByText("Edit")).toBeInTheDocument();
+    expect(screen.queryByText("Copy Session")).not.toBeInTheDocument();
+  });
+});

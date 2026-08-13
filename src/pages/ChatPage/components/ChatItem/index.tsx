@@ -8,6 +8,7 @@ import {
   EditOutlined,
   CheckOutlined,
   CloseOutlined,
+  CopyOutlined,
   BulbOutlined,
   FolderOutlined,
   LoadingOutlined,
@@ -37,8 +38,10 @@ interface ChatItemProps {
   onGenerateTitle?: (sessionId: string) => void;
   onRunProjectDream?: (sessionId: string) => void;
   onScheduleThis?: (sessionId: string) => void;
+  onCopy?: (sessionId: string) => void;
   isGeneratingTitle?: boolean;
   isRunningProjectDream?: boolean;
+  isCopying?: boolean;
   titleGenerationError?: string;
   /** Live busy/awaiting/error status (#94). Defaults to "idle" (no dot). */
   status?: ChatItemStatus;
@@ -64,8 +67,10 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   onGenerateTitle,
   onRunProjectDream,
   onScheduleThis,
+  onCopy,
   isGeneratingTitle,
   isRunningProjectDream,
+  isCopying = false,
   titleGenerationError,
   status = "idle",
   statusErrorMessage,
@@ -179,6 +184,20 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
             onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
               domEvent.stopPropagation();
               onScheduleThis(chat.id);
+            },
+          },
+        ]
+      : []),
+    ...(onCopy
+      ? [
+          {
+            key: "copy-session",
+            icon: isCopying ? <LoadingOutlined /> : <CopyOutlined />,
+            label: isCopying ? t("chat.actions.copySessionRunning") : t("chat.actions.copySession"),
+            disabled: isCopying,
+            onClick: ({ domEvent }: { domEvent: React.MouseEvent | React.KeyboardEvent }) => {
+              domEvent.stopPropagation();
+              onCopy(chat.id);
             },
           },
         ]
@@ -450,6 +469,8 @@ const arePropsEqual = (prevProps: ChatItemProps, nextProps: ChatItemProps): bool
     prevProps.compact === nextProps.compact &&
     prevProps.isGeneratingTitle === nextProps.isGeneratingTitle &&
     prevProps.isRunningProjectDream === nextProps.isRunningProjectDream &&
+    prevProps.isCopying === nextProps.isCopying &&
+    prevProps.onCopy === nextProps.onCopy &&
     prevProps.titleGenerationError === nextProps.titleGenerationError &&
     (prevProps.status ?? "idle") === (nextProps.status ?? "idle") &&
     prevProps.statusErrorMessage === nextProps.statusErrorMessage &&

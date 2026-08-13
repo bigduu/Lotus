@@ -50,6 +50,7 @@ export const ChatSidebar: React.FC = () => {
     handleOpenSchedules,
     handleRunProjectDream,
     handleScheduleThis,
+    handleCopySession,
     handleCloseScheduleThis,
     handleSearchQueryChange,
     handleStatusFilterChange,
@@ -59,6 +60,7 @@ export const ChatSidebar: React.FC = () => {
     isNewChatSelectorOpen,
     pinSession,
     projectDreamState,
+    copyingSessionIds,
     rootHasRunningChildBySessionId,
     runStateBySessionId,
     scheduleThisSessionId,
@@ -190,8 +192,10 @@ export const ChatSidebar: React.FC = () => {
           onGenerateTitle={handleGenerateTitle}
           onRunProjectDream={handleRunProjectDream}
           onScheduleThis={handleScheduleThis}
+          onCopy={handleCopySession}
           titleGenerationState={titleGenerationState}
           projectDreamState={projectDreamState}
+          copyingSessionIds={copyingSessionIds}
           token={token}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={handleClearFilters}

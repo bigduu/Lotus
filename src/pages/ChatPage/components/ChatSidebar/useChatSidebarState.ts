@@ -187,6 +187,7 @@ export const useChatSidebarState = () => {
     currentSessionId,
     deleteSession,
     deleteSessions,
+    copySession,
     pinSession,
     unpinSession,
     updateSession,
@@ -200,6 +201,7 @@ export const useChatSidebarState = () => {
       currentSessionId: state.currentSessionId,
       deleteSession: state.deleteSession,
       deleteSessions: state.deleteSessions,
+      copySession: state.copySession,
       pinSession: state.pinSession,
       unpinSession: state.unpinSession,
       updateSession: state.updateSession,
@@ -497,6 +499,11 @@ export const useChatSidebarState = () => {
   const [titleGenerationState, setTitleGenerationState] = useState<
     Record<string, { status: "loading" | "error" | "idle"; error?: string }>
   >({});
+  // A ref is the actual per-source lock: unlike React state, it changes
+  // synchronously, so two clicks in the same render frame cannot issue two
+  // non-idempotent copy requests. State mirrors it only for row feedback.
+  const copyingSessionIdsRef = useRef<Set<string>>(new Set());
+  const [copyingSessionIds, setCopyingSessionIds] = useState<ReadonlySet<string>>(() => new Set());
 
   const selectedSessionMeta = useAppStore(
     useShallow((state) => {
@@ -943,6 +950,34 @@ export const useChatSidebarState = () => {
     setScheduleThisSessionId(sessionId);
   }, []);
 
+  const handleCopySession = useCallback(
+    async (sourceSessionId: string) => {
+      if (copyingSessionIdsRef.current.has(sourceSessionId)) return;
+
+      copyingSessionIdsRef.current.add(sourceSessionId);
+      setCopyingSessionIds(new Set(copyingSessionIdsRef.current));
+      try {
+        const copied = await copySession(sourceSessionId);
+        // Match the established new-session convention: assign the newly
+        // committed root to the active pane, select it, and hydrate its full
+        // copied history in the background.
+        openSession(copied.id, { forceLoadHistory: true });
+        message.success(t("chat.actions.copySessionSuccess"));
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error && error.message
+            ? error.message
+            : t("chat.actions.copySessionFailed");
+        message.error(errorMessage);
+        console.error("[ChatSidebar] Failed to copy session:", error);
+      } finally {
+        copyingSessionIdsRef.current.delete(sourceSessionId);
+        setCopyingSessionIds(new Set(copyingSessionIdsRef.current));
+      }
+    },
+    [copySession, message, t],
+  );
+
   const handleCloseScheduleThis = useCallback(() => {
     setScheduleThisSessionId(null);
   }, []);
@@ -1219,6 +1254,7 @@ export const useChatSidebarState = () => {
     handleOpenSchedules,
     handleRunProjectDream,
     handleScheduleThis,
+    handleCopySession,
     handleCloseScheduleThis,
     handleSearchQueryChange,
     handleStatusFilterChange,
@@ -1227,6 +1263,7 @@ export const useChatSidebarState = () => {
     isNewChatSelectorOpen,
     pinSession: handlePinChat,
     projectDreamState,
+    copyingSessionIds,
     rootHasRunningChildBySessionId,
     runStateBySessionId,
     scheduleThisSessionId,
