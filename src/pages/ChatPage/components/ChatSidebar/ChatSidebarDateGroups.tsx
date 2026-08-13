@@ -53,10 +53,22 @@ const EMPTY_COPYING_SESSION_IDS: ReadonlySet<string> = new Set();
 const groupDateCollapseKey = (groupKey: string, dateKey: string) =>
   `${encodeURIComponent(groupKey)}::${dateKey}`;
 
-const UnreadGroupDot: React.FC<{ label: string }> = ({ label }) => (
-  <Tooltip title={label}>
-    <span className="lotus-chat-group-unread" aria-hidden="true" data-testid="chat-group-unread" />
-  </Tooltip>
+const UnreadGroupDot: React.FC<{ descriptionId: string; label: string }> = ({
+  descriptionId,
+  label,
+}) => (
+  <>
+    <Tooltip title={label}>
+      <span
+        className="lotus-chat-group-unread"
+        aria-hidden="true"
+        data-testid="chat-group-unread"
+      />
+    </Tooltip>
+    <span id={descriptionId} className="lotus-chat-group-unread-description">
+      {label}
+    </span>
+  </>
 );
 
 /**
@@ -524,13 +536,17 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
         const totalContainedSessions =
           sessionCountByGroup?.[dateKey] ??
           dateGroup.reduce((count, root) => count + 1 + (childrenByRoot[root.id]?.length ?? 0), 0);
-        const groupAriaLabel = unreadCount
+        const groupButtonLabel = `${groupLabel} (${totalChatsInDate})`;
+        const groupUnreadLabel = unreadCount
           ? t("chat.sidebar.unreadGroup", {
               group: groupLabel,
               total: totalContainedSessions,
               count: unreadCount,
             })
-          : `${groupLabel} (${totalChatsInDate})`;
+          : null;
+        const groupUnreadDescriptionId = groupUnreadLabel
+          ? `lotus-chat-group-unread-${encodeURIComponent(dateKey)}`
+          : undefined;
 
         return (
           <div
@@ -571,7 +587,8 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 type="button"
                 className="chat-sidebar-date-group-toggle"
                 aria-expanded={isExpanded}
-                aria-label={groupAriaLabel}
+                aria-label={groupButtonLabel}
+                aria-describedby={groupUnreadDescriptionId}
                 onClick={() => {
                   const next = new Set(expanded);
                   if (next.has(dateKey)) {
@@ -625,7 +642,12 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                     {groupLabel} ({totalChatsInDate})
                   </span>
                 </Tooltip>
-                {unreadCount > 0 ? <UnreadGroupDot label={groupAriaLabel} /> : null}
+                {groupUnreadLabel && groupUnreadDescriptionId ? (
+                  <UnreadGroupDot
+                    descriptionId={groupUnreadDescriptionId}
+                    label={groupUnreadLabel}
+                  />
+                ) : null}
                 {isProjectMode && archivedGroupKeys?.has(dateKey) ? (
                   <span
                     style={{
@@ -710,20 +732,25 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                             (count, root) => count + 1 + (childrenByRoot[root.id]?.length ?? 0),
                             0,
                           );
-                        const nestedAriaLabel = nestedUnreadCount
+                        const nestedButtonLabel = `${dateLabel} (${byDate[nestedDateKey].length})`;
+                        const nestedUnreadLabel = nestedUnreadCount
                           ? t("chat.sidebar.unreadGroup", {
                               group: dateLabel,
                               total: nestedTotal,
                               count: nestedUnreadCount,
                             })
-                          : `${dateLabel} (${byDate[nestedDateKey].length})`;
+                          : null;
+                        const nestedUnreadDescriptionId = nestedUnreadLabel
+                          ? `lotus-chat-group-unread-${encodeURIComponent(stableKey)}`
+                          : undefined;
                         return (
                           <div key={stableKey} style={{ marginLeft: 10 }}>
                             <Flex
                               role="button"
                               tabIndex={0}
                               aria-expanded={nestedExpanded}
-                              aria-label={nestedAriaLabel}
+                              aria-label={nestedButtonLabel}
+                              aria-describedby={nestedUnreadDescriptionId}
                               aria-disabled={forcedExpanded}
                               align="center"
                               gap={6}
@@ -745,8 +772,11 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                               <span style={{ fontSize: 10, color: token.colorTextSecondary }}>
                                 {dateLabel} ({byDate[nestedDateKey].length})
                               </span>
-                              {nestedUnreadCount > 0 ? (
-                                <UnreadGroupDot label={nestedAriaLabel} />
+                              {nestedUnreadLabel && nestedUnreadDescriptionId ? (
+                                <UnreadGroupDot
+                                  descriptionId={nestedUnreadDescriptionId}
+                                  label={nestedUnreadLabel}
+                                />
                               ) : null}
                             </Flex>
                             {nestedExpanded

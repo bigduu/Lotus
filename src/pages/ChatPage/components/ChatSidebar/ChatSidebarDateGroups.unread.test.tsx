@@ -92,10 +92,9 @@ describe("ChatSidebarDateGroups unread aggregation (#129)", () => {
       groupLabels: { "project-1": "Zenith" },
     });
 
-    expect(screen.getByRole("button", { name: "Zenith (2), 2 unread sessions" })).toHaveAttribute(
-      "aria-expanded",
-      "false",
-    );
+    const groupToggle = screen.getByRole("button", { name: "Zenith (1)" });
+    expect(groupToggle).toHaveAttribute("aria-expanded", "false");
+    expect(groupToggle).toHaveAccessibleDescription("Zenith (2), 2 unread sessions");
     expect(screen.getByTestId("chat-group-unread")).toBeVisible();
     expect(screen.queryByTestId("chat-item-unread")).toBeNull();
   });
@@ -112,7 +111,15 @@ describe("ChatSidebarDateGroups unread aggregation (#129)", () => {
       groupLabels: { "project-1": "Zenith" },
     });
 
-    expect(screen.getAllByRole("button", { name: /1 unread session$/ })).toHaveLength(2);
+    const unreadGroupToggles = screen
+      .getAllByRole("button")
+      .filter((button) =>
+        button.getAttribute("aria-describedby")?.startsWith("lotus-chat-group-unread-"),
+      );
+    expect(unreadGroupToggles).toHaveLength(2);
+    for (const toggle of unreadGroupToggles) {
+      expect(toggle).toHaveAccessibleDescription(/1 unread session$/);
+    }
   });
 
   it("uses full-group unread/count overrides while rows are filtered", () => {
@@ -127,6 +134,8 @@ describe("ChatSidebarDateGroups unread aggregation (#129)", () => {
       sessionCountByGroup: { "project-1": 8 },
     });
 
-    expect(screen.getByRole("button", { name: "Zenith (8), 3 unread sessions" })).toBeVisible();
+    const groupToggle = screen.getByRole("button", { name: "Zenith (1)" });
+    expect(groupToggle).toBeVisible();
+    expect(groupToggle).toHaveAccessibleDescription("Zenith (8), 3 unread sessions");
   });
 });
