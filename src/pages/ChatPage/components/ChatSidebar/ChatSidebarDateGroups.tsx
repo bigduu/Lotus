@@ -23,6 +23,7 @@ import {
 } from "../../utils/chatUtils";
 import { NO_PROJECT_GROUP_KEY } from "@services/project";
 import { translateDateKey } from "../../utils/dateGroupTranslation";
+import { countUnreadSessions } from "./chatSidebarUnread";
 
 import "./ChatSidebarDateGroups.css";
 
@@ -51,6 +52,12 @@ const EMPTY_COPYING_SESSION_IDS: ReadonlySet<string> = new Set();
 
 const groupDateCollapseKey = (groupKey: string, dateKey: string) =>
   `${encodeURIComponent(groupKey)}::${dateKey}`;
+
+const UnreadGroupDot: React.FC<{ label: string }> = ({ label }) => (
+  <Tooltip title={label}>
+    <span className="lotus-chat-group-unread" aria-hidden="true" data-testid="chat-group-unread" />
+  </Tooltip>
+);
 
 /**
  * Combines the live run state (#94) with the session's persisted last-run
@@ -124,6 +131,11 @@ type ChatSidebarDateGroupsProps = {
    * "Archived" badge in the group header. Only consulted in project mode.
    */
   archivedGroupKeys?: ReadonlySet<string>;
+  /** Full, unfiltered unread aggregation so search/collapse cannot hide it. */
+  unreadCountByGroup?: Readonly<Record<string, number>>;
+  unreadCountByGroupDate?: Readonly<Record<string, Readonly<Record<string, number>>>>;
+  sessionCountByGroup?: Readonly<Record<string, number>>;
+  sessionCountByGroupDate?: Readonly<Record<string, Readonly<Record<string, number>>>>;
 };
 
 export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
@@ -158,6 +170,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   groupingMode = "date",
   groupLabels,
   archivedGroupKeys,
+  unreadCountByGroup,
+  unreadCountByGroupDate,
+  sessionCountByGroup,
+  sessionCountByGroupDate,
 }) => {
   const { t, i18n } = useTranslation();
   const isWorkspaceMode = groupingMode === "workspace";
@@ -409,6 +425,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               status={rootStatus}
               statusErrorMessage={rootErrorMessage}
               workspacePath={chat.config.workspacePath}
+              unread={Boolean(chat.unread)}
             />
           </div>
         </Flex>
@@ -458,6 +475,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       status={childStatus}
                       statusErrorMessage={childErrorMessage}
                       workspacePath={child.config.workspacePath}
+                      unread={Boolean(child.unread)}
                     />
                   </div>
                 );
@@ -500,6 +518,19 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
     <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 2 }}>
       {groups.map(({ dateKey, dateGroup, totalChatsInDate }) => {
         const isExpanded = expanded.has(dateKey);
+        const unreadCount =
+          unreadCountByGroup?.[dateKey] ?? countUnreadSessions(dateGroup, childrenByRoot);
+        const groupLabel = resolveGroupLabel(dateKey);
+        const totalContainedSessions =
+          sessionCountByGroup?.[dateKey] ??
+          dateGroup.reduce((count, root) => count + 1 + (childrenByRoot[root.id]?.length ?? 0), 0);
+        const groupAriaLabel = unreadCount
+          ? t("chat.sidebar.unreadGroup", {
+              group: groupLabel,
+              total: totalContainedSessions,
+              count: unreadCount,
+            })
+          : `${groupLabel} (${totalChatsInDate})`;
 
         return (
           <div
@@ -540,7 +571,7 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                 type="button"
                 className="chat-sidebar-date-group-toggle"
                 aria-expanded={isExpanded}
-                aria-label={`${resolveGroupLabel(dateKey)} (${totalChatsInDate})`}
+                aria-label={groupAriaLabel}
                 onClick={() => {
                   const next = new Set(expanded);
                   if (next.has(dateKey)) {
@@ -591,9 +622,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {resolveGroupLabel(dateKey)} ({totalChatsInDate})
+                    {groupLabel} ({totalChatsInDate})
                   </span>
                 </Tooltip>
+                {unreadCount > 0 ? <UnreadGroupDot label={groupAriaLabel} /> : null}
                 {isProjectMode && archivedGroupKeys?.has(dateKey) ? (
                   <span
                     style={{
@@ -669,13 +701,29 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                           nestedDateKey,
                           i18n.resolvedLanguage,
                         );
+                        const nestedUnreadCount =
+                          unreadCountByGroupDate?.[dateKey]?.[nestedDateKey] ??
+                          countUnreadSessions(byDate[nestedDateKey], childrenByRoot);
+                        const nestedTotal =
+                          sessionCountByGroupDate?.[dateKey]?.[nestedDateKey] ??
+                          byDate[nestedDateKey].reduce(
+                            (count, root) => count + 1 + (childrenByRoot[root.id]?.length ?? 0),
+                            0,
+                          );
+                        const nestedAriaLabel = nestedUnreadCount
+                          ? t("chat.sidebar.unreadGroup", {
+                              group: dateLabel,
+                              total: nestedTotal,
+                              count: nestedUnreadCount,
+                            })
+                          : `${dateLabel} (${byDate[nestedDateKey].length})`;
                         return (
                           <div key={stableKey} style={{ marginLeft: 10 }}>
                             <Flex
                               role="button"
                               tabIndex={0}
                               aria-expanded={nestedExpanded}
-                              aria-label={`${dateLabel} (${byDate[nestedDateKey].length})`}
+                              aria-label={nestedAriaLabel}
                               aria-disabled={forcedExpanded}
                               align="center"
                               gap={6}
@@ -697,6 +745,9 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                               <span style={{ fontSize: 10, color: token.colorTextSecondary }}>
                                 {dateLabel} ({byDate[nestedDateKey].length})
                               </span>
+                              {nestedUnreadCount > 0 ? (
+                                <UnreadGroupDot label={nestedAriaLabel} />
+                              ) : null}
                             </Flex>
                             {nestedExpanded
                               ? renderRows(byDate[nestedDateKey], dateKey, nestedDateKey)

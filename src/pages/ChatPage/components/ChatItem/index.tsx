@@ -53,6 +53,8 @@ interface ChatItemProps {
    * attribute, not a grouping identity.
    */
   workspacePath?: string | null;
+  /** Whether this session has activity newer than its persisted read marker. */
+  unread?: boolean;
 }
 
 const ChatItemComponent: React.FC<ChatItemProps> = ({
@@ -75,6 +77,7 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
   status = "idle",
   statusErrorMessage,
   workspacePath,
+  unread = false,
 }) => {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
@@ -333,7 +336,13 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
       data-testid="chat-item"
       role="option"
       aria-selected={isSelected}
-      aria-label={chat.title || t("chat.sidebar.untitledChat")}
+      aria-label={
+        unread
+          ? t("chat.sidebar.unreadSession", {
+              title: chat.title || t("chat.sidebar.untitledChat"),
+            })
+          : chat.title || t("chat.sidebar.untitledChat")
+      }
     >
       <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
         {isEditing ? (
@@ -379,6 +388,15 @@ const ChatItemComponent: React.FC<ChatItemProps> = ({
                   aria-label={statusLabel}
                   data-testid="chat-item-status"
                   data-status={status}
+                />
+              </Tooltip>
+            ) : null}
+            {unread ? (
+              <Tooltip title={t("chat.sidebar.unread")}>
+                <span
+                  className="lotus-chat-item-unread"
+                  aria-hidden="true"
+                  data-testid="chat-item-unread"
                 />
               </Tooltip>
             ) : null}
@@ -474,7 +492,8 @@ const arePropsEqual = (prevProps: ChatItemProps, nextProps: ChatItemProps): bool
     prevProps.titleGenerationError === nextProps.titleGenerationError &&
     (prevProps.status ?? "idle") === (nextProps.status ?? "idle") &&
     prevProps.statusErrorMessage === nextProps.statusErrorMessage &&
-    prevProps.workspacePath === nextProps.workspacePath
+    prevProps.workspacePath === nextProps.workspacePath &&
+    Boolean(prevProps.unread) === Boolean(nextProps.unread)
   );
 };
 

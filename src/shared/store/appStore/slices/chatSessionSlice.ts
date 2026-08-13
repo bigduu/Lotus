@@ -35,6 +35,7 @@ import {
   clearInitialSessionCreateOperation,
   getInitialSessionCreateOperation,
 } from "./chatSessionSlice/initialSessionCreateOperation";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 
 // Re-export public types + the test-only history mapper so existing import
 // paths (`@shared/store/appStore/slices/chatSessionSlice`) keep resolving.
@@ -218,6 +219,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         };
       });
 
+      // A session created by this user is already being opened. Baseline it
+      // synchronously so a persisted multi-pane layout cannot briefly make
+      // the new row appear unread before its pane mapping is updated.
+      useSessionReadStateStore.getState().markRead([newChat]);
+
       return newChat.id;
     };
 
@@ -255,6 +261,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         summary,
       }),
     }));
+    // The copy was initiated by this user and its caller will open it as soon
+    // as this Promise resolves. Baseline it before resolving so the Zustand
+    // publication above cannot render a transient unread row while
+    // `openSession` is still waiting for this action to return.
+    useSessionReadStateStore.getState().markRead([copiedChat]);
     // Reconcile in the background: the caller must be able to assign the
     // active pane and global selection together as soon as the transactional
     // POST commits. Waiting here would leave the sidebar selection ahead of
@@ -1137,6 +1148,12 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       executionBySession,
     });
 
+    // Baseline the first authoritative index immediately after it enters the
+    // store. Startup-create recovery or initial-history loading may still
+    // throw below; delaying initialization until the outer app bootstrap
+    // resolves would make all historical sessions flash unread on that path.
+    useSessionReadStateStore.getState().initialize(chats);
+
     debugLog("[ChatSlice]", "loadChats.applied", {
       currentSessionId,
       chatCount: chats.length,
@@ -1166,7 +1183,6 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       retryDelayMs,
       waitForAssistant: options?.waitForAssistant ?? false,
     });
-
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       try {
         // Avoid spurious backend calls when the UI layout references a stale session id.
@@ -1174,7 +1190,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         const chat = get().chats.find((c) => c.id === sessionId);
         if (!chat) {
           debugLog("[ChatSlice]", "loadChatHistory.skipMissingChat", { sessionId, attempt });
-          return;
+          return false;
         }
         // Marker for the history staleness guards (#164, #178): captured
         // BEFORE the fetch so an in-flight advance (optimistic send,
@@ -1277,7 +1293,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
               serverMessageCount,
               advancedInFlight,
             });
-            return;
+            return !advancedInFlight;
           }
         } else {
           // replace-mode staleness guard (#164): if the session advanced
@@ -1298,7 +1314,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           });
 
           if (advancedInFlight) {
-            return;
+            return false;
           }
         }
 
@@ -1334,7 +1350,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           messageCount: serverMessageCount,
           lastMessageId: history.messages[history.messages.length - 1]?.id ?? null,
         });
-        return;
+        return true;
       } catch (error) {
         if (attempt >= retries) {
           console.warn(`[ChatSlice] Failed to load history for ${sessionId}:`, error);
@@ -1344,7 +1360,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             retries,
             error,
           });
-          return;
+          return false;
         }
         const delay = retryDelayMs > 0 ? retryDelayMs * (attempt + 1) : 200 * (attempt + 1);
         debugLog("[ChatSlice]", "loadChatHistory.error.retry", {
@@ -1356,6 +1372,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
         await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
+    return false;
   },
 
   reconcileOpenSession: (sessionId, reason) => {
@@ -1384,12 +1401,34 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
           // monotonic: catches a behind (passive-viewer) device up; a no-op on
           // the device driving the run (its local state is ahead). waitForAssistant
           // so a freshly-completed turn picks up the assistant reply.
-          await get().loadChatHistory(sessionId, {
+          const readStateAtRequest = useSessionReadStateStore.getState();
+          const markerAtRequest = readStateAtRequest.markers[sessionId];
+          const readObservation = {
+            content: markerAtRequest?.dirtyContentThrough,
+            reset: readStateAtRequest.feedResetThrough,
+          };
+          const loaded = await get().loadChatHistory(sessionId, {
             mode: "monotonic",
             waitForAssistant: true,
             retries: 3,
             retryDelayMs: 250,
           });
+          // History loading and read acknowledgement are deliberately
+          // separate. Only acknowledge the coordinate captured before the
+          // request, and only if this session is still the visible selection
+          // when the authoritative snapshot has actually been applied.
+          if (
+            loaded &&
+            get().currentSessionId === sessionId &&
+            (typeof document === "undefined" || document.visibilityState !== "hidden")
+          ) {
+            const rendered = get().chats.find((candidate) => candidate.id === sessionId);
+            if (rendered) {
+              useSessionReadStateStore
+                .getState()
+                .markRead([rendered], { [sessionId]: readObservation });
+            }
+          }
           // Reconcile the child-approval FIFO queue (#25) so a
           // `child_approval_requested`/`sub_agent_completed` lost to a
           // broadcast-ring overrun (bamboo#543, the #91 gap-control trigger

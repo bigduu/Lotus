@@ -377,6 +377,10 @@ export const enUsTranslation = {
         collapse: "Collapse sidebar",
         chatList: "Chat list",
         untitledChat: "Untitled Chat",
+        unread: "Unread activity",
+        unreadSession: "{{title}}, unread activity",
+        unreadGroup_one: "{{group}} ({{total}}), {{count}} unread session",
+        unreadGroup_other: "{{group}} ({{total}}), {{count}} unread sessions",
       },
       project: {
         selectorLabel: "Project",

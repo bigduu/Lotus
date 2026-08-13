@@ -29,6 +29,12 @@ import type { SidebarGroupingMode } from "@shared/store/uiLayoutStore.types";
 import { openSession } from "@shared/utils/openSession";
 import { selectIsBusy, selectSidebarRunStateMap } from "@shared/store/appStore";
 import { useSessionCreateRecovery } from "@shared/hooks/useSessionCreateRecovery";
+import {
+  isSessionUnread,
+  subscribeToSessionReadStorage,
+  useSessionReadStateStore,
+  type SessionReadMarker,
+} from "@shared/store/sessionReadStateStore";
 
 type SidebarStatusFilter = "all" | "pinned" | "running" | "child";
 type CreateNewChatOptions = Partial<Omit<ChatItem, "id" | "config">> & {
@@ -42,11 +48,98 @@ type CreateNewChatOptions = Partial<Omit<ChatItem, "id" | "config">> & {
 const SEARCH_FILTER_DEBOUNCE_MS = 200;
 const WORKSPACE_EXPANSION_STORAGE_KEY = "lotus.sidebar.workspace.expanded.v1";
 const PROJECT_EXPANSION_STORAGE_KEY = "lotus.sidebar.project.expanded.v1";
+const EMPTY_READABLE_SESSION_IDS: ReadonlySet<string> = new Set();
+
+type SidebarChatSummary = Pick<
+  ChatItem,
+  | "id"
+  | "title"
+  | "kind"
+  | "pinned"
+  | "parentSessionId"
+  | "rootSessionId"
+  | "createdByScheduleId"
+  | "updatedAt"
+  | "lastActivityAt"
+  | "messageCount"
+  | "lastRunStatus"
+  | "lastRunError"
+  | "createdAt"
+  | "config"
+>;
+
+const hasSameSidebarSummary = (previous: SidebarChatSummary, next: SidebarChatSummary): boolean =>
+  previous.id === next.id &&
+  previous.title === next.title &&
+  previous.kind === next.kind &&
+  previous.pinned === next.pinned &&
+  previous.parentSessionId === next.parentSessionId &&
+  previous.rootSessionId === next.rootSessionId &&
+  previous.createdByScheduleId === next.createdByScheduleId &&
+  previous.updatedAt === next.updatedAt &&
+  previous.lastActivityAt === next.lastActivityAt &&
+  previous.messageCount === next.messageCount &&
+  previous.lastRunStatus === next.lastRunStatus &&
+  previous.lastRunError === next.lastRunError &&
+  previous.createdAt === next.createdAt &&
+  previous.config.systemPromptId === next.config.systemPromptId &&
+  previous.config.workspacePath === next.config.workspacePath &&
+  previous.config.projectId === next.config.projectId;
+
+export const selectSidebarChatSummaries = (() => {
+  let previousById = new Map<string, SidebarChatSummary>();
+  let previousResult: SidebarChatSummary[] = [];
+
+  return (state: { chats: ChatItem[] }): SidebarChatSummary[] => {
+    const next = state.chats.map((chat) => {
+      const previous = previousById.get(chat.id);
+      const candidate: SidebarChatSummary = {
+        id: chat.id,
+        title: chat.title,
+        kind: chat.kind,
+        pinned: chat.pinned,
+        parentSessionId: chat.parentSessionId,
+        rootSessionId: chat.rootSessionId,
+        createdByScheduleId: chat.createdByScheduleId,
+        updatedAt: chat.updatedAt,
+        lastActivityAt: chat.lastActivityAt,
+        messageCount: chat.messageCount,
+        lastRunStatus: chat.lastRunStatus,
+        lastRunError: chat.lastRunError,
+        createdAt: chat.createdAt,
+        config: chat.config,
+      };
+      return previous && hasSameSidebarSummary(previous, candidate) ? previous : candidate;
+    });
+    const unchanged =
+      next.length === previousResult.length &&
+      next.every((summary, index) => summary === previousResult[index]);
+    previousById = new Map(next.map((summary) => [summary.id, summary]));
+    if (unchanged) return previousResult;
+    previousResult = next;
+    return next;
+  };
+})();
+
+export const resolveVisibleSessionIds = (
+  leafSessionIds: Readonly<Record<string, string | null>>,
+  currentSessionId: string | null,
+): Set<string> => {
+  const ids = new Set<string>();
+  for (const sessionId of Object.values(leafSessionIds)) {
+    if (sessionId) ids.add(sessionId);
+  }
+  // A persisted multi-pane layout is authoritative. `loadChats` may briefly
+  // choose list[0] as the global current id before pane reconciliation; only
+  // use that id when no pane has an explicit session mapping.
+  if (ids.size === 0 && currentSessionId) ids.add(currentSessionId);
+  return ids;
+};
 
 const getSidebarChatKind = (kind: ChatItem["kind"]): SidebarChatItem["kind"] =>
   kind === "child" ? "child" : "root";
 
-const projectSidebarChatItem = (chat: ChatItem): SidebarChatItem => ({
+const projectSidebarChatItem = (chat: SidebarChatSummary, unread = false): SidebarChatItem => ({
   id: chat.id,
   title: chat.title,
   kind: getSidebarChatKind(chat.kind),
@@ -55,6 +148,9 @@ const projectSidebarChatItem = (chat: ChatItem): SidebarChatItem => ({
   rootSessionId: chat.rootSessionId || null,
   createdByScheduleId: chat.createdByScheduleId || null,
   updatedAt: chat.updatedAt || null,
+  lastActivityAt: chat.lastActivityAt || null,
+  messageCount: chat.messageCount,
+  unread,
   lastRunStatus: chat.lastRunStatus || null,
   lastRunError: chat.lastRunError || null,
   createdAt: chat.createdAt,
@@ -65,7 +161,11 @@ const projectSidebarChatItem = (chat: ChatItem): SidebarChatItem => ({
   },
 });
 
-const hasSameSidebarProjection = (prev: SidebarChatItem, chat: ChatItem): boolean =>
+const hasSameSidebarProjection = (
+  prev: SidebarChatItem,
+  chat: SidebarChatSummary,
+  unread: boolean,
+): boolean =>
   prev.id === chat.id &&
   prev.title === chat.title &&
   prev.kind === getSidebarChatKind(chat.kind) &&
@@ -74,6 +174,9 @@ const hasSameSidebarProjection = (prev: SidebarChatItem, chat: ChatItem): boolea
   prev.rootSessionId === (chat.rootSessionId || null) &&
   prev.createdByScheduleId === (chat.createdByScheduleId || null) &&
   prev.updatedAt === (chat.updatedAt || null) &&
+  prev.lastActivityAt === (chat.lastActivityAt || null) &&
+  prev.messageCount === chat.messageCount &&
+  prev.unread === unread &&
   prev.lastRunStatus === (chat.lastRunStatus || null) &&
   prev.lastRunError === (chat.lastRunError || null) &&
   prev.createdAt === chat.createdAt &&
@@ -82,18 +185,48 @@ const hasSameSidebarProjection = (prev: SidebarChatItem, chat: ChatItem): boolea
   prev.config.projectId === (chat.config.projectId || null);
 
 const projectSidebarChats = (() => {
-  let prevSource: ReadonlyArray<ChatItem> | null = null;
+  let prevSource: ReadonlyArray<SidebarChatSummary> | null = null;
   let prevProjected: SidebarChatItem[] = [];
   let prevById = new Map<string, SidebarChatItem>();
 
-  return (source: ReadonlyArray<ChatItem>): SidebarChatItem[] => {
-    if (source === prevSource) {
+  let prevMarkers: Readonly<Record<string, SessionReadMarker>> | null = null;
+  let prevVisibleIds: ReadonlySet<string> | null = null;
+  let prevInitialized = false;
+  let prevFeedResetThrough = 0;
+  let prevPendingFeedReset = false;
+
+  return (
+    source: ReadonlyArray<SidebarChatSummary>,
+    markers: Readonly<Record<string, SessionReadMarker>>,
+    visibleIds: ReadonlySet<string>,
+    initialized: boolean,
+    feedResetThrough: number,
+    pendingFeedReset: boolean,
+  ): SidebarChatItem[] => {
+    if (
+      source === prevSource &&
+      markers === prevMarkers &&
+      visibleIds === prevVisibleIds &&
+      initialized === prevInitialized &&
+      feedResetThrough === prevFeedResetThrough &&
+      pendingFeedReset === prevPendingFeedReset
+    ) {
       return prevProjected;
     }
 
     const next = source.map((chat) => {
+      const unread = isSessionUnread(
+        chat,
+        markers[chat.id],
+        visibleIds.has(chat.id),
+        initialized,
+        feedResetThrough,
+        pendingFeedReset,
+      );
       const prev = prevById.get(chat.id);
-      return prev && hasSameSidebarProjection(prev, chat) ? prev : projectSidebarChatItem(chat);
+      return prev && hasSameSidebarProjection(prev, chat, unread)
+        ? prev
+        : projectSidebarChatItem(chat, unread);
     });
 
     const unchangedOrderAndRefs =
@@ -101,6 +234,11 @@ const projectSidebarChats = (() => {
       next.every((chat, index) => chat === prevProjected[index]);
 
     prevSource = source;
+    prevMarkers = markers;
+    prevVisibleIds = visibleIds;
+    prevInitialized = initialized;
+    prevFeedResetThrough = feedResetThrough;
+    prevPendingFeedReset = pendingFeedReset;
     prevById = new Map(next.map((chat) => [chat.id, chat]));
 
     if (unchangedOrderAndRefs) {
@@ -182,9 +320,54 @@ export const useChatSidebarState = () => {
   const { t } = useTranslation();
   const { message, modal } = AntdApp.useApp();
   const showSessionCreateRecovery = useSessionCreateRecovery();
+  const chatSummaries = useAppStore(selectSidebarChatSummaries);
+  const currentSessionId = useAppStore((state) => state.currentSessionId);
+  const leafSessionIds = useUILayoutStore((state) => state.leafSessionIds);
+  const readMarkers = useSessionReadStateStore((state) => state.markers);
+  const readStateInitialized = useSessionReadStateStore((state) => state.initialized);
+  const feedResetThrough = useSessionReadStateStore((state) => state.feedResetThrough);
+  const pendingFeedReset = useSessionReadStateStore((state) => state.pendingFeedReset);
+  const [pageVisible, setPageVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState !== "hidden",
+  );
+  const visibleSessionIds = useMemo(
+    () => resolveVisibleSessionIds(leafSessionIds, currentSessionId),
+    [currentSessionId, leafSessionIds],
+  );
+  const readableSessionIds = useMemo(
+    () => (pageVisible ? visibleSessionIds : EMPTY_READABLE_SESSION_IDS),
+    [pageVisible, visibleSessionIds],
+  );
+  const chats = useMemo(
+    () =>
+      projectSidebarChats(
+        chatSummaries,
+        readMarkers,
+        readableSessionIds,
+        readStateInitialized,
+        feedResetThrough,
+        pendingFeedReset,
+      ),
+    [
+      chatSummaries,
+      feedResetThrough,
+      pendingFeedReset,
+      readMarkers,
+      readableSessionIds,
+      readStateInitialized,
+    ],
+  );
+
+  useEffect(() => subscribeToSessionReadStorage(), []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handleVisibilityChange = () => setPageVisible(document.visibilityState !== "hidden");
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
   const {
-    chats,
-    currentSessionId,
     deleteSession,
     deleteSessions,
     copySession,
@@ -197,8 +380,6 @@ export const useChatSidebarState = () => {
     systemPrompts,
   } = useAppStore(
     useShallow((state) => ({
-      chats: projectSidebarChats(state.chats),
-      currentSessionId: state.currentSessionId,
       deleteSession: state.deleteSession,
       deleteSessions: state.deleteSessions,
       copySession: state.copySession,
@@ -599,6 +780,8 @@ export const useChatSidebarState = () => {
   const emptyStrArr = useMemo<string[]>(() => [], []);
   const emptySet = useMemo<Set<string>>(() => new Set(), []);
   const emptyBoolMap = useMemo<Record<string, boolean>>(() => ({}), []);
+  const emptyNumberMap = useMemo<Record<string, number>>(() => ({}), []);
+  const emptyNestedNumberMap = useMemo<Record<string, Record<string, number>>>(() => ({}), []);
   const emptyLabelMap = useMemo<Record<string, string>>(() => ({}), []);
 
   // Folder model: sidebar groups only root sessions by date (or, in
@@ -725,6 +908,65 @@ export const useChatSidebarState = () => {
     () => (sidebarCollapsed ? emptyGrouped : groupChatsByProject(filteredRootSessions)),
     [filteredRootSessions, sidebarCollapsed, emptyGrouped],
   );
+  const unreadCountByProject = useMemo(() => {
+    if (sidebarCollapsed) return emptyNumberMap;
+    const counts: Record<string, number> = {};
+    for (const [projectKey, roots] of Object.entries(groupChatsByProject(rootSessions))) {
+      let count = 0;
+      for (const root of roots) {
+        if (root.unread) count += 1;
+        for (const child of allChildrenByRoot[root.id] ?? []) {
+          if (child.unread) count += 1;
+        }
+      }
+      counts[projectKey] = count;
+    }
+    return counts;
+  }, [allChildrenByRoot, emptyNumberMap, rootSessions, sidebarCollapsed]);
+  const sessionCountByProject = useMemo(() => {
+    if (sidebarCollapsed) return emptyNumberMap;
+    const counts: Record<string, number> = {};
+    for (const [projectKey, roots] of Object.entries(groupChatsByProject(rootSessions))) {
+      counts[projectKey] = roots.reduce(
+        (count, root) => count + 1 + (allChildrenByRoot[root.id]?.length ?? 0),
+        0,
+      );
+    }
+    return counts;
+  }, [allChildrenByRoot, emptyNumberMap, rootSessions, sidebarCollapsed]);
+  const unreadCountByProjectDate = useMemo(() => {
+    if (sidebarCollapsed) return emptyNestedNumberMap;
+    const counts: Record<string, Record<string, number>> = {};
+    for (const [projectKey, roots] of Object.entries(groupChatsByProject(rootSessions))) {
+      const byDate = groupChatsByCalendarDate(roots);
+      counts[projectKey] = {};
+      for (const [dateKey, dateRoots] of Object.entries(byDate)) {
+        let count = 0;
+        for (const root of dateRoots) {
+          if (root.unread) count += 1;
+          for (const child of allChildrenByRoot[root.id] ?? []) {
+            if (child.unread) count += 1;
+          }
+        }
+        counts[projectKey][dateKey] = count;
+      }
+    }
+    return counts;
+  }, [allChildrenByRoot, emptyNestedNumberMap, rootSessions, sidebarCollapsed]);
+  const sessionCountByProjectDate = useMemo(() => {
+    if (sidebarCollapsed) return emptyNestedNumberMap;
+    const counts: Record<string, Record<string, number>> = {};
+    for (const [projectKey, roots] of Object.entries(groupChatsByProject(rootSessions))) {
+      counts[projectKey] = {};
+      for (const [dateKey, dateRoots] of Object.entries(groupChatsByCalendarDate(roots))) {
+        counts[projectKey][dateKey] = dateRoots.reduce(
+          (count, root) => count + 1 + (allChildrenByRoot[root.id]?.length ?? 0),
+          0,
+        );
+      }
+    }
+    return counts;
+  }, [allChildrenByRoot, emptyNestedNumberMap, rootSessions, sidebarCollapsed]);
   // Archived Projects sink below active ones; Unassigned stays last
   // (getSortedProjectKeys).
   const archivedProjectKeys = useMemo(() => {
@@ -1240,6 +1482,10 @@ export const useChatSidebarState = () => {
     groupingMode,
     setGroupingMode,
     projectGroupLabels,
+    unreadCountByProject,
+    unreadCountByProjectDate,
+    sessionCountByProject,
+    sessionCountByProjectDate,
     archivedProjectKeys,
     hasActiveFilters,
     handleCollapseChange,

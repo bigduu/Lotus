@@ -15,6 +15,7 @@ import {
   type RenderableEntry,
 } from "../components/ChatView/useChatViewMessages";
 import type { SessionDiffSummary } from "../components/ChatView/ActiveToolMessageCard";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 import { getMessageText } from "../components/MessageCard/messageCardParsing";
 import { MessageExportService } from "../services/MessageExportService";
 import { CHAT_TOGGLE_BATCH_EXPORT_SELECTION_EVENT } from "../components/ChatView/events";
@@ -30,6 +31,7 @@ import {
   buildConversationWorkspaceState,
   type ConversationWorkspaceState,
 } from "../workspace/workspaceState";
+import { loadVisibleHistoryAndAcknowledge } from "./conversationReadLifecycle";
 
 const LazyQuestionDialog = React.lazy(() =>
   import("@components/QuestionDialog").then((m) => ({ default: m.QuestionDialog })),
@@ -113,6 +115,17 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   const currentChat = useAppStore(selectSessionById(sessionId));
   const deleteMessage = useAppStore((state) => state.deleteMessage);
   const loadChatHistory = useAppStore((state) => state.loadChatHistory);
+  const dirtyContentThrough = useSessionReadStateStore((state) =>
+    sessionId ? (state.markers[sessionId]?.dirtyContentThrough ?? 0) : 0,
+  );
+  const readContentThrough = useSessionReadStateStore((state) =>
+    sessionId ? (state.markers[sessionId]?.readContentThrough ?? 0) : 0,
+  );
+  const feedResetThrough = useSessionReadStateStore((state) => state.feedResetThrough);
+  const readResetThrough = useSessionReadStateStore((state) =>
+    sessionId ? (state.markers[sessionId]?.readResetThrough ?? 0) : 0,
+  );
+  const pendingFeedReset = useSessionReadStateStore((state) => state.pendingFeedReset);
   const storeTokenUsage = useAppStore((state) =>
     sessionId ? (state.tokenUsages[sessionId] ?? null) : null,
   );
@@ -124,16 +137,56 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   );
   const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
 
+  const loadAndAcknowledgeHistory = useCallback(
+    async (mode: "replace" | "monotonic") => {
+      if (!sessionId) return;
+      await loadVisibleHistoryAndAcknowledge({
+        sessionId,
+        mode,
+        loadChatHistory,
+        getRenderedSession: () =>
+          useAppStore.getState().chats.find((chat) => chat.id === sessionId),
+        getReadState: useSessionReadStateStore.getState,
+        isPageVisible: () =>
+          typeof document === "undefined" || document.visibilityState !== "hidden",
+      });
+    },
+    [loadChatHistory, sessionId],
+  );
+
+  useEffect(() => {
+    if (!sessionId || typeof document === "undefined") return;
+    const acknowledgeOnVisible = () => {
+      if (document.visibilityState === "hidden") return;
+      void loadAndAcknowledgeHistory("monotonic");
+    };
+    document.addEventListener("visibilitychange", acknowledgeOnVisible);
+    return () => document.removeEventListener("visibilitychange", acknowledgeOnVisible);
+  }, [loadAndAcknowledgeHistory, sessionId]);
+
   const isBusy = useAppStore(selectIsBusy(sessionId));
 
   useEffect(() => {
     if (!sessionId) return;
     const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
-    if (chat && Array.isArray(chat.messages) && chat.messages.length > 0) {
+    const hasUnreadCoordinate =
+      pendingFeedReset ||
+      dirtyContentThrough > readContentThrough ||
+      feedResetThrough > readResetThrough;
+    if (chat && Array.isArray(chat.messages) && chat.messages.length > 0 && !hasUnreadCoordinate) {
       return;
     }
-    void loadChatHistory(sessionId);
-  }, [sessionId, loadChatHistory]);
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    void loadAndAcknowledgeHistory("replace");
+  }, [
+    dirtyContentThrough,
+    feedResetThrough,
+    loadAndAcknowledgeHistory,
+    pendingFeedReset,
+    readContentThrough,
+    readResetThrough,
+    sessionId,
+  ]);
 
   const currentMessageCount = currentChat?.messageCount ?? 0;
   const currentMessagesLength = currentChat?.messages?.length ?? 0;
@@ -142,9 +195,9 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
     if (!sessionId) return;
     const messageCountDiff = currentMessageCount - currentMessagesLength;
     if (messageCountDiff > 0) {
-      void loadChatHistory(sessionId, { mode: "monotonic" });
+      void loadAndAcknowledgeHistory("monotonic");
     }
-  }, [sessionId, currentMessageCount, currentMessagesLength, loadChatHistory]);
+  }, [sessionId, currentMessageCount, currentMessagesLength, loadAndAcknowledgeHistory]);
 
   const isThinking = isBusy;
 

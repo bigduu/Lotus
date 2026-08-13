@@ -288,10 +288,6 @@ const bootstrapCritical = async (force: boolean = false): Promise<void> => {
   isInitialized = true;
 
   if (import.meta.env.MODE !== "test") {
-    // Primary real-time channel: one resumable account change-feed that pushes
-    // cross-session updates (created/deleted/cleared/title/pinned/message/task)
-    // and drives agent availability from its connection state.
-    startAccountFeed();
     // Retained as a low-frequency self-healing fallback alongside the feed —
     // recovers from any missed window without the old high-frequency polling.
     useAppStore.getState().startAgentHealthCheck();
@@ -323,6 +319,19 @@ const bootstrapCritical = async (force: boolean = false): Promise<void> => {
     // This prevents the controlled message input from appearing "read-only"
     // in fresh sessions (e.g., Playwright E2E with empty localStorage).
     await useAppStore.getState().loadChats();
+
+    if (import.meta.env.MODE !== "test") {
+      // Subscribe only after the authoritative session index is present. The
+      // resumable cursor covers the startup window, while a feed_reset can now
+      // attach its global gap to every loaded session without an empty-list
+      // race.
+      if (!startAccountFeed()) {
+        // Do not leave the bootstrap guard permanently complete when the
+        // browser transport was not ready yet. A later retry can subscribe
+        // from the unchanged durable cursor without reloading the page.
+        isInitialized = false;
+      }
+    }
 
     isCriticalDone = true;
   } catch (error) {

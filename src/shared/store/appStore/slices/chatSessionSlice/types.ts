@@ -100,7 +100,7 @@ export interface ChatSlice {
       retryDelayMs?: number;
       waitForAssistant?: boolean;
     },
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   /**
    * Multi-device sync: reconcile the CURRENTLY-OPEN session against the server
    * when an account-feed change event for it arrives (a message appended / run

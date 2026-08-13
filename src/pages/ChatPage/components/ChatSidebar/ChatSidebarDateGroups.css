@@ -13,3 +13,11 @@
     opacity: 1;
   }
 }
+.lotus-chat-group-unread {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--lotus-primary);
+}

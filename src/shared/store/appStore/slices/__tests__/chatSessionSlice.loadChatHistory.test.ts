@@ -3,6 +3,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
 import type { ChatItem, UserMessage } from "@shared/types/chat";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 
 const { mockGetHistory } = vi.hoisted(() => ({
   mockGetHistory: vi.fn(),
@@ -64,6 +65,13 @@ const createTestStore = (chat: ChatItem) => {
 describe("loadChatHistory replace-mode staleness guard (#164)", () => {
   beforeEach(() => {
     mockGetHistory.mockReset();
+    localStorage.clear();
+    useSessionReadStateStore.setState({
+      v: 2,
+      initialized: true,
+      feedResetThrough: 0,
+      markers: {},
+    });
   });
 
   it("skips a stale snapshot when the session advanced while fetching", async () => {
@@ -101,6 +109,37 @@ describe("loadChatHistory replace-mode staleness guard (#164)", () => {
     expect(messages).toHaveLength(2);
     expect(messages[0].id).toBe("h1");
     expect(messages[1].id).toBe("h2");
+  });
+
+  it("leaves read acknowledgement to the visible caller after applying history", async () => {
+    const store = createTestStore(makeChat([userMessage("local-1", "first")]));
+    useSessionReadStateStore.getState().markUnreadFromFeed("s1", 10);
+    let resolveHistory: (value: ReturnType<typeof historyOf>) => void = () => {};
+    mockGetHistory.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveHistory = resolve;
+        }),
+    );
+
+    const loadPromise = store.getState().loadChatHistory("s1", { mode: "replace" });
+    useSessionReadStateStore.getState().markUnreadFromFeed("s1", 11);
+    resolveHistory(historyOf(["h1", "h2"]));
+
+    expect(await loadPromise).toBe(true);
+    expect(useSessionReadStateStore.getState().markers.s1).toMatchObject({
+      dirtyContentThrough: 11,
+    });
+    expect(useSessionReadStateStore.getState().markers.s1.readContentThrough ?? 0).toBe(0);
+  });
+
+  it("returns false and leaves dirty state unread after a history failure", async () => {
+    const store = createTestStore(makeChat([userMessage("local-1", "first")]));
+    useSessionReadStateStore.getState().markUnreadFromFeed("s1", 10);
+    mockGetHistory.mockRejectedValue(new Error("offline"));
+
+    expect(await store.getState().loadChatHistory("s1")).toBe(false);
+    expect(useSessionReadStateStore.getState().markers.s1.readContentThrough ?? 0).toBe(0);
   });
 
   it("still applies an intentional shrink (retry truncate resync)", async () => {

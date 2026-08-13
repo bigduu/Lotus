@@ -2,6 +2,7 @@ import { findLeafIdBySessionId, useUILayoutStore } from "@shared/store/uiLayoutS
 import { uiLayoutDebug } from "@shared/utils/debugFlags";
 
 import { useAppStore } from "@shared/store/appStore";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 
 type OpenSessionOptions = {
   // For schedule-created sessions, the UI may not be subscribed to background events.
@@ -32,7 +33,17 @@ const ensureSessionVisibleAndLoaded = async (sessionId: string, options?: OpenSe
   }
 
   const chat = useAppStore.getState().chats.find((c) => c.id === sessionId);
-  if (!chat) return;
+  if (!chat) return false;
+  const readState = useSessionReadStateStore.getState();
+  const marker = readState.markers[sessionId];
+  const readObservation = {
+    content: marker?.dirtyContentThrough,
+    reset: readState.feedResetThrough,
+  };
+  const unreadCoordinate =
+    readState.pendingFeedReset ||
+    (marker?.dirtyContentThrough ?? 0) > (marker?.readContentThrough ?? 0) ||
+    readState.feedResetThrough > (marker?.readResetThrough ?? 0);
 
   // Lazy-load history:
   // - forced (schedule sessions; summary can be stale), or
@@ -41,12 +52,30 @@ const ensureSessionVisibleAndLoaded = async (sessionId: string, options?: OpenSe
   if (
     options?.forceLoadHistory ||
     wasMissing ||
+    unreadCoordinate ||
     ((chat.messages?.length || 0) === 0 && (chat.messageCount || 0) > 0)
   ) {
     try {
-      await store.loadChatHistory(sessionId);
+      if (!(await store.loadChatHistory(sessionId))) {
+        return false;
+      }
     } catch (e) {
       console.warn("[openSession] loadChatHistory failed:", e);
+      return false;
+    }
+  }
+
+  if (typeof document === "undefined" || document.visibilityState !== "hidden") {
+    const rendered = useAppStore.getState().chats.find((candidate) => candidate.id === sessionId);
+    const layout = useUILayoutStore.getState();
+    const stillVisible =
+      useAppStore.getState().currentSessionId === sessionId ||
+      Object.values(layout.leafSessionIds).includes(sessionId);
+    if (rendered && stillVisible) {
+      // Always pass the pre-load observation, including for an already-loaded
+      // clean session. A feed event racing this continuation then remains
+      // dirty and is reconciled by the visible ConversationPane.
+      useSessionReadStateStore.getState().markRead([rendered], { [sessionId]: readObservation });
     }
   }
 
@@ -54,13 +83,14 @@ const ensureSessionVisibleAndLoaded = async (sessionId: string, options?: OpenSe
   // This is best-effort and won't start execution.
   if (options?.forceSubscribe) {
     store.markForceSubscribe(sessionId);
-    return;
+    return true;
   }
 
   const shouldSubscribeIfRunning = options?.subscribeIfRunning ?? true;
   if (shouldSubscribeIfRunning && chat.isRunning) {
     store.markForceSubscribe(sessionId);
   }
+  return true;
 };
 
 /**
@@ -112,7 +142,8 @@ export const openSession = (sessionId: string, options?: OpenSessionOptions) => 
     });
   }
 
-  useAppStore.getState().selectSession(sessionId);
+  const appState = useAppStore.getState();
+  appState.selectSession(sessionId);
 
   // Best-effort background sync so Sidebar + view can render even for sessions
   // that were created while the UI wasn't watching.

@@ -20,6 +20,46 @@ const agentClient = AgentClient.getInstance();
  */
 export type ChatSliceSet = Parameters<StateCreator<AppState, [], [], ChatSlice>>[0];
 
+type ActivityRevision = {
+  milliseconds: number;
+  submillisecond: string;
+};
+
+/**
+ * Bamboo currently aliases `last_activity_at` to the metadata-tainted
+ * `updated_at`, but it is still the only revision that orders two atomic
+ * SessionSummary snapshots. Preserve the six fractional digits below
+ * JavaScript's millisecond precision so a fast truncate/append pair remains
+ * ordered.
+ */
+const parseActivityRevision = (value?: string | null): ActivityRevision | null => {
+  if (!value?.trim()) return null;
+  const normalized = value.trim();
+  const milliseconds = Date.parse(normalized);
+  if (!Number.isFinite(milliseconds)) return null;
+
+  const fractionMatch = normalized.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/i);
+  const fraction = (fractionMatch?.[1] ?? "").padEnd(9, "0").slice(0, 9);
+  return {
+    milliseconds,
+    submillisecond: fraction.slice(3),
+  };
+};
+
+/** Compare two valid summary revisions, returning null when either is absent. */
+const compareActivityRevisions = (left?: string | null, right?: string | null): number | null => {
+  const leftRevision = parseActivityRevision(left);
+  const rightRevision = parseActivityRevision(right);
+  if (!leftRevision || !rightRevision) return null;
+  if (leftRevision.milliseconds !== rightRevision.milliseconds) {
+    return leftRevision.milliseconds > rightRevision.milliseconds ? 1 : -1;
+  }
+  if (leftRevision.submillisecond !== rightRevision.submillisecond) {
+    return leftRevision.submillisecond > rightRevision.submillisecond ? 1 : -1;
+  }
+  return 0;
+};
+
 // === REFRESH CHATS DEDUPLICATION ===
 const REFRESH_CHATS_THROTTLE_MS = 750;
 
@@ -144,8 +184,26 @@ export function applySessionsList(
       const hasLocalReasoning = Object.prototype.hasOwnProperty.call(prevConfig, "reasoningEffort");
       const hasLocalGoldConfig = Object.prototype.hasOwnProperty.call(prevConfig, "goldConfig");
 
-      // Ensure messageCount stays monotonic, as listSessions summary might briefly lag
-      const effectiveMessageCount = Math.max(prev.messageCount ?? 0, c.messageCount ?? 0);
+      // A count alone is not monotonic: clear/truncate/restore legitimately
+      // lower it. Order the atomic summary pair by Bamboo's revision first so
+      // an older high-count list cannot undo a newer reset, while a newer
+      // reset lets the next 0 -> 1 append become observable. At an equal or
+      // unavailable revision retain the old max-count lag protection.
+      const activityRevisionOrder = compareActivityRevisions(c.lastActivityAt, prev.lastActivityAt);
+      const previousMessageCount = prev.messageCount ?? 0;
+      const remoteMessageCount = c.messageCount ?? 0;
+      const remoteSummaryWins = activityRevisionOrder !== null && activityRevisionOrder > 0;
+      const localSummaryWins = activityRevisionOrder !== null && activityRevisionOrder < 0;
+      const effectiveMessageCount = remoteSummaryWins
+        ? remoteMessageCount
+        : localSummaryWins
+          ? previousMessageCount
+          : Math.max(previousMessageCount, remoteMessageCount);
+      const effectiveLastActivityAt = remoteSummaryWins
+        ? c.lastActivityAt
+        : localSummaryWins
+          ? prev.lastActivityAt
+          : (c.lastActivityAt ?? prev.lastActivityAt);
 
       // Title precedence is governed by `title_version`, NOT `updatedAt`.
       // The backend bumps `title_version` on every authoritative title change
@@ -218,6 +276,7 @@ export function applySessionsList(
         pinned: preferLocalSessionFields ? prev.pinned : c.pinned,
         updatedAt: preferLocalSessionFields ? prev.updatedAt : c.updatedAt,
         messages: prev.messages,
+        lastActivityAt: effectiveLastActivityAt,
         messageCount: effectiveMessageCount,
         planMode: c.planMode,
         config: mergedConfig,

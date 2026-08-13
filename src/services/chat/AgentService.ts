@@ -330,7 +330,7 @@ export interface FeedResetFrame {
 /** Callbacks for {@link AgentClient.subscribeToAccountStream}. */
 export interface AccountStreamHandlers {
   onChange: (change: ChangeEvent) => void;
-  onReset?: () => void;
+  onReset?: (reset?: FeedResetFrame) => void;
   onOpen?: () => void;
   onError?: () => void;
 }
@@ -2163,7 +2163,7 @@ export class AgentClient {
         const parsed = JSON.parse(data) as ChangeEvent | FeedResetFrame;
         if ((parsed as FeedResetFrame).type === "feed_reset") {
           debugLog("[AgentClient]", "stream.subscribe.feed_reset", parsed);
-          handlers.onReset?.();
+          handlers.onReset?.(parsed as FeedResetFrame);
           return;
         }
         handlers.onChange(parsed as ChangeEvent);

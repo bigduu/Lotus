@@ -172,7 +172,7 @@ describe("v2Stream WebSocket client", () => {
     lastSocket().sent.length = 0;
 
     lastSocket().emit({ ch: "feed", seq: 0, control: { type: "feed_reset", from_seq: 42 } });
-    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(onReset).toHaveBeenCalledWith({ type: "feed_reset", from_seq: 42 });
 
     // After a reset the cursor drops to 0; a reconnect should re-subscribe at 0.
     vi.useFakeTimers();
