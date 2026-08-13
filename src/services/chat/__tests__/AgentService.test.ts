@@ -126,6 +126,33 @@ describe("AgentClient", () => {
     await expect(client.deleteSession("session-1")).rejects.toThrow();
   });
 
+  it("copies a session through the explicit copy endpoint with URL encoding", async () => {
+    const session = {
+      id: "session-copy",
+      kind: "root",
+      title: "Copied session",
+      root_session_id: "session-copy",
+    };
+    fetchMock.mockResolvedValue(mockFetchResponse({ session }, 201));
+
+    const client = AgentClient.getInstance();
+    await expect(client.copySession("source/session 1")).resolves.toEqual({ session });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/sessions/source%2Fsession%201/copy"),
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    expect(request.body).toBeUndefined();
+  });
+
+  it("surfaces copy failures instead of fabricating a local result", async () => {
+    fetchMock.mockResolvedValue(mockFetchError("Copy failed", 500));
+
+    await expect(AgentClient.getInstance().copySession("session-1")).rejects.toThrow();
+  });
+
   describe("getPendingQuestion (#37)", () => {
     it("returns the authoritative response when the backend answers", async () => {
       fetchMock.mockResolvedValue(mockFetchResponse({ has_pending_question: false }));

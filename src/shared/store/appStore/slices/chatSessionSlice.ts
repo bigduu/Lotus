@@ -25,6 +25,7 @@ import {
   consumeTrailingRefreshCallbacks,
   executeForcedRefreshChats,
   executeRefreshChats,
+  protectSessionFromStaleLists,
   refreshChatsState,
   settleTrailingRefreshCallbacks,
 } from "./chatSessionSlice/refreshChats";
@@ -221,6 +222,53 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     };
 
     return createAndInsert();
+  },
+
+  copySession: async (sourceSessionId) => {
+    // Backend first: never create an optimistic placeholder for a copy. The
+    // copy endpoint is transactional, and only its committed SessionSummary
+    // may enter local state.
+    const copied = await agentClient.copySession(sourceSessionId);
+    const summary = copied.session;
+    if (!summary?.id || summary.id === sourceSessionId) {
+      throw new Error("Bamboo returned an invalid copied session identity");
+    }
+
+    const copiedChat = sessionSummaryToChatItem(summary);
+    const releaseListProtection = protectSessionFromStaleLists(summary.id);
+    set((state) => ({
+      ...state,
+      // The account feed can race the POST response and hydrate this session
+      // first. Preserve any already-loaded messages while replacing all
+      // summary-backed fields with the authoritative copy response.
+      chats: [
+        {
+          ...copiedChat,
+          messages:
+            state.chats.find((chat) => chat.id === copiedChat.id)?.messages ?? copiedChat.messages,
+        },
+        ...state.chats.filter((chat) => chat.id !== copiedChat.id),
+      ],
+      executionBySession: applyExecutionEvent(state.executionBySession, {
+        type: "applySessionSummary",
+        sessionId: summary.id,
+        summary,
+      }),
+    }));
+    // Reconcile in the background: the caller must be able to assign the
+    // active pane and global selection together as soon as the transactional
+    // POST commits. Waiting here would leave the sidebar selection ahead of
+    // the pane mapping for the duration of a slow/retrying list request.
+    // Protection stays active until the forced read has followed any older
+    // in-flight snapshot, and a failed read never rolls back the committed
+    // copy.
+    void get()
+      .refreshChatsNow()
+      .catch((error) => {
+        console.warn("[ChatSlice] Failed to confirm copied session in session index:", error);
+      })
+      .finally(releaseListProtection);
+    return summary;
   },
 
   selectSession: (sessionId) => {

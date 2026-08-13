@@ -647,6 +647,10 @@ export const enUsTranslation = {
         runProjectDreamNoChange: "No Project Dream update was needed",
         runProjectDreamFailed: "Failed to run Project Dream",
         scheduleThis: "Schedule this…",
+        copySession: "Copy Session",
+        copySessionRunning: "Copying session…",
+        copySessionSuccess: "Session copied",
+        copySessionFailed: "Failed to copy session",
       },
       prompt: {
         selectorTitle: "Select System Prompt",

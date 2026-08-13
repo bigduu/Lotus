@@ -591,6 +591,10 @@ export interface CreateSessionResponse {
   session: SessionSummary;
 }
 
+export interface CopySessionResponse {
+  session: SessionSummary;
+}
+
 export interface CreateSessionOptions {
   /** Reuse only when continuing the same previously-ambiguous logical action. */
   idempotencyKey?: string;
@@ -1356,6 +1360,18 @@ export class AgentClient {
         operationCreatedAtMs,
       );
     }
+  }
+
+  /**
+   * Copy one persisted session into a new independent root session.
+   *
+   * Bamboo owns the atomic copy semantics (history, attachments, metadata,
+   * and transient-state cleanup). Lotus only consumes the authoritative
+   * summary returned after that transaction commits.
+   */
+  async copySession(sessionId: string): Promise<CopySessionResponse> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    return agentApiClient.post<CopySessionResponse>(`sessions/${encodedSessionId}/copy`);
   }
 
   private postCreateSession(

@@ -31,6 +31,11 @@ export interface ChatSlice {
 
   // Actions
   addChat: (chat: Omit<ChatItem, "id">) => Promise<string>;
+  /**
+   * Copy a persisted session and atomically upsert/select Bamboo's
+   * authoritative root-session summary after the backend transaction commits.
+   */
+  copySession: (sourceSessionId: string) => Promise<SessionSummary>;
   selectSession: (sessionId: string | null) => void;
   deleteSession: (sessionId: string) => Promise<void>;
   /** Bulk delete; resolves with the ids whose backend delete failed. */

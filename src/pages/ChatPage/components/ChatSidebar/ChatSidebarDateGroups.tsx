@@ -47,6 +47,7 @@ const CHILD_ROW_ESTIMATE_PX = 28;
 const VIRTUAL_LIST_MAX_HEIGHT_PX = 480;
 const WORKSPACE_DATE_COLLAPSE_STORAGE_KEY = "lotus.sidebar.workspace-date.collapsed.v1";
 const PROJECT_DATE_COLLAPSE_STORAGE_KEY = "lotus.sidebar.project-date.collapsed.v1";
+const EMPTY_COPYING_SESSION_IDS: ReadonlySet<string> = new Set();
 
 const groupDateCollapseKey = (groupKey: string, dateKey: string) =>
   `${encodeURIComponent(groupKey)}::${dateKey}`;
@@ -87,8 +88,10 @@ type ChatSidebarDateGroupsProps = {
   onGenerateTitle: (sessionId: string) => void;
   onRunProjectDream: (sessionId: string) => void;
   onScheduleThis: (sessionId: string) => void;
+  onCopy?: (sessionId: string) => void;
   titleGenerationState: Record<string, { status: "loading" | "error" | "idle"; error?: string }>;
   projectDreamState: Record<string, { status: "loading" | "idle" }>;
+  copyingSessionIds?: ReadonlySet<string>;
   token: GlobalToken;
   hasActiveFilters: boolean;
   onClearFilters: () => void;
@@ -142,8 +145,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
   onGenerateTitle,
   onRunProjectDream,
   onScheduleThis,
+  onCopy,
   titleGenerationState,
   projectDreamState,
+  copyingSessionIds = EMPTY_COPYING_SESSION_IDS,
   token,
   hasActiveFilters,
   onClearFilters,
@@ -392,8 +397,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
               onGenerateTitle={onGenerateTitle}
               onRunProjectDream={onRunProjectDream}
               onScheduleThis={onScheduleThis}
+              onCopy={onCopy}
               isGeneratingTitle={titleGenerationState[chat.id]?.status === "loading"}
               isRunningProjectDream={projectDreamState[chat.id]?.status === "loading"}
+              isCopying={copyingSessionIds.has(chat.id)}
               titleGenerationError={
                 titleGenerationState[chat.id]?.status === "error"
                   ? titleGenerationState[chat.id]?.error
@@ -439,8 +446,10 @@ export const ChatSidebarDateGroups: React.FC<ChatSidebarDateGroupsProps> = ({
                       onGenerateTitle={onGenerateTitle}
                       onRunProjectDream={onRunProjectDream}
                       onScheduleThis={onScheduleThis}
+                      onCopy={onCopy}
                       isGeneratingTitle={titleGenerationState[child.id]?.status === "loading"}
                       isRunningProjectDream={projectDreamState[child.id]?.status === "loading"}
+                      isCopying={copyingSessionIds.has(child.id)}
                       titleGenerationError={
                         titleGenerationState[child.id]?.status === "error"
                           ? titleGenerationState[child.id]?.error
