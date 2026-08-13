@@ -16,6 +16,7 @@ import {
   getInitialSessionCreateOperation,
   resetInitialSessionCreateOperationMemoryForTest,
 } from "../slices/chatSessionSlice/initialSessionCreateOperation";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 
 // Hoisted mock for `listSessions` and `getRunningSessions` so the slice's
 // singleton AgentClient picks up the stubs.
@@ -98,6 +99,8 @@ describe("loadChats boot replay preserves metadata through trailing set", () => 
   let store: StoreApi<ChatSlice>;
 
   beforeEach(() => {
+    localStorage.clear();
+    useSessionReadStateStore.setState({ v: 2, initialized: false, markers: {} });
     store = createTestStore();
     mockListSessions.mockReset();
     mockCreateSession.mockReset();
@@ -193,6 +196,12 @@ describe("loadChats boot replay preserves metadata through trailing set", () => 
       resumeExistingOperation: true,
     });
     expect(store.getState().chats.map((chat) => chat.id)).toEqual(["unrelated-session"]);
+    expect(useSessionReadStateStore.getState()).toMatchObject({
+      initialized: true,
+      markers: {
+        "unrelated-session": { messageCount: 0, hasMessageCount: true },
+      },
+    });
     resetInitialSessionCreateOperationMemoryForTest();
     expect(getInitialSessionCreateOperation()).toEqual(persisted);
   });

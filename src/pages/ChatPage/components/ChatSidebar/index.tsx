@@ -37,6 +37,10 @@ export const ChatSidebar: React.FC = () => {
     expandedKeys,
     groupingMode,
     projectGroupLabels,
+    unreadCountByProject,
+    unreadCountByProjectDate,
+    sessionCountByProject,
+    sessionCountByProjectDate,
     archivedProjectKeys,
     handleCollapseChange,
     handleDelete,
@@ -176,6 +180,10 @@ export const ChatSidebar: React.FC = () => {
           groupingMode={groupingMode}
           groupLabels={projectGroupLabels}
           archivedGroupKeys={archivedProjectKeys}
+          unreadCountByGroup={unreadCountByProject}
+          unreadCountByGroupDate={unreadCountByProjectDate}
+          sessionCountByGroup={sessionCountByProject}
+          sessionCountByGroupDate={sessionCountByProjectDate}
           childrenByRoot={childrenByRoot}
           expandedRootIds={expandedRootIds}
           onToggleRootExpanded={toggleRootExpanded}

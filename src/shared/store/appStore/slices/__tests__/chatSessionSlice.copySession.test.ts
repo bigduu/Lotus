@@ -3,6 +3,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { SessionSummary } from "@services/chat/AgentService";
 import type { ChatItem } from "@shared/types/chat";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 import { createChatSlice, type ChatSlice } from "../chatSessionSlice";
 
 const { mockCopySession, mockListSessions } = vi.hoisted(() => ({
@@ -104,6 +105,8 @@ describe("chatSessionSlice copySession (#153)", () => {
   beforeEach(() => {
     mockCopySession.mockReset();
     mockListSessions.mockReset();
+    localStorage.clear();
+    useSessionReadStateStore.setState({ v: 2, initialized: true, markers: {} });
     mockListSessions.mockResolvedValue({
       sessions: [summary(), sourceSummary()],
     });
@@ -154,6 +157,23 @@ describe("chatSessionSlice copySession (#153)", () => {
       messages: source.messages,
     });
     expect(store.getState().executionBySession).toHaveProperty("copied-session");
+    expect(useSessionReadStateStore.getState().markers["copied-session"]).toMatchObject({
+      messageCount: 2,
+      hasMessageCount: true,
+    });
+  });
+
+  it("baselines the copied summary before the action promise resolves", async () => {
+    const store = createTestStore();
+    mockCopySession.mockResolvedValue({ session: summary({ message_count: 7 }) });
+
+    const copied = await store.getState().copySession("source-session");
+
+    expect(copied.id).toBe("copied-session");
+    expect(useSessionReadStateStore.getState().markers["copied-session"]).toMatchObject({
+      messageCount: 7,
+      hasMessageCount: true,
+    });
   });
 
   it("preserves history when the account feed inserts and hydrates the copy first", async () => {

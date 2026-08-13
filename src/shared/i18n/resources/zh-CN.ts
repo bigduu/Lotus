@@ -369,6 +369,10 @@ export const zhCnTranslation = {
         collapse: "收起侧边栏",
         chatList: "会话列表",
         untitledChat: "未命名会话",
+        unread: "有未读活动",
+        unreadSession: "{{title}}，有未读活动",
+        unreadGroup_one: "{{group}}（共 {{total}} 个），{{count}} 个未读会话",
+        unreadGroup_other: "{{group}}（共 {{total}} 个），{{count}} 个未读会话",
       },
       project: {
         selectorLabel: "项目",

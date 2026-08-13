@@ -443,4 +443,69 @@ describe("applySessionsList (via refreshChats)", () => {
     const nextChat = store.getState().chats.find((c) => c.id === "s1");
     expect(nextChat).toBe(existingChat);
   });
+
+  it("keeps reset and append generations authoritative across a stale high-count list", async () => {
+    store.setState((state) => ({
+      ...state,
+      chats: [
+        createChat({
+          id: "s1",
+          lastActivityAt: "2026-01-15T12:00:00.000001Z",
+          messageCount: 100,
+        }),
+      ],
+    }));
+
+    // A newer clear/truncate is authoritative even though its count is lower.
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          updated_at: "2026-01-15T12:00:00.000002Z",
+          last_activity_at: "2026-01-15T12:00:00.000002Z",
+          message_count: 0,
+        }),
+      ],
+    });
+    await store.getState().refreshChatsNow();
+    expect(store.getState().chats[0]).toMatchObject({
+      lastActivityAt: "2026-01-15T12:00:00.000002Z",
+      messageCount: 0,
+    });
+
+    // A delayed pre-reset snapshot must not restore the old high watermark.
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          updated_at: "2026-01-15T12:00:00.000001Z",
+          last_activity_at: "2026-01-15T12:00:00.000001Z",
+          message_count: 100,
+        }),
+      ],
+    });
+    await store.getState().refreshChatsNow();
+    expect(store.getState().chats[0]).toMatchObject({
+      lastActivityAt: "2026-01-15T12:00:00.000002Z",
+      messageCount: 0,
+    });
+
+    // The first post-reset append must now advance 0 -> 1 instead of being
+    // hidden behind the pre-reset count of 100.
+    mockListSessions.mockResolvedValueOnce({
+      sessions: [
+        createSummary({
+          id: "s1",
+          updated_at: "2026-01-15T12:00:00.000003Z",
+          last_activity_at: "2026-01-15T12:00:00.000003Z",
+          message_count: 1,
+        }),
+      ],
+    });
+    await store.getState().refreshChatsNow();
+    expect(store.getState().chats[0]).toMatchObject({
+      lastActivityAt: "2026-01-15T12:00:00.000003Z",
+      messageCount: 1,
+    });
+  });
 });

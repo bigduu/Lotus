@@ -17,6 +17,7 @@
 import { AgentClient, type ChangeEvent, type FeedSubscription } from "./AgentService";
 import { useAppStore, selectShouldObserve } from "@shared/store/appStore";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
 import {
   acceptChildApprovalVersion,
@@ -65,6 +66,10 @@ const clearCursor = (): void => {
   } catch {
     /* ignore */
   }
+};
+
+const advanceCursor = (seq: number): void => {
+  if (seq > readCursor()) writeCursor(seq);
 };
 
 const requestConfigResync = (epoch: number, reason: "transport open" | "feed reset"): void => {
@@ -121,7 +126,31 @@ const OPEN_SESSION_RECONCILE_TYPES = new Set<string>([
   "error",
   "execution_started",
   "need_clarification",
+  "session_cleared",
 ]);
+
+// MessageAppended represents the persisted user turn. Terminal events keep the
+// latch dirty through the assistant tail, while SessionCleared covers an ABA
+// reset whose eventual list count can equal the previously-read count.
+const UNREAD_CONTENT_CHANGE_TYPES = new Set<string>([
+  "message_appended",
+  "session_cleared",
+  "complete",
+  "cancelled",
+  "error",
+  "need_clarification",
+]);
+
+const isUnreadContentChange = (change: ChangeEvent): boolean => {
+  const sessionId = change.session_id ?? change.event.session_id;
+  return Boolean(sessionId && UNREAD_CONTENT_CHANGE_TYPES.has(change.event.type));
+};
+
+const latchUnreadChange = (change: ChangeEvent): boolean => {
+  const sessionId = change.session_id ?? change.event.session_id;
+  if (!sessionId || !isUnreadContentChange(change)) return true;
+  return useSessionReadStateStore.getState().markUnreadFromFeed(sessionId, change.seq);
+};
 
 const applyChange = (change: ChangeEvent): void => {
   const { event } = change;
@@ -322,7 +351,21 @@ const applyChange = (change: ChangeEvent): void => {
 const applyChangeAndAdvanceCursor = (change: ChangeEvent): void => {
   useAppStore.getState().setAgentAvailability(true);
   applyChange(change);
-  writeCursor(change.seq);
+  advanceCursor(change.seq);
+};
+
+const closeFeedForReplay = (epoch: number): void => {
+  if (epoch !== feedEpoch) return;
+  // Invalidate every callback already queued by this transport before
+  // closing it. A late metadata callback must not advance the cursor past the
+  // unread event whose durable latch just failed.
+  feedEpoch += 1;
+  hydrationEpoch += 1;
+  bufferingChanges = false;
+  bufferedChanges = [];
+  eventSource?.close();
+  eventSource = null;
+  useAppStore.getState().setAgentAvailability(false);
 };
 
 /**
@@ -336,6 +379,7 @@ const applyChangeAndAdvanceCursor = (change: ChangeEvent): void => {
  */
 const hydrateSubagentState = async (client: AgentClient, epoch: number): Promise<void> => {
   const currentHydration = ++hydrationEpoch;
+  const resetTokens = useSessionReadStateStore.getState().pendingFeedResetTokens();
   bufferingChanges = true;
   bufferedChanges = [];
   try {
@@ -344,24 +388,42 @@ const hydrateSubagentState = async (client: AgentClient, epoch: number): Promise
       return;
     }
 
-    const replay = bufferedChanges
-      .filter((change) => change.seq > snapshot.snapshot_seq)
-      .sort((left, right) => left.seq - right.seq);
+    const buffered = bufferedChanges.sort((left, right) => left.seq - right.seq);
+    const replay = buffered.filter((change) => change.seq > snapshot.snapshot_seq);
     bufferedChanges = [];
     bufferingChanges = false;
 
     replaceChildApprovalVersions(snapshot.approvals);
     useAppStore.getState().replaceSubagentSnapshot(snapshot);
-    if (snapshot.snapshot_seq > 0) {
-      writeCursor(snapshot.snapshot_seq);
-    } else {
-      clearCursor();
+    // The sub-agent snapshot does not contain message/unread state, so its
+    // watermark must never advance the account-feed resume cursor. It can,
+    // however, turn a previously persisted feed-reset token into a durable
+    // global gap watermark: every session loaded now or later inherits it.
+    useSessionReadStateStore.getState().resolveFeedResets(resetTokens, snapshot.snapshot_seq);
+    // Content events at or below the sub-agent watermark were latched before
+    // buffering, but still advance the resume cursor only after that latch is
+    // durable. The snapshot itself must never skip an event that did not
+    // actually arrive on this transport.
+    for (const change of buffered) {
+      if (change.seq > snapshot.snapshot_seq) break;
+      if (!latchUnreadChange(change)) {
+        // Stop at the first non-durable content coordinate. Advancing over a
+        // later metadata event would make this unread event unreplayable after
+        // reload even though its own latch failed.
+        closeFeedForReplay(epoch);
+        return;
+      }
+      advanceCursor(change.seq);
     }
     let lastReplayedSeq = snapshot.snapshot_seq;
     for (const change of replay) {
       if (change.seq <= lastReplayedSeq) continue;
+      if (!latchUnreadChange(change)) {
+        closeFeedForReplay(epoch);
+        return;
+      }
       applyChangeAndAdvanceCursor(change);
-      lastReplayedSeq = change.seq;
+      lastReplayedSeq = Math.max(lastReplayedSeq, change.seq);
     }
     // The snapshot supplies progress-only children immediately; refresh the
     // normal session index as well so titles, placement and tree metadata use
@@ -380,8 +442,13 @@ const hydrateSubagentState = async (client: AgentClient, epoch: number): Promise
     let lastReplayedSeq = readCursor();
     for (const change of replay) {
       if (change.seq <= lastReplayedSeq) continue;
-      applyChangeAndAdvanceCursor(change);
-      lastReplayedSeq = change.seq;
+      if (latchUnreadChange(change)) {
+        applyChangeAndAdvanceCursor(change);
+        lastReplayedSeq = change.seq;
+      } else {
+        closeFeedForReplay(epoch);
+        return;
+      }
     }
     console.warn("Failed to hydrate authoritative sub-agent snapshot", error);
     void useAppStore.getState().refreshSessionsIndex();
@@ -392,16 +459,16 @@ const hydrateSubagentState = async (client: AgentClient, epoch: number): Promise
  * Start the account feed. Idempotent — a second call is a no-op while a
  * connection is live.
  */
-export const startAccountFeed = (): void => {
-  if (eventSource) return;
+export const startAccountFeed = (): boolean => {
+  if (eventSource) return true;
   // The feed requires a browser/webview transport: an EventSource for the
   // legacy SSE path, or a WebSocket for the opt-in v2 path. In SSR/node/test
   // environments both may be absent — skip rather than throw.
   const wsEnabled = isApiV2WsEnabled();
   if (wsEnabled) {
-    if (typeof WebSocket === "undefined") return;
+    if (typeof WebSocket === "undefined") return false;
   } else if (typeof EventSource === "undefined") {
-    return;
+    return false;
   }
   const client = AgentClient.getInstance();
   const epoch = ++feedEpoch;
@@ -416,6 +483,7 @@ export const startAccountFeed = (): void => {
   eventSource = client.subscribeToAccountStream(
     {
       onOpen: () => {
+        if (epoch !== feedEpoch) return;
         useAppStore.getState().setAgentAvailability(true);
         requestConfigResync(epoch, "transport open");
         if (openedOnce) {
@@ -424,28 +492,48 @@ export const startAccountFeed = (): void => {
         openedOnce = true;
       },
       onError: () => {
+        if (epoch !== feedEpoch) return;
         // Transient: the browser will auto-reconnect (resending Last-Event-ID).
         useAppStore.getState().setAgentAvailability(false);
       },
       onReset: () => {
+        if (epoch !== feedEpoch) return;
         // Cursor predated the retained window. The stream fast-forwards to its
         // current head; replace state at a fresh snapshot watermark before
         // accepting the new live tail.
+        // The retained journal no longer contains every missed content event,
+        // and the sub-agent snapshot has no message state. Persist an
+        // account-wide pending gap; a fresh snapshot converts it to a bounded
+        // watermark inherited by sessions loaded now or later.
+        useSessionReadStateStore.getState().beginFeedReset();
         clearCursor();
         requestConfigResync(epoch, "feed reset");
         void hydrateSubagentState(client, epoch);
       },
       onChange: (change) => {
+        if (epoch !== feedEpoch) return;
+        // Observe content before the hydration barrier: its snapshot watermark
+        // covers sub-agent state only, so a <= watermark content event may be
+        // filtered from replay without being represented by the snapshot.
+        const durable = latchUnreadChange(change);
         if (bufferingChanges) {
           bufferedChanges.push(change);
           return;
         }
-        applyChangeAndAdvanceCursor(change);
+        if (durable) {
+          applyChangeAndAdvanceCursor(change);
+        } else {
+          // A content latch that could not be persisted must be replayed on a
+          // fresh connection; applying later events would let their cursor
+          // skip over it permanently.
+          closeFeedForReplay(epoch);
+        }
       },
     },
     { since: readCursor() },
   );
   void initialHydration;
+  return true;
 };
 
 /** Stop the account feed and tear down the connection. */

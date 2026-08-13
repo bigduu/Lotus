@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AccountStreamHandlers, ChangeEvent, SubagentSnapshotResponse } from "./AgentService";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
+import { isSessionUnread, useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 
 // Capture the handlers passed to subscribeToAccountStream so the test can drive
 // the feed without a real EventSource.
@@ -100,6 +101,12 @@ describe("accountFeed runner", () => {
     storeActions.refreshSessionsIndex.mockResolvedValue(undefined);
     storeActions.refreshChatsNow.mockResolvedValue(undefined);
     localStorage.clear();
+    useSessionReadStateStore.setState({
+      v: 2,
+      initialized: false,
+      markers: {},
+      feedResetThrough: 0,
+    });
     useConfigSectionStore.getState().reset();
   });
 
@@ -360,7 +367,7 @@ describe("accountFeed runner", () => {
     expect(closeSpy).not.toHaveBeenCalled();
   });
 
-  it("replaces from an advanced-cursor snapshot then replays only events above its watermark", async () => {
+  it("replaces subagent state without letting its snapshot skip unseen feed events", async () => {
     localStorage.setItem("lotus_account_feed_cursor_v1", "42");
     let resolveSnapshot!: (value: SubagentSnapshotResponse) => void;
     getSubagentSnapshot.mockImplementationOnce(
@@ -415,6 +422,149 @@ describe("accountFeed runner", () => {
     expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBe("51");
   });
 
+  it("latches count-neutral content before the subagent watermark drops buffered events", async () => {
+    useSessionReadStateStore
+      .getState()
+      .initialize([{ id: "s1", lastActivityAt: "2026-05-31T00:00:00Z", messageCount: 2 }]);
+    let resolveSnapshot!: (value: SubagentSnapshotResponse) => void;
+    getSubagentSnapshot.mockImplementationOnce(
+      () =>
+        new Promise<SubagentSnapshotResponse>((resolve) => {
+          resolveSnapshot = resolve;
+        }),
+    );
+
+    startAccountFeed();
+    captured!.onChange(change(49, { type: "session_cleared", session_id: "s1" }));
+    captured!.onChange(change(50, { type: "message_appended", session_id: "s1" }));
+
+    const unchangedSummary = {
+      id: "s1",
+      lastActivityAt: "2026-05-31T00:00:00Z",
+      messageCount: 2,
+    };
+    let readState = useSessionReadStateStore.getState();
+    expect(
+      isSessionUnread(unchangedSummary, readState.markers.s1, false, readState.initialized),
+    ).toBe(true);
+
+    resolveSnapshot(snapshot(50));
+    await vi.waitFor(() => expect(storeActions.replaceSubagentSnapshot).toHaveBeenCalledTimes(1));
+    readState = useSessionReadStateStore.getState();
+    expect(isSessionUnread(unchangedSummary, readState.markers.s1, false)).toBe(true);
+
+    readState.markRead([unchangedSummary]);
+    readState = useSessionReadStateStore.getState();
+    expect(isSessionUnread(unchangedSummary, readState.markers.s1, false)).toBe(false);
+  });
+
+  it("does not advance the feed cursor when the durable unread latch fails", async () => {
+    await startAndHydrate();
+    const setItem = localStorage.setItem.bind(localStorage);
+    vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+      if (key.startsWith("lotus.sidebar.session-read-state.v2.marker.")) {
+        throw new Error("quota");
+      }
+      return setItem(key, value);
+    });
+
+    captured!.onChange(change(60, { type: "message_appended", session_id: "quota-session" }));
+    // A browser may already have queued a later callback when close() runs.
+    // The invalidated transport epoch must make that callback inert.
+    captured!.onChange(change(61, { type: "session_created", session_id: "late-callback" }));
+
+    expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBeNull();
+    expect(closeSpy).toHaveBeenCalledTimes(1);
+    expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
+  });
+
+  it("does not let a later buffered event advance past a failed unread latch", async () => {
+    let resolveSnapshot!: (value: SubagentSnapshotResponse) => void;
+    getSubagentSnapshot.mockImplementationOnce(
+      () =>
+        new Promise<SubagentSnapshotResponse>((resolve) => {
+          resolveSnapshot = resolve;
+        }),
+    );
+    const setItem = localStorage.setItem.bind(localStorage);
+    vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+      if (key.startsWith("lotus.sidebar.session-read-state.v2.marker.")) {
+        throw new Error("quota");
+      }
+      return setItem(key, value);
+    });
+
+    startAccountFeed();
+    captured!.onChange(change(60, { type: "message_appended", session_id: "quota-session" }));
+    captured!.onChange(change(61, { type: "session_created", session_id: "later-session" }));
+    resolveSnapshot(snapshot(61));
+
+    await vi.waitFor(() => expect(closeSpy).toHaveBeenCalledTimes(1));
+    expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBeNull();
+    expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
+  });
+
+  it("closes the feed when fallback replay cannot durably latch unread", async () => {
+    let rejectSnapshot!: (error: Error) => void;
+    getSubagentSnapshot.mockImplementationOnce(
+      () =>
+        new Promise<SubagentSnapshotResponse>((_resolve, reject) => {
+          rejectSnapshot = reject;
+        }),
+    );
+    const setItem = localStorage.setItem.bind(localStorage);
+    vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
+      if (key.startsWith("lotus.sidebar.session-read-state.v2.marker.")) {
+        throw new Error("quota");
+      }
+      return setItem(key, value);
+    });
+
+    startAccountFeed();
+    captured!.onChange(change(70, { type: "message_appended", session_id: "quota-session" }));
+    captured!.onChange(change(71, { type: "session_created", session_id: "later-session" }));
+    rejectSnapshot(new Error("snapshot unavailable"));
+
+    await vi.waitFor(() => expect(closeSpy).toHaveBeenCalledTimes(1));
+    expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBeNull();
+    expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
+  });
+
+  it("never regresses a cursor when buffered changes are processed out of arrival order", async () => {
+    let resolveSnapshot!: (value: SubagentSnapshotResponse) => void;
+    getSubagentSnapshot.mockImplementationOnce(
+      () =>
+        new Promise<SubagentSnapshotResponse>((resolve) => {
+          resolveSnapshot = resolve;
+        }),
+    );
+    startAccountFeed();
+    captured!.onChange(change(51, { type: "session_created", session_id: "s1" }));
+    captured!.onChange(change(49, { type: "session_created", session_id: "s2" }));
+
+    resolveSnapshot(snapshot(50));
+    await vi.waitFor(() => expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBe("51"));
+  });
+
+  it("keeps a reset pending until hydration publishes an account-wide gap", async () => {
+    let resolveResetSnapshot!: (value: SubagentSnapshotResponse) => void;
+    getSubagentSnapshot.mockResolvedValueOnce(snapshot(10)).mockImplementationOnce(
+      () =>
+        new Promise<SubagentSnapshotResponse>((resolve) => {
+          resolveResetSnapshot = resolve;
+        }),
+    );
+    await startAndHydrate();
+
+    captured!.onReset?.({ type: "feed_reset", from_seq: 3 });
+    expect(useSessionReadStateStore.getState().pendingFeedResetTokens()).toHaveLength(1);
+    expect(useSessionReadStateStore.getState().feedResetThrough).toBe(0);
+
+    resolveResetSnapshot(snapshot(25));
+    await vi.waitFor(() => expect(useSessionReadStateStore.getState().feedResetThrough).toBe(25));
+    expect(useSessionReadStateStore.getState().pendingFeedResetTokens()).toHaveLength(0);
+  });
+
   it("clears the cursor and full-resyncs on feed_reset", async () => {
     localStorage.setItem("lotus_account_feed_cursor_v1", "42");
     getSubagentSnapshot.mockResolvedValueOnce(snapshot(10)).mockResolvedValueOnce(snapshot(20));
@@ -422,8 +572,48 @@ describe("accountFeed runner", () => {
 
     captured!.onReset?.();
     await vi.waitFor(() => expect(getSubagentSnapshot).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBe("20"));
+    await vi.waitFor(() => expect(useSessionReadStateStore.getState().feedResetThrough).toBe(20));
+    expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBeNull();
     expect(storeActions.replaceSubagentSnapshot).toHaveBeenCalledTimes(2);
+  });
+
+  it("persists an account-wide reset watermark for sessions loaded now or later", async () => {
+    storeActions.chats = [{ id: "known-session" }];
+    useSessionReadStateStore
+      .getState()
+      .initialize([
+        { id: "known-session", lastActivityAt: "2026-05-31T00:00:00Z", messageCount: 2 },
+      ]);
+    getSubagentSnapshot.mockResolvedValueOnce(snapshot(10)).mockResolvedValue(snapshot(20));
+    await startAndHydrate();
+
+    const reset = { type: "feed_reset" as const, from_seq: 10 };
+    captured!.onReset?.(reset);
+    await vi.waitFor(() => expect(useSessionReadStateStore.getState().feedResetThrough).toBe(20));
+    useSessionReadStateStore
+      .getState()
+      .markRead([{ id: "known-session", lastActivityAt: "2026-05-31T00:00:00Z", messageCount: 2 }]);
+    captured!.onReset?.(reset);
+    await vi.waitFor(() => expect(getSubagentSnapshot).toHaveBeenCalledTimes(3));
+
+    useSessionReadStateStore
+      .getState()
+      .markRead([{ id: "known-session", lastActivityAt: "2026-05-31T00:00:00Z", messageCount: 2 }]);
+    // A content event observed by another feed instance after the reset reads
+    // the durable epoch before constructing its generation.
+    captured!.onChange(change(1, { type: "message_appended", session_id: "known-session" }));
+
+    const state = useSessionReadStateStore.getState();
+    expect(state.markers["known-session"].dirtyContentThrough).toBe(1);
+    expect(
+      isSessionUnread(
+        { id: "known-session", lastActivityAt: "2026-05-31T00:00:00Z", messageCount: 2 },
+        state.markers["known-session"],
+        false,
+        state.initialized,
+        state.feedResetThrough,
+      ),
+    ).toBe(true);
   });
 
   it("rehydrates from a new watermark after transport reconnect", async () => {
@@ -435,7 +625,7 @@ describe("accountFeed runner", () => {
     captured!.onOpen?.();
 
     await vi.waitFor(() => expect(getSubagentSnapshot).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBe("20"));
+    expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBeNull();
     expect(storeActions.replaceSubagentSnapshot).toHaveBeenCalledTimes(2);
   });
 

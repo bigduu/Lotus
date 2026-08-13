@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createStore, type StoreApi } from "zustand/vanilla";
 
 import type { ChatItem } from "@shared/types/chat";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 import { createChatSlice, type ChatSlice } from "./chatSessionSlice";
 import { useProviderStore } from "./providerSlice";
 
@@ -987,6 +988,14 @@ describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
     getRunningSessionsMock.mockReset();
     getRunningSessionsMock.mockResolvedValue({ sessions: [] });
     reconcilePendingChildApprovalsMock.mockReset();
+    localStorage.clear();
+    useSessionReadStateStore.setState({
+      v: 2,
+      initialized: true,
+      feedResetThrough: 0,
+      pendingFeedReset: false,
+      markers: {},
+    });
     resetProviderStore();
   });
 
@@ -1019,6 +1028,48 @@ describe("chatSessionSlice.reconcileOpenSession (multi-device)", () => {
     // No pending question on the server -> clear any stale local one.
     expect(clearPendingQuestionMock).toHaveBeenCalledWith("s1");
     expect(setPendingQuestionMock).not.toHaveBeenCalled();
+  });
+
+  it("applies a shorter session_cleared history before acknowledging unread", async () => {
+    vi.useFakeTimers();
+    const store = buildStore("s1");
+    const chat = store.getState().chats[0];
+    store.setState({
+      chats: [
+        {
+          ...chat,
+          messages: [createUserMessage("old-user"), createUserMessage("old-assistant")],
+          messageCount: 2,
+        },
+      ],
+    });
+    useSessionReadStateStore.getState().markUnreadFromFeed("s1", 17);
+    getHistoryMock.mockResolvedValue({
+      session_id: "s1",
+      compression_events: [],
+      messages: [
+        {
+          id: "kept-assistant",
+          role: "assistant",
+          content: "kept",
+          created_at: new Date().toISOString(),
+        },
+      ],
+    } as never);
+
+    store.getState().reconcileOpenSession("s1", "session_cleared");
+    // A later event in the same feed burst must not weaken the clear's
+    // guarded replace requirement when it resets the debounce timer.
+    store.getState().reconcileOpenSession("s1", "complete");
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(store.getState().chats[0].messages.map((message) => message.id)).toEqual([
+      "kept-assistant",
+    ]);
+    expect(useSessionReadStateStore.getState().markers.s1).toMatchObject({
+      dirtyContentThrough: 17,
+      readContentThrough: 17,
+    });
   });
 
   it("sets the pending question when the server has one (raised on another device)", async () => {

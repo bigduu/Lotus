@@ -510,8 +510,12 @@ const handleFrame = (frame: ServerFrame | undefined): void => {
     if (control) {
       if (control.type === "feed_reset") {
         debugLog("[v2Stream]", "feed.reset", {});
+        const fromSeq = typeof control.from_seq === "number" ? control.from_seq : feedChannel.since;
         feedChannel.since = 0;
-        feedChannel.handlers.onReset?.();
+        feedChannel.handlers.onReset?.({
+          type: "feed_reset",
+          from_seq: fromSeq,
+        });
       }
       return;
     }

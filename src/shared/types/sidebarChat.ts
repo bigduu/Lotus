@@ -13,6 +13,9 @@ export type SidebarChatItem = SidebarChatListItem & {
   rootSessionId: string | null;
   createdByScheduleId: string | null;
   updatedAt: string | null;
+  lastActivityAt?: string | null;
+  messageCount?: number;
+  unread?: boolean;
   lastRunStatus: string | null;
   lastRunError: string | null;
   createdAt: number;

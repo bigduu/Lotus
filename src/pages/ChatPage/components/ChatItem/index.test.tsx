@@ -69,6 +69,48 @@ describe("ChatItem workspace badge (#134)", () => {
   });
 });
 
+describe("ChatItem unread state (#129)", () => {
+  it("renders an accessible unread row with a decorative dot", () => {
+    renderChatItem({ unread: true });
+
+    expect(screen.getByRole("option", { name: "Original title, unread activity" })).toBeVisible();
+    expect(screen.getByTestId("chat-item-unread")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("removes the dot and accessible suffix when read", () => {
+    const { rerender } = render(
+      <AntdApp>
+        <ChatItem
+          chat={baseChat}
+          unread
+          isSelected={false}
+          onSelect={noop}
+          onDelete={noop}
+          onPin={noop}
+          onUnpin={noop}
+        />
+      </AntdApp>,
+    );
+    expect(screen.getByTestId("chat-item-unread")).toBeInTheDocument();
+
+    rerender(
+      <AntdApp>
+        <ChatItem
+          chat={baseChat}
+          unread={false}
+          isSelected={false}
+          onSelect={noop}
+          onDelete={noop}
+          onPin={noop}
+          onUnpin={noop}
+        />
+      </AntdApp>,
+    );
+    expect(screen.queryByTestId("chat-item-unread")).toBeNull();
+    expect(screen.getByRole("option", { name: "Original title" })).toBeVisible();
+  });
+});
+
 describe("ChatItem inline title edit", () => {
   it("Escape cancels the edit, restores the original title, and does not save (#19)", async () => {
     const onEdit = vi.fn();

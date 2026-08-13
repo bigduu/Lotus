@@ -8,6 +8,7 @@ import {
   type ChatSlice,
 } from "../chatSessionSlice";
 import type { ProjectManifest } from "@services/project";
+import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 
 const { mockCreateSession } = vi.hoisted(() => ({
   mockCreateSession: vi.fn(),
@@ -36,6 +37,8 @@ const makeSummary = (overrides: Partial<SessionSummary> = {}): SessionSummary =>
   spawn_depth: 0,
   created_at: "2025-03-01T00:00:00Z",
   updated_at: "2025-03-01T00:00:00Z",
+  last_activity_at: "2025-03-01T00:00:00Z",
+  message_count: 0,
   ...overrides,
 });
 
@@ -84,6 +87,8 @@ const newChatData = () => ({
 describe("chatSessionSlice addChat — Project membership (#134/#154)", () => {
   beforeEach(() => {
     mockCreateSession.mockReset();
+    localStorage.clear();
+    useSessionReadStateStore.setState({ v: 2, initialized: true, markers: {} });
   });
 
   it("sends the active Project when it is active", async () => {
@@ -274,5 +279,9 @@ describe("chatSessionSlice addChat — Project membership (#134/#154)", () => {
     );
     expect(store.getState().chats.map((chat) => chat.id)).toEqual(["session-recovered"]);
     expect(store.getState().currentSessionId).toBe("session-recovered");
+    expect(useSessionReadStateStore.getState().markers["session-recovered"]).toMatchObject({
+      messageCount: 0,
+      hasMessageCount: true,
+    });
   });
 });
