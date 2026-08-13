@@ -2,7 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { ChatItem } from "@shared/types/chat";
 import type { SessionReadMarker } from "@shared/store/sessionReadStateStore";
-import { loadVisibleHistoryAndAcknowledge } from "./conversationReadLifecycle";
+import {
+  loadVisibleHistoryAndAcknowledge,
+  visibleHistoryLoadMode,
+} from "./conversationReadLifecycle";
 
 const rendered = {
   id: "session-1",
@@ -23,6 +26,44 @@ const marker = (overrides: Partial<SessionReadMarker> = {}): SessionReadMarker =
 });
 
 describe("ConversationPane unread acknowledgement (#129)", () => {
+  it("uses replace mode on hidden-to-visible recovery when a clear is unread", () => {
+    expect(
+      visibleHistoryLoadMode({
+        sessionId: rendered.id,
+        readState: {
+          markers: {
+            [rendered.id]: marker({ dirtyContentThrough: 12, readContentThrough: 11 }),
+          },
+          feedResetThrough: 0,
+          markRead: vi.fn(),
+        },
+      }),
+    ).toBe("replace");
+  });
+
+  it("uses replace mode while an account-wide feed reset is pending", () => {
+    expect(
+      visibleHistoryLoadMode({
+        sessionId: rendered.id,
+        readState: {
+          markers: {},
+          feedResetThrough: 0,
+          pendingFeedReset: true,
+          markRead: vi.fn(),
+        },
+      }),
+    ).toBe("replace");
+  });
+
+  it("keeps monotonic mode for a clean transcript without a shrink", () => {
+    expect(
+      visibleHistoryLoadMode({
+        sessionId: rendered.id,
+        readState: { markers: {}, feedResetThrough: 0, markRead: vi.fn() },
+      }),
+    ).toBe("monotonic");
+  });
+
   it("acknowledges only the coordinate captured before history starts", async () => {
     let currentMarker = marker({ dirtyContentThrough: 10 });
     const markRead = vi.fn();

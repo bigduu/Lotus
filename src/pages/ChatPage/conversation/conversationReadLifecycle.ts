@@ -8,10 +8,33 @@ import type {
 type ReadStateSnapshot = {
   markers: Readonly<Record<string, SessionReadMarker>>;
   feedResetThrough: number;
+  pendingFeedReset?: boolean;
   markRead: (
     sessions: ReadonlyArray<SessionActivity>,
     observed?: Readonly<Record<string, SessionReadObservation | undefined>>,
   ) => void;
+};
+
+export type HistoryLoadMode = "replace" | "monotonic";
+
+/**
+ * A dirty feed coordinate can represent a count-neutral clear/truncate. In
+ * that case a monotonic history load is allowed to preserve the longer local
+ * transcript, so it cannot prove that the visible UI reflects the change.
+ */
+export const visibleHistoryLoadMode = ({
+  sessionId,
+  readState,
+}: {
+  sessionId: string;
+  readState: ReadStateSnapshot;
+}): HistoryLoadMode => {
+  const marker = readState.markers[sessionId];
+  const hasUnreadCoordinate =
+    readState.pendingFeedReset === true ||
+    (marker?.dirtyContentThrough ?? 0) > (marker?.readContentThrough ?? 0) ||
+    readState.feedResetThrough > (marker?.readResetThrough ?? 0);
+  return hasUnreadCoordinate ? "replace" : "monotonic";
 };
 
 /**
@@ -29,11 +52,8 @@ export const loadVisibleHistoryAndAcknowledge = async ({
   isPageVisible,
 }: {
   sessionId: string;
-  mode: "replace" | "monotonic";
-  loadChatHistory: (
-    sessionId: string,
-    options: { mode: "replace" | "monotonic" },
-  ) => Promise<boolean>;
+  mode: HistoryLoadMode;
+  loadChatHistory: (sessionId: string, options: { mode: HistoryLoadMode }) => Promise<boolean>;
   getRenderedSession: () => ChatItem | undefined;
   getReadState: () => ReadStateSnapshot;
   isPageVisible: () => boolean;

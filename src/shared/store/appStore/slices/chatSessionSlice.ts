@@ -58,6 +58,10 @@ const agentClient = AgentClient.getInstance();
 // the open session (e.g. a turn driven on another device emits several change
 // events) into a single history+pending reload.
 const reconcileTimers = new Map<string, ReturnType<typeof setTimeout>>();
+// A clear/truncate is stronger than every ordinary event in the same debounce
+// burst. Keep that requirement sticky even if a later event replaces the
+// timer and therefore its diagnostic `reason`.
+const reconcileReplaceSessions = new Set<string>();
 const RECONCILE_DEBOUNCE_MS = 300;
 
 // In-flight backend PATCH tracking per session (#163): the first dispatch
@@ -1293,7 +1297,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
               serverMessageCount,
               advancedInFlight,
             });
-            return !advancedInFlight;
+            // Equal snapshots already describe the rendered transcript, but a
+            // shorter monotonic snapshot was deliberately NOT applied. Never
+            // report that shrink as authoritative to read-acknowledgement
+            // callers or they can clear unread while stale messages remain.
+            return !advancedInFlight && nextLen === prevLen;
           }
         } else {
           // replace-mode staleness guard (#164): if the session advanced
@@ -1381,6 +1389,9 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     if (!sessionId || get().currentSessionId !== sessionId) {
       return;
     }
+    if (reason === "session_cleared") {
+      reconcileReplaceSessions.add(sessionId);
+    }
     const existing = reconcileTimers.get(sessionId);
     if (existing) {
       clearTimeout(existing);
@@ -1389,6 +1400,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       sessionId,
       setTimeout(() => {
         reconcileTimers.delete(sessionId);
+        const forceReplace = reconcileReplaceSessions.delete(sessionId);
         // Bail if the user switched away while the timer was pending.
         if (get().currentSessionId !== sessionId) {
           return;
@@ -1398,9 +1410,11 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             sessionId,
             reason: reason ?? null,
           });
-          // monotonic: catches a behind (passive-viewer) device up; a no-op on
-          // the device driving the run (its local state is ahead). waitForAssistant
-          // so a freshly-completed turn picks up the assistant reply.
+          // Most feed events reconcile monotonically: this catches a behind
+          // passive viewer up while preserving a locally-ahead live stream.
+          // `session_cleared` is different: its authoritative transcript may
+          // be shorter, so only guarded replace mode can apply it.
+          const historyMode = forceReplace ? "replace" : "monotonic";
           const readStateAtRequest = useSessionReadStateStore.getState();
           const markerAtRequest = readStateAtRequest.markers[sessionId];
           const readObservation = {
@@ -1408,7 +1422,7 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             reset: readStateAtRequest.feedResetThrough,
           };
           const loaded = await get().loadChatHistory(sessionId, {
-            mode: "monotonic",
+            mode: historyMode,
             waitForAssistant: true,
             retries: 3,
             retryDelayMs: 250,

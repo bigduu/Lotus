@@ -100,15 +100,17 @@ export interface ChatSlice {
       retryDelayMs?: number;
       waitForAssistant?: boolean;
     },
+    /** Returns true only when the fetched snapshot represents the rendered transcript. */
   ) => Promise<boolean>;
   /**
    * Multi-device sync: reconcile the CURRENTLY-OPEN session against the server
    * when an account-feed change event for it arrives (a message appended / run
    * completed / clarification raised on ANOTHER device). Debounced per session.
    *
-   * Safe to call during a live local stream: it loads history in `monotonic`
-   * mode, so it only catches a *behind* (passive-viewer) device up and is a
-   * no-op on the device that is driving the run (whose local state is ahead).
+   * Safe to call during a live local stream: ordinary events load history in
+   * `monotonic` mode, so they only catch a *behind* passive viewer up and are a
+   * no-op on the device driving the run. `session_cleared` uses guarded
+   * `replace` mode because its authoritative history can be shorter.
    * Also re-pulls the pending question so a clarification answered on another
    * device clears here (and a new one appears). No-op unless `sessionId` is the
    * open session.

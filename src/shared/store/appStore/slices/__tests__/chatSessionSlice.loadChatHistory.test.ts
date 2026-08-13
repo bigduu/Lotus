@@ -93,7 +93,7 @@ describe("loadChatHistory replace-mode staleness guard (#164)", () => {
     });
 
     resolveHistory(historyOf(["h1"]));
-    await loadPromise;
+    expect(await loadPromise).toBe(false);
 
     const messages = store.getState().chats[0].messages;
     expect(messages.map((m) => m.id)).toEqual(["local-1", "local-2"]);
@@ -290,5 +290,20 @@ describe("loadChatHistory monotonic-mode staleness guard (#178)", () => {
     const chat = store.getState().chats[0];
     expect(chat.messages.map((message) => message.id)).toEqual(["local-1", "local-2"]);
     expect(chat.messageCount).toBe(4);
+  });
+
+  it("reports a settled shorter snapshot as unapplied so callers cannot acknowledge it", async () => {
+    const store = createTestStore(
+      makeChat([userMessage("local-1", "first"), userMessage("local-2", "second")]),
+    );
+    mockGetHistory.mockResolvedValue(historyOf(["h1"]));
+
+    const loaded = await store.getState().loadChatHistory("s1", { mode: "monotonic" });
+
+    expect(loaded).toBe(false);
+    expect(store.getState().chats[0].messages.map((message) => message.id)).toEqual([
+      "local-1",
+      "local-2",
+    ]);
   });
 });

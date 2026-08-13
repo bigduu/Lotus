@@ -31,7 +31,11 @@ import {
   buildConversationWorkspaceState,
   type ConversationWorkspaceState,
 } from "../workspace/workspaceState";
-import { loadVisibleHistoryAndAcknowledge } from "./conversationReadLifecycle";
+import {
+  loadVisibleHistoryAndAcknowledge,
+  visibleHistoryLoadMode,
+  type HistoryLoadMode,
+} from "./conversationReadLifecycle";
 
 const LazyQuestionDialog = React.lazy(() =>
   import("@components/QuestionDialog").then((m) => ({ default: m.QuestionDialog })),
@@ -138,7 +142,7 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
   const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
 
   const loadAndAcknowledgeHistory = useCallback(
-    async (mode: "replace" | "monotonic") => {
+    async (mode: HistoryLoadMode) => {
       if (!sessionId) return;
       await loadVisibleHistoryAndAcknowledge({
         sessionId,
@@ -158,7 +162,8 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
     if (!sessionId || typeof document === "undefined") return;
     const acknowledgeOnVisible = () => {
       if (document.visibilityState === "hidden") return;
-      void loadAndAcknowledgeHistory("monotonic");
+      const readState = useSessionReadStateStore.getState();
+      void loadAndAcknowledgeHistory(visibleHistoryLoadMode({ sessionId, readState }));
     };
     document.addEventListener("visibilitychange", acknowledgeOnVisible);
     return () => document.removeEventListener("visibilitychange", acknowledgeOnVisible);
@@ -188,11 +193,11 @@ export const ConversationPane: React.FC<ConversationPaneProps> = ({
     sessionId,
   ]);
 
-  const currentMessageCount = currentChat?.messageCount ?? 0;
+  const currentMessageCount = currentChat?.messageCount;
   const currentMessagesLength = currentChat?.messages?.length ?? 0;
 
   useEffect(() => {
-    if (!sessionId) return;
+    if (!sessionId || typeof currentMessageCount !== "number") return;
     const messageCountDiff = currentMessageCount - currentMessagesLength;
     if (messageCountDiff > 0) {
       void loadAndAcknowledgeHistory("monotonic");
