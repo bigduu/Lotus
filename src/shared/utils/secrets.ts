@@ -41,7 +41,7 @@ const REDACTED_PLACEHOLDER = "***redacted***";
  * Deep-clones a config-shaped value, replacing any value whose key looks
  * sensitive (`api_key`, `api_key_encrypted`, `token`, `secret`, `password`,
  * ...) with a fixed placeholder. Intended for `debugLog`/`console.log`
- * call sites that pass a raw settings/provider payload — those payloads
+ * call sites that pass a raw provider-settings payload — those payloads
  * carry plaintext credentials (`providers.{provider}.api_key`, etc.) that
  * must never land in the console, even behind the dev-only verbose flag.
  *

@@ -1,18 +1,11 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Mermaid Fix Persistence", () => {
-  test("should persist fixed mermaid content after page reload", async ({
-    page,
-  }) => {
+  test("should persist fixed mermaid content after page reload", async ({ page }) => {
     const sessionId = "session-mermaid-1";
     const messageId = "assistant-mermaid-1";
     const now = new Date().toISOString();
-    let persistedAssistantContent = [
-      "```mermaid",
-      "graph TD",
-      "A -->",
-      "```",
-    ].join("\n");
+    let persistedAssistantContent = ["```mermaid", "graph TD", "A -->", "```"].join("\n");
     let patchCallCount = 0;
 
     await page.route("**/api/v1/health", async (route) => {
@@ -23,7 +16,7 @@ test.describe("Mermaid Fix Persistence", () => {
       });
     });
 
-    await page.route("**/v1/bamboo/settings/provider", async (route) => {
+    await page.route("**/v1/bamboo/config/provider-settings", async (route) => {
       if (route.request().method() !== "GET") {
         await route.continue();
         return;
@@ -33,13 +26,45 @@ test.describe("Mermaid Fix Persistence", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          provider: "openai",
-          providers: {
-            openai: {
-              api_key: "sk-test",
-              model: "gpt-5",
+          data: {
+            provider: "openai",
+            providers: {},
+            defaults: { chat: { provider: "openai", model: "gpt-5" } },
+            features: { provider_model_ref: true },
+            provider_instances: {
+              openai: {
+                provider_type: "openai",
+                label: "OpenAI",
+                enabled: true,
+                base_url: null,
+                model: "gpt-5",
+                fast_model: null,
+                vision_model: null,
+                reasoning_effort: null,
+                responses_only_models: [],
+                request_overrides: null,
+              },
+            },
+            default_provider_instance_id: "openai",
+            available_providers: ["openai"],
+            credential_status: {
+              providers: {},
+              provider_instances: {
+                openai: {
+                  credential_ref: "provider_instances.openai.api_key",
+                  configured: true,
+                  source: "user",
+                  updated_at: null,
+                },
+              },
             },
           },
+          revision: 1,
+          loaded_at: now,
+          source_path: "/tmp/providers.json",
+          source_kind: "file",
+          status: "healthy",
+          last_error: null,
         }),
       });
     });
@@ -101,30 +126,30 @@ test.describe("Mermaid Fix Persistence", () => {
     });
 
     await page.route("**/api/v1/sessions/**/messages/**", async (route) => {
-        const method = route.request().method();
-        if (method !== "PATCH") {
-          await route.continue();
-          return;
-        }
+      const method = route.request().method();
+      if (method !== "PATCH") {
+        await route.continue();
+        return;
+      }
 
-        const raw = route.request().postData() || "{}";
-        const payload = JSON.parse(raw) as { content?: string };
-        if (typeof payload.content === "string" && payload.content.trim()) {
-          persistedAssistantContent = payload.content;
-          patchCallCount += 1;
-        }
+      const raw = route.request().postData() || "{}";
+      const payload = JSON.parse(raw) as { content?: string };
+      if (typeof payload.content === "string" && payload.content.trim()) {
+        persistedAssistantContent = payload.content;
+        patchCallCount += 1;
+      }
 
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify({
-            success: true,
-            session_id: sessionId,
-            message_id: messageId,
-            message_count: 2,
-          }),
-        });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          success: true,
+          session_id: sessionId,
+          message_id: messageId,
+          message_count: 2,
+        }),
       });
+    });
 
     await page.route("**/openai/v1/chat/completions", async (route) => {
       await route.fulfill({
@@ -161,9 +186,7 @@ test.describe("Mermaid Fix Persistence", () => {
     });
     await page.locator('[data-testid="chat-item"]').first().click();
 
-    await expect(
-      page.locator('[data-testid="assistant-message"]').first(),
-    ).toBeVisible({
+    await expect(page.locator('[data-testid="assistant-message"]').first()).toBeVisible({
       timeout: 15000,
     });
     await expect(page.getByText("Mermaid Diagram Error")).toBeVisible();
@@ -182,10 +205,7 @@ test.describe("Mermaid Fix Persistence", () => {
         .catch(() => false);
 
       if (noModelConfigured) {
-        test.skip(
-          true,
-          "Mermaid fix requires a configured default model in this E2E environment",
-        );
+        test.skip(true, "Mermaid fix requires a configured default model in this E2E environment");
       }
 
       await page.waitForTimeout(500);
@@ -200,9 +220,7 @@ test.describe("Mermaid Fix Persistence", () => {
 
     await page.reload();
 
-    await expect(
-      page.locator('[data-testid="assistant-message"]').first(),
-    ).toBeVisible();
+    await expect(page.locator('[data-testid="assistant-message"]').first()).toBeVisible();
     await expect(page.getByText("Mermaid Diagram Error")).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Fix Mermaid" })).not.toBeVisible();
   });

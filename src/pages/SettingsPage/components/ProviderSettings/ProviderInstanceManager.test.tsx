@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { sanitizeInstanceConfigForForm } from "./providerInstanceUtils";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
+import { settingsService } from "@services/config/SettingsService";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ProviderInstance } from "@shared/types/providerConfig";
 
@@ -85,6 +86,7 @@ vi.mock("@services/config/SettingsService", () => ({
     startCopilotAuth: vi.fn(),
     completeCopilotAuth: vi.fn(),
     getCopilotAuthStatus: vi.fn(),
+    logoutCopilot: vi.fn(),
   },
 }));
 
@@ -275,6 +277,95 @@ describe("ProviderInstanceManager — request_overrides_json field", () => {
     await waitFor(() => expect(onUpdateInstance).toHaveBeenCalled());
     const [, payload] = onUpdateInstance.mock.calls[0] ?? [];
     expect(payload?.config?.request_overrides).toEqual({ common: { headers: { "x-test": "2" } } });
+  }, 20000);
+
+  it("sends an explicit null when request overrides are cleared", async () => {
+    const instance: ProviderInstance = {
+      id: "inst-1",
+      type: "openai",
+      label: "My OpenAI",
+      enabled: true,
+      config: {
+        request_overrides: { common: { headers: { "x-test": "1" } } },
+      },
+    };
+    render(
+      <ProviderInstanceManager
+        instances={[instance]}
+        defaultInstanceId={null}
+        {...commonProps}
+        credentialStatusById={{
+          "inst-1": {
+            credential_ref: "provider_instance.inst-1.api_key",
+            configured: true,
+            source: "user",
+            updated_at: null,
+          },
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId("edit-provider-instance-inst-1"));
+    await waitFor(() => {
+      expect(getTextareaWithin("request-overrides-textarea").value).toContain("x-test");
+    });
+    fireEvent.change(getTextareaWithin("request-overrides-textarea"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+
+    await waitFor(() => expect(onUpdateInstance).toHaveBeenCalled());
+    const [, payload] = onUpdateInstance.mock.calls.at(-1) ?? [];
+    expect(payload?.config?.request_overrides).toBeNull();
+  }, 20000);
+
+  it("submits Anthropic max tokens as a number", async () => {
+    render(<ProviderInstanceManager instances={[]} defaultInstanceId={null} {...commonProps} />);
+
+    fireEvent.click(screen.getByTestId("add-provider-instance"));
+    await selectAntdOption("instance-type-select", "Anthropic");
+    fireEvent.change(screen.getByPlaceholderText("sk-ant-..."), {
+      target: { value: "sk-ant-test" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("4096"), { target: { value: "8192" } });
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+
+    await waitFor(() => expect(onCreateInstance).toHaveBeenCalled());
+    const payload = onCreateInstance.mock.calls.at(-1)?.[0];
+    expect(payload?.config.max_tokens).toBe(8192);
+    expect(typeof payload?.config.max_tokens).toBe("number");
+  }, 20000);
+
+  it("lets an authenticated Copilot instance log out from the instance manager", async () => {
+    const instance: ProviderInstance = {
+      id: "copilot-main",
+      type: "copilot",
+      label: "GitHub Copilot",
+      enabled: true,
+      config: {},
+    };
+    vi.mocked(settingsService.getCopilotAuthStatus)
+      .mockResolvedValueOnce({ authenticated: true })
+      .mockResolvedValueOnce({ authenticated: false });
+    vi.mocked(settingsService.logoutCopilot).mockResolvedValue(undefined);
+
+    render(
+      <ProviderInstanceManager
+        instances={[instance]}
+        defaultInstanceId="copilot-main"
+        {...commonProps}
+      />,
+    );
+
+    const instanceHeader = document.querySelector(".ant-collapse-header");
+    expect(instanceHeader).toBeTruthy();
+    fireEvent.click(instanceHeader as HTMLElement);
+    fireEvent.click(await screen.findByRole("button", { name: "Refresh" }));
+    await waitFor(() => expect(settingsService.getCopilotAuthStatus).toHaveBeenCalledOnce());
+    expect(await screen.findByText("Authenticated")).toBeInTheDocument();
+    fireEvent.click((await screen.findByText("Logout from Copilot")).closest("button")!);
+
+    await waitFor(() => expect(settingsService.logoutCopilot).toHaveBeenCalledOnce());
+    await waitFor(() => expect(settingsService.getCopilotAuthStatus).toHaveBeenCalledTimes(2));
+    expect(AntApp.useApp().message.success).toHaveBeenCalledWith("Logged out from Copilot");
   }, 20000);
 
   it("adopts a newer instance snapshot while the edit form is clean", async () => {

@@ -1,9 +1,6 @@
 import { create } from "zustand";
 import { settingsService } from "@services/config/SettingsService";
-import {
-  providerSectionToInstances,
-  providerSectionToLegacyConfig,
-} from "@services/config/providerSettings";
+import { providerSectionToInstances } from "@services/config/providerSettings";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type { ProviderConfig, ProviderType, ProviderInstance } from "@shared/types/providerConfig";
 import type {
@@ -38,23 +35,19 @@ const filterCatalogModelsForProvider = (
  * Manages the current active provider and its configuration.
  * This is the single source of truth for provider-related state.
  *
- * Supports both legacy (fixed provider-type keys) and multi-instance modes.
- * When `providerInstances` is populated, instance-based semantics take precedence.
+ * Provider instances are authoritative. `providerConfig` remains as the
+ * normalized compatibility shape consumed by model-selection code.
  */
 interface ProviderState {
-  // ── Legacy (backward compat) ──────────────────────────────
-  // Current active provider (legacy: ProviderType; instance mode: instance id)
+  // Current active provider instance id.
   currentProvider: string;
-  // Full provider configuration loaded from backend (legacy shape)
+  // Normalized provider configuration used by existing model consumers.
   providerConfig: ProviderConfig;
 
-  // ── Multi-instance ────────────────────────────────────────
   /** All configured provider instances. */
   providerInstances: ProviderInstance[];
   /** The default provider instance id. */
   defaultProviderInstanceId: string | null;
-  /** Whether the instance-based API is available / loaded. */
-  isInstancesLoaded: boolean;
 
   // ── Common ────────────────────────────────────────────────
   // Loading state
@@ -72,11 +65,8 @@ interface ProviderState {
   isCatalogFetching: boolean;
 
   // Actions
-  loadProviderConfig: () => Promise<void>;
-  /** Load provider instances from the new instance-based API. */
+  /** Load provider instances from the typed provider settings section. */
   loadProviderInstances: () => Promise<void>;
-  setCurrentProvider: (provider: string) => void;
-  updateProviderConfig: (config: Partial<ProviderConfig>) => void;
   setSelectedModelRef: (ref: ProviderModelRef | null) => void;
   loadCatalog: () => Promise<void>;
   /** Fetch models from one or all providers, then reload catalog. */
@@ -103,9 +93,9 @@ interface ProviderState {
   /**
    * Resolve the ProviderType for the given provider identifier.
    *
-   * In legacy mode the identifier is already a ProviderType ("openai", "copilot", …).
-   * In instance mode it is an instance id; we look up the instance to get its `.type`.
-   * Falls back to the identifier itself if no instance is found.
+   * The identifier is normally an instance id; we look up the instance to get
+   * its `.type`. Synthesized instances may use the provider type as their id,
+   * so falling back to the identifier remains safe during config migration.
    */
   getProviderType: (providerOrInstanceId: string) => ProviderType;
 }
@@ -120,53 +110,13 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
   },
   providerInstances: [],
   defaultProviderInstanceId: null,
-  isInstancesLoaded: false,
   isLoading: false,
   error: null,
   selectedModelRef: null,
   catalog: null,
   isCatalogFetching: false,
 
-  // ── Load legacy provider configuration from backend ────────
-  loadProviderConfig: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      const envelope = await useConfigSectionStore.getState().loadSection("providers");
-      const config = providerSectionToLegacyConfig(envelope.data);
-
-      // Build defaults from providers.{provider}.model if defaults is missing
-      // (backward compatibility with backend that stores model in providers).
-      if (!config.defaults?.chat?.model && config.provider && config.providers) {
-        const providerName = config.provider;
-        const providerCfg = config.providers[providerName as keyof typeof config.providers];
-        const legacyModel = (providerCfg as Record<string, unknown> | undefined)?.model as
-          | string
-          | undefined;
-        if (legacyModel) {
-          config.defaults = {
-            chat: {
-              provider: providerName,
-              model: legacyModel,
-            },
-          };
-        }
-      }
-
-      set({
-        providerConfig: config,
-        currentProvider: config.provider,
-        isLoading: false,
-      });
-    } catch (error) {
-      console.error("Failed to load provider config:", error);
-      set({
-        error: error instanceof Error ? error.message : "Failed to load provider config",
-        isLoading: false,
-      });
-    }
-  },
-
-  // ── Load provider instances (multi-instance API) ──────────
+  // ── Load provider instances ────────────────────────────────
   loadProviderInstances: async () => {
     set({ isLoading: true, error: null });
     try {
@@ -175,29 +125,27 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       const instances = providerSectionToInstances(section);
       const defaultId = section.default_provider_instance_id;
 
-      // Build legacy-compatible providerConfig from instances + defaults.
-      // This keeps existing consumers working during migration.
-      const legacyProviders: Record<string, Record<string, unknown>> = {};
+      // Build the normalized providerConfig consumed by model selectors.
+      const instanceProviders: Record<string, Record<string, unknown>> = {};
       for (const inst of instances) {
-        legacyProviders[inst.id] = inst.config;
+        instanceProviders[inst.id] = inst.config;
       }
 
-      // Also preserve original type-keyed entries so legacy code can still
-      // look up providers by type name.
-      const legacyConfig: ProviderConfig = {
+      const normalizedConfig: ProviderConfig = {
         provider: defaultId ?? section.provider,
         defaults: section.defaults ?? undefined,
-        providers: legacyProviders as ProviderConfig["providers"],
+        providers: instanceProviders as ProviderConfig["providers"],
         features: section.features,
       };
 
-      // Back-fill defaults from legacy model field if needed
-      if (!legacyConfig.defaults?.chat?.model && defaultId) {
-        const instCfg = legacyProviders[defaultId];
-        const legacyModel = instCfg?.model as string | undefined;
-        if (legacyModel) {
-          legacyConfig.defaults = {
-            chat: { provider: defaultId, model: legacyModel },
+      // Synthesized instances can carry their model while defaults are still
+      // being migrated. Keep that one-way compatibility bridge here.
+      if (!normalizedConfig.defaults?.chat?.model && defaultId) {
+        const instCfg = instanceProviders[defaultId];
+        const instanceModel = instCfg?.model as string | undefined;
+        if (instanceModel) {
+          normalizedConfig.defaults = {
+            chat: { provider: defaultId, model: instanceModel },
           };
         }
       }
@@ -206,8 +154,7 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
         providerInstances: instances,
         defaultProviderInstanceId: defaultId,
         currentProvider: defaultId ?? section.defaults?.chat?.provider ?? section.provider,
-        providerConfig: legacyConfig,
-        isInstancesLoaded: true,
+        providerConfig: normalizedConfig,
         isLoading: false,
       });
     } catch (error) {
@@ -215,24 +162,8 @@ export const useProviderStore = create<ProviderState>((set, get) => ({
       set({
         error: error instanceof Error ? error.message : "Failed to load provider instances",
         isLoading: false,
-        isInstancesLoaded: false,
       });
     }
-  },
-
-  // ── Set current provider (accepts ProviderType or instance id) ──
-  setCurrentProvider: (provider: string) => {
-    set({ currentProvider: provider });
-  },
-
-  // ── Update provider configuration ─────────────────────────
-  updateProviderConfig: (config: Partial<ProviderConfig>) => {
-    set((state) => ({
-      providerConfig: {
-        ...state.providerConfig,
-        ...config,
-      },
-    }));
   },
 
   // ── Get the active model for current provider ──────────────

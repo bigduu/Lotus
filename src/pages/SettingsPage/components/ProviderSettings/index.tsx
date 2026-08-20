@@ -4,37 +4,24 @@ import {
   App as AntApp,
   Form,
   Select,
-  Input,
   Button,
   Card,
-  Collapse,
   Space,
   Divider,
   Typography,
-  Tag,
   Spin,
-  Switch,
   Tooltip,
   Alert,
-  Popconfirm,
   theme,
 } from "antd";
 import {
   SaveOutlined,
-  KeyOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
-  LoginOutlined,
-  LogoutOutlined,
   ReloadOutlined,
   CopyOutlined,
 } from "@ant-design/icons";
-import { DeviceCodeModal } from "./DeviceCodeModal";
-import {
-  settingsService,
-  type CopilotAuthStatus,
-  type DeviceCodeInfo,
-} from "@services/config/SettingsService";
+import { settingsService } from "@services/config/SettingsService";
 import type {
   ProviderConfig,
   ProviderType,
@@ -48,30 +35,29 @@ import type { ProviderModelRef } from "@shared/types/providerModelRef";
 import { type BambooMemoryConfig } from "@services/common/ServiceFactory";
 import { copyText } from "@shared/utils/clipboard";
 import { redactSensitive } from "@shared/utils/secrets";
-import { isMaskedSecretValue } from "./providerInstanceUtils";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { ProviderModelPicker } from "../../../ChatPage/components/ProviderModelPicker";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import type { ReasoningEffort } from "@services/chat/AgentService";
 import { ProviderInstanceManager } from "./ProviderInstanceManager";
-import { ProviderCredentialStatusTag } from "./ProviderCredentialStatusTag";
-import { isEnvironmentCredential } from "./providerCredentialStatus";
 import { getBambooCompatibleProviderBaseUrls } from "@shared/utils/backendBaseUrl";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import type {
   ProviderCredentialChanges,
   ProviderCredentialStatus,
-  ProviderInstanceSettings,
   ProviderSection,
-  EnvSectionEntry,
 } from "@services/config/configSections";
 import { providerSectionToInstances } from "@services/config/providerSettings";
 import { v4 as uuid } from "uuid";
 import { reapplyConfigChanges } from "@shared/hooks/useConfigSectionDraft";
 import { configErrorMessage } from "@shared/utils/configErrors";
+import {
+  buildProviderInstanceSettings,
+  insertProviderInstance,
+  removeProviderInstance,
+} from "./providerSettingsPayload";
 
-const { Password } = Input;
 const { Text, Paragraph } = Typography;
 
 type ModelProvider = "openai" | "anthropic" | "gemini" | "copilot" | "bodhi";
@@ -93,8 +79,6 @@ type AnyEditableProviderConfig =
 
 type EditableProviders = Partial<Record<string, AnyEditableProviderConfig>>;
 
-type EditableProvidersRecord = EditableProviders;
-
 type EditableDefaults = Partial<DefaultsConfig> & {
   chat?: ProviderModelRef;
   fast?: ProviderModelRef;
@@ -110,21 +94,11 @@ type ModelPreferenceField = keyof Pick<
 >;
 
 type ProviderSettingsFormValues = Omit<ProviderConfig, "provider" | "providers" | "defaults"> & {
-  provider?: string;
   providers: EditableProviders;
   defaults?: EditableDefaults;
 };
 
-const MODEL_PROVIDERS = [
-  "openai",
-  "anthropic",
-  "gemini",
-  "copilot",
-  "bodhi",
-] as const satisfies readonly ModelProvider[];
-
 const EMPTY_PROVIDER_CREDENTIAL_STATUS: Record<string, ProviderCredentialStatus> = {};
-const EMPTY_ENV_ENTRIES: EnvSectionEntry[] = [];
 
 const ProviderModelRefField: React.FC<{
   value?: ProviderModelRef;
@@ -135,53 +109,6 @@ const isCompleteProviderModelRef = (value: unknown): value is ProviderModelRef =
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ProviderModelRef>;
   return Boolean(candidate.provider?.trim() && candidate.model?.trim());
-};
-
-const setLegacyProviderModel = (
-  providers: EditableProviders,
-  provider: ModelProvider,
-  model: string,
-): void => {
-  const mutableProviders = providers as EditableProvidersRecord;
-  mutableProviders[provider] = {
-    ...(mutableProviders[provider] ?? {}),
-    model,
-  } as AnyEditableProviderConfig;
-};
-
-const buildProviderInstanceSettings = (
-  type: ProviderType,
-  label: string | undefined,
-  enabled: boolean | undefined,
-  rawConfig: Record<string, unknown>,
-): { settings: ProviderInstanceSettings; credential?: string } => {
-  const config = structuredClone(rawConfig);
-  const apiKey = typeof config.api_key === "string" ? config.api_key.trim() : "";
-  delete config.api_key;
-  const settings: ProviderInstanceSettings = {
-    provider_type: type,
-    label: label?.trim() || PROVIDER_LABELS[type],
-    enabled: enabled ?? true,
-    base_url: config.base_url as string | null | undefined,
-    model: config.model as string | null | undefined,
-    fast_model: config.fast_model as string | null | undefined,
-    vision_model: config.vision_model as string | null | undefined,
-    reasoning_effort: config.reasoning_effort as
-      | ProviderInstanceSettings["reasoning_effort"]
-      | undefined,
-    responses_only_models: config.responses_only_models as string[] | undefined,
-    request_overrides: config.request_overrides as
-      | ProviderInstanceSettings["request_overrides"]
-      | undefined,
-    target_provider: config.target_provider as
-      | ProviderInstanceSettings["target_provider"]
-      | undefined,
-    thinking_replay_always: config.thinking_replay_always as boolean | null | undefined,
-  };
-  return {
-    settings,
-    credential: apiKey && !isMaskedSecretValue(apiKey) ? apiKey : undefined,
-  };
 };
 
 const withoutProviderCredentials = (
@@ -215,15 +142,6 @@ const getMemoryBackgroundFallbackProvider = (
     undefined
   );
 };
-
-const renderResponsesOnlyModelsHelp = (t: (key: string) => string) => (
-  <Space direction="vertical" size={4}>
-    <Text type="secondary">
-      {t("settings.providerTab.responsesOnlyHelp1")} <Text code>/responses</Text>.
-    </Text>
-    <Text type="secondary">{t("settings.providerTab.responsesOnlyHelp2")}</Text>
-  </Space>
-);
 
 const REASONING_EFFORT_OPTIONS: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];
 
@@ -266,29 +184,16 @@ export const ProviderSettings: React.FC = () => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [applyingConfig, setApplyingConfig] = useState(false);
-  const [currentProvider, setCurrentProvider] = useState<ProviderType>("copilot");
   const [configLoaded, setConfigLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [baseRevision, setBaseRevision] = useState<number | null>(null);
   const [dirty, setDirty] = useState(false);
   const baseFormRef = useRef<ProviderSettingsFormValues | null>(null);
-  // Credential values never enter the form. The typed section exposes only
-  // status metadata; an empty field therefore means "leave the credential untouched".
-  const [providersWithStoredKey, setProvidersWithStoredKey] = useState<Set<string>>(new Set());
-  const [copilotAuthStatus, setCopilotAuthStatus] = useState<CopilotAuthStatus | null>(null);
-  const [checkingCopilotAuth, setCheckingCopilotAuth] = useState(false);
-  const [authenticatingCopilot, setAuthenticatingCopilot] = useState(false);
-  const [deviceCodeInfo, setDeviceCodeInfo] = useState<DeviceCodeInfo | null>(null);
-  const [isDeviceCodeModalVisible, setIsDeviceCodeModalVisible] = useState(false);
-  const [completingAuth, setCompletingAuth] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState<number>(0);
-  const [copiedUserCode, setCopiedUserCode] = useState(false);
   const [fetchingAllModels, setFetchingAllModels] = useState(false);
 
-  // ── Multi-instance state ──────────────────────────────────────
+  // Provider instances are the only editable provider representation.
   const [instances, setInstances] = useState<ProviderInstance[]>([]);
   const [defaultInstanceId, setDefaultInstanceId] = useState<string | null>(null);
-  const [isInstanceMode, setIsInstanceMode] = useState(false);
-  const [expandedProviderPanels, setExpandedProviderPanels] = useState<string[]>([]);
 
   const [modelAutoSaveStatus, setModelAutoSaveStatus] = useState<
     "idle" | "saving" | "success" | "error"
@@ -298,46 +203,25 @@ export const ProviderSettings: React.FC = () => {
   const buildProviderFormState = useCallback(
     (response: ProviderSection, memory?: BambooMemoryConfig | null) => {
       const instances = providerSectionToInstances(response);
-      const providersWithEditorFields = instances.reduce<EditableProviders>(
-        (acc, instance) => {
-          const editableConfig = {
-            ...(instance.config as Record<string, unknown>),
-          } as AnyEditableProviderConfig;
-          delete (editableConfig as Record<string, unknown>).api_key;
-          delete (editableConfig as Record<string, unknown>).api_key_encrypted;
-          if (
-            editableConfig.request_overrides &&
-            typeof editableConfig.request_overrides === "object"
-          ) {
-            editableConfig.request_overrides_json = JSON.stringify(
-              editableConfig.request_overrides,
-              null,
-              2,
-            );
-          }
-          acc[instance.id] = editableConfig;
-          return acc;
-        },
-        structuredClone(response.providers) as EditableProviders,
-      );
-
-      for (const provider of MODEL_PROVIDERS) {
-        const providerConfig = providersWithEditorFields[provider];
-        if (providerConfig) {
-          delete (providerConfig as Record<string, unknown>).api_key;
-          delete (providerConfig as Record<string, unknown>).api_key_encrypted;
-        }
+      const providersWithEditorFields = instances.reduce<EditableProviders>((acc, instance) => {
+        const editableConfig = {
+          ...(instance.config as Record<string, unknown>),
+        } as AnyEditableProviderConfig;
+        delete (editableConfig as Record<string, unknown>).api_key;
+        delete (editableConfig as Record<string, unknown>).api_key_encrypted;
         if (
-          providerConfig?.request_overrides &&
-          typeof providerConfig.request_overrides === "object"
+          editableConfig.request_overrides &&
+          typeof editableConfig.request_overrides === "object"
         ) {
-          providerConfig.request_overrides_json = JSON.stringify(
-            providerConfig.request_overrides,
+          editableConfig.request_overrides_json = JSON.stringify(
+            editableConfig.request_overrides,
             null,
             2,
           );
         }
-      }
+        acc[instance.id] = editableConfig;
+        return acc;
+      }, {});
 
       let defaults = response.defaults ? ({ ...response.defaults } as EditableDefaults) : undefined;
       const defaultInstanceId = response.default_provider_instance_id;
@@ -372,7 +256,6 @@ export const ProviderSettings: React.FC = () => {
       }
 
       return {
-        provider: response.provider,
         defaults,
         features: response.features,
         providers: providersWithEditorFields,
@@ -386,23 +269,6 @@ export const ProviderSettings: React.FC = () => {
       const nextInstances = providerSectionToInstances(response);
       setInstances(nextInstances);
       setDefaultInstanceId(response.default_provider_instance_id);
-      setIsInstanceMode(nextInstances.length > 0);
-      setCurrentProvider(response.provider as ProviderType);
-      setProvidersWithStoredKey(
-        new Set(
-          MODEL_PROVIDERS.filter(
-            (provider) => response.credential_status.providers[provider]?.configured,
-          ),
-        ),
-      );
-      setExpandedProviderPanels(
-        Array.from(
-          new Set([
-            response.provider,
-            ...MODEL_PROVIDERS.filter((provider) => Boolean(response.providers[provider])),
-          ]),
-        ),
-      );
       const nextForm = buildProviderFormState(response, memory);
       form.resetFields();
       form.setFieldsValue(nextForm);
@@ -410,6 +276,7 @@ export const ProviderSettings: React.FC = () => {
       if (revision !== undefined) setBaseRevision(revision);
       setDirty(false);
       setConfigLoaded(true);
+      setLoadError(null);
     },
     [buildProviderFormState, form],
   );
@@ -421,9 +288,6 @@ export const ProviderSettings: React.FC = () => {
       EMPTY_PROVIDER_CREDENTIAL_STATUS,
   );
   const providerEnvelope = useConfigSectionStore((state) => state.sections.providers.envelope);
-  const envVarEntries = useConfigSectionStore(
-    (state) => state.sections.env.envelope?.data ?? EMPTY_ENV_ENTRIES,
-  );
 
   const getProviderDisplayLabel = useCallback(
     (providerOrInstanceId?: string) => {
@@ -446,41 +310,21 @@ export const ProviderSettings: React.FC = () => {
     return () => clearTimeout(timer);
   }, [modelAutoSaveStatus]);
 
-  // Countdown timer for device code expiration
-  useEffect(() => {
-    if (!isDeviceCodeModalVisible || !deviceCodeInfo) {
-      setTimeRemaining(0);
-      return;
-    }
-    setTimeRemaining(deviceCodeInfo.expires_in);
-    const timer = setInterval(() => {
-      setTimeRemaining((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isDeviceCodeModalVisible, deviceCodeInfo]);
-
   const loadConfig = useCallback(async () => {
     try {
       setLoading(true);
+      setLoadError(null);
       const [providers, memory] = await Promise.all([
         loadSection("providers", { force: true }),
         loadSection("memory"),
-        loadSection("env"),
       ]);
       debugLog("[Provider]", "Loaded provider section:", redactSensitive(providers.data));
       syncProviderState(providers.data, memory.data, providers.revision);
     } catch (error) {
+      const errorMessage = configErrorMessage(error, t("settings.providerTab.loadConfigFailed"));
+      setLoadError(errorMessage);
       message.error(t("settings.providerTab.loadConfigFailed"));
-      console.error(
-        "Failed to load provider config:",
-        configErrorMessage(error, t("settings.providerTab.loadConfigFailed")),
-      );
+      console.error("Failed to load provider instances:", errorMessage);
     } finally {
       setLoading(false);
     }
@@ -502,14 +346,6 @@ export const ProviderSettings: React.FC = () => {
         const nextInstances = providerSectionToInstances(saved.data);
         setInstances(nextInstances);
         setDefaultInstanceId(saved.data.default_provider_instance_id);
-        setIsInstanceMode(nextInstances.length > 0);
-        setProvidersWithStoredKey(
-          new Set(
-            MODEL_PROVIDERS.filter(
-              (provider) => saved.data.credential_status.providers[provider]?.configured,
-            ),
-          ),
-        );
       } else {
         syncProviderState(saved.data, memory, saved.revision);
       }
@@ -528,7 +364,7 @@ export const ProviderSettings: React.FC = () => {
       );
       await commitProviderMutation(
         (draft) => {
-          draft.provider_instances[id] = settings;
+          insertProviderInstance(draft, id, settings);
         },
         credential
           ? {
@@ -562,7 +398,7 @@ export const ProviderSettings: React.FC = () => {
         existing.provider_type,
         request.label ?? existing.label ?? undefined,
         request.enabled ?? existing.enabled,
-        request.config ?? existingConfig,
+        { ...existingConfig, ...(request.config ?? {}) },
       );
       await commitProviderMutation(
         (draft) => {
@@ -585,10 +421,7 @@ export const ProviderSettings: React.FC = () => {
     async (instanceId: string, expectedRevision: number) => {
       await commitProviderMutation(
         (draft) => {
-          delete draft.provider_instances[instanceId];
-          if (draft.default_provider_instance_id === instanceId) {
-            draft.default_provider_instance_id = null;
-          }
+          removeProviderInstance(draft, instanceId);
         },
         {},
         expectedRevision,
@@ -628,50 +461,10 @@ export const ProviderSettings: React.FC = () => {
     [commitProviderMutation],
   );
 
-  const handleClearProviderCredential = useCallback(
-    async (provider: ProviderType) => {
-      const expectedRevision = providerEnvelope?.revision;
-      if (expectedRevision === undefined) {
-        throw new Error("Load providers before clearing credentials.");
-      }
-      await commitProviderMutation(
-        () => undefined,
-        {
-          providers: {
-            [provider]: { action: "clear" },
-          },
-        },
-        expectedRevision,
-      );
-      message.success(t("settings.providerTab.credentialCleared"));
-    },
-    [commitProviderMutation, message, providerEnvelope?.revision, t],
-  );
-
-  const checkCopilotAuthStatus = useCallback(async () => {
-    try {
-      setCheckingCopilotAuth(true);
-      const status = await settingsService.getCopilotAuthStatus();
-      setCopilotAuthStatus(status);
-    } catch (error) {
-      console.error(
-        "Failed to check Copilot auth status:",
-        configErrorMessage(error, "Copilot authentication status failed"),
-      );
-      setCopilotAuthStatus({
-        authenticated: false,
-        message: t("settings.providerTab.checkStatusFailed"),
-      });
-    } finally {
-      setCheckingCopilotAuth(false);
-    }
-  }, [t]);
-
   useEffect(() => {
     void useProviderStore.getState().loadCatalog();
-    void checkCopilotAuthStatus();
     void loadConfig();
-  }, [loadConfig, checkCopilotAuthStatus]);
+  }, [loadConfig]);
 
   useEffect(() => {
     if (!configLoaded || !providerEnvelope || providerEnvelope.revision === baseRevision || dirty) {
@@ -683,78 +476,6 @@ export const ProviderSettings: React.FC = () => {
       providerEnvelope.revision,
     );
   }, [baseRevision, configLoaded, dirty, providerEnvelope, syncProviderState]);
-
-  // ── Copilot auth handlers ─────────────────────────────
-
-  const handleCopilotAuthenticate = async () => {
-    try {
-      setAuthenticatingCopilot(true);
-      const deviceCode = await settingsService.startCopilotAuth();
-      setDeviceCodeInfo(deviceCode);
-      setIsDeviceCodeModalVisible(true);
-    } catch (error) {
-      message.error(t("settings.providerTab.startCopilotAuthFailed"));
-      console.error(
-        "Failed to start Copilot authentication:",
-        configErrorMessage(error, "Failed to start Copilot authentication"),
-      );
-    } finally {
-      setAuthenticatingCopilot(false);
-    }
-  };
-
-  const handleCompleteAuth = async () => {
-    if (!deviceCodeInfo) return;
-    try {
-      setCompletingAuth(true);
-      await settingsService.completeCopilotAuth({
-        device_code: deviceCodeInfo.device_code,
-        interval: deviceCodeInfo.interval || 5,
-        expires_in: deviceCodeInfo.expires_in,
-      });
-      message.success(t("settings.providerTab.copilotAuthSuccess"));
-      setIsDeviceCodeModalVisible(false);
-      setDeviceCodeInfo(null);
-      await checkCopilotAuthStatus();
-    } catch (error) {
-      message.error(t("settings.providerTab.completeAuthFailed"));
-      console.error(
-        "Authentication completion failed:",
-        configErrorMessage(error, "Authentication completion failed"),
-      );
-    } finally {
-      setCompletingAuth(false);
-    }
-  };
-
-  const handleCopyUserCode = async () => {
-    if (deviceCodeInfo) {
-      try {
-        await copyText(deviceCodeInfo.user_code);
-        setCopiedUserCode(true);
-        message.success(t("settings.providerTab.userCodeCopied"));
-        setTimeout(() => setCopiedUserCode(false), 2000);
-      } catch {
-        message.error(
-          `${t("settings.providerTab.copyCodeFailedPrefix")} ${deviceCodeInfo.user_code}`,
-        );
-      }
-    }
-  };
-
-  const handleCopilotLogout = async () => {
-    try {
-      setAuthenticatingCopilot(true);
-      await settingsService.logoutCopilot();
-      message.success(t("settings.providerTab.logoutSuccess"));
-      await checkCopilotAuthStatus();
-    } catch (error) {
-      message.error(t("settings.providerTab.logoutFailed"));
-      console.error("Failed to logout:", configErrorMessage(error, "Failed to log out"));
-    } finally {
-      setAuthenticatingCopilot(false);
-    }
-  };
 
   // ── Fetch all models ─────────────────────────────────
 
@@ -795,7 +516,6 @@ export const ProviderSettings: React.FC = () => {
     try {
       setLoading(true);
       const normalizedValues: ProviderSettingsFormValues = {
-        provider: values.provider,
         defaults: values.defaults,
         providers: structuredClone(values.providers || {}),
         features: {
@@ -812,70 +532,11 @@ export const ProviderSettings: React.FC = () => {
         return;
       }
 
-      const editableProviders = normalizedValues.providers as EditableProviders;
-      for (const p of MODEL_PROVIDERS) {
-        const providerCfg = editableProviders[p];
-        if (!providerCfg) continue;
-        const rawJson = providerCfg.request_overrides_json;
-        if (typeof rawJson !== "string") continue;
-        const trimmed = rawJson.trim();
-        if (!trimmed) {
-          delete providerCfg.request_overrides;
-        } else {
-          try {
-            providerCfg.request_overrides = JSON.parse(trimmed);
-          } catch (error) {
-            const messageText = t("settings.providerTab.invalidRequestOverridesJson", {
-              provider: p,
-              error: (error as Error).message,
-            });
-            form.setFields([
-              { name: ["providers", p, "request_overrides_json"], errors: [messageText] },
-            ]);
-            if (options?.showMessage !== false) message.error(messageText);
-            if (options?.throwOnError) throw error;
-            return;
-          }
-        }
-        delete providerCfg.request_overrides_json;
-      }
-
-      const credentialChanges: ProviderCredentialChanges = {};
-      for (const p of MODEL_PROVIDERS) {
-        const providerCfg = editableProviders[p] as Record<string, unknown> | undefined;
-        if (!providerCfg || !("api_key" in providerCfg)) continue;
-        const apiKey = providerCfg.api_key;
-        if (typeof apiKey === "string" && apiKey.trim() && !isMaskedSecretValue(apiKey)) {
-          credentialChanges.providers = {
-            ...(credentialChanges.providers || {}),
-            [p]: { action: "replace", value: apiKey },
-          };
-        }
-        // Plaintext exists only in this local submit frame. The section data
-        // and Zustand snapshot are always secret-free.
-        delete providerCfg.api_key;
-      }
-
-      // Sync defaults.chat to providers.{provider}.model for backward compatibility
-      // with the backend which reads model from providers.{provider}.model.
-      const providersWithModel: EditableProviders = { ...(normalizedValues.providers || {}) };
-      const activeProvider = normalizedValues.provider as ModelProvider;
-      const defaultChatModel = normalizedValues.defaults?.chat;
-      if (defaultChatModel?.model && activeProvider) {
-        setLegacyProviderModel(providersWithModel, activeProvider, defaultChatModel.model);
-      }
-
       const snapshot = useConfigSectionStore.getState().sections.providers.envelope;
       if (!snapshot) throw new Error("Load providers before saving them.");
       if (baseRevision === null) throw new Error("Provider revision is not loaded.");
       const payload: ProviderSection = {
         ...snapshot.data,
-        provider: isInstanceMode
-          ? snapshot.data.provider
-          : normalizedValues.provider || currentProvider,
-        providers: isInstanceMode
-          ? snapshot.data.providers
-          : (providersWithModel as ProviderSection["providers"]),
         defaults: normalizedValues.defaults as DefaultsConfig,
         features: {
           ...snapshot.data.features,
@@ -885,7 +546,7 @@ export const ProviderSettings: React.FC = () => {
       };
 
       debugLog("[Provider]", "Saving provider section:", redactSensitive(payload));
-      const saved = await saveProviderSettings(payload, credentialChanges, baseRevision);
+      const saved = await saveProviderSettings(payload, {}, baseRevision);
       syncProviderState(
         saved.data,
         useConfigSectionStore.getState().sections.memory.envelope?.data,
@@ -919,12 +580,7 @@ export const ProviderSettings: React.FC = () => {
 
       const previousDefaultsChat = useProviderStore.getState().providerConfig.defaults?.chat;
 
-      // In instance mode, reload instances; otherwise use the legacy endpoint.
-      if (isInstanceMode) {
-        await useProviderStore.getState().loadProviderInstances();
-      } else {
-        await useProviderStore.getState().loadProviderConfig();
-      }
+      await useProviderStore.getState().loadProviderInstances();
 
       const nextDefaultsChat = useProviderStore.getState().providerConfig.defaults?.chat;
 
@@ -1043,32 +699,26 @@ export const ProviderSettings: React.FC = () => {
     setModelAutoSaveStatus("saving");
     setModelAutoSaveError(null);
     try {
-      if (isInstanceMode) {
-        const instance = instances.find((item) => item.id === providerIdOrType);
-        if (!instance) {
-          throw new Error(t("settings.providerTab.providerNotConfigured"));
-        }
-        if (!providerEnvelope) {
-          throw new Error("Load providers before saving them.");
-        }
-        await handleUpdateInstance(
-          instance.id,
-          {
-            label: instance.label,
-            enabled: instance.enabled,
-            config: {
-              ...instance.config,
-              reasoning_effort: value ?? null,
-            },
-          },
-          providerEnvelope.revision,
-        );
-        await useProviderStore.getState().loadProviderInstances();
-      } else {
-        const currentValues = form.getFieldsValue(true) as ProviderSettingsFormValues;
-        await handleSave(currentValues, { showMessage: false, throwOnError: true });
-        await handleApply({ showMessage: false, throwOnError: true });
+      const instance = instances.find((item) => item.id === providerIdOrType);
+      if (!instance) {
+        throw new Error(t("settings.providerTab.providerNotConfigured"));
       }
+      if (!providerEnvelope) {
+        throw new Error("Load providers before saving them.");
+      }
+      await handleUpdateInstance(
+        instance.id,
+        {
+          label: instance.label,
+          enabled: instance.enabled,
+          config: {
+            ...instance.config,
+            reasoning_effort: value ?? null,
+          },
+        },
+        providerEnvelope.revision,
+      );
+      await useProviderStore.getState().loadProviderInstances();
       setModelAutoSaveStatus("success");
       message.success(t("settings.providerTab.reasoningEffortUpdated"));
     } catch (error) {
@@ -1155,36 +805,28 @@ export const ProviderSettings: React.FC = () => {
     );
   };
 
-  // ── Provider panel status ────────────────────────────
-
-  const isProviderConfigured = useCallback(
-    (provider: ModelProvider): boolean => {
-      const cfg = form.getFieldValue(["providers", provider]);
-      if (!cfg) return false;
-      if (provider === "copilot") return copilotAuthStatus?.authenticated ?? false;
-      return providersWithStoredKey.has(provider) || Boolean(cfg.api_key);
-    },
-    [form, copilotAuthStatus, providersWithStoredKey],
-  );
-
   // ── Unified model preferences ───────────────────────
 
   const renderModelPreferences = () => {
-    const renderPicker = (field: ModelPreferenceField) => {
-      const value = form.getFieldValue(["defaults", field]) as ProviderModelRef | undefined;
-      return (
-        <ProviderModelPicker
-          value={value}
-          dataTestId={`model-preference-${field}-picker`}
-          appearance="contrast"
-          disabled={modelAutoSaveStatus === "saving"}
-          onChange={(ref) => {
-            form.setFieldValue(["defaults", field], ref);
-            void handleDefaultsModelChange(field, ref);
-          }}
-        />
-      );
-    };
+    const renderPicker = (field: ModelPreferenceField) => (
+      <Form.Item noStyle shouldUpdate>
+        {({ getFieldValue, setFieldValue }) => {
+          const value = getFieldValue(["defaults", field]) as ProviderModelRef | undefined;
+          return (
+            <ProviderModelPicker
+              value={value}
+              dataTestId={`model-preference-${field}-picker`}
+              appearance="contrast"
+              disabled={modelAutoSaveStatus === "saving"}
+              onChange={(ref) => {
+                setFieldValue(["defaults", field], ref);
+                void handleDefaultsModelChange(field, ref);
+              }}
+            />
+          );
+        }}
+      </Form.Item>
+    );
 
     const renderPreferenceSection = (
       field: ModelPreferenceField,
@@ -1286,399 +928,6 @@ export const ProviderSettings: React.FC = () => {
     );
   };
 
-  const renderRequestOverridesEditor = (provider: ModelProvider) => {
-    const envNames = envVarEntries.map((entry) => entry.name);
-    const placeholder = `{
-  "common": {
-    "headers": {
-      "x-request-id": { "type": "generated", "generator": "uuid" },
-      "x-tenant": { "type": "env_ref", "name": "TENANT_ID" }
-    }
-  },
-  "rules": [
-    {
-      "model_pattern": "gpt-5*",
-      "scope": {
-        "body_patch": [
-          { "path": "metadata.trace_id", "op": "set", "value": { "type": "generated", "generator": "uuid" } }
-        ]
-      }
-    }
-  ]
-}`;
-    return (
-      <Form.Item
-        name={["providers", provider, "request_overrides_json"]}
-        label={t("settings.providerTab.advancedRequestOverrides")}
-        extra={
-          <Space direction="vertical" size={4}>
-            <Text type="secondary">{t("settings.providerTab.advancedRequestOverridesHelp")}</Text>
-            <Text type="secondary">
-              {t("settings.providerTab.envVarInjection")}{" "}
-              <Text code>{`{ "type": "env_ref", "name": "YOUR_ENV_NAME" }`}</Text>
-            </Text>
-            {envNames.length > 0 && (
-              <Space wrap size={[6, 6]}>
-                {envNames.map((name) => (
-                  <Tag key={name}>{name}</Tag>
-                ))}
-              </Space>
-            )}
-          </Space>
-        }
-      >
-        <Input.TextArea
-          autoSize={{ minRows: 8, maxRows: 20 }}
-          placeholder={placeholder}
-          style={{ fontFamily: "SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
-        />
-      </Form.Item>
-    );
-  };
-
-  const renderProviderPanel = (provider: ModelProvider) => {
-    const hasStoredKey = providersWithStoredKey.has(provider);
-    const credentialStatus =
-      providerEnvelope?.data.credential_status.providers[provider as ProviderType];
-    const environmentCredential = isEnvironmentCredential(credentialStatus);
-    const pendingReplacement = Boolean(form.getFieldValue(["providers", provider, "api_key"]));
-    const apiKeyRules = (requiredMessage: string) =>
-      hasStoredKey ? [] : [{ required: true, message: requiredMessage }];
-    const apiKeyPlaceholder = (defaultPlaceholder: string) =>
-      hasStoredKey ? t("settings.providerTab.apiKeyKeepPlaceholder") : defaultPlaceholder;
-    const credentialStatusSummary = provider !== "copilot" && (
-      <Space direction="vertical" size={4} style={{ marginBottom: 12 }}>
-        <ProviderCredentialStatusTag
-          status={credentialStatus}
-          pendingReplacement={pendingReplacement}
-        />
-        {environmentCredential ? (
-          <Text type="secondary">{t("settings.providerTab.environmentCredentialHint")}</Text>
-        ) : null}
-      </Space>
-    );
-    const clearStoredCredential = hasStoredKey &&
-      provider !== "copilot" &&
-      !environmentCredential && (
-        <Popconfirm
-          title={t("settings.providerTab.confirmClearCredential")}
-          onConfirm={() => void handleClearProviderCredential(provider)}
-          okText={t("settings.providerTab.clear")}
-          cancelText={t("settings.providerTab.cancel")}
-        >
-          <Button danger size="small" style={{ marginBottom: 16 }}>
-            {t("settings.providerTab.clearCredential")}
-          </Button>
-        </Popconfirm>
-      );
-
-    switch (provider) {
-      case "openai":
-        return (
-          <>
-            {credentialStatusSummary}
-            <Form.Item
-              name={["providers", "openai", "api_key"]}
-              label={t("settings.providerTab.openaiApiKey")}
-              rules={apiKeyRules(t("settings.providerTab.openaiApiKeyRequired"))}
-            >
-              <Input.Password
-                data-testid="api-key-input"
-                placeholder={apiKeyPlaceholder(t("settings.providerTab.openaiApiKeyPlaceholder"))}
-                prefix={<KeyOutlined />}
-              />
-            </Form.Item>
-            {clearStoredCredential}
-            <Form.Item
-              name={["providers", "openai", "base_url"]}
-              label={t("settings.providerTab.baseUrlOptional")}
-              extra={t("settings.providerTab.openaiBaseUrlHelp")}
-            >
-              <Input placeholder={t("settings.providerTab.openaiBaseUrlPlaceholder")} />
-            </Form.Item>
-            <Form.Item
-              name={["providers", "openai", "reasoning_effort"]}
-              label={t("settings.providerTab.reasoningEffortOptional")}
-              extra={t("settings.providerTab.reasoningEffortHelp")}
-            >
-              {renderReasoningEffortSelect(t)}
-            </Form.Item>
-            <Form.Item
-              name={["providers", "openai", "responses_only_models"]}
-              label={t("settings.providerTab.responsesOnlyModelsOptional")}
-              extra={renderResponsesOnlyModelsHelp(t)}
-            >
-              <Select
-                mode="tags"
-                placeholder={t("settings.providerTab.responsesOnlyModelsPlaceholder")}
-                tokenSeparators={[",", " ", "\n", "\t"]}
-              />
-            </Form.Item>
-            <Divider dashed />
-            {renderRequestOverridesEditor("openai")}
-          </>
-        );
-
-      case "anthropic":
-        return (
-          <>
-            {credentialStatusSummary}
-            <Form.Item
-              name={["providers", "anthropic", "api_key"]}
-              label={t("settings.providerTab.anthropicApiKey")}
-              rules={apiKeyRules(t("settings.providerTab.anthropicApiKeyRequired"))}
-            >
-              <Password
-                placeholder={apiKeyPlaceholder(
-                  t("settings.providerTab.anthropicApiKeyPlaceholder"),
-                )}
-                prefix={<KeyOutlined />}
-              />
-            </Form.Item>
-            {clearStoredCredential}
-            <Form.Item
-              name={["providers", "anthropic", "base_url"]}
-              label={t("settings.providerTab.baseUrlOptional")}
-              extra={t("settings.providerTab.anthropicBaseUrlHelp")}
-            >
-              <Input placeholder={t("settings.providerTab.anthropicBaseUrlPlaceholder")} />
-            </Form.Item>
-            <Form.Item
-              name={["providers", "anthropic", "max_tokens"]}
-              label={t("settings.providerTab.maxTokensOptional")}
-              extra={t("settings.providerTab.maxTokensHelp")}
-            >
-              <Input
-                type="number"
-                placeholder={t("settings.providerTab.maxTokensPlaceholder")}
-                min={1}
-                max={100000}
-              />
-            </Form.Item>
-            <Form.Item
-              name={["providers", "anthropic", "reasoning_effort"]}
-              label={t("settings.providerTab.reasoningEffortOptional")}
-              extra={t("settings.providerTab.reasoningEffortHelp")}
-            >
-              {renderReasoningEffortSelect(t)}
-            </Form.Item>
-            <Divider dashed />
-            {renderRequestOverridesEditor("anthropic")}
-          </>
-        );
-
-      case "gemini":
-        return (
-          <>
-            {credentialStatusSummary}
-            <Form.Item
-              name={["providers", "gemini", "api_key"]}
-              label={t("settings.providerTab.geminiApiKey")}
-              rules={apiKeyRules(t("settings.providerTab.geminiApiKeyRequired"))}
-            >
-              <Password
-                placeholder={apiKeyPlaceholder(t("settings.providerTab.geminiApiKeyPlaceholder"))}
-                prefix={<KeyOutlined />}
-              />
-            </Form.Item>
-            {clearStoredCredential}
-            <Form.Item
-              name={["providers", "gemini", "base_url"]}
-              label={t("settings.providerTab.baseUrlOptional")}
-              extra={t("settings.providerTab.geminiBaseUrlHelp")}
-            >
-              <Input placeholder={t("settings.providerTab.geminiBaseUrlPlaceholder")} />
-            </Form.Item>
-            <Form.Item
-              name={["providers", "gemini", "reasoning_effort"]}
-              label={t("settings.providerTab.reasoningEffortOptional")}
-              extra={t("settings.providerTab.reasoningEffortHelp")}
-            >
-              {renderReasoningEffortSelect(t)}
-            </Form.Item>
-            <Divider dashed />
-            {renderRequestOverridesEditor("gemini")}
-          </>
-        );
-
-      case "copilot": {
-        return (
-          <>
-            <Card
-              size="small"
-              style={{ marginBottom: 16 }}
-              title={t("settings.providerTab.authStatusTitle")}
-              extra={
-                checkingCopilotAuth ? (
-                  <Spin size="small" />
-                ) : copilotAuthStatus?.authenticated ? (
-                  <Tag icon={<CheckCircleOutlined />} color="success">
-                    {t("settings.providerTab.authenticated")}
-                  </Tag>
-                ) : (
-                  <Tag icon={<CloseCircleOutlined />} color="error">
-                    {t("settings.providerTab.notAuthenticated")}
-                  </Tag>
-                )
-              }
-            >
-              {copilotAuthStatus?.message && (
-                <Paragraph type="secondary" style={{ marginBottom: 16 }}>
-                  {copilotAuthStatus.message}
-                </Paragraph>
-              )}
-              <Space>
-                {copilotAuthStatus?.authenticated ? (
-                  <Button
-                    danger
-                    icon={<LogoutOutlined />}
-                    onClick={handleCopilotLogout}
-                    loading={authenticatingCopilot}
-                  >
-                    {t("settings.providerTab.logoutCopilot")}
-                  </Button>
-                ) : (
-                  <Button
-                    type="primary"
-                    icon={<LoginOutlined />}
-                    onClick={handleCopilotAuthenticate}
-                    loading={authenticatingCopilot}
-                  >
-                    {t("settings.providerTab.authenticateCopilot")}
-                  </Button>
-                )}
-                <Button onClick={checkCopilotAuthStatus} loading={checkingCopilotAuth}>
-                  {t("settings.providerTab.refreshStatus")}
-                </Button>
-              </Space>
-            </Card>
-
-            <Form.Item
-              name={["providers", "copilot", "headless_auth"]}
-              label={t("settings.providerTab.headlessAuth")}
-              valuePropName="checked"
-              extra={t("settings.providerTab.headlessAuthHelp")}
-            >
-              <Switch />
-            </Form.Item>
-
-            <Form.Item
-              name={["providers", "copilot", "reasoning_effort"]}
-              label={t("settings.providerTab.reasoningEffortOptional")}
-              extra={t("settings.providerTab.reasoningEffortHelp")}
-            >
-              {renderReasoningEffortSelect(t)}
-            </Form.Item>
-
-            <Form.Item
-              name={["providers", "copilot", "responses_only_models"]}
-              label={t("settings.providerTab.responsesOnlyModelsOptional")}
-              extra={renderResponsesOnlyModelsHelp(t)}
-            >
-              <Select
-                mode="tags"
-                placeholder={t("settings.providerTab.responsesOnlyModelsPlaceholder")}
-                tokenSeparators={[",", " ", "\n", "\t"]}
-              />
-            </Form.Item>
-
-            <Divider dashed />
-            {renderRequestOverridesEditor("copilot")}
-
-            <Paragraph type="secondary">
-              {t("settings.providerTab.copilotUsageTitle")}
-              <ul style={{ marginTop: 8, marginBottom: 0 }}>
-                <li>{t("settings.providerTab.copilotUsageStep1")}</li>
-                <li>{t("settings.providerTab.copilotUsageStep2")}</li>
-                <li>{t("settings.providerTab.copilotUsageStep3")}</li>
-              </ul>
-            </Paragraph>
-          </>
-        );
-      }
-
-      case "bodhi":
-        return (
-          <>
-            {credentialStatusSummary}
-            <Form.Item
-              name={["providers", "bodhi", "api_key"]}
-              label={t("settings.providerTab.bodhiApiKey")}
-              rules={apiKeyRules(t("settings.providerTab.apiKeyRequired"))}
-            >
-              <Input.Password
-                data-testid="bodhi-api-key-input"
-                placeholder={apiKeyPlaceholder(t("settings.providerTab.bodhiApiKeyPlaceholder"))}
-                prefix={<KeyOutlined />}
-              />
-            </Form.Item>
-            {clearStoredCredential}
-            <Form.Item
-              name={["providers", "bodhi", "base_url"]}
-              label={t("settings.providerTab.bodhiBaseUrl")}
-              extra={t("settings.providerTab.bodhiBaseUrlExtra")}
-            >
-              <Input placeholder={t("settings.providerTab.bodhiBaseUrlPlaceholder")} />
-            </Form.Item>
-            <Form.Item
-              name={["providers", "bodhi", "target_provider"]}
-              label={t("settings.providerTab.targetProvider")}
-              extra={t("settings.providerTab.targetProviderExtra")}
-            >
-              <Select placeholder={t("settings.providerTab.targetProviderPlaceholder")} allowClear>
-                <Select.Option value="openai">OpenAI</Select.Option>
-                <Select.Option value="anthropic">Anthropic</Select.Option>
-                <Select.Option value="gemini">Gemini</Select.Option>
-              </Select>
-            </Form.Item>
-            <Form.Item
-              name={["providers", "bodhi", "reasoning_effort"]}
-              label={t("settings.providerTab.reasoningEffortOptional")}
-              extra={t("settings.providerTab.reasoningEffortHelp")}
-            >
-              {renderReasoningEffortSelect(t)}
-            </Form.Item>
-            <Divider dashed />
-            {renderRequestOverridesEditor("bodhi")}
-          </>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  // ── Collapse panel header with status ────────────────
-
-  const renderPanelHeader = (provider: ModelProvider) => {
-    const configured = isProviderConfigured(provider);
-    const credentialStatus =
-      providerEnvelope?.data.credential_status.providers[provider as ProviderType];
-    const pendingReplacement = Boolean(form.getFieldValue(["providers", provider, "api_key"]));
-    const label = PROVIDER_LABELS[provider as ProviderType];
-    return (
-      <Space size="small">
-        <span style={{ fontWeight: 500 }}>{label}</span>
-        {provider === "copilot" ? (
-          configured ? (
-            <Tag color="success" style={{ fontSize: 11 }}>
-              {t("settings.providerTab.authenticated")}
-            </Tag>
-          ) : (
-            <Tag color="default" style={{ fontSize: 11 }}>
-              {t("settings.providerTab.providerNotConfigured")}
-            </Tag>
-          )
-        ) : (
-          <ProviderCredentialStatusTag
-            status={credentialStatus}
-            pendingReplacement={pendingReplacement}
-          />
-        )}
-      </Space>
-    );
-  };
-
   // ── Main render ──────────────────────────────────────
 
   const externalRevision =
@@ -1724,260 +973,191 @@ export const ProviderSettings: React.FC = () => {
     form.setFieldsValue(rebased);
     baseFormRef.current = structuredClone(latestForm);
     setBaseRevision(providerEnvelope.revision);
-    setCurrentProvider((rebased.provider || providerEnvelope.data.provider) as ProviderType);
     const nextInstances = providerSectionToInstances(providerEnvelope.data);
     setInstances(nextInstances);
     setDefaultInstanceId(providerEnvelope.data.default_provider_instance_id);
-    setIsInstanceMode(nextInstances.length > 0);
-    setProvidersWithStoredKey(
-      new Set(
-        MODEL_PROVIDERS.filter(
-          (provider) => providerEnvelope.data.credential_status.providers[provider]?.configured,
-        ),
-      ),
-    );
     message.info(t("settings.providerTab.draftReapplied"));
   };
 
   return (
-    <Card
-      title={t("settings.providerTab.title")}
-      loading={loading && !configLoaded}
-      className="lotus-settings-card"
-    >
-      <Paragraph type="secondary">{t("settings.providerTab.description")}</Paragraph>
+    <Card title={t("settings.providerTab.title")} className="lotus-settings-card">
+      <Spin spinning={loading && !configLoaded}>
+        <Paragraph type="secondary">{t("settings.providerTab.description")}</Paragraph>
 
-      {externalRevision !== null && providerEnvelope && (
-        <Alert
-          type="warning"
-          showIcon
-          style={{ marginBottom: 16 }}
-          message={t("settings.providerTab.externalRevisionTitle")}
-          description={t("settings.providerTab.externalRevisionDescription", {
-            loaded: baseRevision,
-            latest: externalRevision,
-          })}
-          action={
-            <Space wrap>
-              <Button
-                size="small"
-                onClick={() =>
-                  syncProviderState(
-                    providerEnvelope.data,
-                    useConfigSectionStore.getState().sections.memory.envelope?.data,
-                    providerEnvelope.revision,
-                  )
-                }
-              >
+        {loadError && (
+          <Alert
+            type="error"
+            showIcon
+            data-testid="provider-instances-load-error"
+            style={{ marginBottom: 16 }}
+            message={t("settings.providerTab.loadConfigFailed")}
+            description={loadError}
+            action={
+              <Button size="small" onClick={() => void loadConfig()} loading={loading}>
                 {t("settings.providerTab.reloadLatest")}
               </Button>
-              <Button size="small" onClick={compareProviderDraft}>
-                {t("settings.providerTab.compareChanges")}
-              </Button>
-              <Button size="small" type="primary" onClick={reapplyProviderDraft}>
-                {t("settings.providerTab.reapplyDraft")}
-              </Button>
-            </Space>
-          }
-        />
-      )}
-
-      <Alert
-        type="info"
-        showIcon
-        data-testid="bamboo-provider-api-guide"
-        message={t("settings.providerTab.bambooApiGuideTitle")}
-        description={
-          <Space direction="vertical" size={8} style={{ width: "100%" }}>
-            <Text>{t("settings.providerTab.bambooApiGuideDescription")}</Text>
-            {getBambooCompatibleProviderBaseUrls().map(({ provider, url }) => (
-              <div
-                key={provider}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  columnGap: 8,
-                  rowGap: 4,
-                  flexWrap: "wrap",
-                  minWidth: 0,
-                }}
-              >
-                <Text strong style={{ minWidth: 76 }}>
-                  {t(`settings.providerTab.bambooApiProviders.${provider}`)}
-                </Text>
-                <Text
-                  code
-                  data-testid={`bamboo-provider-api-${provider}`}
-                  style={{ overflowWrap: "anywhere", minWidth: 0 }}
-                >
-                  {url}
-                </Text>
-                <Tooltip title={t("settings.providerTab.copyBambooApiUrl")}>
-                  <Button
-                    type="text"
-                    size="small"
-                    icon={<CopyOutlined />}
-                    aria-label={t("settings.providerTab.copyBambooApiUrlFor", {
-                      provider: t(`settings.providerTab.bambooApiProviders.${provider}`),
-                    })}
-                    onClick={async () => {
-                      try {
-                        await copyText(url);
-                        message.success(t("settings.providerTab.bambooApiUrlCopied"));
-                      } catch {
-                        message.error(t("settings.providerTab.bambooApiUrlCopyFailed"));
-                      }
-                    }}
-                  />
-                </Tooltip>
-              </div>
-            ))}
-            <Text type="secondary">{t("settings.providerTab.bambooApiGuideNote")}</Text>
-          </Space>
-        }
-      />
-
-      <Divider />
-
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={handleSaveAndApply}
-        onValuesChange={() => setDirty(true)}
-        disabled={loading && !configLoaded}
-      >
-        {!isInstanceMode && (
-          <>
-            {/* Active provider selector */}
-            <Form.Item
-              name="provider"
-              label={t("settings.providerTab.activeProvider")}
-              rules={[
-                { required: true, message: t("settings.providerTab.selectProviderRequired") },
-              ]}
-            >
-              <Select
-                data-testid="provider-select"
-                size="large"
-                onChange={(value) => setCurrentProvider(value as ProviderType)}
-              >
-                {(Object.keys(PROVIDER_LABELS) as ProviderType[]).map((key) => (
-                  <Select.Option key={key} value={key}>
-                    {PROVIDER_LABELS[key]}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-
-            <Form.Item noStyle shouldUpdate>
-              {() =>
-                renderInlineProviderReasoningControl(
-                  form.getFieldValue("provider") || currentProvider,
-                  {
-                    autoSave: true,
-                    size: "middle",
-                    marginTop: 0,
-                    dataTestId: "active-provider-reasoning-effort",
-                    label: t("settings.providerTab.activeProviderReasoningEffort"),
-                    helperText: t("settings.providerTab.reasoningEffortHelp"),
-                  },
-                )
-              }
-            </Form.Item>
-
-            <Divider />
-          </>
-        )}
-
-        {/* Fetch all models button */}
-        <div style={{ marginBottom: 16 }}>
-          <Button
-            icon={<ReloadOutlined />}
-            onClick={handleFetchAllModels}
-            loading={fetchingAllModels}
-          >
-            {fetchingAllModels
-              ? t("settings.providerTab.fetchingAllModels")
-              : t("settings.providerTab.fetchAllModels")}
-          </Button>
-          {modelAutoSaveStatus === "saving" && <Spin size="small" style={{ marginLeft: 8 }} />}
-          {modelAutoSaveStatus === "success" && (
-            <CheckCircleOutlined style={{ color: "var(--lotus-chart-secondary)", marginLeft: 8 }} />
-          )}
-          {modelAutoSaveStatus === "error" && (
-            <Tooltip title={modelAutoSaveError}>
-              <CloseCircleOutlined style={{ color: "var(--lotus-chart-danger)", marginLeft: 8 }} />
-            </Tooltip>
-          )}
-        </div>
-
-        {renderModelPreferences()}
-
-        {/* Built-in metadata remains editable until the first instance is
-            configured; instance CRUD is always available. */}
-        {!isInstanceMode && (
-          <Collapse
-            activeKey={expandedProviderPanels}
-            onChange={(activeKey) =>
-              setExpandedProviderPanels(
-                Array.isArray(activeKey)
-                  ? activeKey.map(String)
-                  : activeKey
-                    ? [String(activeKey)]
-                    : [],
-              )
             }
-            ghost
-            style={{ marginBottom: 16 }}
-            items={MODEL_PROVIDERS.map((provider) => ({
-              key: provider,
-              label: renderPanelHeader(provider),
-              children: renderProviderPanel(provider),
-            }))}
           />
         )}
-        <ProviderInstanceManager
-          instances={instances}
-          latestInstances={
-            providerEnvelope ? providerSectionToInstances(providerEnvelope.data) : instances
+
+        {externalRevision !== null && providerEnvelope && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={t("settings.providerTab.externalRevisionTitle")}
+            description={t("settings.providerTab.externalRevisionDescription", {
+              loaded: baseRevision,
+              latest: externalRevision,
+            })}
+            action={
+              <Space wrap>
+                <Button
+                  size="small"
+                  onClick={() =>
+                    syncProviderState(
+                      providerEnvelope.data,
+                      useConfigSectionStore.getState().sections.memory.envelope?.data,
+                      providerEnvelope.revision,
+                    )
+                  }
+                >
+                  {t("settings.providerTab.reloadLatest")}
+                </Button>
+                <Button size="small" onClick={compareProviderDraft}>
+                  {t("settings.providerTab.compareChanges")}
+                </Button>
+                <Button size="small" type="primary" onClick={reapplyProviderDraft}>
+                  {t("settings.providerTab.reapplyDraft")}
+                </Button>
+              </Space>
+            }
+          />
+        )}
+
+        <Alert
+          type="info"
+          showIcon
+          data-testid="bamboo-provider-api-guide"
+          message={t("settings.providerTab.bambooApiGuideTitle")}
+          description={
+            <Space direction="vertical" size={8} style={{ width: "100%" }}>
+              <Text>{t("settings.providerTab.bambooApiGuideDescription")}</Text>
+              {getBambooCompatibleProviderBaseUrls().map(({ provider, url }) => (
+                <div
+                  key={provider}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    columnGap: 8,
+                    rowGap: 4,
+                    flexWrap: "wrap",
+                    minWidth: 0,
+                  }}
+                >
+                  <Text strong style={{ minWidth: 76 }}>
+                    {t(`settings.providerTab.bambooApiProviders.${provider}`)}
+                  </Text>
+                  <Text
+                    code
+                    data-testid={`bamboo-provider-api-${provider}`}
+                    style={{ overflowWrap: "anywhere", minWidth: 0 }}
+                  >
+                    {url}
+                  </Text>
+                  <Tooltip title={t("settings.providerTab.copyBambooApiUrl")}>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<CopyOutlined />}
+                      aria-label={t("settings.providerTab.copyBambooApiUrlFor", {
+                        provider: t(`settings.providerTab.bambooApiProviders.${provider}`),
+                      })}
+                      onClick={async () => {
+                        try {
+                          await copyText(url);
+                          message.success(t("settings.providerTab.bambooApiUrlCopied"));
+                        } catch {
+                          message.error(t("settings.providerTab.bambooApiUrlCopyFailed"));
+                        }
+                      }}
+                    />
+                  </Tooltip>
+                </div>
+              ))}
+              <Text type="secondary">{t("settings.providerTab.bambooApiGuideNote")}</Text>
+            </Space>
           }
-          defaultInstanceId={defaultInstanceId}
-          currentRevision={providerEnvelope?.revision ?? null}
-          credentialStatusById={providerCredentialStatusById}
-          onCreateInstance={handleCreateInstance}
-          onUpdateInstance={handleUpdateInstance}
-          onDeleteInstance={handleDeleteInstance}
-          onSetDefaultInstance={handleSetDefaultInstance}
-          onClearInstanceCredential={handleClearInstanceCredential}
         />
 
         <Divider />
 
-        <Space size="middle">
-          <Button
-            data-testid="save-api-settings"
-            type="primary"
-            htmlType="submit"
-            icon={<SaveOutlined />}
-            loading={loading || applyingConfig}
-            size="large"
-          >
-            {t("settings.providerTab.saveAndApply")}
-          </Button>
-        </Space>
-      </Form>
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleSaveAndApply}
+          onValuesChange={() => setDirty(true)}
+          disabled={loading && !configLoaded}
+        >
+          {/* Fetch all models button */}
+          <div style={{ marginBottom: 16 }}>
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handleFetchAllModels}
+              loading={fetchingAllModels}
+            >
+              {fetchingAllModels
+                ? t("settings.providerTab.fetchingAllModels")
+                : t("settings.providerTab.fetchAllModels")}
+            </Button>
+            {modelAutoSaveStatus === "saving" && <Spin size="small" style={{ marginLeft: 8 }} />}
+            {modelAutoSaveStatus === "success" && (
+              <CheckCircleOutlined
+                style={{ color: "var(--lotus-chart-secondary)", marginLeft: 8 }}
+              />
+            )}
+            {modelAutoSaveStatus === "error" && (
+              <Tooltip title={modelAutoSaveError}>
+                <CloseCircleOutlined
+                  style={{ color: "var(--lotus-chart-danger)", marginLeft: 8 }}
+                />
+              </Tooltip>
+            )}
+          </div>
 
-      <DeviceCodeModal
-        open={isDeviceCodeModalVisible}
-        onCancel={() => setIsDeviceCodeModalVisible(false)}
-        onComplete={handleCompleteAuth}
-        onCopyCode={handleCopyUserCode}
-        completingAuth={completingAuth}
-        copiedUserCode={copiedUserCode}
-        deviceCodeInfo={deviceCodeInfo}
-        timeRemaining={timeRemaining}
-        token={token}
-      />
+          {renderModelPreferences()}
+
+          <ProviderInstanceManager
+            instances={instances}
+            latestInstances={
+              providerEnvelope ? providerSectionToInstances(providerEnvelope.data) : instances
+            }
+            defaultInstanceId={defaultInstanceId}
+            currentRevision={providerEnvelope?.revision ?? null}
+            credentialStatusById={providerCredentialStatusById}
+            onCreateInstance={handleCreateInstance}
+            onUpdateInstance={handleUpdateInstance}
+            onDeleteInstance={handleDeleteInstance}
+            onSetDefaultInstance={handleSetDefaultInstance}
+            onClearInstanceCredential={handleClearInstanceCredential}
+          />
+
+          <Divider />
+
+          <Space size="middle">
+            <Button
+              data-testid="save-api-settings"
+              type="primary"
+              htmlType="submit"
+              icon={<SaveOutlined />}
+              loading={loading || applyingConfig}
+              size="large"
+            >
+              {t("settings.providerTab.saveAndApply")}
+            </Button>
+          </Space>
+        </Form>
+      </Spin>
     </Card>
   );
 };

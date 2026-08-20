@@ -179,23 +179,6 @@ export interface UpdateProviderInstanceRequest {
   config?: ProviderInstanceConfig;
 }
 
-/**
- * Response shape from GET /bamboo/settings/provider-instances.
- *
- * Designed as a superset: existing fields from ProviderConfig are preserved
- * alongside the new instance list, so legacy code paths keep working during
- * the migration.
- */
-export interface ProviderInstancesConfig {
-  /** The default provider instance id (replaces legacy `provider` string). */
-  default_provider_instance_id?: string;
-  instances: ProviderInstance[];
-  defaults?: DefaultsConfig;
-  features?: {
-    provider_model_ref?: boolean;
-  };
-}
-
 export const OPENAI_MODELS = [
   { value: "gpt-4o-mini", label: "GPT-4o Mini" },
   { value: "gpt-4o", label: "GPT-4o" },

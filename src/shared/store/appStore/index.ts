@@ -307,9 +307,6 @@ const bootstrapCritical = async (force: boolean = false): Promise<void> => {
     if (!isVitestRuntime) {
       try {
         await useProviderStore.getState().loadProviderInstances();
-        if (!useProviderStore.getState().isInstancesLoaded) {
-          await useProviderStore.getState().loadProviderConfig();
-        }
       } catch (error) {
         console.error("[AppStore] Failed to bootstrap provider state:", error);
       }
