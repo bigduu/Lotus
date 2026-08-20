@@ -1,8 +1,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { App as AntApp, message } from "antd";
+import { message } from "antd";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProviderSettings } from "./index";
+import {
+  buildProviderInstanceSettings,
+  insertProviderInstance,
+  removeProviderInstance,
+} from "./providerSettingsPayload";
 import type { ProviderSection } from "@services/config/configSections";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { useAppStore } from "@shared/store/appStore";
@@ -61,13 +66,15 @@ function deepClone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
-function providerSectionFromLegacy(config: Record<string, unknown>): ProviderSection {
-  const legacyProviders =
+function providerSectionFromConfig(config: Record<string, unknown>): ProviderSection {
+  const configuredProviders =
     (config.providers as Record<string, Record<string, unknown>> | undefined) ?? {};
   const providers: Record<string, Record<string, unknown>> = {};
+  const providerInstances: ProviderSection["provider_instances"] = {};
   const credentialProviders: ProviderSection["credential_status"]["providers"] = {};
+  const credentialInstances: ProviderSection["credential_status"]["provider_instances"] = {};
 
-  for (const [provider, rawConfig] of Object.entries(legacyProviders)) {
+  for (const [provider, rawConfig] of Object.entries(configuredProviders)) {
     const { api_key: apiKey, api_key_encrypted: encryptedKey, ...metadata } = rawConfig;
     providers[provider] = metadata;
     credentialProviders[provider as keyof typeof credentialProviders] = {
@@ -76,19 +83,37 @@ function providerSectionFromLegacy(config: Record<string, unknown>): ProviderSec
       source: apiKey || encryptedKey ? "user" : null,
       updated_at: null,
     };
+    providerInstances[provider] = {
+      provider_type: provider as ProviderSection["available_providers"][number],
+      label: provider,
+      enabled: true,
+      ...metadata,
+    };
+    credentialInstances[provider] = {
+      credential_ref: `provider_instances.${provider}.api_key`,
+      configured: Boolean(apiKey || encryptedKey),
+      source: apiKey || encryptedKey ? "user" : null,
+      updated_at: null,
+    };
   }
+
+  const defaultInstanceId = String(
+    config.default_provider_instance_id ?? config.provider ?? "openai",
+  );
 
   return {
     provider: String(config.provider ?? "openai"),
     providers: providers as ProviderSection["providers"],
     defaults: (config.defaults as ProviderSection["defaults"] | undefined) ?? null,
     features: (config.features as ProviderSection["features"] | undefined) ?? {},
-    provider_instances: {},
-    default_provider_instance_id: null,
-    available_providers: Object.keys(legacyProviders) as ProviderSection["available_providers"],
+    provider_instances: providerInstances,
+    default_provider_instance_id: providerInstances[defaultInstanceId]
+      ? defaultInstanceId
+      : (Object.keys(providerInstances)[0] ?? null),
+    available_providers: Object.keys(configuredProviders) as ProviderSection["available_providers"],
     credential_status: {
       providers: credentialProviders,
-      provider_instances: {},
+      provider_instances: credentialInstances,
     },
   };
 }
@@ -110,6 +135,7 @@ function setupProviderSettingsFetch(
   options?: {
     catalog?: Record<string, unknown>;
     bambooConfig?: Record<string, unknown>;
+    rejectProviderLoad?: { status?: number; body: Record<string, unknown> };
     rejectProviderSave?: { status?: number; body: Record<string, unknown> };
   },
 ) {
@@ -117,7 +143,7 @@ function setupProviderSettingsFetch(
   const credentialChangeBodies: Array<Record<string, unknown>> = [];
   const putRequests: Array<Record<string, unknown>> = [];
   let revision = 1;
-  let currentSection = providerSectionFromLegacy(deepClone(initialConfig));
+  let currentSection = providerSectionFromConfig(deepClone(initialConfig));
   const catalog =
     options?.catalog ??
     (useProviderStore.getState().catalog as unknown as Record<string, unknown> | null) ??
@@ -136,6 +162,12 @@ function setupProviderSettingsFetch(
     }
 
     if (method === "GET" && isProviderSectionEndpoint) {
+      if (options?.rejectProviderLoad) {
+        return jsonResponse(options.rejectProviderLoad.body, {
+          ok: false,
+          status: options.rejectProviderLoad.status ?? 503,
+        });
+      }
       return jsonResponse(sectionEnvelope(currentSection, revision));
     }
 
@@ -231,24 +263,152 @@ async function waitForModelPreferenceValue(field: string, title: string) {
   });
 }
 
-async function waitForOpenAIApiKeyValue(value = "") {
-  await waitFor(() => {
-    const field = screen.getByTestId("api-key-input") as HTMLElement;
-    const input =
-      field instanceof HTMLInputElement
-        ? field
-        : (field.querySelector("input") as HTMLInputElement | null);
-    expect(input).toBeTruthy();
-    expect(input?.value).toBe(value);
-  });
-}
+describe("buildProviderInstanceSettings", () => {
+  it("round-trips canonical provider fields without leaking fields across provider types", () => {
+    const rawConfig = {
+      api_key: "sk-test",
+      base_url: "https://provider.example/v1",
+      model: "primary-model",
+      fast_model: "fast-model",
+      vision_model: "vision-model",
+      reasoning_effort: "high",
+      responses_only_models: ["response-*"],
+      request_overrides: { common: { headers: { "x-test": "1" } } },
+      explicit_prompt_cache: true,
+      thinking_replay_always: true,
+      max_tokens: "4096",
+      headless_auth: false,
+      target_provider: "gemini",
+    };
 
-function getInputWithin(testId: string): HTMLInputElement {
-  const field = screen.getByTestId(testId);
-  const input = field instanceof HTMLInputElement ? field : field.querySelector("input");
-  if (!input) throw new Error(`No <input> found within testid "${testId}"`);
-  return input;
-}
+    const openai = buildProviderInstanceSettings("openai", "OpenAI", true, rawConfig);
+    expect(openai.credential).toBe("sk-test");
+    expect(openai.settings).toMatchObject({
+      provider_type: "openai",
+      explicit_prompt_cache: true,
+      request_overrides: rawConfig.request_overrides,
+    });
+    expect(openai.settings).not.toHaveProperty("thinking_replay_always");
+    expect(openai.settings).not.toHaveProperty("max_tokens");
+    expect(openai.settings).not.toHaveProperty("headless_auth");
+    expect(openai.settings).not.toHaveProperty("target_provider");
+
+    const anthropic = buildProviderInstanceSettings("anthropic", undefined, true, rawConfig);
+    expect(anthropic.settings).toMatchObject({
+      provider_type: "anthropic",
+      thinking_replay_always: true,
+      max_tokens: 4096,
+    });
+    expect(anthropic.settings).not.toHaveProperty("explicit_prompt_cache");
+    expect(anthropic.settings).not.toHaveProperty("headless_auth");
+    expect(anthropic.settings).not.toHaveProperty("target_provider");
+
+    const copilot = buildProviderInstanceSettings("copilot", undefined, true, rawConfig);
+    expect(copilot.settings).toMatchObject({ provider_type: "copilot", headless_auth: false });
+    expect(copilot.settings).not.toHaveProperty("explicit_prompt_cache");
+    expect(copilot.settings).not.toHaveProperty("max_tokens");
+    expect(copilot.settings).not.toHaveProperty("target_provider");
+
+    const bodhi = buildProviderInstanceSettings("bodhi", undefined, true, rawConfig);
+    expect(bodhi.settings).toMatchObject({ provider_type: "bodhi", target_provider: "gemini" });
+    expect(bodhi.settings).not.toHaveProperty("explicit_prompt_cache");
+    expect(bodhi.settings).not.toHaveProperty("max_tokens");
+    expect(bodhi.settings).not.toHaveProperty("headless_auth");
+  });
+
+  it("atomically promotes the first instance to default without replacing a valid default", () => {
+    const firstSettings = buildProviderInstanceSettings("copilot", undefined, true, {}).settings;
+    const emptySection = providerSectionFromConfig({ provider: "anthropic", providers: {} });
+
+    insertProviderInstance(emptySection, "copilot-main", firstSettings);
+    expect(emptySection.default_provider_instance_id).toBe("copilot-main");
+
+    const secondSettings = buildProviderInstanceSettings("openai", undefined, true, {}).settings;
+    insertProviderInstance(emptySection, "openai-work", secondSettings);
+    expect(emptySection.default_provider_instance_id).toBe("copilot-main");
+  });
+
+  it("deterministically promotes the next enabled instance when deleting the default", () => {
+    const section = providerSectionFromConfig({
+      provider: "openai",
+      providers: {
+        zebra: { provider_type: "openai", enabled: true, model: "gpt-zebra" },
+        alpha: { provider_type: "anthropic", enabled: true, model: "claude-alpha" },
+        disabled: { provider_type: "gemini", enabled: false },
+      },
+      default_provider_instance_id: "zebra",
+      defaults: {
+        chat: { provider: "zebra", model: "gpt-zebra" },
+        fast: { provider: "zebra", model: "gpt-fast" },
+        task_summary: { provider: "zebra", model: "gpt-summary" },
+        vision: { provider: "zebra", model: "gpt-vision" },
+        memory_background: { provider: "zebra", model: "gpt-memory" },
+        planning: { provider: "zebra", model: "gpt-planning" },
+        search: { provider: "zebra", model: "gpt-search" },
+        code_review: { provider: "alpha", model: "claude-review" },
+        sub_agent: { provider: "zebra", model: "gpt-subagent" },
+        subagent_models: {
+          coder: { provider: "zebra", model: "gpt-coder" },
+          reviewer: { provider: "alpha", model: "claude-review" },
+        },
+      },
+    });
+
+    removeProviderInstance(section, "zebra");
+
+    expect(section.default_provider_instance_id).toBe("alpha");
+    expect(section.provider_instances).not.toHaveProperty("zebra");
+    expect(section.defaults).toEqual({
+      chat: { provider: "alpha", model: "claude-alpha" },
+      code_review: { provider: "alpha", model: "claude-review" },
+      subagent_models: {
+        reviewer: { provider: "alpha", model: "claude-review" },
+      },
+    });
+  });
+
+  it("rejects deletion before mutating when the replacement has no chat model", () => {
+    const section = providerSectionFromConfig({
+      provider: "openai",
+      providers: {
+        current: { provider_type: "openai", enabled: true, model: "gpt-current" },
+        replacement: { provider_type: "anthropic", enabled: true },
+      },
+      default_provider_instance_id: "current",
+      defaults: {
+        chat: { provider: "current", model: "gpt-current" },
+      },
+    });
+
+    expect(() => removeProviderInstance(section, "current")).toThrow(/has a chat model/);
+    expect(section.provider_instances).toHaveProperty("current");
+    expect(section.default_provider_instance_id).toBe("current");
+    expect(section.defaults?.chat).toEqual({ provider: "current", model: "gpt-current" });
+  });
+
+  it("rejects deleting the final enabled migrated instance before legacy aliases can reactivate", () => {
+    const section = providerSectionFromConfig({
+      provider: "openai",
+      providers: {
+        openai: { enabled: true, model: "gpt-4o" },
+      },
+      default_provider_instance_id: "openai",
+      defaults: {
+        chat: { provider: "openai", model: "gpt-4o" },
+        code_review: { provider: "openai", model: "gpt-4.1" },
+      },
+    });
+    const snapshot = deepClone(section);
+
+    expect(() => removeProviderInstance(section, "openai")).toThrow(
+      /no other enabled provider instance remains/,
+    );
+
+    expect(section).toEqual(snapshot);
+    expect(section.provider).toBe("openai");
+    expect(section.providers.openai?.model).toBe("gpt-4o");
+  });
+});
 
 describe("ProviderSettings", () => {
   beforeEach(() => {
@@ -328,7 +488,6 @@ describe("ProviderSettings", () => {
       },
       providerInstances: [],
       defaultProviderInstanceId: null,
-      isInstancesLoaded: false,
       selectedModelRef: null,
       catalog: mockCatalog as any,
       isCatalogFetching: false,
@@ -369,6 +528,44 @@ describe("ProviderSettings", () => {
       expect(copyText).toHaveBeenCalledWith("https://bamboo.example.com/proxy/openai/v1"),
     );
   }, 40000);
+
+  it("always renders only the provider instance manager", async () => {
+    setupProviderSettingsFetch({
+      provider: "openai",
+      providers: { openai: { api_key: "configured-but-never-returned", model: "gpt-4o" } },
+    });
+
+    render(<ProviderSettings />);
+
+    expect(await screen.findByTestId("add-provider-instance")).toBeInTheDocument();
+    expect(screen.getByTestId("edit-provider-instance-openai")).toBeInTheDocument();
+    expect(screen.queryByTestId("provider-select")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("api-key-input")).not.toBeInTheDocument();
+    expect(screen.queryByText("Active provider")).not.toBeInTheDocument();
+  }, 20000);
+
+  it("surfaces provider instance load failures without falling back to legacy controls", async () => {
+    setupProviderSettingsFetch(
+      {
+        provider: "openai",
+        providers: { openai: { model: "gpt-4o" } },
+      },
+      {
+        rejectProviderLoad: {
+          status: 503,
+          body: { error: "provider instances unavailable" },
+        },
+      },
+    );
+
+    render(<ProviderSettings />);
+
+    const alert = await screen.findByTestId("provider-instances-load-error");
+    expect(alert).toHaveTextContent(/provider instances unavailable|Failed to load/i);
+    expect(screen.getByTestId("add-provider-instance")).toBeInTheDocument();
+    expect(screen.queryByTestId("provider-select")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("api-key-input")).not.toBeInTheDocument();
+  }, 20000);
 
   it("includes defaults in save payload so model preferences persist", async () => {
     const { postedBodies } = setupProviderSettingsFetch({
@@ -458,7 +655,6 @@ describe("ProviderSettings", () => {
 
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-4o");
-    await waitForOpenAIApiKeyValue();
     await waitFor(() => {
       expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
     });
@@ -525,7 +721,6 @@ describe("ProviderSettings", () => {
 
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-old");
-    await waitForOpenAIApiKeyValue();
     await selectModelPreferenceOption("chat", "gpt-new");
     await waitForModelPreferenceValue("chat", "openai/gpt-new");
     await waitFor(() => {
@@ -594,7 +789,7 @@ describe("ProviderSettings", () => {
     );
   }, 20000);
 
-  it("saves through the canonical CAS route and applies the adopted snapshot", async () => {
+  it("preserves backend provider substrate while saving defaults through canonical CAS", async () => {
     const api = setupProviderSettingsFetch({
       provider: "openai",
       defaults: {
@@ -609,10 +804,6 @@ describe("ProviderSettings", () => {
 
     await screen.findByTestId("save-api-settings");
     await waitForModelPreferenceValue("chat", "openai/gpt-4o");
-    await waitForOpenAIApiKeyValue();
-    fireEvent.change(getInputWithin("api-key-input"), {
-      target: { value: "sk-new-value" },
-    });
     await waitFor(() => {
       expect(screen.getByTestId("save-api-settings")).not.toBeDisabled();
     });
@@ -638,55 +829,11 @@ describe("ProviderSettings", () => {
       model: "gpt-4o",
     });
     expect(useConfigSectionStore.getState().sections.providers.envelope?.revision).toBe(2);
-    expect((api.postedBodies.at(-1)?.providers as any)?.openai).not.toHaveProperty("api_key");
-    expect(api.credentialChangeBodies.at(-1)).toMatchObject({
-      providers: {
-        openai: { action: "replace", value: "sk-new-value" },
-      },
+    expect(api.postedBodies.at(-1)?.providers).toEqual({
+      openai: { model: "gpt-4o" },
     });
-    await waitForOpenAIApiKeyValue();
+    expect(api.credentialChangeBodies.at(-1)).toEqual({});
   }, 20000);
-
-  it("reapplies only local provider edits over an external revision", async () => {
-    const api = setupProviderSettingsFetch({
-      provider: "openai",
-      defaults: {
-        chat: { provider: "openai", model: "gpt-old" },
-        fast: { provider: "openai", model: "gpt-4o-mini" },
-      },
-      providers: {
-        openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
-      },
-    });
-
-    render(<ProviderSettings />);
-    await waitForModelPreferenceValue("chat", "openai/gpt-old");
-    fireEvent.change(screen.getByPlaceholderText("https://api.openai.com/v1"), {
-      target: { value: "https://local.example/v1" },
-    });
-
-    const external = deepClone(api.getCurrentConfig());
-    external.defaults = {
-      ...external.defaults,
-      fast: { provider: "openai", model: "gpt-4.1-mini" },
-    };
-    act(() => api.publishExternal(external));
-
-    fireEvent.click(await screen.findByRole("button", { name: "Reapply local draft" }));
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("save-api-settings"));
-    });
-
-    await waitFor(() => expect(api.postedBodies.length).toBeGreaterThan(0));
-    expect(api.postedBodies.at(-1)?.defaults).toMatchObject({
-      chat: { provider: "openai", model: "gpt-old" },
-      fast: { provider: "openai", model: "gpt-4.1-mini" },
-    });
-    expect(api.postedBodies.at(-1)?.providers).toMatchObject({
-      openai: { base_url: "https://local.example/v1" },
-    });
-    expect(api.putRequests.at(-1)?.expected_revision).toBe(2);
-  }, 40000);
 
   it("adopts a newer provider snapshot while the form is clean", async () => {
     const api = setupProviderSettingsFetch({
@@ -713,92 +860,6 @@ describe("ProviderSettings", () => {
     await waitForModelPreferenceValue("fast", "openai/gpt-4.1-mini");
     expect(screen.queryByRole("button", { name: "Reapply local draft" })).not.toBeInTheDocument();
   }, 20000);
-
-  it("keeps a dirty credential draft secret-free in compare and reloads the latest snapshot", async () => {
-    const api = setupProviderSettingsFetch({
-      provider: "openai",
-      defaults: {
-        chat: { provider: "openai", model: "gpt-old" },
-        fast: { provider: "openai", model: "gpt-4o-mini" },
-      },
-      providers: {
-        openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
-      },
-    });
-
-    render(<ProviderSettings />);
-    await waitForOpenAIApiKeyValue();
-    fireEvent.change(getInputWithin("api-key-input"), {
-      target: { value: "sk-local-replacement" },
-    });
-
-    const external = deepClone(api.getCurrentConfig());
-    external.defaults = {
-      ...external.defaults,
-      fast: { provider: "openai", model: "gpt-4.1-mini" },
-    };
-    act(() => api.publishExternal(external));
-
-    expect(await screen.findByText("Reapply local draft")).toBeInTheDocument();
-    await waitForOpenAIApiKeyValue("sk-local-replacement");
-
-    fireEvent.click(screen.getByText("Compare changes"));
-    const modalInfo = vi.mocked(AntApp.useApp().modal.info);
-    expect(modalInfo).toHaveBeenCalled();
-    const comparisonText = (modalInfo.mock.calls.at(-1)?.[0] as any).content.props.children[1].props
-      .children;
-    expect(comparisonText).not.toContain("sk-local-replacement");
-
-    fireEvent.click(screen.getByText("Reload latest"));
-    await waitForOpenAIApiKeyValue();
-    await waitForModelPreferenceValue("fast", "openai/gpt-4.1-mini");
-    expect(screen.queryByText("Reapply local draft")).not.toBeInTheDocument();
-  }, 20000);
-
-  it("submits the captured revision and preserves the draft when a stale save is rejected", async () => {
-    const api = setupProviderSettingsFetch(
-      {
-        provider: "openai",
-        defaults: {
-          chat: { provider: "openai", model: "gpt-old" },
-        },
-        providers: {
-          openai: { api_key: "configured-but-never-returned", model: "gpt-old" },
-        },
-      },
-      {
-        rejectProviderSave: {
-          status: 409,
-          body: {
-            error: "revision conflict",
-            expected_revision: 1,
-            actual_revision: 2,
-          },
-        },
-      },
-    );
-
-    render(<ProviderSettings />);
-    await waitForModelPreferenceValue("chat", "openai/gpt-old");
-    fireEvent.change(screen.getByPlaceholderText("https://api.openai.com/v1"), {
-      target: { value: "https://local.example/v1" },
-    });
-
-    const external = deepClone(api.getCurrentConfig());
-    external.features = { ...external.features, provider_model_ref: true };
-    act(() => api.publishExternal(external));
-    expect(await screen.findByRole("button", { name: "Reapply local draft" })).toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId("save-api-settings"));
-
-    await waitFor(() => expect(api.putRequests.length).toBeGreaterThan(0));
-    expect(api.putRequests.at(-1)?.expected_revision).toBe(1);
-    expect(useConfigSectionStore.getState().sections.providers.envelope?.revision).toBe(2);
-    expect(screen.getByPlaceholderText("https://api.openai.com/v1")).toHaveValue(
-      "https://local.example/v1",
-    );
-    expect(screen.getByRole("button", { name: "Reapply local draft" })).toBeInTheDocument();
-  }, 40000);
 
   it("blocks save when defaults.chat is missing (client-side required)", async () => {
     setupProviderSettingsFetch({
@@ -837,40 +898,6 @@ describe("ProviderSettings", () => {
     cleanup();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
-
-  it("updates the active provider reasoning effort for the selected provider", async () => {
-    const { postedBodies } = setupProviderSettingsFetch({
-      provider: "openai",
-      defaults: {
-        chat: { provider: "openai", model: "gpt-4o" },
-      },
-      providers: {
-        openai: { api_key: "sk-openai", reasoning_effort: "low" },
-        anthropic: { api_key: "sk-anthropic", reasoning_effort: "medium" },
-      },
-    });
-
-    render(<ProviderSettings />);
-
-    await screen.findByTestId("provider-select");
-    await selectAntdOption("provider-select", "Anthropic");
-
-    await waitFor(() => {
-      expect(screen.getByTestId("active-provider-reasoning-effort").textContent).toContain(
-        "Medium",
-      );
-    });
-
-    await selectAntdOption("active-provider-reasoning-effort", "Max");
-
-    await waitFor(() => {
-      expect(postedBodies.length).toBeGreaterThan(0);
-      const latestBody = postedBodies.at(-1) as any;
-      expect(latestBody.provider).toBe("anthropic");
-      expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("max");
-      expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
-    });
-  }, 20000);
 
   it("switches the model preference reasoning effort target when default chat model provider changes", async () => {
     const { postedBodies } = setupProviderSettingsFetch(
@@ -969,8 +996,8 @@ describe("ProviderSettings", () => {
         provider: "anthropic",
         model: "claude-3-7-sonnet",
       });
-      expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("high");
-      expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
+      expect(latestBody.provider_instances?.anthropic?.reasoning_effort).toBe("high");
+      expect(latestBody.provider_instances?.openai?.reasoning_effort).toBe("low");
     });
   }, 20000);
 
@@ -1101,8 +1128,8 @@ describe("ProviderSettings", () => {
         expect(postedBodies.length).toBeGreaterThan(0);
         const latestBody = postedBodies.at(-1) as any;
         expect(latestBody.defaults?.[field]).toEqual(expectedModel);
-        expect(latestBody.providers?.anthropic?.reasoning_effort).toBe("xhigh");
-        expect(latestBody.providers?.openai?.reasoning_effort).toBe("low");
+        expect(latestBody.provider_instances?.anthropic?.reasoning_effort).toBe("xhigh");
+        expect(latestBody.provider_instances?.openai?.reasoning_effort).toBe("low");
       });
     },
     20000,

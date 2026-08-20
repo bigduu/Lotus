@@ -61,7 +61,6 @@ describe("providerSlice", () => {
       },
       providerInstances: [],
       defaultProviderInstanceId: null,
-      isInstancesLoaded: false,
       isLoading: false,
       error: null,
       selectedModelRef: null,
@@ -85,235 +84,6 @@ describe("providerSlice", () => {
       });
       expect(state.isLoading).toBe(false);
       expect(state.error).toBeNull();
-    });
-  });
-
-  describe("loadProviderConfig", () => {
-    it("should load provider config successfully", async () => {
-      const mockConfig: ProviderConfig = {
-        provider: "anthropic",
-        defaults: defaults("anthropic", "claude-3"),
-        providers: {
-          anthropic: {
-            api_key: "",
-          },
-        },
-      };
-      loadSectionMock.mockResolvedValueOnce(
-        providerEnvelope({
-          provider: mockConfig.provider,
-          defaults: mockConfig.defaults ?? null,
-          providers: {
-            anthropic: { model: "claude-3" },
-          },
-        }),
-      );
-
-      await act(async () => {
-        await useProviderStore.getState().loadProviderConfig();
-      });
-
-      const state = useProviderStore.getState();
-      expect(state.providerConfig).toEqual({
-        ...mockConfig,
-        providers: { anthropic: { model: "claude-3" } },
-        features: {},
-      });
-      expect(state.currentProvider).toBe("anthropic");
-      expect(state.isLoading).toBe(false);
-      expect(state.error).toBeNull();
-    });
-
-    it("should set loading state while loading", async () => {
-      loadSectionMock.mockImplementationOnce(
-        () => new Promise((resolve) => setTimeout(() => resolve(providerEnvelope()), 100)),
-      );
-
-      const promise = act(async () => useProviderStore.getState().loadProviderConfig());
-
-      expect(useProviderStore.getState().isLoading).toBe(true);
-      await promise;
-      expect(useProviderStore.getState().isLoading).toBe(false);
-    });
-
-    it("should handle load errors", async () => {
-      const error = new Error("Network error");
-      loadSectionMock.mockRejectedValueOnce(error);
-
-      await act(async () => {
-        await useProviderStore.getState().loadProviderConfig();
-      });
-
-      const state = useProviderStore.getState();
-      expect(state.error).toBe("Network error");
-      expect(state.isLoading).toBe(false);
-      expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to load provider config:", error);
-    });
-
-    it("should handle non-Error errors", async () => {
-      loadSectionMock.mockRejectedValueOnce("string error");
-
-      await act(async () => {
-        await useProviderStore.getState().loadProviderConfig();
-      });
-
-      const state = useProviderStore.getState();
-      expect(state.error).toBe("Failed to load provider config");
-      expect(state.isLoading).toBe(false);
-    });
-
-    it("should clear error on successful load", async () => {
-      useProviderStore.setState({ error: "Previous error" });
-
-      const mockConfig: ProviderConfig = {
-        provider: "openai",
-        defaults: defaults("openai", "gpt-4"),
-        providers: {
-          openai: {
-            api_key: "key",
-          },
-        },
-      };
-      loadSectionMock.mockResolvedValueOnce(
-        providerEnvelope({
-          provider: mockConfig.provider,
-          defaults: mockConfig.defaults ?? null,
-          providers: { openai: {} },
-        }),
-      );
-
-      await act(async () => {
-        await useProviderStore.getState().loadProviderConfig();
-      });
-
-      expect(useProviderStore.getState().error).toBeNull();
-    });
-
-    it("should update currentProvider from config", async () => {
-      const mockConfig: ProviderConfig = {
-        provider: "openai",
-        defaults: defaults("openai", "gpt-4o"),
-        providers: {
-          openai: {
-            api_key: "test",
-          },
-        },
-      };
-      loadSectionMock.mockResolvedValueOnce(
-        providerEnvelope({
-          provider: mockConfig.provider,
-          defaults: mockConfig.defaults ?? null,
-          providers: { openai: {} },
-        }),
-      );
-
-      await act(async () => {
-        await useProviderStore.getState().loadProviderConfig();
-      });
-
-      expect(useProviderStore.getState().currentProvider).toBe("openai");
-    });
-  });
-
-  describe("setCurrentProvider", () => {
-    it("should update current provider", () => {
-      act(() => {
-        useProviderStore.getState().setCurrentProvider("anthropic");
-      });
-
-      expect(useProviderStore.getState().currentProvider).toBe("anthropic");
-    });
-
-    it("should update to openai provider", () => {
-      act(() => {
-        useProviderStore.getState().setCurrentProvider("openai");
-      });
-
-      expect(useProviderStore.getState().currentProvider).toBe("openai");
-    });
-
-    it("should update to copilot provider", () => {
-      useProviderStore.setState({ currentProvider: "anthropic" });
-
-      act(() => {
-        useProviderStore.getState().setCurrentProvider("copilot");
-      });
-
-      expect(useProviderStore.getState().currentProvider).toBe("copilot");
-    });
-  });
-
-  describe("updateProviderConfig", () => {
-    it("should merge partial config and preserve defaults", () => {
-      const initialConfig: ProviderConfig = {
-        provider: "copilot",
-        defaults: defaults("copilot", "gpt-4"),
-        providers: {
-          copilot: {
-            headless_auth: true,
-          },
-        },
-      };
-      useProviderStore.setState({ providerConfig: initialConfig });
-
-      act(() => {
-        useProviderStore.getState().updateProviderConfig({
-          provider: "anthropic",
-        });
-      });
-
-      const state = useProviderStore.getState();
-      expect(state.providerConfig.provider).toBe("anthropic");
-      expect(state.providerConfig.defaults).toEqual(defaults("copilot", "gpt-4"));
-      expect(state.providerConfig.providers).toEqual({
-        copilot: { headless_auth: true },
-      });
-    });
-
-    it("should update providers object", () => {
-      act(() => {
-        useProviderStore.getState().updateProviderConfig({
-          providers: {
-            openai: {
-              api_key: "new-key",
-            },
-          },
-        });
-      });
-
-      expect(useProviderStore.getState().providerConfig.providers).toEqual({
-        openai: {
-          api_key: "new-key",
-        },
-      });
-    });
-
-    it("should preserve existing config when updating", () => {
-      const initialConfig: ProviderConfig = {
-        provider: "anthropic",
-        defaults: defaults("anthropic", "claude-3"),
-        providers: {
-          anthropic: {
-            api_key: "key1",
-          },
-        },
-      };
-      useProviderStore.setState({ providerConfig: initialConfig });
-
-      act(() => {
-        useProviderStore.getState().updateProviderConfig({
-          provider: "openai",
-        });
-      });
-
-      const state = useProviderStore.getState();
-      expect(state.providerConfig.provider).toBe("openai");
-      expect(state.providerConfig.defaults).toEqual(defaults("anthropic", "claude-3"));
-      expect(state.providerConfig.providers).toEqual({
-        anthropic: {
-          api_key: "key1",
-        },
-      });
     });
   });
 
@@ -515,12 +285,11 @@ describe("providerSlice", () => {
       );
       expect(state.defaultProviderInstanceId).toBe("inst-openai-1");
       expect(state.currentProvider).toBe("inst-openai-1");
-      expect(state.isInstancesLoaded).toBe(true);
       expect(state.isLoading).toBe(false);
       expect(JSON.stringify(state.providerInstances)).not.toContain("sk-");
     });
 
-    it("should build legacy-compatible providerConfig from instances", async () => {
+    it("should build normalized providerConfig from instances", async () => {
       const mockResponse = {
         default_provider_instance_id: "inst-1",
         instances: [
@@ -556,9 +325,12 @@ describe("providerSlice", () => {
       });
 
       const state = useProviderStore.getState();
-      // providerConfig.providers should map instance id → config
+      // providerConfig.providers maps instance id → config for model consumers.
       expect(state.providerConfig.provider).toBe("inst-1");
       expect(state.providerConfig.defaults?.chat).toEqual({ provider: "inst-1", model: "gpt-4o" });
+      expect(state.providerConfig.providers).toEqual({
+        "inst-1": { base_url: "https://example.com" },
+      });
     });
 
     it("should handle load errors gracefully", async () => {
@@ -571,8 +343,8 @@ describe("providerSlice", () => {
 
       const state = useProviderStore.getState();
       expect(state.error).toBe("Instance API not available");
-      expect(state.isInstancesLoaded).toBe(false);
       expect(state.isLoading).toBe(false);
+      expect(consoleErrorSpy).toHaveBeenCalledWith("Failed to load provider instances:", error);
     });
 
     it("should handle empty instances list", async () => {
@@ -585,7 +357,6 @@ describe("providerSlice", () => {
       const state = useProviderStore.getState();
       expect(state.providerInstances).toEqual([]);
       expect(state.defaultProviderInstanceId).toBeNull();
-      expect(state.isInstancesLoaded).toBe(true);
     });
   });
 

@@ -23,9 +23,6 @@ const baseStoreState = {
   },
   isLoading: false,
   error: null,
-  loadProviderConfig: vi.fn(),
-  saveProviderConfig: vi.fn(),
-  setCurrentProvider: vi.fn(),
 };
 
 describe("useActiveModel", () => {

@@ -40,15 +40,10 @@ const readEffort = (cfg: Record<string, unknown> | undefined): ReasoningEffort |
 /**
  * Resolve the configured default reasoning effort for a provider routing key.
  *
- * The key may be a legacy `ProviderType` (e.g. `"openai"`) or, in multi-instance
- * mode, an instance id (e.g. `"copilot-work"`). Resolution must not depend on
- * which load path populated the store, because:
- *   - `loadProviderInstances` keys `providerConfig.providers` by instance id, and
- *   - `loadProviderConfig` keys it by ProviderType.
- *
- * So we prefer the authoritative `providerInstances` array (when available),
- * then the `providers` map keyed directly by `key`, and finally — for an
- * instance id — the `providers` entry keyed by the instance's provider type.
+ * The key is a provider instance id (for migrated single-provider configs the
+ * synthesized instance id may equal the provider type, e.g. `"openai"`). We
+ * prefer the authoritative `providerInstances` array, then the normalized
+ * `providers` map keyed by that same id.
  */
 const resolveReasoningEffortByKey = (
   providerConfig: ProviderConfig,
@@ -65,16 +60,9 @@ const resolveReasoningEffortByKey = (
   const fromInstance = readEffort(instance?.config as Record<string, unknown> | undefined);
   if (fromInstance) return fromInstance;
 
-  // 2. The providers map keyed directly by `key`
-  //    (instance id in instance mode, ProviderType in legacy mode).
+  // 2. The normalized providers map keyed directly by instance id.
   const direct = readEffort(providers[key]);
   if (direct) return direct;
-
-  // 3. Instance id whose providers map is type-keyed (legacy load path ran):
-  //    fall back to the entry for the instance's provider type.
-  if (instance) {
-    return readEffort(providers[instance.type]);
-  }
 
   return undefined;
 };

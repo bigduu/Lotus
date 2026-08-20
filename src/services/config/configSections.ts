@@ -85,9 +85,12 @@ export interface ProviderInstanceSettings {
   reasoning_effort?: "low" | "medium" | "high" | "xhigh" | "max" | null;
   responses_only_models?: string[];
   request_overrides?: RequestOverridesConfig | null;
+  explicit_prompt_cache?: boolean | null;
   enabled: boolean;
   target_provider?: "openai" | "anthropic" | "gemini" | null;
   thinking_replay_always?: boolean | null;
+  max_tokens?: number | null;
+  headless_auth?: boolean | null;
 }
 
 export interface ProviderCredentialStatus {

@@ -5,6 +5,7 @@ import {
   Form,
   Select,
   Input,
+  InputNumber,
   Button,
   Card,
   Collapse,
@@ -25,6 +26,7 @@ import {
   StarOutlined,
   StarFilled,
   LoginOutlined,
+  LogoutOutlined,
 } from "@ant-design/icons";
 import { settingsService } from "@services/config/SettingsService";
 import { isAntdFormError } from "@shared/utils/formError";
@@ -144,11 +146,8 @@ const REQUEST_OVERRIDES_PLACEHOLDER = `{
 }`;
 
 /**
- * Advanced request-overrides JSON textarea, shared across every provider
- * type in the instance modal. Mirrors the legacy single-provider tab's
- * field (`ProviderSettings/index.tsx` `renderRequestOverridesEditor`) —
- * same i18n keys, same monospace textarea, same "advanced" placement
- * behind a dashed divider at the end of the type-specific fields.
+ * Advanced request-overrides JSON textarea shared across every provider
+ * type in the instance modal.
  */
 const renderInstanceRequestOverridesField = (t: TFunction) => (
   <>
@@ -253,11 +252,12 @@ const InstanceConfigFields: React.FC<{
             label={t("settings.providerTab.maxTokensOptional")}
             extra={t("settings.providerTab.maxTokensHelp")}
           >
-            <Input
-              type="number"
+            <InputNumber
               placeholder={t("settings.providerTab.maxTokensPlaceholder")}
               min={1}
               max={100000}
+              precision={0}
+              style={{ width: "100%" }}
             />
           </Form.Item>
           <Form.Item
@@ -550,6 +550,20 @@ export const ProviderInstanceManager: React.FC<{
     }
   };
 
+  const handleCopilotLogout = async () => {
+    try {
+      setAuthenticatingCopilot(true);
+      await settingsService.logoutCopilot();
+      message.success(t("settings.providerTab.logoutSuccess"));
+      await checkCopilotAuthStatus();
+    } catch (error) {
+      message.error(t("settings.providerTab.logoutFailed"));
+      console.error("Failed to logout:", configErrorMessage(error, "Failed to log out"));
+    } finally {
+      setAuthenticatingCopilot(false);
+    }
+  };
+
   const checkCopilotAuthStatus = useCallback(async () => {
     try {
       setCheckingCopilotAuth(true);
@@ -575,7 +589,12 @@ export const ProviderInstanceManager: React.FC<{
   const handleInstanceModalOpenChange = useCallback(
     (open: boolean) => {
       if (!open) {
-        instanceForm.resetFields();
+        // Ant Design invokes afterOpenChange(false) for the initially hidden
+        // force-rendered modal before its Form is connected. Only reset after
+        // this modal has actually had a create/edit draft.
+        if (baseInstanceFormRef.current) {
+          instanceForm.resetFields();
+        }
         setModalDirty(false);
         setModalBaseRevision(null);
         baseInstanceFormRef.current = null;
@@ -623,15 +642,27 @@ export const ProviderInstanceManager: React.FC<{
           {t("settings.providerTab.copilotAuthHelp")}
         </Paragraph>
 
-        <Button
-          type="primary"
-          icon={<LoginOutlined />}
-          onClick={() => void handleCopilotAuthenticate()}
-          loading={authenticatingCopilot}
-          size={buttonSize}
-        >
-          {t("settings.providerTab.authenticateCopilot")}
-        </Button>
+        {copilotAuthStatus === "authenticated" ? (
+          <Button
+            danger
+            icon={<LogoutOutlined />}
+            onClick={() => void handleCopilotLogout()}
+            loading={authenticatingCopilot}
+            size={buttonSize}
+          >
+            {t("settings.providerTab.logoutCopilot")}
+          </Button>
+        ) : (
+          <Button
+            type="primary"
+            icon={<LoginOutlined />}
+            onClick={() => void handleCopilotAuthenticate()}
+            loading={authenticatingCopilot}
+            size={buttonSize}
+          >
+            {t("settings.providerTab.authenticateCopilot")}
+          </Button>
+        )}
       </Space>
     </Card>
   );
@@ -790,6 +821,11 @@ export const ProviderInstanceManager: React.FC<{
           message.error(messageText);
           return;
         }
+      } else {
+        // Canonical instance updates replace editable fields. Send an explicit
+        // null so clearing the textarea does not resurrect the previous value
+        // when non-editable canonical fields are merged for round-trip safety.
+        config.request_overrides = null;
       }
 
       // Empty api_key while editing means "keep the stored key" — omit the
@@ -1022,7 +1058,6 @@ export const ProviderInstanceManager: React.FC<{
         confirmLoading={savingInstance}
         width={560}
         forceRender
-        destroyOnClose
       >
         {externalRevision !== null && (
           <Alert

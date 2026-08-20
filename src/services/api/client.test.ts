@@ -68,7 +68,7 @@ describe("ApiClient error parsing", () => {
       ),
     );
 
-    await expect(client.post("bamboo/settings/provider", {})).rejects.toMatchObject({
+    await expect(client.post("bamboo/config/provider-settings", {})).rejects.toMatchObject({
       name: "ApiError",
       status: 400,
       message: "Invalid configuration: OpenAI API key is required",

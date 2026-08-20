@@ -162,13 +162,6 @@ export class SettingsService {
   }
 
   /**
-   * Trigger Copilot authentication flow (legacy)
-   */
-  async authenticateCopilot(): Promise<void> {
-    return apiClient.post<void>("/bamboo/copilot/authenticate");
-  }
-
-  /**
    * Logout from Copilot (delete cached token)
    */
   async logoutCopilot(): Promise<void> {

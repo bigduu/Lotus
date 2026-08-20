@@ -40,7 +40,6 @@ describe("SettingsService", () => {
     });
     mockApiClient.post.mockResolvedValueOnce(undefined);
     mockApiClient.post.mockResolvedValueOnce(undefined);
-    mockApiClient.post.mockResolvedValueOnce(undefined);
 
     await expect(service.getCopilotAuthStatus()).resolves.toMatchObject({
       authenticated: true,
@@ -56,7 +55,6 @@ describe("SettingsService", () => {
         expires_in: 900,
       }),
     ).resolves.toBeUndefined();
-    await expect(service.authenticateCopilot()).resolves.toBeUndefined();
     await expect(service.logoutCopilot()).resolves.toBeUndefined();
 
     expect(mockApiClient.post).toHaveBeenNthCalledWith(1, "/bamboo/copilot/auth/status");
@@ -66,8 +64,7 @@ describe("SettingsService", () => {
       interval: 5,
       expires_in: 900,
     });
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(4, "/bamboo/copilot/authenticate");
-    expect(mockApiClient.post).toHaveBeenNthCalledWith(5, "/bamboo/copilot/logout");
+    expect(mockApiClient.post).toHaveBeenNthCalledWith(4, "/bamboo/copilot/logout");
   });
 
   it("reads the revisioned permission policy and uses CAS for mutations", async () => {

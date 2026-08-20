@@ -17,26 +17,11 @@ test.describe("Settings Management", () => {
   test("loads provider configuration controls", async ({ page }) => {
     await page.click('[data-testid="settings-tab-provider"]');
 
-    // The provider tab renders in one of two modes: instance mode when the
-    // backend's provider-instances endpoint returns a list (the default on a
-    // fresh data dir — ProviderSettings/index.tsx's mount effect flips
-    // isInstanceMode unconditionally whenever that call succeeds, even with
-    // an empty list), legacy single-provider mode when it doesn't. Detect
-    // by data-testid (mode-specific, i18n-independent) rather than assuming
-    // one mode, so the test stays correct against either backend shape.
-    const providerSelect = page.locator('[data-testid="provider-select"]');
     const addProviderInstance = page.locator('[data-testid="add-provider-instance"]');
-    await expect(providerSelect.or(addProviderInstance).first()).toBeVisible({
-      timeout: 15000,
-    });
+    await expect(addProviderInstance).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('[data-testid="provider-select"]')).toHaveCount(0);
+    await expect(page.locator('[data-testid="api-key-input"]')).toHaveCount(0);
 
-    // Legacy mode is already confirmed by the canonical provider selector.
-    // Credential editors live in collapsible panels below the fold and are
-    // covered by the dedicated live-config E2E flow.
-
-    // Both modes share the same form submit button (ProviderSettings/index.tsx
-    // renders it once, outside the isInstanceMode branch): legacy mode's
-    // per-provider save, instance mode's "Save and Apply Configuration".
     await expect(page.locator('[data-testid="save-api-settings"]')).toBeVisible();
   });
 
