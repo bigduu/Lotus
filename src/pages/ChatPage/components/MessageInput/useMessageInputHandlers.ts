@@ -15,6 +15,7 @@ interface UseMessageInputHandlersProps {
   onSubmit: (
     content: string,
     images?: ImageFile[],
+    rawContentSnapshot?: string,
   ) => MessageSubmitOutcome | Promise<MessageSubmitOutcome>;
   onRetry?: (mode: MessageRetryMode) => void;
   onHistoryNavigate?: (direction: "previous" | "next", currentValue: string) => string | null;
@@ -71,7 +72,7 @@ export const useMessageInputHandlers = ({
     }
 
     const submittedImageIds = images.map((image) => image.id);
-    const submission = onSubmit(trimmedContent, images.length > 0 ? images : undefined);
+    const submission = onSubmit(trimmedContent, images.length > 0 ? images : undefined, value);
     if (submission instanceof Promise) {
       return submission.then(
         (accepted) => {

@@ -416,7 +416,8 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
       }),
     });
     await expect(page.getByText("typed-draft.txt", { exact: true })).toBeVisible();
-    await input.fill("/review inspect src");
+    const rawWorkflowInput = "  /review inspect src  ";
+    await input.fill(rawWorkflowInput);
     await input.press("Enter");
 
     await expect.poll(() => chatAttempt).toBe(1);
@@ -460,7 +461,7 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
 
     await expect(remountedChip).toContainText("Workflow selection needs attention");
     await expect(remountedChip).toContainText("The selected Workflow changed");
-    await expect(input).toHaveValue("/review inspect src");
+    await expect(input).toHaveValue(rawWorkflowInput);
     await expect(remountedArgumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
     await expect(page.getByRole("button", { name: "View image typed-draft.png" })).toBeVisible();
     await expect(page.getByText("typed-draft.txt", { exact: true })).toBeVisible();
@@ -481,11 +482,12 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
     catalogRevision = 13;
     await remountedChip.getByRole("button", { name: "Refresh catalog" }).click();
     await page.getByRole("option").filter({ hasText: "/review" }).click();
-    await expect(input).toHaveValue("/review inspect src");
+    await expect(input).toHaveValue(rawWorkflowInput);
     await expect(remountedArgumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
     await input.press("Enter");
 
     await expect.poll(() => chatAttempt).toBe(2);
+    await expect(input).toHaveValue("");
     await expect(page.getByRole("button", { name: "View image typed-draft.png" })).toHaveCount(0);
     await expect(page.getByText("typed-draft.txt", { exact: true })).toHaveCount(0);
     expect(chatRequests[1]).toMatchObject({

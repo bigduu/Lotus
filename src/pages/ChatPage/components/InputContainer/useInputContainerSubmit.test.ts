@@ -261,6 +261,60 @@ describe("useInputContainerSubmit", () => {
     expect(props.sendMessage).toHaveBeenCalledTimes(2);
   });
 
+  it("uses the raw composer snapshot when an asynchronous typed send is accepted", async () => {
+    const rawComposerValue = "  /review inspect whitespace  ";
+    let liveComposerValue = rawComposerValue;
+    const props = createBaseProps();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    props.clearContent = vi.fn((submittedSnapshot: string) => {
+      if (liveComposerValue === submittedSnapshot) liveComposerValue = "";
+    });
+
+    let resolveSend: (() => void) | undefined;
+    props.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+    let submission!: Promise<boolean>;
+    act(() => {
+      submission = result.current.handleSubmit(
+        "/review inspect whitespace",
+        undefined,
+        rawComposerValue,
+      );
+    });
+
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(liveComposerValue).toBe(rawComposerValue);
+
+    await act(async () => {
+      resolveSend?.();
+      await expect(submission).resolves.toBe(true);
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledWith(
+      "inspect whitespace",
+      undefined,
+      "medium",
+      undefined,
+      { id: "review", source: "project", revision: 12, args: {} },
+    );
+    expect(props.clearContent).toHaveBeenCalledWith(rawComposerValue);
+    expect(liveComposerValue).toBe("");
+  });
+
   it("blocks every session send while a typed submission is pending even without a local draft", async () => {
     const revision = tryBeginTypedWorkflowSubmission("session-1");
     expect(revision).not.toBeNull();

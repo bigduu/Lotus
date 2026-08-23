@@ -47,6 +47,7 @@ interface MessageInputProps {
   onSubmit: (
     content: string,
     images?: ImageFile[],
+    rawContentSnapshot?: string,
   ) => MessageSubmitOutcome | Promise<MessageSubmitOutcome>;
   placeholder?: string;
   disabled?: boolean;

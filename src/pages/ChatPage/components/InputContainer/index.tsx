@@ -654,7 +654,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   void handleGoalCommand;
 
   const submitMessageWithLiveMode = useCallback(
-    async (message: string, images?: ImageFile[]) => {
+    async (message: string, images?: ImageFile[], rawContentSnapshot = message) => {
       if (sessionId && isTypedWorkflowSubmissionPendingForSession(sessionId)) {
         return false;
       }
@@ -666,15 +666,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         return true;
       }
 
-      return handleSubmit(message, images);
+      return handleSubmit(message, images, rawContentSnapshot);
     },
     [handleRespondSubmit, handleSubmit, sessionId, shouldUseRespondModeForSession],
   );
 
   // Wrap handleSubmit: check latest store state at submit time to avoid stale-mode races
   const effectiveHandleSubmit = useCallback(
-    async (message: string, images?: ImageFile[]) => {
-      return submitMessageWithLiveMode(message, images);
+    async (message: string, images?: ImageFile[], rawContentSnapshot?: string) => {
+      return submitMessageWithLiveMode(message, images, rawContentSnapshot);
     },
     [submitMessageWithLiveMode],
   );

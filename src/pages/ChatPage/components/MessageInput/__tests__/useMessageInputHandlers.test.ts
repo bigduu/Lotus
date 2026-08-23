@@ -50,7 +50,7 @@ describe("useMessageInputHandlers", () => {
         result.current.handleSubmit();
       });
 
-      expect(onSubmit).toHaveBeenCalledWith("Hello World", undefined);
+      expect(onSubmit).toHaveBeenCalledWith("Hello World", undefined, "  Hello World  ");
       expect(clearImages).toHaveBeenCalled();
     });
 
@@ -88,7 +88,7 @@ describe("useMessageInputHandlers", () => {
         result.current.handleSubmit();
       });
 
-      expect(onSubmit).toHaveBeenCalledWith("Check this image", images);
+      expect(onSubmit).toHaveBeenCalledWith("Check this image", images, "Check this image");
       expect(clearImages).toHaveBeenCalled();
     });
 
@@ -182,7 +182,7 @@ describe("useMessageInputHandlers", () => {
         result.current.handleSubmit();
       });
 
-      expect(onSubmit).toHaveBeenCalledWith("", images);
+      expect(onSubmit).toHaveBeenCalledWith("", images, "");
     });
 
     it("should not submit when content is empty and no images", () => {
@@ -433,7 +433,7 @@ describe("useMessageInputHandlers", () => {
         result.current.handleSubmit();
       });
 
-      expect(onSubmit).toHaveBeenCalledWith("test", undefined);
+      expect(onSubmit).toHaveBeenCalledWith("test", undefined, "test");
     });
   });
 

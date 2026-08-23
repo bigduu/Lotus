@@ -64,7 +64,7 @@ export const useInputContainerSubmit = ({
   const detachedTypedSubmissionInFlightRef = useRef(false);
 
   const handleSubmit = useCallback(
-    async (message: string, images?: ImageFile[]) => {
+    async (message: string, images?: ImageFile[], rawContentSnapshot = message) => {
       // Fence the entire session submission boundary. A remounted composer may
       // temporarily lack its typed selection, and external-send actions do not
       // consult disabled form controls, but neither may bypass an accepted
@@ -203,7 +203,7 @@ export const useInputContainerSubmit = ({
         // up in Model Limits settings. Prefer the resolved session model passed in;
         // fall back to the legacy global selection. Best-effort; never blocks send.
         recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
-        clearContent(message);
+        clearContent(rawContentSnapshot);
         clearReferenceText(referenceText);
         clearWorkflowDraft(selectedWorkflow);
         clearAttachments(attachments.map((attachment) => attachment.id));
