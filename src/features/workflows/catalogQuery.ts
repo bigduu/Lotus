@@ -63,7 +63,6 @@ export class WorkflowCatalogQuery implements WorkflowCatalogQuerySource {
   private readonly cache = new Map<string, CacheEntry>();
   private readonly inFlight = new Map<string, Promise<WorkflowCatalogView>>();
   private readonly listeners = new Set<WorkflowCatalogInvalidationListener>();
-  private readonly latestEventRevision = new Map<string, number>();
   private generation = 0;
 
   constructor(
@@ -99,13 +98,9 @@ export class WorkflowCatalogQuery implements WorkflowCatalogQuerySource {
   }
 
   invalidate(event?: WorkflowCatalogInvalidation): boolean {
-    if (event) {
-      const eventKey = `${event.scope ?? "global"}:${event.workflowId}`;
-      const latest = this.latestEventRevision.get(eventKey);
-      if (latest !== undefined && event.revision <= latest) return false;
-      this.latestEventRevision.set(eventKey, event.revision);
-    }
-
+    // Account-feed sequence ordering is authoritative within a transport
+    // epoch. Workflow revisions may restart from a lower value after a backend
+    // restart, while cache invalidation itself is idempotent and safe to repeat.
     this.generation += 1;
     this.cache.clear();
     this.inFlight.clear();

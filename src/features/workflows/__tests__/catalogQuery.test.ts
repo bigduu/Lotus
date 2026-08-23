@@ -18,13 +18,15 @@ const view = (revision: number): WorkflowCatalogView => ({
 });
 
 describe("WorkflowCatalogQuery", () => {
-  it("uses a session-scoped 30-second fallback cache and invalidates on a newer event", async () => {
+  it("uses a session-scoped cache and accepts duplicate or lower event revisions", async () => {
     let now = 1_000;
     const load = vi
       .fn<WorkflowCatalogAdapter["load"]>()
       .mockResolvedValueOnce(view(1))
       .mockResolvedValueOnce(view(2))
-      .mockResolvedValueOnce(view(3));
+      .mockResolvedValueOnce(view(3))
+      .mockResolvedValueOnce(view(4))
+      .mockResolvedValueOnce(view(5));
     const query = new WorkflowCatalogQuery({ load }, 30_000, () => now);
     const listener = vi.fn();
     const unsubscribe = query.subscribe(listener);
@@ -51,12 +53,24 @@ describe("WorkflowCatalogQuery", () => {
         revision: 2,
         scope: "user",
       }),
-    ).toBe(false);
-    expect(listener).toHaveBeenCalledTimes(1);
+    ).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(2);
+    await expect(query.load({ sessionId: "session-a" })).resolves.toMatchObject({ revision: 3 });
+
+    expect(
+      query.invalidate({
+        type: "workflow_invalid",
+        workflowId: "review",
+        revision: 1,
+        scope: "user",
+      }),
+    ).toBe(true);
+    expect(listener).toHaveBeenCalledTimes(3);
+    await expect(query.load({ sessionId: "session-a" })).resolves.toMatchObject({ revision: 4 });
 
     now += 30_001;
-    await expect(query.load({ sessionId: "session-a" })).resolves.toMatchObject({ revision: 3 });
-    expect(load).toHaveBeenCalledTimes(3);
+    await expect(query.load({ sessionId: "session-a" })).resolves.toMatchObject({ revision: 5 });
+    expect(load).toHaveBeenCalledTimes(5);
     unsubscribe();
   });
 

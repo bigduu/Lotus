@@ -153,10 +153,11 @@ const latchUnreadChange = (change: ChangeEvent): boolean => {
   return useSessionReadStateStore.getState().markUnreadFromFeed(sessionId, change.seq);
 };
 
-const applyChange = (change: ChangeEvent): void => {
+const applyChange = (change: ChangeEvent): boolean => {
   const { event } = change;
   const store = useAppStore.getState();
   const sessionId = change.session_id ?? event.session_id;
+  let workflowCatalogInvalidated = false;
   const parentForChild = (childSessionId: string): string | undefined =>
     store.chats.find((chat) => chat.id === childSessionId)?.parentSessionId ??
     Object.entries(store.executionBySession).find(([, entry]) =>
@@ -318,7 +319,7 @@ const applyChange = (change: ChangeEvent): void => {
     case "workflow_invalid":
     case "workflow_recovered":
       if (event.workflow_id && typeof event.revision === "number") {
-        workflowCatalogQuery.invalidate({
+        workflowCatalogInvalidated = workflowCatalogQuery.invalidate({
           type: event.type,
           workflowId: event.workflow_id,
           revision: event.revision,
@@ -359,12 +360,15 @@ const applyChange = (change: ChangeEvent): void => {
       scheduleRefresh();
       break;
   }
+
+  return workflowCatalogInvalidated;
 };
 
-const applyChangeAndAdvanceCursor = (change: ChangeEvent): void => {
+const applyChangeAndAdvanceCursor = (change: ChangeEvent): boolean => {
   useAppStore.getState().setAgentAvailability(true);
-  applyChange(change);
+  const workflowCatalogInvalidated = applyChange(change);
   advanceCursor(change.seq);
+  return workflowCatalogInvalidated;
 };
 
 const closeFeedForReplay = (epoch: number): void => {
@@ -429,15 +433,22 @@ const hydrateSubagentState = async (client: AgentClient, epoch: number): Promise
       advanceCursor(change.seq);
     }
     let lastReplayedSeq = snapshot.snapshot_seq;
+    let workflowCatalogInvalidated = false;
     for (const change of replay) {
       if (change.seq <= lastReplayedSeq) continue;
       if (!latchUnreadChange(change)) {
         closeFeedForReplay(epoch);
         return;
       }
-      applyChangeAndAdvanceCursor(change);
+      workflowCatalogInvalidated =
+        applyChangeAndAdvanceCursor(change) || workflowCatalogInvalidated;
       lastReplayedSeq = Math.max(lastReplayedSeq, change.seq);
     }
+    // The replacement snapshot contains only sub-agent state. A Workflow
+    // lifecycle event covered by its watermark is therefore not represented
+    // by the snapshot and is intentionally not replayed. Revalidate the
+    // metadata catalog once per hydration unless replay already did so.
+    if (!workflowCatalogInvalidated) workflowCatalogQuery.invalidate();
     // The snapshot supplies progress-only children immediately; refresh the
     // normal session index as well so titles, placement and tree metadata use
     // their existing authoritative mapping path.
@@ -453,16 +464,22 @@ const hydrateSubagentState = async (client: AgentClient, epoch: number): Promise
     bufferedChanges = [];
     bufferingChanges = false;
     let lastReplayedSeq = readCursor();
+    let workflowCatalogInvalidated = false;
     for (const change of replay) {
       if (change.seq <= lastReplayedSeq) continue;
       if (latchUnreadChange(change)) {
-        applyChangeAndAdvanceCursor(change);
+        workflowCatalogInvalidated =
+          applyChangeAndAdvanceCursor(change) || workflowCatalogInvalidated;
         lastReplayedSeq = change.seq;
       } else {
         closeFeedForReplay(epoch);
         return;
       }
     }
+    // Older backends may not expose the sub-agent snapshot endpoint. The
+    // compatibility barrier still marks a new feed/hydration epoch, so clear
+    // any catalog snapshot left behind by the previous connection.
+    if (!workflowCatalogInvalidated) workflowCatalogQuery.invalidate();
     console.warn("Failed to hydrate authoritative sub-agent snapshot", error);
     void useAppStore.getState().refreshSessionsIndex();
   }
