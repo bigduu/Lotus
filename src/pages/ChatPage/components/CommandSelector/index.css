@@ -16,11 +16,22 @@
   padding: 10px 16px;
   cursor: pointer;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-  transition: background-color 0.18s ease-out, box-shadow 0.18s ease-out;
+  transition:
+    background-color 0.18s ease-out,
+    box-shadow 0.18s ease-out;
 }
 
 .command-selector-item:last-child {
   border-bottom: none;
+}
+
+.command-selector-item.disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.command-selector-item.disabled:hover {
+  background-color: transparent;
 }
 
 /* Light mode — teal-tinted hover */

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountStreamHandlers, ChangeEvent, SubagentSnapshotResponse } from "./AgentService";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { isSessionUnread, useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
+import { workflowCatalogQuery } from "../../features/workflows";
 
 // Capture the handlers passed to subscribeToAccountStream so the test can drive
 // the feed without a real EventSource.
@@ -138,6 +139,28 @@ describe("accountFeed runner", () => {
       }),
     );
     expect(storeActions.applyServerPinned).toHaveBeenCalledWith("s1", true, "2026-05-31T00:00:01Z");
+  });
+
+  it("invalidates only the Workflow catalog for lifecycle events", async () => {
+    const invalidate = vi.spyOn(workflowCatalogQuery, "invalidate");
+    await startAndHydrate();
+
+    captured!.onChange(
+      change(8, {
+        type: "workflow_recovered",
+        workflow_id: "library-refresh-test",
+        revision: 801,
+        scope: "user",
+      }),
+    );
+
+    expect(invalidate).toHaveBeenCalledWith({
+      type: "workflow_recovered",
+      workflowId: "library-refresh-test",
+      revision: 801,
+      scope: "user",
+    });
+    expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
   });
 
   it("routes versioned child approval outcomes by payload parent id", async () => {

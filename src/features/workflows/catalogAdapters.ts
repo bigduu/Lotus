@@ -17,6 +17,7 @@ import type {
   WorkflowSource,
   WorkflowStatus,
 } from "./domain";
+import { workflowCatalogItemKey } from "./domain";
 
 export interface WorkflowCatalogLoadOptions {
   sessionId?: string | null;
@@ -67,9 +68,7 @@ const requiredString = (value: unknown, field: string): string => {
 const optionalString = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
-type RawWorkflowKind = "instruction" | WorkflowKind;
-
-const isRawWorkflowKind = (value: unknown): value is RawWorkflowKind =>
+const isWorkflowKind = (value: unknown): value is WorkflowKind =>
   value === "instruction" || value === "orchestration";
 
 const isWorkflowSource = (value: unknown): value is WorkflowSource =>
@@ -92,9 +91,29 @@ const migrationStatusFromTyped = (value: unknown): WorkflowMigrationStatus | und
 const invocationPolicyFromMetadata = (value: unknown): InvocationPolicy => {
   if (!isJsonObject(value)) return "manual";
   const manual = value.explicit === true || value.manual === true;
-  const implicit = value.automatic === true || value.implicit === true;
-  if (manual && implicit) return "both";
-  return implicit ? "implicit" : "manual";
+  const automatic = value.automatic === true || value.implicit === true;
+  if (manual && automatic) return "both";
+  if (automatic) return "automatic";
+  return manual ? "manual" : "unavailable";
+};
+
+const argumentHintFromSchema = (value: unknown): string | undefined => {
+  if (!isJsonObject(value)) return undefined;
+  const explicitHint = optionalString(value["x-argument-hint"] ?? value.argument_hint);
+  if (explicitHint) return explicitHint.slice(0, 160);
+  if (!isJsonObject(value.properties)) return undefined;
+
+  const required = new Set(
+    Array.isArray(value.required)
+      ? value.required.filter((entry): entry is string => typeof entry === "string")
+      : [],
+  );
+  const names = Object.keys(value.properties)
+    .filter((name) => /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(name))
+    .slice(0, 6);
+  if (names.length === 0) return undefined;
+  const hint = names.map((name) => (required.has(name) ? `<${name}>` : `[${name}]`)).join(" ");
+  return Object.keys(value.properties).length > names.length ? `${hint} …` : hint;
 };
 
 const readOnlyForSource = (source: WorkflowSource): boolean =>
@@ -122,8 +141,9 @@ const typedEntryToCatalogItem = (raw: unknown): WorkflowCatalogItem | null => {
   const id = requiredString(raw.id, "id");
   const kind = raw.kind;
   const source = raw.source;
-  const rawStatus = raw.winner === false ? "shadowed" : raw.status;
-  if (!isRawWorkflowKind(kind)) throw new Error("invalid kind");
+  const winner = raw.winner !== false;
+  const rawStatus = winner ? raw.status : "shadowed";
+  if (!isWorkflowKind(kind)) throw new Error("invalid kind");
   if (!isWorkflowSource(source)) throw new Error("invalid source");
   if (!isWorkflowStatus(rawStatus)) throw new Error("invalid status");
   if (typeof raw.revision !== "number" || !Number.isSafeInteger(raw.revision) || raw.revision < 0) {
@@ -139,28 +159,27 @@ const typedEntryToCatalogItem = (raw: unknown): WorkflowCatalogItem | null => {
   const migrationStatus = migrationStatusFromTyped(raw.migration_status ?? raw.migrationStatus);
   const isLegacyWorkflow =
     raw.legacy === true || source === "legacy" || migrationStatus !== undefined;
-
-  // Older Bamboo releases exposed every SKILL.md bundle through this endpoint
-  // as an "instruction" workflow. Keep compatibility for explicitly identified
-  // legacy Workflows, but never relabel an ordinary Skill as a Workflow.
-  if (kind !== "orchestration" && !isLegacyWorkflow) return null;
+  const lastError = optionalString(raw.last_error ?? raw.lastError);
+  const mappedArgumentSchema = isJsonObject(argumentSchema) ? argumentSchema : undefined;
 
   return {
     id,
     name: requiredString(raw.name, "name"),
     description: requiredString(raw.description, "description"),
-    kind: "orchestration",
+    kind,
     source,
     status: rawStatus,
+    winner,
+    ...(rawStatus === "invalid" && lastError ? { lastKnownGood: true } : {}),
     ...(isLegacyWorkflow ? { legacy: true } : {}),
     ...(migrationStatus ? { migrationStatus } : {}),
     invocationPolicy: invocationPolicyFromMetadata(invocationPolicy),
-    argumentHint: optionalString(argumentHint),
-    argumentSchema: isJsonObject(argumentSchema) ? argumentSchema : undefined,
+    argumentHint: optionalString(argumentHint) ?? argumentHintFromSchema(mappedArgumentSchema),
+    argumentSchema: mappedArgumentSchema,
     readOnly: readOnlyForSource(source),
     revision: raw.revision,
     version: optionalString(raw.version),
-    lastError: optionalString(raw.last_error ?? raw.lastError),
+    lastError,
     ...(mappedShadowedCandidates.length > 0
       ? { shadowedCandidates: mappedShadowedCandidates }
       : {}),
@@ -252,7 +271,9 @@ const commandToCatalogItem = (command: CommandItem): WorkflowCatalogItem | null 
 const workflowMetadataToCatalogItem = (workflow: WorkflowMetadata): WorkflowCatalogItem => ({
   id: workflow.name,
   name: workflow.name,
-  description: workflow.filename,
+  // Legacy list responses expose a storage filename. It is useful only for
+  // the detail/edit request and must not enter catalog/search state.
+  description: `Legacy workflow ${workflow.name}`,
   kind: "orchestration",
   source: workflow.source === "workspace" ? "project" : "legacy",
   status: "valid",
@@ -289,22 +310,25 @@ export class LegacyWorkflowCatalogAdapter implements WorkflowCatalogAdapter {
       diagnostics.push({ message: "Legacy workflow catalog is unavailable" });
     }
 
-    const itemsById = new Map<string, WorkflowCatalogItem>();
+    const itemsByIdentity = new Map<string, WorkflowCatalogItem>();
     if (commandsResult.status === "fulfilled") {
       for (const command of commandsResult.value) {
         const item = commandToCatalogItem(command);
-        if (item) itemsById.set(item.id, item);
+        if (item) itemsByIdentity.set(workflowCatalogItemKey(item), item);
       }
     }
     if (workflowsResult.status === "fulfilled") {
       for (const workflow of workflowsResult.value) {
         const item = workflowMetadataToCatalogItem(workflow);
-        if (!itemsById.has(item.id)) itemsById.set(item.id, item);
+        const key = workflowCatalogItemKey(item);
+        if (!itemsByIdentity.has(key)) itemsByIdentity.set(key, item);
       }
     }
 
     return {
-      items: [...itemsById.values()].sort((left, right) => left.name.localeCompare(right.name)),
+      items: [...itemsByIdentity.values()].sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
       diagnostics,
       capabilities: { ...LEGACY_CAPABILITIES },
     };
@@ -324,7 +348,15 @@ export class NegotiatedWorkflowCatalogAdapter implements WorkflowCatalogAdapter 
     try {
       return await this.typed.load(options);
     } catch (error) {
-      if (!isTypedCatalogUnavailable(error)) throw error;
+      // A session-scoped 404 means the requested Session/Project context is
+      // unavailable, not that the typed route is absent. Falling back to a
+      // global legacy list would silently cross that authority boundary.
+      if (
+        !isTypedCatalogUnavailable(error) ||
+        (isApiError(error) && error.status === 404 && Boolean(options.sessionId?.trim()))
+      ) {
+        throw error;
+      }
       return this.legacy.load(options);
     }
   }

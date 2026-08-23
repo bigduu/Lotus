@@ -686,6 +686,8 @@ export const zhCnTranslation = {
         listLabel: "命令列表",
         emptyWithSearch: "没有匹配“{{search}}”的命令",
         empty: "暂无可用命令。",
+        metadataOnly: "激活功能将在后续版本提供",
+        degraded: "部分命令来源暂不可用：{{detail}}",
         navigationHint: "导航：上下键 或 Ctrl+P/N | 选择：Enter | 补全：Space/Tab | 取消：Esc",
         types: {
           workflow: "工作流",
@@ -2225,8 +2227,7 @@ export const zhCnTranslation = {
       },
       workflowsTab: {
         title: "工作流库",
-        description:
-          "浏览 Bamboo 提供的编排工作流和明确标记的旧版工作流。技能请在技能库中单独管理。",
+        description: "通过统一的纯元数据目录浏览 Bamboo 指令型与编排型工作流。",
         loading: "正在加载工作流目录",
         loadFailed: "加载工作流目录失败",
         refresh: "刷新",
@@ -2236,12 +2237,19 @@ export const zhCnTranslation = {
         searchLabel: "搜索工作流目录",
         sourceFilter: "按工作流来源筛选",
         statusFilter: "按工作流状态筛选",
+        kindFilter: "按工作流类型筛选",
+        allKinds: "全部类型",
         allSources: "全部来源",
         allStatuses: "全部状态",
         catalogMode: "目录来源：{{mode}}",
         partialInvalid_one: "有 {{count}} 条目录记录无法显示",
         partialInvalid_other: "有 {{count}} 条目录记录无法显示",
         shadowedCandidates: "被覆盖的候选项",
+        shadowedCount_one: "{{count}} 个被覆盖候选项",
+        shadowedCount_other: "{{count}} 个被覆盖候选项",
+        winner: "当前生效",
+        lastKnownGood: "最后可用元数据",
+        degradedUsingCached: "目录刷新失败，正在显示最后一份可用元数据",
         readOnly: "只读",
         legacy: "旧版",
         migrate: "迁移",
@@ -2274,6 +2282,7 @@ export const zhCnTranslation = {
         runWorkflow: "运行 {{name}}",
         deleteWorkflow: "删除 {{name}}",
         kind: {
+          instruction: "指令型",
           orchestration: "编排型",
         },
         source: {
@@ -2296,8 +2305,9 @@ export const zhCnTranslation = {
         },
         invocation: {
           manual: "手动",
-          implicit: "自动",
+          automatic: "自动",
           both: "手动 + 自动",
+          unavailable: "不可调用",
         },
         mode: {
           typed: "类型化目录",

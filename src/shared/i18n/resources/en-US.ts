@@ -722,6 +722,8 @@ export const enUsTranslation = {
         listLabel: "Commands",
         emptyWithSearch: 'No commands found matching "{{search}}"',
         empty: "No commands available.",
+        metadataOnly: "Activation available in a later update",
+        degraded: "Some command sources are unavailable: {{detail}}",
         navigationHint:
           "Navigation: Up/Down or Ctrl+P/N | Select: Enter | Complete: Space/Tab | Cancel: Esc",
         types: {
@@ -2321,7 +2323,7 @@ export const enUsTranslation = {
       workflowsTab: {
         title: "Workflow Library",
         description:
-          "Browse orchestration and explicitly identified legacy workflows from Bamboo. Skills are managed separately in the Skills library.",
+          "Browse Bamboo instruction and orchestration Workflows from one metadata-only catalog.",
         loading: "Loading workflow catalog",
         loadFailed: "Failed to load the workflow catalog",
         refresh: "Refresh",
@@ -2331,12 +2333,19 @@ export const enUsTranslation = {
         searchLabel: "Search workflow catalog",
         sourceFilter: "Filter by workflow source",
         statusFilter: "Filter by workflow status",
+        kindFilter: "Filter by workflow kind",
+        allKinds: "All kinds",
         allSources: "All sources",
         allStatuses: "All statuses",
         catalogMode: "Catalog source: {{mode}}",
         partialInvalid_one: "{{count}} catalog entry could not be displayed",
         partialInvalid_other: "{{count}} catalog entries could not be displayed",
         shadowedCandidates: "Shadowed candidates",
+        shadowedCount_one: "{{count}} shadowed candidate",
+        shadowedCount_other: "{{count}} shadowed candidates",
+        winner: "Winner",
+        lastKnownGood: "Last-known-good metadata",
+        degradedUsingCached: "Catalog refresh failed; showing the last usable metadata",
         readOnly: "Read-only",
         legacy: "Legacy",
         migrate: "Migrate",
@@ -2369,6 +2378,7 @@ export const enUsTranslation = {
         runWorkflow: "Run {{name}}",
         deleteWorkflow: "Delete {{name}}",
         kind: {
+          instruction: "Instruction",
           orchestration: "Orchestration",
         },
         source: {
@@ -2391,8 +2401,9 @@ export const enUsTranslation = {
         },
         invocation: {
           manual: "Manual",
-          implicit: "Automatic",
+          automatic: "Automatic",
           both: "Manual + automatic",
+          unavailable: "Unavailable",
         },
         mode: {
           typed: "Typed catalog",

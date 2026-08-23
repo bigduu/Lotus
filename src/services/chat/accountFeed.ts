@@ -19,6 +19,7 @@ import { useAppStore, selectShouldObserve } from "@shared/store/appStore";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
 import { isApiV2WsEnabled } from "@shared/utils/debugFlags";
+import { workflowCatalogQuery } from "../../features/workflows";
 import {
   acceptChildApprovalVersion,
   childApprovalVersionKey,
@@ -311,6 +312,18 @@ const applyChange = (change: ChangeEvent): void => {
         useConfigSectionStore
           .getState()
           .handleConfigEvent(event.section, event.revision, event.type);
+      }
+      break;
+    case "workflow_changed":
+    case "workflow_invalid":
+    case "workflow_recovered":
+      if (event.workflow_id && typeof event.revision === "number") {
+        workflowCatalogQuery.invalidate({
+          type: event.type,
+          workflowId: event.workflow_id,
+          revision: event.revision,
+          scope: event.scope,
+        });
       }
       break;
     case "project_created":

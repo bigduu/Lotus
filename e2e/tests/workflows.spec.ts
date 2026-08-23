@@ -7,7 +7,7 @@ const workflowCatalogFixture = {
     {
       id: "e2e-ordinary-skill",
       name: "E2E Ordinary Skill",
-      description: "An instruction Skill that must not appear in the Workflow Library.",
+      description: "An instruction Skill published in the unified Workflow Library.",
       kind: "instruction",
       source: "user",
       revision: 1,
@@ -55,33 +55,53 @@ test.describe("Workflow Library", () => {
     await expect(page.getByText("Catalog source: Typed")).toBeVisible({ timeout: 15000 });
   });
 
-  test("renders only real and explicitly legacy Workflows from the typed catalog", async ({
+  test("renders instruction and orchestration metadata from the unified catalog", async ({
     page,
   }) => {
     await expect(page.getByText("Workflow Library", { exact: true })).toBeVisible();
-    await expect(page.getByRole("article")).toHaveCount(2);
+    await expect(page.getByRole("article")).toHaveCount(3);
+    await expect(page.getByText("E2E Ordinary Skill", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E Release Workflow", { exact: true })).toBeVisible();
     await expect(page.getByText("E2E Legacy Workflow", { exact: true })).toBeVisible();
-    await expect(page.getByText("E2E Ordinary Skill", { exact: true })).toHaveCount(0);
+    const instruction = page.getByRole("article").filter({ hasText: "E2E Ordinary Skill" });
     const realWorkflow = page.getByRole("article").filter({ hasText: "E2E Release Workflow" });
     const legacyWorkflow = page.getByRole("article").filter({ hasText: "E2E Legacy Workflow" });
+    await expect(instruction.getByText("Instruction", { exact: true })).toBeVisible();
     await expect(realWorkflow.getByText("Orchestration", { exact: true })).toBeVisible();
     await expect(realWorkflow.getByText("Legacy", { exact: true })).toHaveCount(0);
     await expect(legacyWorkflow.getByText("Legacy", { exact: true })).toBeVisible();
-    await expect(legacyWorkflow.getByText("Orchestration", { exact: true })).toHaveCount(0);
+    await expect(legacyWorkflow.getByText("Instruction", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Search workflow catalog")).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Filter by workflow kind" })).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Filter by workflow kind" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Filter by workflow source" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Filter by workflow status" })).toBeVisible();
   });
 
-  test("filters the real Workflow catalog by search, source, and status", async ({ page }) => {
+  test("filters the unified Workflow catalog by search, kind, source, and status", async ({
+    page,
+  }) => {
     const search = page.getByLabel("Search workflow catalog");
     await search.fill("workflow-that-cannot-exist-125");
     await expect(page.getByText("No workflows match the current filters")).toBeVisible();
 
     await search.clear();
-    await expect(page.getByRole("article")).toHaveCount(2);
+    await expect(page.getByRole("article")).toHaveCount(3);
+
+    const kindFilter = page.getByRole("combobox", { name: "Filter by workflow kind" });
+    await kindFilter.locator("xpath=../..").click();
+    await page
+      .locator(".ant-select-dropdown:visible .ant-select-item-option")
+      .filter({ hasText: /^Instruction$/ })
+      .click();
+    await expect(page.getByText("E2E Ordinary Skill", { exact: true })).toBeVisible();
+    await expect(page.getByText("E2E Legacy Workflow", { exact: true })).toBeVisible();
+    await expect(page.getByText("E2E Release Workflow", { exact: true })).toHaveCount(0);
+
+    await kindFilter.locator("xpath=../..").click();
+    await page
+      .locator(".ant-select-dropdown:visible .ant-select-item-option")
+      .filter({ hasText: /^All kinds$/ })
+      .click();
 
     const sourceFilter = page.getByRole("combobox", { name: "Filter by workflow source" });
     await sourceFilter.locator("xpath=../..").click();

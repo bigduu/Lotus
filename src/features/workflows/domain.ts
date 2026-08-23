@@ -1,10 +1,10 @@
-export type WorkflowKind = "orchestration";
+export type WorkflowKind = "instruction" | "orchestration";
 
 export type WorkflowSource = "builtin" | "project" | "workspace" | "user" | "plugin" | "legacy";
 
 export type WorkflowStatus = "valid" | "invalid" | "degraded" | "shadowed";
 
-export type InvocationPolicy = "manual" | "implicit" | "both";
+export type InvocationPolicy = "manual" | "automatic" | "both" | "unavailable";
 
 export type WorkflowMigrationStatus = "available" | "migrated";
 
@@ -23,6 +23,10 @@ export interface WorkflowCatalogItem {
   kind: WorkflowKind;
   source: WorkflowSource;
   status: WorkflowStatus;
+  /** False only for a non-winning catalog row retained for diagnostics. */
+  winner?: boolean;
+  /** Invalid metadata rendered from Bamboo's sanitized last-known-good projection. */
+  lastKnownGood?: boolean;
   legacy?: boolean;
   migrationStatus?: WorkflowMigrationStatus;
   invocationPolicy: InvocationPolicy;
@@ -34,6 +38,23 @@ export interface WorkflowCatalogItem {
   lastError?: string;
   shadowedCandidates?: WorkflowShadowedCandidate[];
 }
+
+/**
+ * Catalog ids are only unique inside a kind/source/revision namespace. Bamboo
+ * can deliberately expose a migrated instruction and its preserved legacy
+ * orchestration source with the same id, so UI/list identity must never use the
+ * bare id alone.
+ */
+export const workflowCatalogItemKey = (item: WorkflowCatalogItem): string =>
+  JSON.stringify([
+    item.kind,
+    item.source,
+    item.id,
+    item.revision ?? null,
+    item.version ?? null,
+    item.legacy === true,
+    item.migrationStatus ?? null,
+  ]);
 
 export type WorkflowCatalogMode = "typed" | "legacy";
 

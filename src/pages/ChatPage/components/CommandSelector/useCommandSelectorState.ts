@@ -1,7 +1,14 @@
 import { debugLog } from "@shared/utils/debugFlags";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CommandService } from "../../services/CommandService";
 import type { CommandItem } from "@shared/types/command";
+import {
+  isCommandSelectable,
+  mergeCommandsWithWorkflowCatalog,
+  workflowCatalogQuery,
+  type WorkflowCatalogQuerySource,
+  type WorkflowCatalogView,
+} from "../../../../features/workflows";
 
 interface UseCommandSelectorStateProps {
   visible: boolean;
@@ -10,6 +17,7 @@ interface UseCommandSelectorStateProps {
   onSelect: (command: { name: string; type: string; id: string }) => void;
   onCancel: () => void;
   onAutoComplete?: (commandName: string) => void;
+  catalogQuery?: WorkflowCatalogQuerySource;
 }
 
 const commandSearchScore = (command: CommandItem, search: string): number | null => {
@@ -18,6 +26,25 @@ const commandSearchScore = (command: CommandItem, search: string): number | null
   const name = command.name.toLowerCase();
   const displayName = (command.displayName ?? "").toLowerCase();
   const description = command.description.toLowerCase();
+  const workflowMetadata = command.metadata.workflowCatalog
+    ? [
+        command.metadata.workflowKind,
+        command.metadata.workflowSource,
+        command.metadata.workflowStatus,
+        command.metadata.workflowInvocationPolicy,
+        command.metadata.workflowArgumentHint,
+        command.metadata.workflowVersion,
+        command.metadata.workflowLastError,
+        ...(command.metadata.workflowShadowedCandidates ?? []).flatMap((candidate) => [
+          candidate.source,
+          candidate.status,
+          candidate.lastError,
+        ]),
+      ]
+        .filter((value): value is string => typeof value === "string")
+        .join(" ")
+        .toLowerCase()
+    : "";
 
   if (name === search) return 0;
   if (name.startsWith(search)) return 1;
@@ -26,6 +53,7 @@ const commandSearchScore = (command: CommandItem, search: string): number | null
   if (name.includes(search)) return 4;
   if (displayName.includes(search)) return 5;
   if (description.includes(search)) return 6;
+  if (workflowMetadata.includes(search)) return 7;
 
   if (
     command.type === "mcp" &&
@@ -33,10 +61,10 @@ const commandSearchScore = (command: CommandItem, search: string): number | null
       .filter((value): value is string => typeof value === "string")
       .some((value) => value.toLowerCase().includes(search))
   ) {
-    return 7;
+    return 8;
   }
-  if (command.category?.toLowerCase().includes(search)) return 8;
-  if (command.tags?.some((tag) => tag.toLowerCase().includes(search))) return 9;
+  if (command.category?.toLowerCase().includes(search)) return 9;
+  if (command.tags?.some((tag) => tag.toLowerCase().includes(search))) return 10;
   return null;
 };
 
@@ -62,11 +90,15 @@ export const useCommandSelectorState = ({
   onSelect,
   onCancel,
   onAutoComplete,
+  catalogQuery = workflowCatalogQuery,
 }: UseCommandSelectorStateProps) => {
   const [commands, setCommands] = useState<CommandItem[]>([]);
-  const [filteredCommands, setFilteredCommands] = useState<CommandItem[]>([]);
+  const [catalog, setCatalog] = useState<WorkflowCatalogView | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isCommandsLoading, setIsCommandsLoading] = useState(false);
+  const [isCatalogLoading, setIsCatalogLoading] = useState(false);
+  const [commandError, setCommandError] = useState<string | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const selectedItemRef = useRef<HTMLDivElement>(null);
 
@@ -74,9 +106,14 @@ export const useCommandSelectorState = ({
     if (!visible) return;
 
     const commandService = CommandService.getInstance();
+    const controller = new AbortController();
     let cancelled = false;
+    let catalogGeneration = 0;
+    setCommands([]);
+    setCatalog(null);
     const fetchCommands = async () => {
-      setIsLoading(true);
+      setIsCommandsLoading(true);
+      setCommandError(null);
       try {
         const fetchedCommands = await commandService.listCommands(sessionId);
         if (cancelled) return;
@@ -87,21 +124,55 @@ export const useCommandSelectorState = ({
         if (cancelled) return;
         console.error("[CommandSelector] Failed to fetch commands:", error);
         setCommands([]);
+        setCommandError(error instanceof Error ? error.message : "Command catalog unavailable");
       } finally {
-        if (!cancelled) setIsLoading(false);
+        if (!cancelled) setIsCommandsLoading(false);
       }
     };
 
-    fetchCommands();
+    const fetchCatalog = async (forceRefresh = false) => {
+      const generation = ++catalogGeneration;
+      setIsCatalogLoading(true);
+      setCatalogError(null);
+      try {
+        const nextCatalog = await catalogQuery.load({
+          sessionId,
+          signal: controller.signal,
+          forceRefresh,
+        });
+        if (cancelled || generation !== catalogGeneration) return;
+        setCatalog(nextCatalog);
+      } catch (error) {
+        if (cancelled || controller.signal.aborted || generation !== catalogGeneration) return;
+        console.error("[CommandSelector] Failed to fetch Workflow catalog:", error);
+        setCatalogError(error instanceof Error ? error.message : "Workflow catalog unavailable");
+      } finally {
+        if (!cancelled && generation === catalogGeneration) setIsCatalogLoading(false);
+      }
+    };
+
+    void fetchCommands();
+    void fetchCatalog();
+    const unsubscribe = catalogQuery.subscribe(() => {
+      if (!cancelled) void fetchCatalog();
+    });
     return () => {
       cancelled = true;
+      controller.abort();
+      unsubscribe();
     };
-  }, [visible, sessionId]);
+  }, [catalogQuery, visible, sessionId]);
 
-  useEffect(() => {
-    setFilteredCommands(filterAndRankCommands(commands, searchText));
-    setSelectedIndex(0);
-  }, [commands, searchText]);
+  const mergedCommands = useMemo(
+    () => mergeCommandsWithWorkflowCatalog(commands, catalog),
+    [catalog, commands],
+  );
+  const filteredCommands = useMemo(
+    () => filterAndRankCommands(mergedCommands, searchText),
+    [mergedCommands, searchText],
+  );
+
+  useEffect(() => setSelectedIndex(0), [filteredCommands]);
 
   useEffect(() => {
     if (!selectedItemRef.current || !containerRef.current) return;
@@ -120,6 +191,7 @@ export const useCommandSelectorState = ({
 
   const handleCommandSelect = useCallback(
     async (command: CommandItem) => {
+      if (!isCommandSelectable(command)) return;
       try {
         onSelect({
           name: command.name,
@@ -156,7 +228,7 @@ export const useCommandSelectorState = ({
           event.preventDefault();
           event.stopPropagation();
           if (filteredCommands[selectedIndex]) {
-            handleCommandSelect(filteredCommands[selectedIndex]);
+            void handleCommandSelect(filteredCommands[selectedIndex]);
           }
           break;
         case " ":
@@ -164,7 +236,9 @@ export const useCommandSelectorState = ({
           event.preventDefault();
           event.stopPropagation();
           if (filteredCommands[selectedIndex] && onAutoComplete) {
-            onAutoComplete(filteredCommands[selectedIndex].name);
+            if (isCommandSelectable(filteredCommands[selectedIndex])) {
+              onAutoComplete(filteredCommands[selectedIndex].name);
+            }
           }
           break;
         case "Escape":
@@ -185,7 +259,11 @@ export const useCommandSelectorState = ({
     filteredCommands,
     selectedIndex,
     setSelectedIndex,
-    isLoading,
+    isLoading:
+      (isCommandsLoading && commands.length === 0) ||
+      (isCatalogLoading && catalog === null && commands.length === 0),
+    loadError: [commandError, catalogError].filter(Boolean).join(" ") || null,
+    catalogDiagnostics: catalog?.diagnostics ?? [],
     handleCommandSelect,
   };
 };
