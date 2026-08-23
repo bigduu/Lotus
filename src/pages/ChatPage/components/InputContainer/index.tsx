@@ -74,6 +74,7 @@ import type {
 import PermissionModeControl, { type PermissionModeMutationStatus } from "./PermissionModeControl";
 import type { SessionPermissionMode } from "@shared/permissions/sessionPermissionMode";
 import WorkflowSelectionChip from "./WorkflowSelectionChip";
+import { useTypedWorkflowSubmissionPending } from "./typedWorkflowSubmissionTracker";
 
 export type { WorkflowDraft } from "./types";
 
@@ -119,6 +120,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const switchSessionWorkspace = useAppStore((state) => state.switchSessionWorkspace);
   const isStreaming = useAppStore(selectIsStreaming(sessionId));
   const isInputLocked = useAppStore(selectIsInputLocked(sessionId));
+  const isTypedWorkflowSubmissionPending = useTypedWorkflowSubmissionPending(sessionId);
+  const isComposerLocked = isInputLocked || isTypedWorkflowSubmissionPending;
   const canCancelFromExecution = useAppStore(selectCanCancel(sessionId));
   const canCancel = canCancelFromExecution || (currentChat?.isRunning === true && isInputLocked);
   const pendingQuestion = useAppStore(selectPendingQuestion(sessionId));
@@ -376,6 +379,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       if (!shouldHandleSessionEvent(targetSessionId)) {
         return;
       }
+      if (isTypedWorkflowSubmissionPending) {
+        return;
+      }
 
       const nextReferenceText = customEvent.detail.text.trim();
       if (!nextReferenceText) {
@@ -414,7 +420,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       window.removeEventListener(CHAT_REFERENCE_TEXT_EVENT, handleReferenceText as EventListener);
       window.removeEventListener(CHAT_FOCUS_INPUT_EVENT, handleFocusInput as EventListener);
     };
-  }, [activeSessionId, sessionId, setReferenceTextPersisted]);
+  }, [activeSessionId, isTypedWorkflowSubmissionPending, sessionId, setReferenceTextPersisted]);
 
   // Use the global Ant App context message API to avoid mounting a per-pane
   // rc-notification container (which can cause update-depth loops in some layouts).
@@ -433,6 +439,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     handleAttachmentRemove,
     handleClearAttachments,
   } = useInputContainerAttachments();
+  const clearSubmittedAttachments = useCallback(
+    (attachmentIds: readonly string[]) => {
+      const submittedIds = new Set(attachmentIds);
+      setAttachments((current) => current.filter((attachment) => !submittedIds.has(attachment.id)));
+    },
+    [setAttachments],
+  );
 
   const commandState = useInputContainerCommand({
     setContent,
@@ -462,6 +475,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   }, [commandState.showCommandSelector, setShowFileSelector]);
 
   const { handleSubmit } = useInputContainerSubmit({
+    sessionId,
     attachments,
     referenceText,
     selectedWorkflow: commandState.selectedCommand,
@@ -475,7 +489,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     clearWorkflowDraft: commandState.clearCommandDraft,
     setContent,
     setReferenceText: setReferenceTextPersisted,
-    setAttachments,
+    clearAttachments: clearSubmittedAttachments,
     setFileReferences: fileReferenceState.setFileReferences,
     onWorkflowSelectionError: commandState.setWorkflowActivationError,
   });
@@ -875,7 +889,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <Dropdown
         trigger={["click"]}
         placement="topLeft"
-        disabled={!activeModel || isInputLocked}
+        disabled={!activeModel || isComposerLocked}
         menu={{
           selectable: true,
           selectedKeys: [reasoningEffort],
@@ -891,7 +905,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         <Button
           type="text"
           size="small"
-          disabled={!activeModel || isStreaming}
+          disabled={!activeModel || isComposerLocked}
           style={{
             minWidth: isMobile ? 74 : 88,
             padding: isMobile ? "0 8px" : "0 12px",
@@ -912,9 +926,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     [
       activeModel,
       currentReasoningLabel,
-      isInputLocked,
+      isComposerLocked,
       isMobile,
-      isStreaming,
       reasoningEffort,
       reasoningEffortLabelMap,
       setReasoningEffortPersisted,
@@ -949,7 +962,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       <Button
         type="text"
         size="small"
-        disabled={isStreaming || isSavingModel}
+        disabled={isComposerLocked || isSavingModel}
         onClick={() => {
           if (!isProviderConfigured) {
             redirectToProviderSettingsIfNeeded();
@@ -981,7 +994,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       </Button>
     ),
     [
-      isStreaming,
+      isComposerLocked,
       isSavingModel,
       isProviderConfigured,
       redirectToProviderSettingsIfNeeded,
@@ -1000,7 +1013,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         <ProviderModelPicker
           value={activeModelRef}
           onChange={handleModelRefChange}
-          disabled={isStreaming || isSavingModel}
+          disabled={isComposerLocked || isSavingModel}
         />
       );
     }
@@ -1023,7 +1036,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
             },
           }}
           onOpenChange={handleModelDropdownVisibleChange}
-          disabled={isInputLocked || isSavingModel}
+          disabled={isComposerLocked || isSavingModel}
         >
           {modelButton}
         </Dropdown>
@@ -1034,14 +1047,13 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     isFlagOn,
     activeModelRef,
     handleModelRefChange,
-    isStreaming,
+    isComposerLocked,
     isSavingModel,
     isProviderConfigured,
     activeModel,
     modelMenuItems,
     handleModelSelect,
     handleModelDropdownVisibleChange,
-    isInputLocked,
     modelButton,
   ]);
 
@@ -1055,13 +1067,14 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         }
         sessionTitle={currentChat?.title ?? ""}
         compact={isMobile}
-        disabled={!sessionId}
+        disabled={!sessionId || isComposerLocked}
         onChange={setPermissionModePersisted}
       />
     ),
     [
       currentChat?.title,
       isSessionPermissionModeMutationPending,
+      isComposerLocked,
       isMobile,
       permissionMode,
       permissionModeMutationStatus,
@@ -1108,7 +1121,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const interaction = useMemo(
     () => ({
       isStreaming,
-      isInputLocked,
+      isInputLocked: isComposerLocked,
       canCancel,
       hasMessages: hasUserMessages,
       allowRetry: true as const,
@@ -1118,7 +1131,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     }),
     [
       isStreaming,
-      isInputLocked,
+      isComposerLocked,
       canCancel,
       hasUserMessages,
       retryLastMessage,
@@ -1204,19 +1217,27 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       {commandState.selectedCommand?.workflowSelection ? (
         <WorkflowSelectionChip
           draft={commandState.selectedCommand}
-          disabled={isInputLocked}
+          disabled={isComposerLocked}
+          pending={isTypedWorkflowSubmissionPending}
           onArgumentsChange={commandState.updateWorkflowArguments}
           onRefresh={commandState.refreshWorkflowSelection}
           onReselect={commandState.reselectWorkflow}
         />
       ) : null}
-      {referenceText && <InputPreview text={referenceText} onClose={handleCloseReferencePreview} />}
+      {referenceText && (
+        <InputPreview
+          text={referenceText}
+          onClose={handleCloseReferencePreview}
+          disabled={isTypedWorkflowSubmissionPending}
+        />
+      )}
       {attachments.length > 0 && (
         <Suspense fallback={<Spin size="small" />}>
           <FilePreview
             files={attachments}
             onRemove={handleAttachmentRemove}
             onClear={handleClearAttachments}
+            disabled={isTypedWorkflowSubmissionPending}
           />
         </Suspense>
       )}
@@ -1230,7 +1251,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
                 onClick={() => {
                   submitRespondOption(option);
                 }}
-                disabled={isInputLocked}
+                disabled={isComposerLocked}
               >
                 {permissionDecisionLabel(option)}
               </Button>
@@ -1245,9 +1266,22 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         placeholder={placeholder}
         allowImages={true}
         disabled={
-          !activeModel || (isRespondMode && !respondAllowCustom && respondOptions.length > 0)
+          !activeModel ||
+          isTypedWorkflowSubmissionPending ||
+          (isRespondMode && !respondAllowCustom && respondOptions.length > 0)
         }
-        statusIndicator={statusIndicator}
+        statusIndicator={
+          isTypedWorkflowSubmissionPending ? (
+            <Space size={token.marginXXS}>
+              {statusIndicator}
+              <Tag color="processing" icon={<LoadingOutlined spin />}>
+                {t("chat.workflowSelection.submitting")}
+              </Tag>
+            </Space>
+          ) : (
+            statusIndicator
+          )
+        }
         submitButtonLabel={submitButtonLabel}
         isCommandSelectorVisible={commandState.showCommandSelector}
         textAreaRef={textAreaRef}
@@ -1262,7 +1296,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
       <Suspense fallback={null}>
         <CommandSelector
-          visible={commandState.showCommandSelector}
+          visible={commandState.showCommandSelector && !isTypedWorkflowSubmissionPending}
           sessionId={sessionId}
           onSelect={commandState.handleCommandSelect}
           onCancel={commandState.handleCommandSelectorCancel}
@@ -1271,7 +1305,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         />
       </Suspense>
 
-      {fileReferenceState.showFileSelector && (
+      {fileReferenceState.showFileSelector && !isTypedWorkflowSubmissionPending && (
         <Suspense fallback={<Spin size="small" />}>
           <FileReferenceSelector
             visible={fileReferenceState.showFileSelector}

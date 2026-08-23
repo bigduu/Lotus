@@ -11,6 +11,7 @@ interface MessageInputImageStripProps {
   images: ImageFile[];
   token: GlobalToken;
   allowImages: boolean;
+  disabled?: boolean;
   onPreview: (image: ImageFile) => void;
   onClear: () => void;
 }
@@ -19,6 +20,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
   images,
   token,
   allowImages,
+  disabled = false,
   onPreview,
   onClear,
 }) => {
@@ -85,6 +87,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
           size="small"
           icon={<CloseOutlined />}
           onClick={onClear}
+          disabled={disabled}
           style={{
             marginLeft: "auto",
             minWidth: "auto",
@@ -92,6 +95,7 @@ const MessageInputImageStrip: React.FC<MessageInputImageStripProps> = ({
             height: 24,
           }}
           title={t("chat.input.clearAllImages")}
+          aria-label={t("chat.input.clearAllImages")}
         />
       </Flex>
     </div>

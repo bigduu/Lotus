@@ -12,6 +12,10 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
     let chatAttempt = 0;
     let activeWorkflow = false;
     const chatRequests: Array<Record<string, unknown>> = [];
+    let releaseFirstChatResponse: (() => void) | undefined;
+    const firstChatResponseGate = new Promise<void>((resolve) => {
+      releaseFirstChatResponse = resolve;
+    });
 
     await page.addInitScript(() => {
       localStorage.setItem("bodhi_onboarding_complete", "true");
@@ -163,6 +167,7 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
         chatAttempt += 1;
         chatRequests.push(request.postDataJSON() as Record<string, unknown>);
         if (chatAttempt === 1) {
+          await firstChatResponseGate;
           await route.fulfill({
             status: 409,
             contentType: "application/json",
@@ -394,11 +399,23 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
     await input.press("Enter");
 
     await expect.poll(() => chatAttempt).toBe(1);
+    await expect(chip).toHaveAttribute("aria-busy", "true");
+    await expect(chip.getByText("Validating Workflow...")).toBeVisible();
+    await expect(input).toBeDisabled();
+    await expect(argumentsEditor).toBeDisabled();
+    await expect(chip.getByRole("button", { name: "Reselect" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Add attachments" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Clear all images" })).toBeDisabled();
+    releaseFirstChatResponse?.();
+
     await expect(chip).toContainText("Workflow selection needs attention");
     await expect(chip).toContainText("The selected Workflow changed");
     await expect(input).toHaveValue("/review inspect src");
     await expect(argumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
     await expect(draftImage).toBeVisible();
+    await expect(input).toBeEnabled();
+    await expect(argumentsEditor).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Add attachments" })).toBeEnabled();
     expect(chatRequests[0]).toMatchObject({
       message: "inspect src",
       workflow_selection: {

@@ -57,6 +57,7 @@ import { processFiles, separateImageFiles } from "../../../utils/fileUtils";
 
 const createHook = (options?: {
   allowImages?: boolean;
+  disabled?: boolean;
   onAttachmentsAdded?: (files: any[]) => void;
   messageApi?: { success: (content: string) => void; error: (content: string) => void };
 }) => {
@@ -71,6 +72,7 @@ const createHook = (options?: {
   const hook = renderHook(() =>
     useMessageInputAttachments({
       allowImages,
+      disabled: options?.disabled,
       onAttachmentsAdded,
       messageApi,
     }),
@@ -113,6 +115,30 @@ describe("useMessageInputAttachments", () => {
     expect(separateImageFiles).not.toHaveBeenCalled();
     expect(mockHandleImageFiles).not.toHaveBeenCalled();
     expect(processFiles).not.toHaveBeenCalled();
+  });
+
+  it("freezes every attachment ingestion path while the composer is disabled", async () => {
+    const file = new File(["image"], "pending.png", { type: "image/png" });
+    const onAttachmentsAdded = vi.fn();
+    const { result } = createHook({ disabled: true, onAttachmentsAdded });
+
+    expect(capturedPasteConfig.allowImages).toBe(false);
+    expect(capturedPasteConfig.onImages).toBeUndefined();
+    expect(capturedPasteConfig.onAttachments).toBeUndefined();
+    await act(async () => {
+      await capturedDragAndDropConfig.onFiles([file]);
+    });
+    expect(separateImageFiles).not.toHaveBeenCalled();
+
+    const inputTarget = {
+      files: { 0: file, length: 1, item: () => file } as unknown as FileList,
+      value: "pending",
+    };
+    act(() => {
+      result.current.handleFileInputChange({ target: inputTarget } as any);
+    });
+    expect(mockHandleImageFiles).not.toHaveBeenCalled();
+    expect(inputTarget.value).toBe("");
   });
 
   it("processes dropped image files and non-image attachments", async () => {

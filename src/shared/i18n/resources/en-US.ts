@@ -740,6 +740,7 @@ export const enUsTranslation = {
         selectionRejected: "Workflow selection needs attention",
         refreshCatalog: "Refresh catalog",
         reselect: "Reselect",
+        submitting: "Validating Workflow...",
         active: "Active Workflow",
         invocationExplicit: "Explicit",
         invocationAutomatic: "Automatic",

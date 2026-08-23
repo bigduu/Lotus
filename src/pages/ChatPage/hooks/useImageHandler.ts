@@ -1,11 +1,21 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, type Dispatch, type SetStateAction } from "react";
 import { App as AntApp } from "antd";
 import { ImageFile, processImageFiles, cleanupImagePreviews } from "../utils/imageUtils";
 
 export const useImageHandler = (allowImages: boolean) => {
   // Use context-aware antd message API to avoid dynamic theme warnings
   const { message: appMessage } = AntApp.useApp();
-  const [images, setImages] = useState<ImageFile[]>([]);
+  const [images, setImagesState] = useState<ImageFile[]>([]);
+  const imagesRef = useRef<ImageFile[]>([]);
+  imagesRef.current = images;
+  const setImages = useCallback<Dispatch<SetStateAction<ImageFile[]>>>((nextImages) => {
+    setImagesState((previousImages) => {
+      const resolvedImages =
+        typeof nextImages === "function" ? nextImages(previousImages) : nextImages;
+      imagesRef.current = resolvedImages;
+      return resolvedImages;
+    });
+  }, []);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
 
@@ -23,7 +33,7 @@ export const useImageHandler = (allowImages: boolean) => {
         appMessage.error(`Failed to process images: ${error}`);
       }
     },
-    [allowImages, appMessage],
+    [allowImages, appMessage, setImages],
   );
 
   const handleRemoveImage = useCallback(
@@ -34,7 +44,7 @@ export const useImageHandler = (allowImages: boolean) => {
       }
       setImages((prevImages) => prevImages.filter((img) => img.id !== imageId));
     },
-    [images],
+    [images, setImages],
   );
 
   const handleImagePreview = useCallback(
@@ -46,10 +56,20 @@ export const useImageHandler = (allowImages: boolean) => {
     [images],
   );
 
-  const clearImages = useCallback(() => {
-    cleanupImagePreviews(images);
-    setImages([]);
-  }, [images]);
+  const clearImages = useCallback((imageIds?: readonly string[]) => {
+    const currentImages = imagesRef.current;
+    const submittedIds = imageIds ? new Set(imageIds) : null;
+    const imagesToClear = submittedIds
+      ? currentImages.filter((image) => submittedIds.has(image.id))
+      : currentImages;
+    const imagesToKeep = submittedIds
+      ? currentImages.filter((image) => !submittedIds.has(image.id))
+      : [];
+
+    cleanupImagePreviews(imagesToClear);
+    imagesRef.current = imagesToKeep;
+    setImagesState(imagesToKeep);
+  }, []);
 
   return {
     images,

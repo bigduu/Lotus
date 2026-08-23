@@ -146,6 +146,7 @@ describe("useMessageInputHandlers", () => {
       });
 
       expect(clearImages).toHaveBeenCalledTimes(1);
+      expect(clearImages).toHaveBeenCalledWith(["1"]);
     });
 
     it("should submit with only images (no text)", () => {

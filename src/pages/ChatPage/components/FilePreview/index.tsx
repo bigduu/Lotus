@@ -11,9 +11,15 @@ interface FilePreviewProps {
   files: ProcessedFile[];
   onRemove: (fileId: string) => void;
   onClear?: () => void;
+  disabled?: boolean;
 }
 
-const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) => {
+const FilePreview: React.FC<FilePreviewProps> = ({
+  files,
+  onRemove,
+  onClear,
+  disabled = false,
+}) => {
   const { token } = useToken();
   const { t } = useTranslation();
 
@@ -47,7 +53,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) =
               title={`${file.type || "unknown"} • ${(file.size / 1024).toFixed(1)} KB`}
             >
               <Tag
-                closable
+                closable={!disabled}
                 onClose={(event) => {
                   event.preventDefault();
                   onRemove(file.id);
@@ -73,6 +79,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ files, onRemove, onClear }) =
             size="small"
             icon={<CloseOutlined />}
             onClick={onClear}
+            disabled={disabled}
             style={{
               borderRadius: 999,
             }}

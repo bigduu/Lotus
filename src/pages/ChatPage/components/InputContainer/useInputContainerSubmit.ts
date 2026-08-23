@@ -7,8 +7,13 @@ import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import { useAppStore } from "@shared/store/appStore";
 import { recordUsedModel } from "../../utils/usedModels";
 import { WorkflowSelectionError, type WorkflowSelection } from "../../../../features/workflows";
+import {
+  finishTypedWorkflowSubmission,
+  tryBeginTypedWorkflowSubmission,
+} from "./typedWorkflowSubmissionTracker";
 
 interface UseInputContainerSubmitProps {
+  sessionId: string | null;
   attachments: ProcessedFile[];
   referenceText: string | null;
   selectedWorkflow: WorkflowDraft | null;
@@ -32,12 +37,13 @@ interface UseInputContainerSubmitProps {
   clearWorkflowDraft: () => void;
   setContent: (value: string) => void;
   setReferenceText: (value: string | null) => void;
-  setAttachments: (value: ProcessedFile[]) => void;
+  clearAttachments: (attachmentIds: readonly string[]) => void;
   setFileReferences: (value: Map<string, WorkspaceFileEntry>) => void;
   onWorkflowSelectionError?: (message: string) => void;
 }
 
 export const useInputContainerSubmit = ({
+  sessionId,
   attachments,
   referenceText,
   selectedWorkflow,
@@ -50,14 +56,21 @@ export const useInputContainerSubmit = ({
   clearWorkflowDraft,
   setContent,
   setReferenceText,
-  setAttachments,
+  clearAttachments,
   setFileReferences,
   onWorkflowSelectionError,
 }: UseInputContainerSubmitProps) => {
-  const typedWorkflowSubmissionInFlightRef = useRef(false);
+  const detachedTypedSubmissionInFlightRef = useRef(false);
+  const currentSessionIdRef = useRef(sessionId);
+  const composerContextRevisionRef = useRef(0);
+  if (currentSessionIdRef.current !== sessionId) {
+    currentSessionIdRef.current = sessionId;
+    composerContextRevisionRef.current += 1;
+  }
 
   const handleSubmit = useCallback(
     async (message: string, images?: ImageFile[]) => {
+      const requestComposerContextRevision = composerContextRevisionRef.current;
       const trimmedInput = message.trim();
       const attachmentSummary = summarizeAttachments(attachments);
       const normalizedReferenceText = referenceText?.trim() ?? "";
@@ -147,15 +160,19 @@ export const useInputContainerSubmit = ({
       }
 
       const isTypedWorkflowSubmission = workflowSelection !== undefined;
-      if (isTypedWorkflowSubmission && typedWorkflowSubmissionInFlightRef.current) {
-        return false;
-      }
+      let typedSubmissionRevision: number | null = null;
+      let usesDetachedTypedSubmissionFence = false;
       if (isTypedWorkflowSubmission) {
-        // Typed selections deliberately remain editable until Bamboo accepts
-        // POST /chat, so the normal processing lock is not active yet. Fence
-        // that validation window synchronously to coalesce double clicks,
-        // repeated Enter presses, and duplicate external-send events.
-        typedWorkflowSubmissionInFlightRef.current = true;
+        if (sessionId) {
+          typedSubmissionRevision = tryBeginTypedWorkflowSubmission(sessionId);
+          if (typedSubmissionRevision === null) return false;
+        } else {
+          // A detached composer has no stable session identity to share across
+          // mounts. Retain an instance-local fence for the pre-session edge.
+          if (detachedTypedSubmissionInFlightRef.current) return false;
+          detachedTypedSubmissionInFlightRef.current = true;
+          usesDetachedTypedSubmissionFence = true;
+        }
       }
 
       try {
@@ -173,7 +190,9 @@ export const useInputContainerSubmit = ({
           }
         } catch (error) {
           if (error instanceof WorkflowSelectionError) {
-            onWorkflowSelectionError?.(error.message);
+            if (composerContextRevisionRef.current === requestComposerContextRevision) {
+              onWorkflowSelectionError?.(error.message);
+            }
             return false;
           }
           throw error;
@@ -185,15 +204,22 @@ export const useInputContainerSubmit = ({
         // fall back to the legacy global selection. Best-effort; never blocks send.
         recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
         setContent("");
-        clearWorkflowDraft();
-
         setReferenceText(null);
-        setAttachments([]);
-        setFileReferences(new Map());
+        // The persisted text/reference setters belong to the session captured
+        // by this request. Component-local draft state, however, may now belong
+        // to another session after a pane switch. Never let an old continuation
+        // clear that newer composer context.
+        if (composerContextRevisionRef.current === requestComposerContextRevision) {
+          clearWorkflowDraft();
+          clearAttachments(attachments.map((attachment) => attachment.id));
+          setFileReferences(new Map());
+        }
         return true;
       } finally {
-        if (isTypedWorkflowSubmission) {
-          typedWorkflowSubmissionInFlightRef.current = false;
+        if (isTypedWorkflowSubmission && sessionId && typedSubmissionRevision !== null) {
+          finishTypedWorkflowSubmission(sessionId, typedSubmissionRevision);
+        } else if (usesDetachedTypedSubmissionFence) {
+          detachedTypedSubmissionInFlightRef.current = false;
         }
       }
     },
@@ -204,10 +230,11 @@ export const useInputContainerSubmit = ({
       matchesWorkflowToken,
       recordEntry,
       reasoningEffort,
+      sessionId,
       selectedWorkflow,
       sendMessage,
       usedModelName,
-      setAttachments,
+      clearAttachments,
       setContent,
       setFileReferences,
       setReferenceText,

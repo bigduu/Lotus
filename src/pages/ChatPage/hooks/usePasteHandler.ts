@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 
 interface PasteHandlerOptions {
-  onImages: (files: File[]) => void;
+  onImages?: (files: File[]) => void;
   onAttachments?: (files: File[]) => void;
   allowImages: boolean;
 }
@@ -27,7 +27,7 @@ export const usePasteHandler = ({ onImages, onAttachments, allowImages }: PasteH
         }
       });
 
-      if (images.length > 0 && allowImages) {
+      if (images.length > 0 && allowImages && onImages) {
         e.preventDefault();
         onImages(images);
       }

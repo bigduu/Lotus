@@ -27,7 +27,7 @@ interface UseMessageInputHandlersProps {
   messageApi: {
     error: (content: string) => void;
   };
-  clearImages: () => void;
+  clearImages: (imageIds?: readonly string[]) => void;
   textAreaRef: React.RefObject<TextAreaRef>;
 }
 
@@ -70,16 +70,17 @@ export const useMessageInputHandlers = ({
       }
     }
 
+    const submittedImageIds = images.map((image) => image.id);
     const submission = onSubmit(trimmedContent, images.length > 0 ? images : undefined);
     if (submission instanceof Promise) {
       return submission.then(
         (accepted) => {
-          if (accepted !== false) clearImages();
+          if (accepted !== false) clearImages(submittedImageIds);
         },
         () => undefined,
       );
     }
-    if (submission !== false) clearImages();
+    if (submission !== false) clearImages(submittedImageIds);
   }, [
     clearImages,
     disabled,

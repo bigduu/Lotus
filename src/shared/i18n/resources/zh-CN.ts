@@ -703,6 +703,7 @@ export const zhCnTranslation = {
         selectionRejected: "Workflow 选择需要处理",
         refreshCatalog: "刷新目录",
         reselect: "重新选择",
+        submitting: "正在验证 Workflow...",
         active: "活动 Workflow",
         invocationExplicit: "显式",
         invocationAutomatic: "自动",

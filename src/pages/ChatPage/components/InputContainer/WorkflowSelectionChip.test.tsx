@@ -13,6 +13,7 @@ vi.mock("react-i18next", () => ({
         "chat.workflowSelection.argumentsHint": `Arguments: ${values?.hint}`,
         "chat.workflowSelection.selectionRejected": "Workflow selection needs attention",
         "chat.workflowSelection.refreshCatalog": "Refresh catalog",
+        "chat.workflowSelection.submitting": "Validating Workflow...",
       })[key] ?? key,
   }),
 }));
@@ -60,5 +61,25 @@ describe("WorkflowSelectionChip", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
     fireEvent.click(screen.getAllByRole("button", { name: "Reselect" })[0]);
     expect(onReselect).toHaveBeenCalledOnce();
+  });
+
+  it("exposes pending state and freezes all Workflow draft mutations", () => {
+    const onArgumentsChange = vi.fn();
+    const onRefresh = vi.fn();
+    const onReselect = vi.fn();
+    render(
+      <WorkflowSelectionChip
+        draft={draft}
+        pending
+        onArgumentsChange={onArgumentsChange}
+        onRefresh={onRefresh}
+        onReselect={onReselect}
+      />,
+    );
+
+    expect(screen.getByTestId("workflow-selection-chip")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByText("Validating Workflow...")).toBeInTheDocument();
+    expect(screen.getByLabelText("Workflow arguments (JSON)")).toBeDisabled();
+    screen.getAllByRole("button").forEach((button) => expect(button).toBeDisabled());
   });
 });

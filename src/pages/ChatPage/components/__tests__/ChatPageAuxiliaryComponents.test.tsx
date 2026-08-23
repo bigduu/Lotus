@@ -53,6 +53,15 @@ describe("FilePreview", () => {
     const { container } = render(<FilePreview files={[]} onRemove={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it("freezes attachment removal while its composer submission is pending", () => {
+    const { container } = render(
+      <FilePreview files={[processedFile]} onRemove={vi.fn()} onClear={vi.fn()} disabled />,
+    );
+
+    expect(container.querySelector(".ant-tag-close-icon")).toBeNull();
+    expect(screen.getByRole("button", { name: /common\.clear/ })).toBeDisabled();
+  });
 });
 
 describe("MessageFeedback", () => {

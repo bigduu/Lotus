@@ -138,6 +138,7 @@ export const MessageInput = React.memo<MessageInputProps>(
       handleFileInputChange,
     } = useMessageInputAttachments({
       allowImages,
+      disabled,
       onAttachmentsAdded,
       messageApi,
     });
@@ -201,6 +202,7 @@ export const MessageInput = React.memo<MessageInputProps>(
           className={`message-input-container lotus-message-input-shell ${isDragOver ? "is-drag-over" : ""}`}
           role="group"
           aria-label={t("chat.input.messageComposer")}
+          aria-busy={isInputLocked}
           style={{
             position: "relative",
             border: `1px solid ${isDragOver ? "var(--lotus-input-border-active)" : "var(--lotus-input-border)"}`,
@@ -214,14 +216,15 @@ export const MessageInput = React.memo<MessageInputProps>(
             padding: isMobile ? `${token.paddingXS}px` : `${token.paddingSM}px`,
             overflow: "hidden",
           }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragOver={disabled ? undefined : handleDragOver}
+          onDragLeave={disabled ? undefined : handleDragLeave}
+          onDrop={disabled ? undefined : handleDrop}
         >
           <MessageInputImageStrip
             images={images}
             token={token}
             allowImages={allowImages}
+            disabled={disabled}
             onPreview={handleImagePreview}
             onClear={clearImages}
           />

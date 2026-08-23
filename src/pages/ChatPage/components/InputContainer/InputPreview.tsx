@@ -9,9 +9,10 @@ const { useToken } = theme;
 interface InputPreviewProps {
   text: string;
   onClose: () => void;
+  disabled?: boolean;
 }
 
-const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
+const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose, disabled = false }) => {
   const { token } = useToken();
   const { t } = useTranslation();
 
@@ -58,6 +59,7 @@ const InputPreview: React.FC<InputPreviewProps> = ({ text, onClose }) => {
           size="small"
           icon={<CloseOutlined />}
           onClick={onClose}
+          disabled={disabled}
           style={{
             marginLeft: token.marginXS,
             color: token.colorTextSecondary,

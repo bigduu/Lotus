@@ -473,6 +473,34 @@ describe("useImageHandler", () => {
       expect(cleanupImagePreviews).toHaveBeenCalledWith(mockImages);
     });
 
+    it("clears only the submitted image snapshot and preserves images added later", async () => {
+      const submittedImage: ImageFile = {
+        id: "submitted",
+        file: new File(["submitted"], "submitted.png", { type: "image/png" }),
+        preview: "blob:submitted",
+      };
+      const laterImage: ImageFile = {
+        id: "later",
+        file: new File(["later"], "later.png", { type: "image/png" }),
+        preview: "blob:later",
+      };
+      vi.mocked(processImageFiles)
+        .mockResolvedValueOnce([submittedImage])
+        .mockResolvedValueOnce([laterImage]);
+      const { result } = renderHook(() => useImageHandler(true));
+
+      await act(async () => {
+        await result.current.handleImageFiles([submittedImage.file]);
+        await result.current.handleImageFiles([laterImage.file]);
+      });
+      act(() => {
+        result.current.clearImages([submittedImage.id]);
+      });
+
+      expect(result.current.images).toEqual([laterImage]);
+      expect(cleanupImagePreviews).toHaveBeenLastCalledWith([submittedImage]);
+    });
+
     it("should handle clearing when no images exist", () => {
       const { result } = renderHook(() => useImageHandler(true));
 
