@@ -154,6 +154,7 @@ describe("useInputContainerCommand session scoping", () => {
       },
     });
     expect(JSON.stringify(result.current.selectedCommand)).not.toContain("PRIVATE");
+    const submittedDraft = result.current.selectedCommand;
 
     act(() => result.current.updateWorkflowArguments('{"scope":42}'));
     expect(result.current.selectedCommand?.workflowArgumentsError).toContain("must be string");
@@ -161,6 +162,11 @@ describe("useInputContainerCommand session scoping", () => {
 
     act(() => result.current.updateWorkflowArguments('{"scope":"tests"}'));
     expect(result.current.selectedCommand?.workflowArgumentsError).toBeNull();
+    expect(result.current.selectedCommand?.workflowSelection?.args).toEqual({ scope: "tests" });
+
+    act(() => result.current.setWorkflowActivationError("stale response", submittedDraft));
+    expect(result.current.selectedCommand?.workflowActivationError).toBeNull();
+    act(() => result.current.clearCommandDraft(submittedDraft));
     expect(result.current.selectedCommand?.workflowSelection?.args).toEqual({ scope: "tests" });
   });
 

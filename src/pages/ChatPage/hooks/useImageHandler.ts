@@ -2,20 +2,20 @@ import { useState, useCallback, useRef, type Dispatch, type SetStateAction } fro
 import { App as AntApp } from "antd";
 import { ImageFile, processImageFiles, cleanupImagePreviews } from "../utils/imageUtils";
 
-export const useImageHandler = (allowImages: boolean) => {
+interface ControlledImageDraft {
+  images: ImageFile[];
+  setImages: Dispatch<SetStateAction<ImageFile[]>>;
+  clearImages: (imageIds?: readonly string[]) => void;
+}
+
+export const useImageHandler = (allowImages: boolean, controlled?: ControlledImageDraft) => {
   // Use context-aware antd message API to avoid dynamic theme warnings
   const { message: appMessage } = AntApp.useApp();
-  const [images, setImagesState] = useState<ImageFile[]>([]);
+  const [localImages, setLocalImages] = useState<ImageFile[]>([]);
+  const images = controlled?.images ?? localImages;
+  const setImages = controlled?.setImages ?? setLocalImages;
   const imagesRef = useRef<ImageFile[]>([]);
   imagesRef.current = images;
-  const setImages = useCallback<Dispatch<SetStateAction<ImageFile[]>>>((nextImages) => {
-    setImagesState((previousImages) => {
-      const resolvedImages =
-        typeof nextImages === "function" ? nextImages(previousImages) : nextImages;
-      imagesRef.current = resolvedImages;
-      return resolvedImages;
-    });
-  }, []);
   const [previewModalVisible, setPreviewModalVisible] = useState(false);
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
 
@@ -56,20 +56,28 @@ export const useImageHandler = (allowImages: boolean) => {
     [images],
   );
 
-  const clearImages = useCallback((imageIds?: readonly string[]) => {
-    const currentImages = imagesRef.current;
-    const submittedIds = imageIds ? new Set(imageIds) : null;
-    const imagesToClear = submittedIds
-      ? currentImages.filter((image) => submittedIds.has(image.id))
-      : currentImages;
-    const imagesToKeep = submittedIds
-      ? currentImages.filter((image) => !submittedIds.has(image.id))
-      : [];
+  const clearImages = useCallback(
+    (imageIds?: readonly string[]) => {
+      if (controlled) {
+        controlled.clearImages(imageIds);
+        return;
+      }
 
-    cleanupImagePreviews(imagesToClear);
-    imagesRef.current = imagesToKeep;
-    setImagesState(imagesToKeep);
-  }, []);
+      const currentImages = imagesRef.current;
+      const submittedIds = imageIds ? new Set(imageIds) : null;
+      const imagesToClear = submittedIds
+        ? currentImages.filter((image) => submittedIds.has(image.id))
+        : currentImages;
+      const imagesToKeep = submittedIds
+        ? currentImages.filter((image) => !submittedIds.has(image.id))
+        : [];
+
+      cleanupImagePreviews(imagesToClear);
+      imagesRef.current = imagesToKeep;
+      setLocalImages(imagesToKeep);
+    },
+    [controlled],
+  );
 
   return {
     images,

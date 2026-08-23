@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import { CommandService } from "../../services/CommandService";
 import type { WorkflowCommandInfo } from "../../utils/inputHighlight";
@@ -19,6 +26,8 @@ interface UseInputContainerCommandProps {
   currentSessionId: string | null;
   textAreaRef: React.RefObject<TextAreaRef>;
   content: string;
+  selectedCommand?: WorkflowDraft | null;
+  setSelectedCommand?: Dispatch<SetStateAction<WorkflowDraft | null>>;
 }
 
 export const useInputContainerCommand = ({
@@ -28,11 +37,17 @@ export const useInputContainerCommand = ({
   currentSessionId,
   textAreaRef,
   content,
+  selectedCommand: controlledSelectedCommand,
+  setSelectedCommand: controlledSetSelectedCommand,
 }: UseInputContainerCommandProps) => {
   const [showCommandSelector, setShowCommandSelector] = useState(false);
   const [commandSearchText, setCommandSearchText] = useState("");
-  const [selectedCommand, setSelectedCommand] = useState<WorkflowDraft | null>(null);
+  const [localSelectedCommand, setLocalSelectedCommand] = useState<WorkflowDraft | null>(null);
+  const selectedCommand =
+    controlledSelectedCommand === undefined ? localSelectedCommand : controlledSelectedCommand;
+  const setSelectedCommand = controlledSetSelectedCommand ?? setLocalSelectedCommand;
   const selectedCommandRef = useRef<WorkflowDraft | null>(null);
+  selectedCommandRef.current = selectedCommand;
   const currentSessionIdRef = useRef(currentSessionId);
   currentSessionIdRef.current = currentSessionId;
 
@@ -40,14 +55,19 @@ export const useInputContainerCommand = ({
     (draft: WorkflowDraft | null) => {
       selectedCommandRef.current = draft;
       setSelectedCommand(draft);
-      onWorkflowDraftChange?.(draft);
     },
-    [onWorkflowDraftChange],
+    [setSelectedCommand],
   );
 
   useEffect(() => {
-    commitCommandDraft(null);
-  }, [currentSessionId, commitCommandDraft]);
+    onWorkflowDraftChange?.(selectedCommand);
+  }, [onWorkflowDraftChange, selectedCommand]);
+
+  useEffect(() => {
+    if (controlledSelectedCommand === undefined) {
+      setLocalSelectedCommand(null);
+    }
+  }, [controlledSelectedCommand, currentSessionId]);
 
   const matchesCommandToken = useCallback((value: string, commandName: string) => {
     const trimmedValue = value.trimStart();
@@ -59,9 +79,16 @@ export const useInputContainerCommand = ({
     return !nextChar || /\s/.test(nextChar);
   }, []);
 
-  const clearCommandDraft = useCallback(() => {
-    commitCommandDraft(null);
-  }, [commitCommandDraft]);
+  const clearCommandDraft = useCallback(
+    (expectedDraft?: WorkflowDraft | null) => {
+      setSelectedCommand((current) => {
+        if (expectedDraft !== undefined && current !== expectedDraft) return current;
+        selectedCommandRef.current = null;
+        return null;
+      });
+    },
+    [setSelectedCommand],
+  );
 
   const updateCommandDraftPreview = useCallback(
     (value: string, command: WorkflowDraft) => {
@@ -361,12 +388,16 @@ export const useInputContainerCommand = ({
   );
 
   const setWorkflowActivationError = useCallback(
-    (error: string | null) => {
-      const current = selectedCommandRef.current;
-      if (!current?.workflowSelection) return;
-      commitCommandDraft({ ...current, workflowActivationError: error });
+    (error: string | null, expectedDraft?: WorkflowDraft | null) => {
+      setSelectedCommand((current) => {
+        if (!current?.workflowSelection) return current;
+        if (expectedDraft !== undefined && current !== expectedDraft) return current;
+        const next = { ...current, workflowActivationError: error };
+        selectedCommandRef.current = next;
+        return next;
+      });
     },
-    [commitCommandDraft],
+    [setSelectedCommand],
   );
 
   const refreshWorkflowSelection = useCallback(() => {

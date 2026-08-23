@@ -9,6 +9,7 @@ import { recordUsedModel } from "../../utils/usedModels";
 import { WorkflowSelectionError, type WorkflowSelection } from "../../../../features/workflows";
 import {
   finishTypedWorkflowSubmission,
+  isTypedWorkflowSubmissionPending,
   tryBeginTypedWorkflowSubmission,
 } from "./typedWorkflowSubmissionTracker";
 
@@ -34,12 +35,12 @@ interface UseInputContainerSubmitProps {
     workflowSelection?: WorkflowSelection,
   ) => Promise<void>;
   recordEntry: (entry: string) => void;
-  clearWorkflowDraft: () => void;
-  setContent: (value: string) => void;
-  setReferenceText: (value: string | null) => void;
+  clearWorkflowDraft: (expectedDraft: WorkflowDraft | null) => void;
+  clearContent: (submittedContent: string) => void;
+  clearReferenceText: (submittedReferenceText: string | null) => void;
   clearAttachments: (attachmentIds: readonly string[]) => void;
-  setFileReferences: (value: Map<string, WorkspaceFileEntry>) => void;
-  onWorkflowSelectionError?: (message: string) => void;
+  clearFileReferences: (referenceNames: readonly string[]) => void;
+  onWorkflowSelectionError?: (message: string, expectedDraft: WorkflowDraft) => void;
 }
 
 export const useInputContainerSubmit = ({
@@ -54,23 +55,22 @@ export const useInputContainerSubmit = ({
   sendMessage,
   recordEntry,
   clearWorkflowDraft,
-  setContent,
-  setReferenceText,
+  clearContent,
+  clearReferenceText,
   clearAttachments,
-  setFileReferences,
+  clearFileReferences,
   onWorkflowSelectionError,
 }: UseInputContainerSubmitProps) => {
   const detachedTypedSubmissionInFlightRef = useRef(false);
-  const currentSessionIdRef = useRef(sessionId);
-  const composerContextRevisionRef = useRef(0);
-  if (currentSessionIdRef.current !== sessionId) {
-    currentSessionIdRef.current = sessionId;
-    composerContextRevisionRef.current += 1;
-  }
 
   const handleSubmit = useCallback(
     async (message: string, images?: ImageFile[]) => {
-      const requestComposerContextRevision = composerContextRevisionRef.current;
+      // Fence the entire session submission boundary. A remounted composer may
+      // temporarily lack its typed selection, and external-send actions do not
+      // consult disabled form controls, but neither may bypass an accepted
+      // request that is still pending.
+      if (sessionId && isTypedWorkflowSubmissionPending(sessionId)) return false;
+
       const trimmedInput = message.trim();
       const attachmentSummary = summarizeAttachments(attachments);
       const normalizedReferenceText = referenceText?.trim() ?? "";
@@ -81,7 +81,7 @@ export const useInputContainerSubmit = ({
       // Handle different command types
       if (selectedWorkflow?.workflowSelection) {
         if (selectedWorkflow.workflowArgumentsError) {
-          onWorkflowSelectionError?.(selectedWorkflow.workflowArgumentsError);
+          onWorkflowSelectionError?.(selectedWorkflow.workflowArgumentsError, selectedWorkflow);
           return false;
         }
         const token = `/${selectedWorkflow.name}`;
@@ -190,10 +190,10 @@ export const useInputContainerSubmit = ({
           }
         } catch (error) {
           if (error instanceof WorkflowSelectionError) {
-            if (composerContextRevisionRef.current === requestComposerContextRevision) {
-              onWorkflowSelectionError?.(error.message);
+            if (selectedWorkflow?.workflowSelection) {
+              onWorkflowSelectionError?.(error.message, selectedWorkflow);
+              return false;
             }
-            return false;
           }
           throw error;
         }
@@ -203,17 +203,11 @@ export const useInputContainerSubmit = ({
         // up in Model Limits settings. Prefer the resolved session model passed in;
         // fall back to the legacy global selection. Best-effort; never blocks send.
         recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
-        setContent("");
-        setReferenceText(null);
-        // The persisted text/reference setters belong to the session captured
-        // by this request. Component-local draft state, however, may now belong
-        // to another session after a pane switch. Never let an old continuation
-        // clear that newer composer context.
-        if (composerContextRevisionRef.current === requestComposerContextRevision) {
-          clearWorkflowDraft();
-          clearAttachments(attachments.map((attachment) => attachment.id));
-          setFileReferences(new Map());
-        }
+        clearContent(message);
+        clearReferenceText(referenceText);
+        clearWorkflowDraft(selectedWorkflow);
+        clearAttachments(attachments.map((attachment) => attachment.id));
+        clearFileReferences(Array.from(fileReferences.keys()));
         return true;
       } finally {
         if (isTypedWorkflowSubmission && sessionId && typedSubmissionRevision !== null) {
@@ -235,9 +229,9 @@ export const useInputContainerSubmit = ({
       sendMessage,
       usedModelName,
       clearAttachments,
-      setContent,
-      setFileReferences,
-      setReferenceText,
+      clearContent,
+      clearFileReferences,
+      clearReferenceText,
       referenceText,
       onWorkflowSelectionError,
     ],

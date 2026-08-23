@@ -52,7 +52,8 @@ interface MessageInputProps {
   disabled?: boolean;
   interaction: MessageInputInteractionControls;
   images?: ImageFile[];
-  onImagesChange?: (images: ImageFile[]) => void;
+  onImagesChange?: React.Dispatch<React.SetStateAction<ImageFile[]>>;
+  onClearImages?: (imageIds?: readonly string[]) => void;
   allowImages?: boolean;
   isCommandSelectorVisible?: boolean; // Prevent Enter key handling when the command selector is open
   textAreaRef?: React.RefObject<TextAreaRef>; // Add textAreaRef prop
@@ -80,6 +81,7 @@ export const MessageInput = React.memo<MessageInputProps>(
     disabled = false,
     images: propImages,
     onImagesChange,
+    onClearImages,
     allowImages = true,
     isCommandSelectorVisible = false,
     textAreaRef: externalTextAreaRef, // External ref from parent
@@ -123,7 +125,6 @@ export const MessageInput = React.memo<MessageInputProps>(
 
     const {
       images,
-      setImages,
       previewModalVisible,
       setPreviewModalVisible,
       previewImageIndex,
@@ -139,6 +140,9 @@ export const MessageInput = React.memo<MessageInputProps>(
     } = useMessageInputAttachments({
       allowImages,
       disabled,
+      images: propImages,
+      setImages: onImagesChange,
+      clearImages: onClearImages,
       onAttachmentsAdded,
       messageApi,
     });
@@ -162,10 +166,6 @@ export const MessageInput = React.memo<MessageInputProps>(
       debouncedValue,
       onWorkflowCommandChange,
       onFileReferenceChange,
-      onImagesChange,
-      images,
-      propImages,
-      setImages,
       syncOverlayScroll,
     });
 

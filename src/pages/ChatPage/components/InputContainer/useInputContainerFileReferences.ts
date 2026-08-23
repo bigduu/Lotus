@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import type { MessageInstance } from "antd/es/message/interface";
 import i18n from "i18next";
 import type { FileReferenceInfo } from "../../utils/inputHighlight";
@@ -16,6 +23,8 @@ interface UseInputContainerFileReferencesProps {
   effectiveWorkspacePath?: string | null;
   switchSessionWorkspace: (sessionId: string, workspacePath: string) => Promise<SessionSummary>;
   messageApi: MessageInstance;
+  fileReferences?: Map<string, WorkspaceFileEntry>;
+  setFileReferences?: Dispatch<SetStateAction<Map<string, WorkspaceFileEntry>>>;
 }
 
 export const useInputContainerFileReferences = ({
@@ -26,8 +35,16 @@ export const useInputContainerFileReferences = ({
   effectiveWorkspacePath = null,
   switchSessionWorkspace,
   messageApi,
+  fileReferences: controlledFileReferences,
+  setFileReferences: controlledSetFileReferences,
 }: UseInputContainerFileReferencesProps) => {
-  const [fileReferences, setFileReferences] = useState<Map<string, WorkspaceFileEntry>>(new Map());
+  const [localFileReferences, setLocalFileReferences] = useState<Map<string, WorkspaceFileEntry>>(
+    new Map(),
+  );
+  const fileReferences = controlledFileReferences ?? localFileReferences;
+  const setFileReferences = controlledSetFileReferences ?? setLocalFileReferences;
+  const usesControlledFileReferences =
+    controlledFileReferences !== undefined && controlledSetFileReferences !== undefined;
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFileEntry[]>([]);
   const [showFileSelector, setShowFileSelector] = useState(false);
   const [isProjectModalVisible, setIsProjectModalVisible] = useState(false);
@@ -44,6 +61,10 @@ export const useInputContainerFileReferences = ({
   const workspaceSubmitIdRef = useRef(0);
   const currentSessionIdRef = useRef(currentSessionId);
   currentSessionIdRef.current = currentSessionId;
+  const previousReferenceContextRef = useRef({
+    sessionId: currentSessionId,
+    workspacePath: effectiveWorkspacePath,
+  });
 
   // A session change while the modal is open starts a new modal context. Keep
   // later completion from the previous session from closing or rewriting it.
@@ -85,9 +106,19 @@ export const useInputContainerFileReferences = ({
     setIsProjectModalVisible(false);
     setFileSearchText("");
     setWorkspaceFiles([]);
-    setFileReferences(new Map());
+    const previousContext = previousReferenceContextRef.current;
+    const workspaceChangedWithinSession =
+      previousContext.sessionId === currentSessionId &&
+      previousContext.workspacePath !== effectiveWorkspacePath;
+    if (!usesControlledFileReferences || workspaceChangedWithinSession) {
+      setFileReferences(new Map());
+    }
+    previousReferenceContextRef.current = {
+      sessionId: currentSessionId,
+      workspacePath: effectiveWorkspacePath,
+    };
     lastWorkspacePathRef.current = effectiveWorkspacePath;
-  }, [currentSessionId, effectiveWorkspacePath]);
+  }, [currentSessionId, effectiveWorkspacePath, setFileReferences, usesControlledFileReferences]);
 
   const fetchWorkspaceFiles = useCallback(async (_sessionId: string, workspacePath: string) => {
     setIsWorkspaceLoading(true);
@@ -167,7 +198,7 @@ export const useInputContainerFileReferences = ({
       setShowFileSelector(false);
       setFileSearchText("");
     },
-    [content, setContent],
+    [content, setContent, setFileReferences],
   );
 
   const handleFileSelectorCancel = useCallback(() => {

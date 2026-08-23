@@ -8,8 +8,10 @@ import { useAppStore } from "@shared/store/appStore";
 import { clearUsedModels, getUsedModels } from "../../utils/usedModels";
 import { WorkflowSelectionError } from "../../../../features/workflows";
 import {
+  finishTypedWorkflowSubmission,
   isTypedWorkflowSubmissionPending,
   resetTypedWorkflowSubmissionTrackerForTests,
+  tryBeginTypedWorkflowSubmission,
 } from "./typedWorkflowSubmissionTracker";
 
 const createWorkflow = (overrides: Partial<WorkflowDraft> = {}): WorkflowDraft => ({
@@ -54,10 +56,10 @@ const createBaseProps = () => ({
   sendMessage: vi.fn().mockResolvedValue(undefined),
   recordEntry: vi.fn(),
   clearWorkflowDraft: vi.fn(),
-  setContent: vi.fn(),
-  setReferenceText: vi.fn(),
+  clearContent: vi.fn(),
+  clearReferenceText: vi.fn(),
   clearAttachments: vi.fn(),
-  setFileReferences: vi.fn(),
+  clearFileReferences: vi.fn(),
 });
 
 describe("useInputContainerSubmit", () => {
@@ -85,11 +87,11 @@ describe("useInputContainerSubmit", () => {
       "high",
       undefined,
     );
-    expect(props.setReferenceText).toHaveBeenCalledWith(null);
-    expect(props.setContent).toHaveBeenCalledWith("");
-    expect(props.clearWorkflowDraft).toHaveBeenCalled();
+    expect(props.clearReferenceText).toHaveBeenCalledWith("> quoted message");
+    expect(props.clearContent).toHaveBeenCalledWith("my reply");
+    expect(props.clearWorkflowDraft).toHaveBeenCalledWith(null);
     expect(props.clearAttachments).toHaveBeenCalledWith([]);
-    expect(props.setFileReferences).toHaveBeenCalledWith(new Map());
+    expect(props.clearFileReferences).toHaveBeenCalledWith([]);
   });
 
   it("keeps original behavior when no reference text is set", async () => {
@@ -119,8 +121,8 @@ describe("useInputContainerSubmit", () => {
 
     expect(props.recordEntry).not.toHaveBeenCalled();
     expect(props.sendMessage).not.toHaveBeenCalled();
-    expect(props.setContent).not.toHaveBeenCalled();
-    expect(props.setReferenceText).not.toHaveBeenCalled();
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(props.clearReferenceText).not.toHaveBeenCalled();
   });
 
   it("sends message when images are present even if text is empty", async () => {
@@ -237,7 +239,7 @@ describe("useInputContainerSubmit", () => {
 
     expect(props.sendMessage).toHaveBeenCalledTimes(1);
     expect(isTypedWorkflowSubmissionPending("session-1")).toBe(true);
-    expect(props.setContent).not.toHaveBeenCalled();
+    expect(props.clearContent).not.toHaveBeenCalled();
     expect(props.clearWorkflowDraft).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -257,6 +259,25 @@ describe("useInputContainerSubmit", () => {
     });
 
     expect(props.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("blocks every session send while a typed submission is pending even without a local draft", async () => {
+    const revision = tryBeginTypedWorkflowSubmission("session-1");
+    expect(revision).not.toBeNull();
+    const props = createBaseProps();
+    props.selectedWorkflow = null;
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+
+    await act(async () => {
+      await expect(result.current.handleSubmit("external follow-up")).resolves.toBe(false);
+    });
+    expect(props.sendMessage).not.toHaveBeenCalled();
+
+    expect(finishTypedWorkflowSubmission("session-1", revision!)).toBe(true);
+    await act(async () => {
+      await expect(result.current.handleSubmit("external follow-up")).resolves.toBe(true);
+    });
+    expect(props.sendMessage).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the typed fence when a pending session composer remounts", async () => {
@@ -305,7 +326,7 @@ describe("useInputContainerSubmit", () => {
     expect(isTypedWorkflowSubmissionPending("session-1")).toBe(false);
   });
 
-  it("does not let an old session continuation clear a newer composer context", async () => {
+  it("cleans only the originating session snapshot after a pane switches sessions", async () => {
     const oldSessionProps = createBaseProps();
     oldSessionProps.selectedWorkflow = createWorkflow({
       type: "skill",
@@ -328,7 +349,7 @@ describe("useInputContainerSubmit", () => {
       sessionId: "session-2",
       clearWorkflowDraft: vi.fn(),
       clearAttachments: vi.fn(),
-      setFileReferences: vi.fn(),
+      clearFileReferences: vi.fn(),
     };
 
     const { result, rerender } = renderHook(({ props }) => useInputContainerSubmit({ ...props }), {
@@ -345,14 +366,16 @@ describe("useInputContainerSubmit", () => {
       await oldSubmission;
     });
 
-    expect(oldSessionProps.setContent).toHaveBeenCalledWith("");
-    expect(oldSessionProps.setReferenceText).toHaveBeenCalledWith(null);
-    expect(oldSessionProps.clearWorkflowDraft).not.toHaveBeenCalled();
-    expect(oldSessionProps.clearAttachments).not.toHaveBeenCalled();
-    expect(oldSessionProps.setFileReferences).not.toHaveBeenCalled();
+    expect(oldSessionProps.clearContent).toHaveBeenCalledWith("/review old session");
+    expect(oldSessionProps.clearReferenceText).toHaveBeenCalledWith(null);
+    expect(oldSessionProps.clearWorkflowDraft).toHaveBeenCalledWith(
+      oldSessionProps.selectedWorkflow,
+    );
+    expect(oldSessionProps.clearAttachments).toHaveBeenCalledWith([]);
+    expect(oldSessionProps.clearFileReferences).toHaveBeenCalledWith([]);
     expect(newSessionProps.clearWorkflowDraft).not.toHaveBeenCalled();
     expect(newSessionProps.clearAttachments).not.toHaveBeenCalled();
-    expect(newSessionProps.setFileReferences).not.toHaveBeenCalled();
+    expect(newSessionProps.clearFileReferences).not.toHaveBeenCalled();
     expect(isTypedWorkflowSubmissionPending("session-1")).toBe(false);
   });
 
@@ -386,10 +409,13 @@ describe("useInputContainerSubmit", () => {
     });
 
     expect(accepted).toBe(false);
-    expect(onWorkflowSelectionError).toHaveBeenCalledWith("Refresh and reselect the Workflow.");
-    expect(props.setContent).not.toHaveBeenCalled();
+    expect(onWorkflowSelectionError).toHaveBeenCalledWith(
+      "Refresh and reselect the Workflow.",
+      props.selectedWorkflow,
+    );
+    expect(props.clearContent).not.toHaveBeenCalled();
     expect(props.clearWorkflowDraft).not.toHaveBeenCalled();
-    expect(props.setReferenceText).not.toHaveBeenCalled();
+    expect(props.clearReferenceText).not.toHaveBeenCalled();
     expect(props.clearAttachments).not.toHaveBeenCalled();
     expect(props.recordEntry).not.toHaveBeenCalled();
 
@@ -424,8 +450,11 @@ describe("useInputContainerSubmit", () => {
 
     expect(accepted).toBe(false);
     expect(props.sendMessage).not.toHaveBeenCalled();
-    expect(props.setContent).not.toHaveBeenCalled();
-    expect(onWorkflowSelectionError).toHaveBeenCalledWith("Workflow arguments must be valid JSON.");
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(onWorkflowSelectionError).toHaveBeenCalledWith(
+      "Workflow arguments must be valid JSON.",
+      props.selectedWorkflow,
+    );
   });
 
   it("keeps original input when workflow token is not matched", async () => {

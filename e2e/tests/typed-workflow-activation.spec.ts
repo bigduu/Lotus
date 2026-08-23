@@ -48,7 +48,7 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
       created_at: now,
       updated_at: now,
       last_activity_at: now,
-      message_count: 0,
+      message_count: 1,
       has_attachments: false,
       is_running: false,
       has_pending_question: false,
@@ -136,7 +136,17 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
         await route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify({ session_id: sessionId, messages: [] }),
+          body: JSON.stringify({
+            session_id: sessionId,
+            messages: [
+              {
+                id: "assistant-ready",
+                role: "assistant",
+                content: "Ready for typed Workflow acceptance.",
+                created_at: now,
+              },
+            ],
+          }),
         });
         return;
       }
@@ -395,6 +405,17 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
       ),
     });
     await expect(draftImage).toBeVisible();
+    const composer = page.locator(".message-input-container");
+    await composer.dispatchEvent("drop", {
+      dataTransfer: await page.evaluateHandle(() => {
+        const transfer = new DataTransfer();
+        transfer.items.add(
+          new File(["typed draft attachment"], "typed-draft.txt", { type: "text/plain" }),
+        );
+        return transfer;
+      }),
+    });
+    await expect(page.getByText("typed-draft.txt", { exact: true })).toBeVisible();
     await input.fill("/review inspect src");
     await input.press("Enter");
 
@@ -406,18 +427,48 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
     await expect(chip.getByRole("button", { name: "Reselect" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Add attachments" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Clear all images" })).toBeDisabled();
+
+    // Closing the desktop rail inspector replaces the ResizableSplit tree and
+    // remounts ConversationPane/InputContainer. The originating session's
+    // non-serializable draft must survive that real lifecycle boundary.
+    await page.getByRole("button", { name: "Close inspector" }).click();
+    const remountedChip = page.getByTestId("workflow-selection-chip");
+    const remountedArgumentsEditor = page.getByRole("textbox", {
+      name: "Workflow arguments (JSON)",
+    });
+    await expect(remountedChip).toHaveAttribute("aria-busy", "true");
+    await expect(remountedArgumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
+    await expect(page.getByRole("button", { name: "View image typed-draft.png" })).toBeVisible();
+    await expect(page.getByText("typed-draft.txt", { exact: true })).toBeVisible();
+    const externalSendOutcome = await page.evaluate((targetSessionId) => {
+      return new Promise<"resolved" | "rejected">((resolve) => {
+        const detail = {
+          content: "must not bypass the pending Workflow fence",
+          sessionId: targetSessionId,
+          handled: false,
+          resolve: () => resolve("resolved"),
+          reject: () => resolve("rejected"),
+        };
+        window.dispatchEvent(new CustomEvent("chat-send-message", { detail }));
+        if (!detail.handled) resolve("rejected");
+      });
+    }, sessionId);
+    expect(externalSendOutcome).toBe("rejected");
+    expect(chatAttempt).toBe(1);
+
     releaseFirstChatResponse?.();
 
-    await expect(chip).toContainText("Workflow selection needs attention");
-    await expect(chip).toContainText("The selected Workflow changed");
+    await expect(remountedChip).toContainText("Workflow selection needs attention");
+    await expect(remountedChip).toContainText("The selected Workflow changed");
     await expect(input).toHaveValue("/review inspect src");
-    await expect(argumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
-    await expect(draftImage).toBeVisible();
+    await expect(remountedArgumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
+    await expect(page.getByRole("button", { name: "View image typed-draft.png" })).toBeVisible();
+    await expect(page.getByText("typed-draft.txt", { exact: true })).toBeVisible();
     await expect(input).toBeEnabled();
-    await expect(argumentsEditor).toBeEnabled();
+    await expect(remountedArgumentsEditor).toBeEnabled();
     await expect(page.getByRole("button", { name: "Add attachments" })).toBeEnabled();
     expect(chatRequests[0]).toMatchObject({
-      message: "inspect src",
+      message: expect.stringContaining("inspect src"),
       workflow_selection: {
         id: "review",
         source: "project",
@@ -425,18 +476,20 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
         args: { scope: "tests", strict: true },
       },
     });
+    expect(chatRequests[0].message).toEqual(expect.stringContaining("typed-draft.txt"));
 
     catalogRevision = 13;
-    await chip.getByRole("button", { name: "Refresh catalog" }).click();
+    await remountedChip.getByRole("button", { name: "Refresh catalog" }).click();
     await page.getByRole("option").filter({ hasText: "/review" }).click();
     await expect(input).toHaveValue("/review inspect src");
-    await expect(argumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
+    await expect(remountedArgumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
     await input.press("Enter");
 
     await expect.poll(() => chatAttempt).toBe(2);
-    await expect(draftImage).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "View image typed-draft.png" })).toHaveCount(0);
+    await expect(page.getByText("typed-draft.txt", { exact: true })).toHaveCount(0);
     expect(chatRequests[1]).toMatchObject({
-      message: "inspect src",
+      message: expect.stringContaining("inspect src"),
       workflow_selection: {
         id: "review",
         source: "project",
@@ -444,6 +497,7 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
         args: { scope: "tests", strict: true },
       },
     });
+    expect(chatRequests[1].message).toEqual(expect.stringContaining("typed-draft.txt"));
     expect(chatRequests[1]).not.toHaveProperty("selected_skill_ids");
     const serializedSelections = JSON.stringify(
       chatRequests.map((request) => request.workflow_selection),
@@ -471,7 +525,7 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
       __dirname,
       "../../docs/screenshots/issue-231-typed-workflow-activation.png",
     );
-    await page.screenshot({ path: screenshotPath, fullPage: true });
+    await page.screenshot({ path: screenshotPath, fullPage: true, animations: "disabled" });
     await testInfo.attach("typed Workflow active receipt", {
       path: screenshotPath,
       contentType: "image/png",

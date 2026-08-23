@@ -511,6 +511,40 @@ describe("useImageHandler", () => {
       expect(cleanupImagePreviews).toHaveBeenCalledWith([]);
       expect(result.current.images).toHaveLength(0);
     });
+
+    it("keeps an in-flight clear callback bound to its originating controlled session", () => {
+      const sessionAImage: ImageFile = {
+        id: "session-a-image",
+        file: new File(["a"], "a.png", { type: "image/png" }),
+        preview: "blob:session-a",
+      };
+      const sessionBImage: ImageFile = {
+        id: "session-b-image",
+        file: new File(["b"], "b.png", { type: "image/png" }),
+        preview: "blob:session-b",
+      };
+      const clearSessionA = vi.fn();
+      const clearSessionB = vi.fn();
+      const { result, rerender } = renderHook(
+        ({ images, clearImages }) =>
+          useImageHandler(true, {
+            images,
+            setImages: vi.fn(),
+            clearImages,
+          }),
+        {
+          initialProps: { images: [sessionAImage], clearImages: clearSessionA },
+        },
+      );
+      const acceptedSessionAClear = result.current.clearImages;
+
+      rerender({ images: [sessionBImage], clearImages: clearSessionB });
+      act(() => acceptedSessionAClear([sessionAImage.id]));
+
+      expect(clearSessionA).toHaveBeenCalledWith([sessionAImage.id]);
+      expect(clearSessionB).not.toHaveBeenCalled();
+      expect(result.current.images).toEqual([sessionBImage]);
+    });
   });
 
   describe("setImages", () => {

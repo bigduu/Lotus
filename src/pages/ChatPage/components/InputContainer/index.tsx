@@ -74,7 +74,11 @@ import type {
 import PermissionModeControl, { type PermissionModeMutationStatus } from "./PermissionModeControl";
 import type { SessionPermissionMode } from "@shared/permissions/sessionPermissionMode";
 import WorkflowSelectionChip from "./WorkflowSelectionChip";
-import { useTypedWorkflowSubmissionPending } from "./typedWorkflowSubmissionTracker";
+import {
+  isTypedWorkflowSubmissionPending as isTypedWorkflowSubmissionPendingForSession,
+  useTypedWorkflowSubmissionPending,
+} from "./typedWorkflowSubmissionTracker";
+import { useSessionComposerDraft } from "./sessionComposerDraftStore";
 
 export type { WorkflowDraft } from "./types";
 
@@ -103,6 +107,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   const isMobile = useIsMobile();
   const openSettings = useSettingsViewStore((state) => state.open);
   const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
+  const composerDraft = useSessionComposerDraft(sessionId);
   const activeSessionId = useAppStore((state) => state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(sessionId));
   const currentProjectId = currentChat?.config.projectId?.trim() || null;
@@ -189,6 +194,27 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     (newRefText: string | null) => {
       if (sessionId) {
         setReferenceText(sessionId, newRefText);
+      }
+    },
+    [sessionId, setReferenceText],
+  );
+  const clearSubmittedContent = useCallback(
+    (submittedContent: string) => {
+      if (!sessionId) return;
+      const latestContent = useAppStore.getState().inputStates[sessionId]?.content ?? "";
+      if (latestContent === submittedContent) {
+        setInputContent(sessionId, "");
+      }
+    },
+    [sessionId, setInputContent],
+  );
+  const clearSubmittedReferenceText = useCallback(
+    (submittedReferenceText: string | null) => {
+      if (!sessionId) return;
+      const latestReferenceText =
+        useAppStore.getState().inputStates[sessionId]?.referenceText ?? null;
+      if (latestReferenceText === submittedReferenceText) {
+        setReferenceText(sessionId, null);
       }
     },
     [sessionId, setReferenceText],
@@ -438,7 +464,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     handleAttachmentsAdded,
     handleAttachmentRemove,
     handleClearAttachments,
-  } = useInputContainerAttachments();
+  } = useInputContainerAttachments({
+    attachments: composerDraft.attachments,
+    setAttachments: composerDraft.setAttachments,
+  });
   const clearSubmittedAttachments = useCallback(
     (attachmentIds: readonly string[]) => {
       const submittedIds = new Set(attachmentIds);
@@ -454,6 +483,8 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     currentSessionId: sessionId,
     textAreaRef,
     content,
+    selectedCommand: composerDraft.workflowDraft,
+    setSelectedCommand: composerDraft.setWorkflowDraft,
   });
 
   const fileReferenceState = useInputContainerFileReferences({
@@ -464,15 +495,33 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     effectiveWorkspacePath,
     switchSessionWorkspace,
     messageApi,
+    fileReferences: composerDraft.fileReferences,
+    setFileReferences: composerDraft.setFileReferences,
   });
 
-  const { setShowFileSelector } = fileReferenceState;
+  const { setShowFileSelector, setFileReferences: setComposerFileReferences } = fileReferenceState;
 
   useEffect(() => {
     if (commandState.showCommandSelector) {
       setShowFileSelector(false);
     }
   }, [commandState.showCommandSelector, setShowFileSelector]);
+
+  const clearSubmittedFileReferences = useCallback(
+    (referenceNames: readonly string[]) => {
+      if (referenceNames.length === 0) return;
+      const submittedNames = new Set(referenceNames);
+      setComposerFileReferences((current) => {
+        let changed = false;
+        const next = new Map(current);
+        submittedNames.forEach((name) => {
+          changed = next.delete(name) || changed;
+        });
+        return changed ? next : current;
+      });
+    },
+    [setComposerFileReferences],
+  );
 
   const { handleSubmit } = useInputContainerSubmit({
     sessionId,
@@ -487,10 +536,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     sendMessage,
     recordEntry,
     clearWorkflowDraft: commandState.clearCommandDraft,
-    setContent,
-    setReferenceText: setReferenceTextPersisted,
+    clearContent: clearSubmittedContent,
+    clearReferenceText: clearSubmittedReferenceText,
     clearAttachments: clearSubmittedAttachments,
-    setFileReferences: fileReferenceState.setFileReferences,
+    clearFileReferences: clearSubmittedFileReferences,
     onWorkflowSelectionError: commandState.setWorkflowActivationError,
   });
 
@@ -606,6 +655,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
 
   const submitMessageWithLiveMode = useCallback(
     async (message: string, images?: ImageFile[]) => {
+      if (sessionId && isTypedWorkflowSubmissionPendingForSession(sessionId)) {
+        return false;
+      }
       // /goal commands are now handled server-side by Bamboo.
       // They are sent as regular messages through the normal chat flow.
       const targetSessionId = sessionId;
@@ -658,7 +710,11 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       }
 
       submitMessageWithLiveMode(contentValue, undefined)
-        .then(() => {
+        .then((accepted) => {
+          if (accepted === false) {
+            customEvent.detail?.reject?.(new Error(t("chat.workflowSelection.submitting")));
+            return;
+          }
           customEvent.detail?.resolve?.();
         })
         .catch((error: unknown) => {
@@ -671,7 +727,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     return () => {
       window.removeEventListener(CHAT_SEND_MESSAGE_EVENT, handleExternalSend as EventListener);
     };
-  }, [activeSessionId, sessionId, submitMessageWithLiveMode]);
+  }, [activeSessionId, sessionId, submitMessageWithLiveMode, t]);
 
   const { retryLastMessage, handleHistoryNavigate } = useInputContainerHistory({
     currentSessionId: sessionId,
@@ -1265,6 +1321,9 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         onSubmit={effectiveHandleSubmit}
         placeholder={placeholder}
         allowImages={true}
+        images={composerDraft.images}
+        onImagesChange={composerDraft.setImages}
+        onClearImages={composerDraft.clearImages}
         disabled={
           !activeModel ||
           isTypedWorkflowSubmissionPending ||
