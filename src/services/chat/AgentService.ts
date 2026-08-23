@@ -58,6 +58,9 @@ export type AgentEventType =
   | "config.changed"
   | "config.invalid"
   | "config.recovered"
+  | "workflow_changed"
+  | "workflow_invalid"
+  | "workflow_recovered"
   | "execution_started"
   | "runner_progress"
   | "goal_status_changed"
@@ -275,6 +278,9 @@ export interface AgentEvent {
   // Live config and project lifecycle events share a numeric revision field.
   section?: string;
   revision?: number;
+  // Metadata-only Workflow catalog lifecycle events.
+  workflow_id?: string;
+  scope?: string;
   // SessionPinnedUpdated event
   pinned?: boolean;
   // MessageAppended / SessionCreated events

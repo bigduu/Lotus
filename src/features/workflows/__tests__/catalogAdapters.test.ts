@@ -9,6 +9,7 @@ import {
   type WorkflowCatalogAdapter,
 } from "../catalogAdapters";
 import type { WorkflowCatalogView } from "../domain";
+import { workflowCatalogItemKey } from "../domain";
 
 const command = (overrides: Partial<CommandItem> = {}): CommandItem => ({
   id: "skill-review",
@@ -34,7 +35,7 @@ const legacyView: WorkflowCatalogView = {
 };
 
 describe("TypedWorkflowCatalogAdapter", () => {
-  it("maps workflow identities, filters ordinary Skills, and scopes the request", async () => {
+  it("maps instruction and orchestration identities and scopes the request", async () => {
     const signal = new AbortController().signal;
     const get = vi.fn(async () => ({
       revision: 41,
@@ -104,12 +105,33 @@ describe("TypedWorkflowCatalogAdapter", () => {
       revision: 41,
       items: [
         {
+          id: "review",
+          name: "Review",
+          description: "Review changes against evidence.",
+          kind: "instruction",
+          source: "builtin",
+          status: "valid",
+          winner: true,
+          invocationPolicy: "manual",
+          argumentHint: undefined,
+          argumentSchema: { type: "object", additionalProperties: false },
+          readOnly: true,
+          revision: 7,
+          version: "3",
+          lastError: undefined,
+          shadowedCandidates: [
+            { source: "project", status: "valid", lastError: undefined },
+            { source: "user", status: "invalid", lastError: "invalid override" },
+          ],
+        },
+        {
           id: "release-train",
           name: "Release train",
           description: "Coordinate a durable release.",
           kind: "orchestration",
           source: "plugin",
           status: "valid",
+          winner: true,
           invocationPolicy: "both",
           argumentHint: "release version",
           argumentSchema: undefined,
@@ -122,9 +144,10 @@ describe("TypedWorkflowCatalogAdapter", () => {
           id: "legacy-review",
           name: "Legacy review",
           description: "Legacy repository review workflow.",
-          kind: "orchestration",
+          kind: "instruction",
           source: "workspace",
           status: "valid",
+          winner: true,
           legacy: true,
           migrationStatus: "available",
           invocationPolicy: "manual",
@@ -155,10 +178,10 @@ describe("TypedWorkflowCatalogAdapter", () => {
         cancel: false,
       },
     });
-    expect(result.items.some((item) => item.id === "review")).toBe(false);
+    expect(result.items.some((item) => item.id === "review")).toBe(true);
   });
 
-  it("keeps valid workflows when another entry is invalid and silently omits Skills", async () => {
+  it("keeps valid instruction and orchestration rows when another entry is invalid", async () => {
     const adapter = new TypedWorkflowCatalogAdapter(async () => ({
       revision: 9,
       entries: [
@@ -201,16 +224,97 @@ describe("TypedWorkflowCatalogAdapter", () => {
 
     const result = await adapter.load();
 
-    expect(result.items).toHaveLength(1);
+    expect(result.items).toHaveLength(2);
     expect(result.items[0]).toMatchObject({
       id: "research",
-      invocationPolicy: "implicit",
+      invocationPolicy: "automatic",
       readOnly: false,
+    });
+    expect(result.items[1]).toMatchObject({
+      id: "ordinary-skill",
+      kind: "instruction",
+      invocationPolicy: "manual",
     });
     expect(result.diagnostics).toEqual([
       { entryIndex: 2, itemId: "broken", message: "missing description" },
       { entryIndex: 3, itemId: undefined, message: "entry is not an object" },
     ]);
+  });
+
+  it("derives safe argument hints, preserves LKG diagnostics, and drops private response fields", async () => {
+    const adapter = new TypedWorkflowCatalogAdapter(async () => ({
+      revision: 12,
+      entries: [
+        {
+          id: "review",
+          name: "Review",
+          description: "Review a scoped change.",
+          kind: "instruction",
+          source: "builtin",
+          revision: 8,
+          version: "2",
+          invocation_policy: { explicit: true, automatic: true },
+          argument_schema: {
+            type: "object",
+            properties: { target: { type: "string" }, force: { type: "boolean" } },
+            required: ["target"],
+          },
+          status: "invalid",
+          winner: true,
+          last_error: "Using sanitized last-known-good metadata",
+          instructions: "PRIVATE EXPANDED INSTRUCTIONS",
+          resources: ["PRIVATE RESOURCE"],
+          args: { token: "PRIVATE ARGUMENT" },
+          dynamic_context: "PRIVATE DYNAMIC CONTEXT",
+          storage_path: "/private/catalog/storage-path",
+          content: "PRIVATE BODY",
+        },
+        {
+          id: "review",
+          name: "Review override",
+          description: "A retained shadowed override.",
+          kind: "instruction",
+          source: "project",
+          revision: 9,
+          invocation_policy: { explicit: false, automatic: false },
+          argument_schema: { type: "object" },
+          status: "valid",
+          winner: false,
+        },
+      ],
+    }));
+
+    const result = await adapter.load();
+
+    expect(result.items[0]).toMatchObject({
+      id: "review",
+      kind: "instruction",
+      status: "invalid",
+      lastKnownGood: true,
+      argumentHint: "<target> [force]",
+      invocationPolicy: "both",
+    });
+    expect(result.items[1]).toMatchObject({
+      id: "review",
+      source: "project",
+      status: "shadowed",
+      winner: false,
+      invocationPolicy: "unavailable",
+    });
+    expect(workflowCatalogItemKey(result.items[0])).not.toBe(
+      workflowCatalogItemKey(result.items[1]),
+    );
+    const retained = JSON.stringify(result);
+    for (const privateValue of [
+      "PRIVATE EXPANDED INSTRUCTIONS",
+      "PRIVATE RESOURCE",
+      "PRIVATE ARGUMENT",
+      "PRIVATE DYNAMIC CONTEXT",
+      "/private/catalog/storage-path",
+      "PRIVATE BODY",
+    ]) {
+      expect(retained).not.toContain(privateValue);
+    }
   });
 
   it("rejects a malformed top-level snapshot rather than presenting fake data", async () => {
@@ -328,7 +432,7 @@ describe("LegacyWorkflowCatalogAdapter", () => {
       {
         id: "triage",
         name: "triage",
-        description: "triage.md",
+        description: "Legacy workflow triage",
         kind: "orchestration",
         source: "project",
         status: "valid",
@@ -338,6 +442,7 @@ describe("LegacyWorkflowCatalogAdapter", () => {
       },
     ]);
     expect(result.items.some((item) => item.id === "review")).toBe(false);
+    expect(JSON.stringify(result)).not.toContain("triage.md");
     expect(result.capabilities).toMatchObject({
       mode: "legacy",
       edit: true,
@@ -359,6 +464,7 @@ describe("LegacyWorkflowCatalogAdapter", () => {
     const result = await adapter.load();
 
     expect(result.items).toHaveLength(1);
+    expect(JSON.stringify(result)).not.toContain("review.md");
     expect(result.diagnostics).toEqual([{ message: "Legacy command catalog is unavailable" }]);
   });
 });
@@ -372,9 +478,10 @@ describe("NegotiatedWorkflowCatalogAdapter", () => {
     };
     const legacy: WorkflowCatalogAdapter = { load: vi.fn(async () => legacyView) };
     const adapter = new NegotiatedWorkflowCatalogAdapter(typed, legacy);
+    const options = status === 404 ? {} : { sessionId: "session-1" };
 
-    await expect(adapter.load({ sessionId: "session-1" })).resolves.toBe(legacyView);
-    expect(legacy.load).toHaveBeenCalledWith({ sessionId: "session-1" });
+    await expect(adapter.load(options)).resolves.toBe(legacyView);
+    expect(legacy.load).toHaveBeenCalledWith(options);
   });
 
   it("does not hide typed contract failures behind legacy data", async () => {
@@ -389,6 +496,21 @@ describe("NegotiatedWorkflowCatalogAdapter", () => {
     await expect(new NegotiatedWorkflowCatalogAdapter(typed, legacy).load()).rejects.toBe(
       typedError,
     );
+    expect(legacy.load).not.toHaveBeenCalled();
+  });
+
+  it("does not turn a missing scoped Session into an unscoped legacy catalog", async () => {
+    const missingSession = new ApiError("session not found", 404, "Not Found");
+    const typed: WorkflowCatalogAdapter = {
+      load: vi.fn(async () => {
+        throw missingSession;
+      }),
+    };
+    const legacy: WorkflowCatalogAdapter = { load: vi.fn(async () => legacyView) };
+
+    await expect(
+      new NegotiatedWorkflowCatalogAdapter(typed, legacy).load({ sessionId: "missing-session" }),
+    ).rejects.toBe(missingSession);
     expect(legacy.load).not.toHaveBeenCalled();
   });
 });

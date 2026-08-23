@@ -23,6 +23,86 @@ const mergeBuiltinCommands = (commands: CommandItem[]): CommandItem[] => {
   return [...builtins, ...commands];
 };
 
+const optionalMetadataString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() ? value : undefined;
+
+/** Keep command-list/cache state metadata-only; full details remain GET-on-select. */
+export const sanitizeCommandForList = (command: CommandItem): CommandItem => {
+  const metadata = command.metadata ?? {};
+  const source =
+    metadata.source === "global" || metadata.source === "workspace" ? metadata.source : undefined;
+  return {
+    id: command.id,
+    name: command.name,
+    displayName: command.displayName,
+    description: command.description,
+    type: command.type,
+    ...(command.category ? { category: command.category } : {}),
+    ...(command.tags ? { tags: [...command.tags] } : {}),
+    metadata: {
+      ...(source ? { source } : {}),
+      ...(metadata.kind ? { kind: metadata.kind } : {}),
+      ...(metadata.status ? { status: metadata.status } : {}),
+      ...(metadata.invocationPolicy ? { invocationPolicy: { ...metadata.invocationPolicy } } : {}),
+      ...(optionalMetadataString(metadata.argumentHint)
+        ? { argumentHint: metadata.argumentHint }
+        : {}),
+      ...(metadata.argumentSchema ? { argumentSchema: { ...metadata.argumentSchema } } : {}),
+      ...(optionalMetadataString(metadata.lastError) ? { lastError: metadata.lastError } : {}),
+      ...(metadata.legacy === true ? { legacy: true } : {}),
+      ...(optionalMetadataString(metadata.serverId) ? { serverId: metadata.serverId } : {}),
+      ...(optionalMetadataString(metadata.serverName) ? { serverName: metadata.serverName } : {}),
+      ...(optionalMetadataString(metadata.originalName)
+        ? { originalName: metadata.originalName }
+        : {}),
+      ...(optionalMetadataString(metadata.license) ? { license: metadata.license } : {}),
+      ...(optionalMetadataString(metadata.compatibility)
+        ? { compatibility: metadata.compatibility }
+        : {}),
+      ...(metadata.workflowCatalog === true ? { workflowCatalog: true as const } : {}),
+      ...(metadata.workflowKind ? { workflowKind: metadata.workflowKind } : {}),
+      ...(metadata.workflowSource ? { workflowSource: metadata.workflowSource } : {}),
+      ...(metadata.workflowStatus ? { workflowStatus: metadata.workflowStatus } : {}),
+      ...(metadata.workflowInvocationPolicy
+        ? { workflowInvocationPolicy: metadata.workflowInvocationPolicy }
+        : {}),
+      ...(optionalMetadataString(metadata.workflowArgumentHint)
+        ? { workflowArgumentHint: metadata.workflowArgumentHint }
+        : {}),
+      ...(typeof metadata.workflowRevision === "number"
+        ? { workflowRevision: metadata.workflowRevision }
+        : {}),
+      ...(optionalMetadataString(metadata.workflowVersion)
+        ? { workflowVersion: metadata.workflowVersion }
+        : {}),
+      ...(optionalMetadataString(metadata.workflowLastError)
+        ? { workflowLastError: metadata.workflowLastError }
+        : {}),
+      ...(metadata.workflowLastKnownGood === true ? { workflowLastKnownGood: true } : {}),
+      ...(typeof metadata.workflowWinner === "boolean"
+        ? { workflowWinner: metadata.workflowWinner }
+        : {}),
+      ...(metadata.workflowLegacy === true ? { workflowLegacy: true } : {}),
+      ...(typeof metadata.workflowReadOnly === "boolean"
+        ? { workflowReadOnly: metadata.workflowReadOnly }
+        : {}),
+      ...(typeof metadata.workflowSelectable === "boolean"
+        ? { workflowSelectable: metadata.workflowSelectable }
+        : {}),
+      ...(metadata.workflowShadowedCandidates
+        ? {
+            workflowShadowedCandidates: metadata.workflowShadowedCandidates.map((candidate) => ({
+              source: candidate.source,
+              status: candidate.status,
+              ...(candidate.legacy ? { legacy: true } : {}),
+              ...(candidate.lastError ? { lastError: candidate.lastError } : {}),
+            })),
+          }
+        : {}),
+    },
+  };
+};
+
 type CommandDetail = Record<string, unknown> & {
   content?: string;
 };
@@ -89,7 +169,7 @@ export class CommandService {
         if (!Array.isArray(response.commands)) {
           throw new Error("Invalid command list response");
         }
-        const commands = mergeBuiltinCommands(response.commands);
+        const commands = mergeBuiltinCommands(response.commands.map(sanitizeCommandForList));
         this.cache.set(cacheKey, { commands, cachedAt: Date.now() });
         debugLog("[CommandService]", "[CommandService] Loaded commands:", commands.length);
         return commands;

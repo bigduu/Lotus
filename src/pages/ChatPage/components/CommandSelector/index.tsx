@@ -1,10 +1,11 @@
 import React from "react";
-import { Spin, Tag, theme } from "antd";
+import { Alert, Spin, Tag, theme } from "antd";
 import { FolderOutlined, ThunderboltOutlined, ApiOutlined, FlagOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useCommandSelectorState } from "./useCommandSelectorState";
 import type { CommandItem } from "@shared/types/command";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
+import { isCommandSelectable, workflowCommandItemKey } from "../../../../features/workflows";
 import "./index.css";
 
 const { useToken } = theme;
@@ -58,6 +59,8 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
     selectedIndex,
     setSelectedIndex,
     isLoading,
+    loadError,
+    catalogDiagnostics,
     handleCommandSelect,
   } = useCommandSelectorState({
     visible,
@@ -114,9 +117,29 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
           color: token.colorTextSecondary,
         }}
       >
-        {searchText
-          ? t("chat.commandSelector.emptyWithSearch", { search: searchText })
-          : t("chat.commandSelector.empty")}
+        {loadError && (
+          <Alert
+            type="warning"
+            showIcon
+            message={t("chat.commandSelector.degraded", { detail: loadError })}
+          />
+        )}
+        {catalogDiagnostics.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            message={t("settings.workflowsTab.partialInvalid", {
+              count: catalogDiagnostics.length,
+            })}
+          />
+        )}
+        <div
+          style={{ paddingTop: loadError || catalogDiagnostics.length > 0 ? token.paddingSM : 0 }}
+        >
+          {searchText
+            ? t("chat.commandSelector.emptyWithSearch", { search: searchText })
+            : t("chat.commandSelector.empty")}
+        </div>
       </div>
     );
   }
@@ -124,6 +147,8 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
   const renderCommandItem = (command: CommandItem, index: number) => {
     const typeConfig = TYPE_CONFIG[command.type];
     const isSelected = index === selectedIndex;
+    const isSelectable = isCommandSelectable(command);
+    const workflow = command.metadata.workflowCatalog ? command.metadata : null;
 
     const mcpParts = command.type === "mcp" ? parseMcpToolAlias(command.name) : null;
     const mcpToolName =
@@ -140,12 +165,15 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
 
     return (
       <div
-        key={command.id}
+        key={workflowCommandItemKey(command)}
         ref={isSelected ? selectedItemRef : null}
-        className={`command-selector-item ${isSelected ? "selected" : ""}`}
+        className={`command-selector-item ${isSelected ? "selected" : ""} ${
+          isSelectable ? "" : "disabled"
+        }`}
         role="option"
         aria-selected={isSelected}
-        onClick={() => handleCommandSelect(command)}
+        aria-disabled={!isSelectable}
+        onClick={() => void handleCommandSelect(command)}
         onMouseEnter={() => setSelectedIndex(index)}
       >
         <div className="command-selector-item-header">
@@ -161,11 +189,83 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
             {command.type === "mcp" && mcpServerLabel && (
               <Tag color="processing">{mcpServerLabel}</Tag>
             )}
-            <Tag color={typeConfig.color}>
-              {typeConfig.icon} {t(typeConfig.labelKey)}
-            </Tag>
+            {workflow ? (
+              <>
+                <Tag color={workflow.workflowKind === "instruction" ? "green" : "blue"}>
+                  {t(`settings.workflowsTab.kind.${workflow.workflowKind}`)}
+                </Tag>
+                <Tag>{t(`settings.workflowsTab.source.${workflow.workflowSource}`)}</Tag>
+                <Tag color={workflow.workflowStatus === "valid" ? "success" : "warning"}>
+                  {t(`settings.workflowsTab.status.${workflow.workflowStatus}`)}
+                </Tag>
+              </>
+            ) : (
+              <Tag color={typeConfig.color}>
+                {typeConfig.icon} {t(typeConfig.labelKey)}
+              </Tag>
+            )}
           </div>
         </div>
+
+        {workflow && (
+          <div className="command-selector-item-tags">
+            <Tag color="geekblue">
+              {t(`settings.workflowsTab.invocation.${workflow.workflowInvocationPolicy}`)}
+            </Tag>
+            {workflow.workflowLegacy && (
+              <Tag color="orange">{t("settings.workflowsTab.legacy")}</Tag>
+            )}
+            {workflow.workflowLastKnownGood && (
+              <Tag color="warning">{t("settings.workflowsTab.lastKnownGood")}</Tag>
+            )}
+            {(workflow.workflowShadowedCandidates?.length ?? 0) > 0 && (
+              <>
+                {workflow.workflowWinner !== false && (
+                  <Tag color="success">{t("settings.workflowsTab.winner")}</Tag>
+                )}
+                <Tag color="warning">
+                  {t("settings.workflowsTab.shadowedCount", {
+                    count: workflow.workflowShadowedCandidates?.length ?? 0,
+                  })}
+                </Tag>
+              </>
+            )}
+            {!isSelectable && <Tag>{t("chat.commandSelector.metadataOnly")}</Tag>}
+          </div>
+        )}
+
+        {workflow?.workflowArgumentHint && (
+          <div
+            className="command-selector-item-category"
+            style={{ color: token.colorTextTertiary }}
+          >
+            {t("settings.workflowsTab.arguments")}: {workflow.workflowArgumentHint}
+          </div>
+        )}
+
+        {workflow && (workflow.workflowVersion || workflow.workflowRevision !== undefined) && (
+          <div
+            className="command-selector-item-category"
+            style={{ color: token.colorTextTertiary }}
+          >
+            {[
+              workflow.workflowVersion
+                ? t("settings.workflowsTab.version", { version: workflow.workflowVersion })
+                : null,
+              workflow.workflowRevision !== undefined
+                ? t("settings.workflowsTab.revision", { revision: workflow.workflowRevision })
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </div>
+        )}
+
+        {workflow?.workflowLastError && (
+          <div className="command-selector-item-category" style={{ color: token.colorError }}>
+            {workflow.workflowLastError}
+          </div>
+        )}
 
         <div
           className="command-selector-item-description"
@@ -187,7 +287,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
           </div>
         )}
 
-        {command.category && (
+        {command.category && !workflow && (
           <div
             className="command-selector-item-category"
             style={{
@@ -198,7 +298,7 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
           </div>
         )}
 
-        {command.tags && command.tags.length > 0 && (
+        {command.tags && command.tags.length > 0 && !workflow && (
           <div className="command-selector-item-tags">
             {command.tags.slice(0, 3).map((tag) => (
               <Tag key={tag}>{tag}</Tag>
@@ -237,6 +337,24 @@ const CommandSelector: React.FC<CommandSelectorProps> = ({
       >
         {t("chat.commandSelector.navigationHint")}
       </div>
+      {loadError && (
+        <Alert
+          type="warning"
+          showIcon
+          banner
+          message={t("chat.commandSelector.degraded", { detail: loadError })}
+        />
+      )}
+      {catalogDiagnostics.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          banner
+          message={t("settings.workflowsTab.partialInvalid", {
+            count: catalogDiagnostics.length,
+          })}
+        />
+      )}
       {filteredCommands.map((command, index) => renderCommandItem(command, index))}
     </div>
   );

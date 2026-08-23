@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AccountStreamHandlers, ChangeEvent, SubagentSnapshotResponse } from "./AgentService";
 import { useConfigSectionStore } from "@shared/store/configSectionStore";
 import { isSessionUnread, useSessionReadStateStore } from "@shared/store/sessionReadStateStore";
+import { workflowCatalogQuery } from "../../features/workflows";
 
 // Capture the handlers passed to subscribeToAccountStream so the test can drive
 // the feed without a real EventSource.
@@ -138,6 +139,97 @@ describe("accountFeed runner", () => {
       }),
     );
     expect(storeActions.applyServerPinned).toHaveBeenCalledWith("s1", true, "2026-05-31T00:00:01Z");
+  });
+
+  it("invalidates only the Workflow catalog for lifecycle events", async () => {
+    const invalidate = vi.spyOn(workflowCatalogQuery, "invalidate");
+    await startAndHydrate();
+    invalidate.mockClear();
+
+    captured!.onChange(
+      change(8, {
+        type: "workflow_recovered",
+        workflow_id: "library-refresh-test",
+        revision: 801,
+        scope: "user",
+      }),
+    );
+
+    expect(invalidate).toHaveBeenCalledWith({
+      type: "workflow_recovered",
+      workflowId: "library-refresh-test",
+      revision: 801,
+      scope: "user",
+    });
+    expect(storeActions.refreshSessionsIndex).not.toHaveBeenCalled();
+  });
+
+  it("invalidates after hydration when its watermark covers a buffered Workflow event", async () => {
+    const invalidate = vi.spyOn(workflowCatalogQuery, "invalidate");
+    let resolveSnapshot!: (value: SubagentSnapshotResponse) => void;
+    getSubagentSnapshot.mockImplementationOnce(
+      () =>
+        new Promise<SubagentSnapshotResponse>((resolve) => {
+          resolveSnapshot = resolve;
+        }),
+    );
+
+    startAccountFeed();
+    captured!.onChange(
+      change(49, {
+        type: "workflow_changed",
+        workflow_id: "covered-by-watermark",
+        revision: 9,
+        scope: "project",
+      }),
+    );
+    resolveSnapshot(snapshot(50));
+
+    await vi.waitFor(() => expect(storeActions.replaceSubagentSnapshot).toHaveBeenCalledTimes(1));
+    expect(invalidate.mock.calls).toEqual([[]]);
+  });
+
+  it("does not add a second hydration invalidation when replay already applied one", async () => {
+    const invalidate = vi.spyOn(workflowCatalogQuery, "invalidate");
+    let resolveSnapshot!: (value: SubagentSnapshotResponse) => void;
+    getSubagentSnapshot.mockImplementationOnce(
+      () =>
+        new Promise<SubagentSnapshotResponse>((resolve) => {
+          resolveSnapshot = resolve;
+        }),
+    );
+
+    startAccountFeed();
+    captured!.onChange(
+      change(51, {
+        type: "workflow_recovered",
+        workflow_id: "replayed-after-watermark",
+        revision: 3,
+        scope: "user",
+      }),
+    );
+    resolveSnapshot(snapshot(50));
+
+    await vi.waitFor(() => expect(storeActions.replaceSubagentSnapshot).toHaveBeenCalledTimes(1));
+    expect(invalidate).toHaveBeenCalledTimes(1);
+    expect(invalidate).toHaveBeenCalledWith({
+      type: "workflow_recovered",
+      workflowId: "replayed-after-watermark",
+      revision: 3,
+      scope: "user",
+    });
+  });
+
+  it("invalidates after a compatibility hydration failure with no replay", async () => {
+    const invalidate = vi.spyOn(workflowCatalogQuery, "invalidate");
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    getSubagentSnapshot.mockRejectedValueOnce(new Error("snapshot route unavailable"));
+
+    startAccountFeed();
+
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
+    expect(invalidate.mock.calls).toEqual([[]]);
+    expect(storeActions.replaceSubagentSnapshot).not.toHaveBeenCalled();
   });
 
   it("routes versioned child approval outcomes by payload parent id", async () => {
@@ -617,14 +709,19 @@ describe("accountFeed runner", () => {
   });
 
   it("rehydrates from a new watermark after transport reconnect", async () => {
+    const invalidate = vi.spyOn(workflowCatalogQuery, "invalidate");
     getSubagentSnapshot.mockResolvedValueOnce(snapshot(10)).mockResolvedValueOnce(snapshot(20));
     await startAndHydrate();
+    expect(invalidate.mock.calls).toEqual([[]]);
+    invalidate.mockClear();
 
     captured!.onOpen?.();
     captured!.onError?.();
     captured!.onOpen?.();
 
     await vi.waitFor(() => expect(getSubagentSnapshot).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(invalidate).toHaveBeenCalledTimes(1));
+    expect(invalidate.mock.calls).toEqual([[]]);
     expect(localStorage.getItem("lotus_account_feed_cursor_v1")).toBeNull();
     expect(storeActions.replaceSubagentSnapshot).toHaveBeenCalledTimes(2);
   });
