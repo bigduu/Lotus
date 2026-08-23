@@ -173,7 +173,7 @@ describe("TypedWorkflowCatalogAdapter", () => {
         mode: "typed",
         clone: false,
         edit: false,
-        activate: false,
+        activate: true,
         run: false,
         cancel: false,
       },

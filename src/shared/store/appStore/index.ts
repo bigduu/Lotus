@@ -121,7 +121,13 @@ export const useAppStore = create<AppState>()(
 
         sessionsIndexRefreshInFlight = (async () => {
           try {
-            await get().refreshChats();
+            const selectedSessionId = get().currentSessionId;
+            await Promise.all([
+              get().refreshChats(),
+              selectedSessionId
+                ? get().refreshSessionDetail(selectedSessionId, { force: true })
+                : Promise.resolve(false),
+            ]);
           } catch (e) {
             // Best-effort: backend may be down during startup/restart.
             console.warn("[AppStore] refreshChats failed:", e);

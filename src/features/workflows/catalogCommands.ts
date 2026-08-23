@@ -1,6 +1,6 @@
 import type { CommandItem, CommandType } from "@shared/types/command";
 import type { WorkflowCatalogItem, WorkflowCatalogView } from "./domain";
-import { workflowCatalogItemKey } from "./domain";
+import { isTypedWorkflowSource, workflowCatalogItemKey } from "./domain";
 
 const preferredCommandType = (item: WorkflowCatalogItem): CommandType =>
   item.kind === "instruction" ? "skill" : "workflow";
@@ -21,6 +21,7 @@ const commandMatchesCatalogItem = (command: CommandItem, item: WorkflowCatalogIt
 const catalogMetadata = (
   item: WorkflowCatalogItem,
   selectable: boolean,
+  typedActivation: boolean,
 ): CommandItem["metadata"] => ({
   workflowCatalog: true,
   workflowKind: item.kind,
@@ -28,6 +29,7 @@ const catalogMetadata = (
   workflowStatus: item.status,
   workflowInvocationPolicy: item.invocationPolicy,
   ...(item.argumentHint ? { workflowArgumentHint: item.argumentHint } : {}),
+  ...(item.argumentSchema ? { workflowArgumentSchema: item.argumentSchema } : {}),
   ...(item.revision !== undefined ? { workflowRevision: item.revision } : {}),
   ...(item.version ? { workflowVersion: item.version } : {}),
   ...(item.lastError ? { workflowLastError: item.lastError } : {}),
@@ -36,6 +38,7 @@ const catalogMetadata = (
   ...(item.legacy ? { workflowLegacy: true } : {}),
   workflowReadOnly: item.readOnly,
   workflowSelectable: selectable,
+  ...(typedActivation ? { workflowTypedActivation: true } : {}),
   ...(item.shadowedCandidates?.length
     ? {
         workflowShadowedCandidates: item.shadowedCandidates.map((candidate) => ({
@@ -48,7 +51,11 @@ const catalogMetadata = (
     : {}),
 });
 
-const catalogOnlyCommand = (item: WorkflowCatalogItem): CommandItem => ({
+const catalogOnlyCommand = (
+  item: WorkflowCatalogItem,
+  selectable: boolean,
+  typedActivation: boolean,
+): CommandItem => ({
   id: `workflow-catalog:${encodeURIComponent(workflowCatalogItemKey(item))}`,
   name: item.id,
   displayName: item.name,
@@ -56,8 +63,23 @@ const catalogOnlyCommand = (item: WorkflowCatalogItem): CommandItem => ({
   type: preferredCommandType(item),
   category: "workflow-catalog",
   tags: [item.kind, item.source, item.status, item.invocationPolicy],
-  metadata: catalogMetadata(item, false),
+  metadata: catalogMetadata(item, selectable, typedActivation),
 });
+
+const supportsExplicitTypedActivation = (
+  item: WorkflowCatalogItem,
+  catalog: WorkflowCatalogView,
+): boolean =>
+  catalog.capabilities.mode === "typed" &&
+  catalog.capabilities.activate &&
+  item.kind === "instruction" &&
+  !item.legacy &&
+  isTypedWorkflowSource(item.source) &&
+  item.status === "valid" &&
+  item.winner !== false &&
+  Number.isSafeInteger(item.revision) &&
+  (item.revision as number) > 0 &&
+  (item.invocationPolicy === "manual" || item.invocationPolicy === "both");
 
 /**
  * Enrich legacy `/commands` rows with the authoritative metadata-only catalog
@@ -75,12 +97,13 @@ export const mergeCommandsWithWorkflowCatalog = (
   const catalogOnly: CommandItem[] = [];
 
   for (const item of catalog.items) {
+    const typedSelectable = supportsExplicitTypedActivation(item, catalog);
     const commandIndex = commands.findIndex(
       (command, index) =>
         !claimedCommandIndexes.has(index) && commandMatchesCatalogItem(command, item),
     );
     if (commandIndex < 0) {
-      catalogOnly.push(catalogOnlyCommand(item));
+      catalogOnly.push(catalogOnlyCommand(item, typedSelectable, typedSelectable));
       continue;
     }
 
@@ -94,7 +117,11 @@ export const mergeCommandsWithWorkflowCatalog = (
       type: command.type,
       ...(command.category ? { category: command.category } : {}),
       ...(command.tags ? { tags: [...command.tags] } : {}),
-      metadata: catalogMetadata(item, true),
+      metadata: catalogMetadata(
+        item,
+        catalog.capabilities.mode === "legacy" || typedSelectable,
+        typedSelectable,
+      ),
     });
   }
 

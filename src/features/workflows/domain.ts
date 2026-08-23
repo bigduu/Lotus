@@ -2,6 +2,20 @@ export type WorkflowKind = "instruction" | "orchestration";
 
 export type WorkflowSource = "builtin" | "project" | "workspace" | "user" | "plugin" | "legacy";
 
+/** Sources accepted by Bamboo's typed selection wire contract. */
+export type TypedWorkflowSource = Exclude<WorkflowSource, "legacy">;
+
+const typedWorkflowSources = new Set<TypedWorkflowSource>([
+  "builtin",
+  "project",
+  "workspace",
+  "user",
+  "plugin",
+]);
+
+export const isTypedWorkflowSource = (source: unknown): source is TypedWorkflowSource =>
+  typeof source === "string" && typedWorkflowSources.has(source as TypedWorkflowSource);
+
 export type WorkflowStatus = "valid" | "invalid" | "degraded" | "shadowed";
 
 export type InvocationPolicy = "manual" | "automatic" | "both" | "unavailable";

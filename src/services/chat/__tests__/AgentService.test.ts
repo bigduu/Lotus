@@ -842,6 +842,36 @@ describe("AgentClient", () => {
         }),
       );
     });
+
+    it("serializes a typed Workflow selection without expanded content", async () => {
+      fetchMock.mockResolvedValue(
+        mockFetchResponse({ session_id: "session-1", status: "started" }),
+      );
+      const client = AgentClient.getInstance();
+
+      await client.sendMessage({
+        message: "inspect this change",
+        model: "gpt-5",
+        workflow_selection: {
+          id: "review",
+          source: "project",
+          revision: 12,
+          args: { scope: "src" },
+        },
+      });
+
+      const request = fetchMock.mock.calls.at(-1)?.[1] as RequestInit;
+      const body = JSON.parse(String(request.body));
+      expect(body.workflow_selection).toEqual({
+        id: "review",
+        source: "project",
+        revision: 12,
+        args: { scope: "src" },
+      });
+      expect(JSON.stringify(body)).not.toContain("expanded_body");
+      expect(JSON.stringify(body)).not.toContain("resources");
+      expect(JSON.stringify(body)).not.toContain("User explicitly selected");
+    });
   });
 
   it("dispatches tool_token events to onToolToken handler", () => {

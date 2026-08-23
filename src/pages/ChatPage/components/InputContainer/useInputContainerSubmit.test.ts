@@ -6,6 +6,7 @@ import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import type { ProcessedFile } from "../../utils/fileUtils";
 import { useAppStore } from "@shared/store/appStore";
 import { clearUsedModels, getUsedModels } from "../../utils/usedModels";
+import { WorkflowSelectionError } from "../../../../features/workflows";
 
 const createWorkflow = (overrides: Partial<WorkflowDraft> = {}): WorkflowDraft => ({
   id: "workflow-1",
@@ -155,6 +156,106 @@ describe("useInputContainerSubmit", () => {
       "medium",
       undefined,
     );
+  });
+
+  it("sends a typed instruction identity and args without expanding body or hint text", async () => {
+    const props = createBaseProps();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      displayName: "Review",
+      content: "PRIVATE EXPANDED BODY",
+      workflowSelection: {
+        id: "review",
+        source: "project",
+        revision: 12,
+        args: { scope: "src" },
+      },
+      workflowArgumentsText: '{"scope":"src"}',
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+
+    await act(async () => {
+      await result.current.handleSubmit("/review inspect this change");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledWith(
+      "inspect this change",
+      undefined,
+      "medium",
+      undefined,
+      {
+        id: "review",
+        source: "project",
+        revision: 12,
+        args: { scope: "src" },
+      },
+    );
+    expect(JSON.stringify(props.sendMessage.mock.calls)).not.toContain("PRIVATE EXPANDED BODY");
+    expect(JSON.stringify(props.sendMessage.mock.calls)).not.toContain("User explicitly selected");
+  });
+
+  it("preserves composer state and selection after a recoverable stale revision", async () => {
+    const props = createBaseProps();
+    const onWorkflowSelectionError = vi.fn();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    props.sendMessage.mockRejectedValue(
+      new WorkflowSelectionError(
+        "workflow_revision_mismatch",
+        "Refresh and reselect the Workflow.",
+        true,
+        409,
+      ),
+    );
+    const { result } = renderHook(() =>
+      useInputContainerSubmit({ ...props, onWorkflowSelectionError }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit("/review keep this draft");
+    });
+
+    expect(onWorkflowSelectionError).toHaveBeenCalledWith("Refresh and reselect the Workflow.");
+    expect(props.setContent).not.toHaveBeenCalled();
+    expect(props.clearWorkflowDraft).not.toHaveBeenCalled();
+    expect(props.setReferenceText).not.toHaveBeenCalled();
+    expect(props.setAttachments).not.toHaveBeenCalled();
+    expect(props.recordEntry).not.toHaveBeenCalled();
+  });
+
+  it("does not send invalid typed arguments and keeps the draft", async () => {
+    const props = createBaseProps();
+    const onWorkflowSelectionError = vi.fn();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{",
+      workflowArgumentsError: "Workflow arguments must be valid JSON.",
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    const { result } = renderHook(() =>
+      useInputContainerSubmit({ ...props, onWorkflowSelectionError }),
+    );
+
+    await act(async () => {
+      await result.current.handleSubmit("/review keep this too");
+    });
+
+    expect(props.sendMessage).not.toHaveBeenCalled();
+    expect(props.setContent).not.toHaveBeenCalled();
+    expect(onWorkflowSelectionError).toHaveBeenCalledWith("Workflow arguments must be valid JSON.");
   });
 
   it("keeps original input when workflow token is not matched", async () => {

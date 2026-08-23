@@ -1,3 +1,5 @@
+import type { WorkflowSelection } from "../../../../features/workflows";
+
 export type ModelOption = { value: string; label: string };
 
 export type ModelCachePayload = {
@@ -45,4 +47,13 @@ export type WorkflowDraft = {
   mcpServerId?: string;
   mcpServerName?: string;
   mcpOriginalName?: string;
+  /** Present only for Bamboo's typed instruction-Workflow contract. */
+  workflowSelection?: WorkflowSelection;
+  workflowKind?: "instruction" | "orchestration";
+  workflowVersion?: string;
+  workflowArgumentHint?: string;
+  workflowArgumentSchema?: Record<string, unknown>;
+  workflowArgumentsText?: string;
+  workflowArgumentsError?: string | null;
+  workflowActivationError?: string | null;
 };

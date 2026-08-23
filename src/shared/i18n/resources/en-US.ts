@@ -81,6 +81,7 @@ export const enUsTranslation = {
     inspector: {
       title: "Inspector",
       configuration: "Configuration",
+      activeWorkflow: "Active Workflow",
     },
     layout: {
       showSidebar: "Show sidebar",
@@ -732,6 +733,19 @@ export const enUsTranslation = {
           mcp: "MCP",
           goal: "Goal",
         },
+      },
+      workflowSelection: {
+        argumentsLabel: "Workflow arguments (JSON)",
+        argumentsHint: "Arguments: {{hint}}",
+        selectionRejected: "Workflow selection needs attention",
+        refreshCatalog: "Refresh catalog",
+        reselect: "Reselect",
+        active: "Active Workflow",
+        invocationExplicit: "Explicit",
+        invocationAutomatic: "Automatic",
+        invokedByUser: "User",
+        invokedByModel: "Model",
+        invokedByApi: "API",
       },
       model: {
         selectModel: "Select model",

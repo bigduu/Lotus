@@ -350,6 +350,8 @@ export interface ChatRequest {
   project_id?: string | null;
   workspace_path?: string;
   selected_skill_ids?: string[];
+  /** Typed instruction selection. Expanded instructions/resources are resolved by Bamboo. */
+  workflow_selection?: WorkflowSelectionRequest;
   images?: Array<{
     base64: string;
     name?: string;
@@ -359,6 +361,15 @@ export interface ChatRequest {
   model: string; // Required for chat/create compatibility; backend persists to session
   model_ref?: { provider: string; model: string };
   provider?: string;
+}
+
+export type WorkflowSelectionSource = "builtin" | "project" | "workspace" | "user" | "plugin";
+
+export interface WorkflowSelectionRequest {
+  id: string;
+  source: WorkflowSelectionSource;
+  revision: number;
+  args: Record<string, unknown>;
 }
 
 export interface GoalCommandResponse {
@@ -557,6 +568,15 @@ export interface SessionSummary {
   permission_mode?: SessionPermissionMode;
 }
 
+/**
+ * The detail endpoint may include a public active-Workflow receipt. Keep the
+ * wire value unknown so consumers must project an explicit safe allowlist
+ * instead of retaining future/private backend fields by accident.
+ */
+export interface SessionDetail extends SessionSummary {
+  active_workflow?: unknown;
+}
+
 export interface RunningSessionEntry {
   session_id: string;
   run_id: string;
@@ -668,7 +688,7 @@ const isAmbiguousSessionCreatePostError = (error: unknown): boolean =>
   !isApiError(error) || error.status === 408 || error.status >= 500;
 
 export interface GetSessionResponse {
-  session: SessionSummary;
+  session: SessionDetail;
 }
 
 export interface SessionSystemPromptResponse {
@@ -1192,6 +1212,14 @@ export class AgentClient {
       hasImages: (request.images?.length ?? 0) > 0,
       imageCount: request.images?.length ?? 0,
       selectedSkillCount: request.selected_skill_ids?.length ?? 0,
+      workflowSelection: request.workflow_selection
+        ? {
+            id: request.workflow_selection.id,
+            source: request.workflow_selection.source,
+            revision: request.workflow_selection.revision,
+            argumentKeys: Object.keys(request.workflow_selection.args).sort(),
+          }
+        : null,
       workspacePath: request.workspace_path ?? null,
     });
     const response = await agentApiClient.post<ChatResponse>("chat", request);
@@ -1600,7 +1628,7 @@ export class AgentClient {
    */
   async getSessionWithVersion(
     sessionId: string,
-  ): Promise<{ session: SessionSummary; metadataVersion: number | null }> {
+  ): Promise<{ session: SessionDetail; metadataVersion: number | null }> {
     const encodedSessionId = encodeURIComponent(sessionId);
     const { data, etag } = await agentApiClient.getWithEtag<GetSessionResponse>(
       `sessions/${encodedSessionId}`,
@@ -1610,6 +1638,13 @@ export class AgentClient {
       session: data.session,
       metadataVersion: Number.isFinite(parsed) ? parsed : null,
     };
+  }
+
+  /** Read the authoritative session detail used for runtime-only public receipts. */
+  async getSession(sessionId: string): Promise<SessionDetail> {
+    const encodedSessionId = encodeURIComponent(sessionId);
+    const response = await agentApiClient.get<GetSessionResponse>(`sessions/${encodedSessionId}`);
+    return response.session;
   }
 
   /**

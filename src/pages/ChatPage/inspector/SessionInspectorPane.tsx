@@ -1,6 +1,12 @@
 import React, { useMemo } from "react";
 import { Button, Drawer, Flex, Tag, theme, Typography } from "antd";
-import { AppstoreOutlined, CloseOutlined, FlagOutlined, RobotOutlined } from "@ant-design/icons";
+import {
+  AppstoreOutlined,
+  CloseOutlined,
+  FlagOutlined,
+  RobotOutlined,
+  ThunderboltOutlined,
+} from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 
 import InlineMetaText from "@shared/components/InlineMetaText";
@@ -234,6 +240,82 @@ const SessionConfigCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
   );
 };
 
+const ActiveWorkflowCard: React.FC<{ sessionId: string }> = ({ sessionId }) => {
+  const { token } = theme.useToken();
+  const { t } = useTranslation();
+  const workflow = useAppStore(selectSessionById(sessionId))?.activeWorkflow;
+  if (!workflow) return null;
+
+  const invocationMode =
+    workflow.invokedBy === "model"
+      ? t("chat.workflowSelection.invocationAutomatic")
+      : t("chat.workflowSelection.invocationExplicit");
+  const invokedBy =
+    workflow.invokedBy === "model"
+      ? t("chat.workflowSelection.invokedByModel")
+      : workflow.invokedBy === "api"
+        ? t("chat.workflowSelection.invokedByApi")
+        : t("chat.workflowSelection.invokedByUser");
+  const rows = [
+    { label: "Name", value: workflow.name || workflow.id },
+    { label: "Kind", value: workflow.kind },
+    { label: "Source", value: workflow.source },
+    ...(workflow.version ? [{ label: "Version", value: workflow.version }] : []),
+    { label: "Revision", value: String(workflow.revision) },
+    { label: "Invocation", value: `${invocationMode} · ${invokedBy}` },
+  ];
+
+  return (
+    <div
+      data-testid="active-workflow-card"
+      style={{
+        padding: `${token.paddingXXS}px ${token.paddingXS}px`,
+        borderRadius: token.borderRadiusLG,
+        border: `1px solid ${token.colorSuccessBorder}`,
+        background: token.colorSuccessBg,
+      }}
+    >
+      <Flex vertical gap={4} style={{ width: "100%", minWidth: 0 }}>
+        <Flex align="center" justify="space-between" gap={8}>
+          <Flex align="center" gap={6}>
+            <ThunderboltOutlined style={{ color: token.colorSuccess }} />
+            <Text strong style={{ fontSize: 12 }}>
+              {t("inspector.activeWorkflow")}
+            </Text>
+          </Flex>
+          <Tag
+            color={workflow.status === "active" ? "success" : "warning"}
+            style={{ marginInlineEnd: 0 }}
+          >
+            {workflow.status}
+          </Tag>
+        </Flex>
+        <Flex vertical gap={2}>
+          {rows.map((row) => (
+            <Flex key={row.label} align="center" justify="space-between" gap={8}>
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {row.label}
+              </Text>
+              <Text
+                title={row.value}
+                style={{
+                  fontSize: 12,
+                  textAlign: "right",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {row.value}
+              </Text>
+            </Flex>
+          ))}
+        </Flex>
+      </Flex>
+    </div>
+  );
+};
+
 export type SessionInspectorPaneProps = {
   sessionId: string | null;
   auxReady: boolean;
@@ -271,10 +353,18 @@ const InspectorBody: React.FC<{
         chat.config.goldConfig.enabled === true),
   );
   const hasConfigSection = Boolean(chat?.config?.model_ref?.model || chat?.config?.model);
+  const hasActiveWorkflowSection = Boolean(chat?.activeWorkflow);
 
   const sections = useMemo(
     () =>
       [
+        {
+          key: "active-workflow",
+          title: "Active Workflow",
+          showTitle: false,
+          visible: hasActiveWorkflowSection,
+          node: <ActiveWorkflowCard sessionId={sessionId} />,
+        },
         {
           key: "goal",
           title: "Goal",
@@ -339,6 +429,7 @@ const InspectorBody: React.FC<{
     [
       auxReady,
       hasConfigSection,
+      hasActiveWorkflowSection,
       hasGoalSection,
       hasSubAgents,
       isAdvancedMode,

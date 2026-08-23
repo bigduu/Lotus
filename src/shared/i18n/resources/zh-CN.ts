@@ -79,6 +79,7 @@ export const zhCnTranslation = {
     inspector: {
       title: "检查器",
       configuration: "配置",
+      activeWorkflow: "活动 Workflow",
     },
     layout: {
       showSidebar: "显示侧边栏",
@@ -695,6 +696,19 @@ export const zhCnTranslation = {
           mcp: "MCP",
           goal: "目标",
         },
+      },
+      workflowSelection: {
+        argumentsLabel: "Workflow 参数（JSON）",
+        argumentsHint: "参数：{{hint}}",
+        selectionRejected: "Workflow 选择需要处理",
+        refreshCatalog: "刷新目录",
+        reselect: "重新选择",
+        active: "活动 Workflow",
+        invocationExplicit: "显式",
+        invocationAutomatic: "自动",
+        invokedByUser: "用户",
+        invokedByModel: "模型",
+        invokedByApi: "API",
       },
       model: {
         selectModel: "选择模型",

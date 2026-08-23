@@ -73,6 +73,7 @@ import type {
 } from "./types";
 import PermissionModeControl, { type PermissionModeMutationStatus } from "./PermissionModeControl";
 import type { SessionPermissionMode } from "@shared/permissions/sessionPermissionMode";
+import WorkflowSelectionChip from "./WorkflowSelectionChip";
 
 export type { WorkflowDraft } from "./types";
 
@@ -476,6 +477,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
     setReferenceText: setReferenceTextPersisted,
     setAttachments,
     setFileReferences: fileReferenceState.setFileReferences,
+    onWorkflowSelectionError: commandState.setWorkflowActivationError,
   });
 
   // Respond mode: when QuestionDialog activates "Other (custom input)",
@@ -1199,6 +1201,15 @@ export const InputContainer: React.FC<InputContainerProps> = ({
         />
       )}
 
+      {commandState.selectedCommand?.workflowSelection ? (
+        <WorkflowSelectionChip
+          draft={commandState.selectedCommand}
+          disabled={isInputLocked}
+          onArgumentsChange={commandState.updateWorkflowArguments}
+          onRefresh={commandState.refreshWorkflowSelection}
+          onReselect={commandState.reselectWorkflow}
+        />
+      ) : null}
       {referenceText && <InputPreview text={referenceText} onClose={handleCloseReferencePreview} />}
       {attachments.length > 0 && (
         <Suspense fallback={<Spin size="small" />}>

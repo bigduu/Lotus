@@ -17,6 +17,7 @@ import { resolveProviderDefaultReasoningEffort } from "@shared/utils/reasoningEf
 import {
   DEFAULT_BASE_SYSTEM_PROMPT,
   mapHistoryMessagesToUi,
+  mapActiveWorkflowReceipt,
   sessionSummaryToChatItem,
 } from "./chatSessionSlice/messageMapping";
 import {
@@ -72,6 +73,8 @@ const RECONCILE_DEBOUNCE_MS = 300;
 // "locked in" (it would otherwise beat the authoritative server value via
 // preferLocalSessionFields).
 const patchInFlight = new Map<string, { count: number; baseline: ChatItem | null }>();
+const sessionDetailGeneration = new Map<string, number>();
+const sessionDetailInFlight = new Map<string, Promise<boolean>>();
 
 const normalizedProjectId = (projectId: string | null | undefined): string | null =>
   projectId?.trim() || null;
@@ -292,6 +295,57 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       return;
     }
     set({ currentSessionId: sessionId, latestActiveSessionId: sessionId });
+    if (sessionId) {
+      void get().refreshSessionDetail(sessionId);
+    }
+  },
+
+  refreshSessionDetail: async (sessionId, options) => {
+    const normalizedSessionId = sessionId.trim();
+    if (!normalizedSessionId || !get().chats.some((chat) => chat.id === normalizedSessionId)) {
+      return false;
+    }
+    const existing = sessionDetailInFlight.get(normalizedSessionId);
+    if (existing && !options?.force) return existing;
+
+    const generation = (sessionDetailGeneration.get(normalizedSessionId) ?? 0) + 1;
+    sessionDetailGeneration.set(normalizedSessionId, generation);
+    const request = (async () => {
+      try {
+        const detail = await agentClient.getSession(normalizedSessionId);
+        if (sessionDetailGeneration.get(normalizedSessionId) !== generation) return false;
+        // This call is always the authoritative detail endpoint. Bamboo omits
+        // an empty Option, so a missing field means "no active Workflow" here
+        // (unlike a lightweight list row, which never reaches this path).
+        const wireReceipt = Object.prototype.hasOwnProperty.call(detail, "active_workflow")
+          ? detail.active_workflow
+          : null;
+        const activeWorkflow = wireReceipt === null ? null : mapActiveWorkflowReceipt(wireReceipt);
+        // A malformed non-null receipt is not an authoritative deactivation.
+        if (wireReceipt !== null && !activeWorkflow) return false;
+        set((state) => ({
+          ...state,
+          chats: state.chats.map((chat) =>
+            chat.id === normalizedSessionId ? { ...chat, activeWorkflow } : chat,
+          ),
+        }));
+        return true;
+      } catch (error) {
+        debugLog("[ChatSlice]", "refreshSessionDetail.error", {
+          sessionId: normalizedSessionId,
+          error,
+        });
+        return false;
+      }
+    })();
+    sessionDetailInFlight.set(normalizedSessionId, request);
+    try {
+      return await request;
+    } finally {
+      if (sessionDetailInFlight.get(normalizedSessionId) === request) {
+        sessionDetailInFlight.delete(normalizedSessionId);
+      }
+    }
   },
 
   deleteSession: async (sessionId) => {
@@ -1007,7 +1061,17 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
       ? executeForcedRefreshChats(set)
       : executeRefreshChats(set);
     settleTrailingRefreshCallbacks(refreshPromise, trailingCallbacks);
-    return refreshPromise;
+    const selectedSessionId = get().currentSessionId;
+    const [, detailResult] = await Promise.all([
+      refreshPromise,
+      selectedSessionId
+        ? get().refreshSessionDetail(selectedSessionId, { force: true })
+        : Promise.resolve(false),
+    ]);
+    debugLog("[ChatSlice]", "refreshChatsNow.detail", {
+      sessionId: selectedSessionId,
+      refreshed: detailResult,
+    });
   },
 
   loadChats: async () => {
@@ -1165,9 +1229,13 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
     });
 
     if (currentSessionId) {
-      // Lazy load history for the initial session.
-      debugLog("[ChatSlice]", "loadChats.loadInitialHistory", { currentSessionId });
-      await get().loadChatHistory(currentSessionId);
+      // History and the detail-only active-Workflow receipt are independent
+      // server state. Start both together to avoid a boot-time waterfall.
+      debugLog("[ChatSlice]", "loadChats.loadInitialSession", { currentSessionId });
+      await Promise.all([
+        get().loadChatHistory(currentSessionId),
+        get().refreshSessionDetail(currentSessionId, { force: true }),
+      ]);
     }
 
     if (initialCreateRecoveryError) {
@@ -1421,12 +1489,14 @@ export const createChatSlice: StateCreator<AppState, [], [], ChatSlice> = (set, 
             content: markerAtRequest?.dirtyContentThrough,
             reset: readStateAtRequest.feedResetThrough,
           };
+          const detailRefresh = get().refreshSessionDetail(sessionId, { force: true });
           const loaded = await get().loadChatHistory(sessionId, {
             mode: historyMode,
             waitForAssistant: true,
             retries: 3,
             retryDelayMs: 250,
           });
+          await detailRefresh;
           // History loading and read acknowledgement are deliberately
           // separate. Only acknowledge the coordinate captured before the
           // request, and only if this session is still the visible selection

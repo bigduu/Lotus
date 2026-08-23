@@ -5,6 +5,12 @@ import type { WorkflowCommandInfo } from "../../utils/inputHighlight";
 import type { WorkflowDraft } from "./index";
 import type { CommandItem } from "@shared/types/command";
 import { parseMcpToolAlias } from "../../utils/mcpAlias";
+import {
+  defaultWorkflowArguments,
+  isTypedWorkflowSource,
+  parseWorkflowArguments,
+  workflowCatalogQuery,
+} from "../../../../features/workflows";
 
 interface UseInputContainerCommandProps {
   setContent: (value: string) => void;
@@ -26,13 +32,22 @@ export const useInputContainerCommand = ({
   const [showCommandSelector, setShowCommandSelector] = useState(false);
   const [commandSearchText, setCommandSearchText] = useState("");
   const [selectedCommand, setSelectedCommand] = useState<WorkflowDraft | null>(null);
+  const selectedCommandRef = useRef<WorkflowDraft | null>(null);
   const currentSessionIdRef = useRef(currentSessionId);
   currentSessionIdRef.current = currentSessionId;
 
+  const commitCommandDraft = useCallback(
+    (draft: WorkflowDraft | null) => {
+      selectedCommandRef.current = draft;
+      setSelectedCommand(draft);
+      onWorkflowDraftChange?.(draft);
+    },
+    [onWorkflowDraftChange],
+  );
+
   useEffect(() => {
-    setSelectedCommand(null);
-    onWorkflowDraftChange?.(null);
-  }, [currentSessionId, onWorkflowDraftChange]);
+    commitCommandDraft(null);
+  }, [currentSessionId, commitCommandDraft]);
 
   const matchesCommandToken = useCallback((value: string, commandName: string) => {
     const trimmedValue = value.trimStart();
@@ -45,13 +60,16 @@ export const useInputContainerCommand = ({
   }, []);
 
   const clearCommandDraft = useCallback(() => {
-    setSelectedCommand(null);
-    onWorkflowDraftChange?.(null);
-  }, [onWorkflowDraftChange]);
+    commitCommandDraft(null);
+  }, [commitCommandDraft]);
 
   const updateCommandDraftPreview = useCallback(
     (value: string, command: WorkflowDraft) => {
       if (!matchesCommandToken(value, command.name)) {
+        return;
+      }
+      if (command.workflowSelection) {
+        onWorkflowDraftChange?.(command);
         return;
       }
       const token = `/${command.name}`;
@@ -119,27 +137,46 @@ export const useInputContainerCommand = ({
       let newValue: string;
       let newCursorPos: number;
 
-      // Check if we're currently typing a command (e.g., "/cod" should be replaced)
-      const beforeCursor = content.substring(0, cursorPosition);
-      const commandMatch = beforeCursor.match(/\/([a-zA-Z0-9_-]*)$/);
+      const previousTypedCommand = selectedCommandRef.current?.workflowSelection
+        ? selectedCommandRef.current
+        : null;
+      const trimmedStart = content.trimStart();
+      const leadingWhitespace = content.slice(0, content.length - trimmedStart.length);
 
-      if (commandMatch) {
-        // Case 1: Replacing an incomplete command
-        const startIndex = cursorPosition - commandMatch[0].length;
-        const before = content.substring(0, startIndex);
-        const after = content.substring(cursorPosition);
-        newValue = `${before}/${insertToken} ${after}`;
-        newCursorPos = `${before}/${insertToken} `.length;
-      } else if (content.trim() === "") {
-        // Case 2: Empty input, just set the command
-        newValue = `/${insertToken} `;
-        newCursorPos = newValue.length;
+      if (previousTypedCommand && matchesCommandToken(content, previousTypedCommand.name)) {
+        // Refresh/reselection replaces the existing leading identity in place;
+        // it must not duplicate `/workflow` ahead of the user's preserved text.
+        const previousToken = `/${previousTypedCommand.name}`;
+        const suffix = trimmedStart.slice(previousToken.length);
+        newValue = `${leadingWhitespace}/${insertToken}${suffix || " "}`;
+        const tokenLengthDelta = insertToken.length - previousTypedCommand.name.length;
+        newCursorPos = Math.max(
+          leadingWhitespace.length + insertToken.length + 2,
+          Math.min(newValue.length, cursorPosition + tokenLengthDelta),
+        );
       } else {
-        // Case 3: Insert at cursor position
-        const before = content.substring(0, cursorPosition);
-        const after = content.substring(cursorPosition);
-        newValue = `${before}/${insertToken} ${after}`;
-        newCursorPos = `${before}/${insertToken} `.length;
+        // Check if we're currently typing a command (e.g., "/cod" should be replaced)
+        const beforeCursor = content.substring(0, cursorPosition);
+        const commandMatch = beforeCursor.match(/\/([a-zA-Z0-9_-]*)$/);
+
+        if (commandMatch) {
+          // Case 1: Replacing an incomplete command
+          const startIndex = cursorPosition - commandMatch[0].length;
+          const before = content.substring(0, startIndex);
+          const after = content.substring(cursorPosition);
+          newValue = `${before}/${insertToken} ${after}`;
+          newCursorPos = `${before}/${insertToken} `.length;
+        } else if (content.trim() === "") {
+          // Case 2: Empty input, just set the command
+          newValue = `/${insertToken} `;
+          newCursorPos = newValue.length;
+        } else {
+          // Case 3: Insert at cursor position
+          const before = content.substring(0, cursorPosition);
+          const after = content.substring(cursorPosition);
+          newValue = `${before}/${insertToken} ${after}`;
+          newCursorPos = `${before}/${insertToken} `.length;
+        }
       }
 
       // Update content
@@ -154,7 +191,63 @@ export const useInputContainerCommand = ({
         }
       }, 0);
 
-      // Only workflows need to load and preview content.
+      // Typed instruction Workflows are selected by immutable identity. Never
+      // fetch or expand their instruction body into the composer.
+      if (command.metadata.workflowTypedActivation) {
+        const source = command.metadata.workflowSource;
+        const revision = command.metadata.workflowRevision;
+        if (
+          command.metadata.workflowKind !== "instruction" ||
+          !isTypedWorkflowSource(source) ||
+          !Number.isSafeInteger(revision) ||
+          (revision as number) <= 0
+        ) {
+          clearCommandDraft();
+          return;
+        }
+        const defaultArgs = defaultWorkflowArguments(command.metadata.workflowArgumentSchema);
+        const candidateSelection = previousTypedCommand?.workflowSelection;
+        const previousWorkflow =
+          previousTypedCommand && candidateSelection?.id === command.name
+            ? { draft: previousTypedCommand, selection: candidateSelection }
+            : null;
+        const argsText = previousWorkflow
+          ? (previousWorkflow.draft.workflowArgumentsText ??
+            JSON.stringify(previousWorkflow.selection.args, null, 2))
+          : JSON.stringify(defaultArgs, null, 2);
+        const initialArguments = parseWorkflowArguments(
+          argsText,
+          command.metadata.workflowArgumentSchema,
+        );
+        const args =
+          initialArguments.args ??
+          (previousWorkflow ? previousWorkflow.selection.args : defaultArgs);
+        const draft: WorkflowDraft = {
+          id: `command-draft-${command.id}`,
+          name: insertToken,
+          content: "",
+          createdAt: new Date().toISOString(),
+          type: command.type,
+          displayName: command.displayName,
+          workflowSelection: {
+            id: command.name,
+            source,
+            revision: revision as number,
+            args,
+          },
+          workflowKind: command.metadata.workflowKind,
+          workflowVersion: command.metadata.workflowVersion,
+          workflowArgumentHint: command.metadata.workflowArgumentHint,
+          workflowArgumentSchema: command.metadata.workflowArgumentSchema,
+          workflowArgumentsText: argsText,
+          workflowArgumentsError: initialArguments.error,
+          workflowActivationError: null,
+        };
+        commitCommandDraft(draft);
+        return;
+      }
+
+      // Only legacy workflows need to load and preview content.
       // Skills, MCP tools, and built-in goal command only need token insertion.
       if (command.type !== "workflow") {
         const draft: WorkflowDraft = {
@@ -169,8 +262,7 @@ export const useInputContainerCommand = ({
           mcpServerName: command.type === "mcp" ? command.metadata?.serverName : undefined,
           mcpOriginalName: command.type === "mcp" ? command.metadata?.originalName : undefined,
         };
-        setSelectedCommand(draft);
-        onWorkflowDraftChange?.(draft);
+        commitCommandDraft(draft);
         return;
       }
 
@@ -197,8 +289,7 @@ export const useInputContainerCommand = ({
             type: command.type,
             displayName: command.displayName,
           };
-          setSelectedCommand(draft);
-          onWorkflowDraftChange?.(draft);
+          commitCommandDraft(draft);
         } else {
           clearCommandDraft();
         }
@@ -208,38 +299,28 @@ export const useInputContainerCommand = ({
         clearCommandDraft();
       }
     },
-    [clearCommandDraft, onWorkflowDraftChange, setContent, content, textAreaRef, currentSessionId],
+    [
+      clearCommandDraft,
+      commitCommandDraft,
+      setContent,
+      content,
+      textAreaRef,
+      currentSessionId,
+      matchesCommandToken,
+    ],
   );
 
   const handleCommandSelect = useCallback(
-    async (commandInfo: { name: string; type: string; id: string }) => {
+    async (command: CommandItem) => {
       try {
-        const requestSessionId = currentSessionId;
-        const commandService = CommandService.getInstance();
-        const commands = await commandService.listCommands(requestSessionId);
-        if (currentSessionIdRef.current !== requestSessionId) return;
-        const command = commands.find(
-          (c) => c.id === commandInfo.id && c.type === commandInfo.type,
-        );
-
-        if (!command) {
-          console.error(
-            `[InputContainer] Command '${commandInfo.id}' of type '${commandInfo.type}' not found`,
-          );
-          setContent(`/${commandInfo.name} `);
-          clearCommandDraft();
-          return;
-        }
-
         await applyCommandDraft(command);
       } catch (error) {
-        if (currentSessionIdRef.current !== currentSessionId) return;
-        console.error(`[InputContainer] Failed to select command '${commandInfo.name}':`, error);
-        setContent(`/${commandInfo.name} `);
+        console.error(`[InputContainer] Failed to select command '${command.name}':`, error);
+        setContent(`/${command.name} `);
         clearCommandDraft();
       }
     },
-    [applyCommandDraft, clearCommandDraft, currentSessionId, setContent],
+    [applyCommandDraft, clearCommandDraft, setContent],
   );
 
   const handleCommandSelectorCancel = useCallback(() => {
@@ -247,34 +328,60 @@ export const useInputContainerCommand = ({
   }, []);
 
   const handleAutoComplete = useCallback(
-    async (commandName: string) => {
+    async (command: CommandItem) => {
       setShowCommandSelector(false);
-      const requestSessionId = currentSessionId;
       try {
-        const commandService = CommandService.getInstance();
-        const commands = await commandService.listCommands(requestSessionId);
-        if (currentSessionIdRef.current !== requestSessionId) return;
-        const command = commands.find((c) => c.name === commandName);
-
-        if (command) {
-          await applyCommandDraft(command);
-        } else {
-          console.error(`[InputContainer] Command '${commandName}' not found in auto-complete`);
-          setContent(`/${commandName} `);
-          clearCommandDraft();
-        }
+        await applyCommandDraft(command);
       } catch (error) {
-        if (currentSessionIdRef.current !== requestSessionId) return;
-        console.error(
-          `[InputContainer] Failed to load command '${commandName}' in auto-complete:`,
-          error,
-        );
-        setContent(`/${commandName} `);
+        console.error(`[InputContainer] Failed to apply command '${command.name}':`, error);
+        setContent(`/${command.name} `);
         clearCommandDraft();
       }
     },
-    [applyCommandDraft, clearCommandDraft, currentSessionId, setContent],
+    [applyCommandDraft, clearCommandDraft, setContent],
   );
+
+  const updateWorkflowArguments = useCallback(
+    (raw: string) => {
+      const current = selectedCommandRef.current;
+      if (!current?.workflowSelection) return;
+      const parsed = parseWorkflowArguments(raw, current.workflowArgumentSchema);
+      commitCommandDraft({
+        ...current,
+        workflowArgumentsText: raw,
+        workflowArgumentsError: parsed.error,
+        workflowActivationError: null,
+        workflowSelection: {
+          ...current.workflowSelection,
+          args: parsed.args ?? current.workflowSelection.args,
+        },
+      });
+    },
+    [commitCommandDraft],
+  );
+
+  const setWorkflowActivationError = useCallback(
+    (error: string | null) => {
+      const current = selectedCommandRef.current;
+      if (!current?.workflowSelection) return;
+      commitCommandDraft({ ...current, workflowActivationError: error });
+    },
+    [commitCommandDraft],
+  );
+
+  const refreshWorkflowSelection = useCallback(() => {
+    workflowCatalogQuery.invalidate();
+    setWorkflowActivationError(null);
+    setCommandSearchText(selectedCommandRef.current?.name ?? "");
+    setShowCommandSelector(true);
+  }, [setWorkflowActivationError]);
+
+  const reselectWorkflow = useCallback(() => {
+    const previousName = selectedCommandRef.current?.name ?? "";
+    setWorkflowActivationError(null);
+    setCommandSearchText(previousName);
+    setShowCommandSelector(true);
+  }, [setWorkflowActivationError]);
 
   return {
     selectedCommand,
@@ -287,6 +394,10 @@ export const useInputContainerCommand = ({
     handleCommandSelect,
     handleCommandSelectorCancel,
     handleAutoComplete,
+    updateWorkflowArguments,
+    setWorkflowActivationError,
+    refreshWorkflowSelection,
+    reselectWorkflow,
     setShowCommandSelector,
   };
 };

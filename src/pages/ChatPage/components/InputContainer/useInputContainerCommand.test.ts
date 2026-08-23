@@ -36,7 +36,6 @@ describe("useInputContainerCommand session scoping", () => {
     const onWorkflowDraftChange = vi.fn();
     const setContent = vi.fn();
 
-    commandService.listCommands.mockResolvedValue([projectWorkflow]);
     commandService.getCommand.mockImplementation(
       (_type: string, _id: string, sessionId: string) => {
         if (sessionId === "session-one") return sessionOneDetail;
@@ -62,11 +61,7 @@ describe("useInputContainerCommand session scoping", () => {
 
     let sessionOneSelection: Promise<void> | undefined;
     await act(async () => {
-      sessionOneSelection = result.current.handleCommandSelect({
-        name: "project",
-        type: "workflow",
-        id: "workflow-project",
-      });
+      sessionOneSelection = result.current.handleCommandSelect(projectWorkflow);
       await Promise.resolve();
     });
 
@@ -87,24 +82,136 @@ describe("useInputContainerCommand session scoping", () => {
     );
 
     await act(async () => {
-      await result.current.handleCommandSelect({
-        name: "project",
-        type: "workflow",
-        id: "workflow-project",
-      });
+      await result.current.handleCommandSelect(projectWorkflow);
     });
 
     expect(result.current.selectedCommand).toMatchObject({
       name: "project",
       content: "Session two workflow body",
     });
-    expect(commandService.listCommands).toHaveBeenNthCalledWith(1, "session-one");
-    expect(commandService.listCommands).toHaveBeenNthCalledWith(2, "session-two");
+    expect(commandService.listCommands).not.toHaveBeenCalled();
     expect(commandService.getCommand).toHaveBeenNthCalledWith(
       2,
       "workflow",
       "project",
       "session-two",
     );
+  });
+
+  it("creates a typed instruction selection without loading or retaining its body", async () => {
+    const onWorkflowDraftChange = vi.fn();
+    const typedInstruction: CommandItem = {
+      id: "workflow-catalog:review",
+      name: "review",
+      displayName: "Review safely",
+      description: "Review a scoped change",
+      type: "skill",
+      metadata: {
+        workflowCatalog: true,
+        workflowKind: "instruction",
+        workflowSource: "project",
+        workflowStatus: "valid",
+        workflowInvocationPolicy: "manual",
+        workflowRevision: 12,
+        workflowVersion: "4",
+        workflowArgumentHint: "<scope>",
+        workflowArgumentSchema: {
+          type: "object",
+          properties: { scope: { type: "string", default: "src" } },
+          required: ["scope"],
+          additionalProperties: false,
+        },
+        workflowSelectable: true,
+        workflowTypedActivation: true,
+      },
+    };
+
+    const { result } = renderHook(() =>
+      useInputContainerCommand({
+        setContent: vi.fn(),
+        onWorkflowDraftChange,
+        acknowledgeManualInput: vi.fn(),
+        currentSessionId: "session-one",
+        textAreaRef: { current: null },
+        content: "/rev",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.handleCommandSelect(typedInstruction);
+    });
+
+    expect(commandService.getCommand).not.toHaveBeenCalled();
+    expect(commandService.listCommands).not.toHaveBeenCalled();
+    expect(result.current.selectedCommand).toMatchObject({
+      name: "review",
+      content: "",
+      workflowSelection: {
+        id: "review",
+        source: "project",
+        revision: 12,
+        args: { scope: "src" },
+      },
+    });
+    expect(JSON.stringify(result.current.selectedCommand)).not.toContain("PRIVATE");
+
+    act(() => result.current.updateWorkflowArguments('{"scope":42}'));
+    expect(result.current.selectedCommand?.workflowArgumentsError).toContain("must be string");
+    expect(result.current.selectedCommand?.workflowSelection?.args).toEqual({ scope: "src" });
+
+    act(() => result.current.updateWorkflowArguments('{"scope":"tests"}'));
+    expect(result.current.selectedCommand?.workflowArgumentsError).toBeNull();
+    expect(result.current.selectedCommand?.workflowSelection?.args).toEqual({ scope: "tests" });
+  });
+
+  it("replaces a refreshed typed identity without duplicating the preserved command text", async () => {
+    const setContent = vi.fn();
+    const typedInstruction: CommandItem = {
+      id: "workflow-catalog:review:12",
+      name: "review",
+      displayName: "Review safely",
+      description: "Review a scoped change",
+      type: "skill",
+      metadata: {
+        workflowCatalog: true,
+        workflowKind: "instruction",
+        workflowSource: "project",
+        workflowStatus: "valid",
+        workflowInvocationPolicy: "manual",
+        workflowRevision: 12,
+        workflowSelectable: true,
+        workflowTypedActivation: true,
+      },
+    };
+    const { result, rerender } = renderHook(
+      ({ content }) =>
+        useInputContainerCommand({
+          setContent,
+          acknowledgeManualInput: vi.fn(),
+          currentSessionId: "session-one",
+          textAreaRef: { current: null },
+          content,
+        }),
+      { initialProps: { content: "/rev" } },
+    );
+
+    await act(async () => result.current.handleCommandSelect(typedInstruction));
+    act(() => result.current.updateWorkflowArguments('{"scope":"tests"}'));
+    rerender({ content: "/review keep this draft" });
+    act(() => result.current.reselectWorkflow());
+    expect(result.current.selectedCommand?.workflowSelection?.revision).toBe(12);
+
+    await act(async () =>
+      result.current.handleCommandSelect({
+        ...typedInstruction,
+        id: "workflow-catalog:review:13",
+        metadata: { ...typedInstruction.metadata, workflowRevision: 13 },
+      }),
+    );
+
+    expect(setContent).toHaveBeenLastCalledWith("/review keep this draft");
+    expect(result.current.selectedCommand?.workflowSelection?.revision).toBe(13);
+    expect(result.current.selectedCommand?.workflowSelection?.args).toEqual({ scope: "tests" });
+    expect(result.current.selectedCommand?.workflowArgumentsText).toBe('{"scope":"tests"}');
   });
 });
