@@ -42,6 +42,7 @@ const MessageInputControlsLeft: React.FC<MessageInputControlsLeftProps> = ({
             type="file"
             accept="image/*"
             multiple
+            disabled={disabled || isInputLocked}
             style={{ display: "none" }}
             onChange={onFileInputChange}
           />

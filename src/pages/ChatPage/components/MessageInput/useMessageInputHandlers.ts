@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import i18n from "i18next";
 import type { ImageFile } from "../../utils/imageUtils";
-import type { MessageRetryMode } from "./types";
+import type { MessageRetryMode, MessageSubmitOutcome } from "./types";
 
 interface UseMessageInputHandlersProps {
   value: string;
@@ -12,7 +12,11 @@ interface UseMessageInputHandlersProps {
   disabled: boolean;
   isCommandSelectorVisible: boolean;
   onChange: (value: string) => void;
-  onSubmit: (content: string, images?: ImageFile[]) => void;
+  onSubmit: (
+    content: string,
+    images?: ImageFile[],
+    rawContentSnapshot?: string,
+  ) => MessageSubmitOutcome | Promise<MessageSubmitOutcome>;
   onRetry?: (mode: MessageRetryMode) => void;
   onHistoryNavigate?: (direction: "previous" | "next", currentValue: string) => string | null;
   validateMessage?: (message: string) => {
@@ -24,7 +28,7 @@ interface UseMessageInputHandlersProps {
   messageApi: {
     error: (content: string) => void;
   };
-  clearImages: () => void;
+  clearImages: (imageIds?: readonly string[]) => void;
   textAreaRef: React.RefObject<TextAreaRef>;
 }
 
@@ -67,8 +71,17 @@ export const useMessageInputHandlers = ({
       }
     }
 
-    onSubmit(trimmedContent, images.length > 0 ? images : undefined);
-    clearImages();
+    const submittedImageIds = images.map((image) => image.id);
+    const submission = onSubmit(trimmedContent, images.length > 0 ? images : undefined, value);
+    if (submission instanceof Promise) {
+      return submission.then(
+        (accepted) => {
+          if (accepted !== false) clearImages(submittedImageIds);
+        },
+        () => undefined,
+      );
+    }
+    if (submission !== false) clearImages(submittedImageIds);
   }, [
     clearImages,
     disabled,

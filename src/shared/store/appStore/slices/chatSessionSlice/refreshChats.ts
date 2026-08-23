@@ -279,6 +279,9 @@ export function applySessionsList(
         lastActivityAt: effectiveLastActivityAt,
         messageCount: effectiveMessageCount,
         planMode: c.planMode,
+        // Session-list rows intentionally omit detail-only Workflow receipts.
+        // Only GET /sessions/{id} may replace or clear the hydrated value.
+        activeWorkflow: prev.activeWorkflow,
         config: mergedConfig,
         // Override title metadata with version/lifecycle precedence,
         // overriding the `updatedAt`-based decision for these fields specifically.

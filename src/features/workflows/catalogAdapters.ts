@@ -41,7 +41,7 @@ const TYPED_CAPABILITIES: WorkflowCatalogCapabilities = {
   mode: "typed",
   clone: false,
   edit: false,
-  activate: false,
+  activate: true,
   run: false,
   cancel: false,
 };

@@ -1,11 +1,18 @@
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useInputContainerSubmit } from "./useInputContainerSubmit";
 import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import type { ProcessedFile } from "../../utils/fileUtils";
 import { useAppStore } from "@shared/store/appStore";
 import { clearUsedModels, getUsedModels } from "../../utils/usedModels";
+import { WorkflowSelectionError } from "../../../../features/workflows";
+import {
+  finishTypedWorkflowSubmission,
+  isTypedWorkflowSubmissionPending,
+  resetTypedWorkflowSubmissionTrackerForTests,
+  tryBeginTypedWorkflowSubmission,
+} from "./typedWorkflowSubmissionTracker";
 
 const createWorkflow = (overrides: Partial<WorkflowDraft> = {}): WorkflowDraft => ({
   id: "workflow-1",
@@ -39,6 +46,7 @@ const createAttachment = (overrides: Partial<ProcessedFile> = {}): ProcessedFile
 };
 
 const createBaseProps = () => ({
+  sessionId: "session-1" as string | null,
   attachments: [] as ProcessedFile[],
   referenceText: null as string | null,
   selectedWorkflow: null as WorkflowDraft | null,
@@ -48,13 +56,15 @@ const createBaseProps = () => ({
   sendMessage: vi.fn().mockResolvedValue(undefined),
   recordEntry: vi.fn(),
   clearWorkflowDraft: vi.fn(),
-  setContent: vi.fn(),
-  setReferenceText: vi.fn(),
-  setAttachments: vi.fn(),
-  setFileReferences: vi.fn(),
+  clearContent: vi.fn(),
+  clearReferenceText: vi.fn(),
+  clearAttachments: vi.fn(),
+  clearFileReferences: vi.fn(),
 });
 
 describe("useInputContainerSubmit", () => {
+  afterEach(() => resetTypedWorkflowSubmissionTrackerForTests());
+
   it("prepends reference text when sending a message", async () => {
     const props = createBaseProps();
     props.referenceText = "> quoted message";
@@ -77,11 +87,11 @@ describe("useInputContainerSubmit", () => {
       "high",
       undefined,
     );
-    expect(props.setReferenceText).toHaveBeenCalledWith(null);
-    expect(props.setContent).toHaveBeenCalledWith("");
-    expect(props.clearWorkflowDraft).toHaveBeenCalled();
-    expect(props.setAttachments).toHaveBeenCalledWith([]);
-    expect(props.setFileReferences).toHaveBeenCalledWith(new Map());
+    expect(props.clearReferenceText).toHaveBeenCalledWith("> quoted message");
+    expect(props.clearContent).toHaveBeenCalledWith("my reply");
+    expect(props.clearWorkflowDraft).toHaveBeenCalledWith(null);
+    expect(props.clearAttachments).toHaveBeenCalledWith([]);
+    expect(props.clearFileReferences).toHaveBeenCalledWith([]);
   });
 
   it("keeps original behavior when no reference text is set", async () => {
@@ -111,8 +121,8 @@ describe("useInputContainerSubmit", () => {
 
     expect(props.recordEntry).not.toHaveBeenCalled();
     expect(props.sendMessage).not.toHaveBeenCalled();
-    expect(props.setContent).not.toHaveBeenCalled();
-    expect(props.setReferenceText).not.toHaveBeenCalled();
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(props.clearReferenceText).not.toHaveBeenCalled();
   });
 
   it("sends message when images are present even if text is empty", async () => {
@@ -154,6 +164,350 @@ describe("useInputContainerSubmit", () => {
       undefined,
       "medium",
       undefined,
+    );
+  });
+
+  it("sends a typed instruction identity and args without expanding body or hint text", async () => {
+    const props = createBaseProps();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      displayName: "Review",
+      content: "PRIVATE EXPANDED BODY",
+      workflowSelection: {
+        id: "review",
+        source: "project",
+        revision: 12,
+        args: { scope: "src" },
+      },
+      workflowArgumentsText: '{"scope":"src"}',
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+
+    let accepted = false;
+    await act(async () => {
+      accepted = await result.current.handleSubmit("/review inspect this change");
+    });
+
+    expect(accepted).toBe(true);
+    expect(props.sendMessage).toHaveBeenCalledWith(
+      "inspect this change",
+      undefined,
+      "medium",
+      undefined,
+      {
+        id: "review",
+        source: "project",
+        revision: 12,
+        args: { scope: "src" },
+      },
+    );
+    expect(JSON.stringify(props.sendMessage.mock.calls)).not.toContain("PRIVATE EXPANDED BODY");
+    expect(JSON.stringify(props.sendMessage.mock.calls)).not.toContain("User explicitly selected");
+  });
+
+  it("coalesces concurrent typed submissions until Bamboo accepts the first chat", async () => {
+    const props = createBaseProps();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+
+    let resolveFirstSend: (() => void) | undefined;
+    props.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirstSend = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+    let firstSubmission!: Promise<boolean>;
+    let duplicateSubmission!: Promise<boolean>;
+
+    act(() => {
+      firstSubmission = result.current.handleSubmit("/review inspect this change");
+      duplicateSubmission = result.current.handleSubmit("/review inspect this change");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(1);
+    expect(isTypedWorkflowSubmissionPending("session-1")).toBe(true);
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(props.clearWorkflowDraft).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveFirstSend?.();
+      await expect(Promise.all([firstSubmission, duplicateSubmission])).resolves.toEqual([
+        true,
+        false,
+      ]);
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(1);
+    expect(props.clearWorkflowDraft).toHaveBeenCalledTimes(1);
+    expect(isTypedWorkflowSubmissionPending("session-1")).toBe(false);
+
+    await act(async () => {
+      await result.current.handleSubmit("/review inspect again");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses the raw composer snapshot when an asynchronous typed send is accepted", async () => {
+    const rawComposerValue = "  /review inspect whitespace  ";
+    let liveComposerValue = rawComposerValue;
+    const props = createBaseProps();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    props.clearContent = vi.fn((submittedSnapshot: string) => {
+      if (liveComposerValue === submittedSnapshot) liveComposerValue = "";
+    });
+
+    let resolveSend: (() => void) | undefined;
+    props.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSend = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+    let submission!: Promise<boolean>;
+    act(() => {
+      submission = result.current.handleSubmit(
+        "/review inspect whitespace",
+        undefined,
+        rawComposerValue,
+      );
+    });
+
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(liveComposerValue).toBe(rawComposerValue);
+
+    await act(async () => {
+      resolveSend?.();
+      await expect(submission).resolves.toBe(true);
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledWith(
+      "inspect whitespace",
+      undefined,
+      "medium",
+      undefined,
+      { id: "review", source: "project", revision: 12, args: {} },
+    );
+    expect(props.clearContent).toHaveBeenCalledWith(rawComposerValue);
+    expect(liveComposerValue).toBe("");
+  });
+
+  it("blocks every session send while a typed submission is pending even without a local draft", async () => {
+    const revision = tryBeginTypedWorkflowSubmission("session-1");
+    expect(revision).not.toBeNull();
+    const props = createBaseProps();
+    props.selectedWorkflow = null;
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+
+    await act(async () => {
+      await expect(result.current.handleSubmit("external follow-up")).resolves.toBe(false);
+    });
+    expect(props.sendMessage).not.toHaveBeenCalled();
+
+    expect(finishTypedWorkflowSubmission("session-1", revision!)).toBe(true);
+    await act(async () => {
+      await expect(result.current.handleSubmit("external follow-up")).resolves.toBe(true);
+    });
+    expect(props.sendMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the typed fence when a pending session composer remounts", async () => {
+    const firstProps = createBaseProps();
+    firstProps.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    firstProps.matchesWorkflowToken = vi.fn(() => true);
+    let resolveFirstSend: (() => void) | undefined;
+    firstProps.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirstSend = resolve;
+        }),
+    );
+
+    const firstHook = renderHook(() => useInputContainerSubmit({ ...firstProps }));
+    let firstSubmission!: Promise<boolean>;
+    act(() => {
+      firstSubmission = firstHook.result.current.handleSubmit("/review inspect once");
+    });
+    expect(isTypedWorkflowSubmissionPending("session-1")).toBe(true);
+    firstHook.unmount();
+
+    const remountedProps = createBaseProps();
+    remountedProps.selectedWorkflow = firstProps.selectedWorkflow;
+    remountedProps.matchesWorkflowToken = vi.fn(() => true);
+    const remountedHook = renderHook(() => useInputContainerSubmit({ ...remountedProps }));
+
+    await act(async () => {
+      await expect(
+        remountedHook.result.current.handleSubmit("/review inspect twice"),
+      ).resolves.toBe(false);
+    });
+    expect(remountedProps.sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveFirstSend?.();
+      await firstSubmission;
+    });
+    expect(isTypedWorkflowSubmissionPending("session-1")).toBe(false);
+  });
+
+  it("cleans only the originating session snapshot after a pane switches sessions", async () => {
+    const oldSessionProps = createBaseProps();
+    oldSessionProps.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    oldSessionProps.matchesWorkflowToken = vi.fn(() => true);
+    let resolveOldSend: (() => void) | undefined;
+    oldSessionProps.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveOldSend = resolve;
+        }),
+    );
+    const newSessionProps = {
+      ...createBaseProps(),
+      sessionId: "session-2",
+      clearWorkflowDraft: vi.fn(),
+      clearAttachments: vi.fn(),
+      clearFileReferences: vi.fn(),
+    };
+
+    const { result, rerender } = renderHook(({ props }) => useInputContainerSubmit({ ...props }), {
+      initialProps: { props: oldSessionProps },
+    });
+    let oldSubmission!: Promise<boolean>;
+    act(() => {
+      oldSubmission = result.current.handleSubmit("/review old session");
+    });
+
+    rerender({ props: newSessionProps });
+    await act(async () => {
+      resolveOldSend?.();
+      await oldSubmission;
+    });
+
+    expect(oldSessionProps.clearContent).toHaveBeenCalledWith("/review old session");
+    expect(oldSessionProps.clearReferenceText).toHaveBeenCalledWith(null);
+    expect(oldSessionProps.clearWorkflowDraft).toHaveBeenCalledWith(
+      oldSessionProps.selectedWorkflow,
+    );
+    expect(oldSessionProps.clearAttachments).toHaveBeenCalledWith([]);
+    expect(oldSessionProps.clearFileReferences).toHaveBeenCalledWith([]);
+    expect(newSessionProps.clearWorkflowDraft).not.toHaveBeenCalled();
+    expect(newSessionProps.clearAttachments).not.toHaveBeenCalled();
+    expect(newSessionProps.clearFileReferences).not.toHaveBeenCalled();
+    expect(isTypedWorkflowSubmissionPending("session-1")).toBe(false);
+  });
+
+  it("preserves composer state and selection after a recoverable stale revision", async () => {
+    const props = createBaseProps();
+    const onWorkflowSelectionError = vi.fn();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    props.sendMessage.mockRejectedValue(
+      new WorkflowSelectionError(
+        "workflow_revision_mismatch",
+        "Refresh and reselect the Workflow.",
+        true,
+        409,
+      ),
+    );
+    const { result } = renderHook(() =>
+      useInputContainerSubmit({ ...props, onWorkflowSelectionError }),
+    );
+
+    let accepted = true;
+    await act(async () => {
+      accepted = await result.current.handleSubmit("/review keep this draft");
+    });
+
+    expect(accepted).toBe(false);
+    expect(onWorkflowSelectionError).toHaveBeenCalledWith(
+      "Refresh and reselect the Workflow.",
+      props.selectedWorkflow,
+    );
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(props.clearWorkflowDraft).not.toHaveBeenCalled();
+    expect(props.clearReferenceText).not.toHaveBeenCalled();
+    expect(props.clearAttachments).not.toHaveBeenCalled();
+    expect(props.recordEntry).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.handleSubmit("/review keep this draft");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(2);
+    expect(onWorkflowSelectionError).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not send invalid typed arguments and keeps the draft", async () => {
+    const props = createBaseProps();
+    const onWorkflowSelectionError = vi.fn();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{",
+      workflowArgumentsError: "Workflow arguments must be valid JSON.",
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+    const { result } = renderHook(() =>
+      useInputContainerSubmit({ ...props, onWorkflowSelectionError }),
+    );
+
+    let accepted = true;
+    await act(async () => {
+      accepted = await result.current.handleSubmit("/review keep this too");
+    });
+
+    expect(accepted).toBe(false);
+    expect(props.sendMessage).not.toHaveBeenCalled();
+    expect(props.clearContent).not.toHaveBeenCalled();
+    expect(onWorkflowSelectionError).toHaveBeenCalledWith(
+      "Workflow arguments must be valid JSON.",
+      props.selectedWorkflow,
     );
   });
 
@@ -294,6 +648,7 @@ describe("useInputContainerSubmit", () => {
       "medium",
       undefined,
     );
+    expect(props.clearAttachments).toHaveBeenCalledWith(["file-1"]);
   });
 
   it("records the selected model as used on submit (select + use → discovery)", async () => {

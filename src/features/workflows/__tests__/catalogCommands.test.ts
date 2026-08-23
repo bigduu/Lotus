@@ -67,7 +67,7 @@ const catalog: WorkflowCatalogView = {
 };
 
 describe("Workflow catalog command projection", () => {
-  it("preserves same-id namespaces, exposes safe diagnostics, and disables catalog-only activation", () => {
+  it("preserves same-id namespaces and disables invalid or orchestration activation", () => {
     const commands: CommandItem[] = [
       {
         id: "skill-review",
@@ -96,13 +96,13 @@ describe("Workflow catalog command projection", () => {
       workflowSource: "builtin",
       workflowLastKnownGood: true,
       workflowArgumentHint: "<scope> [focus]",
-      workflowSelectable: true,
+      workflowSelectable: false,
     });
     expect(merged[1].metadata).toMatchObject({
       workflowKind: "orchestration",
       workflowSource: "user",
       workflowLegacy: true,
-      workflowSelectable: true,
+      workflowSelectable: false,
     });
     expect(merged[2].displayName).toBe("Deploy");
     expect(isCommandSelectable(merged[2])).toBe(false);
@@ -112,6 +112,78 @@ describe("Workflow catalog command projection", () => {
     expect(retained).not.toContain("PRIVATE RESOURCE");
     expect(retained).not.toContain("/private/workflows/review.md");
     expect(retained).not.toContain("argumentSchema");
+  });
+
+  it("makes only valid explicit typed instructions selectable with schema metadata", () => {
+    const typedCatalog: WorkflowCatalogView = {
+      revision: 10,
+      diagnostics: [],
+      capabilities: { ...catalog.capabilities, activate: true },
+      items: [
+        {
+          id: "review",
+          name: "Review",
+          description: "Review a scope",
+          kind: "instruction",
+          source: "project",
+          status: "valid",
+          winner: true,
+          invocationPolicy: "manual",
+          argumentHint: "<scope>",
+          argumentSchema: {
+            type: "object",
+            properties: { scope: { type: "string" } },
+            required: ["scope"],
+          },
+          readOnly: false,
+          revision: 12,
+          version: "4",
+        },
+      ],
+    };
+
+    const [command] = mergeCommandsWithWorkflowCatalog([], typedCatalog);
+    expect(isCommandSelectable(command)).toBe(true);
+    expect(command.metadata).toMatchObject({
+      workflowTypedActivation: true,
+      workflowSelectable: true,
+      workflowSource: "project",
+      workflowRevision: 12,
+      workflowArgumentSchema: {
+        type: "object",
+        properties: { scope: { type: "string" } },
+      },
+    });
+    expect(JSON.stringify(command)).not.toContain("body");
+    expect(JSON.stringify(command)).not.toContain("resources");
+  });
+
+  it("never exposes a legacy projection through Bamboo's typed source contract", () => {
+    const typedCatalog: WorkflowCatalogView = {
+      revision: 10,
+      diagnostics: [],
+      capabilities: { ...catalog.capabilities, mode: "typed", activate: true },
+      items: [
+        {
+          id: "legacy-review",
+          name: "Legacy review",
+          description: "Migrated compatibility row",
+          kind: "instruction",
+          source: "user",
+          status: "valid",
+          winner: true,
+          legacy: true,
+          invocationPolicy: "manual",
+          readOnly: true,
+          revision: 12,
+          version: "1",
+        },
+      ],
+    };
+
+    const [command] = mergeCommandsWithWorkflowCatalog([], typedCatalog);
+    expect(isCommandSelectable(command)).toBe(false);
+    expect(command.metadata.workflowTypedActivation).toBeUndefined();
   });
 
   it("sanitizes command-list cache entries before catalog merging", () => {

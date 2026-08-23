@@ -7,6 +7,7 @@ import type {
 import type { ChatItem, Message } from "@shared/types/chat";
 import type { ImageFile } from "../../utils/imageUtils";
 import type { MessageRetryMode } from "../../components/MessageInput/types";
+import type { WorkflowSelection } from "../../../../features/workflows";
 
 export interface UseMessageStreaming {
   sendMessage: (
@@ -14,6 +15,7 @@ export interface UseMessageStreaming {
     images?: ImageFile[],
     reasoningEffort?: ReasoningEffort,
     selectedSkillIds?: string[],
+    workflowSelection?: WorkflowSelection,
   ) => Promise<void>;
   retryLastTurn: (reasoningEffort?: ReasoningEffort, mode?: MessageRetryMode) => Promise<void>;
   cancel: () => void;

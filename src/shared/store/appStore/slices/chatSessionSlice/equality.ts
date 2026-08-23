@@ -96,6 +96,25 @@ const areChatConfigsEquivalent = (a: ChatItem["config"], b: ChatItem["config"]):
   );
 };
 
+const areActiveWorkflowsEqual = (
+  a: ChatItem["activeWorkflow"],
+  b: ChatItem["activeWorkflow"],
+): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return a == null && b == null;
+  return (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.source === b.source &&
+    a.revision === b.revision &&
+    a.version === b.version &&
+    a.kind === b.kind &&
+    a.invokedBy === b.invokedBy &&
+    a.activatedAt === b.activatedAt &&
+    a.status === b.status
+  );
+};
+
 export const canReuseSessionListChat = (prev: ChatItem, next: ChatItem): boolean => {
   return (
     prev.id === next.id &&
@@ -112,6 +131,7 @@ export const canReuseSessionListChat = (prev: ChatItem, next: ChatItem): boolean
     prev.lastRunStatus === next.lastRunStatus &&
     prev.lastRunError === next.lastRunError &&
     prev.planMode === next.planMode &&
+    areActiveWorkflowsEqual(prev.activeWorkflow, next.activeWorkflow) &&
     prev.subagentType === next.subagentType &&
     prev.placement?.kind === next.placement?.kind &&
     prev.placement?.host === next.placement?.host &&

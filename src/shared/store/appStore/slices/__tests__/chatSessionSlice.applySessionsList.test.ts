@@ -68,6 +68,7 @@ const createChat = (overrides: Partial<ChatItem> & { id: string }): ChatItem => 
   updatedAt: overrides.updatedAt,
   createdAt: overrides.createdAt ?? Date.now(),
   messages: overrides.messages ?? [],
+  activeWorkflow: overrides.activeWorkflow,
   config: overrides.config ?? {
     systemPromptId: "general_assistant",
     baseSystemPrompt: "Base prompt",
@@ -132,6 +133,36 @@ describe("applySessionsList (via refreshChats)", () => {
 
     expect(store.getState().chats[0].title).toBe("Looks Completely Custom");
     expect(store.getState().chats[0].titleGenerated).toBe(false);
+  });
+
+  it("preserves a detail-hydrated active Workflow across lightweight list refreshes", async () => {
+    store.setState({
+      chats: [
+        createChat({
+          id: "s1",
+          activeWorkflow: {
+            id: "review",
+            name: "Review",
+            source: "project",
+            revision: 12,
+            version: "4",
+            kind: "instruction",
+            invokedBy: "user",
+            activatedAt: "2026-08-23T08:00:00Z",
+            status: "active",
+          },
+        }),
+      ],
+    });
+    mockListSessions.mockResolvedValueOnce({ sessions: [createSummary({ id: "s1" })] });
+
+    await store.getState().refreshChats();
+
+    expect(store.getState().chats[0].activeWorkflow).toMatchObject({
+      id: "review",
+      revision: 12,
+      invokedBy: "user",
+    });
   });
 
   it("upgrades pending title lifecycle without letting stale summaries regress it", async () => {

@@ -32,6 +32,7 @@ import {
   type UseMessageStreaming,
   type UseMessageStreamingDeps,
 } from "./useMessageStreaming.helpers";
+import { toWorkflowSelectionError, type WorkflowSelection } from "../../../../features/workflows";
 
 export type { UseMessageStreaming } from "./useMessageStreaming.helpers";
 
@@ -369,6 +370,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       userMessage: UserMessage,
       reasoningEffort?: ReasoningEffort,
       selectedSkillIds?: string[],
+      workflowSelection?: WorkflowSelection,
     ) => {
       // Validate model is available (TypeScript type guard)
       if (!activeModel) {
@@ -392,6 +394,14 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           imageCount: userMessage.images?.length ?? 0,
           reasoningEffort: reasoningEffort ?? null,
           selectedSkillCount: selectedSkillIds?.length ?? 0,
+          workflowSelection: workflowSelection
+            ? {
+                id: workflowSelection.id,
+                source: workflowSelection.source,
+                revision: workflowSelection.revision,
+                argumentKeys: Object.keys(workflowSelection.args).sort(),
+              }
+            : null,
           workspacePath: persistedWorkspacePath,
           activeModel,
           activeModelRef: activeModelRef ?? null,
@@ -416,6 +426,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           project_id: currentChat?.config?.projectId ?? undefined,
           selected_skill_ids:
             selectedSkillIds && selectedSkillIds.length > 0 ? selectedSkillIds : undefined,
+          workflow_selection: workflowSelection,
           images: userMessage.images
             ?.filter((img) => Boolean(img.base64))
             .map((img) => ({
@@ -441,6 +452,18 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           console.warn(
             `[useMessageStreaming] Backend returned unexpected session_id=${session_id} for sessionId=${sessionId}`,
           );
+        }
+
+        if (workflowSelection) {
+          // Bamboo validates the immutable Workflow identity before it accepts
+          // the chat. Stage the optimistic message only after that boundary so
+          // a typed 409/422 cannot switch layouts and remount the composer,
+          // which would discard the Workflow draft, arguments, references and
+          // attachments the user needs for recovery.
+          await addMessage(sessionId, userMessage);
+          markOptimisticStart(sessionId);
+          await new Promise((resolve) => setTimeout(resolve, 0));
+          await useAppStore.getState().refreshSessionDetail(sessionId, { force: true });
         }
 
         // ---- Goal command handling ----
@@ -500,8 +523,9 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         // The event bus will handle sync state organically as agent outputs arrive.
         // await useAppStore.getState().loadChatHistory(sessionId, { mode: "replace" });
 
-        // Step 2: Trigger execution. The optimistic start (markOptimisticStart) was
-        // already emitted by the caller (sendMessage) before entering this path.
+        // Step 2: Trigger execution. The optimistic start has already been
+        // emitted: immediately by the caller for ordinary messages, or above
+        // after Bamboo accepted a typed Workflow selection.
         const executeResult = await executeWithOptionalReasoning(
           agentClientRef.current,
           sessionId,
@@ -530,12 +554,14 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
     [
       activeModel,
       activeModelRef,
+      addMessage,
       buildClientSync,
       currentChat,
       currentProvider,
       resolvedProviderType,
       depsSessionId,
       handleExecuteResult,
+      markOptimisticStart,
       resetSession,
       t,
     ],
@@ -547,6 +573,7 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       images?: ImageFile[],
       reasoningEffort?: ReasoningEffort,
       selectedSkillIds?: string[],
+      workflowSelection?: WorkflowSelection,
     ) => {
       if (!currentChat) {
         modal.info({
@@ -613,43 +640,65 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
         imageCount: messageImages.length,
         reasoningEffort: reasoningEffort ?? null,
         selectedSkillCount: selectedSkillIds?.length ?? 0,
+        workflowSelectionId: workflowSelection?.id ?? null,
       });
-      await addMessage(sessionId, userMessage);
-      debugLog("[Streaming]", "sendMessage.localAdd.after", {
-        sessionId,
-        generation: selectGeneration(sessionId)(useAppStore.getState()),
-        userMessageId: userMessage.id,
-      });
+      if (!workflowSelection) {
+        await addMessage(sessionId, userMessage);
+        debugLog("[Streaming]", "sendMessage.localAdd.after", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+          userMessageId: userMessage.id,
+        });
 
-      // Emit optimistic start immediately so the UI shows the spinner while the
-      // outbound network request is still in flight.  Previously this was done
-      // inside sendWithAgent *after* sendMessage + loadChatHistory had already
-      // completed, causing a perceptible delay before the UI responded.
-      markOptimisticStart(sessionId);
-      debugLog("[Streaming]", "sendMessage.markOptimisticStart", {
-        sessionId,
-        generation: selectGeneration(sessionId)(useAppStore.getState()),
-      });
-      // Yield so React can flush the processing-state render before we block
-      // the microtask queue with network I/O.
-      await new Promise((resolve) => setTimeout(resolve, 0));
+        // Ordinary messages have no typed pre-execution validation boundary,
+        // so keep their existing immediate optimistic feedback.
+        markOptimisticStart(sessionId);
+        debugLog("[Streaming]", "sendMessage.markOptimisticStart", {
+          sessionId,
+          generation: selectGeneration(sessionId)(useAppStore.getState()),
+        });
+        // Yield so React can flush the processing-state render before we block
+        // the microtask queue with network I/O.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
 
       try {
         debugLog("[Streaming]", "[useChatStreaming] Using Agent Server");
-        await sendWithAgent(content, sessionId, userMessage, reasoningEffort, selectedSkillIds);
+        await sendWithAgent(
+          content,
+          sessionId,
+          userMessage,
+          reasoningEffort,
+          selectedSkillIds,
+          workflowSelection,
+        );
         debugLog("[Streaming]", "sendMessage.completed", {
           sessionId,
           generation: selectGeneration(sessionId)(useAppStore.getState()),
           userMessageId: userMessage.id,
         });
       } catch (error) {
+        const workflowError = workflowSelection ? toWorkflowSelectionError(error) : null;
         if (streamingMessageIdRef.current) {
           streamingMessageBus.clear(sessionId, streamingMessageIdRef.current);
         }
         streamingMessageIdRef.current = null;
         streamingContentRef.current = "";
 
-        if (error instanceof Error && error.name === "AbortError") {
+        if (workflowError) {
+          const latestChat = useAppStore
+            .getState()
+            .chats.find((candidate) => candidate.id === sessionId);
+          if (latestChat) {
+            updateSession(sessionId, {
+              messages: latestChat.messages.filter((message) => message.id !== userMessage.id),
+            });
+          }
+          // Bamboo rejected the chat before execute, so no backend run exists.
+          // Clear the optimistic execution state immediately and keep the
+          // composer available for refresh/reselection.
+          resetSession(sessionId);
+        } else if (error instanceof Error && error.name === "AbortError") {
           appMessage.info(t("chat.streaming.requestCancelled"));
         } else {
           console.error("[useChatStreaming] Failed to send message:", error);
@@ -666,7 +715,8 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
           generation: selectGeneration(sessionId)(useAppStore.getState()),
           error,
         });
-        markSettleTimeout(sessionId);
+        if (!workflowError) markSettleTimeout(sessionId);
+        if (workflowError) throw workflowError;
       } finally {
         debugLog("[Streaming]", "sendMessage.finally", {
           sessionId,
@@ -695,6 +745,8 @@ export function useMessageStreaming(deps: UseMessageStreamingDeps): UseMessageSt
       t,
       markOptimisticStart,
       markSettleTimeout,
+      resetSession,
+      updateSession,
     ],
   );
 

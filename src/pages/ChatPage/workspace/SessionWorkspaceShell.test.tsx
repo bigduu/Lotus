@@ -160,4 +160,44 @@ describe("SessionWorkspaceShell", () => {
 
     expect(screen.getByTestId("session-inspector-pane")).toBeInTheDocument();
   });
+
+  it("shows inspector when a session has an active Workflow even without messages", () => {
+    mockStoreState.chats = [
+      {
+        id: "session-1",
+        kind: "root",
+        title: "Session 1",
+        messages: [],
+        messageCount: 0,
+        isRunning: false,
+        activeWorkflow: {
+          id: "review",
+          name: "Review",
+          source: "project",
+          revision: 12,
+          kind: "instruction",
+          invokedBy: "user",
+          activatedAt: "2026-08-23T08:00:00Z",
+          status: "active",
+        },
+        config: {},
+      },
+    ];
+
+    render(
+      <div style={{ width: 1200, height: 800 }}>
+        <SessionWorkspaceShell
+          sessionId="session-1"
+          workspaceState={{
+            isEmbedded: false,
+            isMultiPane: false,
+            inspectorMode: "rail",
+            inspectorTogglePlacement: "meta-strip",
+          }}
+        />
+      </div>,
+    );
+
+    expect(screen.getByTestId("session-inspector-pane")).toBeInTheDocument();
+  });
 });

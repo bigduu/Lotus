@@ -39,12 +39,13 @@ describe("MessageInputImageStrip thumbnail keyboard accessibility", () => {
     vi.clearAllMocks();
   });
 
-  const renderStrip = (images: ImageFile[]) =>
+  const renderStrip = (images: ImageFile[], disabled = false) =>
     render(
       <MessageInputImageStrip
         images={images}
         token={token}
         allowImages={true}
+        disabled={disabled}
         onPreview={onPreview}
         onClear={onClear}
       />,
@@ -100,5 +101,11 @@ describe("MessageInputImageStrip thumbnail keyboard accessibility", () => {
     fireEvent.click(screen.getByRole("button", { name: "View image cat.png" }));
 
     expect(onPreview).toHaveBeenCalledWith(image);
+  });
+
+  it("disables image clearing while the submitted snapshot is pending", () => {
+    renderStrip([makeImage("1", "cat.png")], true);
+
+    expect(screen.getByRole("button", { name: "Clear all images" })).toBeDisabled();
   });
 });

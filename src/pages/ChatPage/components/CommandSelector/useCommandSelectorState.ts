@@ -14,9 +14,9 @@ interface UseCommandSelectorStateProps {
   visible: boolean;
   sessionId?: string | null;
   searchText: string;
-  onSelect: (command: { name: string; type: string; id: string }) => void;
+  onSelect: (command: CommandItem) => void;
   onCancel: () => void;
-  onAutoComplete?: (commandName: string) => void;
+  onAutoComplete?: (command: CommandItem) => void;
   catalogQuery?: WorkflowCatalogQuerySource;
 }
 
@@ -193,11 +193,7 @@ export const useCommandSelectorState = ({
     async (command: CommandItem) => {
       if (!isCommandSelectable(command)) return;
       try {
-        onSelect({
-          name: command.name,
-          type: command.type,
-          id: command.id,
-        });
+        onSelect(command);
       } catch (error) {
         console.error(`[CommandSelector] Failed to select command '${command.name}':`, error);
       }
@@ -237,7 +233,7 @@ export const useCommandSelectorState = ({
           event.stopPropagation();
           if (filteredCommands[selectedIndex] && onAutoComplete) {
             if (isCommandSelectable(filteredCommands[selectedIndex])) {
-              onAutoComplete(filteredCommands[selectedIndex].name);
+              onAutoComplete(filteredCommands[selectedIndex]);
             }
           }
           break;

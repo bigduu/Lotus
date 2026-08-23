@@ -45,7 +45,7 @@ describe("MessageInput", () => {
 
     fireEvent.click(sendButton);
 
-    expect(onSubmit).toHaveBeenCalledWith(longContent, undefined);
+    expect(onSubmit).toHaveBeenCalledWith(longContent, undefined, longContent);
   });
 
   it("blocks sending when content exceeds configured maxCharCount", () => {

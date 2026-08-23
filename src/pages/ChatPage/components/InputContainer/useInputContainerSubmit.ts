@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { ImageFile } from "../../utils/imageUtils";
 import { summarizeAttachments, type ProcessedFile } from "../../utils/fileUtils";
 import type { ReasoningEffort } from "@services/chat/AgentService";
@@ -6,8 +6,15 @@ import type { WorkflowDraft } from "./index";
 import type { WorkspaceFileEntry } from "@shared/types/workspace";
 import { useAppStore } from "@shared/store/appStore";
 import { recordUsedModel } from "../../utils/usedModels";
+import { WorkflowSelectionError, type WorkflowSelection } from "../../../../features/workflows";
+import {
+  finishTypedWorkflowSubmission,
+  isTypedWorkflowSubmissionPending,
+  tryBeginTypedWorkflowSubmission,
+} from "./typedWorkflowSubmissionTracker";
 
 interface UseInputContainerSubmitProps {
+  sessionId: string | null;
   attachments: ProcessedFile[];
   referenceText: string | null;
   selectedWorkflow: WorkflowDraft | null;
@@ -25,16 +32,19 @@ interface UseInputContainerSubmitProps {
     images?: ImageFile[],
     reasoningEffort?: ReasoningEffort,
     selectedSkillIds?: string[],
+    workflowSelection?: WorkflowSelection,
   ) => Promise<void>;
   recordEntry: (entry: string) => void;
-  clearWorkflowDraft: () => void;
-  setContent: (value: string) => void;
-  setReferenceText: (value: string | null) => void;
-  setAttachments: (value: ProcessedFile[]) => void;
-  setFileReferences: (value: Map<string, WorkspaceFileEntry>) => void;
+  clearWorkflowDraft: (expectedDraft: WorkflowDraft | null) => void;
+  clearContent: (submittedContent: string) => void;
+  clearReferenceText: (submittedReferenceText: string | null) => void;
+  clearAttachments: (attachmentIds: readonly string[]) => void;
+  clearFileReferences: (referenceNames: readonly string[]) => void;
+  onWorkflowSelectionError?: (message: string, expectedDraft: WorkflowDraft) => void;
 }
 
 export const useInputContainerSubmit = ({
+  sessionId,
   attachments,
   referenceText,
   selectedWorkflow,
@@ -45,21 +55,41 @@ export const useInputContainerSubmit = ({
   sendMessage,
   recordEntry,
   clearWorkflowDraft,
-  setContent,
-  setReferenceText,
-  setAttachments,
-  setFileReferences,
+  clearContent,
+  clearReferenceText,
+  clearAttachments,
+  clearFileReferences,
+  onWorkflowSelectionError,
 }: UseInputContainerSubmitProps) => {
+  const detachedTypedSubmissionInFlightRef = useRef(false);
+
   const handleSubmit = useCallback(
-    async (message: string, images?: ImageFile[]) => {
+    async (message: string, images?: ImageFile[], rawContentSnapshot = message) => {
+      // Fence the entire session submission boundary. A remounted composer may
+      // temporarily lack its typed selection, and external-send actions do not
+      // consult disabled form controls, but neither may bypass an accepted
+      // request that is still pending.
+      if (sessionId && isTypedWorkflowSubmissionPending(sessionId)) return false;
+
       const trimmedInput = message.trim();
       const attachmentSummary = summarizeAttachments(attachments);
       const normalizedReferenceText = referenceText?.trim() ?? "";
       let composedInput = trimmedInput;
       let selectedSkillIds: string[] | undefined;
+      let workflowSelection: WorkflowSelection | undefined;
 
       // Handle different command types
-      if (selectedWorkflow?.content && selectedWorkflow.type === "workflow") {
+      if (selectedWorkflow?.workflowSelection) {
+        if (selectedWorkflow.workflowArgumentsError) {
+          onWorkflowSelectionError?.(selectedWorkflow.workflowArgumentsError, selectedWorkflow);
+          return false;
+        }
+        const token = `/${selectedWorkflow.name}`;
+        const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
+        if (!hasToken) return false;
+        composedInput = trimmedInput.slice(token.length).trim();
+        workflowSelection = selectedWorkflow.workflowSelection;
+      } else if (selectedWorkflow?.content && selectedWorkflow.type === "workflow") {
         // Workflow: replace token with workflow content
         const token = `/${selectedWorkflow.name}`;
         const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
@@ -92,22 +122,20 @@ export const useInputContainerSubmit = ({
         }
       }
 
-      if (!composedInput && !attachmentSummary && (!images || images.length === 0)) {
-        return;
+      if (
+        !workflowSelection &&
+        !composedInput &&
+        !attachmentSummary &&
+        (!images || images.length === 0)
+      ) {
+        return false;
       }
 
       const composedMessage = [normalizedReferenceText, composedInput, attachmentSummary]
         .filter(Boolean)
         .join("\n\n");
 
-      recordEntry(composedMessage);
-      // Discovery: remember the model actually used (select + send) so it shows
-      // up in Model Limits settings. Prefer the resolved session model passed in;
-      // fall back to the legacy global selection. Best-effort; never blocks send.
-      recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
-      setContent("");
-      clearWorkflowDraft();
-
+      let outboundMessage = composedMessage;
       if (fileReferences.size > 0) {
         const fileRefMatches = Array.from(composedMessage.matchAll(/@([^\\s]+)/g));
 
@@ -122,25 +150,72 @@ export const useInputContainerSubmit = ({
           }
 
           if (referencedFiles.length > 0) {
-            const structuredMessage = JSON.stringify({
+            outboundMessage = JSON.stringify({
               type: "file_reference",
               paths: referencedFiles.map((f) => f.path),
               display_text: composedMessage,
             });
-            await sendMessage(structuredMessage, images, reasoningEffort, selectedSkillIds);
-          } else {
-            await sendMessage(composedMessage, images, reasoningEffort, selectedSkillIds);
           }
-        } else {
-          await sendMessage(composedMessage, images, reasoningEffort, selectedSkillIds);
         }
-      } else {
-        await sendMessage(composedMessage, images, reasoningEffort, selectedSkillIds);
       }
 
-      setReferenceText(null);
-      setAttachments([]);
-      setFileReferences(new Map());
+      const isTypedWorkflowSubmission = workflowSelection !== undefined;
+      let typedSubmissionRevision: number | null = null;
+      let usesDetachedTypedSubmissionFence = false;
+      if (isTypedWorkflowSubmission) {
+        if (sessionId) {
+          typedSubmissionRevision = tryBeginTypedWorkflowSubmission(sessionId);
+          if (typedSubmissionRevision === null) return false;
+        } else {
+          // A detached composer has no stable session identity to share across
+          // mounts. Retain an instance-local fence for the pre-session edge.
+          if (detachedTypedSubmissionInFlightRef.current) return false;
+          detachedTypedSubmissionInFlightRef.current = true;
+          usesDetachedTypedSubmissionFence = true;
+        }
+      }
+
+      try {
+        try {
+          if (workflowSelection) {
+            await sendMessage(
+              outboundMessage,
+              images,
+              reasoningEffort,
+              selectedSkillIds,
+              workflowSelection,
+            );
+          } else {
+            await sendMessage(outboundMessage, images, reasoningEffort, selectedSkillIds);
+          }
+        } catch (error) {
+          if (error instanceof WorkflowSelectionError) {
+            if (selectedWorkflow?.workflowSelection) {
+              onWorkflowSelectionError?.(error.message, selectedWorkflow);
+              return false;
+            }
+          }
+          throw error;
+        }
+
+        recordEntry(composedMessage);
+        // Discovery: remember the model actually used (select + send) so it shows
+        // up in Model Limits settings. Prefer the resolved session model passed in;
+        // fall back to the legacy global selection. Best-effort; never blocks send.
+        recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
+        clearContent(rawContentSnapshot);
+        clearReferenceText(referenceText);
+        clearWorkflowDraft(selectedWorkflow);
+        clearAttachments(attachments.map((attachment) => attachment.id));
+        clearFileReferences(Array.from(fileReferences.keys()));
+        return true;
+      } finally {
+        if (isTypedWorkflowSubmission && sessionId && typedSubmissionRevision !== null) {
+          finishTypedWorkflowSubmission(sessionId, typedSubmissionRevision);
+        } else if (usesDetachedTypedSubmissionFence) {
+          detachedTypedSubmissionInFlightRef.current = false;
+        }
+      }
     },
     [
       attachments,
@@ -149,14 +224,16 @@ export const useInputContainerSubmit = ({
       matchesWorkflowToken,
       recordEntry,
       reasoningEffort,
+      sessionId,
       selectedWorkflow,
       sendMessage,
       usedModelName,
-      setAttachments,
-      setContent,
-      setFileReferences,
-      setReferenceText,
+      clearAttachments,
+      clearContent,
+      clearFileReferences,
+      clearReferenceText,
       referenceText,
+      onWorkflowSelectionError,
     ],
   );
 

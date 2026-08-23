@@ -5,6 +5,21 @@ import type { GoldConfig, GoalState, SessionPlacement } from "@services/chat/Age
 
 export type AgentRole = "planner" | "actor";
 
+export type ActiveWorkflowSource = "builtin" | "project" | "workspace" | "user" | "plugin";
+
+/** Safe, public receipt returned by Bamboo's session-detail endpoint. */
+export interface ActiveWorkflowReceipt {
+  id: string;
+  name?: string;
+  source: ActiveWorkflowSource;
+  revision: number;
+  version?: string;
+  kind: "instruction" | "orchestration";
+  invokedBy: "user" | "model" | "api";
+  activatedAt: string;
+  status: "active" | "degraded" | "deactivated";
+}
+
 export type MessageType = "text" | "plan" | "question" | "tool_call" | "tool_result";
 
 export interface PlanMessage {
@@ -196,6 +211,8 @@ export interface ChatItem {
   lastRunError?: string;
   /** Active plan mode runtime state mirrored from backend session summary/SSE. */
   planMode?: import("@services/chat/AgentService").SessionPlanModeState | null;
+  /** Detail-only public receipt; list refreshes must preserve a hydrated value. */
+  activeWorkflow?: ActiveWorkflowReceipt | null;
   /**
    * SubAgent profile id for child sessions ("general-purpose", "plan", ...).
    * Mirrored from `session.metadata["subagent_type"]` into the backend

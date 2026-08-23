@@ -13,10 +13,10 @@ const { useToken } = theme;
 interface CommandSelectorProps {
   visible: boolean;
   sessionId?: string | null;
-  onSelect: (command: { name: string; type: string; id: string }) => void;
+  onSelect: (command: CommandItem) => void;
   onCancel: () => void;
   searchText: string;
-  onAutoComplete?: (commandName: string) => void;
+  onAutoComplete?: (command: CommandItem) => void;
 }
 
 const TYPE_CONFIG = {

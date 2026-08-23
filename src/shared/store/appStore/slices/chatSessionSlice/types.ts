@@ -37,6 +37,8 @@ export interface ChatSlice {
    */
   copySession: (sourceSessionId: string) => Promise<SessionSummary>;
   selectSession: (sessionId: string | null) => void;
+  /** Hydrate the detail-only, redacted active-Workflow receipt for one session. */
+  refreshSessionDetail: (sessionId: string, options?: { force?: boolean }) => Promise<boolean>;
   deleteSession: (sessionId: string) => Promise<void>;
   /** Bulk delete; resolves with the ids whose backend delete failed. */
   deleteSessions: (sessionIds: string[]) => Promise<{ failedIds: string[] }>;

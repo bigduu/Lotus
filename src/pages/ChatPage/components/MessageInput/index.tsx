@@ -21,7 +21,7 @@ import MessageInputFooter from "./MessageInputFooter";
 import { useMessageInputAttachments } from "./useMessageInputAttachments";
 import { useMessageInputEffects } from "./useMessageInputEffects";
 import { useMessageInputHandlers } from "./useMessageInputHandlers";
-import type { MessageRetryMode } from "./types";
+import type { MessageRetryMode, MessageSubmitOutcome } from "./types";
 // ToolService import removed - no longer needed for tool validation
 
 export interface MessageInputInteractionControls {
@@ -44,12 +44,17 @@ export interface MessageInputInteractionControls {
 interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (content: string, images?: ImageFile[]) => void;
+  onSubmit: (
+    content: string,
+    images?: ImageFile[],
+    rawContentSnapshot?: string,
+  ) => MessageSubmitOutcome | Promise<MessageSubmitOutcome>;
   placeholder?: string;
   disabled?: boolean;
   interaction: MessageInputInteractionControls;
   images?: ImageFile[];
-  onImagesChange?: (images: ImageFile[]) => void;
+  onImagesChange?: React.Dispatch<React.SetStateAction<ImageFile[]>>;
+  onClearImages?: (imageIds?: readonly string[]) => void;
   allowImages?: boolean;
   isCommandSelectorVisible?: boolean; // Prevent Enter key handling when the command selector is open
   textAreaRef?: React.RefObject<TextAreaRef>; // Add textAreaRef prop
@@ -77,6 +82,7 @@ export const MessageInput = React.memo<MessageInputProps>(
     disabled = false,
     images: propImages,
     onImagesChange,
+    onClearImages,
     allowImages = true,
     isCommandSelectorVisible = false,
     textAreaRef: externalTextAreaRef, // External ref from parent
@@ -120,7 +126,6 @@ export const MessageInput = React.memo<MessageInputProps>(
 
     const {
       images,
-      setImages,
       previewModalVisible,
       setPreviewModalVisible,
       previewImageIndex,
@@ -135,6 +140,10 @@ export const MessageInput = React.memo<MessageInputProps>(
       handleFileInputChange,
     } = useMessageInputAttachments({
       allowImages,
+      disabled,
+      images: propImages,
+      setImages: onImagesChange,
+      clearImages: onClearImages,
       onAttachmentsAdded,
       messageApi,
     });
@@ -158,10 +167,6 @@ export const MessageInput = React.memo<MessageInputProps>(
       debouncedValue,
       onWorkflowCommandChange,
       onFileReferenceChange,
-      onImagesChange,
-      images,
-      propImages,
-      setImages,
       syncOverlayScroll,
     });
 
@@ -198,6 +203,7 @@ export const MessageInput = React.memo<MessageInputProps>(
           className={`message-input-container lotus-message-input-shell ${isDragOver ? "is-drag-over" : ""}`}
           role="group"
           aria-label={t("chat.input.messageComposer")}
+          aria-busy={isInputLocked}
           style={{
             position: "relative",
             border: `1px solid ${isDragOver ? "var(--lotus-input-border-active)" : "var(--lotus-input-border)"}`,
@@ -211,14 +217,15 @@ export const MessageInput = React.memo<MessageInputProps>(
             padding: isMobile ? `${token.paddingXS}px` : `${token.paddingSM}px`,
             overflow: "hidden",
           }}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          onDragOver={disabled ? undefined : handleDragOver}
+          onDragLeave={disabled ? undefined : handleDragLeave}
+          onDrop={disabled ? undefined : handleDrop}
         >
           <MessageInputImageStrip
             images={images}
             token={token}
             allowImages={allowImages}
+            disabled={disabled}
             onPreview={handleImagePreview}
             onClear={clearImages}
           />

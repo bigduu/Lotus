@@ -38,6 +38,7 @@ export interface CommandItem {
     workflowStatus?: "valid" | "invalid" | "degraded" | "shadowed";
     workflowInvocationPolicy?: "manual" | "automatic" | "both" | "unavailable";
     workflowArgumentHint?: string;
+    workflowArgumentSchema?: Record<string, unknown>;
     workflowRevision?: number;
     workflowVersion?: string;
     workflowLastError?: string;
@@ -46,6 +47,7 @@ export interface CommandItem {
     workflowLegacy?: boolean;
     workflowReadOnly?: boolean;
     workflowSelectable?: boolean;
+    workflowTypedActivation?: boolean;
     workflowShadowedCandidates?: Array<{
       source: "builtin" | "project" | "workspace" | "user" | "plugin" | "legacy";
       status: "valid" | "invalid";

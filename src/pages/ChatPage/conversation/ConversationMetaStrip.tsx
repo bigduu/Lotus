@@ -1,9 +1,10 @@
 import React from "react";
 import type { TFunction } from "i18next";
 import { Button, Flex, Tooltip, theme, Tag } from "antd";
-import { AppstoreOutlined, CompassOutlined } from "@ant-design/icons";
+import { AppstoreOutlined, CompassOutlined, ThunderboltOutlined } from "@ant-design/icons";
 
 import type { ConversationWorkspaceState } from "../workspace/workspaceState";
+import { selectSessionById, useAppStore } from "@shared/store/appStore";
 
 const LazyContextBar = React.lazy(() =>
   import("../components/ContextBar").then((m) => ({ default: m.ContextBar })),
@@ -41,6 +42,7 @@ export const ConversationMetaStrip: React.FC<ConversationMetaStripProps> = ({
   t,
 }) => {
   const { token } = theme.useToken();
+  const chat = useAppStore(selectSessionById(sessionId));
 
   if (!sessionId) {
     return null;
@@ -59,13 +61,54 @@ export const ConversationMetaStrip: React.FC<ConversationMetaStripProps> = ({
     </Tooltip>
   ) : null;
 
+  const activeWorkflow = chat?.activeWorkflow;
+  const invocationMode =
+    activeWorkflow?.invokedBy === "model"
+      ? t("chat.workflowSelection.invocationAutomatic")
+      : t("chat.workflowSelection.invocationExplicit");
+  const invokedBy = activeWorkflow
+    ? t(
+        `chat.workflowSelection.invokedBy${
+          activeWorkflow.invokedBy === "api"
+            ? "Api"
+            : activeWorkflow.invokedBy === "model"
+              ? "Model"
+              : "User"
+        }`,
+      )
+    : null;
+  const activeWorkflowIndicator = activeWorkflow ? (
+    <Tooltip
+      title={[
+        activeWorkflow.name || activeWorkflow.id,
+        activeWorkflow.kind,
+        activeWorkflow.source,
+        activeWorkflow.version ? `v${activeWorkflow.version}` : null,
+        `r${activeWorkflow.revision}`,
+        invocationMode,
+        invokedBy,
+        activeWorkflow.status,
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+    >
+      <Tag color="green" icon={<ThunderboltOutlined />} style={{ marginInlineEnd: 0 }}>
+        {t("chat.workflowSelection.active")}: {activeWorkflow.name || activeWorkflow.id} ·{" "}
+        {invocationMode}
+      </Tag>
+    </Tooltip>
+  ) : null;
+
   const showMetaStripInspectorToggle =
     inspectorEligible &&
     workspaceState.inspectorTogglePlacement === "meta_strip" &&
     Boolean(onRequestOpenInspector);
 
   const hasSecondaryRow = Boolean(
-    planModeIndicator || workspaceState.isMultiPane || showMetaStripInspectorToggle,
+    activeWorkflowIndicator ||
+      planModeIndicator ||
+      workspaceState.isMultiPane ||
+      showMetaStripInspectorToggle,
   );
 
   return (
@@ -93,6 +136,7 @@ export const ConversationMetaStrip: React.FC<ConversationMetaStripProps> = ({
           <Flex align="center" justify="space-between" gap={token.marginXS} wrap>
             <Flex align="center" gap={token.marginXS} wrap>
               {planModeIndicator}
+              {activeWorkflowIndicator}
               {workspaceState.isMultiPane ? (
                 <Tag color="blue" style={{ marginInlineEnd: 0 }}>
                   {t("chat.workspace.multiPane", {

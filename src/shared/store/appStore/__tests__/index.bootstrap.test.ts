@@ -93,6 +93,27 @@ describe("store/index bootstrap and scheduling", () => {
     expect(refreshChatsSpy).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes the selected session detail in parallel with reconnect index hydration", async () => {
+    const { useAppStore } = await loadStoreContext();
+    const list = createDeferred<void>();
+    const detail = createDeferred<boolean>();
+    const refreshChatsSpy = vi.fn().mockReturnValue(list.promise);
+    const refreshDetailSpy = vi.fn().mockReturnValue(detail.promise);
+    useAppStore.setState({
+      currentSessionId: "session-1",
+      refreshChats: refreshChatsSpy,
+      refreshSessionDetail: refreshDetailSpy,
+    } as any);
+
+    const refresh = useAppStore.getState().refreshSessionsIndex();
+    expect(refreshChatsSpy).toHaveBeenCalledTimes(1);
+    expect(refreshDetailSpy).toHaveBeenCalledWith("session-1", { force: true });
+
+    detail.resolve(true);
+    list.resolve(undefined);
+    await refresh;
+  });
+
   it("refreshSessionsIndex swallows refresh errors as best effort", async () => {
     const { useAppStore } = await loadStoreContext();
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});

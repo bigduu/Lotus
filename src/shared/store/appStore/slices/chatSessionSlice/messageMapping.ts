@@ -7,6 +7,7 @@ import {
   AssistantToolCallMessage,
   AssistantToolResultMessage,
   MessageImage,
+  ActiveWorkflowReceipt,
 } from "@shared/types/chat";
 import { SessionSummary } from "@services/chat/AgentService";
 import { getDefaultSystemPrompts } from "@shared/utils/defaultSystemPrompts";
@@ -19,6 +20,63 @@ const DEFAULT_SYSTEM_PROMPT = getDefaultSystemPrompts()[0];
 export const DEFAULT_SYSTEM_PROMPT_ID = DEFAULT_SYSTEM_PROMPT?.id || "general_assistant";
 export const DEFAULT_BASE_SYSTEM_PROMPT = DEFAULT_SYSTEM_PROMPT?.content?.trim() || "";
 const FALLBACK_TOOL_NAME = "tool";
+
+const ACTIVE_WORKFLOW_SOURCES = new Set(["builtin", "project", "workspace", "user", "plugin"]);
+const ACTIVE_WORKFLOW_KINDS = new Set(["instruction", "orchestration"]);
+const ACTIVE_WORKFLOW_INVOKERS = new Set(["user", "model", "api"]);
+const ACTIVE_WORKFLOW_STATUSES = new Set(["active", "degraded", "deactivated"]);
+
+const nonEmptyString = (value: unknown): string | null =>
+  typeof value === "string" && value.trim() ? value.trim() : null;
+
+/**
+ * Strictly project Bamboo's detail receipt onto the public UI shape. Unknown
+ * fields (including args, bodies, resources, dynamic context, and paths) are
+ * deliberately discarded rather than spread into application state.
+ */
+export const mapActiveWorkflowReceipt = (value: unknown): ActiveWorkflowReceipt | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const receipt = value as Record<string, unknown>;
+  const id = nonEmptyString(receipt.id);
+  const source = nonEmptyString(receipt.source);
+  const revision = receipt.revision;
+  const kind = nonEmptyString(receipt.kind);
+  const invokedBy = nonEmptyString(receipt.invoked_by);
+  const activatedAt = nonEmptyString(receipt.activated_at);
+  const status = nonEmptyString(receipt.status);
+
+  if (
+    !id ||
+    !source ||
+    !ACTIVE_WORKFLOW_SOURCES.has(source) ||
+    !Number.isSafeInteger(revision) ||
+    (revision as number) <= 0 ||
+    !kind ||
+    !ACTIVE_WORKFLOW_KINDS.has(kind) ||
+    !invokedBy ||
+    !ACTIVE_WORKFLOW_INVOKERS.has(invokedBy) ||
+    !activatedAt ||
+    !Number.isFinite(Date.parse(activatedAt)) ||
+    !status ||
+    !ACTIVE_WORKFLOW_STATUSES.has(status)
+  ) {
+    return null;
+  }
+
+  const name = nonEmptyString(receipt.name);
+  const version = nonEmptyString(receipt.version);
+  return {
+    id,
+    ...(name ? { name } : {}),
+    source: source as ActiveWorkflowReceipt["source"],
+    revision: revision as number,
+    ...(version ? { version } : {}),
+    kind: kind as ActiveWorkflowReceipt["kind"],
+    invokedBy: invokedBy as ActiveWorkflowReceipt["invokedBy"],
+    activatedAt,
+    status: status as ActiveWorkflowReceipt["status"],
+  };
+};
 
 const safeRandomId = (): string => {
   try {
@@ -95,6 +153,7 @@ export const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
 
   const tokenUsage = mapTokenBudgetUsage(s.token_usage);
   const permission = resolveSessionPermissionMode(s);
+  const hasActiveWorkflow = Object.prototype.hasOwnProperty.call(s, "active_workflow");
   return {
     id: s.id,
     kind: s.kind,
@@ -110,6 +169,13 @@ export const sessionSummaryToChatItem = (s: SessionSummary): ChatItem => {
     lastRunStatus: s.last_run_status,
     lastRunError: s.last_run_error,
     planMode: s.plan_mode ?? null,
+    ...(hasActiveWorkflow
+      ? {
+          activeWorkflow: mapActiveWorkflowReceipt(
+            (s as SessionSummary & { active_workflow?: unknown }).active_workflow,
+          ),
+        }
+      : {}),
     subagentType: s.subagent_type ?? null,
     lifecycle: s.lifecycle ?? null,
     residentName: s.resident_name ?? null,

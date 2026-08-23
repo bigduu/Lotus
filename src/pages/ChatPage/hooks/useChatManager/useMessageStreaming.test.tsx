@@ -26,6 +26,7 @@ const mockStoreState = {
   setAgentAvailability: vi.fn(),
   loadChatHistory: vi.fn(),
   refreshChatsNow: vi.fn(),
+  refreshSessionDetail: vi.fn(),
   updateSession: vi.fn(),
   setPendingQuestion: vi.fn(),
   clearPendingQuestion: vi.fn(),
@@ -99,6 +100,7 @@ vi.mock("@shared/store/appStore", () => {
 });
 
 import { useMessageStreaming } from "./useMessageStreaming";
+import { WorkflowSelectionError } from "../../../../features/workflows";
 
 describe("useMessageStreaming", () => {
   beforeEach(() => {
@@ -120,6 +122,7 @@ describe("useMessageStreaming", () => {
     mockStoreState.setAgentAvailability.mockReset();
     mockStoreState.loadChatHistory.mockReset();
     mockStoreState.refreshChatsNow.mockReset();
+    mockStoreState.refreshSessionDetail.mockReset().mockResolvedValue(true);
     mockStoreState.updateSession.mockReset();
     mockStoreState.setPendingQuestion.mockReset();
     mockStoreState.clearPendingQuestion.mockReset();
@@ -323,6 +326,111 @@ describe("useMessageStreaming", () => {
       }),
     );
     expect(request).not.toHaveProperty("workspace_path");
+  });
+
+  it("forwards only typed Workflow identity/args and refreshes the public receipt", async () => {
+    mockStoreState.agentAvailability = true;
+    mockAgentSendMessage.mockResolvedValue({ session_id: "chat-1", status: "started" });
+    mockAgentExecute.mockResolvedValue({ session_id: "chat-1", status: "started" });
+    mockStoreState.chats = [
+      {
+        id: "chat-1",
+        title: "Typed Workflow",
+        createdAt: Date.now(),
+        messages: [],
+        config: {
+          systemPromptId: "general_assistant",
+          baseSystemPrompt: "",
+          lastUsedEnhancedPrompt: null,
+        },
+      },
+    ];
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async () => undefined),
+      updateSession: vi.fn(),
+    };
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    await act(async () => {
+      await result.current.sendMessage("inspect this", undefined, "high", undefined, {
+        id: "review",
+        source: "project",
+        revision: 12,
+        args: { scope: "src" },
+      });
+    });
+
+    expect(mockAgentSendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "inspect this",
+        workflow_selection: {
+          id: "review",
+          source: "project",
+          revision: 12,
+          args: { scope: "src" },
+        },
+      }),
+    );
+    expect(JSON.stringify(mockAgentSendMessage.mock.calls)).not.toContain("expanded_body");
+    expect(JSON.stringify(mockAgentSendMessage.mock.calls)).not.toContain("resources");
+    expect(mockStoreState.refreshSessionDetail).toHaveBeenCalledWith("chat-1", { force: true });
+  });
+
+  it("rejects typed Workflow failures before staging optimistic UI state", async () => {
+    mockStoreState.agentAvailability = true;
+    mockAgentSendMessage.mockRejectedValue(
+      new WorkflowSelectionError(
+        "workflow_revision_mismatch",
+        "Refresh and reselect the Workflow.",
+        true,
+        409,
+      ),
+    );
+    const mockChat = {
+      id: "chat-1",
+      title: "Typed Workflow",
+      createdAt: Date.now(),
+      messages: [] as Array<{ id: string; content: string }>,
+      config: {
+        systemPromptId: "general_assistant",
+        baseSystemPrompt: "",
+        lastUsedEnhancedPrompt: null,
+      },
+    };
+    mockStoreState.chats = [mockChat];
+    const deps = {
+      sessionId: "chat-1",
+      addMessage: vi.fn(async (_sessionId: string, message: any) => {
+        mockChat.messages.push(message);
+      }),
+      updateSession: vi.fn(),
+    };
+    const { result } = renderHook(() => useMessageStreaming(deps));
+
+    let caught: unknown;
+    await act(async () => {
+      try {
+        await result.current.sendMessage("keep this", undefined, "medium", undefined, {
+          id: "review",
+          source: "project",
+          revision: 12,
+          args: {},
+        });
+      } catch (error) {
+        caught = error;
+      }
+    });
+
+    expect(caught).toMatchObject({ code: "workflow_revision_mismatch", recoverable: true });
+
+    expect(deps.addMessage).not.toHaveBeenCalled();
+    expect(mockStoreState.markOptimisticStart).not.toHaveBeenCalled();
+    expect(deps.updateSession).toHaveBeenCalledWith("chat-1", { messages: [] });
+    expect(mockStoreState.setAgentAvailability).not.toHaveBeenCalledWith(false);
+    expect(mockMessageApi.error).not.toHaveBeenCalled();
+    expect(mockStoreState.resetSession).toHaveBeenCalledWith("chat-1");
+    expect(mockStoreState.markSettleTimeout).not.toHaveBeenCalledWith("chat-1");
   });
 
   it("sets processing true before sendMessage network call so UI responds immediately", async () => {
