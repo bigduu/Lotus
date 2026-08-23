@@ -597,10 +597,10 @@ export const InputContainer: React.FC<InputContainerProps> = ({
       const targetSessionId = sessionId;
       if (shouldUseRespondModeForSession(targetSessionId)) {
         await handleRespondSubmit(message);
-        return;
+        return true;
       }
 
-      await handleSubmit(message, images);
+      return handleSubmit(message, images);
     },
     [handleRespondSubmit, handleSubmit, sessionId, shouldUseRespondModeForSession],
   );
@@ -608,7 +608,7 @@ export const InputContainer: React.FC<InputContainerProps> = ({
   // Wrap handleSubmit: check latest store state at submit time to avoid stale-mode races
   const effectiveHandleSubmit = useCallback(
     async (message: string, images?: ImageFile[]) => {
-      await submitMessageWithLiveMode(message, images);
+      return submitMessageWithLiveMode(message, images);
     },
     [submitMessageWithLiveMode],
   );

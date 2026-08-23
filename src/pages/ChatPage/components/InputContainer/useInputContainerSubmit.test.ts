@@ -177,10 +177,12 @@ describe("useInputContainerSubmit", () => {
     props.matchesWorkflowToken = vi.fn(() => true);
     const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
 
+    let accepted = false;
     await act(async () => {
-      await result.current.handleSubmit("/review inspect this change");
+      accepted = await result.current.handleSubmit("/review inspect this change");
     });
 
+    expect(accepted).toBe(true);
     expect(props.sendMessage).toHaveBeenCalledWith(
       "inspect this change",
       undefined,
@@ -195,6 +197,57 @@ describe("useInputContainerSubmit", () => {
     );
     expect(JSON.stringify(props.sendMessage.mock.calls)).not.toContain("PRIVATE EXPANDED BODY");
     expect(JSON.stringify(props.sendMessage.mock.calls)).not.toContain("User explicitly selected");
+  });
+
+  it("coalesces concurrent typed submissions until Bamboo accepts the first chat", async () => {
+    const props = createBaseProps();
+    props.selectedWorkflow = createWorkflow({
+      type: "skill",
+      name: "review",
+      content: "",
+      workflowSelection: { id: "review", source: "project", revision: 12, args: {} },
+      workflowArgumentsText: "{}",
+      workflowArgumentsError: null,
+    });
+    props.matchesWorkflowToken = vi.fn(() => true);
+
+    let resolveFirstSend: (() => void) | undefined;
+    props.sendMessage.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveFirstSend = resolve;
+        }),
+    );
+
+    const { result } = renderHook(() => useInputContainerSubmit({ ...props }));
+    let firstSubmission!: Promise<boolean>;
+    let duplicateSubmission!: Promise<boolean>;
+
+    act(() => {
+      firstSubmission = result.current.handleSubmit("/review inspect this change");
+      duplicateSubmission = result.current.handleSubmit("/review inspect this change");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(1);
+    expect(props.setContent).not.toHaveBeenCalled();
+    expect(props.clearWorkflowDraft).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveFirstSend?.();
+      await expect(Promise.all([firstSubmission, duplicateSubmission])).resolves.toEqual([
+        true,
+        false,
+      ]);
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(1);
+    expect(props.clearWorkflowDraft).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.handleSubmit("/review inspect again");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(2);
   });
 
   it("preserves composer state and selection after a recoverable stale revision", async () => {
@@ -221,16 +274,25 @@ describe("useInputContainerSubmit", () => {
       useInputContainerSubmit({ ...props, onWorkflowSelectionError }),
     );
 
+    let accepted = true;
     await act(async () => {
-      await result.current.handleSubmit("/review keep this draft");
+      accepted = await result.current.handleSubmit("/review keep this draft");
     });
 
+    expect(accepted).toBe(false);
     expect(onWorkflowSelectionError).toHaveBeenCalledWith("Refresh and reselect the Workflow.");
     expect(props.setContent).not.toHaveBeenCalled();
     expect(props.clearWorkflowDraft).not.toHaveBeenCalled();
     expect(props.setReferenceText).not.toHaveBeenCalled();
     expect(props.setAttachments).not.toHaveBeenCalled();
     expect(props.recordEntry).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await result.current.handleSubmit("/review keep this draft");
+    });
+
+    expect(props.sendMessage).toHaveBeenCalledTimes(2);
+    expect(onWorkflowSelectionError).toHaveBeenCalledTimes(2);
   });
 
   it("does not send invalid typed arguments and keeps the draft", async () => {
@@ -249,10 +311,12 @@ describe("useInputContainerSubmit", () => {
       useInputContainerSubmit({ ...props, onWorkflowSelectionError }),
     );
 
+    let accepted = true;
     await act(async () => {
-      await result.current.handleSubmit("/review keep this too");
+      accepted = await result.current.handleSubmit("/review keep this too");
     });
 
+    expect(accepted).toBe(false);
     expect(props.sendMessage).not.toHaveBeenCalled();
     expect(props.setContent).not.toHaveBeenCalled();
     expect(onWorkflowSelectionError).toHaveBeenCalledWith("Workflow arguments must be valid JSON.");

@@ -92,6 +92,62 @@ describe("useMessageInputHandlers", () => {
       expect(clearImages).toHaveBeenCalled();
     });
 
+    it("keeps images until an asynchronous submission is authoritatively accepted", async () => {
+      let resolveFirstSubmit: ((accepted: boolean) => void) | undefined;
+      const onSubmit = vi
+        .fn()
+        .mockImplementationOnce(
+          () =>
+            new Promise<boolean>((resolve) => {
+              resolveFirstSubmit = resolve;
+            }),
+        )
+        .mockResolvedValueOnce(true);
+      const clearImages = vi.fn();
+      const images: ImageFile[] = [
+        {
+          id: "1",
+          file: new File([""], "draft.jpg", { type: "image/jpeg" }),
+          preview: "data:image/jpeg;base64,draft",
+        },
+      ];
+      const { result } = renderHook(() =>
+        useMessageInputHandlers({
+          value: "Check this image",
+          images,
+          isInputLocked: false,
+          disabled: false,
+          isCommandSelectorVisible: false,
+          onChange: vi.fn(),
+          onSubmit,
+          isOverCharLimit: false,
+          messageApi: { error: vi.fn() },
+          clearImages,
+          textAreaRef: { current: null },
+        }),
+      );
+
+      let firstSubmission!: void | Promise<void>;
+      act(() => {
+        firstSubmission = result.current.handleSubmit();
+      });
+
+      expect(clearImages).not.toHaveBeenCalled();
+
+      await act(async () => {
+        resolveFirstSubmit?.(false);
+        await firstSubmission;
+      });
+
+      expect(clearImages).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await result.current.handleSubmit();
+      });
+
+      expect(clearImages).toHaveBeenCalledTimes(1);
+    });
+
     it("should submit with only images (no text)", () => {
       const onSubmit = vi.fn();
       const clearImages = vi.fn();

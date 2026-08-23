@@ -35,6 +35,29 @@ describe("typed Workflow activation", () => {
     expect(parseWorkflowArguments("{}", schema).error).toContain("Missing required");
   });
 
+  it("matches composite JSON Schema enum values structurally", () => {
+    const compositeSchema = {
+      type: "object",
+      properties: {
+        target: {
+          type: "object",
+          enum: [{ scope: "src", flags: ["strict"] }],
+        },
+      },
+    };
+
+    expect(
+      parseWorkflowArguments('{"target":{"flags":["strict"],"scope":"src"}}', compositeSchema),
+    ).toEqual({
+      args: { target: { flags: ["strict"], scope: "src" } },
+      error: null,
+    });
+    expect(
+      parseWorkflowArguments('{"target":{"scope":"src","flags":["relaxed"]}}', compositeSchema)
+        .error,
+    ).toContain("allowed values");
+  });
+
   it("recognizes stale and invalid Workflow errors without classifying unrelated conflicts", () => {
     const stale = new ApiError(
       "stale",

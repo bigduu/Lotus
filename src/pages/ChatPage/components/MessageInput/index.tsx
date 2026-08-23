@@ -21,7 +21,7 @@ import MessageInputFooter from "./MessageInputFooter";
 import { useMessageInputAttachments } from "./useMessageInputAttachments";
 import { useMessageInputEffects } from "./useMessageInputEffects";
 import { useMessageInputHandlers } from "./useMessageInputHandlers";
-import type { MessageRetryMode } from "./types";
+import type { MessageRetryMode, MessageSubmitOutcome } from "./types";
 // ToolService import removed - no longer needed for tool validation
 
 export interface MessageInputInteractionControls {
@@ -44,7 +44,10 @@ export interface MessageInputInteractionControls {
 interface MessageInputProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: (content: string, images?: ImageFile[]) => void;
+  onSubmit: (
+    content: string,
+    images?: ImageFile[],
+  ) => MessageSubmitOutcome | Promise<MessageSubmitOutcome>;
   placeholder?: string;
   disabled?: boolean;
   interaction: MessageInputInteractionControls;

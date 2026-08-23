@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { ImageFile } from "../../utils/imageUtils";
 import { summarizeAttachments, type ProcessedFile } from "../../utils/fileUtils";
 import type { ReasoningEffort } from "@services/chat/AgentService";
@@ -54,6 +54,8 @@ export const useInputContainerSubmit = ({
   setFileReferences,
   onWorkflowSelectionError,
 }: UseInputContainerSubmitProps) => {
+  const typedWorkflowSubmissionInFlightRef = useRef(false);
+
   const handleSubmit = useCallback(
     async (message: string, images?: ImageFile[]) => {
       const trimmedInput = message.trim();
@@ -67,11 +69,11 @@ export const useInputContainerSubmit = ({
       if (selectedWorkflow?.workflowSelection) {
         if (selectedWorkflow.workflowArgumentsError) {
           onWorkflowSelectionError?.(selectedWorkflow.workflowArgumentsError);
-          return;
+          return false;
         }
         const token = `/${selectedWorkflow.name}`;
         const hasToken = matchesWorkflowToken(trimmedInput, selectedWorkflow.name);
-        if (!hasToken) return;
+        if (!hasToken) return false;
         composedInput = trimmedInput.slice(token.length).trim();
         workflowSelection = selectedWorkflow.workflowSelection;
       } else if (selectedWorkflow?.content && selectedWorkflow.type === "workflow") {
@@ -113,7 +115,7 @@ export const useInputContainerSubmit = ({
         !attachmentSummary &&
         (!images || images.length === 0)
       ) {
-        return;
+        return false;
       }
 
       const composedMessage = [normalizedReferenceText, composedInput, attachmentSummary]
@@ -144,37 +146,56 @@ export const useInputContainerSubmit = ({
         }
       }
 
-      try {
-        if (workflowSelection) {
-          await sendMessage(
-            outboundMessage,
-            images,
-            reasoningEffort,
-            selectedSkillIds,
-            workflowSelection,
-          );
-        } else {
-          await sendMessage(outboundMessage, images, reasoningEffort, selectedSkillIds);
-        }
-      } catch (error) {
-        if (error instanceof WorkflowSelectionError) {
-          onWorkflowSelectionError?.(error.message);
-          return;
-        }
-        throw error;
+      const isTypedWorkflowSubmission = workflowSelection !== undefined;
+      if (isTypedWorkflowSubmission && typedWorkflowSubmissionInFlightRef.current) {
+        return false;
+      }
+      if (isTypedWorkflowSubmission) {
+        // Typed selections deliberately remain editable until Bamboo accepts
+        // POST /chat, so the normal processing lock is not active yet. Fence
+        // that validation window synchronously to coalesce double clicks,
+        // repeated Enter presses, and duplicate external-send events.
+        typedWorkflowSubmissionInFlightRef.current = true;
       }
 
-      recordEntry(composedMessage);
-      // Discovery: remember the model actually used (select + send) so it shows
-      // up in Model Limits settings. Prefer the resolved session model passed in;
-      // fall back to the legacy global selection. Best-effort; never blocks send.
-      recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
-      setContent("");
-      clearWorkflowDraft();
+      try {
+        try {
+          if (workflowSelection) {
+            await sendMessage(
+              outboundMessage,
+              images,
+              reasoningEffort,
+              selectedSkillIds,
+              workflowSelection,
+            );
+          } else {
+            await sendMessage(outboundMessage, images, reasoningEffort, selectedSkillIds);
+          }
+        } catch (error) {
+          if (error instanceof WorkflowSelectionError) {
+            onWorkflowSelectionError?.(error.message);
+            return false;
+          }
+          throw error;
+        }
 
-      setReferenceText(null);
-      setAttachments([]);
-      setFileReferences(new Map());
+        recordEntry(composedMessage);
+        // Discovery: remember the model actually used (select + send) so it shows
+        // up in Model Limits settings. Prefer the resolved session model passed in;
+        // fall back to the legacy global selection. Best-effort; never blocks send.
+        recordUsedModel(usedModelName ?? useAppStore.getState().selectedModel);
+        setContent("");
+        clearWorkflowDraft();
+
+        setReferenceText(null);
+        setAttachments([]);
+        setFileReferences(new Map());
+        return true;
+      } finally {
+        if (isTypedWorkflowSubmission) {
+          typedWorkflowSubmissionInFlightRef.current = false;
+        }
+      }
     },
     [
       attachments,

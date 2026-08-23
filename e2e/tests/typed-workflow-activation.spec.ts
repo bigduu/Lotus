@@ -380,6 +380,16 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
     const argumentsEditor = page.getByRole("textbox", { name: "Workflow arguments (JSON)" });
     await expect(chip).toContainText("Review safely");
     await argumentsEditor.fill('{"scope":"tests","strict":true}');
+    const draftImage = page.getByRole("button", { name: "View image typed-draft.png" });
+    await page.locator('input[type="file"][accept="image/*"]').setInputFiles({
+      name: "typed-draft.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+    await expect(draftImage).toBeVisible();
     await input.fill("/review inspect src");
     await input.press("Enter");
 
@@ -388,6 +398,7 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
     await expect(chip).toContainText("The selected Workflow changed");
     await expect(input).toHaveValue("/review inspect src");
     await expect(argumentsEditor).toHaveValue('{"scope":"tests","strict":true}');
+    await expect(draftImage).toBeVisible();
     expect(chatRequests[0]).toMatchObject({
       message: "inspect src",
       workflow_selection: {
@@ -406,6 +417,7 @@ test.describe("Typed instruction Workflow activation (#231)", () => {
     await input.press("Enter");
 
     await expect.poll(() => chatAttempt).toBe(2);
+    await expect(draftImage).toHaveCount(0);
     expect(chatRequests[1]).toMatchObject({
       message: "inspect src",
       workflow_selection: {
