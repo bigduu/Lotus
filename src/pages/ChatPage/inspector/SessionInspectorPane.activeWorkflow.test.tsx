@@ -66,6 +66,14 @@ describe("SessionInspectorPane active Workflow", () => {
         shouldShowTaskPanel={false}
         hasSubAgents={false}
         sessionDiffSummary={null}
+        workflowRuns={{
+          runs: [],
+          status: "ready",
+          cancellingRunIds: new Set(),
+          cancelErrorRunIds: new Set(),
+          refresh: vi.fn(),
+          cancel: vi.fn(),
+        }}
       />,
     );
 

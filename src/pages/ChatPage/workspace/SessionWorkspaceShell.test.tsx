@@ -24,6 +24,18 @@ const mockStoreState: any = {
   truncationOccurred: {},
   segmentsRemoved: {},
 };
+let mockWorkflowRuns: any = {
+  runs: [],
+  status: "ready",
+  cancellingRunIds: new Set(),
+  cancelErrorRunIds: new Set(),
+  refresh: vi.fn(),
+  cancel: vi.fn(),
+};
+
+vi.mock("../../../features/workflows/useWorkflowRuns", () => ({
+  useWorkflowRuns: () => mockWorkflowRuns,
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -101,6 +113,14 @@ describe("SessionWorkspaceShell", () => {
         config: {},
       },
     ];
+    mockWorkflowRuns = {
+      runs: [],
+      status: "ready",
+      cancellingRunIds: new Set(),
+      cancelErrorRunIds: new Set(),
+      refresh: vi.fn(),
+      cancel: vi.fn(),
+    };
   });
 
   it("keeps the conversation pane rendered in single-pane rail inspector mode", () => {
@@ -183,6 +203,40 @@ describe("SessionWorkspaceShell", () => {
         config: {},
       },
     ];
+
+    render(
+      <div style={{ width: 1200, height: 800 }}>
+        <SessionWorkspaceShell
+          sessionId="session-1"
+          workspaceState={{
+            isEmbedded: false,
+            isMultiPane: false,
+            inspectorMode: "rail",
+            inspectorTogglePlacement: "meta-strip",
+          }}
+        />
+      </div>,
+    );
+
+    expect(screen.getByTestId("session-inspector-pane")).toBeInTheDocument();
+  });
+
+  it("shows inspector when Bamboo reports a WorkflowRun even without messages", () => {
+    mockStoreState.chats = [
+      {
+        id: "session-1",
+        kind: "root",
+        title: "Session 1",
+        messages: [],
+        messageCount: 0,
+        isRunning: false,
+        config: {},
+      },
+    ];
+    mockWorkflowRuns = {
+      ...mockWorkflowRuns,
+      runs: [{ run_id: "run-1" }],
+    };
 
     render(
       <div style={{ width: 1200, height: 800 }}>

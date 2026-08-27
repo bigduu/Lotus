@@ -22,6 +22,7 @@ import {
 } from "@shared/utils/resultFormatters";
 import { useIsMobile } from "@shared/hooks/useMediaQuery";
 import { buildConversationWorkspaceState, type ConversationWorkspaceState } from "./workspaceState";
+import { useWorkflowRuns } from "../../../features/workflows/useWorkflowRuns";
 
 export type SessionWorkspaceShellProps = {
   /**
@@ -54,6 +55,7 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
   const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(sessionId));
   const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
+  const workflowRuns = useWorkflowRuns(sessionId);
   const loadTaskList = useAppStore((state) => state.loadTaskList);
   const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);
 
@@ -178,6 +180,7 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
 
   const hasMessages = currentMessages.length > 0;
   const hasActiveWorkflow = Boolean(currentChat?.activeWorkflow);
+  const hasWorkflowRuns = workflowRuns.runs.length > 0;
   const hasGoalConfig = Boolean(
     currentChat?.config?.goldConfig &&
       ((currentChat.config.goldConfig.evaluation_prompt?.trim()?.length ?? 0) > 0 ||
@@ -201,6 +204,7 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
       ((isAdvancedMode && hasMessages) ||
         hasGoalConfig ||
         hasActiveWorkflow ||
+        hasWorkflowRuns ||
         shouldShowTaskPanel ||
         hasSubAgents ||
         sessionDiffSummary),
@@ -305,6 +309,7 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
                 shouldShowTaskPanel={shouldShowTaskPanel}
                 hasSubAgents={hasSubAgents}
                 sessionDiffSummary={sessionDiffSummary}
+                workflowRuns={workflowRuns}
               />
             }
           />
@@ -341,6 +346,7 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
                 shouldShowTaskPanel={shouldShowTaskPanel}
                 hasSubAgents={hasSubAgents}
                 sessionDiffSummary={sessionDiffSummary}
+                workflowRuns={workflowRuns}
               />
             ) : null}
           </>
