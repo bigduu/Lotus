@@ -23,6 +23,7 @@ const mockStoreState: any = {
   tokenUsages: {},
   truncationOccurred: {},
   segmentsRemoved: {},
+  agentAvailability: null,
 };
 let mockWorkflowRuns: any = {
   runs: [],
@@ -32,9 +33,14 @@ let mockWorkflowRuns: any = {
   refresh: vi.fn(),
   cancel: vi.fn(),
 };
+let mockWorkflowRunCall: { sessionId: string | null; options: Record<string, unknown> } | null =
+  null;
 
 vi.mock("../../../features/workflows/useWorkflowRuns", () => ({
-  useWorkflowRuns: () => mockWorkflowRuns,
+  useWorkflowRuns: (sessionId: string | null, options: Record<string, unknown>) => {
+    mockWorkflowRunCall = { sessionId, options };
+    return mockWorkflowRuns;
+  },
 }));
 
 vi.mock("react-i18next", () => ({
@@ -100,6 +106,8 @@ vi.mock("@shared/store/uiLayoutStore", () => ({
 describe("SessionWorkspaceShell", () => {
   beforeEach(() => {
     mockStoreState.loadTaskList.mockClear();
+    mockStoreState.agentAvailability = null;
+    mockWorkflowRunCall = null;
     mockStoreState.chats = [
       {
         id: "session-1",
@@ -182,6 +190,7 @@ describe("SessionWorkspaceShell", () => {
   });
 
   it("shows inspector when a session has an active Workflow even without messages", () => {
+    mockStoreState.agentAvailability = true;
     mockStoreState.chats = [
       {
         id: "session-1",
@@ -219,6 +228,13 @@ describe("SessionWorkspaceShell", () => {
     );
 
     expect(screen.getByTestId("session-inspector-pane")).toBeInTheDocument();
+    expect(mockWorkflowRunCall).toEqual({
+      sessionId: "session-1",
+      options: {
+        availability: true,
+        activationKey: JSON.stringify(["review", 12, "2026-08-23T08:00:00Z", "active"]),
+      },
+    });
   });
 
   it("shows inspector when Bamboo reports a WorkflowRun even without messages", () => {
