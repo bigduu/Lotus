@@ -50,10 +50,19 @@ const collectPlanStepIds = (plan: WorkflowPlan, ids = new Set<string>()): Set<st
   }
 };
 
-const StatusTag: React.FC<{ status: DisplayStatus }> = ({ status }) => {
+const StatusTag: React.FC<{ status: DisplayStatus; announce?: boolean }> = ({
+  status,
+  announce = false,
+}) => {
   const { t } = useTranslation();
   return (
-    <Tag color={STATUS_COLORS[status]} style={{ marginInlineEnd: 0 }}>
+    <Tag
+      color={STATUS_COLORS[status]}
+      style={{ marginInlineEnd: 0 }}
+      role={announce ? "status" : undefined}
+      aria-live={announce ? "polite" : undefined}
+      aria-atomic={announce ? "true" : undefined}
+    >
       {t(`inspector.workflowRuns.status.${status}`)}
     </Tag>
   );
@@ -63,7 +72,8 @@ const StepRow: React.FC<{
   run: WorkflowRunSnapshot;
   stepId: string;
   runtimeInstance?: boolean;
-}> = ({ run, stepId, runtimeInstance = false }) => {
+  treeLevel?: number;
+}> = ({ run, stepId, runtimeInstance = false, treeLevel }) => {
   const { t } = useTranslation();
   const { token } = theme.useToken();
   const planned = run.planned_steps[stepId];
@@ -73,6 +83,8 @@ const StepRow: React.FC<{
   return (
     <div
       data-testid={`workflow-step-${stepId}`}
+      role={runtimeInstance ? "listitem" : "treeitem"}
+      aria-level={runtimeInstance ? undefined : treeLevel}
       style={{
         marginTop: 4,
         padding: `${token.paddingXXS}px ${token.paddingXS}px`,
@@ -130,7 +142,7 @@ const PlanNode: React.FC<{
   const { t } = useTranslation();
   const { token } = theme.useToken();
   if (plan.type === "step") {
-    return <StepRow run={run} stepId={plan.step} />;
+    return <StepRow run={run} stepId={plan.step} treeLevel={depth + 1} />;
   }
 
   const children =
@@ -147,6 +159,8 @@ const PlanNode: React.FC<{
   return (
     <div
       data-testid={`workflow-plan-${path}`}
+      role="treeitem"
+      aria-level={depth + 1}
       style={{
         marginTop: 4,
         marginInlineStart: depth === 0 ? 0 : token.marginXS,
@@ -157,15 +171,17 @@ const PlanNode: React.FC<{
       <Text type="secondary" style={{ fontSize: 11 }}>
         {label}
       </Text>
-      {children.map((child, index) => (
-        <PlanNode
-          key={`${path}-${index}`}
-          run={run}
-          plan={child}
-          path={`${path}-${index}`}
-          depth={depth + 1}
-        />
-      ))}
+      <div role="group">
+        {children.map((child, index) => (
+          <PlanNode
+            key={`${path}-${index}`}
+            run={run}
+            plan={child}
+            path={`${path}-${index}`}
+            depth={depth + 1}
+          />
+        ))}
+      </div>
     </div>
   );
 };
@@ -221,7 +237,7 @@ const WorkflowRunCard: React.FC<{
               r{run.workflow_revision}
             </Text>
           </Flex>
-          <StatusTag status={run.status} />
+          <StatusTag status={run.status} announce />
         </Flex>
 
         <Flex vertical gap={2}>
@@ -270,7 +286,13 @@ const WorkflowRunCard: React.FC<{
 
         {run.suspension ? (
           <Text type="warning" style={{ fontSize: 11 }}>
-            {t(`inspector.workflowRuns.suspension.${run.suspension.type}`)}
+            {t(
+              `inspector.workflowRuns.suspension.${
+                run.suspension.type === "tool_running" && run.suspension.killed
+                  ? "tool_stopped"
+                  : run.suspension.type
+              }`,
+            )}
           </Text>
         ) : null}
         {run.failure ? (
@@ -283,7 +305,7 @@ const WorkflowRunCard: React.FC<{
           />
         ) : null}
 
-        <div aria-label={t("inspector.workflowRuns.planTree")}>
+        <div role="tree" aria-label={t("inspector.workflowRuns.planTree")}>
           <PlanNode run={run} plan={run.plan} path="root" />
         </div>
 
@@ -292,9 +314,11 @@ const WorkflowRunCard: React.FC<{
             <Text type="secondary" style={{ fontSize: 11 }}>
               {t("inspector.workflowRuns.runtimeInstances")}
             </Text>
-            {runtimeSteps.map((stepId) => (
-              <StepRow key={stepId} run={run} stepId={stepId} runtimeInstance />
-            ))}
+            <div role="list" aria-label={t("inspector.workflowRuns.runtimeInstances")}>
+              {runtimeSteps.map((stepId) => (
+                <StepRow key={stepId} run={run} stepId={stepId} runtimeInstance />
+              ))}
+            </div>
           </Flex>
         ) : null}
 
@@ -324,7 +348,7 @@ export const WorkflowRunsPanel: React.FC<{ workflowRuns: UseWorkflowRunsResult }
   const { token } = theme.useToken();
   const { runs, status, cancellingRunIds, cancelErrorRunIds, cancel, refresh } = workflowRuns;
 
-  if (runs.length === 0 && status !== "loading") return null;
+  if (runs.length === 0 && (status === "idle" || status === "ready")) return null;
 
   return (
     <Flex vertical gap={6} data-testid="workflow-runs-panel">

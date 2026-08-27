@@ -86,4 +86,30 @@ describe("SessionInspectorPane active Workflow", () => {
     expect(screen.getByText("12")).toBeInTheDocument();
     expect(screen.getByText("Automatic · Model")).toBeInTheDocument();
   });
+
+  it("keeps an active Workflow's empty unavailable run query reachable", () => {
+    render(
+      <SessionInspectorPane
+        sessionId="session-1"
+        auxReady={false}
+        mode="rail"
+        open
+        onOpenChange={vi.fn()}
+        showMessagesView={false}
+        shouldShowTaskPanel={false}
+        hasSubAgents={false}
+        sessionDiffSummary={null}
+        workflowRuns={{
+          runs: [],
+          status: "unavailable",
+          cancellingRunIds: new Set(),
+          cancelErrorRunIds: new Set(),
+          refresh: vi.fn(),
+          cancel: vi.fn(),
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("workflow-runs-panel")).toBeInTheDocument();
+  });
 });

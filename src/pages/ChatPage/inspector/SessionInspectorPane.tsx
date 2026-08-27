@@ -359,7 +359,12 @@ const InspectorBody: React.FC<{
   );
   const hasConfigSection = Boolean(chat?.config?.model_ref?.model || chat?.config?.model);
   const hasActiveWorkflowSection = Boolean(chat?.activeWorkflow);
-  const hasWorkflowRunsSection = workflowRuns.runs.length > 0;
+  const hasWorkflowRunsSection =
+    workflowRuns.runs.length > 0 ||
+    (hasActiveWorkflowSection &&
+      (workflowRuns.status === "loading" ||
+        workflowRuns.status === "unavailable" ||
+        workflowRuns.status === "out_of_sync"));
 
   const sections = useMemo(
     () =>

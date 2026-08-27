@@ -125,6 +125,7 @@ export const zhCnTranslation = {
         suspension: {
           tool_approval: "已挂起，等待后端工具批准",
           tool_running: "已挂起，后端工具仍在运行",
+          tool_stopped: "已挂起，后端工具已停止",
           recovery: "已挂起，等待后端恢复",
         },
       },

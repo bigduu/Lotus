@@ -130,6 +130,11 @@ describe("WorkflowRunsPanel", () => {
     expect(screen.getByTestId("workflow-runtime-steps-run-1")).toHaveTextContent(
       "Runtime instance",
     );
+    expect(screen.getByRole("tree", { name: "Workflow plan progress" })).toBeInTheDocument();
+    expect(screen.getAllByRole("treeitem").length).toBeGreaterThan(1);
+    expect(screen.getByRole("list", { name: "Runtime instances" })).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveTextContent("dynamic-instance");
+    expect(screen.getByRole("status")).toHaveTextContent("Running");
   });
 
   it("exposes only cancel for a live run and delegates without optimistic terminal state", () => {
@@ -178,5 +183,32 @@ describe("WorkflowRunsPanel", () => {
       ),
     ).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/credential|private\/|tool output/i);
+  });
+
+  it.each([
+    [false, "Suspended while a backend tool is running"],
+    [true, "Suspended after the backend tool was stopped"],
+  ] as const)("renders tool-running killed=%s without reversing backend state", (killed, text) => {
+    render(
+      <WorkflowRunsPanel
+        workflowRuns={query([
+          run({
+            status: "suspended",
+            suspension: { type: "tool_running", step_id: "running", killed },
+          }),
+        ])}
+      />,
+    );
+
+    expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it("keeps an empty unavailable query visible with a safe retry action", () => {
+    const refresh = vi.fn(async () => {});
+    render(<WorkflowRunsPanel workflowRuns={query([], { status: "unavailable", refresh })} />);
+
+    expect(screen.getByText("Workflow progress is temporarily unavailable.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(refresh).toHaveBeenCalledTimes(1);
   });
 });

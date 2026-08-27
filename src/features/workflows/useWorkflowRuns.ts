@@ -25,6 +25,13 @@ export interface UseWorkflowRunsOptions {
   pollIntervalMs?: number;
 }
 
+interface OwnedWorkflowRunsState extends WorkflowRunsState {
+  ownerSessionId: string | null;
+}
+
+const EMPTY_RUNS: WorkflowRunSnapshot[] = [];
+const EMPTY_RUN_IDS: ReadonlySet<string> = new Set();
+
 const sortRuns = (runs: readonly WorkflowRunSnapshot[]): WorkflowRunSnapshot[] =>
   [...runs].sort(
     (left, right) =>
@@ -37,6 +44,45 @@ const replaceSnapshot = (
   snapshot: WorkflowRunSnapshot,
 ): WorkflowRunSnapshot[] =>
   sortRuns([snapshot, ...runs.filter((run) => run.run_id !== snapshot.run_id)]);
+
+const reuseUnchangedSnapshots = (
+  current: WorkflowRunSnapshot[],
+  incoming: WorkflowRunSnapshot[],
+): WorkflowRunSnapshot[] => {
+  const currentById = new Map(current.map((run) => [run.run_id, run]));
+  const reused = incoming.map((run) => {
+    const previous = currentById.get(run.run_id);
+    return previous?.last_sequence === run.last_sequence && previous.updated_at === run.updated_at
+      ? previous
+      : run;
+  });
+  return reused.length === current.length && reused.every((run, index) => run === current[index])
+    ? current
+    : reused;
+};
+
+const setsEqual = (left: ReadonlySet<string>, right: ReadonlySet<string>): boolean =>
+  left.size === right.size && [...left].every((value) => right.has(value));
+
+interface MonotonicSnapshotAdoption {
+  runs: WorkflowRunSnapshot[];
+  effectiveSnapshot: WorkflowRunSnapshot | null;
+}
+
+const adoptSnapshotMonotonically = (
+  runs: readonly WorkflowRunSnapshot[],
+  incoming: WorkflowRunSnapshot,
+  minimumSequence = 0,
+): MonotonicSnapshotAdoption => {
+  const current = runs.find((run) => run.run_id === incoming.run_id);
+  if (
+    incoming.last_sequence < minimumSequence ||
+    (current !== undefined && incoming.last_sequence < current.last_sequence)
+  ) {
+    return { runs: [...runs], effectiveSnapshot: current ?? null };
+  }
+  return { runs: replaceSnapshot(runs, incoming), effectiveSnapshot: incoming };
+};
 
 const isAbortError = (error: unknown): boolean =>
   error instanceof DOMException
@@ -54,13 +100,15 @@ export const useWorkflowRuns = (
 ): UseWorkflowRunsResult => {
   const client = options.client ?? bambooWorkflowRunClient;
   const pollIntervalMs = options.pollIntervalMs ?? DEFAULT_POLL_INTERVAL_MS;
-  const [state, setState] = useState<WorkflowRunsState>({
+  const [state, setState] = useState<OwnedWorkflowRunsState>({
+    ownerSessionId: sessionId,
     runs: [],
     status: sessionId ? "loading" : "idle",
     cancellingRunIds: new Set(),
     cancelErrorRunIds: new Set(),
   });
   const runsRef = useRef<WorkflowRunSnapshot[]>([]);
+  const recoveryFloorsRef = useRef<Map<string, number>>(new Map());
   const generationRef = useRef(0);
   const activeRequestRef = useRef<{
     sessionId: string;
@@ -80,7 +128,9 @@ export const useWorkflowRuns = (
     if (!sessionId) {
       activeRequestRef.current = null;
       runsRef.current = [];
+      recoveryFloorsRef.current.clear();
       setState({
+        ownerSessionId: null,
         runs: [],
         status: "idle",
         cancellingRunIds: new Set(),
@@ -93,7 +143,9 @@ export const useWorkflowRuns = (
     const controller = new AbortController();
     activeRequestRef.current = { sessionId, generation, controller };
     runsRef.current = [];
+    recoveryFloorsRef.current.clear();
     setState({
+      ownerSessionId: sessionId,
       runs: [],
       status: "loading",
       cancellingRunIds: new Set(),
@@ -108,8 +160,6 @@ export const useWorkflowRuns = (
 
     const performSync = async (): Promise<void> => {
       const baseline = runsRef.current;
-      const expectedAfterEvents = new Map<string, number>();
-      const sequenceIssueRuns = new Set<string>();
 
       await Promise.all(
         baseline
@@ -125,12 +175,25 @@ export const useWorkflowRuns = (
               if (!isCurrent()) return;
               const replay = reconstructWorkflowRun(run, events);
               if (replay.issue) {
-                sequenceIssueRuns.add(run.run_id);
+                const recoveryFloor =
+                  replay.issue.type === "gap"
+                    ? replay.issue.received_sequence
+                    : replay.issue.sequence;
+                recoveryFloorsRef.current.set(
+                  run.run_id,
+                  Math.max(recoveryFloorsRef.current.get(run.run_id) ?? 0, recoveryFloor),
+                );
               } else if (replay.applied > 0) {
                 // Events lack attempts, budget, usage, suspension and other
                 // snapshot metadata. Record the required cursor, then publish
                 // only a refetched authoritative snapshot at/after it.
-                expectedAfterEvents.set(run.run_id, replay.run.last_sequence);
+                recoveryFloorsRef.current.set(
+                  run.run_id,
+                  Math.max(
+                    recoveryFloorsRef.current.get(run.run_id) ?? 0,
+                    replay.run.last_sequence,
+                  ),
+                );
               }
             } catch (error) {
               // A failed event read does not poison a subsequent authoritative
@@ -154,43 +217,66 @@ export const useWorkflowRuns = (
         let outOfSync = false;
         const nextRuns = snapshots.map((snapshot) => {
           const previous = currentById.get(snapshot.run_id);
-          const requiredSequence = expectedAfterEvents.get(snapshot.run_id);
+          const recoveryFloor = recoveryFloorsRef.current.get(snapshot.run_id);
 
-          if (requiredSequence !== undefined && snapshot.last_sequence < requiredSequence) {
+          if (recoveryFloor !== undefined && snapshot.last_sequence < recoveryFloor) {
             outOfSync = true;
             return previous ?? snapshot;
           }
-          if (
-            sequenceIssueRuns.has(snapshot.run_id) &&
-            previous &&
-            snapshot.last_sequence <= previous.last_sequence
-          ) {
-            outOfSync = true;
-            return previous;
-          }
           if (previous && snapshot.last_sequence < previous.last_sequence) {
+            recoveryFloorsRef.current.set(
+              snapshot.run_id,
+              Math.max(recoveryFloorsRef.current.get(snapshot.run_id) ?? 0, previous.last_sequence),
+            );
             outOfSync = true;
             return previous;
           }
+          if (recoveryFloor !== undefined) recoveryFloorsRef.current.delete(snapshot.run_id);
           return snapshot;
         });
 
+        const listedRunIds = new Set(snapshots.map((snapshot) => snapshot.run_id));
+        for (const runId of recoveryFloorsRef.current.keys()) {
+          if (!listedRunIds.has(runId)) recoveryFloorsRef.current.delete(runId);
+        }
+
         // A malformed/missing event tail for a run that disappeared from the
         // authoritative session list needs no local placeholder.
-        runsRef.current = sortRuns(nextRuns);
-        setState((current) => ({
-          ...current,
-          runs: runsRef.current,
-          status: outOfSync ? "out_of_sync" : "ready",
-        }));
+        runsRef.current = reuseUnchangedSnapshots(runsRef.current, sortRuns(nextRuns));
+        const liveRunIds = new Set(
+          runsRef.current
+            .filter((run) => !isWorkflowRunTerminal(run.status))
+            .map((run) => run.run_id),
+        );
+        setState((current) => {
+          const status = outOfSync ? "out_of_sync" : "ready";
+          const cancellingRunIds = new Set(
+            [...current.cancellingRunIds].filter((runId) => liveRunIds.has(runId)),
+          );
+          const cancelErrorRunIds = new Set(
+            [...current.cancelErrorRunIds].filter((runId) => liveRunIds.has(runId)),
+          );
+          if (
+            current.runs === runsRef.current &&
+            current.status === status &&
+            setsEqual(current.cancellingRunIds, cancellingRunIds) &&
+            setsEqual(current.cancelErrorRunIds, cancelErrorRunIds)
+          ) {
+            return current;
+          }
+          return {
+            ...current,
+            runs: runsRef.current,
+            status,
+            cancellingRunIds,
+            cancelErrorRunIds,
+          };
+        });
       } catch (error) {
         if (!isCurrent() || isAbortError(error)) return;
         setState((current) => ({
           ...current,
-          status:
-            expectedAfterEvents.size > 0 || sequenceIssueRuns.size > 0
-              ? "out_of_sync"
-              : "unavailable",
+          status: recoveryFloorsRef.current.size > 0 ? "out_of_sync" : "unavailable",
         }));
       }
     };
@@ -213,7 +299,19 @@ export const useWorkflowRuns = (
     };
   }, [client, pollIntervalMs, sessionId]);
 
-  const refresh = useCallback(() => refreshRef.current(), []);
+  const refresh = useCallback((): Promise<void> => {
+    const active = activeRequestRef.current;
+    if (
+      !sessionId ||
+      !active ||
+      active.sessionId !== sessionId ||
+      active.generation !== generationRef.current ||
+      active.controller.signal.aborted
+    ) {
+      return Promise.resolve();
+    }
+    return refreshRef.current();
+  }, [sessionId]);
 
   const cancel = useCallback(
     async (runId: string): Promise<void> => {
@@ -234,14 +332,30 @@ export const useWorkflowRuns = (
       }));
 
       let settled = false;
+      const adoptSnapshot = (snapshot: WorkflowRunSnapshot): WorkflowRunSnapshot | null => {
+        const recoveryFloor = recoveryFloorsRef.current.get(runId);
+        const adoption = adoptSnapshotMonotonically(runsRef.current, snapshot, recoveryFloor ?? 0);
+        const effectiveSnapshot = adoption.effectiveSnapshot;
+        if (
+          recoveryFloor !== undefined &&
+          effectiveSnapshot !== null &&
+          effectiveSnapshot.last_sequence >= recoveryFloor
+        ) {
+          recoveryFloorsRef.current.delete(runId);
+        }
+        runsRef.current = adoption.runs;
+        // A mutation only updates its target snapshot. Global sync health is
+        // owned by performSync, since another run can still be out of sync.
+        setState((current) => ({ ...current, runs: runsRef.current }));
+        return effectiveSnapshot;
+      };
       try {
         // Once sent, the mutation must finish independently of this pane's GET
         // lifecycle. The generation guard below prevents stale UI adoption.
         const snapshot = await client.cancel(sessionId, runId);
         if (!isCurrent()) return;
-        runsRef.current = replaceSnapshot(runsRef.current, snapshot);
-        setState((current) => ({ ...current, runs: runsRef.current, status: "ready" }));
-        settled = isWorkflowRunTerminal(snapshot.status);
+        const effectiveSnapshot = adoptSnapshot(snapshot);
+        settled = effectiveSnapshot !== null && isWorkflowRunTerminal(effectiveSnapshot.status);
       } catch (error) {
         if (!isCurrent() || isAbortError(error)) return;
         // A terminal transition can race the cancel POST (notably HTTP 409) or
@@ -250,22 +364,25 @@ export const useWorkflowRuns = (
         try {
           const snapshot = await client.getSnapshot(sessionId, runId, controller.signal);
           if (!isCurrent()) return;
-          runsRef.current = replaceSnapshot(runsRef.current, snapshot);
-          setState((current) => ({ ...current, runs: runsRef.current, status: "ready" }));
-          settled = isWorkflowRunTerminal(snapshot.status);
+          const effectiveSnapshot = adoptSnapshot(snapshot);
+          settled = effectiveSnapshot !== null && isWorkflowRunTerminal(effectiveSnapshot.status);
         } catch (rehydrateError) {
           if (!isCurrent() || isAbortError(rehydrateError)) return;
         }
       } finally {
         if (isCurrent()) {
+          const currentSnapshot = runsRef.current.find((run) => run.run_id === runId);
+          const terminalOrNoLongerListed =
+            currentSnapshot === undefined || isWorkflowRunTerminal(currentSnapshot.status);
           setState((current) => ({
             ...current,
             cancellingRunIds: new Set(
               [...current.cancellingRunIds].filter((candidate) => candidate !== runId),
             ),
-            cancelErrorRunIds: settled
-              ? new Set([...current.cancelErrorRunIds].filter((candidate) => candidate !== runId))
-              : new Set(current.cancelErrorRunIds).add(runId),
+            cancelErrorRunIds:
+              settled || terminalOrNoLongerListed
+                ? new Set([...current.cancelErrorRunIds].filter((candidate) => candidate !== runId))
+                : new Set(current.cancelErrorRunIds).add(runId),
           }));
         }
       }
@@ -273,5 +390,20 @@ export const useWorkflowRuns = (
     [client, sessionId],
   );
 
-  return { ...state, refresh, cancel };
+  const ownsCurrentSession = state.ownerSessionId === sessionId;
+  const visibleState: WorkflowRunsState = ownsCurrentSession
+    ? {
+        runs: state.runs,
+        status: state.status,
+        cancellingRunIds: state.cancellingRunIds,
+        cancelErrorRunIds: state.cancelErrorRunIds,
+      }
+    : {
+        runs: EMPTY_RUNS,
+        status: sessionId ? "loading" : "idle",
+        cancellingRunIds: EMPTY_RUN_IDS,
+        cancelErrorRunIds: EMPTY_RUN_IDS,
+      };
+
+  return { ...visibleState, refresh, cancel };
 };

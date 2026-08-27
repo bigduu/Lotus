@@ -127,6 +127,7 @@ export const enUsTranslation = {
         suspension: {
           tool_approval: "Suspended for backend-owned tool approval",
           tool_running: "Suspended while a backend tool is running",
+          tool_stopped: "Suspended after the backend tool was stopped",
           recovery: "Suspended for backend recovery",
         },
       },

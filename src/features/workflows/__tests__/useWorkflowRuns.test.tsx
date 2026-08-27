@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { useLayoutEffect } from "react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { WorkflowRunClient } from "../clients";
@@ -91,6 +92,55 @@ describe("useWorkflowRuns", () => {
     expect(result.current.runs.map((run) => run.run_id)).toEqual(["run-2"]);
   });
 
+  it("gates the previous owner before passive session reset and blocks stale controls", async () => {
+    const sessionTwo = deferred<WorkflowRunSnapshot[]>();
+    const list = vi.fn((sessionId: string) =>
+      sessionId === "session-1" ? Promise.resolve([snapshot()]) : sessionTwo.promise,
+    );
+    const cancel = vi.fn(async () => snapshot({ status: "cancelled" }));
+    const observations: Array<{
+      sessionId: string;
+      runIds: string[];
+      status: string;
+    }> = [];
+    let probedSessionSwitch = false;
+    const runClient = client({ list, cancel });
+
+    const LayoutProbe = ({ selectedSessionId }: { selectedSessionId: string }) => {
+      const runs = useWorkflowRuns(selectedSessionId, {
+        client: runClient,
+        pollIntervalMs: 60_000,
+      });
+      useLayoutEffect(() => {
+        observations.push({
+          sessionId: selectedSessionId,
+          runIds: runs.runs.map((run) => run.run_id),
+          status: runs.status,
+        });
+        if (selectedSessionId === "session-2" && !probedSessionSwitch) {
+          probedSessionSwitch = true;
+          void runs.refresh();
+          void runs.cancel("run-1");
+        }
+      }, [runs, selectedSessionId]);
+      return null;
+    };
+
+    const view = render(<LayoutProbe selectedSessionId="session-1" />);
+    await waitFor(() =>
+      expect(observations.some((entry) => entry.runIds.includes("run-1"))).toBe(true),
+    );
+    observations.length = 0;
+
+    view.rerender(<LayoutProbe selectedSessionId="session-2" />);
+    expect(observations[0]).toEqual({ sessionId: "session-2", runIds: [], status: "loading" });
+    expect(list.mock.calls.filter(([sessionId]) => sessionId === "session-1")).toHaveLength(1);
+    expect(cancel).not.toHaveBeenCalled();
+
+    await act(async () => sessionTwo.resolve([]));
+    await waitFor(() => expect(observations[observations.length - 1]?.status).toBe("ready"));
+  });
+
   it("does not adopt a completed cancel mutation after switching sessions", async () => {
     const cancelRequest = deferred<WorkflowRunSnapshot>();
     const runClient = client({
@@ -119,6 +169,11 @@ describe("useWorkflowRuns", () => {
 
   it("detects an event gap, discards the tail, and recovers only from an advanced snapshot", async () => {
     const base = snapshot();
+    const stillBehindObservedTail = snapshot({
+      status: "suspended",
+      last_sequence: 11,
+      updated_at: "2026-08-27T01:00:11Z",
+    });
     const healed = snapshot({
       status: "suspended",
       last_sequence: 12,
@@ -127,11 +182,14 @@ describe("useWorkflowRuns", () => {
     const list = vi
       .fn()
       .mockResolvedValueOnce([base])
-      .mockResolvedValueOnce([base])
+      .mockResolvedValueOnce([stillBehindObservedTail])
       .mockResolvedValueOnce([healed]);
     const runClient = client({
       list,
-      getEvents: vi.fn(async () => [runEvent(12, { type: "run_suspended" })]),
+      getEvents: vi
+        .fn()
+        .mockResolvedValueOnce([runEvent(12, { type: "run_suspended" })])
+        .mockResolvedValueOnce([]),
     });
     const { result } = renderRuns("session-1", runClient);
     await waitFor(() => expect(result.current.status).toBe("ready"));
@@ -208,6 +266,22 @@ describe("useWorkflowRuns", () => {
     expect(getEvents).not.toHaveBeenCalled();
   });
 
+  it("reuses unchanged authoritative snapshots across list discovery polls", async () => {
+    const base = snapshot();
+    const runClient = client({
+      list: vi
+        .fn()
+        .mockResolvedValueOnce([base])
+        .mockResolvedValueOnce([structuredClone(base)]),
+    });
+    const { result } = renderRuns("session-1", runClient);
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    const firstRuns = result.current.runs;
+
+    await act(async () => result.current.refresh());
+    expect(result.current.runs).toBe(firstRuns);
+  });
+
   it("never optimistically cancels and rehydrates a terminal race after one cancel intent", async () => {
     const cancelRequest = deferred<WorkflowRunSnapshot>();
     const runClient = client({
@@ -237,6 +311,106 @@ describe("useWorkflowRuns", () => {
     );
     expect(result.current.runs[0].status).toBe("succeeded");
     expect(result.current.cancelErrorRunIds.has("run-1")).toBe(false);
+  });
+
+  it("never lets a stale cancel rehydrate roll back a newer poll snapshot", async () => {
+    const rehydrate = deferred<WorkflowRunSnapshot>();
+    const advanced = snapshot({
+      status: "succeeded",
+      last_sequence: 13,
+      updated_at: "2026-08-27T01:00:13Z",
+    });
+    const runClient = client({
+      list: vi.fn().mockResolvedValueOnce([snapshot()]).mockResolvedValueOnce([advanced]),
+      cancel: vi.fn(async () => {
+        throw new Error("ambiguous response");
+      }),
+      getSnapshot: vi.fn(() => rehydrate.promise),
+    });
+    const { result } = renderRuns("session-1", runClient);
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    let cancelPromise!: Promise<void>;
+    act(() => {
+      cancelPromise = result.current.cancel("run-1");
+    });
+    await waitFor(() => expect(runClient.getSnapshot).toHaveBeenCalledTimes(1));
+
+    await act(async () => result.current.refresh());
+    expect(result.current.runs[0]).toMatchObject({ status: "succeeded", last_sequence: 13 });
+
+    rehydrate.resolve(
+      snapshot({
+        status: "cancelled",
+        last_sequence: 12,
+        updated_at: "2026-08-27T01:00:12Z",
+      }),
+    );
+    await act(async () => cancelPromise);
+    expect(result.current.runs[0]).toMatchObject({ status: "succeeded", last_sequence: 13 });
+    expect(result.current.cancelErrorRunIds.has("run-1")).toBe(false);
+  });
+
+  it("preserves another run's out-of-sync status when cancellation settles", async () => {
+    const runOne = snapshot();
+    const runTwo = snapshot({
+      run_id: "run-2",
+      workflow_id: "second",
+      last_sequence: 20,
+      created_at: "2026-08-27T02:00:00Z",
+      updated_at: "2026-08-27T02:00:20Z",
+    });
+    const runClient = client({
+      list: vi.fn().mockResolvedValueOnce([runOne, runTwo]).mockResolvedValueOnce([runOne, runTwo]),
+      getEvents: vi.fn(async (_sessionId, runId) =>
+        runId === "run-1" ? [runEvent(12, { type: "run_suspended" })] : [],
+      ),
+      cancel: vi.fn(async () =>
+        snapshot({
+          ...runTwo,
+          status: "cancelled",
+          last_sequence: 21,
+          updated_at: "2026-08-27T02:00:21Z",
+        }),
+      ),
+    });
+    const { result } = renderRuns("session-1", runClient);
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    await act(async () => result.current.refresh());
+    expect(result.current.status).toBe("out_of_sync");
+
+    await act(async () => result.current.cancel("run-2"));
+    expect(result.current.runs.find((run) => run.run_id === "run-2")).toMatchObject({
+      status: "cancelled",
+      last_sequence: 21,
+    });
+    expect(result.current.status).toBe("out_of_sync");
+  });
+
+  it("clears a prior cancel warning when the authoritative list confirms terminal state", async () => {
+    const terminal = snapshot({
+      status: "failed",
+      last_sequence: 12,
+      updated_at: "2026-08-27T01:00:12Z",
+    });
+    const runClient = client({
+      list: vi.fn().mockResolvedValueOnce([snapshot()]).mockResolvedValueOnce([terminal]),
+      cancel: vi.fn(async () => {
+        throw new Error("not confirmed");
+      }),
+      getSnapshot: vi.fn(async () => snapshot()),
+    });
+    const { result } = renderRuns("session-1", runClient);
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+
+    await act(async () => result.current.cancel("run-1"));
+    expect(result.current.cancelErrorRunIds.has("run-1")).toBe(true);
+
+    await act(async () => result.current.refresh());
+    expect(result.current.runs[0].status).toBe("failed");
+    expect(result.current.cancelErrorRunIds.has("run-1")).toBe(false);
+    expect(result.current.cancellingRunIds.has("run-1")).toBe(false);
   });
 
   it("does not let an in-flight stale list roll back an authoritative cancel response", async () => {
