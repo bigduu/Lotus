@@ -55,7 +55,20 @@ export const SessionWorkspaceShell: React.FC<SessionWorkspaceShellProps> = ({
   const sessionId = useAppStore((state) => sessionIdProp ?? state.currentSessionId);
   const currentChat = useAppStore(selectSessionById(sessionId));
   const currentMessages = useMemo(() => currentChat?.messages || [], [currentChat]);
-  const workflowRuns = useWorkflowRuns(sessionId);
+  const agentAvailability = useAppStore((state) => state.agentAvailability);
+  const activeWorkflow = currentChat?.activeWorkflow;
+  const workflowActivationKey = activeWorkflow
+    ? JSON.stringify([
+        activeWorkflow.id,
+        activeWorkflow.revision,
+        activeWorkflow.activatedAt,
+        activeWorkflow.status,
+      ])
+    : null;
+  const workflowRuns = useWorkflowRuns(sessionId, {
+    availability: agentAvailability,
+    activationKey: workflowActivationKey,
+  });
   const loadTaskList = useAppStore((state) => state.loadTaskList);
   const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);
 

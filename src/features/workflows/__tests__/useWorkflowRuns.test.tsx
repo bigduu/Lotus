@@ -1,6 +1,6 @@
 import { useLayoutEffect } from "react";
-import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkflowRunClient } from "../clients";
 import type { WorkflowRunEvent, WorkflowRunSnapshot } from "../domain";
@@ -439,5 +439,314 @@ describe("useWorkflowRuns", () => {
     await act(async () => refreshPromise);
     expect(result.current.runs[0]).toMatchObject({ status: "cancelled", last_sequence: 12 });
     expect(result.current.status).toBe("out_of_sync");
+  });
+});
+
+const flushMicrotasks = async (): Promise<void> => {
+  await act(async () => {
+    for (let index = 0; index < 8; index += 1) await Promise.resolve();
+  });
+};
+
+describe("useWorkflowRuns shared adaptive discovery", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("coalesces same-session consumers into one active discovery stream", async () => {
+    const base = snapshot();
+    const list = vi.fn(async () => [structuredClone(base)]);
+    const getEvents = vi.fn(async () => []);
+    const runClient = client({ list, getEvents });
+    const options = {
+      client: runClient,
+      pollIntervalMs: 1_000,
+      initialIdlePollIntervalMs: 2_000,
+      maxIdlePollIntervalMs: 4_000,
+    };
+
+    const first = renderHook(() => useWorkflowRuns("session-1", options));
+    const second = renderHook(() => useWorkflowRuns("session-1", options));
+    await flushMicrotasks();
+
+    expect(list).toHaveBeenCalledTimes(1);
+    expect(first.result.current.runs[0]).toBe(second.result.current.runs[0]);
+
+    await act(async () => vi.advanceTimersByTimeAsync(999));
+    expect(list).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(getEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("publishes one authoritative cancel result to every same-session consumer", async () => {
+    const cancelRequest = deferred<WorkflowRunSnapshot>();
+    const cancel = vi.fn(() => cancelRequest.promise);
+    const runClient = client({ list: vi.fn(async () => [snapshot()]), cancel });
+    const options = {
+      client: runClient,
+      pollIntervalMs: 1_000,
+      initialIdlePollIntervalMs: 2_000,
+      maxIdlePollIntervalMs: 4_000,
+    };
+    const first = renderHook(() => useWorkflowRuns("session-1", options));
+    const second = renderHook(() => useWorkflowRuns("session-1", options));
+    await flushMicrotasks();
+
+    let firstIntent!: Promise<void>;
+    let secondIntent!: Promise<void>;
+    act(() => {
+      firstIntent = first.result.current.cancel("run-1");
+      secondIntent = second.result.current.cancel("run-1");
+    });
+    expect(cancel).toHaveBeenCalledTimes(1);
+    expect(first.result.current.cancellingRunIds.has("run-1")).toBe(true);
+    expect(second.result.current.cancellingRunIds.has("run-1")).toBe(true);
+
+    cancelRequest.resolve(
+      snapshot({
+        status: "cancelled",
+        last_sequence: 12,
+        updated_at: "2026-08-27T01:00:12Z",
+      }),
+    );
+    await act(async () => Promise.all([firstIntent, secondIntent]));
+    expect(first.result.current.runs[0]).toMatchObject({
+      status: "cancelled",
+      last_sequence: 12,
+    });
+    expect(second.result.current.runs[0]).toBe(first.result.current.runs[0]);
+    expect(first.result.current.cancellingRunIds.has("run-1")).toBe(false);
+    expect(second.result.current.cancellingRunIds.has("run-1")).toBe(false);
+  });
+
+  it("keeps different sessions and polling configurations isolated", async () => {
+    const list = vi.fn(async (sessionId: string) => [snapshot({ session_id: sessionId })]);
+    const runClient = client({ list });
+
+    renderHook(() =>
+      useWorkflowRuns("session-1", {
+        client: runClient,
+        pollIntervalMs: 1_000,
+        initialIdlePollIntervalMs: 2_000,
+        maxIdlePollIntervalMs: 4_000,
+      }),
+    );
+    renderHook(() =>
+      useWorkflowRuns("session-2", {
+        client: runClient,
+        pollIntervalMs: 1_000,
+        initialIdlePollIntervalMs: 2_000,
+        maxIdlePollIntervalMs: 4_000,
+      }),
+    );
+    renderHook(() =>
+      useWorkflowRuns("session-1", {
+        client: runClient,
+        pollIntervalMs: 1_500,
+        initialIdlePollIntervalMs: 2_000,
+        maxIdlePollIntervalMs: 4_000,
+      }),
+    );
+    await flushMicrotasks();
+
+    expect(list.mock.calls.map(([sessionId]) => sessionId).sort()).toEqual([
+      "session-1",
+      "session-1",
+      "session-2",
+    ]);
+  });
+
+  it("backs empty discovery off 5s, 10s, 20s, then caps at 30s before returning to 2s", async () => {
+    const active = snapshot({ run_id: "run-late" });
+    const responses: WorkflowRunSnapshot[][] = [[], [], [], [], [active], [active]];
+    const list = vi.fn(async () => responses.shift() ?? [active]);
+    const getEvents = vi.fn(async () => []);
+    const runClient = client({ list, getEvents });
+    const view = renderHook(() => useWorkflowRuns("session-1", { client: runClient }));
+    await flushMicrotasks();
+    expect(list).toHaveBeenCalledTimes(1);
+
+    await act(async () => vi.advanceTimersByTimeAsync(4_999));
+    expect(list).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(list).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(9_999));
+    expect(list).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(list).toHaveBeenCalledTimes(3);
+
+    await act(async () => vi.advanceTimersByTimeAsync(19_999));
+    expect(list).toHaveBeenCalledTimes(3);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(list).toHaveBeenCalledTimes(4);
+
+    await act(async () => vi.advanceTimersByTimeAsync(29_999));
+    expect(list).toHaveBeenCalledTimes(4);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(list).toHaveBeenCalledTimes(5);
+    expect(view.result.current.runs[0]?.run_id).toBe("run-late");
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_999));
+    expect(list).toHaveBeenCalledTimes(5);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(list).toHaveBeenCalledTimes(6);
+    expect(getEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("backs off all-terminal discovery without requesting terminal event tails", async () => {
+    const terminal = snapshot({ status: "succeeded", last_sequence: 20 });
+    const list = vi.fn(async () => [structuredClone(terminal)]);
+    const getEvents = vi.fn(async () => []);
+    const runClient = client({ list, getEvents });
+    renderHook(() =>
+      useWorkflowRuns("session-1", {
+        client: runClient,
+        pollIntervalMs: 1_000,
+        initialIdlePollIntervalMs: 2_000,
+        maxIdlePollIntervalMs: 4_000,
+      }),
+    );
+    await flushMicrotasks();
+
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(list).toHaveBeenCalledTimes(1);
+    await act(async () => vi.advanceTimersByTimeAsync(1_000));
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(getEvents).not.toHaveBeenCalled();
+  });
+
+  it("resets mature backoff when manually refreshed", async () => {
+    const list = vi.fn(async () => []);
+    const runClient = client({ list });
+    const view = renderHook(() =>
+      useWorkflowRuns("session-1", {
+        client: runClient,
+        pollIntervalMs: 1_000,
+        initialIdlePollIntervalMs: 2_000,
+        maxIdlePollIntervalMs: 4_000,
+      }),
+    );
+    await flushMicrotasks();
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(list).toHaveBeenCalledTimes(2);
+
+    await act(async () => view.result.current.refresh());
+    expect(list).toHaveBeenCalledTimes(3);
+    await act(async () => vi.advanceTimersByTimeAsync(1_999));
+    expect(list).toHaveBeenCalledTimes(3);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(list).toHaveBeenCalledTimes(4);
+  });
+
+  it("coalesces force signals during an in-flight request into one trailing sync", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const firstRequest = deferred<WorkflowRunSnapshot[]>();
+    const trailingRequest = deferred<WorkflowRunSnapshot[]>();
+    const list = vi
+      .fn()
+      .mockReturnValueOnce(firstRequest.promise)
+      .mockReturnValueOnce(trailingRequest.promise)
+      .mockResolvedValue([]);
+    const runClient = client({ list });
+    const view = renderHook(
+      ({ availability, activationKey }) =>
+        useWorkflowRuns("session-1", {
+          client: runClient,
+          pollIntervalMs: 1_000,
+          initialIdlePollIntervalMs: 2_000,
+          maxIdlePollIntervalMs: 4_000,
+          availability,
+          activationKey,
+        }),
+      { initialProps: { availability: false, activationKey: "receipt-a" } },
+    );
+    await flushMicrotasks();
+    expect(list).toHaveBeenCalledTimes(1);
+
+    let manualRefresh!: Promise<void>;
+    act(() => {
+      manualRefresh = view.result.current.refresh();
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("online"));
+    });
+    view.rerender({ availability: true, activationKey: "receipt-b" });
+    await flushMicrotasks();
+    expect(list).toHaveBeenCalledTimes(1);
+
+    firstRequest.resolve([]);
+    await flushMicrotasks();
+    expect(list).toHaveBeenCalledTimes(2);
+
+    trailingRequest.resolve([]);
+    await act(async () => manualRefresh);
+    await flushMicrotasks();
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the shared request alive until the final consumer unmounts", async () => {
+    const inFlight = deferred<WorkflowRunSnapshot[]>();
+    let secondSignal: AbortSignal | undefined;
+    const list = vi
+      .fn()
+      .mockResolvedValueOnce([])
+      .mockImplementationOnce((_sessionId: string, signal?: AbortSignal) => {
+        secondSignal = signal;
+        return inFlight.promise;
+      });
+    const runClient = client({ list });
+    const options = {
+      client: runClient,
+      pollIntervalMs: 1_000,
+      initialIdlePollIntervalMs: 2_000,
+      maxIdlePollIntervalMs: 4_000,
+    };
+    const first = renderHook(() => useWorkflowRuns("session-1", options));
+    const second = renderHook(() => useWorkflowRuns("session-1", options));
+    await flushMicrotasks();
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(secondSignal?.aborted).toBe(false);
+
+    first.unmount();
+    expect(secondSignal?.aborted).toBe(false);
+    second.unmount();
+    expect(secondSignal?.aborted).toBe(true);
+
+    inFlight.resolve([]);
+    await flushMicrotasks();
+    await act(async () => vi.advanceTimersByTimeAsync(20_000));
+    expect(list).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not notify consumers for an unchanged authoritative snapshot", async () => {
+    const base = snapshot();
+    const list = vi.fn(async () => [structuredClone(base)]);
+    const runClient = client({ list });
+    let renderCount = 0;
+    const view = renderHook(() => {
+      renderCount += 1;
+      return useWorkflowRuns("session-1", {
+        client: runClient,
+        pollIntervalMs: 1_000,
+        initialIdlePollIntervalMs: 2_000,
+        maxIdlePollIntervalMs: 4_000,
+      });
+    });
+    await flushMicrotasks();
+    const readyRenderCount = renderCount;
+    const readyRuns = view.result.current.runs;
+
+    await act(async () => view.result.current.refresh());
+    expect(view.result.current.runs).toBe(readyRuns);
+    expect(renderCount).toBe(readyRenderCount);
   });
 });
