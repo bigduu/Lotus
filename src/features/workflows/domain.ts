@@ -103,58 +103,135 @@ export interface ActiveWorkflowView {
   arguments: Record<string, unknown>;
 }
 
-export type WorkflowRunStatus = "running" | "suspended" | "succeeded" | "failed" | "cancelled";
+/** Exact status names from Bamboo's metadata-only WorkflowRun projection. */
+export type WorkflowRunStatus =
+  | "queued"
+  | "running"
+  | "suspended"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
 
-export type WorkflowStepStatus = "pending" | WorkflowRunStatus;
+export type WorkflowStepStatus = WorkflowRunStatus | "skipped";
 
-export interface WorkflowStepView {
+export type WorkflowPlannedStepKind = "tool" | "agent" | "workflow";
+
+export interface WorkflowPlannedStep {
   id: string;
-  name: string;
-  order: number;
-  status: WorkflowStepStatus;
-  startedAt?: string;
-  completedAt?: string;
-  error?: string;
+  kind: WorkflowPlannedStepKind;
 }
 
-export interface WorkflowPhaseView {
-  id: string;
-  name: string;
-  order: number;
-  status: WorkflowStepStatus;
-  steps: WorkflowStepView[];
+/** Safe topology only. Bamboo deliberately omits bindings, arguments, prompts and outputs. */
+export type WorkflowPlan =
+  | { type: "step"; step: string }
+  | { type: "sequence"; nodes: WorkflowPlan[] }
+  | { type: "parallel"; nodes: WorkflowPlan[] }
+  | { type: "map"; body: WorkflowPlan }
+  | { type: "retry"; node: WorkflowPlan; max_attempts: number };
+
+export interface WorkflowBudgets {
+  max_concurrency: number;
+  max_agents: number;
+  max_steps: number;
+  max_retries: number;
+  max_nesting_depth: number;
+  wall_time_ms: number;
+  max_tokens?: number;
+  max_cost_micros?: number;
 }
 
-export interface WorkflowRunView {
-  runId: string;
-  workflow: ActiveWorkflowView;
+export interface WorkflowBudgetUsage {
+  steps: number;
+  retries: number;
+  agents: number;
+  tokens: number;
+  cost_micros: number;
+}
+
+export type WorkflowFailureCode =
+  | "invalid_definition"
+  | "invalid_input"
+  | "invalid_output"
+  | "unknown_reference"
+  | "permission_denied"
+  | "untrusted_workspace"
+  | "budget_exceeded"
+  | "retry_exhausted"
+  | "execution_failed"
+  | "cancelled"
+  | "recovery_suspended"
+  | "suspended"
+  | "dependency_skipped"
+  | "storage";
+
+export interface WorkflowFailure {
+  code: WorkflowFailureCode;
+  /** Bamboo supplies a fixed, redacted public summary. */
+  message: string;
+  retryable: boolean;
+}
+
+export interface WorkflowStepSnapshot {
+  id: string;
+  status: WorkflowStepStatus;
+  failure?: WorkflowFailure;
+  attempts: number;
+}
+
+export type WorkflowSuspension =
+  | { type: "tool_approval"; step_id: string }
+  | { type: "tool_running"; step_id: string; killed: boolean }
+  | { type: "recovery" };
+
+/**
+ * Safe, session-owned WorkflowRun view. Field names intentionally match the
+ * Bamboo wire contract so no second invented frontend protocol can drift.
+ */
+export interface WorkflowRunSnapshot {
+  run_id: string;
+  parent_run_id?: string;
+  parent_step_id?: string;
+  session_id: string;
+  workflow_id: string;
+  workflow_revision: number;
+  definition_bundle_hash: string;
   status: WorkflowRunStatus;
-  phases: WorkflowPhaseView[];
-  startedAt: string;
-  completedAt?: string;
-  error?: string;
-  lastSequence: number;
+  planned_steps: Record<string, WorkflowPlannedStep>;
+  plan: WorkflowPlan;
+  steps: Record<string, WorkflowStepSnapshot>;
+  budget: WorkflowBudgets;
+  usage: WorkflowBudgetUsage;
+  child_agent_count: number;
+  last_sequence: number;
+  failure?: WorkflowFailure;
+  suspension?: WorkflowSuspension;
+  created_at: string;
+  updated_at: string;
 }
 
 interface WorkflowRunEventBase {
-  eventId: string;
-  runId: string;
+  run_id: string;
   sequence: number;
+  at: string;
+  step_id?: string;
 }
 
 export type WorkflowRunEvent =
+  | (WorkflowRunEventBase & { type: "run_queued" })
+  | (WorkflowRunEventBase & { type: "run_started" })
+  | (WorkflowRunEventBase & { type: "phase"; name: string })
+  | (WorkflowRunEventBase & { type: "step_queued"; step_id: string })
+  | (WorkflowRunEventBase & { type: "step_started"; step_id: string })
+  | (WorkflowRunEventBase & { type: "step_suspended"; step_id: string })
+  | (WorkflowRunEventBase & { type: "step_completed"; step_id: string })
   | (WorkflowRunEventBase & {
-      type: "run_status";
-      status: WorkflowRunStatus;
-      completedAt?: string;
-      error?: string;
+      type: "step_failed";
+      step_id: string;
+      failure: WorkflowFailure;
     })
-  | (WorkflowRunEventBase & {
-      type: "phase_upsert";
-      phase: Omit<WorkflowPhaseView, "steps"> & { steps?: WorkflowStepView[] };
-    })
-  | (WorkflowRunEventBase & {
-      type: "step_upsert";
-      phaseId: string;
-      step: WorkflowStepView;
-    });
+  | (WorkflowRunEventBase & { type: "step_cancelled"; step_id: string })
+  | (WorkflowRunEventBase & { type: "step_skipped"; step_id: string })
+  | (WorkflowRunEventBase & { type: "run_suspended" })
+  | (WorkflowRunEventBase & { type: "run_succeeded" })
+  | (WorkflowRunEventBase & { type: "run_failed"; failure: WorkflowFailure })
+  | (WorkflowRunEventBase & { type: "run_cancelled" });

@@ -20,6 +20,8 @@ import { selectSessionById, useAppStore } from "@shared/store/appStore";
 import { useProviderStore } from "@shared/store/appStore/slices/providerSlice";
 import { PROVIDER_LABELS, type ProviderType } from "@shared/types/providerConfig";
 import { useExperienceModeStore } from "@shared/store/experienceModeStore";
+import type { UseWorkflowRunsResult } from "../../../features/workflows/useWorkflowRuns";
+import { WorkflowRunsPanel } from "./WorkflowRunsPanel";
 
 const REASONING_EFFORT_LABELS: Record<string, string> = {
   low: "Low",
@@ -326,6 +328,7 @@ export type SessionInspectorPaneProps = {
   shouldShowTaskPanel: boolean;
   hasSubAgents: boolean;
   sessionDiffSummary: SessionDiffSummary | null;
+  workflowRuns: UseWorkflowRunsResult;
 };
 
 const InspectorBody: React.FC<{
@@ -335,6 +338,7 @@ const InspectorBody: React.FC<{
   shouldShowTaskPanel: boolean;
   hasSubAgents: boolean;
   sessionDiffSummary: SessionDiffSummary | null;
+  workflowRuns: UseWorkflowRunsResult;
 }> = ({
   sessionId,
   auxReady,
@@ -342,6 +346,7 @@ const InspectorBody: React.FC<{
   shouldShowTaskPanel,
   hasSubAgents,
   sessionDiffSummary,
+  workflowRuns,
 }) => {
   const { token } = theme.useToken();
   const isAdvancedMode = useExperienceModeStore((state) => state.isAdvanced);
@@ -354,10 +359,23 @@ const InspectorBody: React.FC<{
   );
   const hasConfigSection = Boolean(chat?.config?.model_ref?.model || chat?.config?.model);
   const hasActiveWorkflowSection = Boolean(chat?.activeWorkflow);
+  const hasWorkflowRunsSection =
+    workflowRuns.runs.length > 0 ||
+    (hasActiveWorkflowSection &&
+      (workflowRuns.status === "loading" ||
+        workflowRuns.status === "unavailable" ||
+        workflowRuns.status === "out_of_sync"));
 
   const sections = useMemo(
     () =>
       [
+        {
+          key: "workflow-runs",
+          title: "Workflow Runs",
+          showTitle: false,
+          visible: hasWorkflowRunsSection,
+          node: <WorkflowRunsPanel workflowRuns={workflowRuns} />,
+        },
         {
           key: "active-workflow",
           title: "Active Workflow",
@@ -432,11 +450,13 @@ const InspectorBody: React.FC<{
       hasActiveWorkflowSection,
       hasGoalSection,
       hasSubAgents,
+      hasWorkflowRunsSection,
       isAdvancedMode,
       sessionDiffSummary,
       sessionId,
       shouldShowTaskPanel,
       showMessagesView,
+      workflowRuns,
     ],
   );
 
@@ -496,6 +516,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
   shouldShowTaskPanel,
   hasSubAgents,
   sessionDiffSummary,
+  workflowRuns,
 }) => {
   const { token } = theme.useToken();
   const { t } = useTranslation();
@@ -516,6 +537,7 @@ export const SessionInspectorPane: React.FC<SessionInspectorPaneProps> = ({
       shouldShowTaskPanel={shouldShowTaskPanel}
       hasSubAgents={hasSubAgents}
       sessionDiffSummary={sessionDiffSummary}
+      workflowRuns={workflowRuns}
     />
   );
 
