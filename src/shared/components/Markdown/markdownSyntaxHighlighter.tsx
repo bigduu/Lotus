@@ -1,13 +1,13 @@
 // This module is the real weight of syntax highlighting: PrismLight (the
 // "light" build — no bundled languages) plus a hand-picked set of language
-// grammars and the oneDark theme. It is loaded exclusively via
+// grammars and the oneLight/oneDark themes. It is loaded exclusively via
 // `React.lazy(() => import("./markdownSyntaxHighlighter"))` from
 // `MarkdownCodeBlock.tsx`, so it ships as its own async chunk instead of
 // shipping eagerly on the critical chat-render path (issue #7). Don't add a
 // static `import` of this file anywhere — that would defeat the point.
 import type { CSSProperties } from "react";
 import SyntaxHighlighter from "react-syntax-highlighter/dist/esm/prism-light";
-import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
+import { oneDark, oneLight } from "react-syntax-highlighter/dist/esm/styles/prism";
 import javascript from "react-syntax-highlighter/dist/esm/languages/prism/javascript";
 import typescript from "react-syntax-highlighter/dist/esm/languages/prism/typescript";
 import python from "react-syntax-highlighter/dist/esm/languages/prism/python";
@@ -18,6 +18,7 @@ import html from "react-syntax-highlighter/dist/esm/languages/prism/markup";
 import sql from "react-syntax-highlighter/dist/esm/languages/prism/sql";
 import yaml from "react-syntax-highlighter/dist/esm/languages/prism/yaml";
 import markdown from "react-syntax-highlighter/dist/esm/languages/prism/markdown";
+import type { SyntaxThemeMode } from "./markdownSyntax";
 
 SyntaxHighlighter.registerLanguage("javascript", javascript);
 SyntaxHighlighter.registerLanguage("js", javascript);
@@ -41,6 +42,8 @@ SyntaxHighlighter.registerLanguage("md", markdown);
 export interface MarkdownSyntaxHighlighterProps {
   language: string;
   codeString: string;
+  /** Selected by `LazySyntaxHighlighter`; callers do not set this directly. */
+  themeMode: SyntaxThemeMode;
   customStyle?: CSSProperties;
   showLineNumbers?: boolean;
   // Forwarded verbatim to the underlying `<SyntaxHighlighter>` — needed by
@@ -58,6 +61,7 @@ export interface MarkdownSyntaxHighlighterProps {
 const MarkdownSyntaxHighlighter: React.FC<MarkdownSyntaxHighlighterProps> = ({
   language,
   codeString,
+  themeMode,
   customStyle,
   showLineNumbers = false,
   codeTagProps,
@@ -65,7 +69,7 @@ const MarkdownSyntaxHighlighter: React.FC<MarkdownSyntaxHighlighterProps> = ({
   className,
 }) => (
   <SyntaxHighlighter
-    style={oneDark}
+    style={themeMode === "dark" ? oneDark : oneLight}
     language={language}
     PreTag={PreTag}
     customStyle={customStyle}
