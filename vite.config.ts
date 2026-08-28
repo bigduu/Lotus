@@ -92,7 +92,7 @@ export default defineConfig(async ({ command }) => ({
           "vendor-markdown": ["react-markdown", "remark-gfm", "remark-breaks", "rehype-sanitize"],
           // Pin the lazy-loaded highlighter to its own named chunk, rooted
           // at our wrapper module — everything it exclusively reaches
-          // (PrismLight, the oneDark theme, the 10 registered language
+          // (PrismLight, the oneLight/oneDark themes, the 10 registered language
           // grammars) is co-located here by Rollup rather than left for
           // `experimentalMinChunkSize` below to fuse into whatever unrelated
           // async chunk happens to be small at build time. Verified lean:
