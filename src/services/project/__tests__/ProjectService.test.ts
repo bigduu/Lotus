@@ -17,7 +17,6 @@ const manifest: ProjectManifest = {
   updated_at: "2026-07-28T01:00:00Z",
   schema_version: 1,
   workspace_bindings: [{ path: "/repo/zenith-worktree" }],
-  legacy_project_keys: ["legacy-zenith"],
 };
 
 describe("ProjectService", () => {
@@ -104,10 +103,6 @@ describe("ProjectService", () => {
     await service.unarchiveProject("project/with spaces", 7);
     await service.getProjectResources("project/with spaces");
     await service.legacyDryRun({ sessions: [] });
-    await service.migrateLegacyMemory("project/with spaces", 7, {
-      legacy_project_key: "legacy/key",
-    });
-    await service.getLegacyMemoryMigrationStatus("project/with spaces", "legacy/key");
 
     expect(
       fetchMock.mock.calls.map(([url, init]) => [url, (init as RequestInit | undefined)?.method]),
@@ -122,14 +117,6 @@ describe("ProjectService", () => {
       ["http://127.0.0.1:9562/api/v1/projects/project%2Fwith%20spaces/unarchive", "POST"],
       ["http://127.0.0.1:9562/api/v1/projects/project%2Fwith%20spaces/resources", "GET"],
       ["http://127.0.0.1:9562/api/v1/projects/migrations/legacy/dry-run", "POST"],
-      [
-        "http://127.0.0.1:9562/api/v1/projects/project%2Fwith%20spaces/migrations/legacy-memory",
-        "POST",
-      ],
-      [
-        "http://127.0.0.1:9562/api/v1/projects/project%2Fwith%20spaces/migrations/legacy-memory?legacy_project_key=legacy%2Fkey",
-        "GET",
-      ],
     ]);
   });
 });

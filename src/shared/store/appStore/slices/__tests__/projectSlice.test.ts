@@ -42,7 +42,6 @@ const makeManifest = (id: string, overrides: Partial<ProjectManifest> = {}): Pro
   updated_at: "2025-03-01T00:00:00Z",
   schema_version: 1,
   workspace_bindings: [{ path: `/repo/${id}-worktree`, label: null, git_common_dir: null }],
-  legacy_project_keys: [],
   ...overrides,
 });
 
@@ -238,7 +237,6 @@ describe("projectSlice", () => {
             ...makeSummary("p1"),
             schema_version: 1,
             workspace_bindings: [],
-            legacy_project_keys: [],
           },
         },
       });
@@ -427,13 +425,11 @@ describe("projectSlice", () => {
         status: "archived",
         revision: 4,
         resource_revision: 9,
-        legacy_project_keys: ["legacy-p1"],
       });
       const restored = makeManifest("p1", {
         status: "active",
         revision: 5,
         resource_revision: 9,
-        legacy_project_keys: ["legacy-p1"],
       });
       unarchiveProject.mockResolvedValue(restored);
       const harness = createHarness();
@@ -453,7 +449,6 @@ describe("projectSlice", () => {
         revision: 5,
         resource_revision: 9,
         project_path: "/repo/p1",
-        legacy_project_keys: ["legacy-p1"],
       });
       expect(harness.getState().activeProjectId).toBe("p2");
     });
@@ -498,27 +493,5 @@ describe("projectSlice", () => {
         expect(harness.getState().activeProjectId).toBe("p2");
       },
     );
-  });
-
-  describe("migrateLegacyMemory", () => {
-    it("does not fabricate a manifest for an unknown project", async () => {
-      const harness = createHarness();
-      const migrateLegacyMemory = vi.fn().mockResolvedValue({
-        project_id: "ghost",
-        project_revision: 7,
-        migration: null,
-      });
-      // Swap the service method for this test only.
-      const { projectService } = await import("@services/project");
-      const original = projectService.migrateLegacyMemory;
-      projectService.migrateLegacyMemory = migrateLegacyMemory;
-      try {
-        await harness.getState().migrateLegacyMemory("ghost", 1, "legacy-key");
-      } finally {
-        projectService.migrateLegacyMemory = original;
-      }
-
-      expect(harness.getState().projects["ghost"]).toBeUndefined();
-    });
   });
 });

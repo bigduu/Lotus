@@ -31,7 +31,6 @@ export type ProjectManifest = {
     label?: string | null;
     git_common_dir?: string | null;
   }>;
-  legacy_project_keys: string[];
   schema_version: number;
   created_at: string;
   updated_at: string;

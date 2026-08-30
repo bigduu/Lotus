@@ -3,8 +3,8 @@
  *
  * Projects are stored by opaque `id`. Today Bamboo's list endpoint returns
  * full manifests; a future slim summary (Bamboo-agent#727) would arrive
- * without `workspace_bindings`/`legacy_project_keys`. The slice preserves
- * those manifest-level fields when a newer summary without them arrives,
+ * without `workspace_bindings`. The slice preserves that manifest-level field
+ * when a newer summary without it arrives,
  * and tracks which ids actually had their detail loaded (`detail_loaded`)
  * so `ensureProject` can tell a real manifest apart from a summary
  * synthesis. Ids that returned 404 are tombstoned (`projectsMissing`) to
@@ -15,7 +15,6 @@ import type { StateCreator } from "zustand";
 import {
   projectService,
   type CreateProjectRequest,
-  type LegacyMemoryMigrationResponse,
   type LegacyProjectDryRunReport,
   type LegacySessionProjectInput,
   type PatchProjectRequest,
@@ -68,11 +67,6 @@ export interface ProjectSlice {
   unbindWorkspace: (projectId: string, revision: number, path: string) => Promise<ProjectManifest>;
   loadProjectResources: (projectId: string) => Promise<ProjectResourceSummary>;
   legacyDryRun: (sessions: LegacySessionProjectInput[]) => Promise<LegacyProjectDryRunReport>;
-  migrateLegacyMemory: (
-    projectId: string,
-    revision: number,
-    legacyProjectKey: string,
-  ) => Promise<LegacyMemoryMigrationResponse>;
   applyProjectEvent: (event: ProjectAccountEvent) => void;
 }
 
@@ -433,40 +427,6 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
       return projectService.legacyDryRun({ sessions });
     },
 
-    migrateLegacyMemory: async (projectId, revision, legacyProjectKey) => {
-      const id = createProjectKey(projectId);
-      if (!id) throw new Error("Invalid project id");
-      const response = await projectService.migrateLegacyMemory(id, revision, {
-        legacy_project_key: legacyProjectKey,
-      });
-      set((state) => {
-        const projectResources = {
-          ...state.projectResources,
-          [id]: {
-            project_id: id,
-            resource_revision: response.project_revision,
-            resources: state.projectResources[id]?.resources ?? [],
-          },
-        };
-        const existing = state.projects[id];
-        if (!existing || response.project_revision <= existing.revision) {
-          return { projectResources };
-        }
-        // Note: `resource_revision` is owned by the resources endpoint and is
-        // deliberately NOT guessed from the migration's project revision.
-        const manifest: ProjectManifest = {
-          ...existing,
-          revision: response.project_revision,
-          updated_at: new Date().toISOString(),
-          legacy_project_keys: existing.legacy_project_keys.includes(legacyProjectKey)
-            ? existing.legacy_project_keys
-            : [...existing.legacy_project_keys, legacyProjectKey],
-        };
-        return { projects: { ...state.projects, [id]: manifest }, projectResources };
-      });
-      return response;
-    },
-
     applyProjectEvent: (event) => {
       if (
         event.type !== "project_created" &&
@@ -522,8 +482,8 @@ export const createProjectSlice: StateCreator<AppState, [], [], ProjectSlice> = 
 
 /**
  * Merge a ProjectSummary or ProjectManifest into a normalized map. Preserves
- * manifest-only fields (workspace_bindings, legacy_project_keys) when the
- * incoming payload is a newer summary without those arrays, and marks records
+ * the manifest-only `workspace_bindings` field when the incoming payload is a
+ * newer summary without that array, and marks records
  * whose detail genuinely came from the API (`detail_loaded`).
  */
 function mergeProjectIntoMap(
@@ -542,7 +502,6 @@ function mergeProjectIntoMap(
     ...project,
     schema_version: existing?.schema_version ?? 1,
     workspace_bindings: existing?.workspace_bindings ?? [],
-    legacy_project_keys: existing?.legacy_project_keys ?? [],
     detail_loaded: existing?.detail_loaded ?? false,
   };
   map[project.id] = next;

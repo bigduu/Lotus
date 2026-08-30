@@ -78,7 +78,6 @@ test.describe("Session Project picker and lifecycle (#208 / #725)", () => {
           git_common_dir: "/repo/zenith/.git",
         },
       ],
-      legacy_project_keys: [],
     };
 
     const targetProject = {

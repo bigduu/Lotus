@@ -9,9 +9,6 @@
 import { agentApiClient } from "../api";
 import type {
   CreateProjectRequest,
-  LegacyMemoryMigrationRequest,
-  LegacyMemoryMigrationResponse,
-  LegacyMemoryMigrationStatusResponse,
   LegacyProjectDryRunReport,
   LegacyProjectDryRunRequest,
   PatchProjectRequest,
@@ -150,35 +147,6 @@ export class ProjectService {
       unassigned: report.unassigned ?? [],
       diagnostics: report.diagnostics ?? [],
     };
-  }
-
-  async migrateLegacyMemory(
-    projectId: string,
-    revision: number,
-    req: LegacyMemoryMigrationRequest,
-  ): Promise<LegacyMemoryMigrationResponse> {
-    return agentApiClient.post<LegacyMemoryMigrationResponse>(
-      `projects/${encodeURIComponent(projectId)}/migrations/legacy-memory`,
-      req,
-      {
-        headers: this.etagHeader(revision),
-        signal: this.signal(),
-      },
-    );
-  }
-
-  async getLegacyMemoryMigrationStatus(
-    projectId: string,
-    legacyProjectKey: string,
-  ): Promise<LegacyMemoryMigrationStatusResponse> {
-    const encodedProjectId = encodeURIComponent(projectId);
-    const encodedKey = encodeURIComponent(legacyProjectKey);
-    return agentApiClient.get<LegacyMemoryMigrationStatusResponse>(
-      `projects/${encodedProjectId}/migrations/legacy-memory?legacy_project_key=${encodedKey}`,
-      {
-        signal: this.signal(),
-      },
-    );
   }
 }
 

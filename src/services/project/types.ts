@@ -35,7 +35,6 @@ export interface ProjectSummary {
 export interface ProjectManifest extends ProjectSummary {
   schema_version: number;
   workspace_bindings: WorkspaceBinding[];
-  legacy_project_keys: string[];
 }
 
 export interface ProjectListResponse {
@@ -80,7 +79,6 @@ export interface LegacySessionProjectInput {
   workspace_path?: string | null;
   canonical_path?: string | null;
   git_common_dir?: string | null;
-  legacy_project_keys?: string[];
 }
 
 export interface LegacyProjectAssignment {
@@ -93,7 +91,6 @@ export interface LegacyProjectSuggestion {
   basis: "exact_canonical_binding" | "git_common_dir";
   session_ids: string[];
   workspace_paths: string[];
-  legacy_project_keys: string[];
 }
 
 export interface LegacyProjectUnassigned {
@@ -110,47 +107,6 @@ export interface LegacyProjectDryRunReport {
 
 export interface LegacyProjectDryRunRequest {
   sessions: LegacySessionProjectInput[];
-}
-
-export interface LegacyMemoryMigrationRequest {
-  legacy_project_key: string;
-}
-
-export interface LegacyMemoryMigrationFile {
-  relative_path: string;
-  size: number;
-  sha256: string;
-  disposition:
-    | "pending"
-    | "staged"
-    | "copied"
-    | "existing_identical"
-    | "target_conflict"
-    | "skipped_invalid";
-  diagnostic?: string | null;
-}
-
-export interface LegacyMemoryMigrationReport {
-  project_id: string;
-  legacy_project_key: string;
-  transaction_id: string;
-  phase: "copying" | "verified" | "committed";
-  files: LegacyMemoryMigrationFile[];
-  started_at: string;
-  updated_at: string;
-  committed_at?: string | null;
-}
-
-export interface LegacyMemoryMigrationResponse {
-  project_id: string;
-  project_revision: number;
-  migration: LegacyMemoryMigrationReport;
-}
-
-export interface LegacyMemoryMigrationStatusResponse {
-  project_id: string;
-  legacy_project_key: string;
-  migration: LegacyMemoryMigrationReport;
 }
 
 export interface ProjectServiceOptions {
