@@ -34,7 +34,6 @@ const project = (
   updated_at: "2026-01-01T00:00:00Z",
   schema_version: 2,
   workspace_bindings: bindings,
-  legacy_project_keys: [],
 });
 
 const ZENITH = project("proj-zenith", "Zenith", "/repo/zenith", [

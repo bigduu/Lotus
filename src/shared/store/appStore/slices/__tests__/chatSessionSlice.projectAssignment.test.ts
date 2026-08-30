@@ -44,7 +44,6 @@ const project = (id: string, status: "active" | "archived" = "active"): ProjectM
   updated_at: "2026-01-01T00:00:00Z",
   schema_version: 2,
   workspace_bindings: [],
-  legacy_project_keys: [],
 });
 
 const chat = (kind: "root" | "child" = "root"): ChatItem =>

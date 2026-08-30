@@ -113,7 +113,6 @@ const makeProject = (id: string, overrides: Partial<ProjectManifest> = {}): Proj
   updated_at: "2026-07-29T00:00:00Z",
   schema_version: 1,
   workspace_bindings: [],
-  legacy_project_keys: [],
   ...overrides,
 });
 

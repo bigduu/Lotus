@@ -9,18 +9,14 @@ import type { ProjectManifest } from "@services/project";
 
 const {
   mockLegacyDryRun,
-  mockGetLegacyMemoryMigrationStatus,
   mockGetSessionWithVersion,
   mockReassignSessionProject,
   mockCreateProject,
-  mockMigrateLegacyMemory,
 } = vi.hoisted(() => ({
   mockLegacyDryRun: vi.fn(),
-  mockGetLegacyMemoryMigrationStatus: vi.fn(),
   mockGetSessionWithVersion: vi.fn(),
   mockReassignSessionProject: vi.fn(),
   mockCreateProject: vi.fn(),
-  mockMigrateLegacyMemory: vi.fn(),
 }));
 
 vi.mock("@services/project", async (importOriginal) => {
@@ -30,9 +26,7 @@ vi.mock("@services/project", async (importOriginal) => {
     projectService: {
       ...actual.projectService,
       legacyDryRun: mockLegacyDryRun,
-      getLegacyMemoryMigrationStatus: mockGetLegacyMemoryMigrationStatus,
       createProject: mockCreateProject,
-      migrateLegacyMemory: mockMigrateLegacyMemory,
     },
   };
 });
@@ -77,7 +71,6 @@ const ZENITH: ProjectManifest = {
   updated_at: "2025-03-01T00:00:00Z",
   schema_version: 1,
   workspace_bindings: [],
-  legacy_project_keys: [],
 };
 
 const REPORT = {
@@ -87,7 +80,6 @@ const REPORT = {
       basis: "git_common_dir",
       session_ids: ["s2", "s3"],
       workspace_paths: ["/repo/s2", "/repo/s3"],
-      legacy_project_keys: [],
     },
   ],
   unassigned: [{ session_id: "s4", reason: "no binding match" }],
@@ -104,11 +96,9 @@ const renderModal = () =>
 describe("LegacyMigrationModal (#156)", () => {
   beforeEach(() => {
     mockLegacyDryRun.mockReset();
-    mockGetLegacyMemoryMigrationStatus.mockReset();
     mockGetSessionWithVersion.mockReset();
     mockReassignSessionProject.mockReset();
     mockCreateProject.mockReset();
-    mockMigrateLegacyMemory.mockReset();
 
     mockLegacyDryRun.mockResolvedValue(REPORT);
     mockGetSessionWithVersion.mockImplementation((sessionId: string) =>
@@ -153,7 +143,6 @@ describe("LegacyMigrationModal (#156)", () => {
     });
     expect(input.sessions[0]).not.toHaveProperty("canonical_path");
     expect(input.sessions[0]).not.toHaveProperty("git_common_dir");
-    expect(input.sessions[0]).not.toHaveProperty("legacy_project_keys");
   });
 
   it("shows the empty state when every root session already belongs to a project", async () => {

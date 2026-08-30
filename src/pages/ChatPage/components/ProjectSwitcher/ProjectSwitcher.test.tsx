@@ -30,7 +30,6 @@ const makeProject = (id: string, name: string, status: "active" | "archived" = "
     updated_at: "2025-03-01T00:00:00Z",
     schema_version: 1,
     workspace_bindings: [],
-    legacy_project_keys: [],
     detail_loaded: true,
   }) as ProjectManifest;
 

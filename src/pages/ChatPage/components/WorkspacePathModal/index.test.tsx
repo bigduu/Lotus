@@ -79,7 +79,6 @@ const PROJECT: ProjectManifest = {
       git_common_dir: "/repo/zenith/.git",
     },
   ],
-  legacy_project_keys: [],
 };
 
 const renderModal = (

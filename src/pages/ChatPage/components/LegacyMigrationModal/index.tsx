@@ -21,12 +21,7 @@ import { useShallow } from "zustand/react/shallow";
 import { useAppStore } from "@shared/store/appStore";
 import { AgentClient } from "@services/chat/AgentService";
 import { isApiError } from "@services/api";
-import { projectService } from "@services/project";
-import type {
-  LegacyMemoryMigrationReport,
-  LegacyProjectDryRunReport,
-  LegacyProjectSuggestion,
-} from "@services/project";
+import type { LegacyProjectDryRunReport, LegacyProjectSuggestion } from "@services/project";
 
 const { Text } = Typography;
 
@@ -51,7 +46,7 @@ const suggestionKey = (suggestion: LegacyProjectSuggestion): string =>
 const defaultNewProjectName = (suggestion: LegacyProjectSuggestion): string => {
   // Prefill from the suggestion's own data as a *starting point* — the user
   // must still confirm ( Lotus #134: never auto-create one project per path).
-  const source = suggestion.legacy_project_keys[0] ?? suggestion.workspace_paths[0] ?? "";
+  const source = suggestion.workspace_paths[0] ?? "";
   const segments = source
     .replace(/[/\\]+$/, "")
     .split(/[/\\]+/)
@@ -62,27 +57,18 @@ const defaultNewProjectName = (suggestion: LegacyProjectSuggestion): string => {
 /**
  * Legacy session migration wizard (#156): dry-run analysis of unassigned
  * sessions, user-confirmed batch assignment (existing or newly created
- * Projects), optional legacy-memory migration, and a skip path that leaves
- * everything reachable in the Unassigned group.
+ * Projects), and a skip path that leaves everything reachable in the
+ * Unassigned group.
  */
 const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClose }) => {
   const { t } = useTranslation();
   const { message } = AntdApp.useApp();
-  const {
-    chats,
-    projects,
-    legacyDryRun,
-    createProject,
-    migrateLegacyMemory,
-    refreshChats,
-    loadProjects,
-  } = useAppStore(
+  const { chats, projects, legacyDryRun, createProject, refreshChats, loadProjects } = useAppStore(
     useShallow((state) => ({
       chats: state.chats,
       projects: state.projects,
       legacyDryRun: state.legacyDryRun,
       createProject: state.createProject,
-      migrateLegacyMemory: state.migrateLegacyMemory,
       refreshChats: state.refreshChats,
       loadProjects: state.loadProjects,
     })),
@@ -93,12 +79,8 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
   const [loadError, setLoadError] = useState<string | null>(null);
   const [checkedSessions, setCheckedSessions] = useState<Set<string>>(new Set());
   const [targets, setTargets] = useState<Record<string, SuggestionTarget>>({});
-  const [memoryKeys, setMemoryKeys] = useState<Set<string>>(new Set());
   const [applying, setApplying] = useState(false);
   const [applyResults, setApplyResults] = useState<Record<string, ApplyStatus>>({});
-  const [memoryReports, setMemoryReports] = useState<Record<string, LegacyMemoryMigrationReport>>(
-    {},
-  );
   const dryRunAttemptedRef = useRef(false);
 
   const unassignedRoots = useMemo(
@@ -130,7 +112,6 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
     setReport(null);
     setLoadError(null);
     setApplyResults({});
-    setMemoryReports({});
     setApplying(false);
 
     const roots = unassignedRoots;
@@ -152,7 +133,6 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
           nextTargets[suggestionKey(suggestion)] = { mode: "skip" };
         }
         setTargets(nextTargets);
-        setMemoryKeys(new Set());
       })
       .catch((error: unknown) => {
         setLoadError(error instanceof Error ? error.message : String(error));
@@ -213,23 +193,6 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
   }, [report, targets]);
 
   const applyCount = checkedSessions.size + resolvedSuggestionAssignments.length;
-
-  const pollMemoryMigration = useCallback(
-    async (projectId: string, legacyKey: string) => {
-      let lastPhase: string | null = null;
-      for (let attempt = 0; attempt < 15; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        const status = await projectService.getLegacyMemoryMigrationStatus(projectId, legacyKey);
-        lastPhase = status.migration.phase;
-        setMemoryReports((prev) => ({ ...prev, [legacyKey]: status.migration }));
-        if (status.migration.phase === "committed") return;
-      }
-      if (lastPhase !== "committed") {
-        message.warning(t("chat.migration.memoryPending"));
-      }
-    },
-    [message, t],
-  );
 
   const handleApply = async () => {
     if (!report) return;
@@ -305,31 +268,7 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
       setApplyResults({ ...results });
     }
 
-    // 3. Optional legacy-memory migration for opted-in keys.
-    for (const legacyKey of memoryKeys) {
-      // Find the target project chosen for the suggestion carrying this key.
-      const suggestion = report.suggestions.find((s) => s.legacy_project_keys.includes(legacyKey));
-      if (!suggestion) continue;
-      const target = targets[suggestionKey(suggestion)];
-      if (!target || target.mode === "skip") continue;
-      const projectId =
-        target.mode === "new"
-          ? projectIdByKey[suggestionKey(suggestion)]
-          : target.mode === "existing"
-            ? target.projectId
-            : undefined;
-      if (!projectId) continue;
-      try {
-        const revision = useAppStore.getState().projects[projectId]?.revision ?? 0;
-        const response = await migrateLegacyMemory(projectId, revision, legacyKey);
-        setMemoryReports((prev) => ({ ...prev, [legacyKey]: response.migration }));
-        await pollMemoryMigration(projectId, legacyKey);
-      } catch (error) {
-        message.warning(error instanceof Error ? error.message : String(error));
-      }
-    }
-
-    // 4. Reconcile the sidebar + project store with the backend.
+    // 3. Reconcile the sidebar + project store with the backend.
     await Promise.all([refreshChats().catch(() => {}), loadProjects().catch(() => {})]);
     setApplying(false);
   };
@@ -503,36 +442,7 @@ const LegacyMigrationModal: React.FC<LegacyMigrationModalProps> = ({ open, onClo
                               }
                             />
                           ) : null}
-                          {suggestion.legacy_project_keys.length > 0 && target.mode !== "skip" ? (
-                            <Checkbox
-                              disabled={applying}
-                              checked={suggestion.legacy_project_keys.every((legacyKey) =>
-                                memoryKeys.has(legacyKey),
-                              )}
-                              onChange={(event) => {
-                                setMemoryKeys((prev) => {
-                                  const next = new Set(prev);
-                                  for (const legacyKey of suggestion.legacy_project_keys) {
-                                    if (event.target.checked) next.add(legacyKey);
-                                    else next.delete(legacyKey);
-                                  }
-                                  return next;
-                                });
-                              }}
-                            >
-                              {t("chat.migration.migrateMemory")}
-                            </Checkbox>
-                          ) : null}
                         </Flex>
-                        {suggestion.legacy_project_keys.map((legacyKey) =>
-                          memoryReports[legacyKey] ? (
-                            <Text key={legacyKey} type="secondary" style={{ fontSize: 12 }}>
-                              {t("chat.migration.memoryPhase", {
-                                phase: memoryReports[legacyKey].phase,
-                              })}
-                            </Text>
-                          ) : null,
-                        )}
                       </Flex>
                     </List.Item>
                   );

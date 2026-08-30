@@ -229,7 +229,6 @@ describe("EmptyTaskLauncher", () => {
           updated_at: "2025-03-01T00:00:00Z",
           schema_version: 1,
           workspace_bindings: [],
-          legacy_project_keys: [],
         },
       },
     } as any);

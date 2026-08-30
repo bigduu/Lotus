@@ -789,7 +789,6 @@ describe("ChatSidebar", () => {
       updated_at: "2025-03-01T00:00:00Z",
       schema_version: 1,
       workspace_bindings: [],
-      legacy_project_keys: [],
       // Records normally land in the store via mergeProjectIntoMap, which
       // stamps detail_loaded; without it the sidebar would refetch (and, in
       // tests, hit the mocked failing getProject).

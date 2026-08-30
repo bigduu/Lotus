@@ -2,10 +2,6 @@ export { ProjectService, projectService } from "./ProjectService";
 export type { ProjectServiceOptions } from "./types";
 export type {
   CreateProjectRequest,
-  LegacyMemoryMigrationReport,
-  LegacyMemoryMigrationRequest,
-  LegacyMemoryMigrationResponse,
-  LegacyMemoryMigrationStatusResponse,
   LegacyProjectAssignment,
   LegacyProjectDryRunReport,
   LegacyProjectDryRunRequest,

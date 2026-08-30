@@ -593,7 +593,6 @@ test.describe("Project-first real Bamboo workflows (#158)", () => {
       });
       expect(retryDryRunInput).not.toHaveProperty("canonical_path");
       expect(retryDryRunInput).not.toHaveProperty("git_common_dir");
-      expect(retryDryRunInput).not.toHaveProperty("legacy_project_keys");
       const dryRunReport = (await dryRunResponse.json()) as {
         assignments: Array<{ session_id: string; project_id: string; basis: string }>;
       };

@@ -505,8 +505,6 @@ export const zhCnTranslation = {
         newProjectName: "新项目名称",
         newProjectPath: "项目文件夹（请明确确认）",
         sessionCount: "{{count}} 个会话",
-        migrateMemory: "同时迁移旧记忆",
-        memoryPhase: "记忆迁移：{{phase}}",
         apply: "归属所选（{{count}}）",
         applying: "正在归属…",
         skip: "暂时跳过",
@@ -515,7 +513,6 @@ export const zhCnTranslation = {
         childrenInherit: "子会话会继承其根会话的项目。",
         noVersion: "无法获取会话元数据版本，请重试",
         runningConflict: "会话正在运行，请先停止再迁移",
-        memoryPending: "记忆迁移仍在后台进行",
       },
       workspace: {
         modalTitle: "设置工作区路径",

@@ -524,8 +524,6 @@ export const enUsTranslation = {
         newProjectName: "New project name",
         newProjectPath: "Project folder (confirm explicitly)",
         sessionCount: "{{count}} sessions",
-        migrateMemory: "Also migrate legacy memory",
-        memoryPhase: "Memory migration: {{phase}}",
         apply: "Assign selected ({{count}})",
         applying: "Assigning…",
         skip: "Skip for now",
@@ -534,7 +532,6 @@ export const enUsTranslation = {
         childrenInherit: "Child sessions inherit their root session's project.",
         noVersion: "Session metadata version unavailable — please retry",
         runningConflict: "Session is running — stop it before migrating",
-        memoryPending: "Memory migration is still running in the background",
       },
       workspace: {
         modalTitle: "Set Workspace Path",
