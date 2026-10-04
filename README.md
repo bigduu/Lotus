@@ -2,6 +2,8 @@
 
 > 中文版见 [README.zh-CN.md](./README.zh-CN.md).
 
+> **Legacy frontend.** [Lotus Next](https://github.com/bigduu/lotus-next) is the default UI for current Bamboo and Bodhi. This repository remains as the explicit rollback option (`@bigduu/lotus`); start new work in Lotus Next.
+
 Lotus is the React + Vite user interface for [Bamboo Agent](https://github.com/bigduu/Bamboo-agent). It presents conversations, streaming output, tool activity, plans, clarifications, and settings; agent execution remains owned by Bamboo.
 
 ## Runtime boundary
@@ -97,3 +99,8 @@ Therefore Bodhi production does **not** use Lotus `dist/` directly as Tauri's `f
 - [Bodhi Server](https://github.com/bigduu/bodhi-server) — hosted services used by the product where applicable.
 - [Pavilion](https://github.com/bigduu/Pavilion) — the public website and documentation surface.
 - [Zenith](https://github.com/bigduu/Zenith) — the aggregate repository that pins the component repositories as submodules.
+
+## License
+
+Project-owned code and documentation are licensed under the [MIT License](./LICENSE).
+Third-party components retain their respective licenses and copyright notices.
