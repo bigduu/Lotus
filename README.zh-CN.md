@@ -2,6 +2,8 @@
 
 > English version: [README.md](./README.md).
 
+> **旧版前端。**当前 Bamboo 和 Bodhi 默认使用 [Lotus Next](https://github.com/bigduu/lotus-next)。本仓库仅作为显式的回滚选项（`@bigduu/lotus`）保留；新的开发请在 Lotus Next 中进行。
+
 Lotus 是 [Bamboo Agent](https://github.com/bigduu/Bamboo-agent) 的 React + Vite 用户界面。它负责呈现会话、流式输出、工具活动、计划、追问和设置；智能体执行仍由 Bamboo 负责。
 
 ## 运行边界
@@ -97,3 +99,7 @@ npm run build
 - [Bodhi Server](https://github.com/bigduu/bodhi-server) — 产品在适用场景使用的托管服务。
 - [Pavilion](https://github.com/bigduu/Pavilion) — 公共网站与文档界面。
 - [Zenith](https://github.com/bigduu/Zenith) — 以 Git submodule 固定各组件仓库版本的聚合仓库。
+
+## 许可证
+
+项目自有代码和文档采用 [MIT 许可证](./LICENSE)。第三方组件保留各自的许可证和版权声明。
